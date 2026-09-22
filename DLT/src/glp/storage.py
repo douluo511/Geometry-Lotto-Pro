@@ -78,27 +78,50 @@ class Store:
         atomic_json(self.freeze_archive_path, {"schema": 1, "freezes": values})
 
     def rebuild_ledger(self) -> dict[str, Any]:
-        # Preserve corrupt bytes for forensics, then rebuild SQLite and restore immutable
-        # freezes from the sidecar archive. Replays are regenerated from canonical history.
+        # Preserve corrupt bytes for forensics, then rebuild SQLite and restore
+        # immutable freezes from the sidecar archive.
+        #
+        # Windows is stricter than POSIX about replacing an open SQLite file.
+        # First force a WAL checkpoint through a short-lived connection, then
+        # close that connection before moving the database files.
         stamp = utc_now().replace(":", "").replace("-", "")
         backups: list[str] = []
-        for suffix in ("", "-wal", "-shm"):
+
+        try:
+            with self._connect() as db:
+                db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        except Exception:
+            # A corrupt database may not be checkpointable. Recovery must still
+            # be allowed to continue when no usable SQLite connection exists.
+            pass
+
+        # At this point no connection created by this method remains open.
+        # Move sidecars first, and the main database last.
+        for suffix in ("-wal", "-shm", ""):
             src = Path(str(self.db_path) + suffix)
             if src.exists():
                 dst = self.root / f"{src.name}.corrupt.{stamp}.bak"
                 os.replace(src, dst)
                 backups.append(str(dst))
+
         self._db_init_error = ""
         self._archive_init_error = ""
         self._init_db()
+
         restored = 0
         if self.freeze_archive_path.exists():
-            value = json.loads(self.freeze_archive_path.read_text(encoding="utf-8"))
+            value = json.loads(
+                self.freeze_archive_path.read_text(encoding="utf-8")
+            )
             for item in value.get("freezes", []):
                 pred = Prediction(**item)
                 self.freeze(pred)
                 restored += 1
-        return {"backups": backups, "restored_freezes": restored}
+
+        return {
+            "backups": backups,
+            "restored_freezes": restored,
+        }
 
     def save_dataset(self, dataset: CanonicalDataset, evidence: dict[str, Any]) -> None:
         payload = {
