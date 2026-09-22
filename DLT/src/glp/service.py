@@ -284,13 +284,13 @@ def self_test(root: Path | None = None) -> dict[str, Any]:
             raise AssertionError("stale Evidence Court was reused across canonical hashes")
     check("Stale court rejection", stale_court_rejection)
 
-        def ledger_rebuild_recovery():
+    def ledger_rebuild_recovery():
         test_root = store.root / "_ledger_rebuild_selftest"
         if test_root.exists():
             shutil.rmtree(test_root, ignore_errors=True)
         try:
             s2 = Store(test_root)
-            pred = Prediction("recovery", "26998", "2026-12-30", utc_now(), [1,2,3,4,5], [1,2])
+            pred = Prediction("recovery", "26998", "2026-12-30", utc_now(), [1, 2, 3, 4, 5], [1, 2])
             s2.freeze(pred)
 
             # Close/checkpoint WAL state before deliberately corrupting the ledger.
@@ -303,6 +303,7 @@ def self_test(root: Path | None = None) -> dict[str, Any]:
             broken = Store(test_root)
             if broken.integrity_check()["status"] != "FAIL":
                 raise AssertionError("corrupt ledger not detected")
+
             recovered = broken.rebuild_ledger()
             if recovered.get("restored_freezes") != 1 or len(broken.freezes()) != 1:
                 raise AssertionError("freeze archive recovery failed")
