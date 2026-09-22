@@ -78,31 +78,44 @@ class Store:
         atomic_json(self.freeze_archive_path, {"schema": 1, "freezes": values})
 
     def rebuild_ledger(self) -> dict[str, Any]:
-        # Preserve corrupt bytes for forensics, then rebuild SQLite and restore
-        # immutable freezes from the sidecar archive.
-        #
-        # Windows is stricter than POSIX about replacing an open SQLite file.
-        # First force a WAL checkpoint through a short-lived connection, then
-        # close that connection before moving the database files.
+        # Recover a corrupt ledger without requiring Windows to rename
+        # SQLite WAL/SHM files while they may still be transiently locked.
         stamp = utc_now().replace(":", "").replace("-", "")
         backups: list[str] = []
 
+        # Best-effort checkpoint. A corrupt DB may reject this.
         try:
-            with self._connect() as db:
+            db = self._connect()
+            try:
                 db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+                db.commit()
+            finally:
+                db.close()
         except Exception:
-            # A corrupt database may not be checkpointable. Recovery must still
-            # be allowed to continue when no usable SQLite connection exists.
             pass
 
-        # At this point no connection created by this method remains open.
-        # Move sidecars first, and the main database last.
-        for suffix in ("-wal", "-shm", ""):
-            src = Path(str(self.db_path) + suffix)
-            if src.exists():
-                dst = self.root / f"{src.name}.corrupt.{stamp}.bak"
-                os.replace(src, dst)
-                backups.append(str(dst))
+        # Back up the main database first. This is the forensic evidence
+        # required for recovery. WAL/SHM are best-effort on Windows.
+        if self.db_path.exists():
+            dst = self.root / f"{self.db_path.name}.corrupt.{stamp}.bak"
+            shutil.copy2(self.db_path, dst)
+            backups.append(str(dst))
+
+        # Remove the main corrupt database. A new database will be created.
+        if self.db_path.exists():
+            os.remove(self.db_path)
+
+        # WAL/SHM cleanup is best-effort because Windows can temporarily
+        # retain handles even after the SQLite connection is closed.
+        for suffix in ("-wal", "-shm"):
+            sidecar = Path(str(self.db_path) + suffix)
+            if sidecar.exists():
+                try:
+                    sidecar.unlink()
+                except PermissionError:
+                    pass
+                except OSError:
+                    pass
 
         self._db_init_error = ""
         self._archive_init_error = ""
