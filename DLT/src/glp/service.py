@@ -284,20 +284,22 @@ def self_test(root: Path | None = None) -> dict[str, Any]:
             raise AssertionError("stale Evidence Court was reused across canonical hashes")
     check("Stale court rejection", stale_court_rejection)
 
-    def ledger_rebuild_recovery():
+        def ledger_rebuild_recovery():
         test_root = store.root / "_ledger_rebuild_selftest"
         if test_root.exists():
             shutil.rmtree(test_root, ignore_errors=True)
         try:
             s2 = Store(test_root)
-            pred = Prediction("recovery", "26998", "2026-12-30", utc_now(), [1,2,3,4,5], [1,2], list(range(1,36)), list(range(1,13)), "NULL_DAN", "NO_EDGE", [1,2], [1], "c"*64, "m"*64, "s"*64, "x"*64)
+            pred = Prediction("recovery", "26998", "2026-12-30", utc_now(), [1,2,3,4,5], [1,2])
             s2.freeze(pred)
-                    # Close/checkpoint WAL state before deliberately corrupting the ledger.
-        with s2._connect() as db:
-            db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
-        del s2
-        gc.collect()
-        (test_root / "ledger.sqlite3").write_bytes(b"not-a-sqlite-database")
+
+            # Close/checkpoint WAL state before deliberately corrupting the ledger.
+            with s2._connect() as db:
+                db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            del s2
+            gc.collect()
+
+            (test_root / "ledger.sqlite3").write_bytes(b"not-a-sqlite-database")
             broken = Store(test_root)
             if broken.integrity_check()["status"] != "FAIL":
                 raise AssertionError("corrupt ledger not detected")
@@ -306,6 +308,7 @@ def self_test(root: Path | None = None) -> dict[str, Any]:
                 raise AssertionError("freeze archive recovery failed")
         finally:
             shutil.rmtree(test_root, ignore_errors=True)
+
     check("Corrupt ledger recovery", ledger_rebuild_recovery)
 
     def leakage_sentinel_rejection():
