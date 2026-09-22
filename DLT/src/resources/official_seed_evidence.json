@@ -1,0 +1,234 @@
+{
+  "canonical_hash": "649b3fc72accfd5931d98c6557c19b84295a7384fea38c932d98cbad90562369",
+  "canonical_payload_sha256": "649b3fc72accfd5931d98c6557c19b84295a7384fea38c932d98cbad90562369",
+  "crosscheck_count": 100,
+  "crosscheck_status": "PASS",
+  "draw_count": 2926,
+  "fetched_at": "2026-09-22T02:20:00+08:00",
+  "latest": {
+    "back": [
+      1,
+      4
+    ],
+    "draw_date": "2026-09-21",
+    "front": [
+      1,
+      5,
+      7,
+      21,
+      35
+    ],
+    "issue": "26108"
+  },
+  "national_raw_manifest": [
+    {
+      "bytes": 307431,
+      "page": 1,
+      "sha256": "32208ef0276b0c0c9b284866bf4c209709ccb7a12c5e8c6c4a65915196843294"
+    },
+    {
+      "bytes": 326340,
+      "page": 2,
+      "sha256": "570eff175adf14f72b8e608fd7d2db8a354258348b29c0a7ecf680ba3e71507d"
+    },
+    {
+      "bytes": 367615,
+      "page": 3,
+      "sha256": "f2f3b0412f31ee79c2dde6fdde2ae12db4477c041f06c414190b607ae700c24a"
+    },
+    {
+      "bytes": 387236,
+      "page": 4,
+      "sha256": "6077634c8ad737ec9166914f32ac1a14a562b83f0679d51d626c03dfa6feaa86"
+    },
+    {
+      "bytes": 326369,
+      "page": 5,
+      "sha256": "6ac092b0e6d3b9829cdd93beafaebf2e25424a926548acc3352f2fec03bc2116"
+    },
+    {
+      "bytes": 371756,
+      "page": 6,
+      "sha256": "2c642bfeca3acc8fa1c353cb778ada45e2f32a13676f6c8545460240a2948a70"
+    },
+    {
+      "bytes": 382069,
+      "page": 7,
+      "sha256": "0738904449231680b2e71dca4e324d565b5a9d1bd2b5407ade64efaaaafd4321"
+    },
+    {
+      "bytes": 326552,
+      "page": 8,
+      "sha256": "ac9ecc467c2c7e86e77aa67b09afcecd52063b0da624b430bb82157277a8c896"
+    },
+    {
+      "bytes": 369110,
+      "page": 9,
+      "sha256": "c45f0e245c494b055ce186fea00bd9d57bfd78a9d929e2e6e0d1a6f2c328aa1c"
+    },
+    {
+      "bytes": 326332,
+      "page": 10,
+      "sha256": "a5c5c4cfb25d8fed45b4d1205a5d19a3ef0af31fa15af84eee8d0380833d2a1c"
+    },
+    {
+      "bytes": 324122,
+      "page": 11,
+      "sha256": "401294a09a2637965f76a9b105f3833fa4c7e5ac030cb46576af8907e22f76a1"
+    },
+    {
+      "bytes": 320122,
+      "page": 12,
+      "sha256": "144f86cad095ce036984a954a4cbd8b1a53a2222d1290fb32aba269d4b05a76c"
+    },
+    {
+      "bytes": 320060,
+      "page": 13,
+      "sha256": "83f9bdb0938a13eca52c0221e5a9499b62ee09f2027b7721621d8cf044b94dac"
+    },
+    {
+      "bytes": 319952,
+      "page": 14,
+      "sha256": "b3c7b655a1f6b46f6d9807118d9bad69d30d5be07b2ee95c2c0bd17682b9f5f0"
+    },
+    {
+      "bytes": 319665,
+      "page": 15,
+      "sha256": "db49ae8f2d0225b8db20515882c28e171dea77fd160eac8eb7ad4be777b1265c"
+    },
+    {
+      "bytes": 317665,
+      "page": 16,
+      "sha256": "fcc013b3099256f9dac649537d0103dd4803da182c752f04b656519fb32229ae"
+    },
+    {
+      "bytes": 317711,
+      "page": 17,
+      "sha256": "2935673aea546c20414ea3ab963b08037ef3cb6302aad5d1e73acfdfd92cca13"
+    },
+    {
+      "bytes": 317864,
+      "page": 18,
+      "sha256": "50039108a184d7143f576b8eed430e03a57c5bb56b09a28ffb5b953dc5384132"
+    },
+    {
+      "bytes": 317753,
+      "page": 19,
+      "sha256": "0aec88bb56e0332a99696787432fb754393af3a6db42eef80ce8940cbde07b29"
+    },
+    {
+      "bytes": 317204,
+      "page": 20,
+      "sha256": "9a9244a06d145faa66afddb6ba5a8847ae2e8f148f3dbb2aa98073dfa5f471c9"
+    },
+    {
+      "bytes": 316777,
+      "page": 21,
+      "sha256": "434c4c34a6f346f54da8a00ad8116953c031908d0d4151531e7f4718fe29c899"
+    },
+    {
+      "bytes": 316427,
+      "page": 22,
+      "sha256": "0c0ed292d28b99b95c0aaca89dc65cfb2a021e5d8801650e114346a1c54ecf81"
+    },
+    {
+      "bytes": 316395,
+      "page": 23,
+      "sha256": "150f044f6ccad10c14ea5eed7b2fdebdf6f9d47bc9ef4ef2500a248d959c84f1"
+    },
+    {
+      "bytes": 315228,
+      "page": 24,
+      "sha256": "a5459a58ab2d3009762660f670fe1d33b28099e8e87d9803af510146f6778dd7"
+    },
+    {
+      "bytes": 312853,
+      "page": 25,
+      "sha256": "04002d4993cfa7ab36c9a66bb10205ca5ee5f1d279191d2436a23bf87fc4faf7"
+    },
+    {
+      "bytes": 312705,
+      "page": 26,
+      "sha256": "3e565f56d9ea7357ec1d31ce4225b8849a960f092a48cfe532768c22e81d8cf1"
+    },
+    {
+      "bytes": 312652,
+      "page": 27,
+      "sha256": "2e292070486d42b9dcd2f572135356333599c84f4c9870f00f657a44ed7360c5"
+    },
+    {
+      "bytes": 312688,
+      "page": 28,
+      "sha256": "84086e0086114b56e43e6c386fb004742184c29558113754b6edd51625523623"
+    },
+    {
+      "bytes": 312048,
+      "page": 29,
+      "sha256": "40423e49e852efa67d8e890c7a99fa1310c3257e4ca32d3fa769d20af6f116fe"
+    },
+    {
+      "bytes": 79617,
+      "page": 30,
+      "sha256": "47f36c13c7fe49884b1ea4cfa9803eb90151ea5960d80cb240d96c5ed2dadf4d"
+    }
+  ],
+  "seed_patch_evidence": {
+    "latest_draw": {
+      "back": [
+        1,
+        4
+      ],
+      "draw_date": "2026-09-21",
+      "front": [
+        1,
+        5,
+        7,
+        21,
+        35
+      ],
+      "issue": "26108"
+    },
+    "latest_issue": "26108",
+    "method": "independent official provincial public-page crosscheck; this seed patch does not substitute for the EXE real-network gate",
+    "note": "National raw manifest below is retained as historical evidence through 26107 only; online update must refresh it.",
+    "prior_full_history_evidence_through": "26107",
+    "sources": [
+      {
+        "name": "江苏省体育彩票管理中心",
+        "observed_issue": "26108",
+        "observed_numbers": "01 05 07 21 35 + 01 04",
+        "url": "https://api.js-lottery.com/wfzq/dlt/data"
+      },
+      {
+        "name": "安徽省体育彩票管理中心",
+        "observed_issue": "26108",
+        "observed_numbers": "01 05 07 21 35 + 01 04",
+        "url": "https://www.ahtycp.com/"
+      }
+    ],
+    "status": "PASS",
+    "verified_at": "2026-09-22T02:20:00+08:00"
+  },
+  "source_receipts": [
+    {
+      "detail": "官方分页 30 页，总数与唯一记录一致",
+      "draw_count": 2925,
+      "fetched_at": "2026-09-19T21:04:46Z",
+      "http_status": 200,
+      "latest_issue": "26107",
+      "raw_sha256": "525e6682fba4f0da8ae30151bfa43d0e1a241189113087e9a62ac99edbd719d1",
+      "source": "national",
+      "status": "PASS"
+    },
+    {
+      "detail": "省级体彩独立页面解析成功",
+      "draw_count": 100,
+      "fetched_at": "2026-09-19T21:04:46Z",
+      "http_status": 200,
+      "latest_issue": "26107",
+      "raw_sha256": "b1a215c768285862e21d3375eb1c2d90af3490feac71abc2acb2ff54c8a565a7",
+      "source": "jiangsu",
+      "status": "PASS"
+    }
+  ]
+}

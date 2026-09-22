@@ -1,0 +1,23 @@
+[
+  {
+    "prediction_id": "",
+    "target_issue": "26107",
+    "target_date": "2026-09-19",
+    "created_at": "LEGACY_REFERENCED_CONVERSATION",
+    "front": [10, 13, 14, 23, 26],
+    "back": [5, 9],
+    "front_ranking": [10, 13, 14, 23, 26],
+    "back_ranking": [5, 9],
+    "dan_state": "NULL_DAN",
+    "edge_state": "NO_EDGE",
+    "research_dan_front": [14, 26],
+    "research_dan_back": [9],
+    "canonical_hash": "39905ca5dcb44a5f7a47e460613146f9177219cb346064cf33341f76bb95677d",
+    "model_hash": "legacy-freeze-model-hash-not-exported",
+    "selector_hash": "legacy-freeze-selector-hash-not-exported",
+    "score_hash": "legacy-full-ranking-not-exported",
+    "freeze_hash": "",
+    "note": "从引用对话迁移的公开事前 Freeze；原对话未导出完整排名与代码哈希，仅用于组合命中复盘，不计入完整排名或 selector 未来证据。"
+  }
+]
+

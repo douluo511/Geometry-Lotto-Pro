@@ -1,0 +1,187 @@
+{
+  "canonical_hash": "8f91a4c53bf3ab145c20fd8e1bfb61b161c4bc4e78655fd8f0e61cf1f0cb3556",
+  "canonical_payload_sha256": "10875b76d0fc6db65e1bb828674d7a1e4a0b5d306dacce3e0fc73a156b5e8739",
+  "crosscheck_count": 100,
+  "crosscheck_status": "PASS",
+  "draw_count": 2067,
+  "fetched_at": "2026-09-21T18:11:31Z",
+  "game": "SSQ",
+  "latest": {
+    "back": [
+      6
+    ],
+    "draw_date": "2026-09-20",
+    "front": [
+      9,
+      12,
+      15,
+      26,
+      30,
+      33
+    ],
+    "issue": "2026109"
+  },
+  "national_raw_manifest": [
+    {
+      "bytes": 87755,
+      "page": 1,
+      "sha256": "7fd4a188ed337b83f5b568088e827f9ae22e5819ebc76b5037d33111e5dabfe5",
+      "url": "https://www.cwl.gov.cn/cwl_admin/front/cwlkj/search/kjxx/findDrawNotice?name=ssq&issueCount=&issueStart=&issueEnd=&dayStart=&dayEnd=&pageNo=1&pageSize=100&week=&systemType=PC"
+    },
+    {
+      "bytes": 83929,
+      "page": 2,
+      "sha256": "6e2b91f5d7612b1b5c3631fd6a132fa8086899a3901dd0aee96625478163b171",
+      "url": "https://www.cwl.gov.cn/cwl_admin/front/cwlkj/search/kjxx/findDrawNotice?name=ssq&issueCount=&issueStart=&issueEnd=&dayStart=&dayEnd=&pageNo=2&pageSize=100&week=&systemType=PC"
+    },
+    {
+      "bytes": 89900,
+      "page": 3,
+      "sha256": "1fada88717f3d0a72944398cf0134099d3e19095a7db550f11de98c778e08db4",
+      "url": "https://www.cwl.gov.cn/cwl_admin/front/cwlkj/search/kjxx/findDrawNotice?name=ssq&issueCount=&issueStart=&issueEnd=&dayStart=&dayEnd=&pageNo=3&pageSize=100&week=&systemType=PC"
+    },
+    {
+      "bytes": 84670,
+      "page": 4,
+      "sha256": "d1fb42e45d622ef759b974c8db1d95ec6e39b95a21be27158030d0885999b2ad",
+      "url": "https://www.cwl.gov.cn/cwl_admin/front/cwlkj/search/kjxx/findDrawNotice?name=ssq&issueCount=&issueStart=&issueEnd=&dayStart=&dayEnd=&pageNo=4&pageSize=100&week=&systemType=PC"
+    },
+    {
+      "bytes": 89230,
+      "page": 5,
+      "sha256": "ec69dd31bbb5c380c6c124b4c82387870afe42a546ea6d70f43eb161f8850ce4",
+      "url": "https://www.cwl.gov.cn/cwl_admin/front/cwlkj/search/kjxx/findDrawNotice?name=ssq&issueCount=&issueStart=&issueEnd=&dayStart=&dayEnd=&pageNo=5&pageSize=100&week=&systemType=PC"
+    },
+    {
+      "bytes": 88740,
+      "page": 6,
+      "sha256": "ae7545a7afdf885498b707d4e98079f6977e90ea94ddb958b465b606a46f016f",
+      "url": "https://www.cwl.gov.cn/cwl_admin/front/cwlkj/search/kjxx/findDrawNotice?name=ssq&issueCount=&issueStart=&issueEnd=&dayStart=&dayEnd=&pageNo=6&pageSize=100&week=&systemType=PC"
+    },
+    {
+      "bytes": 83106,
+      "page": 7,
+      "sha256": "05e963ccef608a1704c4bd6c3c077c2fc1adc12796429088860830f40d345544",
+      "url": "https://www.cwl.gov.cn/cwl_admin/front/cwlkj/search/kjxx/findDrawNotice?name=ssq&issueCount=&issueStart=&issueEnd=&dayStart=&dayEnd=&pageNo=7&pageSize=100&week=&systemType=PC"
+    },
+    {
+      "bytes": 87903,
+      "page": 8,
+      "sha256": "336b208fffb529c884b452c217aebd83937cfc499532468397b6f69e35789710",
+      "url": "https://www.cwl.gov.cn/cwl_admin/front/cwlkj/search/kjxx/findDrawNotice?name=ssq&issueCount=&issueStart=&issueEnd=&dayStart=&dayEnd=&pageNo=8&pageSize=100&week=&systemType=PC"
+    },
+    {
+      "bytes": 91119,
+      "page": 9,
+      "sha256": "f03c013d6514cf785bfb7c0237d2d6290778a01fc353a1ce7ba2ca5f444e592a",
+      "url": "https://www.cwl.gov.cn/cwl_admin/front/cwlkj/search/kjxx/findDrawNotice?name=ssq&issueCount=&issueStart=&issueEnd=&dayStart=&dayEnd=&pageNo=9&pageSize=100&week=&systemType=PC"
+    },
+    {
+      "bytes": 84344,
+      "page": 10,
+      "sha256": "ee3fc9901274a8f94ca19cefcf0aa16f5d8f51d62fce9371f856162e14c39afb",
+      "url": "https://www.cwl.gov.cn/cwl_admin/front/cwlkj/search/kjxx/findDrawNotice?name=ssq&issueCount=&issueStart=&issueEnd=&dayStart=&dayEnd=&pageNo=10&pageSize=100&week=&systemType=PC"
+    },
+    {
+      "bytes": 89826,
+      "page": 11,
+      "sha256": "1dce122bc54f5126c86a698c1a9285b27c031fbebd7e70a79bb19286cddf669d",
+      "url": "https://www.cwl.gov.cn/cwl_admin/front/cwlkj/search/kjxx/findDrawNotice?name=ssq&issueCount=&issueStart=&issueEnd=&dayStart=&dayEnd=&pageNo=11&pageSize=100&week=&systemType=PC"
+    },
+    {
+      "bytes": 87918,
+      "page": 12,
+      "sha256": "baf9df760819bb9b5361ff1e34a1606315ae0f579497fb0ccf8957a4314370f4",
+      "url": "https://www.cwl.gov.cn/cwl_admin/front/cwlkj/search/kjxx/findDrawNotice?name=ssq&issueCount=&issueStart=&issueEnd=&dayStart=&dayEnd=&pageNo=12&pageSize=100&week=&systemType=PC"
+    },
+    {
+      "bytes": 80300,
+      "page": 13,
+      "sha256": "e4ff1545cc6cf2053a51b7a52424bb5f424ee0906991b2360dda91342656eae3",
+      "url": "https://www.cwl.gov.cn/cwl_admin/front/cwlkj/search/kjxx/findDrawNotice?name=ssq&issueCount=&issueStart=&issueEnd=&dayStart=&dayEnd=&pageNo=13&pageSize=100&week=&systemType=PC"
+    },
+    {
+      "bytes": 85973,
+      "page": 14,
+      "sha256": "53a0b6aac6fdfa7688bcb5e878ec35215d8979111c0b736967d7983681336a0f",
+      "url": "https://www.cwl.gov.cn/cwl_admin/front/cwlkj/search/kjxx/findDrawNotice?name=ssq&issueCount=&issueStart=&issueEnd=&dayStart=&dayEnd=&pageNo=14&pageSize=100&week=&systemType=PC"
+    },
+    {
+      "bytes": 86417,
+      "page": 15,
+      "sha256": "205221c5338e9747034fa5e281f5b2a78c7ef288bacb1a94c8fe564edbd94d4b",
+      "url": "https://www.cwl.gov.cn/cwl_admin/front/cwlkj/search/kjxx/findDrawNotice?name=ssq&issueCount=&issueStart=&issueEnd=&dayStart=&dayEnd=&pageNo=15&pageSize=100&week=&systemType=PC"
+    },
+    {
+      "bytes": 80018,
+      "page": 16,
+      "sha256": "00b228699ac6fd45ddd4221ea329f1560f901a411b9d3e9668c4c640aceb9825",
+      "url": "https://www.cwl.gov.cn/cwl_admin/front/cwlkj/search/kjxx/findDrawNotice?name=ssq&issueCount=&issueStart=&issueEnd=&dayStart=&dayEnd=&pageNo=16&pageSize=100&week=&systemType=PC"
+    },
+    {
+      "bytes": 80634,
+      "page": 17,
+      "sha256": "3d47a3d7492b51e674f5406192106a0f7fb7fe364d24b1f0882d539e8f776e43",
+      "url": "https://www.cwl.gov.cn/cwl_admin/front/cwlkj/search/kjxx/findDrawNotice?name=ssq&issueCount=&issueStart=&issueEnd=&dayStart=&dayEnd=&pageNo=17&pageSize=100&week=&systemType=PC"
+    },
+    {
+      "bytes": 83498,
+      "page": 18,
+      "sha256": "44de7c8f6d00532328db080dcb8de0a956ec86fc723655130431b3123c83c279",
+      "url": "https://www.cwl.gov.cn/cwl_admin/front/cwlkj/search/kjxx/findDrawNotice?name=ssq&issueCount=&issueStart=&issueEnd=&dayStart=&dayEnd=&pageNo=18&pageSize=100&week=&systemType=PC"
+    },
+    {
+      "bytes": 81748,
+      "page": 19,
+      "sha256": "c77d7b07f106e1d630136663309cae6c2e64a909f28b322457dce9d9ef553b99",
+      "url": "https://www.cwl.gov.cn/cwl_admin/front/cwlkj/search/kjxx/findDrawNotice?name=ssq&issueCount=&issueStart=&issueEnd=&dayStart=&dayEnd=&pageNo=19&pageSize=100&week=&systemType=PC"
+    },
+    {
+      "bytes": 84448,
+      "page": 20,
+      "sha256": "c23c7402ae370c38f6f1714c4b7748be786f138d89fba317f327c91a3cda9925",
+      "url": "https://www.cwl.gov.cn/cwl_admin/front/cwlkj/search/kjxx/findDrawNotice?name=ssq&issueCount=&issueStart=&issueEnd=&dayStart=&dayEnd=&pageNo=20&pageSize=100&week=&systemType=PC"
+    },
+    {
+      "bytes": 54577,
+      "page": 21,
+      "sha256": "0ae25aa7b9135243fcd0a6d82cf5a161aba3fd27e017ead75851d90eac9d6a3c",
+      "url": "https://www.cwl.gov.cn/cwl_admin/front/cwlkj/search/kjxx/findDrawNotice?name=ssq&issueCount=&issueStart=&issueEnd=&dayStart=&dayEnd=&pageNo=21&pageSize=100&week=&systemType=PC"
+    }
+  ],
+  "schema": "official-seed-evidence-v8.4",
+  "seed_provenance": "2026109 appended from recorded live SSQ update where Shanghai + Hebei official sources agreed; CWL API was 403 and did not count as PASS",
+  "source_receipts": [
+    {
+      "detail": "HTTPError: 403 Client Error: Forbidden for url: https://www.cwl.gov.cn/cwl_admin/front/cwlkj/search/kjxx/findDrawNotice?name=ssq&issueCount=&issueStart=&issueEnd=&dayStart=&dayEnd=&pageNo=1&pageSize=100&week=&systemType=PC",
+      "draw_count": 0,
+      "fetched_at": "2026-09-21T18:11:22Z",
+      "http_status": 0,
+      "latest_issue": "",
+      "raw_sha256": "a38e13aaeed69f322a8595e62193ff22806780101a9f20ef2d617016588f7eac",
+      "source": "official_cwl_L0",
+      "status": "FAIL"
+    },
+    {
+      "detail": "上海市福利彩票发行中心 双色球往期开奖专页",
+      "draw_count": 100,
+      "fetched_at": "2026-09-21T18:11:31Z",
+      "http_status": 200,
+      "latest_issue": "2026109",
+      "raw_sha256": "1b242ee9316cc3ebb686d8a9f8b3b86aadc5c45eb12d95bb382639a40183aeda",
+      "source": "official_shanghai_L1",
+      "status": "PASS"
+    },
+    {
+      "detail": "河北省福利彩票发行管理中心：首页期号/号码 + 双色球开奖公告日期/号码，双页面内部共识",
+      "draw_count": 1,
+      "fetched_at": "2026-09-21T18:11:45Z",
+      "http_status": 200,
+      "latest_issue": "2026109",
+      "raw_sha256": "821c51deb2192290152718d071435c2ab0a52b8b7eac23d1ba445ff05a0a6c87",
+      "source": "official_hebei_L2",
+      "status": "PASS"
+    }
+  ],
+  "verification": "TRUSTED_BASELINE_PLUS_SHANGHAI_HEBEI_CONSENSUS"
+}

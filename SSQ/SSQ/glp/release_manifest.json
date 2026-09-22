@@ -1,0 +1,63 @@
+{
+  "acceptance_rule": "CODE PASS + SCIENCE PASS + REAL NETWORK PASS + SAME-HASH WINDOWS EXE PASS + no hard FAIL; UNAVAILABLE is not PASS",
+  "app": "Geometry Lotto Pro",
+  "build_kind": "Windows x64 verification executable rebuilt by preserving audited v8.3 PyInstaller/Python 3.11 runtime and replacing business source/resources",
+  "built_utc": "2026-09-21T19:02:21Z",
+  "embedded_seed": {
+    "canonical_hash": "8f91a4c53bf3ab145c20fd8e1bfb61b161c4bc4e78655fd8f0e61cf1f0cb3556",
+    "draw_count": 2067,
+    "latest_issue": "2026109"
+  },
+  "final_release_gate": "PENDING",
+  "full_random_worlds": [
+    {
+      "dan": "NULL_DAN",
+      "edge": "NO_EDGE",
+      "seed": 101
+    },
+    {
+      "dan": "NULL_DAN",
+      "edge": "NO_EDGE",
+      "seed": 202
+    },
+    {
+      "dan": "NULL_DAN",
+      "edge": "NO_EDGE",
+      "seed": 303
+    }
+  ],
+  "game": "SSQ",
+  "hardening": [
+    "fixed Store status/ok contract false-PASS path",
+    "replaced domain/util/storage/ors legacy shims with auditable source",
+    "Win32 GUI self-test now validates WM_COMMAND backend routing",
+    "embedded trusted seed advanced to 2026109 from recorded Shanghai+Hebei official consensus",
+    "strict holdout/null/LOEO/ablation/dual confirmation retained"
+  ],
+  "native_windows_validation": "UNAVAILABLE_IN_CURRENT_ENVIRONMENT",
+  "release_status": "WINDOWS_NATIVE_EXECUTION_UNAVAILABLE",
+  "scientific_result": {
+    "dan_state": "NULL_DAN",
+    "development_oos_n": 1200,
+    "edge_state": "NO_EDGE",
+    "false_promotions": 0,
+    "leakage_violations": 0,
+    "null_worlds": 300,
+    "software_verdict": "PASS",
+    "untouched_holdout_n": 240
+  },
+  "source_hashes": {
+    "glp/__init__.py": "d620902694eb7c7061bb92d76e8e2cc0d36f6c7239e064a203e8d2119439ed6c",
+    "glp/constants.py": "6715eef208f7b30cdc9f69ad201a8c83a47f80c181aa9bee7537825de6c1254e",
+    "glp/domain.py": "6474698bf1ee23b7788581878b01f548e32116257f7fbf2aeea3aac9ca28e81b",
+    "glp/engine.py": "a9d40973c16131f4e76cc9cc0f2227721a614cdd0eb25b657c736549b4e76bab",
+    "glp/evidence.py": "7f695a18d0b9bf375564d7992e235fb56b6cac36eeb6db7775d2f8744c903086",
+    "glp/gui.py": "10c4140c5ec12544ea1f675e5eb9b4c76d2a6fb58aaa3e2ea6a7901b05311e72",
+    "glp/ors.py": "e9faa28d5850c222fa3ff1ac222dee3baa1094ec2f41e965a07882725d63f2de",
+    "glp/service.py": "08f2dde734931fa2994a4dd7f93b3965ba072b6d5c7dcd45dbab9aa52d11a79f",
+    "glp/sources.py": "119b36113cb5a75080c6333f850c1c30be9798e587389c920ff523217303491d",
+    "glp/storage.py": "740cd918f69c9073855d5a597c67b0e8a00bc74a8a43129b11433c32486dc491",
+    "glp/util.py": "2261b9d4ac24cc8d86589495313ae874da9e7323c12aeebc8008481dc8658617"
+  },
+  "version": "8.4.0-verification"
+}

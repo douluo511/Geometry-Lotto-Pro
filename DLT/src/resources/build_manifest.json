@@ -1,0 +1,36 @@
+{
+  "app": "Geometry Lotto Pro",
+  "game": "DLT",
+  "version": "2.1.2",
+  "build_kind": "release-candidate-rc5",
+  "generated_utc": "2026-09-21T18:39:09.318789+00:00",
+  "release_semantics": {
+    "code_gate": "requires exact-package verification",
+    "scientific_protocol_gate": "requires fresh rerun from packaged source",
+    "predictive_edge_gate": "independent of software release",
+    "windows_runtime_gate": "PENDING until same EXE is executed on Windows",
+    "final_release_gate": "NOT_PASS until all required gates PASS"
+  },
+  "embedded_hashes": {
+    "glp/__init__.py": "77238dd54764acf0a77a0441e200556052de3be8bf8baf0ba09ed2736e474b6d",
+    "glp/constants.py": "bfa3f01c011c5439088e617de080136e8824e03f566df5142470f73cff1020f0",
+    "glp/domain.py": "b989ad377be2e30374cf51dd2bf57e32a5f888264acfd77ae80183f11cc556c7",
+    "glp/engine.py": "c69963f1d091386025f15137da80346bc27a720694f5c5f903e3a523c93badda",
+    "glp/evidence.py": "e8745a8918dac607590ea7c2bba5c56f77303202dedc70079ca610bc838a2fd9",
+    "glp/gui.py": "58222416cabddaf31391448f34a771b1e7163ecc26b05d842e4f25f4c9ee65f0",
+    "glp/ors.py": "b425808e91a931a06570f2e96902cbc7048ff99f8d1c0c24f417b34708b93f4f",
+    "glp/service.py": "1bc0df3e4f7aee1a9c6b5249861f9a7b63bd0f2c5ae9323ed8e0c13e28475f26",
+    "glp/sources.py": "38a10fd7f4f7bad02a3cfaae25760599f9458774d83bb23644d319996abdfe63",
+    "glp/storage.py": "e837a99e1a368afe79b076ea7989d3e7e7159041d9cddc7e5e997176a7c3b7a5",
+    "glp/util.py": "f07839a3b186632f8407c0baaff97c71142af8142a2bb22046d96bccbe3699c4",
+    "resources/official_seed.json": "cfa1202038e76ca3e1c1261616f0d0aa04c825fdbddd53bccd71141aec6cad92",
+    "resources/official_seed_evidence.json": "4632e73a9f1c8310584d9a06e21d9661fbb4b0a772020752b62970b650ba500a",
+    "resources/legacy_freezes.json": "ea983cbda9f1b6cd6530adf838edf1e8a45e51c41ed1139eef99f1812edae299"
+  },
+  "seed": {
+    "latest_issue": "26108",
+    "draw_count": 2926,
+    "canonical_hash": "649b3fc72accfd5931d98c6557c19b84295a7384fea38c932d98cbad90562369",
+    "seed_file_sha256": "cfa1202038e76ca3e1c1261616f0d0aa04c825fdbddd53bccd71141aec6cad92"
+  }
+}
