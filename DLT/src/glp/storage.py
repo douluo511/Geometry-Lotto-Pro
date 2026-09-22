@@ -103,7 +103,11 @@ class Store:
             backups.append(str(dst))
 
         # Remove the main corrupt database. A new database will be created.
-        if self.db_path.exists():
+    if self.db_path.exists():
+        try:
+            os.remove(self.db_path)
+        except PermissionError:
+            gc.collect()
             os.remove(self.db_path)
 
         # WAL/SHM cleanup is best-effort because Windows can temporarily
