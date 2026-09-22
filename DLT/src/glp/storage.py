@@ -141,7 +141,7 @@ class Store:
                     "restored_freezes": restored,
                 } 
 
-        def save_dataset(self, dataset: CanonicalDataset, evidence: dict[str, Any]) -> None:
+    def save_dataset(self, dataset: CanonicalDataset, evidence: dict[str, Any]) -> None:
         payload = {
             "schema": 2,
             "game": "DLT",
