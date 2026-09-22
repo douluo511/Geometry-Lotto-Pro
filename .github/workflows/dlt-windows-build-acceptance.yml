@@ -1,0 +1,45 @@
+name: Windows build and exact-package acceptance
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+defaults:
+  run:
+    working-directory: DLT
+
+jobs:
+  build-and-accept:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11.9'
+          architecture: 'x64'
+      - name: Install pinned dependencies
+        run: python -m pip install --disable-pip-version-check -r requirements.txt
+      - name: Source compile check
+        run: python -m compileall -q src
+      - name: Source self-test
+        shell: pwsh
+        run: |
+          $env:PYTHONPATH = "$PWD\src"
+          python -c "from glp.service import self_test; import json; x=self_test(); print(json.dumps(x,ensure_ascii=False,indent=2)); raise SystemExit(0 if x['status']=='PASS' else 2)"
+      - name: Native Windows PyInstaller build
+        run: pyinstaller --noconfirm --clean GeometryLottoPro.spec
+      - name: Exact-package Windows acceptance
+        shell: pwsh
+        run: ./scripts/windows_acceptance.ps1
+      - name: Upload exact EXE and evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Geometry-Lotto-Pro-DLT-Windows-Acceptance
+          path: |
+            dist/Geometry_Lotto_Pro_DLT.exe
+            artifacts/**
+          if-no-files-found: error
+          retention-days: 30
