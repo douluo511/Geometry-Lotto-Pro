@@ -290,7 +290,24 @@ def self_test(root: Path | None = None) -> dict[str, Any]:
             shutil.rmtree(test_root, ignore_errors=True)
         try:
             s2 = Store(test_root)
-            pred = Prediction("recovery", "26998", "2026-12-30", utc_now(), [1, 2, 3, 4, 5], [1, 2])
+                        pred = Prediction(
+                prediction_id="recovery",
+                target_issue="26998",
+                target_date="2026-12-30",
+                created_at=utc_now(),
+                front=[1, 2, 3, 4, 5],
+                back=[1, 2],
+                front_ranking=[1, 2, 3, 4, 5],
+                back_ranking=[1, 2],
+                dan_state="NO_DAN",
+                edge_state="NO_EDGE",
+                research_dan_front=[],
+                research_dan_back=[],
+                canonical_hash="selftest-canonical",
+                model_hash="selftest-model",
+                selector_hash="selftest-selector",
+                score_hash="selftest-score",
+            )
             s2.freeze(pred)
 
             # Close/checkpoint WAL state before deliberately corrupting the ledger.
