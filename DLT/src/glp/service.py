@@ -290,7 +290,7 @@ def self_test(root: Path | None = None) -> dict[str, Any]:
             shutil.rmtree(test_root, ignore_errors=True)
         try:
             s2 = Store(test_root)
-                        pred = Prediction(
+            pred = Prediction(
                 prediction_id="recovery",
                 target_issue="26998",
                 target_date="2026-12-30",
