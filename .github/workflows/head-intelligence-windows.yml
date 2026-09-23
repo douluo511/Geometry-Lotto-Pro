@@ -43,7 +43,7 @@ jobs:
       - name: Unit tests
         shell: pwsh
         run: |
-          pytest -q head_intelligence/tests
+          python -m pytest -q head_intelligence/tests
 
       - name: Python self-test
         shell: pwsh
