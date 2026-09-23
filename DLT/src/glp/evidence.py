@@ -4,6 +4,7 @@ import math
 import random
 import statistics
 from collections import Counter, defaultdict
+from datetime import date, timedelta
 from typing import Any, Iterable
 
 from .constants import PROMOTION_POLICY
@@ -288,7 +289,8 @@ def _synthetic_null_worlds() -> dict[str, Any]:
         for i in range(draw_count):
             front = tuple(sorted(rng.sample(range(1, 36), 5)))
             back = tuple(sorted(rng.sample(range(1, 13), 2)))
-            synthetic.append(Draw(issue=f"{90000+i+1:05d}", draw_date=f"2099-01-{(i%28)+1:02d}", front=front, back=back))
+            synthetic_day = (date(2099, 1, 1) + timedelta(days=i)).isoformat()
+            synthetic.append(Draw(issue=f"{90000+i+1:05d}", draw_date=synthetic_day, front=front, back=back))
 
         area_pass = {}
         for area in ("front", "back"):
