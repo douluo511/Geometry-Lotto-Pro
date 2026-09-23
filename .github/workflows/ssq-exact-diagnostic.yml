@@ -6,6 +6,9 @@ on:
       - 'ssq-final-*'
     paths:
       - '.github/workflows/ssq-exact-diagnostic.yml'
+      - 'SSQ/SSQ/glp/storage.py'
+      - 'SSQ/SSQ/glp/constants.py'
+      - 'SSQ/launcher.py'
 
 defaults:
   run:
@@ -31,9 +34,18 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path diag | Out-Null
           $exe = Resolve-Path "diag-dist\SSQDiag.exe"
+          $failed = @()
           foreach ($check in @('integrity-tamper','update')) {
             $out = "diag\$check.json"
             $p = Start-Process -FilePath $exe -ArgumentList '--check',$check,'--result-file',$out -Wait -PassThru
             Write-Host "=== $check exit=$($p.ExitCode) ==="
-            if (Test-Path $out) { Get-Content $out -Raw }
+            if (Test-Path $out) {
+              $raw = Get-Content $out -Raw
+              Write-Host $raw
+              $result = $raw | ConvertFrom-Json
+              if ($p.ExitCode -ne 0 -or $result.status -ne 'PASS') { $failed += $check }
+            } else {
+              $failed += $check
+            }
           }
+          if ($failed.Count -gt 0) { throw "focused diagnostic failed: $($failed -join ', ')" }
