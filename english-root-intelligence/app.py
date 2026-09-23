@@ -114,10 +114,8 @@ class App(tk.Tk):
             messagebox.showerror("分析失败", str(exc))
             return
         root = value.get("root") or {}
-        family = "
-".join(f"  • {w[0]}  {w[1]}  |  {w[2]}" for w in value.get("family", [])) or "  暂无可靠词族"
-        chunks = "
-".join(f"  • {x}" for x in value.get("chunks", [])) or "  暂无高置信口语语块"
+        family = "\n".join(f"  • {w[0]}  {w[1]}  |  {w[2]}" for w in value.get("family", [])) or "  暂无可靠词族"
+        chunks = "\n".join(f"  • {x}" for x in value.get("chunks", [])) or "  暂无高置信口语语块"
         prefix = value.get("prefix")
         suffix = value.get("suffix")
         lines = [
@@ -139,8 +137,7 @@ class App(tk.Tk):
             chunks,
         ]
         self.result.delete("1.0", "end")
-        self.result.insert("1.0", "
-".join(lines))
+        self.result.insert("1.0", "\n".join(lines))
         self.status_var.set(f"已分析 {value['word']} · 不可靠时不会强行拆词")
 
     def show_today(self):
