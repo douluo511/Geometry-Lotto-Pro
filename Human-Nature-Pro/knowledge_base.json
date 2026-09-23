@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "knowledge_version": "2026.09.24.1",
+  "rules": [
+    {
+      "id": "fact_inference_split",
+      "title": "事实与推测分离",
+      "status": "VALIDATED_PROCESS_RULE",
+      "principle": "行为线索不能直接证明他人的内心动机；应保留竞争解释并主动寻找反证。"
+    },
+    {
+      "id": "incentive_first",
+      "title": "先检查激励与约束",
+      "status": "SUPPORTED",
+      "principle": "在资源交换、谈判和组织场景中，先检查利益、约束、权限与替代方案。"
+    },
+    {
+      "id": "identity_context",
+      "title": "身份与情境",
+      "status": "CONTEXT_DEPENDENT",
+      "principle": "同一人的行为会随角色、关系、权力结构和情境变化，不给人格贴永久标签。"
+    },
+    {
+      "id": "reversible_action",
+      "title": "优先可逆行动",
+      "status": "SUPPORTED_PROCESS_RULE",
+      "principle": "高不确定性时优先低成本、可撤回、能产生新信息的行动。"
+    }
+  ]
+}
