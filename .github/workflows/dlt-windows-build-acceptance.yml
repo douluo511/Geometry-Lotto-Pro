@@ -1,9 +1,18 @@
-name: Windows build and exact-package acceptance
+name: DLT Windows exact-EXE acceptance
 
 on:
   workflow_dispatch:
   push:
-    branches: [ main ]
+    branches:
+      - main
+      - 'dlt-final-*'
+    paths:
+      - 'DLT/**'
+      - '.github/workflows/dlt-windows-build-acceptance.yml'
+  pull_request:
+    paths:
+      - 'DLT/**'
+      - '.github/workflows/dlt-windows-build-acceptance.yml'
 
 defaults:
   run:
@@ -11,35 +20,64 @@ defaults:
 
 jobs:
   build-and-accept:
-    runs-on: windows-latest
-    timeout-minutes: 45
+    runs-on: windows-2022
+    timeout-minutes: 180
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Checkout exact commit
+        uses: actions/checkout@v4
+
+      - name: Setup pinned Python x64
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11.9'
           architecture: 'x64'
+
       - name: Install pinned dependencies
         run: python -m pip install --disable-pip-version-check -r requirements.txt
-      - name: Source compile check
+
+      - name: Code completeness compile gate
         run: python -m compileall -q src
-      - name: Source self-test
+
+      - name: Source contract self-test
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path artifacts | Out-Null
+          $env:PYTHONPATH = "$PWD\src"
+          python -c "from pathlib import Path; from glp.service import self_test; import json,tempfile; td=tempfile.mkdtemp(prefix='dlt-source-self-'); x=self_test(Path(td)); print(json.dumps(x,ensure_ascii=True,indent=2)); raise SystemExit(0 if x['status']=='PASS' else 2)"
+
+      - name: Source real official-network quorum smoke
         shell: pwsh
         run: |
           $env:PYTHONPATH = "$PWD\src"
-          python -c "from glp.service import self_test; import json; x=self_test(); print(json.dumps(x,ensure_ascii=False,indent=2)); raise SystemExit(0 if x['status']=='PASS' else 2)"
+          python -c "import tempfile,os,json; from glp.service import LottoService; td=tempfile.mkdtemp(prefix='dlt-source-live-'); os.environ['GLP_DATA_DIR']=td; s=LottoService(); s.ensure_seed(); r=s.update(); print(json.dumps({'latest':r.get('latest'),'verification':r.get('verification'),'crosscheck_status':r.get('crosscheck_status'),'receipts':r.get('source_receipts')},ensure_ascii=True)); ok=r.get('network_gate')=='PASS' and r.get('crosscheck_status')=='PASS' and {x.get('source'):x.get('status') for x in r.get('source_receipts',[])}.get('jiangsu')=='PASS' and {x.get('source'):x.get('status') for x in r.get('source_receipts',[])}.get('gansu')=='PASS'; raise SystemExit(0 if ok else 3)"
+
       - name: Native Windows PyInstaller build
         run: pyinstaller --noconfirm --clean GeometryLottoPro.spec
+
       - name: Exact-package Windows acceptance
         shell: pwsh
         run: ./scripts/windows_acceptance.ps1
-      - name: Upload exact EXE and evidence
-        if: always()
+
+      - name: Final release gate and same-hash proof
+        shell: pwsh
+        run: |
+          $report = Get-Content artifacts\acceptance.json -Raw | ConvertFrom-Json
+          if ($report.final_release_gate -ne 'PASS') { throw "final_release_gate=$($report.final_release_gate)" }
+          if ([int]$report.hard_fail_count -ne 0) { throw "hard_fail_count=$($report.hard_fail_count)" }
+          $exe = Resolve-Path "dist\Geometry_Lotto_Pro_DLT.exe"
+          $hash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLower()
+          if ($hash -ne [string]$report.exe_sha256) { throw "same-hash proof failed" }
+          Write-Host "DLT_FINAL_EXE=$exe"
+          Write-Host "DLT_FINAL_SHA256=$hash"
+          Write-Host "FINAL_RELEASE_GATE=PASS"
+
+      - name: Upload final EXE only after all hard gates pass
         uses: actions/upload-artifact@v4
         with:
-          name: Geometry-Lotto-Pro-DLT-Windows-Acceptance
+          name: Geometry-Lotto-Pro-DLT-FINAL-Windows-x64
           path: |
-            dist/Geometry_Lotto_Pro_DLT.exe
-            artifacts/**
+            DLT/dist/Geometry_Lotto_Pro_DLT.exe
+            DLT/artifacts/**
           if-no-files-found: error
           retention-days: 30
+          compression-level: 0
