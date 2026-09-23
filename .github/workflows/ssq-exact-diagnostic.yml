@@ -1,0 +1,39 @@
+name: SSQ exact-EXE focused diagnostic
+
+on:
+  push:
+    branches:
+      - 'ssq-final-*'
+    paths:
+      - '.github/workflows/ssq-exact-diagnostic.yml'
+
+defaults:
+  run:
+    working-directory: SSQ
+
+jobs:
+  diagnose:
+    runs-on: windows-2022
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11.9'
+          architecture: 'x64'
+      - run: python -m pip install --disable-pip-version-check -r requirements-build.txt
+      - name: Build exact diagnostic EXE
+        shell: pwsh
+        run: |
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name SSQDiag --paths SSQ --add-data "SSQ/resources;resources" --collect-all certifi --hidden-import glp.gui --hidden-import glp.service --hidden-import glp.evidence --distpath diag-dist launcher.py
+      - name: Exact EXE integrity and network diagnostics
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path diag | Out-Null
+          $exe = Resolve-Path "diag-dist\SSQDiag.exe"
+          foreach ($check in @('integrity-tamper','update')) {
+            $out = "diag\$check.json"
+            $p = Start-Process -FilePath $exe -ArgumentList '--check',$check,'--result-file',$out -Wait -PassThru
+            Write-Host "=== $check exit=$($p.ExitCode) ==="
+            if (Test-Path $out) { Get-Content $out -Raw }
+          }
