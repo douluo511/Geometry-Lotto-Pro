@@ -7,6 +7,12 @@ on:
     paths:
       - "head_intelligence/**"
       - ".github/workflows/head-intelligence-windows.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "head_intelligence/**"
+      - ".github/workflows/head-intelligence-windows.yml"
   workflow_dispatch:
 
 permissions:
@@ -52,7 +58,7 @@ jobs:
       - name: Build Windows EXE
         shell: pwsh
         run: |
-          pyinstaller --noconfirm --clean --onefile --windowed --name HeadIntelligence head_intelligence/app.py
+          pyinstaller --noconfirm --clean --onefile --windowed --paths . --name HeadIntelligence head_intelligence/app.py
 
       - name: Verify built EXE
         shell: pwsh
