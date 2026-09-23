@@ -1,0 +1,79 @@
+name: Build Head Intelligence Windows EXE
+
+on:
+  push:
+    branches:
+      - head-intelligence-prototype
+    paths:
+      - "head_intelligence/**"
+      - ".github/workflows/head-intelligence-windows.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-verify:
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: head_intelligence/requirements.txt
+
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r head_intelligence/requirements.txt
+
+      - name: Unit tests
+        shell: pwsh
+        run: |
+          pytest -q head_intelligence/tests
+
+      - name: Python self-test
+        shell: pwsh
+        run: |
+          python -m head_intelligence.app --self-test
+
+      - name: Real network smoke test
+        shell: pwsh
+        run: |
+          python -m head_intelligence.app --network-smoke-test
+
+      - name: Build Windows EXE
+        shell: pwsh
+        run: |
+          pyinstaller --noconfirm --clean --onefile --windowed --name HeadIntelligence head_intelligence/app.py
+
+      - name: Verify built EXE
+        shell: pwsh
+        run: |
+          & .\dist\HeadIntelligence.exe --self-test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Hash EXE
+        shell: pwsh
+        run: |
+          $hash = (Get-FileHash .\dist\HeadIntelligence.exe -Algorithm SHA256).Hash
+          "sha256=$hash" | Out-File -FilePath .\dist\BUILD_HASH.txt -Encoding ascii
+          "commit=${{ github.sha }}" | Add-Content .\dist\BUILD_HASH.txt
+          "workflow_run=${{ github.run_id }}" | Add-Content .\dist\BUILD_HASH.txt
+
+      - name: Upload verified candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: HeadIntelligence-Windows-Candidate
+          path: |
+            dist/HeadIntelligence.exe
+            dist/BUILD_HASH.txt
+          if-no-files-found: error
+          retention-days: 30
