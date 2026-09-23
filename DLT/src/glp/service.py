@@ -105,19 +105,24 @@ class LottoService:
             )
 
     def _trusted_baseline_draws(self) -> list[Draw]:
-        """Return the newest locally verified baseline, falling back to the embedded verified seed."""
+        """Return a locally evidenced baseline, otherwise the embedded verified seed."""
         try:
-            draws, _ = self.store.load_draws()
-            return draws
+            integrity = self.store.integrity_check()
+            by_name = {x.get("name"): x.get("status") for x in integrity.get("checks", [])}
+            if by_name.get("Canonical hash") == "PASS" and by_name.get("Source evidence") == "PASS":
+                draws, _ = self.store.load_draws()
+                return draws
         except Exception:
-            seed_obj = json.loads(resource_path("official_seed.json").read_text(encoding="utf-8"))
-            draws = [Draw.from_dict(x) for x in seed_obj.get("draws", [])]
-            if not draws:
-                raise ValueError("no trusted DLT baseline available")
-            expected = str(seed_obj.get("canonical_hash") or "")
-            if sha256_json([d.to_dict() for d in draws]) != expected:
-                raise ValueError("embedded DLT baseline hash mismatch")
-            return draws
+            pass
+
+        seed_obj = json.loads(resource_path("official_seed.json").read_text(encoding="utf-8"))
+        draws = [Draw.from_dict(x) for x in seed_obj.get("draws", [])]
+        if not draws:
+            raise ValueError("no trusted DLT baseline available")
+        expected = str(seed_obj.get("canonical_hash") or "")
+        if sha256_json([d.to_dict() for d in draws]) != expected:
+            raise ValueError("embedded DLT baseline hash mismatch")
+        return draws
 
     def update(self, progress: Callable[[str], None] | None = None) -> dict[str, Any]:
         attempt_id = sha256_json({"kind": "official_update", "at": utc_now(), "version": APP_VERSION})
