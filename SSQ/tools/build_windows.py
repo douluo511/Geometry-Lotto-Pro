@@ -1,5 +1,5 @@
 from __future__ import annotations
-import hashlib, json, os, subprocess, sys
+import hashlib, json, os, subprocess, sys, time
 from pathlib import Path
 
 if os.name != 'nt':
@@ -44,7 +44,7 @@ checks = [
     'gui',
 ]
 report = {
-    'schema': 'ssq-windows-exact-exe-acceptance-v1',
+    'schema': 'ssq-windows-exact-exe-acceptance-v2',
     'artifact': exe.name,
     'sha256': exe_hash,
     'runner_os': os.environ.get('RUNNER_OS'),
@@ -88,6 +88,24 @@ try:
     }
 except Exception as exc:
     report['checks']['unicode-path-no-python-path'] = {'status': 'FAIL', 'error': f'{type(exc).__name__}: {exc}', 'exe_hash_matches': False}
+
+# Default user path: the exact same EXE must actually stay alive as a native GUI app.
+# The dedicated 'gui' acceptance above separately validates window/control creation
+# and real WM_COMMAND -> backend routing inside these exact packaged bytes.
+gui_proc = None
+try:
+    gui_proc = subprocess.Popen([str(exe)])
+    time.sleep(7)
+    alive = gui_proc.poll() is None
+    report['checks']['default-gui-launch'] = {
+        'exit_code': 0 if alive else int(gui_proc.returncode or 1),
+        'status': 'PASS' if alive else 'FAIL',
+        'exe_hash_matches': _sha256 := (hashlib.sha256(exe.read_bytes()).hexdigest() == exe_hash),
+        'detail': 'exact EXE remained alive for 7 seconds under default no-argument GUI launch' if alive else 'exact EXE exited before GUI smoke window',
+    }
+finally:
+    if gui_proc is not None and gui_proc.poll() is None:
+        subprocess.run(['taskkill', '/PID', str(gui_proc.pid), '/T', '/F'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 hard_fail = [k for k,v in report['checks'].items() if v.get('status') != 'PASS' or v.get('exit_code') != 0 or not v.get('exe_hash_matches')]
 report['hard_failures'] = hard_fail
