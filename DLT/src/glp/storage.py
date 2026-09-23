@@ -35,10 +35,17 @@ class Store:
 
     def _connect(self) -> sqlite3.Connection:
         db = sqlite3.connect(self.db_path)
-        db.row_factory = sqlite3.Row
-        db.execute("PRAGMA journal_mode=WAL")
-        db.execute("PRAGMA foreign_keys=ON")
-        return db
+        try:
+            db.row_factory = sqlite3.Row
+            db.execute("PRAGMA journal_mode=WAL")
+            db.execute("PRAGMA foreign_keys=ON")
+            return db
+        except Exception:
+            # If PRAGMA fails on a corrupt database, sqlite3 would otherwise
+            # leave the partially opened handle alive and Windows keeps the
+            # file locked, preventing the Repair path from replacing it.
+            db.close()
+            raise
 
     def _init_db(self) -> None:
         db = self._connect()
