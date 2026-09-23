@@ -1,0 +1,94 @@
+name: English Root Intelligence Windows EXE
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'english-root-intelligence/**'
+      - '.github/workflows/english-root-intelligence-windows.yml'
+
+defaults:
+  run:
+    working-directory: english-root-intelligence
+
+jobs:
+  build-and-verify:
+    runs-on: windows-2022
+    timeout-minutes: 45
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@v4
+
+      - name: Setup Python x64
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11.9'
+          architecture: 'x64'
+
+      - name: Install pinned build dependency
+        run: python -m pip install --disable-pip-version-check -r requirements-build.txt
+
+      - name: Code completeness gate
+        run: python -m compileall -q app.py core.py tests
+
+      - name: Source self-test
+        run: python app.py --self-test
+
+      - name: Unit regression tests
+        run: python -m unittest discover -s tests -v
+
+      - name: Build standalone Windows EXE
+        shell: pwsh
+        run: |
+          pyinstaller --noconfirm --clean --onefile --windowed --name English_Root_Intelligence_Windows_Verified --add-data "data;data" app.py
+          if (-not (Test-Path "dist\English_Root_Intelligence_Windows_Verified.exe")) { throw "EXE missing" }
+
+      - name: Exact packaged EXE self-test
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path evidence | Out-Null
+          & ".\dist\English_Root_Intelligence_Windows_Verified.exe" --self-test | Tee-Object -FilePath evidence\exact-exe-self-test.json
+          if ($LASTEXITCODE -ne 0) { throw "exact EXE self-test failed" }
+          $r = Get-Content evidence\exact-exe-self-test.json -Raw | ConvertFrom-Json
+          if ($r.status -ne 'PASS') { throw "exact EXE gate=$($r.status)" }
+
+      - name: Exact GUI launch smoke
+        shell: pwsh
+        run: |
+          $p = Start-Process ".\dist\English_Root_Intelligence_Windows_Verified.exe" -PassThru
+          Start-Sleep -Seconds 6
+          if ($p.HasExited) { throw "GUI EXE exited early with code $($p.ExitCode)" }
+          Stop-Process -Id $p.Id -Force
+
+      - name: Final same-hash report
+        shell: pwsh
+        run: |
+          $exe = Resolve-Path ".\dist\English_Root_Intelligence_Windows_Verified.exe"
+          $hash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLower()
+          $report = @{
+            schema = "english-root-intelligence-windows-acceptance-v1"
+            version = "0.1.0"
+            artifact = "English_Root_Intelligence_Windows_Verified.exe"
+            sha256 = $hash
+            source_tests = "PASS"
+            exact_exe_self_test = "PASS"
+            exact_gui_launch = "PASS"
+            hard_fail_count = 0
+            final_gate = "PASS"
+          }
+          $report | ConvertTo-Json | Set-Content evidence\WINDOWS_EXE_ACCEPTANCE.json -Encoding UTF8
+          Write-Host "FINAL_EXE_SHA256=$hash"
+          Write-Host "FINAL_GATE=PASS"
+
+      - name: Upload verified Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: English-Root-Intelligence-Windows-x64
+          path: |
+            english-root-intelligence/dist/English_Root_Intelligence_Windows_Verified.exe
+            english-root-intelligence/evidence/**
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
