@@ -67,7 +67,7 @@ for check in checks:
             'game': content.get('game'),
             'version': content.get('version'),
         }
-        print('EXACT_EXE_CHECK=' + check + ' ' + json.dumps(content, ensure_ascii=False), flush=True)
+        print('EXACT_EXE_CHECK=' + check + ' ' + json.dumps(content, ensure_ascii=True), flush=True)
     except Exception as exc:
         report['checks'][check] = {'status': 'FAIL', 'error': f'{type(exc).__name__}: {exc}', 'exe_hash_matches': False}
         print('EXACT_EXE_CHECK=' + check + ' WRAPPER_ERROR=' + f'{type(exc).__name__}: {exc}', flush=True)
