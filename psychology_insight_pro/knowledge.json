@@ -1,0 +1,67 @@
+{
+  "version": "0.1.0",
+  "updated_at": "2026-09-24",
+  "description": "Psychology Insight Pro prototype knowledge rules. Probabilistic inference only.",
+  "hypotheses": [
+    {
+      "key": "external_load",
+      "name": "外部负荷 / 忙碌",
+      "explanation": "工作、学习、家庭事务或疲劳可能暂时降低互动能力，而不必然代表关系态度变化。",
+      "prior": 0.0,
+      "support_keywords": ["忙", "加班", "工作", "会议", "考试", "赶项目", "累", "没时间", "deadline", "busy"],
+      "contradict_keywords": ["有空", "闲", "放假", "时间很多"],
+      "support_weight": 0.46,
+      "contradict_weight": 0.42
+    },
+    {
+      "key": "uncertainty",
+      "name": "不确定 / 尚未决定",
+      "explanation": "当前可能没有形成清晰决定，或希望保留选择空间。",
+      "prior": 0.0,
+      "support_keywords": ["不知道", "再看看", "看情况", "也许", "可能", "随便", "都行", "考虑一下"],
+      "contradict_keywords": ["确定", "就这样", "我会", "已经决定", "肯定"],
+      "support_weight": 0.48,
+      "contradict_weight": 0.5
+    },
+    {
+      "key": "conflict_avoidance",
+      "name": "冲突回避",
+      "explanation": "可能希望避免直接冲突、拒绝或承担决定带来的压力。",
+      "prior": -0.05,
+      "support_keywords": ["都可以", "你决定", "没事", "算了", "不想说", "随便吧", "以后再说"],
+      "contradict_keywords": ["我不同意", "我希望", "我想要", "我明确"],
+      "support_weight": 0.43,
+      "contradict_weight": 0.46
+    },
+    {
+      "key": "distance_boundary",
+      "name": "边界 / 距离需求",
+      "explanation": "可能正在寻求更多空间、减少当下互动或推迟讨论。",
+      "prior": -0.08,
+      "support_keywords": ["想静静", "给我点时间", "空间", "先别", "不想聊", "晚点再说", "改天", "以后再说", "不方便"],
+      "contradict_keywords": ["一起", "见面", "现在聊", "我来找你", "什么时候有空"],
+      "support_weight": 0.52,
+      "contradict_weight": 0.5
+    },
+    {
+      "key": "engagement",
+      "name": "仍有投入 / 继续互动意愿",
+      "explanation": "存在主动询问、具体安排、帮助、共同计划或延续话题等投入信号。",
+      "prior": 0.0,
+      "support_keywords": ["一起", "见面", "什么时候", "我来", "我帮", "告诉我", "我想知道", "下次", "具体时间", "有空吗"],
+      "contradict_keywords": ["不想聊", "别联系", "以后再说", "没必要", "算了"],
+      "support_weight": 0.47,
+      "contradict_weight": 0.5
+    },
+    {
+      "key": "lower_investment",
+      "name": "关系投入可能下降",
+      "explanation": "若与个人历史基线相比，主动性、具体承诺和回应持续下降，可能代表投入减少；单次表现不足以确认。",
+      "prior": -0.12,
+      "support_keywords": ["改天", "以后再说", "不方便", "没空", "随便", "嗯", "哦"],
+      "contradict_keywords": ["我来", "我帮", "一起", "见面", "什么时候", "具体时间"],
+      "support_weight": 0.3,
+      "contradict_weight": 0.44
+    }
+  ]
+}
