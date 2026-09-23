@@ -1,0 +1,79 @@
+name: Investment Finance Pro - Build Windows EXE
+
+on:
+  pull_request:
+    branches: [ main ]
+    paths:
+      - "investment_finance_pro/**"
+      - ".github/workflows/investment-finance-pro-build.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-verify:
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install builder
+        run: python -m pip install --upgrade pip pyinstaller
+
+      - name: Source deterministic self-test
+        run: python investment_finance_pro/app.py --self-test --report source_self_test.json
+
+      - name: Source real-network smoke test
+        run: python investment_finance_pro/app.py --network-smoke --report source_network_smoke.json
+
+      - name: Build GUI EXE
+        shell: pwsh
+        run: >
+          pyinstaller
+          --noconfirm
+          --clean
+          --onefile
+          --windowed
+          --name InvestmentFinancePro
+          investment_finance_pro/app.py
+
+      - name: EXE deterministic self-test
+        shell: pwsh
+        run: |
+          & .\dist\InvestmentFinancePro.exe --self-test --report exe_self_test.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: EXE real-network smoke test
+        shell: pwsh
+        run: |
+          & .\dist\InvestmentFinancePro.exe --network-smoke --report exe_network_smoke.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Hash EXE
+        shell: pwsh
+        run: |
+          $h = (Get-FileHash .\dist\InvestmentFinancePro.exe -Algorithm SHA256).Hash
+          "sha256=$h" | Out-File -Encoding utf8 exe_sha256.txt
+          Get-Item .\dist\InvestmentFinancePro.exe | Select-Object Name,Length,LastWriteTime | Format-List
+
+      - name: Upload verified EXE
+        uses: actions/upload-artifact@v4
+        with:
+          name: Investment-Finance-Pro-Windows
+          path: |
+            dist/InvestmentFinancePro.exe
+            exe_sha256.txt
+            source_self_test.json
+            source_network_smoke.json
+            exe_self_test.json
+            exe_network_smoke.json
+          if-no-files-found: error
+          retention-days: 14
