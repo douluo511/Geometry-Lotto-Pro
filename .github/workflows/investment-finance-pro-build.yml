@@ -29,10 +29,20 @@ jobs:
         run: python -m pip install --upgrade pip pyinstaller
 
       - name: Source deterministic self-test
-        run: python investment_finance_pro/app.py --self-test --report source_self_test.json
+        shell: pwsh
+        run: |
+          python investment_finance_pro/app.py --self-test --report source_self_test.json
+          $code = $LASTEXITCODE
+          Get-Content source_self_test.json
+          if ($code -ne 0) { exit $code }
 
       - name: Source real-network smoke test
-        run: python investment_finance_pro/app.py --network-smoke --report source_network_smoke.json
+        shell: pwsh
+        run: |
+          python investment_finance_pro/app.py --network-smoke --report source_network_smoke.json
+          $code = $LASTEXITCODE
+          if (Test-Path source_network_smoke.json) { Get-Content source_network_smoke.json }
+          if ($code -ne 0) { exit $code }
 
       - name: Build GUI EXE
         shell: pwsh
@@ -49,13 +59,17 @@ jobs:
         shell: pwsh
         run: |
           & .\dist\InvestmentFinancePro.exe --self-test --report exe_self_test.json
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $code = $LASTEXITCODE
+          if (Test-Path exe_self_test.json) { Get-Content exe_self_test.json }
+          if ($code -ne 0) { exit $code }
 
       - name: EXE real-network smoke test
         shell: pwsh
         run: |
           & .\dist\InvestmentFinancePro.exe --network-smoke --report exe_network_smoke.json
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $code = $LASTEXITCODE
+          if (Test-Path exe_network_smoke.json) { Get-Content exe_network_smoke.json }
+          if ($code -ne 0) { exit $code }
 
       - name: Hash EXE
         shell: pwsh
