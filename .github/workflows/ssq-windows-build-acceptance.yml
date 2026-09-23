@@ -1,0 +1,77 @@
+name: SSQ Windows exact-EXE acceptance
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - 'ssq-final-*'
+    paths:
+      - 'SSQ/**'
+      - '.github/workflows/ssq-windows-build-acceptance.yml'
+  pull_request:
+    paths:
+      - 'SSQ/**'
+      - '.github/workflows/ssq-windows-build-acceptance.yml'
+
+defaults:
+  run:
+    working-directory: SSQ
+
+jobs:
+  build-and-accept:
+    runs-on: windows-2022
+    timeout-minutes: 180
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@v4
+
+      - name: Setup pinned Python x64
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11.9'
+          architecture: 'x64'
+
+      - name: Install pinned build dependencies
+        run: python -m pip install --disable-pip-version-check -r requirements-build.txt
+
+      - name: Code completeness compile gate
+        run: python -m compileall -q SSQ launcher.py tools
+
+      - name: Source contract self-test
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path evidence\SSQ | Out-Null
+          $env:PYTHONPATH = "$PWD\SSQ"
+          python launcher.py --check self --result-file evidence\SSQ\source-self.json
+          $r = Get-Content evidence\SSQ\source-self.json -Raw | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or $r.status -ne 'PASS') { throw "source contract self-test failed" }
+
+      - name: Native Windows build plus exact-EXE acceptance
+        run: python tools/build_windows.py
+
+      - name: Final release gate and same-hash proof
+        shell: pwsh
+        run: |
+          $reportPath = "evidence\SSQ\WINDOWS_EXACT_EXE_ACCEPTANCE.json"
+          if (-not (Test-Path $reportPath)) { throw "acceptance report missing" }
+          $report = Get-Content $reportPath -Raw | ConvertFrom-Json
+          if ($report.final_release_gate -ne 'PASS') { throw "final_release_gate=$($report.final_release_gate)" }
+          if ([int]$report.hard_fail_count -ne 0) { throw "hard_fail_count=$($report.hard_fail_count)" }
+          $exe = Resolve-Path "dist\Geometry_Lotto_Pro_SSQ_Windows_Verified.exe"
+          $hash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLower()
+          if ($hash -ne [string]$report.sha256) { throw "same-hash proof failed" }
+          Write-Host "SSQ_FINAL_EXE=$exe"
+          Write-Host "SSQ_FINAL_SHA256=$hash"
+          Write-Host "FINAL_RELEASE_GATE=PASS"
+
+      - name: Upload final EXE only after all hard gates pass
+        uses: actions/upload-artifact@v4
+        with:
+          name: Geometry-Lotto-Pro-SSQ-FINAL-Windows-x64
+          path: |
+            SSQ/dist/Geometry_Lotto_Pro_SSQ_Windows_Verified.exe
+            SSQ/evidence/SSQ/**
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
