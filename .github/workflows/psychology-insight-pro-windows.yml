@@ -1,0 +1,95 @@
+name: Psychology Insight Pro - Build Windows EXE
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'psychology_insight_pro/**'
+      - '.github/workflows/psychology-insight-pro-windows.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install build tools
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pyinstaller
+
+      - name: Run unit tests
+        shell: pwsh
+        run: |
+          python -m unittest discover -s psychology_insight_pro/tests -v
+
+      - name: Run Python self-test
+        shell: pwsh
+        run: |
+          python psychology_insight_pro/app.py --self-test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify real GitHub knowledge source
+        shell: pwsh
+        run: |
+          $url = "https://raw.githubusercontent.com/douluo511/Geometry-Lotto-Pro/main/psychology_insight_pro/knowledge.json"
+          $data = Invoke-RestMethod -Uri $url -TimeoutSec 20
+          if (-not $data.version) { throw "Remote knowledge version missing" }
+          if (-not $data.hypotheses -or $data.hypotheses.Count -lt 1) { throw "Remote hypotheses missing" }
+          Write-Host "Remote knowledge source PASS, version=$($data.version)"
+
+      - name: Build single-file Windows GUI
+        shell: pwsh
+        run: |
+          pyinstaller --noconfirm --clean --noupx --onefile --windowed --name Psychology_Insight_Pro --add-data "psychology_insight_pro/knowledge.json;." psychology_insight_pro/app.py
+
+      - name: EXE exact-binary self-test
+        shell: pwsh
+        run: |
+          $exe = Resolve-Path ".\dist\Psychology_Insight_Pro.exe"
+          $p = Start-Process -FilePath $exe -ArgumentList "--self-test" -Wait -PassThru
+          if ($p.ExitCode -ne 0) {
+            throw "EXE self-test failed with exit code $($p.ExitCode)"
+          }
+          Write-Host "EXE self-test PASS"
+
+      - name: Generate SHA256 and acceptance report
+        shell: pwsh
+        run: |
+          $exe = ".\dist\Psychology_Insight_Pro.exe"
+          $hash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLower()
+          "$hash  Psychology_Insight_Pro.exe" | Out-File ".\dist\Psychology_Insight_Pro.sha256.txt" -Encoding ascii
+          "artifact=Psychology_Insight_Pro.exe" | Out-File ".\dist\acceptance.txt" -Encoding utf8
+          "app_version=0.1.0" | Out-File ".\dist\acceptance.txt" -Append -Encoding utf8
+          "source_commit=$env:GITHUB_SHA" | Out-File ".\dist\acceptance.txt" -Append -Encoding utf8
+          "unit_tests=PASS" | Out-File ".\dist\acceptance.txt" -Append -Encoding utf8
+          "python_self_test=PASS" | Out-File ".\dist\acceptance.txt" -Append -Encoding utf8
+          "remote_knowledge_source=PASS" | Out-File ".\dist\acceptance.txt" -Append -Encoding utf8
+          "exe_self_test=PASS" | Out-File ".\dist\acceptance.txt" -Append -Encoding utf8
+          "sha256=$hash" | Out-File ".\dist\acceptance.txt" -Append -Encoding utf8
+          Get-Content ".\dist\acceptance.txt"
+
+      - name: Upload verified EXE artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Psychology_Insight_Pro_Windows_v0.1.0
+          path: |
+            dist/Psychology_Insight_Pro.exe
+            dist/Psychology_Insight_Pro.sha256.txt
+            dist/acceptance.txt
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
