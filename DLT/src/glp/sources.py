@@ -14,6 +14,7 @@ from .util import canonical_json, sha256_bytes, sha256_json, utc_now
 
 JIANGSU_DATA_PAGE = "https://api.js-lottery.com/wfzq/dlt/data"
 JIANGSU_LIST_URL = "https://api.js-lottery.com/Lottery/_ListData"
+GANSU_HISTORY_URL = "https://www.gstc.org.cn/wanfa/dlt_history"
 
 # Sporttery's WAF has periodically rejected otherwise-valid desktop requests.
 # Keep two explicit official-site profiles and fail closed if both fail.
@@ -60,7 +61,7 @@ def _national_get(params: dict[str, str], session: requests.Session | None = Non
     failures: list[str] = []
     for profile in NATIONAL_HEADER_PROFILES:
         try:
-            response = sess.get(NATIONAL_URL, params=params, headers=profile, timeout=(10, 30), allow_redirects=True)
+            response = sess.get(NATIONAL_URL, params=params, headers=profile, timeout=(8, 20), allow_redirects=True)
             if response.status_code >= 400:
                 failures.append(_response_fingerprint(response))
                 continue
@@ -183,31 +184,190 @@ def fetch_jiangsu_recent(limit: int = 100):
     raise SourceError("江苏体彩两个官方路径均失败: " + " | ".join(failures[-4:]))
 
 
-def build_canonical(progress: Callable[[str], None] | None = None):
-    national, national_receipt, raw_manifest = fetch_national_history(progress)
-    if progress:
-        progress("江苏体彩交叉验证中")
-    jiangsu, jiangsu_receipt = fetch_jiangsu_recent(100)
-    jm = {d.issue: d for d in jiangsu}
-    overlap = [d for d in national if d.issue in jm]
-    if len(overlap) < 10:
-        raise SourceError("两个官方来源没有足够可交叉核对的共同期号")
-    mismatches = [d.issue for d in overlap if d.to_dict() != jm[d.issue].to_dict()]
+def _parse_gansu_html(text: str) -> list[Draw]:
+    plain = html.unescape(text)
+    plain = re.sub(r"<script[^>]*>.*?</script>", " ", plain, flags=re.I | re.S)
+    plain = re.sub(r"<style[^>]*>.*?</style>", " ", plain, flags=re.I | re.S)
+    plain = re.sub(r"<[^>]+>", " ", plain)
+    plain = re.sub(r"\s+", " ", plain)
+
+    draws: list[Draw] = []
+    # Gansu's public history surface renders date, five-digit issue and seven
+    # two-digit balls. Some templates concatenate the seven balls into 14 digits.
+    pattern = re.compile(
+        r"(20\d{2}-\d{2}-\d{2})\s+(\d{5})\s+((?:\d{14})|(?:(?:\d{1,2})\s+){6}(?:\d{1,2}))"
+    )
+    for day, issue, result in pattern.findall(plain):
+        try:
+            if re.fullmatch(r"\d{14}", result):
+                nums = [int(result[i:i+2]) for i in range(0, 14, 2)]
+                result_text = " ".join(str(x) for x in nums)
+            else:
+                result_text = result
+            draws.append(_parse_result(issue, day, result_text))
+        except Exception:
+            continue
+    return sorted({d.issue: d for d in draws}.values(), key=lambda d: (d.draw_date, d.issue))
+
+
+def fetch_gansu_recent(limit: int = 100):
+    headers = {
+        "User-Agent": JIANGSU_HEADERS["User-Agent"],
+        "Accept": JIANGSU_HEADERS["Accept"],
+        "Referer": "https://www.gstc.org.cn/",
+    }
+    response = requests.get(GANSU_HISTORY_URL, headers=headers, timeout=(10, 30), allow_redirects=True)
+    if response.status_code >= 400:
+        raise SourceError("甘肃体彩历史页失败: " + _response_fingerprint(response))
+    response.encoding = response.encoding or "utf-8"
+    draws = _parse_gansu_html(response.text)
+    if len(draws) < 10:
+        raise SourceError(f"甘肃体彩历史页解析不足10期: parsed={len(draws)} " + _response_fingerprint(response))
+    draws = draws[-max(10, min(limit, 100)):]
+    receipt = SourceReceipt(
+        source="gansu",
+        fetched_at=utc_now(),
+        http_status=response.status_code,
+        raw_sha256=sha256_bytes(response.content),
+        draw_count=len(draws),
+        latest_issue=draws[-1].issue,
+        status="PASS",
+        detail="甘肃省体育彩票管理中心超级大乐透历史开奖页",
+    )
+    return draws, receipt
+
+
+def _validate_consensus(a: list[Draw], b: list[Draw], min_overlap: int = 10) -> list[Draw]:
+    bm = {d.issue: d for d in b}
+    overlap = [d for d in a if d.issue in bm]
+    if len(overlap) < min_overlap:
+        raise SourceError(f"两个官方省级来源共同期号不足: {len(overlap)} < {min_overlap}")
+    mismatches = [d.issue for d in overlap if d.to_dict() != bm[d.issue].to_dict()]
     if mismatches:
-        raise SourceError("官方来源冲突，拒绝更新: " + ", ".join(mismatches[:10]))
-    if national[-1].issue != jiangsu[-1].issue:
-        raise SourceError(f"官方来源最新期不一致，拒绝更新: 国家体彩={national[-1].issue}, 江苏体彩={jiangsu[-1].issue}")
-    payload = [d.to_dict() for d in national]
+        raise SourceError("两个官方省级来源冲突: " + ", ".join(mismatches[:10]))
+    if a[-1].issue != b[-1].issue or a[-1].to_dict() != b[-1].to_dict():
+        raise SourceError(
+            f"两个官方省级来源最新期不一致: 江苏={a[-1].issue}, 甘肃={b[-1].issue}"
+        )
+    return overlap
+
+
+def build_canonical(
+    progress: Callable[[str], None] | None = None,
+    baseline_draws: list[Draw] | None = None,
+):
+    if progress:
+        progress("江苏体彩 + 甘肃体彩双官方实时交叉核验…")
+    jiangsu, jiangsu_receipt = fetch_jiangsu_recent(100)
+    gansu, gansu_receipt = fetch_gansu_recent(100)
+    provincial_overlap = _validate_consensus(jiangsu, gansu, min_overlap=10)
+
+    national: list[Draw] | None = None
+    national_receipt: SourceReceipt | None = None
+    raw_manifest: list[dict] = []
+    national_error = ""
+    try:
+        if progress:
+            progress("国家体彩主源实时验证…")
+        national, national_receipt, raw_manifest = fetch_national_history(progress)
+    except Exception as exc:
+        national_error = f"{type(exc).__name__}: {exc}"
+        national_receipt = SourceReceipt(
+            source="national",
+            fetched_at=utc_now(),
+            http_status=0,
+            raw_sha256=sha256_bytes(national_error.encode("utf-8")),
+            draw_count=0,
+            latest_issue="",
+            status="FAIL",
+            detail=national_error,
+        )
+
+    receipts: list[SourceReceipt] = [national_receipt, jiangsu_receipt, gansu_receipt]
+    verification = ""
+    canonical_draws: list[Draw]
+
+    if national is not None:
+        jm = {d.issue: d for d in jiangsu}
+        gm = {d.issue: d for d in gansu}
+        overlap = [d for d in national if d.issue in jm and d.issue in gm]
+        if len(overlap) < 10:
+            raise SourceError("国家体彩与双省级来源共同期号不足")
+        mismatches = [
+            d.issue for d in overlap
+            if d.to_dict() != jm[d.issue].to_dict() or d.to_dict() != gm[d.issue].to_dict()
+        ]
+        if mismatches:
+            raise SourceError("国家体彩与省级官方来源冲突: " + ", ".join(mismatches[:10]))
+        if not (national[-1].issue == jiangsu[-1].issue == gansu[-1].issue):
+            raise SourceError(
+                f"三官方来源最新期不一致: 国家={national[-1].issue}, 江苏={jiangsu[-1].issue}, 甘肃={gansu[-1].issue}"
+            )
+        canonical_draws = national
+        crosscheck_count = len(overlap)
+        verification = "NATIONAL_PLUS_JIANGSU_GANSU_CONSENSUS"
+    else:
+        if not baseline_draws:
+            raise SourceError("国家体彩不可用且没有可信历史基线，拒绝构造 Canonical")
+        baseline = list(baseline_draws)
+        for d in baseline:
+            d.validate()
+        if len({d.issue for d in baseline}) != len(baseline):
+            raise SourceError("可信基线存在重复期号")
+        if any(baseline[i].draw_date >= baseline[i+1].draw_date for i in range(len(baseline)-1)):
+            raise SourceError("可信基线时间顺序异常")
+
+        jm = {d.issue: d for d in jiangsu}
+        gm = {d.issue: d for d in gansu}
+        # The baseline must itself agree with both current official surfaces on
+        # their recent overlap; this prevents silently extending a poisoned cache.
+        recent_common = [d for d in baseline if d.issue in jm and d.issue in gm]
+        if len(recent_common) < 10:
+            raise SourceError("可信基线与双官方实时来源共同期号不足")
+        conflicts = [
+            d.issue for d in recent_common
+            if d.to_dict() != jm[d.issue].to_dict() or d.to_dict() != gm[d.issue].to_dict()
+        ]
+        if conflicts:
+            raise SourceError("可信基线与实时官方来源冲突: " + ", ".join(conflicts[:10]))
+
+        baseline_map = {d.issue: d for d in baseline}
+        consensus_map = {
+            d.issue: d for d in provincial_overlap
+            if d.to_dict() == gm[d.issue].to_dict()
+        }
+        for issue, draw in consensus_map.items():
+            if issue in baseline_map and baseline_map[issue].to_dict() != draw.to_dict():
+                raise SourceError(f"官方实时数据与可信基线冲突: {issue}")
+            baseline_map[issue] = draw
+        canonical_draws = sorted(baseline_map.values(), key=lambda d: (d.draw_date, d.issue))
+        if canonical_draws[-1].issue != jiangsu[-1].issue:
+            raise SourceError(
+                f"双官方共识未能把 Canonical 推进到最新期: canonical={canonical_draws[-1].issue}, official={jiangsu[-1].issue}"
+            )
+        crosscheck_count = len(provincial_overlap)
+        verification = "TRUSTED_BASELINE_PLUS_JIANGSU_GANSU_CONSENSUS"
+
+    payload = [d.to_dict() for d in canonical_draws]
     canonical_hash = sha256_json(payload)
     dataset = CanonicalDataset(
-        draws=national, canonical_hash=canonical_hash,
-        receipts=[national_receipt, jiangsu_receipt], crosscheck_count=len(overlap), crosscheck_status="PASS",
+        draws=canonical_draws,
+        canonical_hash=canonical_hash,
+        receipts=receipts,
+        crosscheck_count=crosscheck_count,
+        crosscheck_status="PASS",
     )
     evidence = {
-        "fetched_at": utc_now(), "canonical_hash": canonical_hash, "draw_count": len(national),
-        "latest": national[-1].to_dict(), "crosscheck_count": len(overlap), "crosscheck_status": "PASS",
+        "fetched_at": utc_now(),
+        "canonical_hash": canonical_hash,
+        "draw_count": len(canonical_draws),
+        "latest": canonical_draws[-1].to_dict(),
+        "crosscheck_count": crosscheck_count,
+        "crosscheck_status": "PASS",
         "network_gate": "PASS",
-        "source_receipts": [asdict(x) for x in dataset.receipts], "national_raw_manifest": raw_manifest,
+        "verification": verification,
+        "source_receipts": [asdict(x) for x in receipts],
+        "national_raw_manifest": raw_manifest,
         "canonical_payload_sha256": sha256_bytes(canonical_json(payload).encode("utf-8")),
     }
     return dataset, evidence
