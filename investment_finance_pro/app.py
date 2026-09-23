@@ -54,6 +54,64 @@ def fetch_text(url: str, timeout: int = 15) -> str:
 def stooq_symbol(symbol: str) -> str:
     return symbol.lower() + ".us"
 
+def fetch_yahoo_history(symbol: str) -> list[dict[str, Any]]:
+    errors = []
+    for host in ("query1.finance.yahoo.com", "query2.finance.yahoo.com"):
+        try:
+            safe_symbol = urllib.parse.quote(symbol, safe="")
+            url = (
+                f"https://{host}/v8/finance/chart/{safe_symbol}"
+                "?range=6mo&interval=1d&events=div%2Csplits&includeAdjustedClose=true"
+            )
+            req = urllib.request.Request(url, headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/126 Safari/537.36",
+                "Accept": "application/json,text/plain,*/*",
+            })
+            with urllib.request.urlopen(req, timeout=15) as r:
+                payload = json.loads(r.read().decode("utf-8", errors="replace"))
+            result = payload["chart"]["result"][0]
+            timestamps = result.get("timestamp") or []
+            quote = (result.get("indicators", {}).get("quote") or [{}])[0]
+            adj = (result.get("indicators", {}).get("adjclose") or [{}])[0].get("adjclose") or []
+            rows = []
+            for i, ts in enumerate(timestamps):
+                try:
+                    raw_close = quote.get("close", [])[i]
+                    close = adj[i] if i < len(adj) and adj[i] is not None else raw_close
+                    if close is None or float(close) <= 0:
+                        continue
+                    rows.append({
+                        "date": datetime.fromtimestamp(int(ts), tz=timezone.utc).date().isoformat(),
+                        "open": float(quote.get("open", [])[i] or close),
+                        "high": float(quote.get("high", [])[i] or close),
+                        "low": float(quote.get("low", [])[i] or close),
+                        "close": float(close),
+                        "volume": int(quote.get("volume", [])[i] or 0),
+                    })
+                except (IndexError, TypeError, ValueError):
+                    continue
+            rows.sort(key=lambda x: x["date"])
+            if len(rows) < 30:
+                raise RuntimeError(f"{symbol}: Yahoo history too short ({len(rows)} rows)")
+            return rows
+        except Exception as e:
+            errors.append(f"{host}: {e}")
+    raise RuntimeError(" ; ".join(errors))
+
+
+def fetch_market_history(symbol: str) -> tuple[list[dict[str, Any]], str]:
+    errors = []
+    try:
+        return fetch_yahoo_history(symbol), "YahooChart"
+    except Exception as e:
+        errors.append("YahooChart=" + str(e))
+    try:
+        return fetch_stooq_history(symbol), "Stooq"
+    except Exception as e:
+        errors.append("Stooq=" + str(e))
+    raise RuntimeError(" | ".join(errors))
+
+
 def fetch_stooq_history(symbol: str, calendar_days: int = 220) -> list[dict[str, Any]]:
     end = datetime.now(timezone.utc).date()
     start = end - timedelta(days=calendar_days)
@@ -162,9 +220,9 @@ def one_click_update() -> dict[str, Any]:
     providers: list[dict[str, Any]] = []
     for symbol in WATCHLIST:
         try:
-            rows = fetch_stooq_history(symbol)
+            rows, provider = fetch_market_history(symbol)
             metrics[symbol] = compute_metrics(rows)
-            providers.append(ProviderResult("Stooq:" + symbol, True, f"{len(rows)} rows").__dict__)
+            providers.append(ProviderResult(provider + ":" + symbol, True, f"{len(rows)} rows").__dict__)
         except Exception as e:
             providers.append(ProviderResult("Stooq:" + symbol, False, str(e)).__dict__)
 
@@ -255,11 +313,11 @@ def deterministic_self_test() -> dict[str, Any]:
 def network_smoke_test() -> dict[str, Any]:
     checks = []
     try:
-        rows = fetch_stooq_history("SPY", 180)
+        rows, provider = fetch_market_history("SPY")
         m = compute_metrics(rows)
-        checks.append({"source": "Stooq:SPY", "status": "PASS", "rows": len(rows), "last_date": m["date"]})
+        checks.append({"source": provider + ":SPY", "status": "PASS", "rows": len(rows), "last_date": m["date"]})
     except Exception as e:
-        checks.append({"source": "Stooq:SPY", "status": "FAILED", "detail": str(e)})
+        checks.append({"source": "MARKET:SPY", "status": "FAILED", "detail": str(e)})
     try:
         item = fetch_fred_series("DGS10")
         checks.append({"source": "FRED:DGS10", "status": "PASS", "last_date": item["date"], "value": item["value"]})
