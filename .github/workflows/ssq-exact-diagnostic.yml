@@ -35,7 +35,7 @@ jobs:
           New-Item -ItemType Directory -Force -Path diag | Out-Null
           $exe = Resolve-Path "diag-dist\SSQDiag.exe"
           $failed = @()
-          foreach ($check in @('integrity-tamper','update')) {
+          foreach ($check in @('integrity-tamper','update','corrupt-repair')) {
             $out = "diag\$check.json"
             $p = Start-Process -FilePath $exe -ArgumentList '--check',$check,'--result-file',$out -Wait -PassThru
             Write-Host "=== $check exit=$($p.ExitCode) ==="
