@@ -8,6 +8,10 @@ on:
     paths:
       - 'english-root-intelligence/**'
       - '.github/workflows/english-root-intelligence-windows.yml'
+  pull_request:
+    paths:
+      - 'english-root-intelligence/**'
+      - '.github/workflows/english-root-intelligence-windows.yml'
 
 defaults:
   run:
