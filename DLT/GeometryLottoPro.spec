@@ -1,5 +1,6 @@
 # -*- mode: python ; coding: utf-8 -*-
 from pathlib import Path
+from PyInstaller.utils.hooks import collect_data_files
 
 root = Path(SPECPATH)
 src = root / "src"
@@ -8,7 +9,7 @@ a = Analysis(
     [str(src / "main.py")],
     pathex=[str(src)],
     binaries=[],
-    datas=[(str(src / "resources"), "resources")],
+    datas=[(str(src / "resources"), "resources")] + collect_data_files("certifi"),
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
