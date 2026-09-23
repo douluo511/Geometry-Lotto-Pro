@@ -14,6 +14,10 @@ on:
       - 'DLT/**'
       - '.github/workflows/dlt-windows-build-acceptance.yml'
 
+concurrency:
+  group: dlt-exact-${{ github.ref }}
+  cancel-in-progress: true
+
 defaults:
   run:
     working-directory: DLT
