@@ -104,10 +104,26 @@ class LottoService:
                 {"count": imported, "note": "published combination only; excluded from full-ranking evidence"},
             )
 
+    def _trusted_baseline_draws(self) -> list[Draw]:
+        """Return the newest locally verified baseline, falling back to the embedded verified seed."""
+        try:
+            draws, _ = self.store.load_draws()
+            return draws
+        except Exception:
+            seed_obj = json.loads(resource_path("official_seed.json").read_text(encoding="utf-8"))
+            draws = [Draw.from_dict(x) for x in seed_obj.get("draws", [])]
+            if not draws:
+                raise ValueError("no trusted DLT baseline available")
+            expected = str(seed_obj.get("canonical_hash") or "")
+            if sha256_json([d.to_dict() for d in draws]) != expected:
+                raise ValueError("embedded DLT baseline hash mismatch")
+            return draws
+
     def update(self, progress: Callable[[str], None] | None = None) -> dict[str, Any]:
         attempt_id = sha256_json({"kind": "official_update", "at": utc_now(), "version": APP_VERSION})
         try:
-            dataset, evidence = build_canonical(progress)
+            baseline = self._trusted_baseline_draws()
+            dataset, evidence = build_canonical(progress=progress, baseline_draws=baseline)
             self.store.save_dataset(dataset, evidence)
             integrity = self.store.integrity_check()
             if integrity["status"] != "PASS":
@@ -134,14 +150,22 @@ class LottoService:
             raise
 
     def predict(self, progress: Callable[[str], None] | None = None) -> dict[str, Any]:
+        """Autonomous prediction path: live official update -> evidence court -> freeze.
+
+        The user never has to press Update first. If the real-network quorum cannot
+        validate current data, prediction fails closed instead of silently using stale bytes.
+        """
         self.ensure_seed()
+        if progress:
+            progress("预测前自动联网更新并核验官方数据…")
+        auto_update = self.update(progress=progress)
         integrity = self.store.integrity_check()
         if integrity["status"] != "PASS":
             raise ValueError("本地数据/证据链不完整，请先运行“一键修复”")
         draws, canonical_hash = self.store.load_draws()
+        court = self._court(draws, canonical_hash, progress=progress)
         if progress:
             progress("完整组合空间评分中：前区 324,632 / 后区 66")
-        court = self.latest_court(canonical_hash)
         prediction, trace = make_prediction(draws, canonical_hash, court)
         frozen = self.store.freeze(prediction)
         if frozen.prediction_id != prediction.prediction_id:
@@ -151,9 +175,16 @@ class LottoService:
                 "current_score_not_used": True,
                 "complete_space": trace.get("complete_space"),
                 "production_weights": trace.get("production_weights"),
+                "scientific_gate": court.get("scientific_gate"),
+                "edge_gate": court.get("edge_gate"),
                 "note": "该期已有事前 Freeze；本次重算结果被不可覆盖规则拒绝。",
             }
-        payload = {"prediction": frozen.to_dict(), "effect_trace": trace}
+        payload = {
+            "prediction": frozen.to_dict(),
+            "effect_trace": trace,
+            "auto_update": auto_update,
+            "autonomous_path": "LIVE_UPDATE->CANONICAL->EVIDENCE_COURT->SCORE->FREEZE",
+        }
         self.store.append_experiment("prediction_freeze", "PASS", canonical_hash, frozen.model_hash, payload)
         return payload
 
@@ -173,33 +204,66 @@ class LottoService:
         return count
 
     def audit(self, progress: Callable[[str], None] | None = None) -> dict[str, Any]:
+        """Advanced analysis is live and heavy, but never writes a formal prediction freeze."""
         self.ensure_seed()
+        update_result = self.update(progress=progress)
         integrity = self.store.integrity_check()
         if integrity["status"] != "PASS":
             raise ValueError("Evidence Court 拒绝运行：本地数据/证据链不完整")
         draws, canonical_hash = self.store.load_draws()
+        before = len(self.store.freezes())
+        court = self._court(draws, canonical_hash, progress=progress)
+        preview, trace = make_prediction(draws, canonical_hash, court)
+        ors = build_ors_record(court, trace)
+        after = len(self.store.freezes())
+        isolation_ok = before == after
+        payload = {
+            "court": court,
+            "ors": ors,
+            "research_preview": preview.to_dict(),
+            "formal_freeze_written": False,
+            "auto_update": update_result,
+            "audit_freeze_isolation": {
+                "status": "PASS" if isolation_ok else "FAIL",
+                "before": before,
+                "after": after,
+            },
+        }
+        status = "PASS" if court.get("software_verdict") == "PASS" and isolation_ok else "FAIL"
+        self.store.append_experiment("advanced_audit", status, canonical_hash, court["model_hash"], payload)
+        return payload
+
+    def _court(self, draws: list[Draw], canonical_hash: str, progress: Callable[[str], None] | None = None) -> dict[str, Any]:
+        cached = self.latest_court(canonical_hash)
+        if cached is not None:
+            return cached
         selector_hash = model_identity()["selector_hash"]
         prospective = self.store.prospective_replays(selector_hash)
         court = run_evidence_court(draws, prospective, progress)
-        prediction = self.predict(progress)
-        trace = prediction.get("effect_trace", {})
-        ors = build_ors_record(court, trace)
-        payload = {"court": court, "ors": ors}
-        self.store.append_experiment("evidence_court", court["software_verdict"], canonical_hash, court["model_hash"], payload)
-        return payload
+        self.store.append_experiment(
+            "evidence_court",
+            court["software_verdict"],
+            canonical_hash,
+            court["model_hash"],
+            {"court": court},
+        )
+        return court
 
     def latest_court(self, canonical_hash: str | None = None) -> dict[str, Any] | None:
         # Never reuse a PASS from another dataset or model revision. A data update
         # invalidates predictive-edge evidence until Evidence Court is rerun.
         canonical_hash = canonical_hash or self.store.load_draws()[1]
         current_model_hash = model_identity()["model_hash"]
-        with self.store._connect() as db:
+        db = self.store._connect()
+        try:
             row = db.execute(
                 "SELECT payload_json FROM experiments "
                 "WHERE kind='evidence_court' AND status='PASS' AND input_hash=? AND code_hash=? "
                 "ORDER BY id DESC LIMIT 1",
                 (canonical_hash, current_model_hash),
             ).fetchone()
+        finally:
+            db.close()
         if not row:
             return None
         value = json.loads(row["payload_json"])
@@ -263,16 +327,34 @@ def self_test(root: Path | None = None) -> dict[str, Any]:
     check("Immutable Freeze", lambda: (_ for _ in ()).throw(AssertionError("freeze overwritten")) if first.front != second.front else None)
 
     def freeze_tamper_detection():
-        with store._connect() as db:
+        # Database trigger must reject in-place modification.
+        db = store._connect()
+        blocked = False
+        try:
             row = db.execute("SELECT payload_json FROM freezes WHERE target_issue=?", ("26999",)).fetchone()
             value = json.loads(row["payload_json"])
             value["front"] = [6, 7, 8, 9, 10]
-            db.execute("UPDATE freezes SET payload_json=? WHERE target_issue=?", (json.dumps(value, ensure_ascii=False, sort_keys=True), "26999"))
-        if store.integrity_check()["status"] != "FAIL":
-            raise AssertionError("tampered freeze payload was not detected")
-        # Restore the original immutable payload so later self-tests operate on a valid ledger.
-        with store._connect() as db:
-            db.execute("UPDATE freezes SET payload_json=? WHERE target_issue=?", (json.dumps(first.to_dict(), ensure_ascii=False, sort_keys=True), "26999"))
+            try:
+                db.execute(
+                    "UPDATE freezes SET payload_json=? WHERE target_issue=?",
+                    (json.dumps(value, ensure_ascii=False, sort_keys=True), "26999"),
+                )
+                db.commit()
+            except Exception:
+                blocked = True
+                db.rollback()
+        finally:
+            db.close()
+        if not blocked:
+            raise AssertionError("immutable freeze trigger did not reject update")
+
+        # Hash verifier independently rejects externally modified payload bytes.
+        bad = Prediction(**{**first.to_dict(), "front": [6, 7, 8, 9, 10]})
+        try:
+            Store._verify_freeze(bad)
+        except ValueError:
+            return
+        raise AssertionError("freeze hash verifier accepted tampered payload")
     check("Freeze tamper detection", freeze_tamper_detection)
 
     def stale_court_rejection():
@@ -311,8 +393,12 @@ def self_test(root: Path | None = None) -> dict[str, Any]:
             s2.freeze(pred)
 
             # Close/checkpoint WAL state before deliberately corrupting the ledger.
-            with s2._connect() as db:
+            db = s2._connect()
+            try:
                 db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+                db.commit()
+            finally:
+                db.close()
             del s2
             gc.collect()
 
