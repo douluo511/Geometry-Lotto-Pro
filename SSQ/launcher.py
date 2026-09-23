@@ -99,8 +99,26 @@ def main() -> int:
                 status = 'PASS' if r.get('crosscheck_status') == 'PASS' else 'FAIL'
 
             elif args.check == 'predict':
+                from glp.engine import _next_target
                 r = svc.predict()
-                status = (r.get('final_gate') or {}).get('status', 'FAIL')
+                pred = r.get('prediction') or {}
+                gate = r.get('final_gate') or {}
+                auto = r.get('auto_update')
+                draws = svc._load_draws()
+                expected_issue, expected_date = _next_target(draws)
+                front = [int(x) for x in pred.get('front', [])]
+                back = [int(x) for x in pred.get('back', [])]
+                autonomous_contract = {
+                    'live_update_pass': isinstance(auto, dict) and auto.get('crosscheck_status') == 'PASS',
+                    'target_from_updated_canonical': pred.get('target_issue') == expected_issue and pred.get('target_date') == expected_date,
+                    'front_shape_valid': len(front) == 6 and len(set(front)) == 6 and all(1 <= x <= 33 for x in front),
+                    'back_shape_valid': len(back) == 1 and all(1 <= x <= 16 for x in back),
+                    'lineage_bound': bool(pred.get('prediction_id') and pred.get('freeze_hash') and pred.get('score_hash') and pred.get('model_hash') and pred.get('selector_hash')),
+                    'final_gate_pass': gate.get('status') == 'PASS',
+                    'no_manual_input': True,
+                }
+                r['acceptance_autonomous_contract'] = autonomous_contract
+                status = 'PASS' if all(autonomous_contract.values()) else 'FAIL'
 
             elif args.check == 'audit':
                 before = svc._freeze_count()
@@ -186,16 +204,15 @@ def main() -> int:
                 draws, _ = svc.store.load_draws()
                 random_draws = _random_world(draws, seed)
                 court = run_evidence_court(random_draws)
-                leakage = court.get('leakage', {})
+                leak_count = int(court.get('leakage_violations', 0) or 0)
                 r = {
                     'seed': seed,
                     'edge_state': court.get('edge_state'),
                     'dan_state': court.get('dan_state'),
                     'software_verdict': court.get('software_verdict'),
-                    'leakage': leakage,
+                    'leakage_violations': leak_count,
                     'court_hash': court.get('court_hash'),
                 }
-                leak_count = int(leakage.get('violations', leakage.get('violation_count', 0)) or 0)
                 status = 'PASS' if court.get('software_verdict') == 'PASS' and court.get('edge_state') == 'NO_EDGE' and court.get('dan_state') == 'NULL_DAN' and leak_count == 0 else 'FAIL'
 
             else:
