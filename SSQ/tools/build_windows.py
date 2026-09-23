@@ -100,7 +100,7 @@ try:
     report['checks']['default-gui-launch'] = {
         'exit_code': 0 if alive else int(gui_proc.returncode or 1),
         'status': 'PASS' if alive else 'FAIL',
-        'exe_hash_matches': _sha256 := (hashlib.sha256(exe.read_bytes()).hexdigest() == exe_hash),
+        'exe_hash_matches': (hashlib.sha256(exe.read_bytes()).hexdigest() == exe_hash),
         'detail': 'exact EXE remained alive for 7 seconds under default no-argument GUI launch' if alive else 'exact EXE exited before GUI smoke window',
     }
 finally:
