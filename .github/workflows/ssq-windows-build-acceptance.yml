@@ -47,6 +47,17 @@ jobs:
           $r = Get-Content evidence\SSQ\source-self.json -Raw | ConvertFrom-Json
           if ($LASTEXITCODE -ne 0 -or $r.status -ne 'PASS') { throw "source contract self-test failed" }
 
+      - name: Source live official-network quorum smoke
+        shell: pwsh
+        run: |
+          $env:PYTHONPATH = "$PWD\SSQ"
+          python launcher.py --check update --result-file evidence\SSQ\source-live-update.json
+          $r = Get-Content evidence\SSQ\source-live-update.json -Raw | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or $r.status -ne 'PASS') { throw "source live official-network quorum failed" }
+          if ($r.result.crosscheck_status -ne 'PASS') { throw "source crosscheck_status=$($r.result.crosscheck_status)" }
+          Write-Host "SOURCE_LIVE_LATEST=$($r.result.latest_issue)"
+          Write-Host "SOURCE_LIVE_VERIFICATION=$($r.result.verification)"
+
       - name: Native Windows build plus exact-EXE acceptance
         run: python tools/build_windows.py
 
