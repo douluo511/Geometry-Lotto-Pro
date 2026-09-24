@@ -1,1 +1,2 @@
-pyinstaller==6.16.0
+pyinstaller==6.15.0
+requests==2.32.5

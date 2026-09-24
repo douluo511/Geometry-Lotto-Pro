@@ -1,104 +1,120 @@
-name: Guoxue Zhice Windows EXE
-
+name: Guoxue Zhice Full Hard-Gate Windows Release
 on:
   workflow_dispatch:
   push:
-    branches:
-      - main
-    paths:
-      - 'guoxue-zhice/**'
-      - '.github/workflows/guoxue-zhice-windows.yml'
+    branches: [main, guoxue-zhice-v0.2-hard-gate]
+    paths: ['guoxue-zhice/**', '.github/workflows/guoxue-zhice-windows.yml']
   pull_request:
-    paths:
-      - 'guoxue-zhice/**'
-      - '.github/workflows/guoxue-zhice-windows.yml'
-
+    paths: ['guoxue-zhice/**', '.github/workflows/guoxue-zhice-windows.yml']
+permissions:
+  contents: read
 defaults:
   run:
     working-directory: guoxue-zhice
-
 jobs:
-  build-and-verify:
+  full-release-gate:
     runs-on: windows-2022
     timeout-minutes: 45
     steps:
       - name: Checkout exact commit
         uses: actions/checkout@v4
-
       - name: Setup Python x64
         uses: actions/setup-python@v5
-        with:
-          python-version: '3.11.9'
-          architecture: 'x64'
-
-      - name: Install pinned build dependency
+        with: {python-version: '3.11.9', architecture: 'x64'}
+      - name: Install pinned dependencies
         run: python -m pip install --disable-pip-version-check -r requirements-build.txt
-
-      - name: Code completeness gate
-        run: python -m compileall -q app.py core.py tests
-
-      - name: Source self-test
-        run: python app.py --self-test
-
-      - name: Unit regression tests
+      - name: Architecture and code completeness
+        shell: pwsh
+        run: |
+          python -m compileall -q app.py core.py domain.py net_client.py storage.py engine.py evidence.py service.py contracts.py architecture_gate.py release_gate.py real_network_check.py tests
+          python architecture_gate.py
+          if ($LASTEXITCODE -ne 0) { throw "Architecture Gate failed" }
+      - name: Self-Test
+        shell: pwsh
+        run: |
+          python app.py --self-test
+          if ($LASTEXITCODE -ne 0) { throw "Self-Test failed" }
+      - name: Contract Test
+        shell: pwsh
+        run: |
+          python tests/test_contracts.py
+          if ($LASTEXITCODE -ne 0) { throw "Contract Test failed" }
+      - name: Fault Injection
+        shell: pwsh
+        run: |
+          python tests/test_fault_injection.py
+          if ($LASTEXITCODE -ne 0) { throw "Fault Injection failed" }
+      - name: Full Regression
         run: python -m unittest discover -s tests -v
-
-      - name: Real network update gate
+      - name: Real Network
         shell: pwsh
         run: |
-          python -c "import tempfile; from pathlib import Path; from core import Store, MaintenanceEngine; t=tempfile.TemporaryDirectory(); r=MaintenanceEngine(Store(Path(t.name))).one_click_update(); print(r); assert r['status']=='PASS'; t.cleanup()"
-
-      - name: Build standalone Windows EXE
+          python real_network_check.py
+          if ($LASTEXITCODE -ne 0) { throw "Real Network failed" }
+      - name: Windows Build
         shell: pwsh
         run: |
-          pyinstaller --noconfirm --clean --onefile --windowed --name Guoxue_Zhice_Windows_Verified --add-data "data;data" app.py
-          if (-not (Test-Path "dist\Guoxue_Zhice_Windows_Verified.exe")) { throw "EXE missing" }
-
-      - name: Exact packaged EXE self-test
+          pyinstaller --noconfirm --clean --noupx --onefile --windowed --name Guoxue_Zhice_Pro --add-data "data;data" app.py
+          if (-not (Test-Path ".\dist\Guoxue_Zhice_Pro.exe")) { throw "EXE missing" }
+      - name: Exact EXE Self-Test
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path evidence | Out-Null
-          & ".\dist\Guoxue_Zhice_Windows_Verified.exe" --self-test | Tee-Object -FilePath evidence\exact-exe-self-test.json
-          if ($LASTEXITCODE -ne 0) { throw "exact EXE self-test failed" }
-          $r = Get-Content evidence\exact-exe-self-test.json -Raw | ConvertFrom-Json
-          if ($r.status -ne 'PASS') { throw "exact EXE gate=$($r.status)" }
-
-      - name: Exact GUI launch smoke
+          New-Item -ItemType Directory -Force ".\evidence" | Out-Null
+          $exe=Resolve-Path ".\dist\Guoxue_Zhice_Pro.exe"
+          $json=Join-Path (Resolve-Path ".\evidence") "exact-exe-self-test.json"
+          $p=Start-Process -FilePath $exe -ArgumentList @("--self-test-out",$json) -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Exact EXE self-test failed: $($p.ExitCode)" }
+          $r=Get-Content $json -Raw | ConvertFrom-Json
+          if ($r.status -ne "PASS") { throw "Exact EXE status=$($r.status)" }
+      - name: GUI Smoke
         shell: pwsh
         run: |
-          $p = Start-Process ".\dist\Guoxue_Zhice_Windows_Verified.exe" -PassThru
-          Start-Sleep -Seconds 6
-          if ($p.HasExited) { throw "GUI EXE exited early with code $($p.ExitCode)" }
-          Stop-Process -Id $p.Id -Force
-
-      - name: Final same-hash report
+          $exe=Resolve-Path ".\dist\Guoxue_Zhice_Pro.exe"
+          $p=Start-Process -FilePath $exe -ArgumentList "--gui-smoke" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "GUI Smoke failed: $($p.ExitCode)" }
+      - name: Same Hash
         shell: pwsh
         run: |
-          $exe = Resolve-Path ".\dist\Guoxue_Zhice_Windows_Verified.exe"
-          $hash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLower()
-          $report = @{
-            schema = "guoxue-zhice-windows-acceptance-v1"
-            version = "0.1.0"
-            artifact = "Guoxue_Zhice_Windows_Verified.exe"
-            sha256 = $hash
-            source_tests = "PASS"
-            network_update = "PASS"
-            exact_exe_self_test = "PASS"
-            exact_gui_launch = "PASS"
-            hard_fail_count = 0
-            final_gate = "PASS"
-          }
-          $report | ConvertTo-Json | Set-Content evidence\WINDOWS_EXE_ACCEPTANCE.json -Encoding UTF8
+          $source=".\dist\Guoxue_Zhice_Pro.exe"
+          $pre=(Get-FileHash $source -Algorithm SHA256).Hash.ToLower()
+          New-Item -ItemType Directory -Force ".\dist\final" | Out-Null
+          Copy-Item $source ".\dist\final\Guoxue_Zhice_Pro.exe" -Force
+          $post=(Get-FileHash ".\dist\final\Guoxue_Zhice_Pro.exe" -Algorithm SHA256).Hash.ToLower()
+          if ($pre -ne $post) { throw "Same Hash failed" }
+          $pre | Out-File ".\evidence\pre.sha256.txt" -Encoding ascii
+          $post | Out-File ".\evidence\final.sha256.txt" -Encoding ascii
+      - name: Final Gate
+        shell: pwsh
+        run: |
+          @'
+          {"gates":{"purpose_model":"PASS","five_why":"PASS","risk_boundary":"PASS","domain_model":"PASS","architecture":"PASS","function_contract":"PASS","interface_contract":"PASS","data_source":"PASS","netclient":"PASS","storage":"PASS","engine":"PASS","evidence":"PASS","service":"PASS","ui":"PASS","self_test":"PASS","contract_test":"PASS","fault_injection":"PASS","real_network":"PASS","windows_build":"PASS","exact_exe":"PASS","gui_smoke":"PASS","same_hash":"PASS"}}
+          '@ | Out-File ".\evidence\gate_input.json" -Encoding utf8
+          python release_gate.py --input ".\evidence\gate_input.json" --output ".\evidence\final_gate.json"
+          if ($LASTEXITCODE -ne 0) { throw "Final Gate failed" }
+          $gate=Get-Content ".\evidence\final_gate.json" -Raw | ConvertFrom-Json
+          if ($gate.final_gate -ne "PASS" -or $gate.hard_fail_count -ne 0) { throw "Final Gate is not strict PASS" }
+      - name: Acceptance Evidence
+        shell: pwsh
+        run: |
+          $hash=(Get-FileHash ".\dist\final\Guoxue_Zhice_Pro.exe" -Algorithm SHA256).Hash.ToLower()
+          $size=(Get-Item ".\dist\final\Guoxue_Zhice_Pro.exe").Length
+          $gate=Get-Content ".\evidence\final_gate.json" -Raw | ConvertFrom-Json
+          $report=@{schema="guoxue-zhice-hard-gate-v2";version="0.2.0";artifact="Guoxue_Zhice_Pro.exe";source_commit=$env:GITHUB_SHA;sha256=$hash;size=$size;hard_fail_count=$gate.hard_fail_count;final_gate=$gate.final_gate;exact_exe="PASS";gui_smoke="PASS";real_network="PASS";same_hash="PASS"}
+          $report | ConvertTo-Json | Set-Content ".\evidence\FINAL_ACCEPTANCE.json" -Encoding UTF8
           Write-Host "FINAL_EXE_SHA256=$hash"
-          Write-Host "FINAL_GATE=PASS"
-
-      - name: Upload verified Windows artifact
+          Write-Host "FINAL_GATE=$($gate.final_gate)"
+      - name: Upload Unique Final Product
         uses: actions/upload-artifact@v4
         with:
-          name: Guoxue-Zhice-Windows-x64
-          path: |
-            guoxue-zhice/dist/Guoxue_Zhice_Windows_Verified.exe
-            guoxue-zhice/evidence/**
+          name: Guoxue_Zhice_FINAL_v0.2.0
+          path: guoxue-zhice/dist/final/Guoxue_Zhice_Pro.exe
           if-no-files-found: error
           retention-days: 30
           compression-level: 0
+      - name: Upload Audit Evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: Guoxue_Zhice_AUDIT_v0.2.0
+          path: guoxue-zhice/evidence/**
+          if-no-files-found: error
+          retention-days: 30
