@@ -2,44 +2,9 @@ from __future__ import annotations
 
 import math
 import re
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
-
-@dataclass
-class Observation:
-    label: str
-    detail: str
-    strength: float = 0.5
-
-
-@dataclass
-class Evidence:
-    text: str
-    direction: str
-    weight: float
-
-
-@dataclass
-class Hypothesis:
-    key: str
-    name: str
-    explanation: str
-    score: float = 0.0
-    confidence: float = 0.0
-    evidence: List[Evidence] = field(default_factory=list)
-
-
-@dataclass
-class AnalysisResult:
-    observations: List[Observation]
-    hypotheses: List[Hypothesis]
-    five_whys: List[str]
-    reverse_validation: List[str]
-    consistency_notes: List[str]
-    guidance: List[str]
-    overall_confidence: str
-    disclaimer: str
+from domain import AnalysisResult, Evidence, Hypothesis, Observation
 
 
 def normalize_text(text: str) -> str:
