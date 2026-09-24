@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 APP_NAME = "English Root Intelligence"
-APP_VERSION = "0.1.0"
+APP_VERSION = "0.2.0"
 MANIFEST_URL = "https://raw.githubusercontent.com/douluo511/Geometry-Lotto-Pro/main/english-root-intelligence/data/update_manifest.json"
 
 PREFIXES = {

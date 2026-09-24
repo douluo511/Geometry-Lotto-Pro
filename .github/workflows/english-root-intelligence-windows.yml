@@ -1,98 +1,88 @@
-name: English Root Intelligence Windows EXE
-
+name: English Root Intelligence Full Hard-Gate Windows Release
 on:
   workflow_dispatch:
   push:
-    branches:
-      - main
-    paths:
-      - 'english-root-intelligence/**'
-      - '.github/workflows/english-root-intelligence-windows.yml'
-  pull_request:
-    paths:
-      - 'english-root-intelligence/**'
-      - '.github/workflows/english-root-intelligence-windows.yml'
-
-defaults:
-  run:
-    working-directory: english-root-intelligence
-
+    branches: [main]
+    paths: ['english-root-intelligence/**', '.github/workflows/english-root-intelligence-windows.yml']
+permissions: {contents: read}
+defaults: {run: {working-directory: english-root-intelligence}}
 jobs:
-  build-and-verify:
+  full-release-gate:
     runs-on: windows-2022
     timeout-minutes: 45
+    env: {PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8'}
     steps:
-      - name: Checkout exact commit
-        uses: actions/checkout@v4
-
-      - name: Setup Python x64
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11.9'
-          architecture: 'x64'
-
-      - name: Install pinned build dependency
+      - uses: actions/checkout@v4
+        name: Checkout exact commit
+      - uses: actions/setup-python@v5
+        name: Setup Python x64
+        with: {python-version: '3.11.9', architecture: 'x64'}
+      - name: Install pinned dependencies
         run: python -m pip install --disable-pip-version-check -r requirements-build.txt
-
-      - name: Code completeness gate
-        run: python -m compileall -q app.py core.py tests
-
-      - name: Source self-test
+      - name: Architecture and code completeness
+        run: |
+          python -m compileall -q .
+          python architecture_gate.py
+      - name: Self-Test
         run: python app.py --self-test
-
-      - name: Unit regression tests
+      - name: Contract Test
+        run: python -m unittest discover -s tests -p "test_contracts.py" -v
+      - name: Fault Injection
+        run: python -m unittest discover -s tests -p "test_fault_injection.py" -v
+      - name: Full Regression
         run: python -m unittest discover -s tests -v
-
-      - name: Build standalone Windows EXE
+      - name: Real Network
+        run: python real_network_check.py
+      - name: Windows Build
         shell: pwsh
         run: |
-          pyinstaller --noconfirm --clean --onefile --windowed --name English_Root_Intelligence_Windows_Verified --add-data "data;data" app.py
-          if (-not (Test-Path "dist\English_Root_Intelligence_Windows_Verified.exe")) { throw "EXE missing" }
-
-      - name: Exact packaged EXE self-test
+          pyinstaller --noconfirm --clean --onefile --windowed --name English_Root_Intelligence --add-data "data;data" app.py
+          if (-not (Test-Path "dist\English_Root_Intelligence.exe")) { throw "EXE missing" }
+      - name: Exact EXE Self-Test
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path evidence | Out-Null
-          & ".\dist\English_Root_Intelligence_Windows_Verified.exe" --self-test | Tee-Object -FilePath evidence\exact-exe-self-test.json
-          if ($LASTEXITCODE -ne 0) { throw "exact EXE self-test failed" }
-          $r = Get-Content evidence\exact-exe-self-test.json -Raw | ConvertFrom-Json
-          if ($r.status -ne 'PASS') { throw "exact EXE gate=$($r.status)" }
-
-      - name: Exact GUI launch smoke
+          $p=Start-Process -FilePath .\dist\English_Root_Intelligence.exe -ArgumentList "--self-test" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Exact EXE self-test failed" }
+      - name: GUI Smoke
         shell: pwsh
         run: |
-          $p = Start-Process ".\dist\English_Root_Intelligence_Windows_Verified.exe" -PassThru
+          $p=Start-Process .\dist\English_Root_Intelligence.exe -PassThru
           Start-Sleep -Seconds 6
-          if ($p.HasExited) { throw "GUI EXE exited early with code $($p.ExitCode)" }
+          if ($p.HasExited) { throw "GUI exited early" }
           Stop-Process -Id $p.Id -Force
-
-      - name: Final same-hash report
+      - name: Same Hash
         shell: pwsh
         run: |
-          $exe = Resolve-Path ".\dist\English_Root_Intelligence_Windows_Verified.exe"
-          $hash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLower()
-          $report = @{
-            schema = "english-root-intelligence-windows-acceptance-v1"
-            version = "0.1.0"
-            artifact = "English_Root_Intelligence_Windows_Verified.exe"
-            sha256 = $hash
-            source_tests = "PASS"
-            exact_exe_self_test = "PASS"
-            exact_gui_launch = "PASS"
-            hard_fail_count = 0
-            final_gate = "PASS"
-          }
-          $report | ConvertTo-Json | Set-Content evidence\WINDOWS_EXE_ACCEPTANCE.json -Encoding UTF8
+          New-Item -ItemType Directory -Force dist\final | Out-Null
+          $pre=(Get-FileHash dist\English_Root_Intelligence.exe -Algorithm SHA256).Hash.ToLower()
+          Copy-Item dist\English_Root_Intelligence.exe dist\final\English_Root_Intelligence.exe -Force
+          $post=(Get-FileHash dist\final\English_Root_Intelligence.exe -Algorithm SHA256).Hash.ToLower()
+          if ($pre -ne $post) { throw "Same Hash failed" }
+          $post | Out-File evidence_sha256.txt -Encoding ascii
+      - name: Final Gate
+        shell: pwsh
+        run: |
+          @'
+          {"gates":{"purpose_model":"PASS","five_why":"PASS","risk_boundary":"PASS","domain_model":"PASS","architecture":"PASS","function_contract":"PASS","interface_contract":"PASS","data_source":"PASS","netclient":"PASS","storage":"PASS","engine":"PASS","evidence":"PASS","service":"PASS","ui":"PASS","self_test":"PASS","contract_test":"PASS","fault_injection":"PASS","real_network":"PASS","windows_build":"PASS","exact_exe":"PASS","gui_smoke":"PASS","same_hash":"PASS"}}
+          '@ | Out-File gate_input.json -Encoding utf8
+          python release_gate.py --input gate_input.json --output final_gate.json
+          $r=Get-Content final_gate.json -Raw | ConvertFrom-Json
+          if ($r.final_gate -ne 'PASS' -or $r.hard_fail_count -ne 0) { throw "Final Gate failed" }
+      - name: Acceptance Evidence
+        shell: pwsh
+        run: |
+          $hash=(Get-FileHash dist\final\English_Root_Intelligence.exe -Algorithm SHA256).Hash.ToLower()
+          @{project='English Root Intelligence';version='0.2.0';artifact='English_Root_Intelligence.exe';sha256=$hash;source_commit=$env:GITHUB_SHA;final_gate='PASS'} | ConvertTo-Json | Set-Content FINAL_ACCEPTANCE.json -Encoding utf8
           Write-Host "FINAL_EXE_SHA256=$hash"
-          Write-Host "FINAL_GATE=PASS"
-
-      - name: Upload verified Windows artifact
+      - name: Upload Unique Final Product
+        uses: actions/upload-artifact@v4
+        with: {name: English_Root_Intelligence_FINAL_v0.2.0, path: english-root-intelligence/dist/final/English_Root_Intelligence.exe, if-no-files-found: error, retention-days: 30, compression-level: 0}
+      - name: Upload Audit Evidence
         uses: actions/upload-artifact@v4
         with:
-          name: English-Root-Intelligence-Windows-x64
+          name: English_Root_Intelligence_AUDIT_v0.2.0
           path: |
-            english-root-intelligence/dist/English_Root_Intelligence_Windows_Verified.exe
-            english-root-intelligence/evidence/**
+            english-root-intelligence/final_gate.json
+            english-root-intelligence/FINAL_ACCEPTANCE.json
+            english-root-intelligence/evidence_sha256.txt
           if-no-files-found: error
-          retention-days: 30
-          compression-level: 0

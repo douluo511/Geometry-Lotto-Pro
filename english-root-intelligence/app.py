@@ -9,7 +9,7 @@ import tkinter as tk
 from tkinter import messagebox
 from tkinter import ttk
 
-from core import APP_NAME, APP_VERSION, LearningEngine, MaintenanceEngine, Store, self_test
+from service import APP_NAME, APP_VERSION, create_service, self_test
 
 
 BG = "#f5f7fb"
@@ -27,9 +27,7 @@ class App(tk.Tk):
         self.geometry("980x720")
         self.minsize(900, 650)
         self.configure(bg=BG)
-        self.store = Store()
-        self.engine = LearningEngine(self.store)
-        self.maintenance = MaintenanceEngine(self.store)
+        self.service = create_service()
         self.status_var = tk.StringVar(value="系统就绪 · 数据库已验证")
         self._configure_style()
         self._build_shell()
@@ -109,7 +107,7 @@ class App(tk.Tk):
 
     def analyze_from_entry(self):
         try:
-            value = self.engine.analyze(self.word_entry.get())
+            value = self.service.analyze(self.word_entry.get())
         except Exception as exc:
             messagebox.showerror("分析失败", str(exc))
             return
@@ -144,7 +142,7 @@ class App(tk.Tk):
         self.clear()
         tk.Label(self.content, text="今日学习", bg=BG, fg=TEXT,
                  font=("Microsoft YaHei UI", 20, "bold")).pack(anchor="w", pady=(4, 12))
-        for r in self.engine.today_roots(3):
+        for r in self.service.today_roots(3):
             c = self.card()
             c.pack(fill="x", pady=6)
             top = tk.Frame(c, bg=CARD)
@@ -169,7 +167,7 @@ class App(tk.Tk):
                       relief="flat", bg=BLUE, fg="white").pack(side="right", padx=4)
 
     def practice(self, morpheme):
-        self.store.mark_practiced(morpheme)
+        self.service.mark_practiced(morpheme)
         self.status_var.set(f"{morpheme} 已完成一次主动练习")
 
     def speak(self, text):
@@ -190,7 +188,7 @@ class App(tk.Tk):
 
     def _update_worker(self):
         try:
-            r = self.maintenance.one_click_update()
+            r = self.service.one_click_update()
             self.after(0, lambda: messagebox.showinfo(
                 "一键更新 PASS",
                 f'版本：{r["version"]}\n词根数：{r["roots"]}\nSHA256：{r["sha256"][:16]}…'
@@ -202,7 +200,7 @@ class App(tk.Tk):
 
     def run_repair(self):
         try:
-            r = self.maintenance.one_click_repair()
+            r = self.service.one_click_repair()
             text = "\n".join(f"{name}: {status} · {detail}" for name, status, detail in r["checks"])
             if r["status"] == "PASS":
                 messagebox.showinfo("一键修复 PASS", text)
@@ -214,7 +212,7 @@ class App(tk.Tk):
 
     def show_analysis(self):
         self.clear()
-        s = self.engine.stats()
+        s = self.service.stats()
         tk.Label(self.content, text="高级分析", bg=BG, fg=TEXT,
                  font=("Microsoft YaHei UI", 20, "bold")).pack(anchor="w", pady=(4, 12))
         grid = tk.Frame(self.content, bg=BG)
