@@ -3,6 +3,7 @@ import json
 import os
 import shutil
 from pathlib import Path
+
 from contracts import validate_knowledge
 
 class KnowledgeStorage:
@@ -21,7 +22,10 @@ class KnowledgeStorage:
         data = validate_knowledge(json.loads(raw.decode("utf-8-sig")))
         stage = self.path.with_suffix(".staging")
         backup = self.path.with_suffix(".backup")
-        with stage.open("wb") as f:\n            f.write(raw)\n            f.flush()\n            os.fsync(f.fileno())
+        with stage.open("wb") as handle:
+            handle.write(raw)
+            handle.flush()
+            os.fsync(handle.fileno())
         validate_knowledge(json.loads(stage.read_text(encoding="utf-8")))
         shutil.copy2(self.path, backup)
         try:
@@ -40,4 +44,9 @@ class KnowledgeStorage:
         except Exception as exc:
             shutil.copy2(self.bundled_path, self.path)
             self.load()
-            return {"status": "PASS", "action": "restored", "path": str(self.path), "detail": str(exc)}
+            return {
+                "status": "PASS",
+                "action": "restored",
+                "path": str(self.path),
+                "detail": str(exc),
+            }
