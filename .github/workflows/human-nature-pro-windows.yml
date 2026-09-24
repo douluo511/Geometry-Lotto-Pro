@@ -96,3 +96,5 @@ jobs:
             Human-Nature-Pro/FINAL_ACCEPTANCE.json
             Human-Nature-Pro/sha256.txt
           if-no-files-found: error
+
+# Hard-gate revalidation trigger: 2026-09-24 master-template human
