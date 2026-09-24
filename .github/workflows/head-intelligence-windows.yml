@@ -45,7 +45,7 @@ jobs:
       - name: Unit Test
         shell: pwsh
         run: |
-          python -m pytest -q head_intelligence/tests/test_engine.py
+          python -m pytest -q head_intelligence/tests/test_engine.py head_intelligence/tests/test_release_gate.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           New-Item evidence/unit_tests.pass -ItemType File | Out-Null
 
