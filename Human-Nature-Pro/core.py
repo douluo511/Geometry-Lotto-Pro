@@ -6,7 +6,7 @@ from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import Dict, List, Tuple
 
-APP_VERSION = "0.1.0"
+APP_VERSION = "0.2.0"
 SCHEMA_VERSION = 1
 
 
