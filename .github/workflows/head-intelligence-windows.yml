@@ -138,7 +138,7 @@ jobs:
       - name: Physical GUI Click Smoke
         shell: pwsh
         run: |
-          .\.github\scripts\physical_gui_click_smoke.ps1 -ExePath ".\final\HeadIntelligence.exe" -Points "0.25,0.19;0.75,0.19;0.25,0.27;0.75,0.27" -PreconditionIndex 3 -EvidencePath ".\evidence\physical_gui_click.json"
+          .\.github\scripts\physical_gui_click_smoke.ps1 -ExePath ".\final\HeadIntelligence.exe" -Points "0.25,0.19;0.75,0.19;0.25,0.27;0.75,0.27" -ButtonTexts "信息判断;一键更新;一键修复;高级分析" -PreconditionIndex 3 -EvidencePath ".\evidence\physical_gui_click.json"
 
       - name: Final Gate
         shell: pwsh
@@ -165,3 +165,5 @@ jobs:
 # Hard-gate revalidation trigger: 2026-09-24 master-template
 
 # physical-gui child-process discovery fix: 2026-09-24
+
+# physical-gui UIAutomation + desktop-hash fix: 2026-09-24
