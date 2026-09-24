@@ -319,9 +319,42 @@ def build_canonical(
 
         jm = {d.issue: d for d in jiangsu}
         gm = {d.issue: d for d in gansu}
-        # The baseline must itself agree with both current official surfaces on
-        # their recent overlap; this prevents silently extending a poisoned cache.
-        recent_common = [d for d in baseline if d.issue in jm and d.issue in gm]
+
+        # Advance a stale trusted baseline only with consecutive draws that are
+        # independently identical on BOTH official provincial surfaces.  This
+        # closes the common case where the bundled baseline is one or a few
+        # draws behind the live 10-draw public window without weakening the
+        # >=10 overlap gate below.
+        baseline_map = {d.issue: d for d in baseline}
+        last = baseline[-1]
+        candidates = [
+            d for d in provincial_overlap
+            if d.issue not in baseline_map and d.draw_date > last.draw_date
+        ]
+        candidates.sort(key=lambda d: (d.draw_date, d.issue))
+
+        def _is_next_issue(previous: str, current: str) -> bool:
+            if not (re.fullmatch(r"\d{5}", previous) and re.fullmatch(r"\d{5}", current)):
+                return False
+            py, ps = int(previous[:2]), int(previous[2:])
+            cy, cs = int(current[:2]), int(current[2:])
+            return (cy == py and cs == ps + 1) or (cy == py + 1 and cs == 1)
+
+        for draw in candidates:
+            if not _is_next_issue(last.issue, draw.issue):
+                raise SourceError(
+                    f"可信基线到双官方共识存在期号缺口: baseline={last.issue}, next={draw.issue}"
+                )
+            if draw.to_dict() != jm[draw.issue].to_dict() or draw.to_dict() != gm[draw.issue].to_dict():
+                raise SourceError(f"双官方候选推进期冲突: {draw.issue}")
+            baseline_map[draw.issue] = draw
+            last = draw
+
+        extended_baseline = sorted(baseline_map.values(), key=lambda d: (d.draw_date, d.issue))
+
+        # The extended baseline must still agree with both live official
+        # surfaces on at least ten common draws.  The threshold is unchanged.
+        recent_common = [d for d in extended_baseline if d.issue in jm and d.issue in gm]
         if len(recent_common) < 10:
             raise SourceError("可信基线与双官方实时来源共同期号不足")
         conflicts = [
@@ -331,7 +364,7 @@ def build_canonical(
         if conflicts:
             raise SourceError("可信基线与实时官方来源冲突: " + ", ".join(conflicts[:10]))
 
-        baseline_map = {d.issue: d for d in baseline}
+        baseline_map = {d.issue: d for d in extended_baseline}
         consensus_map = {
             d.issue: d for d in provincial_overlap
             if d.to_dict() == gm[d.issue].to_dict()
