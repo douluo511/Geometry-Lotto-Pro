@@ -10,6 +10,7 @@ from typing import Callable, Iterable
 
 import requests
 
+from glp.net_client import NetClient
 from glp.constants import HEBEI_ANNOUNCE_URL, HEBEI_URL, NATIONAL_URL, SHANGHAI_URL
 from glp.domain import CanonicalDataset, Draw, SourceReceipt
 from glp.util import canonical_json, sha256_bytes, sha256_json, utc_now
@@ -26,6 +27,7 @@ HEADERS = {
     "Referer": "https://www.cwl.gov.cn/ygkj/wqkjgg/ssq/",
 }
 TIMEOUT = (20, 30)
+NET = NetClient(connect_timeout=20, read_timeout=30, max_attempts=3)
 
 
 def _issue(value: object) -> str:
@@ -143,7 +145,7 @@ def _national_params(page_no: int, page_size: int = 100) -> dict[str, str]:
 
 
 def fetch_national_page(page_no: int) -> tuple[list[Draw], bytes, int]:
-    response = requests.get(NATIONAL_URL, params=_national_params(page_no), headers=HEADERS, timeout=TIMEOUT)
+    response = NET.get(NATIONAL_URL, params=_national_params(page_no), headers=HEADERS, timeout=TIMEOUT)
     response.raise_for_status()
     raw = bytes(response.content)
     try:
@@ -266,7 +268,7 @@ def parse_shanghai_history(raw: bytes | str) -> list[Draw]:
 def fetch_shanghai_history() -> tuple[list[Draw], SourceReceipt, bytes]:
     headers = dict(HEADERS)
     headers["Referer"] = "https://www.swlc.net.cn/"
-    response = requests.get(SHANGHAI_URL, headers=headers, timeout=TIMEOUT)
+    response = NET.get(SHANGHAI_URL, headers=headers, timeout=TIMEOUT)
     response.raise_for_status()
     raw = bytes(response.content)
     draws = parse_shanghai_history(raw)
@@ -343,9 +345,9 @@ def parse_hebei_latest(home_raw: bytes | str, announce_raw: bytes | str | None =
 def fetch_hebei_latest() -> tuple[Draw, SourceReceipt, dict]:
     headers = dict(HEADERS)
     headers["Referer"] = "https://www.yzfcw.com/"
-    home_response = requests.get(HEBEI_URL, headers=headers, timeout=TIMEOUT)
+    home_response = NET.get(HEBEI_URL, headers=headers, timeout=TIMEOUT)
     home_response.raise_for_status()
-    announce_response = requests.get(HEBEI_ANNOUNCE_URL, headers=headers, timeout=TIMEOUT)
+    announce_response = NET.get(HEBEI_ANNOUNCE_URL, headers=headers, timeout=TIMEOUT)
     announce_response.raise_for_status()
     home_raw = bytes(home_response.content)
     announce_raw = bytes(announce_response.content)
