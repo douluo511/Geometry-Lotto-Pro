@@ -138,7 +138,9 @@ jobs:
       - name: Physical GUI Click Smoke
         shell: pwsh
         run: |
-          .\.github\scripts\physical_gui_click_smoke.ps1 -ExePath ".\final\HeadIntelligence.exe" -Points "0.25,0.19;0.75,0.19;0.25,0.27;0.75,0.27" -ButtonTexts "信息判断;一键更新;一键修复;高级分析" -PreconditionIndex 3 -EvidencePath ".\evidence\physical_gui_click.json"
+          python .\.github\scripts\tk_button_points.py --project-path . --module head_intelligence.app --entry HeadIntelligenceApp --labels "信息判断;一键更新;一键修复;高级分析" --out ".\evidence\gui_points.txt"
+          $points=(Get-Content ".\evidence\gui_points.txt" -Raw).Trim()
+          .\.github\scripts\physical_gui_click_smoke.ps1 -ExePath ".\final\HeadIntelligence.exe" -Points $points -PreconditionIndex 3 -EvidencePath ".\evidence\physical_gui_click.json"
 
       - name: Final Gate
         shell: pwsh
@@ -167,3 +169,5 @@ jobs:
 # physical-gui child-process discovery fix: 2026-09-24
 
 # physical-gui UIAutomation + desktop-hash fix: 2026-09-24
+
+# exact Tk geometry probe: 2026-09-24
