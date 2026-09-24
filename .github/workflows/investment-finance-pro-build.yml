@@ -83,7 +83,9 @@ jobs:
       - name: Physical GUI Click Smoke
         shell: pwsh
         run: |
-          .\.github\scripts\physical_gui_click_smoke.ps1 -ExePath ".\dist\InvestmentFinancePro.exe" -Points "0.25,0.29;0.75,0.29;0.25,0.39;0.75,0.39" -ButtonTexts "投资机会;一键更新;一键修复;高级分析" -EvidencePath ".\physical_gui_click.json"
+          python .\.github\scripts\tk_button_points.py --project-path investment_finance_pro --module app --entry run_gui --labels "投资机会;一键更新;一键修复;高级分析" --out ".\gui_points.txt"
+          $points=(Get-Content ".\gui_points.txt" -Raw).Trim()
+          .\.github\scripts\physical_gui_click_smoke.ps1 -ExePath ".\dist\InvestmentFinancePro.exe" -Points $points -EvidencePath ".\physical_gui_click.json"
 
       - name: Stage unique final EXE
         shell: pwsh
@@ -136,3 +138,5 @@ jobs:
 # physical-gui child-process discovery fix: 2026-09-24
 
 # physical-gui UIAutomation + desktop-hash fix: 2026-09-24
+
+# exact Tk geometry probe: 2026-09-24
