@@ -77,7 +77,7 @@ jobs:
       - name: Physical GUI Click Smoke
         shell: pwsh
         run: |
-          ..\.github\scripts\physical_gui_click_smoke.ps1 -ExePath ".\dist\Geometry_Lotto_Pro_DLT.exe" -Points "0.14,0.19;0.37,0.19;0.14,0.27;0.37,0.27" -ButtonTexts "预测下一期;一键更新;一键修复;高级分析" -EvidencePath ".\artifacts\physical_gui_click.json"
+          ..\.github\scripts\physical_gui_click_smoke.ps1 -ExePath ".\dist\Geometry_Lotto_Pro_DLT.exe" -Points "0.136,0.153;0.375,0.153;0.136,0.239;0.375,0.239" -EvidencePath ".\artifacts\physical_gui_click.json"
 
       - name: Final 22-gate release and same-hash proof
         shell: pwsh
@@ -108,3 +108,5 @@ jobs:
 # physical-gui child-process discovery fix: 2026-09-24
 
 # physical-gui full-desktop evidence fix: 2026-09-24
+
+# exact GUI physical click calibration: 2026-09-24

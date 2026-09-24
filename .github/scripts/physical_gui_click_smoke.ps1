@@ -17,7 +17,10 @@ using System;
 using System.Runtime.InteropServices;
 public static class PhysicalGuiClick {
   [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left; public int Top; public int Right; public int Bottom; }
+  [StructLayout(LayoutKind.Sequential)] public struct POINT { public int X; public int Y; }
   [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hWnd, out RECT rect);
+  [DllImport("user32.dll")] public static extern bool GetClientRect(IntPtr hWnd, out RECT rect);
+  [DllImport("user32.dll")] public static extern bool ClientToScreen(IntPtr hWnd, ref POINT point);
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
   [DllImport("user32.dll")] public static extern bool SetCursorPos(int X, int Y);
   [DllImport("user32.dll")] public static extern void mouse_event(uint dwFlags, uint dx, uint dy, uint dwData, UIntPtr dwExtraInfo);
@@ -98,9 +101,13 @@ function Click-ScreenPoint([IntPtr]$hwnd,[int]$x,[int]$y){
 }
 
 function Click-Normalized([IntPtr]$hwnd,[double]$rx,[double]$ry){
-  $r=Get-Rect $hwnd
-  $x=[int]($r.Left+($r.Right-$r.Left)*$rx)
-  $y=[int]($r.Top+($r.Bottom-$r.Top)*$ry)
+  $r=New-Object PhysicalGuiClick+RECT
+  if(-not [PhysicalGuiClick]::GetClientRect($hwnd,[ref]$r)){ throw "GetClientRect failed" }
+  $origin=New-Object PhysicalGuiClick+POINT
+  $origin.X=0; $origin.Y=0
+  if(-not [PhysicalGuiClick]::ClientToScreen($hwnd,[ref]$origin)){ throw "ClientToScreen failed" }
+  $x=[int]($origin.X+($r.Right-$r.Left)*$rx)
+  $y=[int]($origin.Y+($r.Bottom-$r.Top)*$ry)
   [void][PhysicalGuiClick]::SetForegroundWindow($hwnd)
   Start-Sleep -Milliseconds 200
   if(-not [PhysicalGuiClick]::SetCursorPos($x,$y)){ throw "SetCursorPos failed at $x,$y" }
