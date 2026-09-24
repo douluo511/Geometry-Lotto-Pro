@@ -19,7 +19,7 @@ class NetClient:
         self.read_timeout = float(read_timeout)
         self.max_attempts = max(1, min(int(max_attempts), 4))
         self.backoff_base = float(backoff_base)
-        self.session = session or requests.Session()
+        self.session = session
         self.sleeper = sleeper
 
     def get(self, url: str, *, params=None, headers=None, timeout=None, allow_redirects=True):
@@ -29,7 +29,8 @@ class NetClient:
         last = None
         for attempt in range(1, self.max_attempts + 1):
             try:
-                response = self.session.get(
+                getter = self.session.get if self.session is not None else requests.get
+                response = getter(
                     url,
                     params=params,
                     headers=headers,
