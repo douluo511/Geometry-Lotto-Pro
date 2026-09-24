@@ -8,6 +8,7 @@ from typing import Callable
 
 import requests
 
+from .net_client import NetClient
 from .constants import NATIONAL_URL
 from .domain import CanonicalDataset, Draw, SourceReceipt
 from .util import canonical_json, sha256_bytes, sha256_json, utc_now
@@ -30,6 +31,8 @@ NATIONAL_HEADER_PROFILES = (
         "Referer": "https://www.lottery.gov.cn/",
     },
 )
+NET = NetClient(connect_timeout=10, read_timeout=30, max_attempts=3)
+
 JIANGSU_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     "Accept": "text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8",
@@ -57,11 +60,10 @@ def _parse_result(issue: str, draw_date: str, text: str) -> Draw:
 
 
 def _national_get(params: dict[str, str], session: requests.Session | None = None) -> requests.Response:
-    sess = session or requests.Session()
     failures: list[str] = []
     for profile in NATIONAL_HEADER_PROFILES:
         try:
-            response = sess.get(NATIONAL_URL, params=params, headers=profile, timeout=(8, 20), allow_redirects=True)
+            response = NET.get(NATIONAL_URL, params=params, headers=profile, timeout=(8, 20), allow_redirects=True, session=session)
             if response.status_code >= 400:
                 failures.append(_response_fingerprint(response))
                 continue
@@ -163,7 +165,7 @@ def fetch_jiangsu_recent(limit: int = 100):
         headers = dict(JIANGSU_HEADERS)
         headers.update(extra_headers)
         try:
-            response = requests.get(url, params=params, headers=headers, timeout=(10, 30), allow_redirects=True)
+            response = NET.get(url, params=params, headers=headers, timeout=(10, 30), allow_redirects=True)
             if response.status_code >= 400:
                 failures.append(url + " " + _response_fingerprint(response))
                 continue
@@ -216,7 +218,7 @@ def fetch_gansu_recent(limit: int = 100):
         "Accept": JIANGSU_HEADERS["Accept"],
         "Referer": "https://www.gstc.org.cn/",
     }
-    response = requests.get(GANSU_HISTORY_URL, headers=headers, timeout=(10, 30), allow_redirects=True)
+    response = NET.get(GANSU_HISTORY_URL, headers=headers, timeout=(10, 30), allow_redirects=True)
     if response.status_code >= 400:
         raise SourceError("甘肃体彩历史页失败: " + _response_fingerprint(response))
     response.encoding = response.encoding or "utf-8"
