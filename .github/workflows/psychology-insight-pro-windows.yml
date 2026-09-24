@@ -161,3 +161,5 @@ jobs:
 # Hard-gate revalidation trigger: 2026-09-24 master-template
 
 # physical-gui child-process discovery fix: 2026-09-24
+
+# physical-gui UIAutomation + desktop-hash fix: 2026-09-24
