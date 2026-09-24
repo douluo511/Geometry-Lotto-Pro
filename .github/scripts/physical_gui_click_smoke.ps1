@@ -2,12 +2,15 @@ param(
   [Parameter(Mandatory=$true)][string]$ExePath,
   [Parameter(Mandatory=$true)][string]$Points,
   [Parameter(Mandatory=$true)][string]$EvidencePath,
+  [string]$ButtonTexts = "",
   [int]$PreconditionIndex = -1,
   [int]$SettleMs = 900
 )
 
 $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName System.Drawing
+Add-Type -AssemblyName UIAutomationClient
+Add-Type -AssemblyName UIAutomationTypes
 Add-Type @"
 using System;
 using System.Runtime.InteropServices;
@@ -68,6 +71,32 @@ function Get-WindowHash([IntPtr]$hwnd){
     Remove-Item $tmp -Force -ErrorAction SilentlyContinue
   }
 }
+
+function Find-ButtonPoint([IntPtr]$hwnd,[string]$name){
+  $root=[System.Windows.Automation.AutomationElement]::FromHandle($hwnd)
+  $all=$root.FindAll([System.Windows.Automation.TreeScope]::Descendants,[System.Windows.Automation.Condition]::TrueCondition)
+  foreach($el in $all){
+    try {
+      if($el.Current.ControlType -eq [System.Windows.Automation.ControlType]::Button -and $el.Current.Name -eq $name){
+        $r=$el.Current.BoundingRectangle
+        if($r.Width -gt 2 -and $r.Height -gt 2){
+          return @{x=[int]($r.Left+$r.Width/2);y=[int]($r.Top+$r.Height/2);name=$name}
+        }
+      }
+    } catch {}
+  }
+  throw "Button not found in UI Automation tree: $name"
+}
+function Click-ScreenPoint([IntPtr]$hwnd,[int]$x,[int]$y){
+  [void][PhysicalGuiClick]::SetForegroundWindow($hwnd)
+  Start-Sleep -Milliseconds 200
+  if(-not [PhysicalGuiClick]::SetCursorPos($x,$y)){ throw "SetCursorPos failed at $x,$y" }
+  [PhysicalGuiClick]::mouse_event($MOUSEEVENTF_LEFTDOWN,0,0,0,[UIntPtr]::Zero)
+  Start-Sleep -Milliseconds 80
+  [PhysicalGuiClick]::mouse_event($MOUSEEVENTF_LEFTUP,0,0,0,[UIntPtr]::Zero)
+  return @{x=$x;y=$y}
+}
+
 function Click-Normalized([IntPtr]$hwnd,[double]$rx,[double]$ry){
   $r=Get-Rect $hwnd
   $x=[int]($r.Left+($r.Right-$r.Left)*$rx)
@@ -86,6 +115,9 @@ function Stop-Tree([System.Diagnostics.Process]$p){
     Start-Sleep -Milliseconds 300
   }
 }
+$buttonNames=@()
+if($ButtonTexts){ $buttonNames=@($ButtonTexts.Split(';')) }
+if($buttonNames.Count -gt 0 -and $buttonNames.Count -ne 4){ throw "ButtonTexts must contain exactly four names" }
 $results=@()
 $exeResolved = Resolve-Path $ExePath
 $processName = [System.IO.Path]::GetFileNameWithoutExtension($exeResolved)
@@ -96,15 +128,25 @@ for($i=0;$i -lt 4;$i++){
     $window=Wait-MainWindow $p $processName $baselinePids
     $hwnd=$window.hwnd
     if($i -eq 0 -and $PreconditionIndex -ge 0){
-      $pre=$parsed[$PreconditionIndex]
-      [void](Click-Normalized $hwnd $pre[0] $pre[1])
+      if($buttonNames.Count -eq 4){
+        $prePoint=Find-ButtonPoint $hwnd $buttonNames[$PreconditionIndex]
+        [void](Click-ScreenPoint $hwnd $prePoint.x $prePoint.y)
+      } else {
+        $pre=$parsed[$PreconditionIndex]
+        [void](Click-Normalized $hwnd $pre[0] $pre[1])
+      }
       Start-Sleep -Milliseconds $SettleMs
       $p.Refresh()
       if($p.HasExited){ throw "EXE exited during precondition click" }
     }
     $before=Get-WindowHash $hwnd
-    $pt=$parsed[$i]
-    $click=Click-Normalized $hwnd $pt[0] $pt[1]
+    if($buttonNames.Count -eq 4){
+      $point=Find-ButtonPoint $hwnd $buttonNames[$i]
+      $click=Click-ScreenPoint $hwnd $point.x $point.y
+    } else {
+      $pt=$parsed[$i]
+      $click=Click-Normalized $hwnd $pt[0] $pt[1]
+    }
     Start-Sleep -Milliseconds $SettleMs
     $p.Refresh()
     if($p.HasExited){ throw "EXE exited after core button $($i+1)" }

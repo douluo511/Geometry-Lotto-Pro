@@ -58,7 +58,7 @@ jobs:
       - name: Physical GUI Click Smoke
         shell: pwsh
         run: |
-          .\.github\scripts\physical_gui_click_smoke.ps1 -ExePath ".\Human-Nature-Pro\dist\Human_Nature_Pro.exe" -Points "0.13,0.69;0.30,0.69;0.13,0.75;0.30,0.75" -EvidencePath ".\Human-Nature-Pro\physical_gui_click.json"
+          .\.github\scripts\physical_gui_click_smoke.ps1 -ExePath ".\Human-Nature-Pro\dist\Human_Nature_Pro.exe" -Points "0.13,0.69;0.30,0.69;0.13,0.75;0.30,0.75" -ButtonTexts "分析当前局面;一键更新;一键修复;高级分析" -EvidencePath ".\Human-Nature-Pro\physical_gui_click.json"
 
       - name: Same Hash
         shell: pwsh
@@ -106,3 +106,5 @@ jobs:
 # Hard-gate revalidation trigger: 2026-09-24 master-template human
 
 # physical-gui child-process discovery fix: 2026-09-24
+
+# physical-gui UIAutomation button-boundary fix: 2026-09-24
