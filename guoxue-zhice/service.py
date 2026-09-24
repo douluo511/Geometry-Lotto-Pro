@@ -14,7 +14,7 @@ class GuoxueService:
         self.store=store or Store(root); self.net=net_client or NetClient()
         self.goal=GoalEngine(self.store); self.review=ReviewEngine(self.store); self.evidence=EvidenceLedger(self.store.evidence_path)
     def analyze_goal(self, goal):
-        result=self.goal.analyze(goal); self.evidence.record("analysis","PASS",goal=goal,status=result["status"]); return result
+        result=self.goal.analyze(goal); self.evidence.record("analysis","PASS",goal=goal,analysis_status=result["status"]); return result
     def save_review(self, goal, action, result, lesson):
         item=self.review.save(goal,action,result,lesson); self.evidence.record("review","PASS",timestamp=item["timestamp"]); return item
     def stats(self):
