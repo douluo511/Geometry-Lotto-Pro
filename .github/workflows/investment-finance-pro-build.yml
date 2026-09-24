@@ -1,4 +1,4 @@
-name: Investment Finance Pro - Build Windows EXE
+name: Investment Finance Pro - Full Release Gate
 
 on:
   pull_request:
@@ -12,9 +12,9 @@ permissions:
   contents: read
 
 jobs:
-  build-and-verify:
+  full-release-gate:
     runs-on: windows-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
 
     steps:
       - name: Checkout
@@ -28,7 +28,7 @@ jobs:
       - name: Install builder
         run: python -m pip install --upgrade pip pyinstaller
 
-      - name: Source deterministic self-test
+      - name: Source Self-Test
         shell: pwsh
         run: |
           python investment_finance_pro/app.py --self-test --report source_self_test.json
@@ -36,7 +36,19 @@ jobs:
           Get-Content source_self_test.json
           if ($code -ne 0) { exit $code }
 
-      - name: Source real-network smoke test
+      - name: Contract Test
+        shell: pwsh
+        run: |
+          python investment_finance_pro/verification.py --contract-test --report contract_test.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Fault Injection
+        shell: pwsh
+        run: |
+          python investment_finance_pro/verification.py --fault-injection --report fault_injection.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Source Real Network
         shell: pwsh
         run: |
           python investment_finance_pro/app.py --network-smoke --report source_network_smoke.json
@@ -44,7 +56,7 @@ jobs:
           if (Test-Path source_network_smoke.json) { Get-Content source_network_smoke.json }
           if ($code -ne 0) { exit $code }
 
-      - name: Build GUI EXE
+      - name: Windows Build
         shell: pwsh
         run: >
           pyinstaller
@@ -55,7 +67,7 @@ jobs:
           --name InvestmentFinancePro
           investment_finance_pro/app.py
 
-      - name: EXE deterministic self-test
+      - name: Exact EXE Self-Test
         shell: pwsh
         run: |
           & .\dist\InvestmentFinancePro.exe --self-test --report exe_self_test.json
@@ -63,7 +75,7 @@ jobs:
           if (Test-Path exe_self_test.json) { Get-Content exe_self_test.json }
           if ($code -ne 0) { exit $code }
 
-      - name: EXE real-network smoke test
+      - name: Exact EXE Real Network
         shell: pwsh
         run: |
           & .\dist\InvestmentFinancePro.exe --network-smoke --report exe_network_smoke.json
@@ -71,23 +83,63 @@ jobs:
           if (Test-Path exe_network_smoke.json) { Get-Content exe_network_smoke.json }
           if ($code -ne 0) { exit $code }
 
-      - name: Hash EXE
+      - name: GUI Smoke
         shell: pwsh
         run: |
-          $h = (Get-FileHash .\dist\InvestmentFinancePro.exe -Algorithm SHA256).Hash
-          "sha256=$h" | Out-File -Encoding utf8 exe_sha256.txt
-          Get-Item .\dist\InvestmentFinancePro.exe | Select-Object Name,Length,LastWriteTime | Format-List
+          $status = "FAIL"
+          $detail = ""
+          try {
+            $p = Start-Process -FilePath ".\dist\InvestmentFinancePro.exe" -PassThru
+            Start-Sleep -Seconds 5
+            if ($p.HasExited) {
+              $detail = "GUI process exited during smoke interval with code $($p.ExitCode)"
+            } else {
+              $status = "PASS"
+              $detail = "Exact EXE remained alive for 5-second GUI smoke interval"
+              Stop-Process -Id $p.Id -Force
+            }
+          } catch {
+            $detail = $_.Exception.Message
+          }
+          @{ type="gui_smoke"; status=$status; detail=$detail } | ConvertTo-Json | Out-File -Encoding utf8 gui_smoke.json
+          Get-Content gui_smoke.json
+          if ($status -ne "PASS") { exit 1 }
 
-      - name: Upload verified EXE
+      - name: Bind Unique Final EXE
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force final | Out-Null
+          Copy-Item .\dist\InvestmentFinancePro.exe .\final\InvestmentFinancePro.exe
+
+      - name: Same Hash + Final Gate
+        shell: pwsh
+        run: |
+          python investment_finance_pro/release_gate.py --tested-exe dist/InvestmentFinancePro.exe --final-exe final/InvestmentFinancePro.exe --report final_gate.json --evidence source_self_test.json contract_test.json fault_injection.json source_network_smoke.json exe_self_test.json exe_network_smoke.json gui_smoke.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Record Exact EXE SHA256
+        shell: pwsh
+        run: |
+          $h = (Get-FileHash .\final\InvestmentFinancePro.exe -Algorithm SHA256).Hash
+          "sha256=$h" | Out-File -Encoding utf8 exact_exe_sha256.txt
+          Get-Content exact_exe_sha256.txt
+          Get-Content final_gate.json
+
+      - name: Upload Unique Final Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Investment-Finance-Pro-Windows
+          name: Investment-Finance-Pro-FINAL
           path: |
-            dist/InvestmentFinancePro.exe
-            exe_sha256.txt
+            final/InvestmentFinancePro.exe
+            exact_exe_sha256.txt
             source_self_test.json
+            contract_test.json
+            fault_injection.json
             source_network_smoke.json
             exe_self_test.json
             exe_network_smoke.json
+            gui_smoke.json
+            final_gate.json
+            investment_finance_pro/ENGINEERING_FREEZE.md
           if-no-files-found: error
           retention-days: 14
