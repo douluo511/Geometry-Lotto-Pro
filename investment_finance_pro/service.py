@@ -39,14 +39,13 @@ class InvestmentService:
                 providers.append({"source": "MARKET:" + symbol, "ok": False, "detail": str(exc)})
 
         macro = {}
-        for series_id, label in [("DGS10", "US_10Y_TREASURY"), ("DFF", "FED_FUNDS_EFFECTIVE")]:
-            try:
-                item, receipt = self.net.fetch_fred_series(series_id)
-                macro[label] = item
-                providers.append({"source": "FRED:" + series_id, "ok": True, "detail": "latest observation loaded"})
-                receipts.append(receipt)
-            except Exception as exc:
-                providers.append({"source": "FRED:" + series_id, "ok": False, "detail": str(exc)})
+        try:
+            item, receipt = self.net.fetch_us_treasury_10y()
+            macro["US_10Y_TREASURY"] = item
+            providers.append({"source": "US_TREASURY:10Y", "ok": True, "detail": "latest official daily yield loaded"})
+            receipts.append(receipt)
+        except Exception as exc:
+            providers.append({"source": "US_TREASURY:10Y", "ok": False, "detail": str(exc)})
 
         ok_count = sum(1 for p in providers if p["ok"])
         if providers and ok_count == len(providers):
@@ -102,10 +101,10 @@ class InvestmentService:
         except Exception as exc:
             checks.append({"source": "MARKET:SPY", "status": "FAIL", "detail": str(exc)})
         try:
-            item, receipt = self.net.fetch_fred_series("DGS10")
-            checks.append({"source": "FRED:DGS10", "status": "PASS", "last_date": item["date"], "receipt": receipt})
+            item, receipt = self.net.fetch_us_treasury_10y()
+            checks.append({"source": "US_TREASURY:10Y", "status": "PASS", "last_date": item["date"], "receipt": receipt})
         except Exception as exc:
-            checks.append({"source": "FRED:DGS10", "status": "FAIL", "detail": str(exc)})
+            checks.append({"source": "US_TREASURY:10Y", "status": "FAIL", "detail": str(exc)})
         status = "PASS" if all(x["status"] == "PASS" for x in checks) else "FAIL"
         report = {"status": status, "version": VERSION, "checks": checks}
         self.evidence.record("REAL_NETWORK", status, checks=checks)
