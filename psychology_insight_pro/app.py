@@ -8,9 +8,7 @@ from pathlib import Path
 import tkinter as tk
 from tkinter import messagebox, ttk
 
-from net_client import NetClient
-from service import PsychologyService
-from storage import KnowledgeStorage
+from service import PsychologyService, create_service
 
 APP_NAME = "Psychology Insight Pro"
 APP_VERSION = "0.2.0"
@@ -31,11 +29,11 @@ def app_data_dir() -> Path:
 
 
 def make_service() -> PsychologyService:
-    storage = KnowledgeStorage(
+    return create_service(
         local_path=app_data_dir() / "knowledge.json",
         bundled_path=resource_path("knowledge.json"),
+        knowledge_url=KNOWLEDGE_URL,
     )
-    return PsychologyService(storage, NetClient(timeout=12.0, retries=2), KNOWLEDGE_URL)
 
 
 def format_result(result) -> str:

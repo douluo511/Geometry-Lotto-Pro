@@ -4,7 +4,7 @@ from contracts import parse_version
 from domain import UpdateResult
 from net_client import NetClient
 from storage import KnowledgeStorage
-from core import analyze, self_test
+from engine import analyze, self_test
 
 
 class PsychologyService:
@@ -40,3 +40,12 @@ class PsychologyService:
             "hypothesis_count": len(self.knowledge.get("hypotheses", [])),
             **self_test(),
         }
+
+
+def create_service(local_path, bundled_path, knowledge_url: str) -> PsychologyService:
+    """Application composition root. UI receives only the Service boundary."""
+    return PsychologyService(
+        KnowledgeStorage(local_path=local_path, bundled_path=bundled_path),
+        NetClient(timeout=12.0, retries=2),
+        knowledge_url,
+    )
