@@ -7,6 +7,7 @@ import json
 import math
 import time
 import urllib.parse
+import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone
 
 import requests
@@ -142,3 +143,38 @@ class NetClient:
             raise ValueError(f"FRED {series_id}: no numeric observations")
         day, value = values[-1]
         return {"series": series_id, "date": day, "value": value}, receipt
+
+
+    def fetch_us_treasury_10y(self):
+        year = datetime.now(timezone.utc).year
+        url = (
+            "https://home.treasury.gov/resource-center/data-chart-center/interest-rates/pages/xml?"
+            + urllib.parse.urlencode({
+                "data": "daily_treasury_yield_curve",
+                "field_tdr_date_value": str(year),
+            })
+        )
+        raw, receipt = self._get_bytes(url, "application/xml,text/xml,*/*;q=0.1")
+        root = ET.fromstring(raw)
+        observations = []
+        for props in root.iter():
+            local = props.tag.rsplit("}", 1)[-1]
+            if local != "properties":
+                continue
+            row = {}
+            for child in list(props):
+                row[child.tag.rsplit("}", 1)[-1]] = (child.text or "").strip()
+            day = row.get("NEW_DATE")
+            value = row.get("BC_10YEAR")
+            if not day or value in (None, ""):
+                continue
+            try:
+                number = float(value)
+            except ValueError:
+                continue
+            observations.append((day[:10], number))
+        if not observations:
+            raise ValueError("US Treasury: no 10-year observations")
+        observations.sort(key=lambda x: x[0])
+        day, value = observations[-1]
+        return {"series": "US_TREASURY_10Y", "date": day, "value": value}, receipt
