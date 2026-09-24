@@ -6,8 +6,7 @@ import sys
 import threading
 from pathlib import Path
 
-from core import APP_VERSION, analyze, format_report, load_knowledge
-from updater import local_kb_path, repair_knowledge, update_knowledge
+from service import APP_VERSION, create_service, format_report
 
 
 def resource_path(name: str) -> Path:
@@ -16,17 +15,12 @@ def resource_path(name: str) -> Path:
 
 
 def self_test() -> int:
-    kb = load_knowledge(resource_path("knowledge_base.json"))
-    result = analyze("客户说价格太高，一直拖延付款，我不清楚他有没有最终决定权。", "保证回款，同时保留长期合作")
-    assert kb["rules"]
-    assert len(result["hypotheses"]) >= 4
-    assert result["strategies"][0]["information_gain"] >= 1
-    assert "逆转验证" in format_report(result)
-    print(json.dumps({"status": "PASS", "version": APP_VERSION, "hypotheses": len(result["hypotheses"])}, ensure_ascii=False))
-    return 0
+    result = create_service(bundled_path=resource_path("knowledge_base.json")).self_test()
+    print(json.dumps(result, ensure_ascii=False))
+    return 0 if result["status"] == "PASS" else 2
 
 
-def run_gui() -> None:
+def run_gui(smoke: bool = False) -> None:
     import tkinter as tk
     from tkinter import messagebox
     from tkinter.scrolledtext import ScrolledText
@@ -42,6 +36,7 @@ def run_gui() -> None:
     root.minsize(900, 680)
     root.configure(bg=BG)
 
+    service = create_service(bundled_path=resource_path("knowledge_base.json"))
     current_result = {"data": None}
 
     header = tk.Frame(root, bg=BLUE, height=78)
@@ -82,7 +77,7 @@ def run_gui() -> None:
 
     def do_analyze():
         try:
-            r = analyze(situation.get("1.0", "end").strip(), goal.get().strip())
+            r = service.analyze(situation.get("1.0", "end").strip(), goal.get().strip())
             current_result["data"] = r
             show(format_report(r))
             status.set("分析完成｜已生成竞争假设、策略与逆转验证")
@@ -93,7 +88,7 @@ def run_gui() -> None:
         status.set("一键更新中｜正在从 GitHub 获取知识库…")
         def worker():
             try:
-                r = update_knowledge()
+                r = service.update_all()
                 root.after(0, lambda: status.set(f"更新完成｜知识库 {r['knowledge_version']}"))
                 root.after(0, lambda: messagebox.showinfo("一键更新", f"知识库更新成功\n版本：{r['knowledge_version']}"))
             except Exception as exc:
@@ -103,7 +98,7 @@ def run_gui() -> None:
 
     def do_repair():
         try:
-            r = repair_knowledge(resource_path("knowledge_base.json"))
+            r = service.repair()
             status.set(f"修复完成｜{r['action']}")
             messagebox.showinfo("一键修复", "配置与知识库检查完成。若本地知识库损坏，已自动恢复。")
         except Exception as exc:
@@ -119,7 +114,7 @@ def run_gui() -> None:
         win.geometry("880x650")
         box = ScrolledText(win, font=("Consolas", 10), wrap="word")
         box.pack(fill="both", expand=True, padx=12, pady=12)
-        box.insert("1.0", json.dumps(current_result["data"], ensure_ascii=False, indent=2))
+        box.insert("1.0", json.dumps(service.advanced_analysis(current_result["data"]), ensure_ascii=False, indent=2))
         box.configure(state="disabled")
 
     btns = tk.Frame(left, bg=CARD)
@@ -133,16 +128,20 @@ def run_gui() -> None:
     btns.grid_columnconfigure(0, weight=1)
     btns.grid_columnconfigure(1, weight=1)
 
+    if smoke:
+        service.smoke_actions()
+        root.after(1200, root.destroy)
     root.mainloop()
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--self-test", action="store_true")
+    parser.add_argument("--gui-smoke", action="store_true")
     args = parser.parse_args()
     if args.self_test:
         return self_test()
-    run_gui()
+    run_gui(smoke=args.gui_smoke)
     return 0
 
 
