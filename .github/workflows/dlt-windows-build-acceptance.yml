@@ -25,7 +25,7 @@ defaults:
 jobs:
   build-and-accept:
     runs-on: windows-2022
-    timeout-minutes: 180
+    timeout-minutes: 360
     steps:
       - name: Checkout exact commit
         uses: actions/checkout@v4
