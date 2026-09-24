@@ -86,3 +86,5 @@ jobs:
             english-root-intelligence/FINAL_ACCEPTANCE.json
             english-root-intelligence/evidence_sha256.txt
           if-no-files-found: error
+
+# Hard-gate revalidation trigger: 2026-09-24 master-template
