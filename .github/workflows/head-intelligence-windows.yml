@@ -87,15 +87,15 @@ jobs:
       - name: Exact EXE Self-Test
         shell: pwsh
         run: |
-          & .\dist\HeadIntelligence.exe --self-test
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $p = Start-Process -FilePath .\dist\HeadIntelligence.exe -ArgumentList "--self-test" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { exit $p.ExitCode }
           New-Item evidence/exact_exe_self_test.pass -ItemType File | Out-Null
 
       - name: GUI Smoke
         shell: pwsh
         run: |
-          & .\dist\HeadIntelligence.exe --gui-smoke
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $p = Start-Process -FilePath .\dist\HeadIntelligence.exe -ArgumentList "--gui-smoke" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { exit $p.ExitCode }
           New-Item evidence/gui_smoke.pass -ItemType File | Out-Null
 
       - name: Stage unique final EXE
@@ -117,15 +117,15 @@ jobs:
       - name: Final EXE Self-Test
         shell: pwsh
         run: |
-          & .\final\HeadIntelligence.exe --self-test
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $p = Start-Process -FilePath .\final\HeadIntelligence.exe -ArgumentList "--self-test" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { exit $p.ExitCode }
           New-Item evidence/final_exe_self_test.pass -ItemType File | Out-Null
 
       - name: Final GUI Smoke
         shell: pwsh
         run: |
-          & .\final\HeadIntelligence.exe --gui-smoke
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $p = Start-Process -FilePath .\final\HeadIntelligence.exe -ArgumentList "--gui-smoke" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { exit $p.ExitCode }
           New-Item evidence/final_gui_smoke.pass -ItemType File | Out-Null
 
       - name: Final Gate
