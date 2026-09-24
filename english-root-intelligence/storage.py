@@ -17,7 +17,7 @@ class RootStorage:
         value=validate_roots(json.loads(raw.decode("utf-8-sig")))
         path=self.store.roots_path; stage=path.with_suffix(".staging"); backup=path.with_suffix(".backup")
         stage.write_bytes(raw)
-        with stage.open("rb") as f: os.fsync(f.fileno())
+        with stage.open("r+b") as f:\n            f.flush()\n            os.fsync(f.fileno())
         validate_roots(json.loads(stage.read_text(encoding="utf-8")))
         shutil.copy2(path,backup)
         try:
