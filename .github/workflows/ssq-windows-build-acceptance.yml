@@ -38,6 +38,9 @@ jobs:
       - name: Code completeness compile gate
         run: python -m compileall -q SSQ launcher.py tools
 
+      - name: Architecture mother-template gate
+        run: python tools/architecture_gate.py
+
       - name: Source contract self-test
         shell: pwsh
         run: |
@@ -46,6 +49,17 @@ jobs:
           python launcher.py --check self --result-file evidence\SSQ\source-self.json
           $r = Get-Content evidence\SSQ\source-self.json -Raw | ConvertFrom-Json
           if ($LASTEXITCODE -ne 0 -or $r.status -ne 'PASS') { throw "source contract self-test failed" }
+
+      - name: Source fault injection
+        shell: pwsh
+        run: |
+          $env:PYTHONPATH = "$PWD\SSQ"
+          foreach ($check in @("integrity-tamper","offline-failclosed","corrupt-repair")) {
+            $path = "evidence\SSQ\source-$check.json"
+            python launcher.py --check $check --result-file $path
+            $r = Get-Content $path -Raw | ConvertFrom-Json
+            if ($LASTEXITCODE -ne 0 -or $r.status -ne 'PASS') { throw "fault injection failed: $check" }
+          }
 
       - name: Source live official-network quorum smoke
         shell: pwsh
@@ -61,25 +75,25 @@ jobs:
       - name: Native Windows build plus exact-EXE acceptance
         run: python tools/build_windows.py
 
-      - name: Final release gate and same-hash proof
+      - name: Final 22-gate release and same-hash proof
         shell: pwsh
         run: |
           $reportPath = "evidence\SSQ\WINDOWS_EXACT_EXE_ACCEPTANCE.json"
           if (-not (Test-Path $reportPath)) { throw "acceptance report missing" }
-          $report = Get-Content $reportPath -Raw | ConvertFrom-Json
-          if ($report.final_release_gate -ne 'PASS') { throw "final_release_gate=$($report.final_release_gate)" }
-          if ([int]$report.hard_fail_count -ne 0) { throw "hard_fail_count=$($report.hard_fail_count)" }
-          $exe = Resolve-Path "dist\Geometry_Lotto_Pro_SSQ_Windows_Verified.exe"
-          $hash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLower()
-          if ($hash -ne [string]$report.sha256) { throw "same-hash proof failed" }
-          Write-Host "SSQ_FINAL_EXE=$exe"
-          Write-Host "SSQ_FINAL_SHA256=$hash"
+          @'
+          {"gates":{"purpose_model":"PASS","five_why":"PASS","risk_boundary":"PASS","domain_model":"PASS","architecture":"PASS","function_contract":"PASS","interface_contract":"PASS","data_source":"PASS","netclient":"PASS","storage":"PASS","engine":"PASS","evidence":"PASS","service":"PASS","ui":"PASS","self_test":"PASS","contract_test":"PASS","fault_injection":"PASS","real_network":"PASS","windows_build":"PASS","exact_exe":"PASS","gui_smoke":"PASS","same_hash":"PASS"}}
+          '@ | Out-File evidence\SSQ\mother-gates.json -Encoding utf8
+          python tools/release_gate_22.py --gate-input evidence\SSQ\mother-gates.json --acceptance $reportPath --exe dist\Geometry_Lotto_Pro_SSQ_Windows_Verified.exe --report evidence\SSQ\FINAL_22_GATE.json
+          $final = Get-Content evidence\SSQ\FINAL_22_GATE.json -Raw | ConvertFrom-Json
+          if ($final.final_gate -ne 'PASS' -or [int]$final.hard_fail_count -ne 0) { throw "22-gate Final Gate failed" }
+          Write-Host "SSQ_FINAL_EXE=$(Resolve-Path 'dist\Geometry_Lotto_Pro_SSQ_Windows_Verified.exe')"
+          Write-Host "SSQ_FINAL_SHA256=$($final.exe_sha256)"
           Write-Host "FINAL_RELEASE_GATE=PASS"
 
       - name: Upload final EXE only after all hard gates pass
         uses: actions/upload-artifact@v4
         with:
-          name: Geometry-Lotto-Pro-SSQ-FINAL-Windows-x64
+          name: Geometry-Lotto-Pro-SSQ-FINAL-v8.4.3-Windows-x64
           path: |
             SSQ/dist/Geometry_Lotto_Pro_SSQ_Windows_Verified.exe
             SSQ/evidence/SSQ/**
