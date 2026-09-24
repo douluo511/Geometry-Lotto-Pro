@@ -78,7 +78,7 @@ jobs:
       - name: Physical GUI Click Smoke
         shell: pwsh
         run: |
-          ..\.github\scripts\physical_gui_click_smoke.ps1 -ExePath ".\dist\Geometry_Lotto_Pro_SSQ_Windows_Verified.exe" -Points "0.25,0.22;0.73,0.22;0.25,0.30;0.73,0.30" -ButtonTexts "预测下一期;一键更新;一键修复;高级分析" -EvidencePath ".\evidence\SSQ\physical_gui_click.json"
+          ..\.github\scripts\physical_gui_click_smoke.ps1 -ExePath ".\dist\Geometry_Lotto_Pro_SSQ_Windows_Verified.exe" -Points "0.25,0.22;0.73,0.22;0.25,0.30;0.73,0.30"  -EvidencePath ".\evidence\SSQ\physical_gui_click.json"
 
       - name: Final 22-gate release and same-hash proof
         shell: pwsh
@@ -111,3 +111,5 @@ jobs:
 # physical-gui child-process discovery fix: 2026-09-24
 
 # physical-gui UIAutomation + desktop-hash fix: 2026-09-24
+
+# native client-coordinate physical click: 2026-09-24
