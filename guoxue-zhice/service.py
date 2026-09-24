@@ -39,7 +39,7 @@ class GuoxueService:
         installed=self.store.replace_knowledge(raw)
         state=self.store.load_state(); state["last_update"]=dt.datetime.now().isoformat(timespec="seconds"); self.store.save_state(state)
         result={"status":"PASS","version":manifest["version"],"classics":len(self.store.load_knowledge()["classics"]),"sha256":installed,"source":data_meta["source"],"http_status":data_meta["http_status"],"manifest_source":manifest_meta["source"],"payload_hash":data_meta["payload_sha256"]}
-        self.evidence.record("update","PASS",**result); return result
+        self.evidence.record("update","PASS",update_status=result["status"],version=result["version"],classics=result["classics"],sha256=result["sha256"],source=result["source"],http_status=result["http_status"],manifest_source=result["manifest_source"],payload_hash=result["payload_hash"]); return result
 
 def self_test(root: Path|None=None):
     temp=tempfile.TemporaryDirectory() if root is None else None
