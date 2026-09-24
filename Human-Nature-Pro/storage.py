@@ -21,9 +21,7 @@ class KnowledgeStorage:
         data = validate_knowledge(json.loads(raw.decode("utf-8-sig")))
         stage = self.path.with_suffix(".staging")
         backup = self.path.with_suffix(".backup")
-        stage.write_bytes(raw)
-        with stage.open("rb") as f:
-            os.fsync(f.fileno())
+        with stage.open("wb") as f:\n            f.write(raw)\n            f.flush()\n            os.fsync(f.fileno())
         validate_knowledge(json.loads(stage.read_text(encoding="utf-8")))
         shutil.copy2(self.path, backup)
         try:
