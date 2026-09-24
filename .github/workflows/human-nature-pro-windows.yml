@@ -108,3 +108,5 @@ jobs:
 # physical-gui child-process discovery fix: 2026-09-24
 
 # physical-gui UIAutomation button-boundary fix: 2026-09-24
+
+# physical-gui full-desktop evidence fix: 2026-09-24

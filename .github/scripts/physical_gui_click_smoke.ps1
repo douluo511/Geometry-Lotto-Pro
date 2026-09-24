@@ -11,6 +11,7 @@ $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName System.Drawing
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
+Add-Type -AssemblyName System.Windows.Forms
 Add-Type @"
 using System;
 using System.Runtime.InteropServices;
@@ -55,12 +56,11 @@ function Get-Rect([IntPtr]$hwnd){
   return $r
 }
 function Get-WindowHash([IntPtr]$hwnd){
-  $r=Get-Rect $hwnd
-  $w=$r.Right-$r.Left; $h=$r.Bottom-$r.Top
-  if($w -lt 200 -or $h -lt 200){ throw "Unexpected window size $w x $h" }
-  $bmp=New-Object System.Drawing.Bitmap $w,$h
+  $bounds=[System.Windows.Forms.SystemInformation]::VirtualScreen
+  if($bounds.Width -lt 200 -or $bounds.Height -lt 200){ throw "Unexpected desktop size $($bounds.Width) x $($bounds.Height)" }
+  $bmp=New-Object System.Drawing.Bitmap $bounds.Width,$bounds.Height
   $g=[System.Drawing.Graphics]::FromImage($bmp)
-  try { $g.CopyFromScreen($r.Left,$r.Top,0,0,$bmp.Size) }
+  try { $g.CopyFromScreen($bounds.Left,$bounds.Top,0,0,$bmp.Size) }
   finally { $g.Dispose() }
   $tmp=[System.IO.Path]::GetTempFileName()+".png"
   try {
