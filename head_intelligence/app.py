@@ -5,19 +5,20 @@ import threading
 import tkinter as tk
 from tkinter import messagebox, ttk
 
-from head_intelligence.engine import InformationEngine
+from head_intelligence.service import InformationService
 
 
 class HeadIntelligenceApp(tk.Tk):
-    def __init__(self):
+    def __init__(self, service: InformationService | None = None):
         super().__init__()
-        self.engine = InformationEngine()
+        self.service = service or InformationService()
         self.title("Head Intelligence System")
         self.geometry("1000x700")
         self.minsize(860, 600)
         self.configure(bg="#f4f7fb")
+        self.buttons: list[tk.Button] = []
         self._build_ui()
-        self._render_snapshot(self.engine.load_latest_snapshot())
+        self._render_snapshot(self.service.current_judgment())
 
     def _build_ui(self):
         header = tk.Frame(self, bg="#0b63ce", height=86)
@@ -64,6 +65,7 @@ class HeadIntelligenceApp(tk.Tk):
                 cursor="hand2",
             )
             btn.grid(row=idx // 2, column=idx % 2, sticky="ew", padx=7, pady=7)
+            self.buttons.append(btn)
 
         content = tk.Frame(self, bg="#f4f7fb")
         content.pack(fill="both", expand=True, padx=28, pady=(0, 24))
@@ -84,12 +86,12 @@ class HeadIntelligenceApp(tk.Tk):
 
     def one_click_update(self):
         self.status_var.set("状态：正在执行真实网络更新、验证、去重、排序与快照冻结...")
-        self._set_text("正在更新，请保持程序开启。\n\n旧快照会继续保留，只有新更新通过后才原子替换。")
+        self._set_text("正在更新。\n\n旧快照继续可用，只有新更新通过后才会原子替换。")
         threading.Thread(target=self._update_worker, daemon=True).start()
 
     def _update_worker(self):
-        report = self.engine.one_click_update()
-        self.after(0, lambda: self._finish_update(report.to_dict()))
+        report = self.service.update()
+        self.after(0, lambda: self._finish_update(report))
 
     def _finish_update(self, report: dict):
         if report.get("status") == "PASS":
@@ -103,22 +105,23 @@ class HeadIntelligenceApp(tk.Tk):
             messagebox.showwarning("更新未通过", "本次网络更新没有形成有效快照，旧版本未被覆盖。")
 
     def one_click_repair(self):
-        result = self.engine.health_check()
+        result = self.service.repair()
         lines = ["一键修复 / 自检", "", f"总体状态：{result['status']}", f"数据目录：{result['data_dir']}", ""]
         for key, value in result["checks"].items():
             lines.append(f"{key}: {'PASS' if value else 'FAIL'}")
         if result["status"] == "PASS":
             lines.append("\n当前没有发现需要自动修复的本地结构问题。")
         else:
-            lines.append("\n检测到问题。建议先执行一键更新；系统不会用损坏快照覆盖有效数据。")
+            lines.append("\n检测到问题。系统不会用损坏快照覆盖有效数据。")
         self._set_text("\n".join(lines))
 
     def show_judgment(self):
-        self._render_snapshot(self.engine.load_latest_snapshot())
+        self._render_snapshot(self.service.current_judgment())
 
     def show_advanced(self):
-        snapshot = self.engine.load_latest_snapshot()
-        health = self.engine.health_check()
+        payload = self.service.advanced_analysis()
+        snapshot = payload["snapshot"]
+        health = payload["health"]
         lines = [
             "高级分析",
             "",
@@ -143,10 +146,8 @@ class HeadIntelligenceApp(tk.Tk):
                 )
             lines += [
                 "",
-                "当前版本已经具备：真实 RSS 拉取、原始 Hash、原始文件留存、去重、",
-                "新鲜度/来源质量/决策相关度评分、原子快照、失败不覆盖、自检。",
-                "",
-                "下一阶段：事件聚类、来源依赖图、冲突证据、竞争假设、判断账本、5 Why 与逆转验证。",
+                "架构路径：UI → Service → Engine → Evidence / NetClient / Storage → Domain",
+                "当前判断分数是信息价值排序，不等同于真实性概率。",
             ]
         self._set_text("\n".join(lines))
 
@@ -193,21 +194,44 @@ class HeadIntelligenceApp(tk.Tk):
         self.text.insert("1.0", value)
 
 
+def gui_smoke_test() -> bool:
+    app = HeadIntelligenceApp()
+    try:
+        app.withdraw()
+        app.update_idletasks()
+        assert app.title() == "Head Intelligence System"
+        assert len(app.buttons) == 4
+        assert [b.cget("text") for b in app.buttons] == ["信息判断", "一键更新", "一键修复", "高级分析"]
+        app.show_judgment()
+        app.one_click_repair()
+        app.show_advanced()
+        app.update_idletasks()
+        return True
+    finally:
+        app.destroy()
+
+
 def cli() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--self-test", action="store_true")
     parser.add_argument("--network-smoke-test", action="store_true")
+    parser.add_argument("--gui-smoke", action="store_true")
     args = parser.parse_args()
 
+    service = InformationService()
+
     if args.self_test:
-        result = InformationEngine().self_test()
+        result = service.self_test()
         return 0 if result["status"] == "PASS" else 1
 
     if args.network_smoke_test:
-        report = InformationEngine().one_click_update(limit_per_source=5)
-        return 0 if report.status == "PASS" and report.deduped_count > 0 else 2
+        report = service.network_smoke_test()
+        return 0 if report["status"] == "PASS" and report["deduped_count"] > 0 else 2
 
-    app = HeadIntelligenceApp()
+    if args.gui_smoke:
+        return 0 if gui_smoke_test() else 3
+
+    app = HeadIntelligenceApp(service=service)
     app.mainloop()
     return 0
 
