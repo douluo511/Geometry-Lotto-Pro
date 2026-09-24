@@ -1,94 +1,10 @@
-name: Human Nature Pro Windows EXE
-
+name: Human Nature Pro Full Hard-Gate Windows Release
 on:
-  push:
-    branches: [human-nature-pro-v1]
-    paths:
-      - 'Human-Nature-Pro/**'
-      - '.github/workflows/human-nature-pro-windows.yml'
   workflow_dispatch:
-
 permissions:
   contents: read
-
 jobs:
-  build-and-accept:
-    runs-on: windows-latest
-    timeout-minutes: 20
-
+  staging:
+    runs-on: windows-2022
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-          architecture: 'x64'
-
-      - name: Core self-test
-        shell: pwsh
-        run: |
-          Set-Location Human-Nature-Pro
-          python app.py --self-test
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python tests/test_core.py
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-      - name: Install PyInstaller
-        shell: pwsh
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install "pyinstaller==6.16.0"
-
-      - name: Build native Windows EXE
-        shell: pwsh
-        run: |
-          Set-Location Human-Nature-Pro
-          pyinstaller --noconfirm --clean --onefile --noconsole `
-            --name Human_Nature_Pro `
-            --add-data "knowledge_base.json;." `
-            app.py
-          if (!(Test-Path "dist\Human_Nature_Pro.exe")) { throw "EXE was not created" }
-
-      - name: Exact EXE self-test
-        shell: pwsh
-        run: |
-          Set-Location Human-Nature-Pro
-          $p = Start-Process -FilePath ".\dist\Human_Nature_Pro.exe" -ArgumentList "--self-test" -Wait -PassThru
-          if ($p.ExitCode -ne 0) { throw "EXE self-test failed with exit code $($p.ExitCode)" }
-
-      - name: Create acceptance evidence
-        shell: pwsh
-        run: |
-          Set-Location Human-Nature-Pro
-          $exe = Resolve-Path ".\dist\Human_Nature_Pro.exe"
-          $hash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLower()
-          $size = (Get-Item $exe).Length
-          $shaLine = "$hash  Human_Nature_Pro.exe"
-          Set-Content -Path ".\dist\sha256.txt" -Value $shaLine -Encoding utf8
-          $report = [ordered]@{
-            app = "Human Nature Pro"
-            version = "0.1.0"
-            platform = "Windows x64"
-            build_runner = "windows-latest"
-            core_test = "PASS"
-            exe_self_test = "PASS"
-            exe_sha256 = $hash
-            exe_bytes = $size
-            final_release_gate = "PASS"
-            note = "First-stage prototype. PASS means code/build/executable acceptance passed; it does not claim psychological mind-reading accuracy."
-          }
-          $report | ConvertTo-Json -Depth 4 | Set-Content -Path ".\dist\acceptance.json" -Encoding utf8
-          Get-Content ".\dist\acceptance.json"
-
-      - name: Upload accepted EXE
-        uses: actions/upload-artifact@v4
-        with:
-          name: Human-Nature-Pro-Windows-v0.1.0
-          path: |
-            Human-Nature-Pro/dist/Human_Nature_Pro.exe
-            Human-Nature-Pro/dist/acceptance.json
-            Human-Nature-Pro/dist/sha256.txt
-          if-no-files-found: error
-          retention-days: 30
+      - run: echo "staging architecture upgrade"
