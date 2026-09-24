@@ -80,6 +80,11 @@ jobs:
           $p=Start-Process .\dist\InvestmentFinancePro.exe -ArgumentList "--gui-smoke" -Wait -PassThru
           if ($p.ExitCode -ne 0) { throw "GUI smoke failed: $($p.ExitCode)" }
 
+      - name: Physical GUI Click Smoke
+        shell: pwsh
+        run: |
+          .\.github\scripts\physical_gui_click_smoke.ps1 -ExePath ".\dist\InvestmentFinancePro.exe" -Points "0.25,0.29;0.75,0.29;0.25,0.39;0.75,0.39" -EvidencePath ".\physical_gui_click.json"
+
       - name: Stage unique final EXE
         shell: pwsh
         run: |
@@ -122,6 +127,7 @@ jobs:
             source_self_test.json
             exe_self_test.json
             exe_network_smoke.json
+            physical_gui_click.json
           if-no-files-found: error
           retention-days: 30
 

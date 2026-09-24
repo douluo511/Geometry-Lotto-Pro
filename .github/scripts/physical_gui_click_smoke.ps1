@@ -1,0 +1,116 @@
+param(
+  [Parameter(Mandatory=$true)][string]$ExePath,
+  [Parameter(Mandatory=$true)][string]$Points,
+  [Parameter(Mandatory=$true)][string]$EvidencePath,
+  [int]$PreconditionIndex = -1,
+  [int]$SettleMs = 900
+)
+
+$ErrorActionPreference = "Stop"
+Add-Type -AssemblyName System.Drawing
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public static class PhysicalGuiClick {
+  [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left; public int Top; public int Right; public int Bottom; }
+  [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hWnd, out RECT rect);
+  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
+  [DllImport("user32.dll")] public static extern bool SetCursorPos(int X, int Y);
+  [DllImport("user32.dll")] public static extern void mouse_event(uint dwFlags, uint dx, uint dy, uint dwData, UIntPtr dwExtraInfo);
+}
+"@
+$MOUSEEVENTF_LEFTDOWN=0x0002
+$MOUSEEVENTF_LEFTUP=0x0004
+$parsed=@()
+foreach($token in $Points.Split(';')){
+  $xy=$token.Split(',')
+  if($xy.Count -ne 2){ throw "Bad point: $token" }
+  $parsed += ,@([double]$xy[0],[double]$xy[1])
+}
+if($parsed.Count -ne 4){ throw "Exactly four GUI points are required" }
+
+function Wait-MainWindow([System.Diagnostics.Process]$p){
+  for($i=0;$i -lt 80;$i++){
+    Start-Sleep -Milliseconds 250
+    $p.Refresh()
+    if($p.HasExited){ throw "EXE exited before main window was ready: $($p.ExitCode)" }
+    if($p.MainWindowHandle -ne 0){ return [IntPtr]$p.MainWindowHandle }
+  }
+  throw "Main window handle not found"
+}
+function Get-Rect([IntPtr]$hwnd){
+  $r=New-Object PhysicalGuiClick+RECT
+  if(-not [PhysicalGuiClick]::GetWindowRect($hwnd,[ref]$r)){ throw "GetWindowRect failed" }
+  return $r
+}
+function Get-WindowHash([IntPtr]$hwnd){
+  $r=Get-Rect $hwnd
+  $w=$r.Right-$r.Left; $h=$r.Bottom-$r.Top
+  if($w -lt 200 -or $h -lt 200){ throw "Unexpected window size $w x $h" }
+  $bmp=New-Object System.Drawing.Bitmap $w,$h
+  $g=[System.Drawing.Graphics]::FromImage($bmp)
+  try { $g.CopyFromScreen($r.Left,$r.Top,0,0,$bmp.Size) }
+  finally { $g.Dispose() }
+  $tmp=[System.IO.Path]::GetTempFileName()+".png"
+  try {
+    $bmp.Save($tmp,[System.Drawing.Imaging.ImageFormat]::Png)
+    return (Get-FileHash $tmp -Algorithm SHA256).Hash.ToLower()
+  } finally {
+    $bmp.Dispose()
+    Remove-Item $tmp -Force -ErrorAction SilentlyContinue
+  }
+}
+function Click-Normalized([IntPtr]$hwnd,[double]$rx,[double]$ry){
+  $r=Get-Rect $hwnd
+  $x=[int]($r.Left+($r.Right-$r.Left)*$rx)
+  $y=[int]($r.Top+($r.Bottom-$r.Top)*$ry)
+  [void][PhysicalGuiClick]::SetForegroundWindow($hwnd)
+  Start-Sleep -Milliseconds 200
+  if(-not [PhysicalGuiClick]::SetCursorPos($x,$y)){ throw "SetCursorPos failed at $x,$y" }
+  [PhysicalGuiClick]::mouse_event($MOUSEEVENTF_LEFTDOWN,0,0,0,[UIntPtr]::Zero)
+  Start-Sleep -Milliseconds 80
+  [PhysicalGuiClick]::mouse_event($MOUSEEVENTF_LEFTUP,0,0,0,[UIntPtr]::Zero)
+  return @{x=$x;y=$y}
+}
+function Stop-Tree([System.Diagnostics.Process]$p){
+  if(-not $p.HasExited){
+    & taskkill.exe /PID $p.Id /T /F | Out-Null
+    Start-Sleep -Milliseconds 300
+  }
+}
+$results=@()
+for($i=0;$i -lt 4;$i++){
+  $p=Start-Process -FilePath (Resolve-Path $ExePath) -PassThru
+  try {
+    $hwnd=Wait-MainWindow $p
+    if($i -eq 0 -and $PreconditionIndex -ge 0){
+      $pre=$parsed[$PreconditionIndex]
+      [void](Click-Normalized $hwnd $pre[0] $pre[1])
+      Start-Sleep -Milliseconds $SettleMs
+      $p.Refresh()
+      if($p.HasExited){ throw "EXE exited during precondition click" }
+    }
+    $before=Get-WindowHash $hwnd
+    $pt=$parsed[$i]
+    $click=Click-Normalized $hwnd $pt[0] $pt[1]
+    Start-Sleep -Milliseconds $SettleMs
+    $p.Refresh()
+    if($p.HasExited){ throw "EXE exited after core button $($i+1)" }
+    $after=Get-WindowHash $hwnd
+    $changed=($before -ne $after)
+    if(-not $changed){ throw "Core button $($i+1) produced no visible GUI change; click not proven" }
+    $results += [pscustomobject]@{button_index=$i+1;status="PASS";x=$click.x;y=$click.y;visual_changed=$true;before_sha256=$before;after_sha256=$after}
+  } finally { Stop-Tree $p }
+}
+$dir=Split-Path -Parent $EvidencePath
+if($dir){ New-Item -ItemType Directory -Force $dir | Out-Null }
+$report=[ordered]@{
+  schema="physical-gui-click-smoke-v1"
+  status="PASS"
+  exe=(Split-Path -Leaf $ExePath)
+  tested_at=(Get-Date).ToUniversalTime().ToString("o")
+  activation="foreground cursor + mouse_event LEFTDOWN/LEFTUP"
+  buttons=$results
+}
+$report | ConvertTo-Json -Depth 6 | Set-Content $EvidencePath -Encoding utf8
+Get-Content $EvidencePath
