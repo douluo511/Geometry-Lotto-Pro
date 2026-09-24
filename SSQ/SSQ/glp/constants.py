@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 APP_NAME = "Geometry Lotto Pro"
-APP_VERSION = "8.4.2-verification"
+APP_VERSION = "8.4.3-verification"
 GAME = "SSQ"
 FRONT_MAX = 33
 FRONT_PICK = 6
