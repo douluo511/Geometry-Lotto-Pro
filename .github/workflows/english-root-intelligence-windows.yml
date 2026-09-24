@@ -50,6 +50,11 @@ jobs:
           Start-Sleep -Seconds 6
           if ($p.HasExited) { throw "GUI exited early" }
           Stop-Process -Id $p.Id -Force
+      - name: Physical GUI Click Smoke
+        shell: pwsh
+        run: |
+          ..\.github\scripts\physical_gui_click_smoke.ps1 -ExePath ".\dist\English_Root_Intelligence.exe" -Points "0.25,0.16;0.75,0.16;0.25,0.23;0.75,0.23" -EvidencePath ".\physical_gui_click.json"
+
       - name: Same Hash
         shell: pwsh
         run: |
@@ -85,6 +90,7 @@ jobs:
             english-root-intelligence/final_gate.json
             english-root-intelligence/FINAL_ACCEPTANCE.json
             english-root-intelligence/evidence_sha256.txt
+            english-root-intelligence/physical_gui_click.json
           if-no-files-found: error
 
 # Hard-gate revalidation trigger: 2026-09-24 master-template
