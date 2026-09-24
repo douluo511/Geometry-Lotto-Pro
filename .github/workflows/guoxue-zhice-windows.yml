@@ -40,12 +40,12 @@ jobs:
       - name: Contract Test
         shell: pwsh
         run: |
-          python tests/test_contracts.py
+          python -m unittest discover -s tests -p "test_contracts.py" -v
           if ($LASTEXITCODE -ne 0) { throw "Contract Test failed" }
       - name: Fault Injection
         shell: pwsh
         run: |
-          python tests/test_fault_injection.py
+          python -m unittest discover -s tests -p "test_fault_injection.py" -v
           if ($LASTEXITCODE -ne 0) { throw "Fault Injection failed" }
       - name: Full Regression
         run: python -m unittest discover -s tests -v
