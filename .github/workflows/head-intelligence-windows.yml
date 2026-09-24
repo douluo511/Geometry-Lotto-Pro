@@ -155,3 +155,5 @@ jobs:
             head_intelligence/ARCHITECTURE.md
           if-no-files-found: error
           retention-days: 30
+
+# Hard-gate revalidation trigger: 2026-09-24 master-template
