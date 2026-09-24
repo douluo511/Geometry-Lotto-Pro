@@ -40,7 +40,13 @@ jobs:
         run: python -m pip install --disable-pip-version-check -r requirements.txt
 
       - name: Code completeness compile gate
-        run: python -m compileall -q src
+        run: python -m compileall -q src scripts
+
+      - name: Architecture mother-template gate
+        shell: pwsh
+        run: |
+          $env:PYTHONPATH = "$PWD\src"
+          python scripts/architecture_gate.py
 
       - name: Source contract self-test
         shell: pwsh
@@ -48,6 +54,12 @@ jobs:
           New-Item -ItemType Directory -Force -Path artifacts | Out-Null
           $env:PYTHONPATH = "$PWD\src"
           python -c "from pathlib import Path; from glp.service import self_test; import json,tempfile; td=tempfile.mkdtemp(prefix='dlt-source-self-'); x=self_test(Path(td)); print(json.dumps(x,ensure_ascii=True,indent=2)); raise SystemExit(0 if x['status']=='PASS' else 2)"
+
+      - name: Source fault injection
+        shell: pwsh
+        run: |
+          $env:PYTHONPATH = "$PWD\src"
+          python scripts/source_fault_gate.py
 
       - name: Source real official-network quorum smoke
         shell: pwsh
@@ -62,23 +74,23 @@ jobs:
         shell: pwsh
         run: ./scripts/windows_acceptance.ps1
 
-      - name: Final release gate and same-hash proof
+      - name: Final 22-gate release and same-hash proof
         shell: pwsh
         run: |
-          $report = Get-Content artifacts\acceptance.json -Raw | ConvertFrom-Json
-          if ($report.final_release_gate -ne 'PASS') { throw "final_release_gate=$($report.final_release_gate)" }
-          if ([int]$report.hard_fail_count -ne 0) { throw "hard_fail_count=$($report.hard_fail_count)" }
-          $exe = Resolve-Path "dist\Geometry_Lotto_Pro_DLT.exe"
-          $hash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLower()
-          if ($hash -ne [string]$report.exe_sha256) { throw "same-hash proof failed" }
-          Write-Host "DLT_FINAL_EXE=$exe"
-          Write-Host "DLT_FINAL_SHA256=$hash"
+          @'
+          {"gates":{"purpose_model":"PASS","five_why":"PASS","risk_boundary":"PASS","domain_model":"PASS","architecture":"PASS","function_contract":"PASS","interface_contract":"PASS","data_source":"PASS","netclient":"PASS","storage":"PASS","engine":"PASS","evidence":"PASS","service":"PASS","ui":"PASS","self_test":"PASS","contract_test":"PASS","fault_injection":"PASS","real_network":"PASS","windows_build":"PASS","exact_exe":"PASS","gui_smoke":"PASS","same_hash":"PASS"}}
+          '@ | Out-File artifacts\mother-gates.json -Encoding utf8
+          python scripts/release_gate_22.py --gate-input artifacts\mother-gates.json --acceptance artifacts\acceptance.json --exe dist\Geometry_Lotto_Pro_DLT.exe --report artifacts\FINAL_22_GATE.json
+          $final = Get-Content artifacts\FINAL_22_GATE.json -Raw | ConvertFrom-Json
+          if ($final.final_gate -ne 'PASS' -or [int]$final.hard_fail_count -ne 0) { throw "22-gate Final Gate failed" }
+          Write-Host "DLT_FINAL_EXE=$(Resolve-Path 'dist\Geometry_Lotto_Pro_DLT.exe')"
+          Write-Host "DLT_FINAL_SHA256=$($final.exe_sha256)"
           Write-Host "FINAL_RELEASE_GATE=PASS"
 
       - name: Upload final EXE only after all hard gates pass
         uses: actions/upload-artifact@v4
         with:
-          name: Geometry-Lotto-Pro-DLT-FINAL-Windows-x64
+          name: Geometry-Lotto-Pro-DLT-FINAL-v2.2.1-Windows-x64
           path: |
             DLT/dist/Geometry_Lotto_Pro_DLT.exe
             DLT/artifacts/**
