@@ -90,9 +90,7 @@ jobs:
       - name: Physical GUI Click Smoke
         shell: pwsh
         run: |
-          python .\.github\scripts\tk_button_points.py --project-path psychology_insight_pro --module app --entry PsychologyApp --labels "心理分析;一键更新;一键修复;高级分析" --out ".\dist\gui_points.txt"
-          $points=(Get-Content ".\dist\gui_points.txt" -Raw).Trim()
-          .\.github\scripts\physical_gui_click_smoke.ps1 -ExePath ".\dist\Psychology_Insight_Pro.exe" -Points $points -EvidencePath ".\dist\physical_gui_click.json"
+          .\.github\scripts\physical_gui_click_smoke.ps1 -ExePath ".\dist\Psychology_Insight_Pro.exe" -Points "0.45,0.43;0.90,0.43;0.45,0.79;0.90,0.79" -EvidencePath ".\dist\physical_gui_click.json"
 
       - name: Same Hash
         shell: pwsh
@@ -167,3 +165,5 @@ jobs:
 # physical-gui UIAutomation + desktop-hash fix: 2026-09-24
 
 # exact Tk geometry probe: 2026-09-24
+
+# psychology repeated-open-button coordinate exception: 2026-09-24
