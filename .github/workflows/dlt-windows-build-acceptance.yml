@@ -104,3 +104,5 @@ jobs:
           compression-level: 0
 
 # Hard-gate revalidation trigger: 2026-09-24 master-template dlt
+
+# physical-gui child-process discovery fix: 2026-09-24

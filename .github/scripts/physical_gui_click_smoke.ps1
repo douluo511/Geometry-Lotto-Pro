@@ -29,14 +29,22 @@ foreach($token in $Points.Split(';')){
 }
 if($parsed.Count -ne 4){ throw "Exactly four GUI points are required" }
 
-function Wait-MainWindow([System.Diagnostics.Process]$p){
-  for($i=0;$i -lt 80;$i++){
+function Wait-MainWindow([System.Diagnostics.Process]$p,[string]$processName,[int[]]$baselinePids){
+  for($i=0;$i -lt 120;$i++){
     Start-Sleep -Milliseconds 250
-    $p.Refresh()
-    if($p.HasExited){ throw "EXE exited before main window was ready: $($p.ExitCode)" }
-    if($p.MainWindowHandle -ne 0){ return [IntPtr]$p.MainWindowHandle }
+    try { $p.Refresh() } catch {}
+    $candidates = @(Get-Process -Name $processName -ErrorAction SilentlyContinue | Where-Object {
+      $_.MainWindowHandle -ne 0 -and $baselinePids -notcontains $_.Id
+    })
+    if($candidates.Count -gt 0){
+      $gui = $candidates | Sort-Object StartTime -Descending | Select-Object -First 1
+      return @{ hwnd=[IntPtr]$gui.MainWindowHandle; pid=$gui.Id }
+    }
+    if(-not $p.HasExited -and $p.MainWindowHandle -ne 0){
+      return @{ hwnd=[IntPtr]$p.MainWindowHandle; pid=$p.Id }
+    }
   }
-  throw "Main window handle not found"
+  throw "Main window handle not found in bootloader or spawned GUI process"
 }
 function Get-Rect([IntPtr]$hwnd){
   $r=New-Object PhysicalGuiClick+RECT
@@ -79,10 +87,14 @@ function Stop-Tree([System.Diagnostics.Process]$p){
   }
 }
 $results=@()
+$exeResolved = Resolve-Path $ExePath
+$processName = [System.IO.Path]::GetFileNameWithoutExtension($exeResolved)
 for($i=0;$i -lt 4;$i++){
-  $p=Start-Process -FilePath (Resolve-Path $ExePath) -PassThru
+  $baselinePids = @(Get-Process -Name $processName -ErrorAction SilentlyContinue | ForEach-Object { $_.Id })
+  $p=Start-Process -FilePath $exeResolved -PassThru
   try {
-    $hwnd=Wait-MainWindow $p
+    $window=Wait-MainWindow $p $processName $baselinePids
+    $hwnd=$window.hwnd
     if($i -eq 0 -and $PreconditionIndex -ge 0){
       $pre=$parsed[$PreconditionIndex]
       [void](Click-Normalized $hwnd $pre[0] $pre[1])
