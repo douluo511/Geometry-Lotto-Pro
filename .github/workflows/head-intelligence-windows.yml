@@ -135,6 +135,11 @@ jobs:
           if ($p.ExitCode -ne 0) { exit $p.ExitCode }
           New-Item evidence/final_gui_smoke.pass -ItemType File | Out-Null
 
+      - name: Physical GUI Click Smoke
+        shell: pwsh
+        run: |
+          .\.github\scripts\physical_gui_click_smoke.ps1 -ExePath ".\final\HeadIntelligence.exe" -Points "0.25,0.19;0.75,0.19;0.25,0.27;0.75,0.27" -PreconditionIndex 3 -EvidencePath ".\evidence\physical_gui_click.json"
+
       - name: Final Gate
         shell: pwsh
         run: |
@@ -152,6 +157,7 @@ jobs:
             final/HeadIntelligence.exe
             final/BUILD_HASH.txt
             evidence/final_gate.json
+            evidence/physical_gui_click.json
             head_intelligence/ARCHITECTURE.md
           if-no-files-found: error
           retention-days: 30
