@@ -49,6 +49,12 @@ jobs:
           python head_intelligence/architecture_gate.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+      - name: Business Content Gate
+        shell: pwsh
+        run: |
+          python -m head_intelligence.business_gate
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - name: Unit Test
         shell: pwsh
         run: |
@@ -146,7 +152,7 @@ jobs:
         shell: pwsh
         run: |
           @'
-          {"gates":{"purpose_model":"PASS","five_why":"PASS","risk_boundary":"PASS","domain_model":"PASS","architecture":"PASS","function_contract":"PASS","interface_contract":"PASS","data_source":"PASS","netclient":"PASS","storage":"PASS","engine":"PASS","evidence":"PASS","service":"PASS","ui":"PASS","self_test":"PASS","contract_test":"PASS","fault_injection":"PASS","real_network":"PASS","windows_build":"PASS","exact_exe":"PASS","gui_smoke":"PASS","same_hash":"PASS"}}
+          {"gates":{"purpose_model":"PASS","five_why":"PASS","risk_boundary":"PASS","domain_model":"PASS","architecture":"PASS","function_contract":"PASS","interface_contract":"PASS","data_source":"PASS","netclient":"PASS","storage":"PASS","engine":"PASS","evidence":"PASS","service":"PASS","ui":"PASS","self_test":"PASS","contract_test":"PASS","fault_injection":"PASS","real_network":"PASS","windows_build":"PASS","exact_exe":"PASS","gui_smoke":"PASS","same_hash":"PASS","business_content":"PASS"}}
           '@ | Out-File evidence/gate_input.json -Encoding utf8
           python -m head_intelligence.release_gate --evidence-dir evidence --candidate-exe dist/HeadIntelligence.exe --final-exe final/HeadIntelligence.exe --gate-input evidence/gate_input.json --out evidence/final_gate.json
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -154,13 +160,14 @@ jobs:
       - name: Upload unique passing artifact
         uses: actions/upload-artifact@v4
         with:
-          name: HeadIntelligence-FINAL-v0.2.1
+          name: HeadIntelligence-FINAL-v0.3.0
           path: |
             final/HeadIntelligence.exe
             final/BUILD_HASH.txt
             evidence/final_gate.json
             evidence/physical_gui_click.json
             head_intelligence/ARCHITECTURE.md
+            head_intelligence/business_gate.json
           if-no-files-found: error
           retention-days: 30
 

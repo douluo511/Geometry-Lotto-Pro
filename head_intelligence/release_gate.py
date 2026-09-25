@@ -25,7 +25,8 @@ HARD_GATES=[
     "windows_build",
     "exact_exe",
     "gui_smoke",
-    "same_hash"
+    "same_hash",
+    "business_content"
 ]
 MARKERS={
 "self_test":"python_self_test.pass","contract_test":"contract_tests.pass","fault_injection":"fault_injection.pass","real_network":"real_network.pass","windows_build":"windows_build.pass","exact_exe":"exact_exe_self_test.pass","gui_smoke":"gui_smoke.pass","same_hash":"same_hash.pass"}

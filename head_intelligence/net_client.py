@@ -43,7 +43,7 @@ class NetClient:
                     source.url,
                     timeout=(self.policy.connect_timeout, self.policy.read_timeout),
                     headers={
-                        "User-Agent": "HeadIntelligence/0.2 (+https://github.com/douluo511/Geometry-Lotto-Pro)",
+                        "User-Agent": "HeadIntelligence/0.3 (+https://github.com/douluo511/Geometry-Lotto-Pro)",
                         "Accept": "application/rss+xml, application/xml, text/xml, */*",
                     },
                 )

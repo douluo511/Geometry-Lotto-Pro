@@ -54,6 +54,18 @@ class EvidenceEngine:
         hits = sum(1 for word in self.DECISION_KEYWORDS if word in normalized)
         return round(min(1.0, 0.25 + hits * 0.11), 4)
 
+    def classify_topic(self, text: str) -> str:
+        t=text.lower()
+        groups={
+            "monetary_policy":("federal reserve","interest rate","rates","monetary","fomc","利率","货币"),
+            "securities_regulation":("sec ","securities","enforcement","trading","issuer","监管","证券"),
+            "labor_inflation":("employment","unemployment","jobs","cpi","inflation","wages","就业","通胀"),
+            "national_accounts":("gdp","personal income","trade","corporate profits","national accounts","国内生产总值"),
+        }
+        for name,words in groups.items():
+            if any(w in t for w in words): return name
+        return "general"
+
     def rank_score(self, source: Source, freshness: float, relevance: float, novelty: float = 1.0) -> float:
         quality = max(0.0, min(1.0, float(source.quality)))
         return round(

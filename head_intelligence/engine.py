@@ -17,6 +17,7 @@ from head_intelligence.storage import AtomicStorage
 
 
 APP_NAME = "HeadIntelligence"
+APP_VERSION = "0.3.0"
 SNAPSHOT_FILE = "latest_snapshot.json"
 
 DEFAULT_SOURCES = [
@@ -30,6 +31,18 @@ DEFAULT_SOURCES = [
         id="sec_press",
         name="U.S. SEC - Press Releases",
         url="https://www.sec.gov/news/pressreleases.rss",
+        quality=1.0,
+    ),
+    Source(
+        id="bls_latest",
+        name="U.S. Bureau of Labor Statistics - Latest Numbers",
+        url="https://www.bls.gov/feed/bls_latest.rss",
+        quality=1.0,
+    ),
+    Source(
+        id="bea_releases",
+        name="U.S. Bureau of Economic Analysis - News Releases",
+        url="https://apps.bea.gov/rss/rss.xml",
         quality=1.0,
     ),
 ]
@@ -84,13 +97,21 @@ class InformationEngine:
                     )
 
         deduped = self.evidence.deduplicate(fetched)
-        ranked = sorted(deduped, key=lambda x: x.score, reverse=True)
+        category_sources={}
+        for item in deduped:
+            category_sources.setdefault(item.category,set()).add(item.source_id)
+        for item in deduped:
+            sources=sorted(category_sources.get(item.category,{item.source_id}))
+            item.corroborating_sources=sources
+            item.corroboration_count=len(sources)
+            item.evidence_status="MULTI_SOURCE_CATEGORY" if len(sources)>=2 else "PRIMARY_SOURCE"
+        ranked = sorted(deduped, key=lambda x: (x.corroboration_count, x.score), reverse=True)
         now = datetime.now(timezone.utc).isoformat()
         snapshot_seed = "|".join(item.content_hash for item in ranked) + "|" + now
         snapshot_id = hashlib.sha256(snapshot_seed.encode("utf-8")).hexdigest()[:16]
 
-        any_source_pass = any(h.get("status") == "PASS" for h in source_health)
-        status = "PASS" if ranked and any_source_pass else "FAIL"
+        all_sources_pass = bool(source_health) and len(source_health)==len(enabled) and all(h.get("status") == "PASS" for h in source_health)
+        status = "PASS" if ranked and all_sources_pass else "FAIL"
 
         report = UpdateReport(
             status=status,
@@ -234,6 +255,9 @@ class InformationEngine:
             decision_relevance=relevance,
             score=score,
             evidence_status="PRIMARY_SOURCE",
+            category=self.evidence.classify_topic(title + " " + summary),
+            corroboration_count=1,
+            corroborating_sources=[source.id],
         )
 
     @staticmethod

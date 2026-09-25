@@ -41,6 +41,9 @@ class InformationItem:
     decision_relevance: float
     score: float
     evidence_status: str = "PRIMARY_SOURCE"
+    category: str = "general"
+    corroboration_count: int = 1
+    corroborating_sources: list[str] = field(default_factory=list)
     conflicts: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:

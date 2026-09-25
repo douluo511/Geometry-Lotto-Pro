@@ -21,9 +21,12 @@ class InformationService:
         return self.engine.load_latest_snapshot()
 
     def advanced_analysis(self) -> dict:
+        snapshot=self.engine.load_latest_snapshot()
         return {
             "health": self.engine.health_check(),
-            "snapshot": self.engine.load_latest_snapshot(),
+            "business_dimensions":["source_authority","freshness","deduplication","topic","corroboration","decision_relevance"],
+            "source_count":len(self.engine.sources),
+            "snapshot": snapshot,
         }
 
     def self_test(self) -> dict:
