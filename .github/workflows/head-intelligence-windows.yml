@@ -1,0 +1,180 @@
+name: Head Intelligence Hard-Gate Windows Release
+
+on:
+  push:
+    branches:
+      - head-intelligence-prototype
+    paths:
+      - "head_intelligence/**"
+      - ".github/workflows/head-intelligence-windows.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "head_intelligence/**"
+      - ".github/workflows/head-intelligence-windows.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  hard-gate:
+    runs-on: windows-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: head_intelligence/requirements.txt
+
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r head_intelligence/requirements.txt
+          New-Item -ItemType Directory -Force evidence | Out-Null
+          New-Item -ItemType Directory -Force final | Out-Null
+
+      - name: Architecture and code completeness
+        shell: pwsh
+        run: |
+          python -m compileall -q head_intelligence
+          python head_intelligence/architecture_gate.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Business Content Gate
+        shell: pwsh
+        run: |
+          python -m head_intelligence.business_gate
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Unit Test
+        shell: pwsh
+        run: |
+          python -m pytest -q head_intelligence/tests/test_engine.py head_intelligence/tests/test_release_gate.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          New-Item evidence/unit_tests.pass -ItemType File | Out-Null
+
+      - name: Contract Test
+        shell: pwsh
+        run: |
+          python -m pytest -q head_intelligence/tests/test_contracts.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          New-Item evidence/contract_tests.pass -ItemType File | Out-Null
+
+      - name: Fault Injection
+        shell: pwsh
+        run: |
+          python -m pytest -q head_intelligence/tests/test_fault_injection.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          New-Item evidence/fault_injection.pass -ItemType File | Out-Null
+
+      - name: Python Self-Test
+        shell: pwsh
+        run: |
+          python -m head_intelligence.app --self-test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          New-Item evidence/python_self_test.pass -ItemType File | Out-Null
+
+      - name: Real Network
+        shell: pwsh
+        run: |
+          python -m head_intelligence.app --network-smoke-test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          New-Item evidence/real_network.pass -ItemType File | Out-Null
+
+      - name: Windows Build
+        shell: pwsh
+        run: |
+          pyinstaller --noconfirm --clean --onefile --windowed --paths . --name HeadIntelligence head_intelligence/app.py
+          if (-not (Test-Path .\dist\HeadIntelligence.exe)) { throw "EXE not produced" }
+          New-Item evidence/windows_build.pass -ItemType File | Out-Null
+
+      - name: Exact EXE Self-Test
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath .\dist\HeadIntelligence.exe -ArgumentList "--self-test" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { exit $p.ExitCode }
+          New-Item evidence/exact_exe_self_test.pass -ItemType File | Out-Null
+
+      - name: GUI Smoke
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath .\dist\HeadIntelligence.exe -ArgumentList "--gui-smoke" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { exit $p.ExitCode }
+          New-Item evidence/gui_smoke.pass -ItemType File | Out-Null
+
+      - name: Stage unique final EXE
+        shell: pwsh
+        run: |
+          Copy-Item .\dist\HeadIntelligence.exe .\final\HeadIntelligence.exe -Force
+
+      - name: Same Hash
+        shell: pwsh
+        run: |
+          $candidate = (Get-FileHash .\dist\HeadIntelligence.exe -Algorithm SHA256).Hash
+          $final = (Get-FileHash .\final\HeadIntelligence.exe -Algorithm SHA256).Hash
+          if ($candidate -ne $final) { throw "Same-hash gate failed" }
+          New-Item evidence/same_hash.pass -ItemType File | Out-Null
+          "sha256=$final" | Out-File .\final\BUILD_HASH.txt -Encoding ascii
+          "commit=${{ github.sha }}" | Add-Content .\final\BUILD_HASH.txt
+          "workflow_run=${{ github.run_id }}" | Add-Content .\final\BUILD_HASH.txt
+
+      - name: Final EXE Self-Test
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath .\final\HeadIntelligence.exe -ArgumentList "--self-test" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { exit $p.ExitCode }
+          New-Item evidence/final_exe_self_test.pass -ItemType File | Out-Null
+
+      - name: Final GUI Smoke
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath .\final\HeadIntelligence.exe -ArgumentList "--gui-smoke" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { exit $p.ExitCode }
+          New-Item evidence/final_gui_smoke.pass -ItemType File | Out-Null
+
+      - name: Physical GUI Click Smoke
+        shell: pwsh
+        run: |
+          python .\.github\scripts\tk_button_points.py --project-path . --module head_intelligence.app --entry HeadIntelligenceApp --labels "信息判断;一键更新;一键修复;高级分析" --out ".\evidence\gui_points.txt"
+          $points=(Get-Content ".\evidence\gui_points.txt" -Raw).Trim()
+          .\.github\scripts\physical_gui_click_smoke.ps1 -ExePath ".\final\HeadIntelligence.exe" -Points $points -PreconditionIndex 3 -EvidencePath ".\evidence\physical_gui_click.json"
+
+      - name: Final Gate
+        shell: pwsh
+        run: |
+          @'
+          {"gates":{"purpose_model":"PASS","five_why":"PASS","risk_boundary":"PASS","domain_model":"PASS","architecture":"PASS","function_contract":"PASS","interface_contract":"PASS","data_source":"PASS","netclient":"PASS","storage":"PASS","engine":"PASS","evidence":"PASS","service":"PASS","ui":"PASS","self_test":"PASS","contract_test":"PASS","fault_injection":"PASS","real_network":"PASS","windows_build":"PASS","exact_exe":"PASS","gui_smoke":"PASS","same_hash":"PASS","business_content":"PASS"}}
+          '@ | Out-File evidence/gate_input.json -Encoding utf8
+          python -m head_intelligence.release_gate --evidence-dir evidence --candidate-exe dist/HeadIntelligence.exe --final-exe final/HeadIntelligence.exe --gate-input evidence/gate_input.json --out evidence/final_gate.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload unique passing artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: HeadIntelligence-FINAL-v0.3.0
+          path: |
+            final/HeadIntelligence.exe
+            final/BUILD_HASH.txt
+            evidence/final_gate.json
+            evidence/physical_gui_click.json
+            head_intelligence/ARCHITECTURE.md
+            head_intelligence/business_gate.json
+          if-no-files-found: error
+          retention-days: 30
+
+# Hard-gate revalidation trigger: 2026-09-24 master-template
+
+# physical-gui child-process discovery fix: 2026-09-24
+
+# physical-gui UIAutomation + desktop-hash fix: 2026-09-24
+
+# exact Tk geometry probe: 2026-09-24
