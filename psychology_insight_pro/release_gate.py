@@ -25,7 +25,8 @@ HARD_GATES = [
     "windows_build",
     "exact_exe",
     "gui_smoke",
-    "same_hash"
+    "same_hash",
+    "business_content"
 ]
 FORBIDDEN = {"FAIL","PENDING","WARNING","UNAVAILABLE","SKIPPED","UNKNOWN"}
 

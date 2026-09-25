@@ -11,7 +11,7 @@ from tkinter import messagebox, ttk
 from service import PsychologyService, create_service
 
 APP_NAME = "Psychology Insight Pro"
-APP_VERSION = "0.2.0"
+APP_VERSION = "0.3.0"
 RAW_BASE = "https://raw.githubusercontent.com/douluo511/Geometry-Lotto-Pro/main/psychology_insight_pro"
 KNOWLEDGE_URL = RAW_BASE + "/knowledge.json"
 

@@ -1,67 +1,688 @@
 {
-  "version": "0.1.0",
-  "updated_at": "2026-09-24",
-  "description": "Psychology Insight Pro prototype knowledge rules. Probabilistic inference only.",
+  "version": "0.3.0",
+  "updated_at": "2026-09-26",
+  "description": "Psychology Insight Pro evidence-oriented hypothesis library. Competing explanations only; no mind-reading, lie detection, or diagnosis.",
   "hypotheses": [
     {
       "key": "external_load",
       "name": "外部负荷 / 忙碌",
       "explanation": "工作、学习、家庭事务或疲劳可能暂时降低互动能力，而不必然代表关系态度变化。",
-      "prior": 0.0,
-      "support_keywords": ["忙", "加班", "工作", "会议", "考试", "赶项目", "累", "没时间", "deadline", "busy"],
-      "contradict_keywords": ["有空", "闲", "放假", "时间很多"],
+      "prior": 0,
+      "support_keywords": [
+        "忙",
+        "加班",
+        "工作",
+        "会议",
+        "考试",
+        "赶项目",
+        "累",
+        "没时间",
+        "deadline",
+        "busy"
+      ],
+      "contradict_keywords": [
+        "有空",
+        "闲",
+        "放假",
+        "时间很多"
+      ],
       "support_weight": 0.46,
-      "contradict_weight": 0.42
+      "contradict_weight": 0.42,
+      "boundary": "仅作为竞争解释，不代表对方内心事实；必须结合情境、历史基线、直接沟通与后续行为验证。",
+      "source_tags": [
+        "situational_attribution",
+        "behavioral_evidence"
+      ]
     },
     {
       "key": "uncertainty",
       "name": "不确定 / 尚未决定",
       "explanation": "当前可能没有形成清晰决定，或希望保留选择空间。",
-      "prior": 0.0,
-      "support_keywords": ["不知道", "再看看", "看情况", "也许", "可能", "随便", "都行", "考虑一下"],
-      "contradict_keywords": ["确定", "就这样", "我会", "已经决定", "肯定"],
+      "prior": 0,
+      "support_keywords": [
+        "不知道",
+        "再看看",
+        "看情况",
+        "也许",
+        "可能",
+        "随便",
+        "都行",
+        "考虑一下"
+      ],
+      "contradict_keywords": [
+        "确定",
+        "就这样",
+        "我会",
+        "已经决定",
+        "肯定"
+      ],
       "support_weight": 0.48,
-      "contradict_weight": 0.5
+      "contradict_weight": 0.5,
+      "boundary": "仅作为竞争解释，不代表对方内心事实；必须结合情境、历史基线、直接沟通与后续行为验证。",
+      "source_tags": [
+        "situational_attribution",
+        "behavioral_evidence"
+      ]
     },
     {
       "key": "conflict_avoidance",
       "name": "冲突回避",
       "explanation": "可能希望避免直接冲突、拒绝或承担决定带来的压力。",
       "prior": -0.05,
-      "support_keywords": ["都可以", "你决定", "没事", "算了", "不想说", "随便吧", "以后再说"],
-      "contradict_keywords": ["我不同意", "我希望", "我想要", "我明确"],
+      "support_keywords": [
+        "都可以",
+        "你决定",
+        "没事",
+        "算了",
+        "不想说",
+        "随便吧",
+        "以后再说"
+      ],
+      "contradict_keywords": [
+        "我不同意",
+        "我希望",
+        "我想要",
+        "我明确"
+      ],
       "support_weight": 0.43,
-      "contradict_weight": 0.46
+      "contradict_weight": 0.46,
+      "boundary": "仅作为竞争解释，不代表对方内心事实；必须结合情境、历史基线、直接沟通与后续行为验证。",
+      "source_tags": [
+        "situational_attribution",
+        "behavioral_evidence"
+      ]
     },
     {
       "key": "distance_boundary",
       "name": "边界 / 距离需求",
       "explanation": "可能正在寻求更多空间、减少当下互动或推迟讨论。",
       "prior": -0.08,
-      "support_keywords": ["想静静", "给我点时间", "空间", "先别", "不想聊", "晚点再说", "改天", "以后再说", "不方便"],
-      "contradict_keywords": ["一起", "见面", "现在聊", "我来找你", "什么时候有空"],
+      "support_keywords": [
+        "想静静",
+        "给我点时间",
+        "空间",
+        "先别",
+        "不想聊",
+        "晚点再说",
+        "改天",
+        "以后再说",
+        "不方便"
+      ],
+      "contradict_keywords": [
+        "一起",
+        "见面",
+        "现在聊",
+        "我来找你",
+        "什么时候有空"
+      ],
       "support_weight": 0.52,
-      "contradict_weight": 0.5
+      "contradict_weight": 0.5,
+      "boundary": "仅作为竞争解释，不代表对方内心事实；必须结合情境、历史基线、直接沟通与后续行为验证。",
+      "source_tags": [
+        "situational_attribution",
+        "behavioral_evidence"
+      ]
     },
     {
       "key": "engagement",
       "name": "仍有投入 / 继续互动意愿",
       "explanation": "存在主动询问、具体安排、帮助、共同计划或延续话题等投入信号。",
-      "prior": 0.0,
-      "support_keywords": ["一起", "见面", "什么时候", "我来", "我帮", "告诉我", "我想知道", "下次", "具体时间", "有空吗"],
-      "contradict_keywords": ["不想聊", "别联系", "以后再说", "没必要", "算了"],
+      "prior": 0,
+      "support_keywords": [
+        "一起",
+        "见面",
+        "什么时候",
+        "我来",
+        "我帮",
+        "告诉我",
+        "我想知道",
+        "下次",
+        "具体时间",
+        "有空吗"
+      ],
+      "contradict_keywords": [
+        "不想聊",
+        "别联系",
+        "以后再说",
+        "没必要",
+        "算了"
+      ],
       "support_weight": 0.47,
-      "contradict_weight": 0.5
+      "contradict_weight": 0.5,
+      "boundary": "仅作为竞争解释，不代表对方内心事实；必须结合情境、历史基线、直接沟通与后续行为验证。",
+      "source_tags": [
+        "situational_attribution",
+        "behavioral_evidence"
+      ]
     },
     {
       "key": "lower_investment",
       "name": "关系投入可能下降",
       "explanation": "若与个人历史基线相比，主动性、具体承诺和回应持续下降，可能代表投入减少；单次表现不足以确认。",
       "prior": -0.12,
-      "support_keywords": ["改天", "以后再说", "不方便", "没空", "随便", "嗯", "哦"],
-      "contradict_keywords": ["我来", "我帮", "一起", "见面", "什么时候", "具体时间"],
+      "support_keywords": [
+        "改天",
+        "以后再说",
+        "不方便",
+        "没空",
+        "随便",
+        "嗯",
+        "哦"
+      ],
+      "contradict_keywords": [
+        "我来",
+        "我帮",
+        "一起",
+        "见面",
+        "什么时候",
+        "具体时间"
+      ],
       "support_weight": 0.3,
-      "contradict_weight": 0.44
+      "contradict_weight": 0.44,
+      "boundary": "仅作为竞争解释，不代表对方内心事实；必须结合情境、历史基线、直接沟通与后续行为验证。",
+      "source_tags": [
+        "situational_attribution",
+        "behavioral_evidence"
+      ]
+    },
+    {
+      "key": "time_pressure",
+      "name": "时间压力 / 截止期限",
+      "explanation": "短期时间压力可能使回应更短、更直接或推迟互动。",
+      "prior": -0.03,
+      "support_keywords": [
+        "赶时间",
+        "马上",
+        "截止",
+        "来不及",
+        "deadline",
+        "赶紧",
+        "今天必须"
+      ],
+      "contradict_keywords": [
+        "不急",
+        "慢慢来",
+        "时间充足"
+      ],
+      "support_weight": 0.44,
+      "contradict_weight": 0.38,
+      "source_tags": [
+        "stress",
+        "situation"
+      ],
+      "boundary": "仅作为竞争解释，不代表对方内心事实；需用情境、历史基线、直接沟通和可观察后续行为验证。"
+    },
+    {
+      "key": "stress_load",
+      "name": "压力负荷",
+      "explanation": "外部压力可能提高语气强度、降低耐心或减少认知余量。",
+      "prior": -0.05,
+      "support_keywords": [
+        "压力大",
+        "烦",
+        "焦头烂额",
+        "撑不住",
+        "很累",
+        "stress",
+        "崩溃"
+      ],
+      "contradict_keywords": [
+        "很放松",
+        "状态很好",
+        "轻松"
+      ],
+      "support_weight": 0.46,
+      "contradict_weight": 0.4,
+      "source_tags": [
+        "stress",
+        "situation"
+      ],
+      "boundary": "仅作为竞争解释，不代表对方内心事实；需用情境、历史基线、直接沟通和可观察后续行为验证。"
+    },
+    {
+      "key": "role_conflict",
+      "name": "角色冲突",
+      "explanation": "工作、家庭、伴侣或团队角色要求冲突时，行为可能摇摆而非态度单一变化。",
+      "prior": -0.05,
+      "support_keywords": [
+        "公司要求",
+        "家里要",
+        "两边",
+        "顾不过来",
+        "职责",
+        "领导让我",
+        "家人希望"
+      ],
+      "contradict_keywords": [
+        "没有冲突",
+        "都安排好了"
+      ],
+      "support_weight": 0.43,
+      "contradict_weight": 0.36,
+      "source_tags": [
+        "social_roles",
+        "situation"
+      ],
+      "boundary": "仅作为竞争解释，不代表对方内心事实；需用情境、历史基线、直接沟通和可观察后续行为验证。"
+    },
+    {
+      "key": "impression_management",
+      "name": "印象管理",
+      "explanation": "在评价、陌生关系或公开场合，人可能调整表达以维持特定形象。",
+      "prior": -0.08,
+      "support_keywords": [
+        "别人怎么看",
+        "面子",
+        "形象",
+        "公开",
+        "领导在",
+        "大家都在",
+        "别让人知道"
+      ],
+      "contradict_keywords": [
+        "无所谓别人怎么看",
+        "私下说"
+      ],
+      "support_weight": 0.42,
+      "contradict_weight": 0.38,
+      "source_tags": [
+        "self_presentation",
+        "social_context"
+      ],
+      "boundary": "仅作为竞争解释，不代表对方内心事实；需用情境、历史基线、直接沟通和可观察后续行为验证。"
+    },
+    {
+      "key": "social_evaluation_concern",
+      "name": "社会评价顾虑",
+      "explanation": "担心被评价或拒绝时，人可能降低暴露、减少承诺或使用模糊表达。",
+      "prior": -0.08,
+      "support_keywords": [
+        "怕被拒绝",
+        "怕丢脸",
+        "怕别人说",
+        "不好意思",
+        "不敢",
+        "尴尬"
+      ],
+      "contradict_keywords": [
+        "直接说",
+        "不怕被拒绝",
+        "无所谓评价"
+      ],
+      "support_weight": 0.45,
+      "contradict_weight": 0.4,
+      "source_tags": [
+        "social_evaluation",
+        "uncertainty"
+      ],
+      "boundary": "仅作为竞争解释，不代表对方内心事实；需用情境、历史基线、直接沟通和可观察后续行为验证。"
+    },
+    {
+      "key": "autonomy_need",
+      "name": "自主空间需求",
+      "explanation": "当个体感觉被催促或控制时，可能更强调自己决定时间和方式。",
+      "prior": -0.05,
+      "support_keywords": [
+        "别催",
+        "我自己决定",
+        "别管我",
+        "让我自己来",
+        "不要逼我",
+        "我需要空间"
+      ],
+      "contradict_keywords": [
+        "你帮我决定",
+        "按你说的做"
+      ],
+      "support_weight": 0.48,
+      "contradict_weight": 0.4,
+      "source_tags": [
+        "autonomy",
+        "reactance"
+      ],
+      "boundary": "仅作为竞争解释，不代表对方内心事实；需用情境、历史基线、直接沟通和可观察后续行为验证。"
+    },
+    {
+      "key": "repair_attempt",
+      "name": "关系修复尝试",
+      "explanation": "主动道歉、解释、提出补救或重新安排，可能代表修复互动的意愿。",
+      "prior": 0,
+      "support_keywords": [
+        "对不起",
+        "我解释一下",
+        "我补偿",
+        "重新约",
+        "我改",
+        "我们再聊",
+        "我来处理"
+      ],
+      "contradict_keywords": [
+        "没必要",
+        "不想解决",
+        "到此为止"
+      ],
+      "support_weight": 0.5,
+      "contradict_weight": 0.5,
+      "source_tags": [
+        "relationships",
+        "repair"
+      ],
+      "boundary": "仅作为竞争解释，不代表对方内心事实；需用情境、历史基线、直接沟通和可观察后续行为验证。"
+    },
+    {
+      "key": "cooperation_intent",
+      "name": "合作意愿",
+      "explanation": "共享信息、主动分工、提出具体下一步，通常比口头友好更能反映合作投入。",
+      "prior": 0,
+      "support_keywords": [
+        "一起做",
+        "我负责",
+        "你负责",
+        "下一步",
+        "我发给你",
+        "我们定个时间",
+        "我配合"
+      ],
+      "contradict_keywords": [
+        "不配合",
+        "你自己弄",
+        "跟我无关"
+      ],
+      "support_weight": 0.48,
+      "contradict_weight": 0.5,
+      "source_tags": [
+        "cooperation",
+        "behavioral_evidence"
+      ],
+      "boundary": "仅作为竞争解释，不代表对方内心事实；需用情境、历史基线、直接沟通和可观察后续行为验证。"
+    },
+    {
+      "key": "expectation_mismatch",
+      "name": "预期不一致",
+      "explanation": "冲突有时来自双方对速度、责任、频率或关系定义的预期不同。",
+      "prior": -0.05,
+      "support_keywords": [
+        "我以为",
+        "你不是说",
+        "本来应该",
+        "怎么和说的不一样",
+        "我期待",
+        "你答应过"
+      ],
+      "contradict_keywords": [
+        "我们说清楚了",
+        "和预期一样"
+      ],
+      "support_weight": 0.46,
+      "contradict_weight": 0.38,
+      "source_tags": [
+        "expectations",
+        "coordination"
+      ],
+      "boundary": "仅作为竞争解释，不代表对方内心事实；需用情境、历史基线、直接沟通和可观察后续行为验证。"
+    },
+    {
+      "key": "information_gap",
+      "name": "信息缺口",
+      "explanation": "缺少背景、原因或约束信息时，观察者容易用人格解释填补空白。",
+      "prior": 0.02,
+      "support_keywords": [
+        "不知道发生什么",
+        "没说原因",
+        "没告诉我",
+        "突然",
+        "莫名其妙",
+        "不清楚"
+      ],
+      "contradict_keywords": [
+        "原因很清楚",
+        "已经解释",
+        "我知道背景"
+      ],
+      "support_weight": 0.44,
+      "contradict_weight": 0.4,
+      "source_tags": [
+        "attribution",
+        "information_gap"
+      ],
+      "boundary": "仅作为竞争解释，不代表对方内心事实；需用情境、历史基线、直接沟通和可观察后续行为验证。"
+    },
+    {
+      "key": "emotional_arousal",
+      "name": "高情绪唤起",
+      "explanation": "高情绪状态可能暂时改变措辞、决策速度和冲突反应，不宜直接推断稳定人格。",
+      "prior": -0.05,
+      "support_keywords": [
+        "气死了",
+        "太激动",
+        "非常生气",
+        "忍不了",
+        "现在就要",
+        "受够了"
+      ],
+      "contradict_keywords": [
+        "冷静",
+        "平静",
+        "想清楚再说"
+      ],
+      "support_weight": 0.47,
+      "contradict_weight": 0.42,
+      "source_tags": [
+        "emotion",
+        "state"
+      ],
+      "boundary": "仅作为竞争解释，不代表对方内心事实；需用情境、历史基线、直接沟通和可观察后续行为验证。"
+    },
+    {
+      "key": "reciprocity_shift",
+      "name": "互惠投入变化",
+      "explanation": "如果长期互动中回应、帮助或主动程度持续不对称，可能提示投入结构发生变化。",
+      "prior": -0.1,
+      "support_keywords": [
+        "总是我主动",
+        "只有我联系",
+        "从不回复",
+        "我一直帮",
+        "他从不",
+        "她从不"
+      ],
+      "contradict_keywords": [
+        "互相",
+        "轮流",
+        "他也会主动",
+        "她也会帮"
+      ],
+      "support_weight": 0.42,
+      "contradict_weight": 0.42,
+      "source_tags": [
+        "reciprocity",
+        "baseline"
+      ],
+      "boundary": "仅作为竞争解释，不代表对方内心事实；需用情境、历史基线、直接沟通和可观察后续行为验证。"
+    },
+    {
+      "key": "commitment_avoidance",
+      "name": "具体承诺回避",
+      "explanation": "反复避免时间、责任或明确下一步，可能代表尚未准备承诺，也可能只是信息不足。",
+      "prior": -0.08,
+      "support_keywords": [
+        "再说吧",
+        "到时候看",
+        "以后再定",
+        "不确定时间",
+        "先这样",
+        "回头再说"
+      ],
+      "contradict_keywords": [
+        "周三三点",
+        "我负责",
+        "我确认",
+        "就定这个"
+      ],
+      "support_weight": 0.43,
+      "contradict_weight": 0.48,
+      "source_tags": [
+        "commitment",
+        "uncertainty"
+      ],
+      "boundary": "仅作为竞争解释，不代表对方内心事实；需用情境、历史基线、直接沟通和可观察后续行为验证。"
+    },
+    {
+      "key": "topic_avoidance",
+      "name": "话题回避",
+      "explanation": "持续转移特定话题可能表示不适、冲突规避、隐私边界或尚无答案，原因需区分。",
+      "prior": -0.08,
+      "support_keywords": [
+        "别说这个",
+        "换个话题",
+        "不聊这个",
+        "跳过",
+        "以后再谈"
+      ],
+      "contradict_keywords": [
+        "我们把这件事说清楚",
+        "可以谈"
+      ],
+      "support_weight": 0.46,
+      "contradict_weight": 0.43,
+      "source_tags": [
+        "avoidance",
+        "boundary"
+      ],
+      "boundary": "仅作为竞争解释，不代表对方内心事实；需用情境、历史基线、直接沟通和可观察后续行为验证。"
+    },
+    {
+      "key": "trust_caution",
+      "name": "信任谨慎",
+      "explanation": "在信息不足或过往承诺未兑现时，人可能先观察再投入，不等同于敌意。",
+      "prior": -0.06,
+      "support_keywords": [
+        "先看看",
+        "我需要确认",
+        "等你做到",
+        "先验证",
+        "不太放心",
+        "之前没做到"
+      ],
+      "contradict_keywords": [
+        "完全信任",
+        "不用确认",
+        "我放心"
+      ],
+      "support_weight": 0.44,
+      "contradict_weight": 0.4,
+      "source_tags": [
+        "trust",
+        "behavioral_evidence"
+      ],
+      "boundary": "仅作为竞争解释，不代表对方内心事实；需用情境、历史基线、直接沟通和可观察后续行为验证。"
+    },
+    {
+      "key": "coordination_failure",
+      "name": "协调失败",
+      "explanation": "时间、任务和责任接口不清会制造看似“态度差”的行为问题。",
+      "prior": -0.03,
+      "support_keywords": [
+        "没人负责",
+        "没说时间",
+        "谁来做",
+        "没对齐",
+        "重复做了",
+        "忘了通知"
+      ],
+      "contradict_keywords": [
+        "分工清楚",
+        "时间确认",
+        "责任明确"
+      ],
+      "support_weight": 0.45,
+      "contradict_weight": 0.4,
+      "source_tags": [
+        "coordination",
+        "situation"
+      ],
+      "boundary": "仅作为竞争解释，不代表对方内心事实；需用情境、历史基线、直接沟通和可观察后续行为验证。"
+    },
+    {
+      "key": "norm_pressure",
+      "name": "群体规范压力",
+      "explanation": "人在群体中可能因角色、规范或多数意见调整表达，不能简单等同私人态度。",
+      "prior": -0.05,
+      "support_keywords": [
+        "大家都这么说",
+        "公司规定",
+        "家里都觉得",
+        "他们都不同意",
+        "只能这样"
+      ],
+      "contradict_keywords": [
+        "我个人就是这么想",
+        "即使没人看我也会"
+      ],
+      "support_weight": 0.42,
+      "contradict_weight": 0.36,
+      "source_tags": [
+        "social_norms",
+        "context"
+      ],
+      "boundary": "仅作为竞争解释，不代表对方内心事实；需用情境、历史基线、直接沟通和可观察后续行为验证。"
+    },
+    {
+      "key": "clarity_seeking",
+      "name": "澄清与确认需求",
+      "explanation": "反复提问、复述或要求确认，可能是在降低误解而非挑衅。",
+      "prior": 0,
+      "support_keywords": [
+        "你是说",
+        "确认一下",
+        "具体是什么意思",
+        "能不能说清楚",
+        "所以你的意思"
+      ],
+      "contradict_keywords": [
+        "不用解释",
+        "我不想知道"
+      ],
+      "support_weight": 0.42,
+      "contradict_weight": 0.42,
+      "source_tags": [
+        "communication",
+        "information_gap"
+      ],
+      "boundary": "仅作为竞争解释，不代表对方内心事实；需用情境、历史基线、直接沟通和可观察后续行为验证。"
     }
+  ],
+  "sources": [
+    {
+      "id": "apa_topics",
+      "name": "American Psychological Association — Psychology Topics",
+      "url": "https://www.apa.org/topics/",
+      "role": "general psychology/stress/relationships reference"
+    },
+    {
+      "id": "openstax_social",
+      "name": "OpenStax Psychology 2e — Social Psychology",
+      "url": "https://openstax.org/books/psychology-2e/pages/12-1-what-is-social-psychology",
+      "role": "situational vs dispositional attribution and social context"
+    },
+    {
+      "id": "pubmed_comp_social",
+      "name": "Annual Review / PubMed — Computational Social Psychology",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/37540891/",
+      "role": "formal inference, attribution and multi-agent interaction background"
+    },
+    {
+      "id": "apa_stress",
+      "name": "APA — Stress",
+      "url": "https://www.apa.org/topics/stress/",
+      "role": "stress as state/context factor"
+    }
+  ],
+  "system_principles": [
+    "先观察事实，再建立多个竞争解释。",
+    "优先比较同一个人的历史基线，而不是和抽象平均人比较。",
+    "情境解释与人格解释必须同时考虑。",
+    "低证据时主动降置信度，不把关键词命中当作内心事实。",
+    "任何高影响判断都建议用直接沟通和后续可观察行为验证。"
   ]
 }
