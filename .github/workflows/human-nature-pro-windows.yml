@@ -86,7 +86,7 @@ jobs:
         shell: pwsh
         run: |
           $hash=(Get-FileHash Human-Nature-Pro\dist\final\Human_Nature_Pro.exe -Algorithm SHA256).Hash.ToLower()
-          @{project='Human Nature Pro';version='0.3.0;artifact='Human_Nature_Pro.exe';sha256=$hash;source_commit=$env:GITHUB_SHA;final_gate='PASS'} | ConvertTo-Json | Set-Content Human-Nature-Pro\FINAL_ACCEPTANCE.json -Encoding utf8
+          @{project='Human Nature Pro';version='0.3.0';artifact='Human_Nature_Pro.exe';sha256=$hash;source_commit=$env:GITHUB_SHA;final_gate='PASS'} | ConvertTo-Json | Set-Content Human-Nature-Pro\FINAL_ACCEPTANCE.json -Encoding utf8
           Write-Host "FINAL_EXE_SHA256=$hash"
       - name: Upload Unique Final Product
         uses: actions/upload-artifact@v4
