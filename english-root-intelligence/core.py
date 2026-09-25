@@ -194,7 +194,7 @@ class LearningEngine:
             pieces.append(suffix[0])
         return {
             "word": q,
-            "confidence": 0.72 if root_hit else 0.25,
+            "confidence": 0.45 if root_hit else 0.25,
             "segmentation": " + ".join(pieces) if pieces else "未找到可靠拆分",
             "meaning": "需要结合词典语境确认",
             "semantic_bridge": root_hit["bridge"] if root_hit else "词根库暂无足够证据，不强行拆词。",
