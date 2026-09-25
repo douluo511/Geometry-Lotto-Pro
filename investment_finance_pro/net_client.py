@@ -178,3 +178,20 @@ class NetClient:
         observations.sort(key=lambda x: x[0])
         day, value = observations[-1]
         return {"series": "US_TREASURY_10Y", "date": day, "value": value}, receipt
+
+    def fetch_sec_companyfacts(self, symbol: str, cik: int):
+        url=f"https://data.sec.gov/api/xbrl/companyfacts/CIK{int(cik):010d}.json"
+        raw,receipt=self._get_bytes(url,"application/json,*/*;q=0.1")
+        payload=json.loads(raw.decode("utf-8-sig"))
+        if str(payload.get("cik","")) not in {str(int(cik)),str(cik)}:
+            raise ValueError("SEC CIK mismatch")
+        facts=((payload.get("facts") or {}).get("us-gaap") or {})
+        eps=facts.get("EarningsPerShareDiluted") or facts.get("EarningsPerShareBasic")
+        if not isinstance(eps,dict): raise ValueError("SEC EPS fact missing")
+        units=(eps.get("units") or {})
+        rows=units.get("USD/shares") or units.get("USD / shares") or []
+        annual=[x for x in rows if x.get("form")=="10-K" and x.get("fy") and x.get("val") is not None]
+        if not annual: raise ValueError("SEC annual EPS missing")
+        annual.sort(key=lambda x:(str(x.get("fy")),str(x.get("filed",""))))
+        row=annual[-1]
+        return {"symbol":symbol,"cik":int(cik),"fiscal_year":row.get("fy"),"annual_diluted_eps":float(row["val"]),"filed":row.get("filed"),"form":row.get("form")},receipt

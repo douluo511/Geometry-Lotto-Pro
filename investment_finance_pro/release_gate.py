@@ -9,7 +9,7 @@ HARD_GATES = [
     "purpose_model","five_why","risk_boundary","domain_model","architecture",
     "function_contract","interface_contract","data_source","netclient","storage",
     "engine","evidence","service","ui","self_test","contract_test",
-    "fault_injection","real_network","windows_build","exact_exe","gui_smoke","same_hash",
+    "fault_injection","real_network","windows_build","exact_exe","gui_smoke","same_hash","business_content",
 ]
 
 def sha256_file(path: Path) -> str:

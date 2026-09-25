@@ -11,7 +11,8 @@ from net_client import NetClient
 from storage import SnapshotStorage
 
 APP_NAME = legacy.APP_NAME
-VERSION = "0.2.0"
+SEC_CIK={"AAPL":320193,"MSFT":789019,"NVDA":1045810,"GOOGL":1652044,"AMZN":1018724}
+VERSION = "0.3.0"
 
 class InvestmentService:
     def __init__(self, net=None, storage=None, engine=None, evidence=None):
@@ -39,6 +40,7 @@ class InvestmentService:
                 providers.append({"source": "MARKET:" + symbol, "ok": False, "detail": str(exc)})
 
         macro = {}
+        fundamentals = {}
         try:
             item, receipt = self.net.fetch_us_treasury_10y()
             macro["US_10Y_TREASURY"] = item
@@ -46,6 +48,23 @@ class InvestmentService:
             receipts.append(receipt)
         except Exception as exc:
             providers.append({"source": "US_TREASURY:10Y", "ok": False, "detail": str(exc)})
+
+        try:
+            item, receipt = self.net.fetch_fred_series("DFF")
+            macro["FED_FUNDS_EFFECTIVE"] = item
+            providers.append({"source":"FRED:DFF","ok":True,"detail":"latest effective federal funds rate loaded"})
+            receipts.append(receipt)
+        except Exception as exc:
+            providers.append({"source":"FRED:DFF","ok":False,"detail":str(exc)})
+
+        for symbol,cik in SEC_CIK.items():
+            try:
+                item,receipt=self.net.fetch_sec_companyfacts(symbol,cik)
+                fundamentals[symbol]=item
+                providers.append({"source":"SEC:"+symbol,"ok":True,"detail":"latest 10-K annual diluted EPS loaded"})
+                receipts.append(receipt)
+            except Exception as exc:
+                providers.append({"source":"SEC:"+symbol,"ok":False,"detail":str(exc)})
 
         ok_count = sum(1 for p in providers if p["ok"])
         if providers and ok_count == len(providers):
@@ -66,8 +85,9 @@ class InvestmentService:
             "providers": providers,
             "network_receipts": receipts,
             "macro": macro,
+            "fundamentals": fundamentals,
             "metrics": metrics,
-            "ranking": self.engine.rank(metrics),
+            "ranking": self.engine.rank(metrics, fundamentals, macro),
         }
         self.storage.write(payload)
         self.evidence.record("NETWORK", state, providers=providers, receipts=receipts)
@@ -84,6 +104,7 @@ class InvestmentService:
             "research_only": True,
             "model_status": "UNVALIDATED",
             "validation_rule": "No strategy becomes VALIDATED_EDGE without independent OOS/holdout/baseline/cost/leakage/ablation evidence.",
+            "business_dimensions":["market","risk","valuation","macro","scenario"],
             "snapshot": self.storage.read(),
         }
 
@@ -102,9 +123,19 @@ class InvestmentService:
             checks.append({"source": "MARKET:SPY", "status": "FAIL", "detail": str(exc)})
         try:
             item, receipt = self.net.fetch_us_treasury_10y()
-            checks.append({"source": "US_TREASURY:10Y", "status": "PASS", "last_date": item["date"], "receipt": receipt})
+            checks.append({"source":"US_TREASURY:10Y","status":"PASS","last_date":item["date"],"receipt":receipt})
         except Exception as exc:
-            checks.append({"source": "US_TREASURY:10Y", "status": "FAIL", "detail": str(exc)})
+            checks.append({"source":"US_TREASURY:10Y","status":"FAIL","detail":str(exc)})
+        try:
+            item,receipt=self.net.fetch_fred_series("DFF")
+            checks.append({"source":"FRED:DFF","status":"PASS","last_date":item["date"],"receipt":receipt})
+        except Exception as exc:
+            checks.append({"source":"FRED:DFF","status":"FAIL","detail":str(exc)})
+        try:
+            item,receipt=self.net.fetch_sec_companyfacts("AAPL",SEC_CIK["AAPL"])
+            checks.append({"source":"SEC:AAPL","status":"PASS","filed":item["filed"],"receipt":receipt})
+        except Exception as exc:
+            checks.append({"source":"SEC:AAPL","status":"FAIL","detail":str(exc)})
         status = "PASS" if all(x["status"] == "PASS" for x in checks) else "FAIL"
         report = {"status": status, "version": VERSION, "checks": checks}
         self.evidence.record("REAL_NETWORK", status, checks=checks)

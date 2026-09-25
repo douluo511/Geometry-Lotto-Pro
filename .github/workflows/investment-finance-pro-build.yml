@@ -37,6 +37,9 @@ jobs:
           python -m compileall -q investment_finance_pro
           python investment_finance_pro/architecture_gate.py
 
+      - name: Business Content Gate
+        run: python investment_finance_pro/business_gate.py
+
       - name: Source Self-Test
         run: python investment_finance_pro/app.py --self-test --report source_self_test.json
 
@@ -97,7 +100,7 @@ jobs:
         shell: pwsh
         run: |
           @'
-          {"gates":{"purpose_model":"PASS","five_why":"PASS","risk_boundary":"PASS","domain_model":"PASS","architecture":"PASS","function_contract":"PASS","interface_contract":"PASS","data_source":"PASS","netclient":"PASS","storage":"PASS","engine":"PASS","evidence":"PASS","service":"PASS","ui":"PASS","self_test":"PASS","contract_test":"PASS","fault_injection":"PASS","real_network":"PASS","windows_build":"PASS","exact_exe":"PASS","gui_smoke":"PASS","same_hash":"PASS"}}
+          {"gates":{"purpose_model":"PASS","five_why":"PASS","risk_boundary":"PASS","domain_model":"PASS","architecture":"PASS","function_contract":"PASS","interface_contract":"PASS","data_source":"PASS","netclient":"PASS","storage":"PASS","engine":"PASS","evidence":"PASS","service":"PASS","ui":"PASS","self_test":"PASS","contract_test":"PASS","fault_injection":"PASS","real_network":"PASS","windows_build":"PASS","exact_exe":"PASS","gui_smoke":"PASS","same_hash":"PASS","business_content":"PASS"}}
           '@ | Out-File gate_input.json -Encoding utf8
           python investment_finance_pro/release_gate.py --input gate_input.json --tested-exe dist/InvestmentFinancePro.exe --final-exe final/InvestmentFinancePro.exe --report final_gate.json
           $r=Get-Content final_gate.json -Raw | ConvertFrom-Json
@@ -107,13 +110,13 @@ jobs:
         shell: pwsh
         run: |
           $hash=(Get-FileHash .\final\InvestmentFinancePro.exe -Algorithm SHA256).Hash.ToLower()
-          @{project='Investment Finance Pro';version='0.2.0';artifact='InvestmentFinancePro.exe';sha256=$hash;source_commit=$env:GITHUB_SHA;final_gate='PASS'} | ConvertTo-Json | Set-Content FINAL_ACCEPTANCE.json -Encoding utf8
+          @{project='Investment Finance Pro';version='0.3.0;artifact='InvestmentFinancePro.exe';sha256=$hash;source_commit=$env:GITHUB_SHA;final_gate='PASS'} | ConvertTo-Json | Set-Content FINAL_ACCEPTANCE.json -Encoding utf8
           Write-Host "FINAL_EXE_SHA256=$hash"
 
       - name: Upload Unique Final Product
         uses: actions/upload-artifact@v4
         with:
-          name: Investment_Finance_Pro_FINAL_v0.2.0
+          name: Investment_Finance_Pro_FINAL_v0.3.0
           path: final/InvestmentFinancePro.exe
           if-no-files-found: error
           retention-days: 30
@@ -122,7 +125,7 @@ jobs:
       - name: Upload Audit Evidence
         uses: actions/upload-artifact@v4
         with:
-          name: Investment_Finance_Pro_AUDIT_v0.2.0
+          name: Investment_Finance_Pro_AUDIT_v0.3.0
           path: |
             final_gate.json
             FINAL_ACCEPTANCE.json
@@ -130,6 +133,7 @@ jobs:
             exe_self_test.json
             exe_network_smoke.json
             physical_gui_click.json
+            investment_finance_pro/business_gate.json
           if-no-files-found: error
           retention-days: 30
 
