@@ -1,1 +1,1210 @@
-{"schema":1,"version":"0.1.0","roots":[{"morpheme":"dict","type":"root","meaning":"say / speak","origin":"Latin dicere","bridge":"say → state → declare","words":[["predict","预测","pre + dict","say beforehand → predict"],["dictionary","词典","dict + ionary","words that are said/defined → dictionary"],["contradict","反驳","contra + dict","speak against → contradict"]],"chunks":["predict the outcome","hard to predict","Nobody could have predicted this."]},{"morpheme":"spect","type":"root","meaning":"look / see","origin":"Latin specere","bridge":"look → observe → examine","words":[["inspect","检查","in + spect","look into → inspect"],["respect","尊重","re + spect","look back/again → regard → respect"],["prospect","前景","pro + spect","look forward → prospect"]],"chunks":["inspect the details","with respect to","a good prospect"]},{"morpheme":"ject","type":"root","meaning":"throw","origin":"Latin iacere","bridge":"throw → send/place → project","words":[["project","项目/投射","pro + ject","throw forward → project"],["reject","拒绝","re + ject","throw back → reject"],["inject","注入","in + ject","throw into → inject"]],"chunks":["reject the idea","project the results","inject new energy"]},{"morpheme":"tract","type":"root","meaning":"draw / pull","origin":"Latin trahere","bridge":"pull → draw → attract/extract","words":[["attract","吸引","ad + tract","pull toward → attract"],["extract","提取","ex + tract","pull out → extract"],["distract","分散注意","dis + tract","pull apart → distract"]],"chunks":["attract attention","extract information","get distracted"]},{"morpheme":"port","type":"root","meaning":"carry","origin":"Latin portare","bridge":"carry → bring → transport","words":[["transport","运输","trans + port","carry across → transport"],["import","进口","im + port","carry in → import"],["export","出口","ex + port","carry out → export"]],"chunks":["public transport","import data","export a file"]},{"morpheme":"scrib","type":"root","meaning":"write","origin":"Latin scribere","bridge":"write → record → describe","words":[["describe","描述","de + scribe","write down/about → describe"],["subscribe","订阅","sub + scribe","write/sign under → subscribe"],["prescribe","开处方/规定","pre + scribe","write beforehand → prescribe"]],"chunks":["describe the problem","subscribe to a channel","prescribe medicine"]},{"morpheme":"vis","type":"root","meaning":"see","origin":"Latin videre","bridge":"see → view → visible","words":[["visible","可见的","vis + ible","able to be seen → visible"],["vision","视野/愿景","vis + ion","act/result of seeing → vision"],["revise","修订","re + vise","see again → revise"]],"chunks":["clearly visible","a long-term vision","revise the plan"]},{"morpheme":"aud","type":"root","meaning":"hear","origin":"Latin audire","bridge":"hear → listen → audience/audio","words":[["audio","音频","aud + io","related to hearing → audio"],["audience","听众/观众","aud + ience","people who hear/watch → audience"],["audible","听得见的","aud + ible","able to be heard → audible"]],"chunks":["audio quality","a large audience","barely audible"]},{"morpheme":"struct","type":"root","meaning":"build","origin":"Latin struere","bridge":"build → arrange → structure","words":[["construct","建造","con + struct","build together → construct"],["structure","结构","struct + ure","result of building → structure"],["instruct","指导","in + struct","build into/order → instruct"]],"chunks":["sentence structure","construct a model","follow the instructions"]},{"morpheme":"form","type":"root","meaning":"shape / form","origin":"Latin forma","bridge":"shape → form → transform","words":[["transform","转变","trans + form","change shape → transform"],["reform","改革","re + form","form again → reform"],["inform","通知","in + form","put into form/knowledge → inform"]],"chunks":["transform the system","inform someone about","reform the process"]},{"morpheme":"cred","type":"root","meaning":"believe / trust","origin":"Latin credere","bridge":"believe → trust → credible","words":[["credible","可信的","cred + ible","able to be believed → credible"],["credit","信用","cred + it","trust given → credit"],["incredible","难以置信的","in + credible","not believable → incredible"]],"chunks":["a credible source","give credit to","That's incredible."]},{"morpheme":"duc","type":"root","meaning":"lead","origin":"Latin ducere","bridge":"lead → bring → produce","words":[["produce","产生","pro + duce","lead forward → produce"],["reduce","减少","re + duce","lead back/down → reduce"],["introduce","介绍","intro + duce","lead into → introduce"]],"chunks":["reduce the risk","introduce yourself","produce results"]}]}
+{
+  "schema": 1,
+  "version": "0.3.0",
+  "roots": [
+    {
+      "morpheme": "dict",
+      "type": "root",
+      "meaning": "say / speak",
+      "origin": "Latin dicere",
+      "bridge": "say → state → declare",
+      "words": [
+        [
+          "predict",
+          "预测",
+          "pre + dict",
+          "say beforehand → predict"
+        ],
+        [
+          "dictionary",
+          "词典",
+          "dict + ionary",
+          "words that are said/defined → dictionary"
+        ],
+        [
+          "contradict",
+          "反驳",
+          "contra + dict",
+          "speak against → contradict"
+        ]
+      ],
+      "chunks": [
+        "predict the outcome",
+        "hard to predict",
+        "Nobody could have predicted this."
+      ]
+    },
+    {
+      "morpheme": "spect",
+      "type": "root",
+      "meaning": "look / see",
+      "origin": "Latin specere",
+      "bridge": "look → observe → examine",
+      "words": [
+        [
+          "inspect",
+          "检查",
+          "in + spect",
+          "look into → inspect"
+        ],
+        [
+          "respect",
+          "尊重",
+          "re + spect",
+          "look back/again → regard → respect"
+        ],
+        [
+          "prospect",
+          "前景",
+          "pro + spect",
+          "look forward → prospect"
+        ]
+      ],
+      "chunks": [
+        "inspect the details",
+        "with respect to",
+        "a good prospect"
+      ]
+    },
+    {
+      "morpheme": "ject",
+      "type": "root",
+      "meaning": "throw",
+      "origin": "Latin iacere",
+      "bridge": "throw → send/place → project",
+      "words": [
+        [
+          "project",
+          "项目/投射",
+          "pro + ject",
+          "throw forward → project"
+        ],
+        [
+          "reject",
+          "拒绝",
+          "re + ject",
+          "throw back → reject"
+        ],
+        [
+          "inject",
+          "注入",
+          "in + ject",
+          "throw into → inject"
+        ]
+      ],
+      "chunks": [
+        "reject the idea",
+        "project the results",
+        "inject new energy"
+      ]
+    },
+    {
+      "morpheme": "tract",
+      "type": "root",
+      "meaning": "draw / pull",
+      "origin": "Latin trahere",
+      "bridge": "pull → draw → attract/extract",
+      "words": [
+        [
+          "attract",
+          "吸引",
+          "ad + tract",
+          "pull toward → attract"
+        ],
+        [
+          "extract",
+          "提取",
+          "ex + tract",
+          "pull out → extract"
+        ],
+        [
+          "distract",
+          "分散注意",
+          "dis + tract",
+          "pull apart → distract"
+        ]
+      ],
+      "chunks": [
+        "attract attention",
+        "extract information",
+        "get distracted"
+      ]
+    },
+    {
+      "morpheme": "port",
+      "type": "root",
+      "meaning": "carry",
+      "origin": "Latin portare",
+      "bridge": "carry → bring → transport",
+      "words": [
+        [
+          "transport",
+          "运输",
+          "trans + port",
+          "carry across → transport"
+        ],
+        [
+          "import",
+          "进口",
+          "im + port",
+          "carry in → import"
+        ],
+        [
+          "export",
+          "出口",
+          "ex + port",
+          "carry out → export"
+        ]
+      ],
+      "chunks": [
+        "public transport",
+        "import data",
+        "export a file"
+      ]
+    },
+    {
+      "morpheme": "scrib",
+      "type": "root",
+      "meaning": "write",
+      "origin": "Latin scribere",
+      "bridge": "write → record → describe",
+      "words": [
+        [
+          "describe",
+          "描述",
+          "de + scribe",
+          "write down/about → describe"
+        ],
+        [
+          "subscribe",
+          "订阅",
+          "sub + scribe",
+          "write/sign under → subscribe"
+        ],
+        [
+          "prescribe",
+          "开处方/规定",
+          "pre + scribe",
+          "write beforehand → prescribe"
+        ]
+      ],
+      "chunks": [
+        "describe the problem",
+        "subscribe to a channel",
+        "prescribe medicine"
+      ]
+    },
+    {
+      "morpheme": "vis",
+      "type": "root",
+      "meaning": "see",
+      "origin": "Latin videre",
+      "bridge": "see → view → visible",
+      "words": [
+        [
+          "visible",
+          "可见的",
+          "vis + ible",
+          "able to be seen → visible"
+        ],
+        [
+          "vision",
+          "视野/愿景",
+          "vis + ion",
+          "act/result of seeing → vision"
+        ],
+        [
+          "revise",
+          "修订",
+          "re + vise",
+          "see again → revise"
+        ]
+      ],
+      "chunks": [
+        "clearly visible",
+        "a long-term vision",
+        "revise the plan"
+      ]
+    },
+    {
+      "morpheme": "aud",
+      "type": "root",
+      "meaning": "hear",
+      "origin": "Latin audire",
+      "bridge": "hear → listen → audience/audio",
+      "words": [
+        [
+          "audio",
+          "音频",
+          "aud + io",
+          "related to hearing → audio"
+        ],
+        [
+          "audience",
+          "听众/观众",
+          "aud + ience",
+          "people who hear/watch → audience"
+        ],
+        [
+          "audible",
+          "听得见的",
+          "aud + ible",
+          "able to be heard → audible"
+        ]
+      ],
+      "chunks": [
+        "audio quality",
+        "a large audience",
+        "barely audible"
+      ]
+    },
+    {
+      "morpheme": "struct",
+      "type": "root",
+      "meaning": "build",
+      "origin": "Latin struere",
+      "bridge": "build → arrange → structure",
+      "words": [
+        [
+          "construct",
+          "建造",
+          "con + struct",
+          "build together → construct"
+        ],
+        [
+          "structure",
+          "结构",
+          "struct + ure",
+          "result of building → structure"
+        ],
+        [
+          "instruct",
+          "指导",
+          "in + struct",
+          "build into/order → instruct"
+        ]
+      ],
+      "chunks": [
+        "sentence structure",
+        "construct a model",
+        "follow the instructions"
+      ]
+    },
+    {
+      "morpheme": "form",
+      "type": "root",
+      "meaning": "shape / form",
+      "origin": "Latin forma",
+      "bridge": "shape → form → transform",
+      "words": [
+        [
+          "transform",
+          "转变",
+          "trans + form",
+          "change shape → transform"
+        ],
+        [
+          "reform",
+          "改革",
+          "re + form",
+          "form again → reform"
+        ],
+        [
+          "inform",
+          "通知",
+          "in + form",
+          "put into form/knowledge → inform"
+        ]
+      ],
+      "chunks": [
+        "transform the system",
+        "inform someone about",
+        "reform the process"
+      ]
+    },
+    {
+      "morpheme": "cred",
+      "type": "root",
+      "meaning": "believe / trust",
+      "origin": "Latin credere",
+      "bridge": "believe → trust → credible",
+      "words": [
+        [
+          "credible",
+          "可信的",
+          "cred + ible",
+          "able to be believed → credible"
+        ],
+        [
+          "credit",
+          "信用",
+          "cred + it",
+          "trust given → credit"
+        ],
+        [
+          "incredible",
+          "难以置信的",
+          "in + credible",
+          "not believable → incredible"
+        ]
+      ],
+      "chunks": [
+        "a credible source",
+        "give credit to",
+        "That's incredible."
+      ]
+    },
+    {
+      "morpheme": "duc",
+      "type": "root",
+      "meaning": "lead",
+      "origin": "Latin ducere",
+      "bridge": "lead → bring → produce",
+      "words": [
+        [
+          "produce",
+          "产生",
+          "pro + duce",
+          "lead forward → produce"
+        ],
+        [
+          "reduce",
+          "减少",
+          "re + duce",
+          "lead back/down → reduce"
+        ],
+        [
+          "introduce",
+          "介绍",
+          "intro + duce",
+          "lead into → introduce"
+        ]
+      ],
+      "chunks": [
+        "reduce the risk",
+        "introduce yourself",
+        "produce results"
+      ]
+    },
+    {
+      "morpheme": "act",
+      "type": "root",
+      "meaning": "do / drive",
+      "origin": "Latin agere/actus",
+      "bridge": "do → action → activity",
+      "words": [
+        [
+          "action",
+          "行动",
+          "act + ion",
+          "the result/process of doing → action"
+        ],
+        [
+          "active",
+          "活跃的",
+          "act + ive",
+          "tending to act → active"
+        ],
+        [
+          "react",
+          "反应",
+          "re + act",
+          "act back in response → react"
+        ]
+      ],
+      "chunks": [
+        "take action now",
+        "an active role",
+        "react to the news"
+      ]
+    },
+    {
+      "morpheme": "bio",
+      "type": "root",
+      "meaning": "life",
+      "origin": "Greek bios",
+      "bridge": "life → living things → life story",
+      "words": [
+        [
+          "biology",
+          "生物学",
+          "bio + logy",
+          "study of life → biology"
+        ],
+        [
+          "biography",
+          "传记",
+          "bio + graphy",
+          "written life → biography"
+        ],
+        [
+          "biodegradable",
+          "可生物降解的",
+          "bio + degradable",
+          "able to be broken down by living processes"
+        ]
+      ],
+      "chunks": [
+        "study biology",
+        "a short biography",
+        "biodegradable materials"
+      ]
+    },
+    {
+      "morpheme": "chron",
+      "type": "root",
+      "meaning": "time",
+      "origin": "Greek chronos",
+      "bridge": "time → order in time → duration",
+      "words": [
+        [
+          "chronology",
+          "年代顺序",
+          "chron + logy",
+          "ordering by time → chronology"
+        ],
+        [
+          "chronological",
+          "按时间顺序的",
+          "chron + ological",
+          "arranged by time"
+        ],
+        [
+          "chronic",
+          "长期的",
+          "chron + ic",
+          "lasting a long time → chronic"
+        ]
+      ],
+      "chunks": [
+        "in chronological order",
+        "a chronic problem",
+        "build a timeline"
+      ]
+    },
+    {
+      "morpheme": "graph",
+      "type": "root",
+      "meaning": "write / record",
+      "origin": "Greek graphein",
+      "bridge": "write → record → visual record",
+      "words": [
+        [
+          "graphic",
+          "图形的",
+          "graph + ic",
+          "related to drawn/written representation"
+        ],
+        [
+          "autograph",
+          "亲笔签名",
+          "auto + graph",
+          "self-written name → autograph"
+        ],
+        [
+          "photograph",
+          "照片",
+          "photo + graph",
+          "light-recorded image → photograph"
+        ]
+      ],
+      "chunks": [
+        "graphic design",
+        "sign an autograph",
+        "take a photograph"
+      ]
+    },
+    {
+      "morpheme": "geo",
+      "type": "root",
+      "meaning": "earth",
+      "origin": "Greek ge",
+      "bridge": "earth → land → Earth science",
+      "words": [
+        [
+          "geography",
+          "地理学",
+          "geo + graphy",
+          "description of Earth → geography"
+        ],
+        [
+          "geology",
+          "地质学",
+          "geo + logy",
+          "study of Earth → geology"
+        ],
+        [
+          "geothermal",
+          "地热的",
+          "geo + thermal",
+          "Earth heat → geothermal"
+        ]
+      ],
+      "chunks": [
+        "study geography",
+        "geological data",
+        "geothermal energy"
+      ]
+    },
+    {
+      "morpheme": "phon",
+      "type": "root",
+      "meaning": "sound / voice",
+      "origin": "Greek phone",
+      "bridge": "sound → voice → sound system",
+      "words": [
+        [
+          "phonetic",
+          "语音的",
+          "phon + etic",
+          "related to speech sounds"
+        ],
+        [
+          "telephone",
+          "电话",
+          "tele + phone",
+          "sound from afar → telephone"
+        ],
+        [
+          "symphony",
+          "交响乐",
+          "sym + phon + y",
+          "sounds together → symphony"
+        ]
+      ],
+      "chunks": [
+        "phonetic spelling",
+        "on the telephone",
+        "a symphony orchestra"
+      ]
+    },
+    {
+      "morpheme": "photo",
+      "type": "root",
+      "meaning": "light",
+      "origin": "Greek phos/photos",
+      "bridge": "light → image → light-driven process",
+      "words": [
+        [
+          "photograph",
+          "照片",
+          "photo + graph",
+          "image recorded by light"
+        ],
+        [
+          "photosynthesis",
+          "光合作用",
+          "photo + synthesis",
+          "building with light → photosynthesis"
+        ],
+        [
+          "photocopy",
+          "复印",
+          "photo + copy",
+          "copy made optically"
+        ]
+      ],
+      "chunks": [
+        "take a photograph",
+        "photosynthesis uses light",
+        "make a photocopy"
+      ]
+    },
+    {
+      "morpheme": "psych",
+      "type": "root",
+      "meaning": "mind / psyche",
+      "origin": "Greek psyche",
+      "bridge": "mind → mental process → psychology",
+      "words": [
+        [
+          "psychology",
+          "心理学",
+          "psych + ology",
+          "study of mind/behavior"
+        ],
+        [
+          "psychological",
+          "心理的",
+          "psych + ological",
+          "related to psychology"
+        ],
+        [
+          "psychotherapy",
+          "心理治疗",
+          "psych + therapy",
+          "therapy for mental/behavioral problems"
+        ]
+      ],
+      "chunks": [
+        "study psychology",
+        "psychological factors",
+        "seek psychotherapy"
+      ]
+    },
+    {
+      "morpheme": "tele",
+      "type": "root",
+      "meaning": "far / distant",
+      "origin": "Greek tele",
+      "bridge": "far → remote → distance communication",
+      "words": [
+        [
+          "telephone",
+          "电话",
+          "tele + phone",
+          "sound from afar"
+        ],
+        [
+          "television",
+          "电视",
+          "tele + vision",
+          "seeing from afar"
+        ],
+        [
+          "telework",
+          "远程工作",
+          "tele + work",
+          "work at a distance"
+        ]
+      ],
+      "chunks": [
+        "telephone number",
+        "watch television",
+        "telework policy"
+      ]
+    },
+    {
+      "morpheme": "therm",
+      "type": "root",
+      "meaning": "heat",
+      "origin": "Greek therme",
+      "bridge": "heat → temperature → heat control",
+      "words": [
+        [
+          "thermal",
+          "热的",
+          "therm + al",
+          "related to heat"
+        ],
+        [
+          "thermometer",
+          "温度计",
+          "thermo + meter",
+          "heat-measuring instrument"
+        ],
+        [
+          "thermostat",
+          "恒温器",
+          "thermo + stat",
+          "device that keeps temperature stable"
+        ]
+      ],
+      "chunks": [
+        "thermal energy",
+        "check the thermometer",
+        "set the thermostat"
+      ]
+    },
+    {
+      "morpheme": "micro",
+      "type": "root",
+      "meaning": "small",
+      "origin": "Greek mikros",
+      "bridge": "small → microscopic scale → compact",
+      "words": [
+        [
+          "microscope",
+          "显微镜",
+          "micro + scope",
+          "instrument for viewing small things"
+        ],
+        [
+          "microorganism",
+          "微生物",
+          "micro + organism",
+          "very small organism"
+        ],
+        [
+          "microchip",
+          "微芯片",
+          "micro + chip",
+          "very small integrated chip"
+        ]
+      ],
+      "chunks": [
+        "under a microscope",
+        "a microorganism",
+        "a microchip manufacturer"
+      ]
+    },
+    {
+      "morpheme": "macro",
+      "type": "root",
+      "meaning": "large",
+      "origin": "Greek makros",
+      "bridge": "large → large-scale → aggregate",
+      "words": [
+        [
+          "macroeconomics",
+          "宏观经济学",
+          "macro + economics",
+          "economics at aggregate scale"
+        ],
+        [
+          "macroscopic",
+          "宏观可见的",
+          "macro + scopic",
+          "visible at large scale"
+        ],
+        [
+          "macrostructure",
+          "宏观结构",
+          "macro + structure",
+          "large-scale structure"
+        ]
+      ],
+      "chunks": [
+        "macroeconomic policy",
+        "a macroscopic view",
+        "the macrostructure of the system"
+      ]
+    },
+    {
+      "morpheme": "aqu",
+      "type": "root",
+      "meaning": "water",
+      "origin": "Latin aqua",
+      "bridge": "water → water environment → water transport",
+      "words": [
+        [
+          "aquatic",
+          "水生的",
+          "aqu + atic",
+          "related to water"
+        ],
+        [
+          "aquarium",
+          "水族馆",
+          "aqu + arium",
+          "place containing water life"
+        ],
+        [
+          "aqueduct",
+          "渡槽",
+          "aqu + duct",
+          "water led through a channel"
+        ]
+      ],
+      "chunks": [
+        "aquatic life",
+        "visit an aquarium",
+        "an ancient aqueduct"
+      ]
+    },
+    {
+      "morpheme": "corp",
+      "type": "root",
+      "meaning": "body",
+      "origin": "Latin corpus",
+      "bridge": "body → organized body → physical body",
+      "words": [
+        [
+          "corporation",
+          "公司",
+          "corp + oration",
+          "organized legal body → corporation"
+        ],
+        [
+          "corporeal",
+          "肉体的",
+          "corp + oreal",
+          "related to the body"
+        ],
+        [
+          "corpse",
+          "尸体",
+          "corp(se)",
+          "a dead body → corpse"
+        ]
+      ],
+      "chunks": [
+        "a public corporation",
+        "corporeal form",
+        "identify the corpse"
+      ]
+    },
+    {
+      "morpheme": "gen",
+      "type": "root",
+      "meaning": "birth / kind / produce",
+      "origin": "Greek genos / Latin gignere",
+      "bridge": "birth → origin → generation",
+      "words": [
+        [
+          "generate",
+          "产生",
+          "gen + erate",
+          "bring into being → generate"
+        ],
+        [
+          "genetics",
+          "遗传学",
+          "gen + etics",
+          "study of heredity/origin"
+        ],
+        [
+          "genealogy",
+          "家谱学",
+          "gene + alogy",
+          "study of family descent"
+        ]
+      ],
+      "chunks": [
+        "generate revenue",
+        "study genetics",
+        "trace a genealogy"
+      ]
+    },
+    {
+      "morpheme": "grad",
+      "type": "root",
+      "meaning": "step / degree",
+      "origin": "Latin gradus",
+      "bridge": "step → degree → progression",
+      "words": [
+        [
+          "graduate",
+          "毕业",
+          "grad + uate",
+          "advance by degree → graduate"
+        ],
+        [
+          "gradual",
+          "逐渐的",
+          "grad + ual",
+          "step by step → gradual"
+        ],
+        [
+          "gradient",
+          "梯度",
+          "grad + ient",
+          "degree of change/slope"
+        ]
+      ],
+      "chunks": [
+        "graduate from college",
+        "a gradual change",
+        "a steep gradient"
+      ]
+    },
+    {
+      "morpheme": "loc",
+      "type": "root",
+      "meaning": "place",
+      "origin": "Latin locus",
+      "bridge": "place → position → relocation",
+      "words": [
+        [
+          "location",
+          "位置",
+          "loc + ation",
+          "a place/position"
+        ],
+        [
+          "local",
+          "当地的",
+          "loc + al",
+          "related to a place"
+        ],
+        [
+          "relocate",
+          "搬迁",
+          "re + locate",
+          "place again elsewhere"
+        ]
+      ],
+      "chunks": [
+        "share your location",
+        "local community",
+        "relocate the office"
+      ]
+    },
+    {
+      "morpheme": "meter",
+      "type": "root",
+      "meaning": "measure",
+      "origin": "Greek metron",
+      "bridge": "measure → measuring instrument → quantified scale",
+      "words": [
+        [
+          "thermometer",
+          "温度计",
+          "thermo + meter",
+          "temperature-measuring instrument"
+        ],
+        [
+          "speedometer",
+          "速度表",
+          "speed + o + meter",
+          "speed-measuring instrument"
+        ],
+        [
+          "diameter",
+          "直径",
+          "dia + meter",
+          "measure across a circle"
+        ]
+      ],
+      "chunks": [
+        "read the thermometer",
+        "check the speedometer",
+        "measure the diameter"
+      ]
+    },
+    {
+      "morpheme": "mort",
+      "type": "root",
+      "meaning": "death",
+      "origin": "Latin mors/mortis",
+      "bridge": "death → mortal state → death-related",
+      "words": [
+        [
+          "mortal",
+          "会死的",
+          "mort + al",
+          "subject to death"
+        ],
+        [
+          "mortality",
+          "死亡率",
+          "mort + ality",
+          "state/rate of death"
+        ],
+        [
+          "immortal",
+          "不朽的",
+          "im + mortal",
+          "not mortal → immortal"
+        ]
+      ],
+      "chunks": [
+        "mortal danger",
+        "mortality rate",
+        "an immortal work"
+      ]
+    },
+    {
+      "morpheme": "path",
+      "type": "root",
+      "meaning": "feeling / suffering / disease",
+      "origin": "Greek pathos",
+      "bridge": "feeling/suffering → shared feeling → disease",
+      "words": [
+        [
+          "empathy",
+          "共情",
+          "em + pathy",
+          "feeling into another's experience"
+        ],
+        [
+          "sympathy",
+          "同情",
+          "sym + pathy",
+          "feeling with another"
+        ],
+        [
+          "pathology",
+          "病理学",
+          "path + ology",
+          "study of disease"
+        ]
+      ],
+      "chunks": [
+        "show empathy",
+        "express sympathy",
+        "pathology report"
+      ]
+    },
+    {
+      "morpheme": "ped",
+      "type": "root",
+      "meaning": "foot",
+      "origin": "Latin pes/pedis",
+      "bridge": "foot → walking → foot measurement",
+      "words": [
+        [
+          "pedestrian",
+          "行人",
+          "ped + estrian",
+          "person traveling on foot"
+        ],
+        [
+          "pedal",
+          "踏板",
+          "ped + al",
+          "operated by the foot"
+        ],
+        [
+          "pedometer",
+          "计步器",
+          "ped + o + meter",
+          "device measuring steps"
+        ]
+      ],
+      "chunks": [
+        "pedestrian traffic",
+        "press the pedal",
+        "wear a pedometer"
+      ]
+    },
+    {
+      "morpheme": "rupt",
+      "type": "root",
+      "meaning": "break",
+      "origin": "Latin rumpere",
+      "bridge": "break → interruption → disruption",
+      "words": [
+        [
+          "rupture",
+          "破裂",
+          "rupt + ure",
+          "act/result of breaking"
+        ],
+        [
+          "interrupt",
+          "打断",
+          "inter + rupt",
+          "break between → interrupt"
+        ],
+        [
+          "disrupt",
+          "扰乱",
+          "dis + rupt",
+          "break apart → disrupt"
+        ]
+      ],
+      "chunks": [
+        "a pipe rupture",
+        "interrupt the meeting",
+        "disrupt the market"
+      ]
+    },
+    {
+      "morpheme": "sens",
+      "type": "root",
+      "meaning": "feel / perceive",
+      "origin": "Latin sentire",
+      "bridge": "feel → sense → sensitivity",
+      "words": [
+        [
+          "sense",
+          "感觉",
+          "sens(e)",
+          "capacity to perceive"
+        ],
+        [
+          "sensitive",
+          "敏感的",
+          "sens + itive",
+          "responsive to perception/stimulus"
+        ],
+        [
+          "sensation",
+          "感觉",
+          "sens + ation",
+          "process/result of sensing"
+        ]
+      ],
+      "chunks": [
+        "common sense",
+        "sensitive information",
+        "a strange sensation"
+      ]
+    },
+    {
+      "morpheme": "voc",
+      "type": "root",
+      "meaning": "call / voice",
+      "origin": "Latin vox/vocare",
+      "bridge": "voice → call → word stock",
+      "words": [
+        [
+          "vocal",
+          "声音的",
+          "voc + al",
+          "related to voice"
+        ],
+        [
+          "vocabulary",
+          "词汇",
+          "voc + abulary",
+          "stock of words/voices"
+        ],
+        [
+          "invoke",
+          "援引/调用",
+          "in + voc + e",
+          "call upon → invoke"
+        ]
+      ],
+      "chunks": [
+        "vocal performance",
+        "build vocabulary",
+        "invoke a rule"
+      ]
+    },
+    {
+      "morpheme": "fac",
+      "type": "root",
+      "meaning": "make / do",
+      "origin": "Latin facere",
+      "bridge": "make → production → enable",
+      "words": [
+        [
+          "factory",
+          "工厂",
+          "fact + ory",
+          "place where things are made"
+        ],
+        [
+          "manufacture",
+          "制造",
+          "manu + facture",
+          "make by hand/production"
+        ],
+        [
+          "facilitate",
+          "促进",
+          "facil + itate",
+          "make easier → facilitate"
+        ]
+      ],
+      "chunks": [
+        "factory output",
+        "manufacture goods",
+        "facilitate communication"
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "id": "etymonline",
+      "name": "Online Etymology Dictionary",
+      "url": "https://www.etymonline.com/",
+      "role": "etymology cross-check"
+    },
+    {
+      "id": "merriam_webster",
+      "name": "Merriam-Webster Dictionary",
+      "url": "https://www.merriam-webster.com/",
+      "role": "word meaning/example cross-check"
+    },
+    {
+      "id": "wiktionary",
+      "name": "Wiktionary",
+      "url": "https://en.wiktionary.org/",
+      "role": "morpheme/origin secondary cross-check"
+    }
+  ]
+}

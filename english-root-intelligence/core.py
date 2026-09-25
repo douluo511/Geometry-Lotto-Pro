@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 APP_NAME = "English Root Intelligence"
-APP_VERSION = "0.2.0"
+APP_VERSION = "0.3.0"
 MANIFEST_URL = "https://raw.githubusercontent.com/douluo511/Geometry-Lotto-Pro/main/english-root-intelligence/data/update_manifest.json"
 
 PREFIXES = {
@@ -209,10 +209,17 @@ class LearningEngine:
         p = self.store.load_progress()
         practiced = p.get("practiced", {})
         total = len(self.roots)
+        catalog_total = total
+        try:
+            catalog = json.loads(bundled_path("data", "root_catalog.json").read_text(encoding="utf-8"))
+            catalog_total = len(catalog.get("entries", []))
+        except Exception:
+            pass
         touched = sum(1 for r in self.roots if int(practiced.get(r["morpheme"], 0)) > 0)
         repetitions = sum(int(x) for x in practiced.values())
         return {
             "root_total": total,
+            "catalog_total": catalog_total,
             "root_touched": touched,
             "coverage_pct": round(100 * touched / total, 1) if total else 0,
             "practice_repetitions": repetitions,

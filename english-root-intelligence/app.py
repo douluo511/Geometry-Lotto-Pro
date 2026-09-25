@@ -218,8 +218,9 @@ class App(tk.Tk):
         grid = tk.Frame(self.content, bg=BG)
         grid.pack(fill="x")
         items = [
-            ("词根库", str(s["root_total"]), "当前已验证核心词根"),
-            ("已触达", str(s["root_touched"]), f'覆盖率 {s["coverage_pct"]}%'),
+            ("可训练词族", str(s["root_total"]), "已配词族与口语语块"),
+            ("词素总目录", str(s.get("catalog_total", s["root_total"])), "252 个前缀/词根/后缀参考目录"),
+            ("已触达", str(s["root_touched"]), f'训练词族覆盖率 {s["coverage_pct"]}%'),
             ("主动练习", str(s["practice_repetitions"]), "点击“完成一次”的累计次数"),
             ("拆词分析", str(s["word_analyses"]), "你主动查询分析过的次数"),
         ]

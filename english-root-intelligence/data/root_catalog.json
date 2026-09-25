@@ -1,0 +1,1540 @@
+{
+  "schema": 1,
+  "version": "0.3.0",
+  "status": "REFERENCE_CATALOG",
+  "note": "252-morpheme reference catalog. Only entries also present in roots.json are active trained word-family modules; reference-only entries are not used to fabricate word meanings.",
+  "sources": [
+    {
+      "id": "etymonline",
+      "name": "Online Etymology Dictionary",
+      "url": "https://www.etymonline.com/",
+      "role": "etymology cross-check"
+    },
+    {
+      "id": "merriam_webster",
+      "name": "Merriam-Webster Dictionary",
+      "url": "https://www.merriam-webster.com/",
+      "role": "word meaning/example cross-check"
+    },
+    {
+      "id": "wiktionary",
+      "name": "Wiktionary",
+      "url": "https://en.wiktionary.org/",
+      "role": "morpheme/origin secondary cross-check"
+    }
+  ],
+  "entries": [
+    {
+      "morpheme": "a",
+      "type": "prefix",
+      "meaning": "not / without",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "ab",
+      "type": "prefix",
+      "meaning": "away from",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "ad",
+      "type": "prefix",
+      "meaning": "to / toward",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "ambi",
+      "type": "prefix",
+      "meaning": "both",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "ana",
+      "type": "prefix",
+      "meaning": "up / back / again",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "ante",
+      "type": "prefix",
+      "meaning": "before",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "anti",
+      "type": "prefix",
+      "meaning": "against",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "auto",
+      "type": "prefix",
+      "meaning": "self",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "bene",
+      "type": "prefix",
+      "meaning": "well / good",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "bi",
+      "type": "prefix",
+      "meaning": "two",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "circum",
+      "type": "prefix",
+      "meaning": "around",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "co",
+      "type": "prefix",
+      "meaning": "together / with",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "com",
+      "type": "prefix",
+      "meaning": "together / with",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "con",
+      "type": "prefix",
+      "meaning": "together / with",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "contra",
+      "type": "prefix",
+      "meaning": "against",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "de",
+      "type": "prefix",
+      "meaning": "down / away / remove",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "dia",
+      "type": "prefix",
+      "meaning": "through / across",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "dis",
+      "type": "prefix",
+      "meaning": "apart / not",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "e",
+      "type": "prefix",
+      "meaning": "out of",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "ec",
+      "type": "prefix",
+      "meaning": "out / from",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "en",
+      "type": "prefix",
+      "meaning": "in / into",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "endo",
+      "type": "prefix",
+      "meaning": "within",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "epi",
+      "type": "prefix",
+      "meaning": "upon / on",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "ex",
+      "type": "prefix",
+      "meaning": "out / former",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "extra",
+      "type": "prefix",
+      "meaning": "outside / beyond",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "fore",
+      "type": "prefix",
+      "meaning": "before / front",
+      "origin": "Old English"
+    },
+    {
+      "morpheme": "hemi",
+      "type": "prefix",
+      "meaning": "half",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "hetero",
+      "type": "prefix",
+      "meaning": "different",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "homo",
+      "type": "prefix",
+      "meaning": "same",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "hyper",
+      "type": "prefix",
+      "meaning": "over / excessive",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "hypo",
+      "type": "prefix",
+      "meaning": "under / below",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "il",
+      "type": "prefix",
+      "meaning": "not / into",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "im",
+      "type": "prefix",
+      "meaning": "not / into",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "in",
+      "type": "prefix",
+      "meaning": "not / in / into",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "infra",
+      "type": "prefix",
+      "meaning": "below",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "inter",
+      "type": "prefix",
+      "meaning": "between / among",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "intra",
+      "type": "prefix",
+      "meaning": "within",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "intro",
+      "type": "prefix",
+      "meaning": "into / inward",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "macro",
+      "type": "prefix",
+      "meaning": "large",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "mal",
+      "type": "prefix",
+      "meaning": "bad",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "meta",
+      "type": "prefix",
+      "meaning": "after / beyond / change",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "micro",
+      "type": "prefix",
+      "meaning": "small",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "mis",
+      "type": "prefix",
+      "meaning": "wrong / badly",
+      "origin": "Old English"
+    },
+    {
+      "morpheme": "mono",
+      "type": "prefix",
+      "meaning": "one",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "multi",
+      "type": "prefix",
+      "meaning": "many",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "neo",
+      "type": "prefix",
+      "meaning": "new",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "non",
+      "type": "prefix",
+      "meaning": "not",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "ob",
+      "type": "prefix",
+      "meaning": "toward / against",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "omni",
+      "type": "prefix",
+      "meaning": "all",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "over",
+      "type": "prefix",
+      "meaning": "above / excessive",
+      "origin": "Old English"
+    },
+    {
+      "morpheme": "pan",
+      "type": "prefix",
+      "meaning": "all",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "para",
+      "type": "prefix",
+      "meaning": "beside / beyond",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "peri",
+      "type": "prefix",
+      "meaning": "around",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "poly",
+      "type": "prefix",
+      "meaning": "many",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "post",
+      "type": "prefix",
+      "meaning": "after",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "pre",
+      "type": "prefix",
+      "meaning": "before",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "pro",
+      "type": "prefix",
+      "meaning": "forward / for",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "re",
+      "type": "prefix",
+      "meaning": "again / back",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "retro",
+      "type": "prefix",
+      "meaning": "backward",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "semi",
+      "type": "prefix",
+      "meaning": "half / partly",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "sub",
+      "type": "prefix",
+      "meaning": "under",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "super",
+      "type": "prefix",
+      "meaning": "above / beyond",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "syn",
+      "type": "prefix",
+      "meaning": "together",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "trans",
+      "type": "prefix",
+      "meaning": "across / change",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "tri",
+      "type": "prefix",
+      "meaning": "three",
+      "origin": "Latin/Greek"
+    },
+    {
+      "morpheme": "ultra",
+      "type": "prefix",
+      "meaning": "beyond",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "un",
+      "type": "prefix",
+      "meaning": "not / reverse",
+      "origin": "Old English"
+    },
+    {
+      "morpheme": "under",
+      "type": "prefix",
+      "meaning": "below / insufficient",
+      "origin": "Old English"
+    },
+    {
+      "morpheme": "act",
+      "type": "root",
+      "meaning": "do / drive",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "ag",
+      "type": "root",
+      "meaning": "do / lead",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "alter",
+      "type": "root",
+      "meaning": "other",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "anim",
+      "type": "root",
+      "meaning": "life / spirit",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "ann",
+      "type": "root",
+      "meaning": "year",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "anthrop",
+      "type": "root",
+      "meaning": "human",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "aqu",
+      "type": "root",
+      "meaning": "water",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "arch",
+      "type": "root",
+      "meaning": "rule / chief / first",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "astro",
+      "type": "root",
+      "meaning": "star",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "aud",
+      "type": "root",
+      "meaning": "hear",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "bio",
+      "type": "root",
+      "meaning": "life",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "brev",
+      "type": "root",
+      "meaning": "short",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "cad",
+      "type": "root",
+      "meaning": "fall",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "cap",
+      "type": "root",
+      "meaning": "take / hold",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "ced",
+      "type": "root",
+      "meaning": "go / yield",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "cent",
+      "type": "root",
+      "meaning": "hundred",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "chron",
+      "type": "root",
+      "meaning": "time",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "cid",
+      "type": "root",
+      "meaning": "cut / kill",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "civ",
+      "type": "root",
+      "meaning": "citizen",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "claim",
+      "type": "root",
+      "meaning": "cry out",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "clud",
+      "type": "root",
+      "meaning": "close",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "cogn",
+      "type": "root",
+      "meaning": "know",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "corp",
+      "type": "root",
+      "meaning": "body",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "cred",
+      "type": "root",
+      "meaning": "believe / trust",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "curr",
+      "type": "root",
+      "meaning": "run",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "cycl",
+      "type": "root",
+      "meaning": "circle",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "dem",
+      "type": "root",
+      "meaning": "people",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "dent",
+      "type": "root",
+      "meaning": "tooth",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "derm",
+      "type": "root",
+      "meaning": "skin",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "dict",
+      "type": "root",
+      "meaning": "say / speak",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "doc",
+      "type": "root",
+      "meaning": "teach",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "duc",
+      "type": "root",
+      "meaning": "lead",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "dyn",
+      "type": "root",
+      "meaning": "power",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "fac",
+      "type": "root",
+      "meaning": "make / do",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "fer",
+      "type": "root",
+      "meaning": "carry / bear",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "fid",
+      "type": "root",
+      "meaning": "faith / trust",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "fin",
+      "type": "root",
+      "meaning": "end / limit",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "flect",
+      "type": "root",
+      "meaning": "bend",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "flu",
+      "type": "root",
+      "meaning": "flow",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "form",
+      "type": "root",
+      "meaning": "shape / form",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "fract",
+      "type": "root",
+      "meaning": "break",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "gen",
+      "type": "root",
+      "meaning": "birth / kind / produce",
+      "origin": "Greek/Latin"
+    },
+    {
+      "morpheme": "geo",
+      "type": "root",
+      "meaning": "earth",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "grad",
+      "type": "root",
+      "meaning": "step / go",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "gram",
+      "type": "root",
+      "meaning": "written mark",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "graph",
+      "type": "root",
+      "meaning": "write / record",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "grat",
+      "type": "root",
+      "meaning": "pleasing / thankful",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "gress",
+      "type": "root",
+      "meaning": "step / go",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "hab",
+      "type": "root",
+      "meaning": "have / hold",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "helio",
+      "type": "root",
+      "meaning": "sun",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "hydr",
+      "type": "root",
+      "meaning": "water",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "ject",
+      "type": "root",
+      "meaning": "throw",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "jur",
+      "type": "root",
+      "meaning": "law / swear",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "lab",
+      "type": "root",
+      "meaning": "work",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "lect",
+      "type": "root",
+      "meaning": "choose / read",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "leg",
+      "type": "root",
+      "meaning": "law / choose",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "liber",
+      "type": "root",
+      "meaning": "free",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "loc",
+      "type": "root",
+      "meaning": "place",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "log",
+      "type": "root",
+      "meaning": "word / reason / study",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "luc",
+      "type": "root",
+      "meaning": "light",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "man",
+      "type": "root",
+      "meaning": "hand",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "mand",
+      "type": "root",
+      "meaning": "order / entrust",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "mar",
+      "type": "root",
+      "meaning": "sea",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "mater",
+      "type": "root",
+      "meaning": "mother",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "med",
+      "type": "root",
+      "meaning": "middle / heal",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "memor",
+      "type": "root",
+      "meaning": "remember",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "meter",
+      "type": "root",
+      "meaning": "measure",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "min",
+      "type": "root",
+      "meaning": "small / less",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "mit",
+      "type": "root",
+      "meaning": "send",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "mob",
+      "type": "root",
+      "meaning": "move",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "mort",
+      "type": "root",
+      "meaning": "death",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "mot",
+      "type": "root",
+      "meaning": "move",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "nat",
+      "type": "root",
+      "meaning": "birth",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "nav",
+      "type": "root",
+      "meaning": "ship",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "nom",
+      "type": "root",
+      "meaning": "name / law",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "nov",
+      "type": "root",
+      "meaning": "new",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "numer",
+      "type": "root",
+      "meaning": "number",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "onym",
+      "type": "root",
+      "meaning": "name",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "oper",
+      "type": "root",
+      "meaning": "work",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "opt",
+      "type": "root",
+      "meaning": "see / choose",
+      "origin": "Greek/Latin"
+    },
+    {
+      "morpheme": "pac",
+      "type": "root",
+      "meaning": "peace",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "path",
+      "type": "root",
+      "meaning": "feeling / disease",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "ped",
+      "type": "root",
+      "meaning": "foot / child",
+      "origin": "Latin/Greek"
+    },
+    {
+      "morpheme": "pel",
+      "type": "root",
+      "meaning": "drive",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "pend",
+      "type": "root",
+      "meaning": "hang / weigh",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "phon",
+      "type": "root",
+      "meaning": "sound",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "photo",
+      "type": "root",
+      "meaning": "light",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "plac",
+      "type": "root",
+      "meaning": "please / place",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "plic",
+      "type": "root",
+      "meaning": "fold",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "port",
+      "type": "root",
+      "meaning": "carry",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "pos",
+      "type": "root",
+      "meaning": "put / place",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "psych",
+      "type": "root",
+      "meaning": "mind / soul",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "quer",
+      "type": "root",
+      "meaning": "seek / ask",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "rect",
+      "type": "root",
+      "meaning": "straight / right",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "rupt",
+      "type": "root",
+      "meaning": "break",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "sci",
+      "type": "root",
+      "meaning": "know",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "scope",
+      "type": "root",
+      "meaning": "look / examine",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "scrib",
+      "type": "root",
+      "meaning": "write",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "sec",
+      "type": "root",
+      "meaning": "cut",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "sens",
+      "type": "root",
+      "meaning": "feel",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "sequ",
+      "type": "root",
+      "meaning": "follow",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "serv",
+      "type": "root",
+      "meaning": "keep / serve",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "sign",
+      "type": "root",
+      "meaning": "mark",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "simil",
+      "type": "root",
+      "meaning": "same / like",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "sol",
+      "type": "root",
+      "meaning": "sun / alone",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "spec",
+      "type": "root",
+      "meaning": "look / see",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "spir",
+      "type": "root",
+      "meaning": "breathe",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "stat",
+      "type": "root",
+      "meaning": "stand",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "struct",
+      "type": "root",
+      "meaning": "build",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "tact",
+      "type": "root",
+      "meaning": "touch",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "techn",
+      "type": "root",
+      "meaning": "art / skill",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "tele",
+      "type": "root",
+      "meaning": "far",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "temp",
+      "type": "root",
+      "meaning": "time",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "terr",
+      "type": "root",
+      "meaning": "earth / land",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "theo",
+      "type": "root",
+      "meaning": "god",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "therm",
+      "type": "root",
+      "meaning": "heat",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "tract",
+      "type": "root",
+      "meaning": "draw / pull",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "urb",
+      "type": "root",
+      "meaning": "city",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "vac",
+      "type": "root",
+      "meaning": "empty",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "ven",
+      "type": "root",
+      "meaning": "come",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "ver",
+      "type": "root",
+      "meaning": "truth",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "verb",
+      "type": "root",
+      "meaning": "word",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "vert",
+      "type": "root",
+      "meaning": "turn",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "vid",
+      "type": "root",
+      "meaning": "see",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "vis",
+      "type": "root",
+      "meaning": "see",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "viv",
+      "type": "root",
+      "meaning": "live",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "voc",
+      "type": "root",
+      "meaning": "call / voice",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "vol",
+      "type": "root",
+      "meaning": "wish / will",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "vor",
+      "type": "root",
+      "meaning": "eat",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "xen",
+      "type": "root",
+      "meaning": "foreign / stranger",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "zo",
+      "type": "root",
+      "meaning": "animal",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "acer",
+      "type": "root",
+      "meaning": "sharp",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "am",
+      "type": "root",
+      "meaning": "love",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "bell",
+      "type": "root",
+      "meaning": "war",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "bene",
+      "type": "root",
+      "meaning": "good / well",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "cardi",
+      "type": "root",
+      "meaning": "heart",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "chrom",
+      "type": "root",
+      "meaning": "color",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "cosm",
+      "type": "root",
+      "meaning": "world / order",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "cracy",
+      "type": "root",
+      "meaning": "rule / power",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "crit",
+      "type": "root",
+      "meaning": "judge / separate",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "dorm",
+      "type": "root",
+      "meaning": "sleep",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "equ",
+      "type": "root",
+      "meaning": "equal",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "erg",
+      "type": "root",
+      "meaning": "work",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "frag",
+      "type": "root",
+      "meaning": "break",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "gyn",
+      "type": "root",
+      "meaning": "woman",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "hemo",
+      "type": "root",
+      "meaning": "blood",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "lith",
+      "type": "root",
+      "meaning": "stone",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "magn",
+      "type": "root",
+      "meaning": "great / large",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "mal",
+      "type": "root",
+      "meaning": "bad",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "mega",
+      "type": "root",
+      "meaning": "large",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "neur",
+      "type": "root",
+      "meaning": "nerve",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "ocul",
+      "type": "root",
+      "meaning": "eye",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "ornith",
+      "type": "root",
+      "meaning": "bird",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "patr",
+      "type": "root",
+      "meaning": "father",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "phag",
+      "type": "root",
+      "meaning": "eat",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "phil",
+      "type": "root",
+      "meaning": "love",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "phob",
+      "type": "root",
+      "meaning": "fear",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "polis",
+      "type": "root",
+      "meaning": "city",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "prim",
+      "type": "root",
+      "meaning": "first",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "reg",
+      "type": "root",
+      "meaning": "rule / direct",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "rid",
+      "type": "root",
+      "meaning": "laugh",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "san",
+      "type": "root",
+      "meaning": "health",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "somn",
+      "type": "root",
+      "meaning": "sleep",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "son",
+      "type": "root",
+      "meaning": "sound",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "tempor",
+      "type": "root",
+      "meaning": "time",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "tox",
+      "type": "root",
+      "meaning": "poison",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "typ",
+      "type": "root",
+      "meaning": "form / impression",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "val",
+      "type": "root",
+      "meaning": "strength / worth",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "able",
+      "type": "suffix",
+      "meaning": "able to / capable of",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "al",
+      "type": "suffix",
+      "meaning": "relating to",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "ance",
+      "type": "suffix",
+      "meaning": "state / quality",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "ary",
+      "type": "suffix",
+      "meaning": "relating to / place for",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "er",
+      "type": "suffix",
+      "meaning": "person or thing that",
+      "origin": "Old English/Latin"
+    },
+    {
+      "morpheme": "ful",
+      "type": "suffix",
+      "meaning": "full of",
+      "origin": "Old English"
+    },
+    {
+      "morpheme": "ic",
+      "type": "suffix",
+      "meaning": "relating to",
+      "origin": "Greek/Latin"
+    },
+    {
+      "morpheme": "ify",
+      "type": "suffix",
+      "meaning": "make / cause",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "ion",
+      "type": "suffix",
+      "meaning": "act / process / result",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "ist",
+      "type": "suffix",
+      "meaning": "person who practices",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "ity",
+      "type": "suffix",
+      "meaning": "state / quality",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "ive",
+      "type": "suffix",
+      "meaning": "tending to / relating to",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "less",
+      "type": "suffix",
+      "meaning": "without",
+      "origin": "Old English"
+    },
+    {
+      "morpheme": "logy",
+      "type": "suffix",
+      "meaning": "study of",
+      "origin": "Greek"
+    },
+    {
+      "morpheme": "ment",
+      "type": "suffix",
+      "meaning": "result / process",
+      "origin": "Latin"
+    },
+    {
+      "morpheme": "ous",
+      "type": "suffix",
+      "meaning": "full of / having",
+      "origin": "Latin"
+    }
+  ]
+}

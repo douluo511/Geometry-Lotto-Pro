@@ -23,6 +23,8 @@ jobs:
         run: |
           python -m compileall -q .
           python architecture_gate.py
+      - name: Business Content Gate
+        run: python business_gate.py
       - name: Self-Test
         run: python app.py --self-test
       - name: Contract Test
@@ -70,7 +72,7 @@ jobs:
         shell: pwsh
         run: |
           @'
-          {"gates":{"purpose_model":"PASS","five_why":"PASS","risk_boundary":"PASS","domain_model":"PASS","architecture":"PASS","function_contract":"PASS","interface_contract":"PASS","data_source":"PASS","netclient":"PASS","storage":"PASS","engine":"PASS","evidence":"PASS","service":"PASS","ui":"PASS","self_test":"PASS","contract_test":"PASS","fault_injection":"PASS","real_network":"PASS","windows_build":"PASS","exact_exe":"PASS","gui_smoke":"PASS","same_hash":"PASS"}}
+          {"gates":{"purpose_model":"PASS","five_why":"PASS","risk_boundary":"PASS","domain_model":"PASS","architecture":"PASS","function_contract":"PASS","interface_contract":"PASS","data_source":"PASS","netclient":"PASS","storage":"PASS","engine":"PASS","evidence":"PASS","service":"PASS","ui":"PASS","self_test":"PASS","contract_test":"PASS","fault_injection":"PASS","real_network":"PASS","windows_build":"PASS","exact_exe":"PASS","gui_smoke":"PASS","same_hash":"PASS","business_content":"PASS"}}
           '@ | Out-File gate_input.json -Encoding utf8
           python release_gate.py --input gate_input.json --output final_gate.json
           $r=Get-Content final_gate.json -Raw | ConvertFrom-Json
@@ -79,20 +81,21 @@ jobs:
         shell: pwsh
         run: |
           $hash=(Get-FileHash dist\final\English_Root_Intelligence.exe -Algorithm SHA256).Hash.ToLower()
-          @{project='English Root Intelligence';version='0.2.0';artifact='English_Root_Intelligence.exe';sha256=$hash;source_commit=$env:GITHUB_SHA;final_gate='PASS'} | ConvertTo-Json | Set-Content FINAL_ACCEPTANCE.json -Encoding utf8
+          @{project='English Root Intelligence';version='0.3.0';artifact='English_Root_Intelligence.exe';sha256=$hash;source_commit=$env:GITHUB_SHA;final_gate='PASS'} | ConvertTo-Json | Set-Content FINAL_ACCEPTANCE.json -Encoding utf8
           Write-Host "FINAL_EXE_SHA256=$hash"
       - name: Upload Unique Final Product
         uses: actions/upload-artifact@v4
-        with: {name: English_Root_Intelligence_FINAL_v0.2.0, path: english-root-intelligence/dist/final/English_Root_Intelligence.exe, if-no-files-found: error, retention-days: 30, compression-level: 0}
+        with: {name: English_Root_Intelligence_FINAL_v0.3.0, path: english-root-intelligence/dist/final/English_Root_Intelligence.exe, if-no-files-found: error, retention-days: 30, compression-level: 0}
       - name: Upload Audit Evidence
         uses: actions/upload-artifact@v4
         with:
-          name: English_Root_Intelligence_AUDIT_v0.2.0
+          name: English_Root_Intelligence_AUDIT_v0.3.0
           path: |
             english-root-intelligence/final_gate.json
             english-root-intelligence/FINAL_ACCEPTANCE.json
             english-root-intelligence/evidence_sha256.txt
             english-root-intelligence/physical_gui_click.json
+            english-root-intelligence/business_gate.json
           if-no-files-found: error
 
 # Hard-gate revalidation trigger: 2026-09-24 master-template
