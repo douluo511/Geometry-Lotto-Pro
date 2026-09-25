@@ -1,191 +1,589 @@
 {
   "schema": 1,
-  "version": "0.1.0",
+  "version": "0.3.0",
   "classics": [
     {
       "id": "daodejing",
       "title": "道德经",
       "priority": 9,
-      "scenarios": ["self", "risk", "organization", "competition"],
+      "scenarios": [
+        "self",
+        "risk",
+        "organization",
+        "competition"
+      ],
       "source_note": "传世《老子》文本；版本与章句在马王堆、郭店等出土材料和后世通行本之间存在差异。",
       "authorship_status": "传统归老子，成书与文本层累问题存在学术讨论",
       "boundary": "适合反思控制欲、节奏和过度行动；不能把“无为”理解成什么都不做。",
-      "methods": [{"name": "减法决策", "prompt": "先删除不必要动作与欲望，判断哪些干预反而制造成本。"}]
+      "methods": [
+        {
+          "name": "减法决策",
+          "prompt": "先删除不必要动作与欲望，判断哪些干预反而制造成本。"
+        },
+        {
+          "name": "证据核对",
+          "prompt": "把当前判断分成事实、解释与未知三栏，先补最关键的未知。"
+        },
+        {
+          "name": "边界与反例",
+          "prompt": "写出该原则成立的条件、一个反例，以及出现什么证据时应停止套用。"
+        }
+      ],
+      "case_prompt": "选择一个与《道德经》相关的真实决策，只比较机制，不因表面相似直接类推结果。",
+      "counterexample_prompt": "寻找一个采用相似原则但结果相反的案例，记录失效条件。"
     },
     {
       "id": "lunyu",
       "title": "论语",
       "priority": 9,
-      "scenarios": ["self", "relationships", "organization"],
+      "scenarios": [
+        "self",
+        "relationships",
+        "organization"
+      ],
       "source_note": "孔子及弟子言行的后世编纂记录，历代注疏传统丰富。",
       "boundary": "重视长期信誉与角色责任，但不能脱离制度、利益和权力条件机械套用。",
-      "methods": [{"name": "长期信誉账", "prompt": "把一次性得失改写成长期关系、信誉和角色责任的成本收益表。"}]
+      "methods": [
+        {
+          "name": "长期信誉账",
+          "prompt": "把一次性得失改写成长期关系、信誉和角色责任的成本收益表。"
+        },
+        {
+          "name": "证据核对",
+          "prompt": "把当前判断分成事实、解释与未知三栏，先补最关键的未知。"
+        },
+        {
+          "name": "边界与反例",
+          "prompt": "写出该原则成立的条件、一个反例，以及出现什么证据时应停止套用。"
+        }
+      ],
+      "case_prompt": "选择一个与《论语》相关的真实决策，只比较机制，不因表面相似直接类推结果。",
+      "counterexample_prompt": "寻找一个采用相似原则但结果相反的案例，记录失效条件。"
     },
     {
       "id": "zizhitongjian",
       "title": "资治通鉴",
       "priority": 10,
-      "scenarios": ["history", "organization", "competition", "risk"],
+      "scenarios": [
+        "history",
+        "organization",
+        "competition",
+        "risk"
+      ],
       "source_note": "北宋司马光主持编纂的编年体史书，重点在政治与治乱经验。",
       "boundary": "历史类比只能比较机制，不能因为表面相似就断言结果会重复。",
-      "methods": [{"name": "机制类比", "prompt": "找结构相似点：权力、激励、资源、信息，再同时寻找关键差异。"}]
+      "methods": [
+        {
+          "name": "机制类比",
+          "prompt": "找结构相似点：权力、激励、资源、信息，再同时寻找关键差异。"
+        },
+        {
+          "name": "证据核对",
+          "prompt": "把当前判断分成事实、解释与未知三栏，先补最关键的未知。"
+        },
+        {
+          "name": "边界与反例",
+          "prompt": "写出该原则成立的条件、一个反例，以及出现什么证据时应停止套用。"
+        }
+      ],
+      "case_prompt": "选择一个与《资治通鉴》相关的真实决策，只比较机制，不因表面相似直接类推结果。",
+      "counterexample_prompt": "寻找一个采用相似原则但结果相反的案例，记录失效条件。"
     },
     {
       "id": "sunzi",
       "title": "孙子兵法",
       "priority": 10,
-      "scenarios": ["competition", "negotiation", "risk", "organization"],
+      "scenarios": [
+        "competition",
+        "negotiation",
+        "risk",
+        "organization"
+      ],
       "source_note": "先秦兵学经典；传世十三篇，文本长期流传并有银雀山汉简等出土材料参照。",
       "boundary": "适合竞争、资源与信息结构分析，不应把所有人际关系都敌我化。",
-      "methods": [{"name": "先胜后战", "prompt": "行动前先检查胜算来自信息、资源、位置还是替代方案，不在劣势条件下硬拼。"}]
+      "methods": [
+        {
+          "name": "先胜后战",
+          "prompt": "行动前先检查胜算来自信息、资源、位置还是替代方案，不在劣势条件下硬拼。"
+        },
+        {
+          "name": "证据核对",
+          "prompt": "把当前判断分成事实、解释与未知三栏，先补最关键的未知。"
+        },
+        {
+          "name": "边界与反例",
+          "prompt": "写出该原则成立的条件、一个反例，以及出现什么证据时应停止套用。"
+        }
+      ],
+      "case_prompt": "选择一个与《孙子兵法》相关的真实决策，只比较机制，不因表面相似直接类推结果。",
+      "counterexample_prompt": "寻找一个采用相似原则但结果相反的案例，记录失效条件。"
     },
     {
       "id": "guiguzi",
       "title": "鬼谷子",
       "priority": 8,
-      "scenarios": ["negotiation", "relationships", "competition"],
+      "scenarios": [
+        "negotiation",
+        "relationships",
+        "competition"
+      ],
       "source_note": "传统归鬼谷子，文本成书年代、作者与后世增益问题均有争议。",
       "authorship_status": "作者与成书年代存在争议",
       "boundary": "可研究说服与信息互动，但不能把操控、欺骗当成默认策略。",
-      "methods": [{"name": "先听后说", "prompt": "先用提问识别对方真实需求、恐惧和可交换条件，再决定表达顺序。"}]
+      "methods": [
+        {
+          "name": "先听后说",
+          "prompt": "先用提问识别对方真实需求、恐惧和可交换条件，再决定表达顺序。"
+        },
+        {
+          "name": "证据核对",
+          "prompt": "把当前判断分成事实、解释与未知三栏，先补最关键的未知。"
+        },
+        {
+          "name": "边界与反例",
+          "prompt": "写出该原则成立的条件、一个反例，以及出现什么证据时应停止套用。"
+        }
+      ],
+      "case_prompt": "选择一个与《鬼谷子》相关的真实决策，只比较机制，不因表面相似直接类推结果。",
+      "counterexample_prompt": "寻找一个采用相似原则但结果相反的案例，记录失效条件。"
     },
     {
       "id": "chuanxilu",
       "title": "传习录",
       "priority": 9,
-      "scenarios": ["self", "organization", "relationships"],
+      "scenarios": [
+        "self",
+        "organization",
+        "relationships"
+      ],
       "source_note": "王阳明语录与书信等汇编，是研究阳明心学的重要文本之一。",
       "boundary": "强调知行合一，但不能用主观确信替代事实验证。",
-      "methods": [{"name": "知行差距检查", "prompt": "把“我知道”改写成可观察行动：今天具体做什么，结果如何验证。"}]
+      "methods": [
+        {
+          "name": "知行差距检查",
+          "prompt": "把“我知道”改写成可观察行动：今天具体做什么，结果如何验证。"
+        },
+        {
+          "name": "证据核对",
+          "prompt": "把当前判断分成事实、解释与未知三栏，先补最关键的未知。"
+        },
+        {
+          "name": "边界与反例",
+          "prompt": "写出该原则成立的条件、一个反例，以及出现什么证据时应停止套用。"
+        }
+      ],
+      "case_prompt": "选择一个与《传习录》相关的真实决策，只比较机制，不因表面相似直接类推结果。",
+      "counterexample_prompt": "寻找一个采用相似原则但结果相反的案例，记录失效条件。"
     },
     {
       "id": "hanfeizi",
       "title": "韩非子",
       "priority": 10,
-      "scenarios": ["organization", "competition", "relationships", "risk"],
+      "scenarios": [
+        "organization",
+        "competition",
+        "relationships",
+        "risk"
+      ],
       "source_note": "先秦法家重要文献，传统归韩非及相关篇章汇编。",
       "boundary": "擅长制度、激励与权力约束分析，但若只靠控制和惩罚会损害信任与创造力。",
-      "methods": [{"name": "激励相容", "prompt": "不要只问一个人“应该怎样”，而要问制度让他“愿意怎样”。"}]
+      "methods": [
+        {
+          "name": "激励相容",
+          "prompt": "不要只问一个人“应该怎样”，而要问制度让他“愿意怎样”。"
+        },
+        {
+          "name": "证据核对",
+          "prompt": "把当前判断分成事实、解释与未知三栏，先补最关键的未知。"
+        },
+        {
+          "name": "边界与反例",
+          "prompt": "写出该原则成立的条件、一个反例，以及出现什么证据时应停止套用。"
+        }
+      ],
+      "case_prompt": "选择一个与《韩非子》相关的真实决策，只比较机制，不因表面相似直接类推结果。",
+      "counterexample_prompt": "寻找一个采用相似原则但结果相反的案例，记录失效条件。"
     },
     {
       "id": "zhuangzi",
       "title": "庄子",
       "priority": 8,
-      "scenarios": ["self", "risk", "relationships"],
+      "scenarios": [
+        "self",
+        "risk",
+        "relationships"
+      ],
       "source_note": "《庄子》内篇、外篇、杂篇构成复杂，传统认为内篇与庄周关系更密切。",
       "boundary": "适合松动僵化视角与身份执着，不等于拒绝责任或现实行动。",
-      "methods": [{"name": "换框架", "prompt": "用至少两个完全不同的视角重新描述同一问题，检查原框架是否把你困住。"}]
+      "methods": [
+        {
+          "name": "换框架",
+          "prompt": "用至少两个完全不同的视角重新描述同一问题，检查原框架是否把你困住。"
+        },
+        {
+          "name": "证据核对",
+          "prompt": "把当前判断分成事实、解释与未知三栏，先补最关键的未知。"
+        },
+        {
+          "name": "边界与反例",
+          "prompt": "写出该原则成立的条件、一个反例，以及出现什么证据时应停止套用。"
+        }
+      ],
+      "case_prompt": "选择一个与《庄子》相关的真实决策，只比较机制，不因表面相似直接类推结果。",
+      "counterexample_prompt": "寻找一个采用相似原则但结果相反的案例，记录失效条件。"
     },
     {
       "id": "zhanguoce",
       "title": "战国策",
       "priority": 8,
-      "scenarios": ["negotiation", "competition", "history", "relationships"],
+      "scenarios": [
+        "negotiation",
+        "competition",
+        "history",
+        "relationships"
+      ],
       "source_note": "西汉刘向整理定名的国别体史料汇编，含大量纵横策士故事。",
       "boundary": "故事性和修辞性很强，不能把每段游说辞都当作精确史实。",
-      "methods": [{"name": "利益重构", "prompt": "把提案改写成对方能看到的收益、损失与替代方案，而不是只讲自己的理由。"}]
+      "methods": [
+        {
+          "name": "利益重构",
+          "prompt": "把提案改写成对方能看到的收益、损失与替代方案，而不是只讲自己的理由。"
+        },
+        {
+          "name": "证据核对",
+          "prompt": "把当前判断分成事实、解释与未知三栏，先补最关键的未知。"
+        },
+        {
+          "name": "边界与反例",
+          "prompt": "写出该原则成立的条件、一个反例，以及出现什么证据时应停止套用。"
+        }
+      ],
+      "case_prompt": "选择一个与《战国策》相关的真实决策，只比较机制，不因表面相似直接类推结果。",
+      "counterexample_prompt": "寻找一个采用相似原则但结果相反的案例，记录失效条件。"
     },
     {
       "id": "mengzi",
       "title": "孟子",
       "priority": 8,
-      "scenarios": ["self", "relationships", "organization"],
+      "scenarios": [
+        "self",
+        "relationships",
+        "organization"
+      ],
       "source_note": "记录孟子言论、论辩与思想的重要儒家经典。",
       "boundary": "可用于价值与正当性思考，但现实组织仍需制度、信息和激励机制。",
-      "methods": [{"name": "价值底线", "prompt": "先写清楚哪些收益值得追求、哪些代价即使有利也不接受。"}]
+      "methods": [
+        {
+          "name": "价值底线",
+          "prompt": "先写清楚哪些收益值得追求、哪些代价即使有利也不接受。"
+        },
+        {
+          "name": "证据核对",
+          "prompt": "把当前判断分成事实、解释与未知三栏，先补最关键的未知。"
+        },
+        {
+          "name": "边界与反例",
+          "prompt": "写出该原则成立的条件、一个反例，以及出现什么证据时应停止套用。"
+        }
+      ],
+      "case_prompt": "选择一个与《孟子》相关的真实决策，只比较机制，不因表面相似直接类推结果。",
+      "counterexample_prompt": "寻找一个采用相似原则但结果相反的案例，记录失效条件。"
     },
     {
       "id": "huozhiliezhuan",
       "title": "史记·货殖列传",
       "priority": 10,
-      "scenarios": ["wealth", "history", "risk"],
+      "scenarios": [
+        "wealth",
+        "history",
+        "risk"
+      ],
       "source_note": "《史记》中的篇章之一，记录和评论古代经济活动、商人与区域物产。",
       "boundary": "适合研究财富动机、地域与经营观念，不能把古代商业条件直接等同现代市场。",
-      "methods": [{"name": "资源—需求图", "prompt": "先识别需求、稀缺资源、流通阻力与利润来源，再谈机会。"}]
+      "methods": [
+        {
+          "name": "资源—需求图",
+          "prompt": "先识别需求、稀缺资源、流通阻力与利润来源，再谈机会。"
+        },
+        {
+          "name": "证据核对",
+          "prompt": "把当前判断分成事实、解释与未知三栏，先补最关键的未知。"
+        },
+        {
+          "name": "边界与反例",
+          "prompt": "写出该原则成立的条件、一个反例，以及出现什么证据时应停止套用。"
+        }
+      ],
+      "case_prompt": "选择一个与《史记·货殖列传》相关的真实决策，只比较机制，不因表面相似直接类推结果。",
+      "counterexample_prompt": "寻找一个采用相似原则但结果相反的案例，记录失效条件。"
     },
     {
       "id": "shiji",
       "title": "史记",
       "priority": 10,
-      "scenarios": ["history", "relationships", "competition", "wealth"],
+      "scenarios": [
+        "history",
+        "relationships",
+        "competition",
+        "wealth"
+      ],
       "source_note": "西汉司马迁所著纪传体通史，兼具史料与文学叙事价值。",
       "boundary": "人物成败不可简化为单一性格原因，要同时看时代结构、资源和偶然性。",
-      "methods": [{"name": "人物—结构双因分析", "prompt": "同时列个人选择与外部结构，避免把结果全归因于人品或能力。"}]
+      "methods": [
+        {
+          "name": "人物—结构双因分析",
+          "prompt": "同时列个人选择与外部结构，避免把结果全归因于人品或能力。"
+        },
+        {
+          "name": "证据核对",
+          "prompt": "把当前判断分成事实、解释与未知三栏，先补最关键的未知。"
+        },
+        {
+          "name": "边界与反例",
+          "prompt": "写出该原则成立的条件、一个反例，以及出现什么证据时应停止套用。"
+        }
+      ],
+      "case_prompt": "选择一个与《史记》相关的真实决策，只比较机制，不因表面相似直接类推结果。",
+      "counterexample_prompt": "寻找一个采用相似原则但结果相反的案例，记录失效条件。"
     },
     {
       "id": "caigentan",
       "title": "菜根谭",
       "priority": 6,
-      "scenarios": ["self", "relationships"],
+      "scenarios": [
+        "self",
+        "relationships"
+      ],
       "source_note": "明代洪应明所著语录体作品，融汇儒释道修身处世思想。",
       "boundary": "适合自省与节制，不应把格言当成普遍因果规律。",
-      "methods": [{"name": "情绪降噪", "prompt": "先区分事实、情绪和面子需求，再决定是否回应。"}]
+      "methods": [
+        {
+          "name": "情绪降噪",
+          "prompt": "先区分事实、情绪和面子需求，再决定是否回应。"
+        },
+        {
+          "name": "证据核对",
+          "prompt": "把当前判断分成事实、解释与未知三栏，先补最关键的未知。"
+        },
+        {
+          "name": "边界与反例",
+          "prompt": "写出该原则成立的条件、一个反例，以及出现什么证据时应停止套用。"
+        }
+      ],
+      "case_prompt": "选择一个与《菜根谭》相关的真实决策，只比较机制，不因表面相似直接类推结果。",
+      "counterexample_prompt": "寻找一个采用相似原则但结果相反的案例，记录失效条件。"
     },
     {
       "id": "bingjian",
       "title": "冰鉴",
       "priority": 5,
-      "scenarios": ["relationships", "organization"],
+      "scenarios": [
+        "relationships",
+        "organization"
+      ],
       "source_note": "近代以来常被归于曾国藩，但作者归属与文本来源存在争议。",
       "authorship_status": "常归曾国藩，但作者归属存在争议",
       "boundary": "相人术式描述不能作为可靠人格诊断；只可作为历史识人观念材料，并须用真实行为证据校正。",
-      "methods": [{"name": "行为证据优先", "prompt": "不按长相下结论，改为记录承诺兑现、压力反应、利益冲突时的实际行为。"}]
+      "methods": [
+        {
+          "name": "行为证据优先",
+          "prompt": "不按长相下结论，改为记录承诺兑现、压力反应、利益冲突时的实际行为。"
+        },
+        {
+          "name": "证据核对",
+          "prompt": "把当前判断分成事实、解释与未知三栏，先补最关键的未知。"
+        },
+        {
+          "name": "边界与反例",
+          "prompt": "写出该原则成立的条件、一个反例，以及出现什么证据时应停止套用。"
+        }
+      ],
+      "case_prompt": "选择一个与《冰鉴》相关的真实决策，只比较机制，不因表面相似直接类推结果。",
+      "counterexample_prompt": "寻找一个采用相似原则但结果相反的案例，记录失效条件。"
     },
     {
       "id": "renjing",
       "title": "忍经",
       "priority": 5,
-      "scenarios": ["self", "relationships", "risk"],
+      "scenarios": [
+        "self",
+        "relationships",
+        "risk"
+      ],
       "source_note": "传统修身处世类文本，汇集忍让相关故事与格言。",
       "boundary": "“忍”是延迟反应与控制成本，不等于容忍持续伤害或放弃边界。",
-      "methods": [{"name": "延迟反应", "prompt": "情绪高峰时先不做不可逆决定，等信息更完整再行动。"}]
+      "methods": [
+        {
+          "name": "延迟反应",
+          "prompt": "情绪高峰时先不做不可逆决定，等信息更完整再行动。"
+        },
+        {
+          "name": "证据核对",
+          "prompt": "把当前判断分成事实、解释与未知三栏，先补最关键的未知。"
+        },
+        {
+          "name": "边界与反例",
+          "prompt": "写出该原则成立的条件、一个反例，以及出现什么证据时应停止套用。"
+        }
+      ],
+      "case_prompt": "选择一个与《忍经》相关的真实决策，只比较机制，不因表面相似直接类推结果。",
+      "counterexample_prompt": "寻找一个采用相似原则但结果相反的案例，记录失效条件。"
     },
     {
       "id": "huangdineijing",
       "title": "黄帝内经",
       "priority": 5,
-      "scenarios": ["health", "self"],
+      "scenarios": [
+        "health",
+        "self"
+      ],
       "source_note": "中国古代医学经典，形成于长期文本积累过程。",
       "authorship_status": "非单一作者一次成书，属长期形成的古代医学文献",
       "boundary": "仅用于理解古代医学思想史；个人健康决策应以现代医学证据和专业诊疗为准。",
-      "methods": [{"name": "生活节律观察", "prompt": "把睡眠、饮食、活动和症状记录成可观察数据，再决定是否需要现代医学评估。"}]
+      "methods": [
+        {
+          "name": "生活节律观察",
+          "prompt": "把睡眠、饮食、活动和症状记录成可观察数据，再决定是否需要现代医学评估。"
+        },
+        {
+          "name": "证据核对",
+          "prompt": "把当前判断分成事实、解释与未知三栏，先补最关键的未知。"
+        },
+        {
+          "name": "边界与反例",
+          "prompt": "写出该原则成立的条件、一个反例，以及出现什么证据时应停止套用。"
+        }
+      ],
+      "case_prompt": "选择一个与《黄帝内经》相关的真实决策，只比较机制，不因表面相似直接类推结果。",
+      "counterexample_prompt": "寻找一个采用相似原则但结果相反的案例，记录失效条件。"
     },
     {
       "id": "tanjing",
       "title": "坛经",
       "priority": 6,
-      "scenarios": ["self", "relationships"],
+      "scenarios": [
+        "self",
+        "relationships"
+      ],
       "source_note": "禅宗重要文献，存在不同版本系统，围绕惠能言教展开。",
       "boundary": "适合观察执着和当下经验，不应被用来否认现实责任或专业知识。",
-      "methods": [{"name": "念头观察", "prompt": "把“我就是这样”改写成“我现在出现了这个念头”，减少被即时情绪绑架。"}]
+      "methods": [
+        {
+          "name": "念头观察",
+          "prompt": "把“我就是这样”改写成“我现在出现了这个念头”，减少被即时情绪绑架。"
+        },
+        {
+          "name": "证据核对",
+          "prompt": "把当前判断分成事实、解释与未知三栏，先补最关键的未知。"
+        },
+        {
+          "name": "边界与反例",
+          "prompt": "写出该原则成立的条件、一个反例，以及出现什么证据时应停止套用。"
+        }
+      ],
+      "case_prompt": "选择一个与《坛经》相关的真实决策，只比较机制，不因表面相似直接类推结果。",
+      "counterexample_prompt": "寻找一个采用相似原则但结果相反的案例，记录失效条件。"
     },
     {
       "id": "yijing",
       "title": "周易",
       "priority": 7,
-      "scenarios": ["risk", "self", "history"],
+      "scenarios": [
+        "risk",
+        "self",
+        "history"
+      ],
       "source_note": "由经、传构成的复杂经典传统，长期用于哲学、象数与义理解释。",
       "boundary": "可用于变化与关系思维训练；本系统不把占卜当成可验证预测。",
-      "methods": [{"name": "变化条件表", "prompt": "列出当前状态、关键变量和触发条件，判断局面如何从一种状态转向另一种状态。"}]
+      "methods": [
+        {
+          "name": "变化条件表",
+          "prompt": "列出当前状态、关键变量和触发条件，判断局面如何从一种状态转向另一种状态。"
+        },
+        {
+          "name": "证据核对",
+          "prompt": "把当前判断分成事实、解释与未知三栏，先补最关键的未知。"
+        },
+        {
+          "name": "边界与反例",
+          "prompt": "写出该原则成立的条件、一个反例，以及出现什么证据时应停止套用。"
+        }
+      ],
+      "case_prompt": "选择一个与《周易》相关的真实决策，只比较机制，不因表面相似直接类推结果。",
+      "counterexample_prompt": "寻找一个采用相似原则但结果相反的案例，记录失效条件。"
     },
     {
       "id": "jingangjing",
       "title": "金刚经",
       "priority": 6,
-      "scenarios": ["self", "relationships"],
+      "scenarios": [
+        "self",
+        "relationships"
+      ],
       "source_note": "大乘佛教般若类经典的重要汉译文本之一。",
       "boundary": "适合反思执着与概念固化；现实决策仍需事实、责任与后果评估。",
-      "methods": [{"name": "去标签", "prompt": "暂时拿掉“成功/失败、好人/坏人”等标签，只看发生了什么和下一步后果。"}]
+      "methods": [
+        {
+          "name": "去标签",
+          "prompt": "暂时拿掉“成功/失败、好人/坏人”等标签，只看发生了什么和下一步后果。"
+        },
+        {
+          "name": "证据核对",
+          "prompt": "把当前判断分成事实、解释与未知三栏，先补最关键的未知。"
+        },
+        {
+          "name": "边界与反例",
+          "prompt": "写出该原则成立的条件、一个反例，以及出现什么证据时应停止套用。"
+        }
+      ],
+      "case_prompt": "选择一个与《金刚经》相关的真实决策，只比较机制，不因表面相似直接类推结果。",
+      "counterexample_prompt": "寻找一个采用相似原则但结果相反的案例，记录失效条件。"
     },
     {
       "id": "guanzi",
       "title": "管子",
       "priority": 7,
-      "scenarios": ["organization", "wealth", "history"],
+      "scenarios": [
+        "organization",
+        "wealth",
+        "history"
+      ],
       "source_note": "先秦至两汉多篇文献汇编，内容涉及政治、经济、军事与哲学。",
       "authorship_status": "并非管仲一人一时所作，属多时期材料汇编",
       "boundary": "适合研究治理与经济思想史，不能把古代国家治理措施直接照搬现代组织。",
-      "methods": [{"name": "资源配置", "prompt": "先看人、钱、时间和信息如何配置，再讨论口号与意愿。"}]
+      "methods": [
+        {
+          "name": "资源配置",
+          "prompt": "先看人、钱、时间和信息如何配置，再讨论口号与意愿。"
+        },
+        {
+          "name": "证据核对",
+          "prompt": "把当前判断分成事实、解释与未知三栏，先补最关键的未知。"
+        },
+        {
+          "name": "边界与反例",
+          "prompt": "写出该原则成立的条件、一个反例，以及出现什么证据时应停止套用。"
+        }
+      ],
+      "case_prompt": "选择一个与《管子》相关的真实决策，只比较机制，不因表面相似直接类推结果。",
+      "counterexample_prompt": "寻找一个采用相似原则但结果相反的案例，记录失效条件。"
     }
+  ],
+  "sources": [
+    {
+      "id": "ctext",
+      "name": "Chinese Text Project / 中国哲学书电子化计划",
+      "url": "https://ctext.org/",
+      "role": "primary-text lookup and version comparison"
+    }
+  ],
+  "business_dimensions": [
+    "历史路径",
+    "权力与制度",
+    "资源与激励",
+    "执行与风险",
+    "底层假设与价值",
+    "关系与沟通",
+    "自我管理"
   ]
 }

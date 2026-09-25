@@ -52,8 +52,8 @@ class GoalEngine:
         selected=self._select_classics(scenarios)
         methods=[]
         for row in selected:
-            method=row["methods"][0]
-            methods.append({"title":row["title"],"method":method["name"],"prompt":method["prompt"],"source_note":row["source_note"],"boundary":row["boundary"],"authorship_status":row.get("authorship_status","常规传世文本")})
+            for method in row["methods"][:2]:
+                methods.append({"title":row["title"],"method":method["name"],"prompt":method["prompt"],"source_note":row["source_note"],"boundary":row["boundary"],"authorship_status":row.get("authorship_status","常规传世文本"),"case_prompt":row.get("case_prompt",""),"counterexample_prompt":row.get("counterexample_prompt","")})
         result={"goal":goal,"timestamp":dt.datetime.now().isoformat(timespec="seconds"),"scenarios":[SCENARIO_LABELS.get(s,s) for s in scenarios],"questions":list(dict.fromkeys(questions))[:6],"methods":methods,
         "five_whys":["为什么我认为这条路径能达成目标？","这个判断依赖的关键事实是什么？","这些事实是已验证，还是推测/听说？","如果关键事实相反，我的方案还成立吗？","最小成本验证这条假设的方法是什么？"],
         "reverse_validation":["假设当前结论完全错误，哪些现象仍能被解释？","寻找至少一个能推翻主判断的反例。","把最强反方观点写出来，再决定是否行动。"],

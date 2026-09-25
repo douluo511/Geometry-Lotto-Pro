@@ -29,8 +29,9 @@ jobs:
       - name: Architecture and code completeness
         shell: pwsh
         run: |
-          python -m compileall -q app.py core.py domain.py net_client.py storage.py engine.py evidence.py service.py contracts.py architecture_gate.py release_gate.py real_network_check.py tests
+          python -m compileall -q app.py core.py domain.py net_client.py storage.py engine.py evidence.py service.py contracts.py architecture_gate.py business_gate.py release_gate.py real_network_check.py tests
           python architecture_gate.py
+          python business_gate.py
           if ($LASTEXITCODE -ne 0) { throw "Architecture Gate failed" }
       - name: Self-Test
         shell: pwsh
@@ -97,7 +98,7 @@ jobs:
         shell: pwsh
         run: |
           @'
-          {"gates":{"purpose_model":"PASS","five_why":"PASS","risk_boundary":"PASS","domain_model":"PASS","architecture":"PASS","function_contract":"PASS","interface_contract":"PASS","data_source":"PASS","netclient":"PASS","storage":"PASS","engine":"PASS","evidence":"PASS","service":"PASS","ui":"PASS","self_test":"PASS","contract_test":"PASS","fault_injection":"PASS","real_network":"PASS","windows_build":"PASS","exact_exe":"PASS","gui_smoke":"PASS","same_hash":"PASS"}}
+          {"gates":{"purpose_model":"PASS","five_why":"PASS","risk_boundary":"PASS","domain_model":"PASS","architecture":"PASS","function_contract":"PASS","interface_contract":"PASS","data_source":"PASS","netclient":"PASS","storage":"PASS","engine":"PASS","evidence":"PASS","service":"PASS","ui":"PASS","self_test":"PASS","contract_test":"PASS","fault_injection":"PASS","real_network":"PASS","windows_build":"PASS","exact_exe":"PASS","gui_smoke":"PASS","same_hash":"PASS","business_content":"PASS"}}
           '@ | Out-File ".\evidence\gate_input.json" -Encoding utf8
           python release_gate.py --input ".\evidence\gate_input.json" --output ".\evidence\final_gate.json"
           if ($LASTEXITCODE -ne 0) { throw "Final Gate failed" }
@@ -109,14 +110,14 @@ jobs:
           $hash=(Get-FileHash ".\dist\final\Guoxue_Zhice_Pro.exe" -Algorithm SHA256).Hash.ToLower()
           $size=(Get-Item ".\dist\final\Guoxue_Zhice_Pro.exe").Length
           $gate=Get-Content ".\evidence\final_gate.json" -Raw | ConvertFrom-Json
-          $report=@{schema="guoxue-zhice-hard-gate-v2";version="0.2.0";artifact="Guoxue_Zhice_Pro.exe";source_commit=$env:GITHUB_SHA;sha256=$hash;size=$size;hard_fail_count=$gate.hard_fail_count;final_gate=$gate.final_gate;exact_exe="PASS";gui_smoke="PASS";real_network="PASS";same_hash="PASS"}
+          $report=@{schema="guoxue-zhice-hard-gate-v2";version="0.3.0";artifact="Guoxue_Zhice_Pro.exe";source_commit=$env:GITHUB_SHA;sha256=$hash;size=$size;hard_fail_count=$gate.hard_fail_count;final_gate=$gate.final_gate;exact_exe="PASS";gui_smoke="PASS";real_network="PASS";same_hash="PASS"}
           $report | ConvertTo-Json | Set-Content ".\evidence\FINAL_ACCEPTANCE.json" -Encoding UTF8
           Write-Host "FINAL_EXE_SHA256=$hash"
           Write-Host "FINAL_GATE=$($gate.final_gate)"
       - name: Upload Unique Final Product
         uses: actions/upload-artifact@v4
         with:
-          name: Guoxue_Zhice_FINAL_v0.2.0
+          name: Guoxue_Zhice_FINAL_v0.3.0
           path: guoxue-zhice/dist/final/Guoxue_Zhice_Pro.exe
           if-no-files-found: error
           retention-days: 30
@@ -124,7 +125,7 @@ jobs:
       - name: Upload Audit Evidence
         uses: actions/upload-artifact@v4
         with:
-          name: Guoxue_Zhice_AUDIT_v0.2.0
+          name: Guoxue_Zhice_AUDIT_v0.3.0
           path: guoxue-zhice/evidence/**
           if-no-files-found: error
           retention-days: 30

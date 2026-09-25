@@ -7,7 +7,7 @@ from evidence import EvidenceLedger
 from net_client import NetClient
 from storage import Store
 
-MANIFEST_URLS=["https://raw.githubusercontent.com/douluo511/Geometry-Lotto-Pro/main/guoxue-zhice/data/update_manifest.json","https://raw.githubusercontent.com/douluo511/Geometry-Lotto-Pro/guoxue-zhice-v0.1/guoxue-zhice/data/update_manifest.json"]
+MANIFEST_URLS=["https://raw.githubusercontent.com/douluo511/Geometry-Lotto-Pro/guoxue-zhice-v0.2-hard-gate/guoxue-zhice/data/update_manifest.json","https://raw.githubusercontent.com/douluo511/Geometry-Lotto-Pro/main/guoxue-zhice/data/update_manifest.json"]
 
 class GuoxueService:
     def __init__(self, root: Path|None=None, *, store: Store|None=None, net_client=None):
@@ -31,6 +31,11 @@ class GuoxueService:
         raise RuntimeError("无法获取有效更新清单；"+" | ".join(failures))
     def one_click_update(self):
         manifest,manifest_meta=self._fetch_manifest()
+        current=self.store.load_knowledge()
+        def _v(v): return tuple(int(x) if str(x).isdigit() else 0 for x in str(v).split("."))
+        if _v(manifest["version"]) < _v(current.get("version","0")):
+            result={"status":"PASS","update_status":"NOOP_OLDER_REMOTE","version":current.get("version"),"classics":len(current["classics"]),"sha256":"","source":manifest_meta["source"],"http_status":manifest_meta["http_status"],"manifest_source":manifest_meta["source"],"payload_hash":manifest_meta.get("payload_sha256","")}
+            self.evidence.record("update","PASS",**result); return result
         raw,data_meta=self.net.get_bytes(str(manifest["data_url"]),("application/json","text/plain","application/octet-stream"))
         digest=sha256_bytes(raw)
         if digest.lower()!=str(manifest["sha256"]).lower():

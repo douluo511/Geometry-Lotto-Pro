@@ -3,7 +3,7 @@ import hashlib
 from typing import Any
 
 APP_NAME = "国学智策系统"
-APP_VERSION = "0.2.0"
+APP_VERSION = "0.3.0"
 
 class ContractError(ValueError):
     pass

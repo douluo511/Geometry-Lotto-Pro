@@ -1,7 +1,7 @@
 from __future__ import annotations
 import argparse, json
 from pathlib import Path
-REQUIRED_GATES=["purpose_model","five_why","risk_boundary","domain_model","architecture","function_contract","interface_contract","data_source","netclient","storage","engine","evidence","service","ui","self_test","contract_test","fault_injection","real_network","windows_build","exact_exe","gui_smoke","same_hash"]
+REQUIRED_GATES=["purpose_model","five_why","risk_boundary","domain_model","architecture","function_contract","interface_contract","data_source","netclient","storage","engine","evidence","service","ui","self_test","contract_test","fault_injection","real_network","windows_build","exact_exe","gui_smoke","same_hash","business_content"]
 def evaluate(value):
     gates=value.get("gates") if isinstance(value,dict) else None
     if not isinstance(gates,dict): return {"final_gate":"FAIL","hard_fail_count":len(REQUIRED_GATES),"failures":["gates missing"]}
