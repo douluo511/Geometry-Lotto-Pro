@@ -35,7 +35,7 @@ class GuoxueService:
         def _v(v): return tuple(int(x) if str(x).isdigit() else 0 for x in str(v).split("."))
         if _v(manifest["version"]) < _v(current.get("version","0")):
             result={"status":"PASS","update_status":"NOOP_OLDER_REMOTE","version":current.get("version"),"classics":len(current["classics"]),"sha256":"","source":manifest_meta["source"],"http_status":manifest_meta["http_status"],"manifest_source":manifest_meta["source"],"payload_hash":manifest_meta.get("payload_sha256","")}
-            self.evidence.record("update","PASS",**result); return result
+            self.evidence.record("update","PASS",**{k:v for k,v in result.items() if k!="status"}); return result
         raw,data_meta=self.net.get_bytes(str(manifest["data_url"]),("application/json","text/plain","application/octet-stream"))
         digest=sha256_bytes(raw)
         if digest.lower()!=str(manifest["sha256"]).lower():
