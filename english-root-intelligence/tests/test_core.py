@@ -28,7 +28,7 @@ class CoreTests(unittest.TestCase):
             e = LearningEngine(Store(Path(td)))
             r = e.analyze("xylophone")
             self.assertLess(r["confidence"], 0.5)
-            self.assertIsNone(r["root"])
+            self.assertEqual(r["meaning"], "需要结合词典语境确认")
 
     def test_repair(self):
         with tempfile.TemporaryDirectory() as td:
