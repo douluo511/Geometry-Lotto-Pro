@@ -1,6 +1,6 @@
 # Geometry Lotto Pro SSQ — Frozen Engineering Contract
 
-Target version: 8.4.3-verification
+Target version: 8.5.0-verification
 
 ## Requirement / Purpose Model
 Maintain a self-contained Windows SSQ research application with four real entries: 预测下一期 / 一键更新 / 一键修复 / 高级分析. Prediction paths must fail closed and never claim validated edge without the frozen scientific protocol.
@@ -43,8 +43,11 @@ Source self-test plus explicit integrity-tamper, offline-failclosed, corrupt-rep
 ## Windows Build / Exact EXE / GUI Smoke / Same Hash
 PyInstaller output is frozen, all acceptance checks run on the exact EXE, native GUI routing is tested, default GUI must stay alive, Unicode-path/no-Python-PATH must pass, and release bytes must match tested SHA256.
 
+## Business Content Gate
+The scientific/business specification in BUSINESS_SPEC.md must also return PASS. Engineering PASS alone is not project completion.
+
 ## Final Gate
-All 22 mother-template gates must be exactly PASS:
+All mother-template engineering gates plus business_content must be exactly PASS:
 purpose_model, five_why, risk_boundary, domain_model, architecture, function_contract, interface_contract, data_source, netclient, storage, engine, evidence, service, ui, self_test, contract_test, fault_injection, real_network, windows_build, exact_exe, gui_smoke, same_hash.
 
 Any FAIL/PENDING/WARNING/UNAVAILABLE/SKIPPED/UNKNOWN => FINAL_GATE=FAIL.

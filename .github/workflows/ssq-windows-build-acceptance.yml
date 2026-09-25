@@ -41,6 +41,9 @@ jobs:
       - name: Architecture mother-template gate
         run: python tools/architecture_gate.py
 
+      - name: Business / Scientific Content Gate
+        run: python tools/business_gate.py
+
       - name: Source contract self-test
         shell: pwsh
         run: |
@@ -86,7 +89,7 @@ jobs:
           $reportPath = "evidence\SSQ\WINDOWS_EXACT_EXE_ACCEPTANCE.json"
           if (-not (Test-Path $reportPath)) { throw "acceptance report missing" }
           @'
-          {"gates":{"purpose_model":"PASS","five_why":"PASS","risk_boundary":"PASS","domain_model":"PASS","architecture":"PASS","function_contract":"PASS","interface_contract":"PASS","data_source":"PASS","netclient":"PASS","storage":"PASS","engine":"PASS","evidence":"PASS","service":"PASS","ui":"PASS","self_test":"PASS","contract_test":"PASS","fault_injection":"PASS","real_network":"PASS","windows_build":"PASS","exact_exe":"PASS","gui_smoke":"PASS","same_hash":"PASS"}}
+          {"gates":{"purpose_model":"PASS","five_why":"PASS","risk_boundary":"PASS","domain_model":"PASS","architecture":"PASS","function_contract":"PASS","interface_contract":"PASS","data_source":"PASS","netclient":"PASS","storage":"PASS","engine":"PASS","evidence":"PASS","service":"PASS","ui":"PASS","self_test":"PASS","contract_test":"PASS","fault_injection":"PASS","real_network":"PASS","windows_build":"PASS","exact_exe":"PASS","gui_smoke":"PASS","same_hash":"PASS","business_content":"PASS"}}
           '@ | Out-File evidence\SSQ\mother-gates.json -Encoding utf8
           python tools/release_gate_22.py --gate-input evidence\SSQ\mother-gates.json --acceptance $reportPath --exe dist\Geometry_Lotto_Pro_SSQ_Windows_Verified.exe --report evidence\SSQ\FINAL_22_GATE.json
           $final = Get-Content evidence\SSQ\FINAL_22_GATE.json -Raw | ConvertFrom-Json
@@ -98,7 +101,7 @@ jobs:
       - name: Upload final EXE only after all hard gates pass
         uses: actions/upload-artifact@v4
         with:
-          name: Geometry-Lotto-Pro-SSQ-FINAL-v8.4.3-Windows-x64
+          name: Geometry-Lotto-Pro-SSQ-FINAL-v8.5.0-Windows-x64
           path: |
             SSQ/dist/Geometry_Lotto_Pro_SSQ_Windows_Verified.exe
             SSQ/evidence/SSQ/**
