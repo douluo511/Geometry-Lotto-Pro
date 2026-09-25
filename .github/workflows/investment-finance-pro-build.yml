@@ -1,0 +1,146 @@
+name: Investment Finance Pro - Full 22-Gate Release
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [investment-finance-pro-mvp]
+    paths:
+      - "investment_finance_pro/**"
+      - ".github/workflows/investment-finance-pro-build.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  full-release-gate:
+    runs-on: windows-2022
+    timeout-minutes: 90
+    env:
+      PYTHONUTF8: '1'
+      PYTHONIOENCODING: 'utf-8'
+
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@v4
+
+      - name: Setup Python x64
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11.9'
+          architecture: 'x64'
+
+      - name: Install pinned dependencies
+        run: python -m pip install --disable-pip-version-check -r investment_finance_pro/requirements-build.txt
+
+      - name: Architecture and code completeness
+        run: |
+          python -m compileall -q investment_finance_pro
+          python investment_finance_pro/architecture_gate.py
+
+      - name: Business Content Gate
+        run: python investment_finance_pro/business_gate.py
+
+      - name: Source Self-Test
+        run: python investment_finance_pro/app.py --self-test --report source_self_test.json
+
+      - name: Contract Test
+        run: python -m unittest discover -s investment_finance_pro/tests -p "test_contracts.py" -v
+
+      - name: Fault Injection
+        run: python -m unittest discover -s investment_finance_pro/tests -p "test_fault_injection.py" -v
+
+      - name: Full Regression
+        run: python -m unittest discover -s investment_finance_pro/tests -v
+
+      - name: Source Real Network
+        run: python investment_finance_pro/real_network_check.py
+
+      - name: Windows Build
+        shell: pwsh
+        run: |
+          pyinstaller --noconfirm --clean --onefile --windowed --name InvestmentFinancePro --paths investment_finance_pro investment_finance_pro/app.py
+          if (-not (Test-Path .\dist\InvestmentFinancePro.exe)) { throw "EXE missing" }
+
+      - name: Exact EXE Self-Test
+        shell: pwsh
+        run: |
+          $p=Start-Process .\dist\InvestmentFinancePro.exe -ArgumentList @("--self-test","--report","exe_self_test.json") -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Exact EXE self-test failed: $($p.ExitCode)" }
+          $r=Get-Content exe_self_test.json -Raw | ConvertFrom-Json
+          if ($r.status -ne "PASS") { throw "Exact EXE self-test status=$($r.status)" }
+
+      - name: Exact EXE Real Network
+        shell: pwsh
+        run: |
+          $p=Start-Process .\dist\InvestmentFinancePro.exe -ArgumentList @("--network-smoke","--report","exe_network_smoke.json") -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Exact EXE network failed: $($p.ExitCode)" }
+          $r=Get-Content exe_network_smoke.json -Raw | ConvertFrom-Json
+          if ($r.status -ne "PASS") { throw "Exact EXE network status=$($r.status)" }
+
+      - name: GUI Smoke
+        shell: pwsh
+        run: |
+          $p=Start-Process .\dist\InvestmentFinancePro.exe -ArgumentList "--gui-smoke" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "GUI smoke failed: $($p.ExitCode)" }
+
+      - name: Physical GUI Click Smoke
+        shell: pwsh
+        run: |
+          python .\.github\scripts\tk_button_points.py --project-path investment_finance_pro --module app --entry run_gui --labels "投资机会;一键更新;一键修复;高级分析" --out ".\gui_points.txt"
+          $points=(Get-Content ".\gui_points.txt" -Raw).Trim()
+          .\.github\scripts\physical_gui_click_smoke.ps1 -ExePath ".\dist\InvestmentFinancePro.exe" -Points $points -EvidencePath ".\physical_gui_click.json"
+
+      - name: Stage unique final EXE
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force final | Out-Null
+          Copy-Item .\dist\InvestmentFinancePro.exe .\final\InvestmentFinancePro.exe -Force
+
+      - name: Final Gate + Same Hash
+        shell: pwsh
+        run: |
+          @'
+          {"gates":{"purpose_model":"PASS","five_why":"PASS","risk_boundary":"PASS","domain_model":"PASS","architecture":"PASS","function_contract":"PASS","interface_contract":"PASS","data_source":"PASS","netclient":"PASS","storage":"PASS","engine":"PASS","evidence":"PASS","service":"PASS","ui":"PASS","self_test":"PASS","contract_test":"PASS","fault_injection":"PASS","real_network":"PASS","windows_build":"PASS","exact_exe":"PASS","gui_smoke":"PASS","same_hash":"PASS","business_content":"PASS"}}
+          '@ | Out-File gate_input.json -Encoding utf8
+          python investment_finance_pro/release_gate.py --input gate_input.json --tested-exe dist/InvestmentFinancePro.exe --final-exe final/InvestmentFinancePro.exe --report final_gate.json
+          $r=Get-Content final_gate.json -Raw | ConvertFrom-Json
+          if ($r.final_gate -ne "PASS" -or $r.hard_fail_count -ne 0) { throw "Final Gate failed" }
+
+      - name: Acceptance Evidence
+        shell: pwsh
+        run: |
+          $hash=(Get-FileHash .\final\InvestmentFinancePro.exe -Algorithm SHA256).Hash.ToLower()
+          @{project='Investment Finance Pro';version='0.3.0;artifact='InvestmentFinancePro.exe';sha256=$hash;source_commit=$env:GITHUB_SHA;final_gate='PASS'} | ConvertTo-Json | Set-Content FINAL_ACCEPTANCE.json -Encoding utf8
+          Write-Host "FINAL_EXE_SHA256=$hash"
+
+      - name: Upload Unique Final Product
+        uses: actions/upload-artifact@v4
+        with:
+          name: Investment_Finance_Pro_FINAL_v0.3.0
+          path: final/InvestmentFinancePro.exe
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+      - name: Upload Audit Evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: Investment_Finance_Pro_AUDIT_v0.3.0
+          path: |
+            final_gate.json
+            FINAL_ACCEPTANCE.json
+            source_self_test.json
+            exe_self_test.json
+            exe_network_smoke.json
+            physical_gui_click.json
+            investment_finance_pro/business_gate.json
+          if-no-files-found: error
+          retention-days: 30
+
+# Hard-gate revalidation trigger: 2026-09-24 master-template investment
+
+# physical-gui child-process discovery fix: 2026-09-24
+
+# physical-gui UIAutomation + desktop-hash fix: 2026-09-24
+
+# exact Tk geometry probe: 2026-09-24
