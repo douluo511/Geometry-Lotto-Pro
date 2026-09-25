@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": "0.1.0",
-  "data_url": "https://raw.githubusercontent.com/douluo511/Geometry-Lotto-Pro/main/guoxue-zhice/data/knowledge.json",
-  "sha256": "514d61b5792c24d630c0218ea4663d6561f96976b53415cbd513d3fa03c2c14f"
+  "version": "0.3.0",
+  "data_url": "https://raw.githubusercontent.com/douluo511/Geometry-Lotto-Pro/guoxue-zhice-v0.2-hard-gate/guoxue-zhice/data/knowledge.json",
+  "sha256": "1a0d35591b631616b4f4eed4070986a8889c33457d719f36e33becf5e29b9129"
 }
