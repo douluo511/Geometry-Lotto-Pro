@@ -6,6 +6,15 @@ Write-Host "SHA256=$hash"
 New-Item -ItemType Directory -Force -Path artifacts | Out-Null
 $hash | Set-Content -Encoding ascii artifacts\exe.sha256.txt
 
+function Invoke-BoundedExe([string]$label, [string[]]$arguments, [int]$timeoutSeconds) {
+  $p = Start-Process -FilePath $exe -ArgumentList $arguments -PassThru
+  if (-not $p.WaitForExit($timeoutSeconds * 1000)) {
+    & taskkill /PID $p.Id /T /F 2>$null | Out-Null
+    throw "$label timed out after $timeoutSeconds seconds; process tree terminated"
+  }
+  return $p.ExitCode
+}
+
 function Assert-Result([string]$path, [string]$label) {
   if (-not (Test-Path $path)) { throw "$label result file missing: $path" }
   $r = Get-Content $path -Raw | ConvertFrom-Json
@@ -13,21 +22,21 @@ function Assert-Result([string]$path, [string]$label) {
 }
 
 # 1. Core deterministic self-test on the exact EXE.
-$p = Start-Process -FilePath $exe -ArgumentList '--self-test','--result-file','artifacts\self_test.json' -Wait -PassThru
-if ($p.ExitCode -ne 0) { throw "self-test exit code $($p.ExitCode)" }
+$code = Invoke-BoundedExe 'self-test' @('--self-test','--result-file','artifacts\self_test.json') 120
+if ($code -ne 0) { throw "self-test exit code $code" }
 Assert-Result 'artifacts\self_test.json' 'self-test'
 
 # 2. Real native Win32 window creation / four-entry binding test.
-$p = Start-Process -FilePath $exe -ArgumentList '--gui-self-test','--result-file','artifacts\gui_self_test.json' -Wait -PassThru
-if ($p.ExitCode -ne 0) { throw "gui-self-test exit code $($p.ExitCode)" }
+$code = Invoke-BoundedExe 'gui-self-test' @('--gui-self-test','--result-file','artifacts\gui_self_test.json') 120
+if ($code -ne 0) { throw "gui-self-test exit code $code" }
 Assert-Result 'artifacts\gui_self_test.json' 'gui-self-test'
 
 # 3. Full exact-package acceptance: real network + autonomous prediction +
 # repair + strict scientific falsification + audit isolation.
-$p = Start-Process -FilePath $exe -ArgumentList '--acceptance','--result-file','artifacts\acceptance.json' -Wait -PassThru
-if ($p.ExitCode -ne 0) {
+$code = Invoke-BoundedExe 'full acceptance' @('--acceptance','--result-file','artifacts\acceptance.json') 2700
+if ($code -ne 0) {
   if (Test-Path artifacts\acceptance.json) { Get-Content artifacts\acceptance.json -Raw }
-  throw "acceptance exit code $($p.ExitCode)"
+  throw "acceptance exit code $code"
 }
 
 $report = Get-Content artifacts\acceptance.json -Raw | ConvertFrom-Json
@@ -48,7 +57,8 @@ $oldPythonHome = $env:PYTHONHOME
 try {
   $env:PYTHONPATH = ''
   $env:PYTHONHOME = ''
-  $p = Start-Process -FilePath $unicodeExe -ArgumentList '--self-test','--result-file',(Join-Path $unicodeDir 'self.json') -Wait -PassThru
+  $p = Start-Process -FilePath $unicodeExe -ArgumentList @('--self-test','--result-file',(Join-Path $unicodeDir 'self.json')) -PassThru
+  if (-not $p.WaitForExit(120000)) { & taskkill /PID $p.Id /T /F 2>$null | Out-Null; throw "unicode/no-python self-test timeout" }
   if ($p.ExitCode -ne 0) { throw "unicode/no-python self-test exit=$($p.ExitCode)" }
   $u = Get-Content (Join-Path $unicodeDir 'self.json') -Raw | ConvertFrom-Json
   if ($u.status -ne 'PASS') { throw "unicode/no-python self-test status=$($u.status)" }

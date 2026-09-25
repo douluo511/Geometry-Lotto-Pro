@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 import sys
+import multiprocessing
 import tempfile
 import traceback
 from pathlib import Path
@@ -296,7 +297,21 @@ def run_acceptance(result_file: str | None = None) -> int:
     return 0 if report["final_release_gate"] == "PASS" else 2
 
 
+def _finish_cli(code: int) -> int:
+    # PyInstaller one-file/windowed bootloaders can keep a frozen child alive
+    # after normal SystemExit on some Windows runners. For CLI acceptance modes
+    # we have already written all evidence, so terminate the frozen interpreter
+    # deterministically instead of relying on atexit/thread cleanup.
+    if getattr(sys, "frozen", False):
+        try: sys.stdout.flush()
+        except Exception: pass
+        try: sys.stderr.flush()
+        except Exception: pass
+        os._exit(int(code))
+    return int(code)
+
 def main() -> int:
+    multiprocessing.freeze_support()
     parser = argparse.ArgumentParser(prog="GeometryLottoPro")
     parser.add_argument("--self-test", action="store_true")
     parser.add_argument("--gui-self-test", action="store_true")
@@ -308,14 +323,14 @@ def main() -> int:
         value = self_test()
         _write_json(args.result_file, value)
         print(json.dumps(value, ensure_ascii=True, indent=2))
-        return 0 if value.get("status") == "PASS" else 2
+        return _finish_cli(0 if value.get("status") == "PASS" else 2)
     if args.gui_self_test:
         value = gui_self_test()
         _write_json(args.result_file, value)
         print(json.dumps(value, ensure_ascii=True, indent=2))
-        return 0 if value.get("status") == "PASS" else 2
+        return _finish_cli(0 if value.get("status") == "PASS" else 2)
     if args.acceptance:
-        return run_acceptance(args.result_file)
+        return _finish_cli(run_acceptance(args.result_file))
 
     run_gui()
     return 0

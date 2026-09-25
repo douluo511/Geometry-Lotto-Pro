@@ -288,6 +288,9 @@ def build_canonical(
     receipts: list[SourceReceipt] = [national_receipt, jiangsu_receipt, gansu_receipt]
     verification = ""
     canonical_draws: list[Draw]
+    # Source hierarchy is explicit: Jiangsu is required Primary, Gansu is
+    # required Secondary. The national API remains a supplemental cross-check
+    # and its WAF failure is always recorded as FAIL, never converted to PASS.
 
     if national is not None:
         jm = {d.issue: d for d in jiangsu}
@@ -399,7 +402,9 @@ def build_canonical(
         "latest": canonical_draws[-1].to_dict(),
         "crosscheck_count": crosscheck_count,
         "crosscheck_status": "PASS",
-        "network_gate": "PASS",
+        "network_gate": "PASS" if jiangsu_receipt.status == "PASS" and gansu_receipt.status == "PASS" else "FAIL",
+        "required_sources": {"primary": "jiangsu", "secondary": "gansu"},
+        "supplemental_national_status": national_receipt.status,
         "verification": verification,
         "source_receipts": [asdict(x) for x in receipts],
         "national_raw_manifest": raw_manifest,

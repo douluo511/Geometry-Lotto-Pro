@@ -1,6 +1,6 @@
 # Geometry Lotto Pro DLT — Frozen Engineering Contract
 
-Target version: 2.2.1-verification
+Target version: 2.3.0-verification
 
 ## Requirement / Purpose Model
 Provide a self-contained Windows DLT research app with four real entries: 预测下一期 / 一键更新 / 一键修复 / 高级分析. No guaranteed-win claim; production prediction remains fail-closed unless the frozen scientific gate passes.
@@ -21,7 +21,7 @@ UI -> LottoService -> Engine / Evidence / Storage / Sources -> NetClient -> offi
 The four UI entries route through Service. Source GETs use NetClient. Engine owns research calculations. Evidence records verifiable outcomes.
 
 ## Data Sources
-Primary national China Sports Lottery history API with independent Jiangsu and Gansu official provincial cross-check. A stale trusted baseline may advance only through consecutive dual-official consensus; the >=10 overlap threshold remains unchanged.
+Required Primary is Jiangsu Sports Lottery DLT history and required Secondary is Gansu Sports Lottery DLT history. Both must be live, agree on the latest draw and at least 10 overlapping draws. The national China Sports Lottery API is supplemental; WAF failure remains explicit FAIL and is never converted to source PASS. A stale trusted baseline may advance only through consecutive Primary+Secondary consensus.
 
 ## NetClient
 HTTPS only; independent connect/read timeout; bounded idempotent GET retry; 408/429/5xx handling; exponential backoff; no fake success.
@@ -35,8 +35,11 @@ Source self-test, exact-package negative paths, corrupt repair, offline fail-clo
 ## Windows Build / Exact EXE / GUI Smoke / Same Hash
 The Windows EXE is frozen once built. All acceptance is executed against those exact bytes, including native GUI smoke and SHA256 equality.
 
+## Business / Scientific Gate
+BUSINESS_SPEC.md and scripts/business_gate.py are a mandatory release gate. Engineering completion alone is not project completion.
+
 ## Final Gate
-All 22 mother-template gates must be exactly PASS:
+All mother-template gates plus business_content must be exactly PASS:
 purpose_model, five_why, risk_boundary, domain_model, architecture, function_contract, interface_contract, data_source, netclient, storage, engine, evidence, service, ui, self_test, contract_test, fault_injection, real_network, windows_build, exact_exe, gui_smoke, same_hash.
 
 Any other state => FINAL_GATE=FAIL.

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 APP_NAME = "Geometry Lotto Pro"
-APP_VERSION = "2.2.1-verification"
+APP_VERSION = "2.3.0-verification"
 GAME = "DLT"
 FRONT_MAX = 35
 FRONT_PICK = 5
@@ -11,9 +11,12 @@ BACK_PICK = 2
 NATIONAL_URL = "https://webapi.sporttery.cn/gateway/lottery/getHistoryPageListV1.qry"
 JIANGSU_URL = "https://api.js-lottery.com/wfzq/dlt/data"
 SOURCE_NAMES = {
-    "national": "中国体育彩票官方开奖接口",
-    "jiangsu": "江苏省体育彩票管理中心",
+    "jiangsu": "江苏省体育彩票管理中心（Primary）",
+    "gansu": "甘肃省体育彩票管理中心（Secondary）",
+    "national": "中国体育彩票全国接口（Supplemental cross-check）",
 }
+REQUIRED_PRIMARY_SOURCE = "jiangsu"
+REQUIRED_SECONDARY_SOURCE = "gansu"
 FOUR_ENTRIES = ("预测下一期", "一键更新", "一键修复", "高级分析")
 DAN_STATES = ("NULL_DAN", "RESEARCH_DAN", "WATCHLIST_DAN", "CERTIFIED_DAN")
 
