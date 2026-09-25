@@ -6,7 +6,7 @@ from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import Dict, List, Tuple
 
-APP_VERSION = "0.2.0"
+APP_VERSION = "0.3.0"
 SCHEMA_VERSION = 1
 
 
@@ -120,35 +120,38 @@ def build_state(text: str, goal: str) -> dict:
     }
 
 
-def generate_hypotheses(text: str, state: dict) -> List[Hypothesis]:
-    base = [
-        Hypothesis("信息或理解差异", 0.25, [], [], ["双方掌握的信息是否一致？", "是否存在未说明的限制？"]),
-        Hypothesis("利益或资源约束", 0.25, [], [], ["对方具体收益/损失是什么？", "预算、时间或权限是否受限？"]),
-        Hypothesis("关系或身份防御", 0.25, [], [], ["是否发生过让对方失去面子或控制感的事件？"]),
-        Hypothesis("策略性试探/议价", 0.25, [], [], ["对方在类似情境是否一贯如此？", "是否存在替代选择或底线测试？"]),
+def generate_hypotheses(text: str, state: dict, knowledge: dict | None = None) -> List[Hypothesis]:
+    templates = (knowledge or {}).get("hypothesis_templates") or [
+        {"name":"信息或理解差异","signals":["不知道","没说","误会","不清楚"],"counter_signals":[],"questions":["双方掌握的信息是否一致？"]},
+        {"name":"利益或资源约束","signals":["价格","钱","预算","付款","资源","期限","成本"],"counter_signals":[],"questions":["对方具体收益/损失是什么？"]},
+        {"name":"关系或身份防御","signals":["面子","尊重","否认","指责","冷淡","生气"],"counter_signals":[],"questions":["是否发生身份或角色威胁？"]},
+        {"name":"协调接口失败","signals":["谁负责","没通知","没说时间"],"counter_signals":[],"questions":["责任、时间和交付接口是否明确？"]},
     ]
+    rows: List[Hypothesis] = []
+    low = text.lower()
+    for item in templates:
+        support=[x for x in item.get("signals",[]) if str(x).lower() in low]
+        against=[x for x in item.get("counter_signals",[]) if str(x).lower() in low]
+        raw=0.20 + 0.13*len(support) - 0.10*len(against)
+        rows.append(Hypothesis(
+            str(item.get("name","待验证解释")),
+            max(0.03,raw),
+            [f"出现信号：{x}" for x in support] or ["暂无直接证据，仅作为竞争解释保留"],
+            [f"出现反向信号：{x}" for x in against] or ["若后续稳定行为与该解释矛盾，应立即降权"],
+            list(item.get("questions",[])) or ["还缺什么可验证事实？"],
+        ))
+    total=sum(max(x.score,0.01) for x in rows)
+    for h in rows: h.score=round(h.score/total,3)
+    return sorted(rows,key=lambda h:h.score,reverse=True)
 
-    def boost(idx: int, amount: float, evidence: str):
-        base[idx].score += amount
-        base[idx].evidence_for.append(evidence)
-
-    if any(k in text for k in ["不知道", "没说", "误会", "没回复", "不清楚"]):
-        boost(0, 0.18, "文本存在信息缺口/沟通不足信号")
-    if any(k in text for k in ["价格", "钱", "预算", "付款", "资源", "期限", "成本"]):
-        boost(1, 0.22, "文本存在明确资源或利益约束")
-    if any(k in text for k in ["面子", "尊重", "否认", "指责", "冷淡", "生气", "不理"]):
-        boost(2, 0.16, "文本出现关系/身份防御相关信号")
-    if any(k in text for k in ["压价", "底价", "试探", "谈判", "条件", "威胁", "竞争"]):
-        boost(3, 0.22, "文本出现策略性博弈/议价信号")
-
-    total = sum(max(h.score, 0.01) for h in base)
-    for h in base:
-        h.score = round(h.score / total, 3)
-        if not h.evidence_for:
-            h.evidence_for.append("暂无直接证据，仅作为竞争解释保留")
-        h.evidence_against.append("若出现稳定、可重复且与该解释矛盾的行为，应立即降权")
-    return sorted(base, key=lambda h: h.score, reverse=True)
-
+def select_knowledge_rules(text: str, knowledge: dict | None) -> list[dict]:
+    if not knowledge: return []
+    low=text.lower(); selected=[]
+    for rule in knowledge.get("rules",[]):
+        hits=[s for s in rule.get("support_signals",[]) if str(s).lower() in low]
+        if hits:
+            selected.append({"id":rule.get("id"),"title":rule.get("title"),"principle":rule.get("principle"),"hits":hits[:4],"boundary":rule.get("boundary")})
+    return selected[:8]
 
 def build_strategies(goal: str, hypotheses: List[Hypothesis]) -> List[Strategy]:
     top = hypotheses[0].name
@@ -191,16 +194,18 @@ def five_why(text: str, hypotheses: List[Hypothesis]) -> List[str]:
     ]
 
 
-def analyze(text: str, goal: str) -> dict:
+def analyze(text: str, goal: str, knowledge: dict | None = None) -> dict:
     if not text.strip():
         raise ValueError("请输入当前局面")
     state = build_state(text, goal)
-    hypotheses = generate_hypotheses(text, state)
+    hypotheses = generate_hypotheses(text, state, knowledge)
+    knowledge_rules = select_knowledge_rules(text, knowledge)
     strategies = build_strategies(state["goal"], hypotheses)
     return {
         "app_version": APP_VERSION,
         "state": state,
         "hypotheses": [asdict(x) for x in hypotheses],
+        "knowledge_rules": knowledge_rules,
         "information_gain": hypotheses[0].missing_evidence[0],
         "strategies": [asdict(x) for x in strategies],
         "reverse_validation": reverse_validation(hypotheses[0]),
@@ -226,6 +231,8 @@ def format_report(result: dict) -> str:
         f"情境：{s['context']}",
         f"时间：{s['time']}",
         f"不确定度：{s['uncertainty']}", "",
+        "【知识规则命中】",
+        *([f"• {x['title']}：{x['principle']}" for x in result.get("knowledge_rules", [])] or ["• 当前无强规则命中"]), "",
         "【竞争假设】",
     ]
     for i, h in enumerate(result["hypotheses"], 1):

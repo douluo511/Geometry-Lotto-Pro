@@ -1,30 +1,579 @@
 {
   "schema_version": 1,
-  "knowledge_version": "2026.09.24.1",
+  "knowledge_version": "2026.09.26.3",
+  "description": "Human Nature Pro evidence-oriented decision library. Competing explanations and reversible verification only.",
+  "sources": [
+    {
+      "id": "openstax_social",
+      "name": "OpenStax Psychology 2e — Social Psychology",
+      "url": "https://openstax.org/books/psychology-2e/pages/12-1-what-is-social-psychology",
+      "role": "situational attribution and social context"
+    },
+    {
+      "id": "apa_topics",
+      "name": "American Psychological Association — Psychology Topics",
+      "url": "https://www.apa.org/topics/",
+      "role": "psychology/stress/relationships reference"
+    },
+    {
+      "id": "pubmed_social",
+      "name": "Computational Social Psychology review",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/37540891/",
+      "role": "formal inference and social interaction background"
+    }
+  ],
   "rules": [
     {
       "id": "fact_inference_split",
       "title": "事实与推测分离",
       "status": "VALIDATED_PROCESS_RULE",
-      "principle": "行为线索不能直接证明他人的内心动机；应保留竞争解释并主动寻找反证。"
+      "principle": "先区分可观察事实与解释；行为线索不能直接证明内心动机。",
+      "support_signals": [
+        "肯定",
+        "一定是",
+        "故意",
+        "我觉得"
+      ],
+      "counter_signals": [
+        "事实",
+        "看到",
+        "记录"
+      ],
+      "boundary": "用于解释与验证，不用于欺骗、胁迫、操控或利用个人脆弱性。"
+    },
+    {
+      "id": "situational_first",
+      "title": "先检查情境因素",
+      "status": "SUPPORTED_PROCESS_RULE",
+      "principle": "在做人格归因前，先检查时间压力、任务负荷、角色要求与信息限制。",
+      "support_signals": [
+        "忙",
+        "截止",
+        "压力",
+        "临时",
+        "要求"
+      ],
+      "counter_signals": [
+        "长期一贯",
+        "多场景"
+      ],
+      "boundary": "用于解释与验证，不用于欺骗、胁迫、操控或利用个人脆弱性。"
     },
     {
       "id": "incentive_first",
-      "title": "先检查激励与约束",
+      "title": "激励与约束",
       "status": "SUPPORTED",
-      "principle": "在资源交换、谈判和组织场景中，先检查利益、约束、权限与替代方案。"
+      "principle": "资源交换场景先检查利益、成本、权限、风险与替代方案。",
+      "support_signals": [
+        "价格",
+        "预算",
+        "成本",
+        "资源",
+        "权限"
+      ],
+      "counter_signals": [
+        "无利益冲突"
+      ],
+      "boundary": "用于解释与验证，不用于欺骗、胁迫、操控或利用个人脆弱性。"
     },
     {
       "id": "identity_context",
       "title": "身份与情境",
       "status": "CONTEXT_DEPENDENT",
-      "principle": "同一人的行为会随角色、关系、权力结构和情境变化，不给人格贴永久标签。"
+      "principle": "同一人的行为会随角色、关系、权力结构和情境变化，不给人格贴永久标签。",
+      "support_signals": [
+        "面子",
+        "身份",
+        "职位",
+        "尊重",
+        "地位"
+      ],
+      "counter_signals": [
+        "跨情境一致"
+      ],
+      "boundary": "用于解释与验证，不用于欺骗、胁迫、操控或利用个人脆弱性。"
     },
     {
       "id": "reversible_action",
       "title": "优先可逆行动",
       "status": "SUPPORTED_PROCESS_RULE",
-      "principle": "高不确定性时优先低成本、可撤回、能产生新信息的行动。"
+      "principle": "高不确定性时优先低成本、可撤回、能产生新信息的行动。",
+      "support_signals": [
+        "不确定",
+        "试试",
+        "先看看"
+      ],
+      "counter_signals": [
+        "不可逆"
+      ],
+      "boundary": "用于解释与验证，不用于欺骗、胁迫、操控或利用个人脆弱性。"
+    },
+    {
+      "id": "base_rate_check",
+      "title": "检查基准率",
+      "status": "SUPPORTED_PROCESS_RULE",
+      "principle": "先问这种行为在类似情境中有多常见，再判断是否需要特殊解释。",
+      "support_signals": [
+        "总是",
+        "从来",
+        "唯一"
+      ],
+      "counter_signals": [
+        "基线",
+        "历史"
+      ],
+      "boundary": "用于解释与验证，不用于欺骗、胁迫、操控或利用个人脆弱性。"
+    },
+    {
+      "id": "reciprocity",
+      "title": "互惠记录",
+      "status": "CONTEXT_DEPENDENT",
+      "principle": "长期合作可观察双方投入、回应和承诺兑现是否持续对称。",
+      "support_signals": [
+        "总是我",
+        "只有我",
+        "回报",
+        "互相"
+      ],
+      "counter_signals": [
+        "一次性"
+      ],
+      "boundary": "用于解释与验证，不用于欺骗、胁迫、操控或利用个人脆弱性。"
+    },
+    {
+      "id": "commitment_consistency",
+      "title": "承诺—行动一致性",
+      "status": "SUPPORTED_PROCESS_RULE",
+      "principle": "比口头态度更重视具体承诺、时间点和后续兑现。",
+      "support_signals": [
+        "答应",
+        "承诺",
+        "做到",
+        "没做到"
+      ],
+      "counter_signals": [
+        "未承诺"
+      ],
+      "boundary": "用于解释与验证，不用于欺骗、胁迫、操控或利用个人脆弱性。"
+    },
+    {
+      "id": "information_asymmetry",
+      "title": "信息不对称",
+      "status": "SUPPORTED_PROCESS_RULE",
+      "principle": "当一方掌握更多关键信息时，先补信息而不是猜测动机。",
+      "support_signals": [
+        "不知道",
+        "隐瞒",
+        "不清楚",
+        "没告诉"
+      ],
+      "counter_signals": [
+        "信息透明"
+      ],
+      "boundary": "用于解释与验证，不用于欺骗、胁迫、操控或利用个人脆弱性。"
+    },
+    {
+      "id": "power_asymmetry",
+      "title": "权力不对称",
+      "status": "CONTEXT_DEPENDENT",
+      "principle": "决策权、资源权、退出权不对称会改变表达和选择空间。",
+      "support_signals": [
+        "老板",
+        "甲方",
+        "审批",
+        "决定权",
+        "付款方"
+      ],
+      "counter_signals": [
+        "平等协商"
+      ],
+      "boundary": "用于解释与验证，不用于欺骗、胁迫、操控或利用个人脆弱性。"
+    },
+    {
+      "id": "loss_aversion",
+      "title": "损失厌恶风险",
+      "status": "SUPPORTED_CONCEPT",
+      "principle": "人对损失的反应可能强于同等收益；重要决策要把损失框架与总价值分开看。",
+      "support_signals": [
+        "亏",
+        "失去",
+        "舍不得",
+        "损失"
+      ],
+      "counter_signals": [
+        "收益比较"
+      ],
+      "boundary": "用于解释与验证，不用于欺骗、胁迫、操控或利用个人脆弱性。"
+    },
+    {
+      "id": "sunk_cost",
+      "title": "沉没成本风险",
+      "status": "SUPPORTED_CONCEPT",
+      "principle": "已经付出的成本不应单独决定未来是否继续投入。",
+      "support_signals": [
+        "已经投入",
+        "这么多年",
+        "花了很多"
+      ],
+      "counter_signals": [
+        "未来收益"
+      ],
+      "boundary": "用于解释与验证，不用于欺骗、胁迫、操控或利用个人脆弱性。"
+    },
+    {
+      "id": "anchoring",
+      "title": "锚定风险",
+      "status": "SUPPORTED_CONCEPT",
+      "principle": "最初数字或方案可能影响后续判断，应设置独立基准。",
+      "support_signals": [
+        "原价",
+        "第一次报价",
+        "起价",
+        "底价"
+      ],
+      "counter_signals": [
+        "独立估值"
+      ],
+      "boundary": "用于解释与验证，不用于欺骗、胁迫、操控或利用个人脆弱性。"
+    },
+    {
+      "id": "confirmation_bias",
+      "title": "确认偏误风险",
+      "status": "SUPPORTED_CONCEPT",
+      "principle": "主动寻找能推翻当前判断的证据，不只收集支持证据。",
+      "support_signals": [
+        "肯定",
+        "一定",
+        "绝对",
+        "就是因为"
+      ],
+      "counter_signals": [
+        "反例"
+      ],
+      "boundary": "用于解释与验证，不用于欺骗、胁迫、操控或利用个人脆弱性。"
+    },
+    {
+      "id": "social_norm",
+      "title": "群体规范压力",
+      "status": "CONTEXT_DEPENDENT",
+      "principle": "群体意见、组织规则与公开场合会改变表达，不等同私人态度。",
+      "support_signals": [
+        "大家都",
+        "公司规定",
+        "家里都",
+        "别人怎么看"
+      ],
+      "counter_signals": [
+        "私下"
+      ],
+      "boundary": "用于解释与验证，不用于欺骗、胁迫、操控或利用个人脆弱性。"
+    },
+    {
+      "id": "status_threat",
+      "title": "身份/地位威胁",
+      "status": "CONTEXT_DEPENDENT",
+      "principle": "被否定、失面子或控制感下降时，防御反应可能上升。",
+      "support_signals": [
+        "面子",
+        "不尊重",
+        "丢脸",
+        "被否定"
+      ],
+      "counter_signals": [
+        "安全感"
+      ],
+      "boundary": "用于解释与验证，不用于欺骗、胁迫、操控或利用个人脆弱性。"
+    },
+    {
+      "id": "time_discounting",
+      "title": "短期偏好",
+      "status": "SUPPORTED_CONCEPT",
+      "principle": "即时成本和即时收益可能压过长期目标，应显式比较时间尺度。",
+      "support_signals": [
+        "马上",
+        "现在就",
+        "以后再说"
+      ],
+      "counter_signals": [
+        "长期"
+      ],
+      "boundary": "用于解释与验证，不用于欺骗、胁迫、操控或利用个人脆弱性。"
+    },
+    {
+      "id": "trust_calibration",
+      "title": "信任校准",
+      "status": "SUPPORTED_PROCESS_RULE",
+      "principle": "信任应随可验证兑现记录逐步更新，不因一次好坏永久定性。",
+      "support_signals": [
+        "信任",
+        "不放心",
+        "之前没做到"
+      ],
+      "counter_signals": [
+        "持续兑现"
+      ],
+      "boundary": "用于解释与验证，不用于欺骗、胁迫、操控或利用个人脆弱性。"
+    },
+    {
+      "id": "boundary_clarity",
+      "title": "边界清晰",
+      "status": "SUPPORTED_PROCESS_RULE",
+      "principle": "明确可接受、不可接受和可协商范围，减少猜测与升级冲突。",
+      "support_signals": [
+        "底线",
+        "不能接受",
+        "边界",
+        "必须"
+      ],
+      "counter_signals": [
+        "可协商"
+      ],
+      "boundary": "用于解释与验证，不用于欺骗、胁迫、操控或利用个人脆弱性。"
+    },
+    {
+      "id": "coordination",
+      "title": "协调接口",
+      "status": "SUPPORTED_PROCESS_RULE",
+      "principle": "很多所谓‘态度问题’来自时间、分工、责任和信息接口不清。",
+      "support_signals": [
+        "谁负责",
+        "没通知",
+        "时间没定",
+        "重复"
+      ],
+      "counter_signals": [
+        "分工清楚"
+      ],
+      "boundary": "用于解释与验证，不用于欺骗、胁迫、操控或利用个人脆弱性。"
+    },
+    {
+      "id": "repeated_game",
+      "title": "重复合作视角",
+      "status": "SUPPORTED_PROCESS_RULE",
+      "principle": "长期互动要同时考虑本次收益、信誉和未来合作价值。",
+      "support_signals": [
+        "长期",
+        "合作",
+        "下次",
+        "以后"
+      ],
+      "counter_signals": [
+        "一次性"
+      ],
+      "boundary": "用于解释与验证，不用于欺骗、胁迫、操控或利用个人脆弱性。"
+    },
+    {
+      "id": "counterfactual",
+      "title": "反事实检查",
+      "status": "SUPPORTED_PROCESS_RULE",
+      "principle": "问‘如果角色互换/关键条件相反，结论是否仍成立’以测试解释稳定性。",
+      "support_signals": [
+        "如果",
+        "假设",
+        "换位"
+      ],
+      "counter_signals": [
+        "单一路径"
+      ],
+      "boundary": "用于解释与验证，不用于欺骗、胁迫、操控或利用个人脆弱性。"
+    },
+    {
+      "id": "escalation_control",
+      "title": "升级风险控制",
+      "status": "SUPPORTED_PROCESS_RULE",
+      "principle": "冲突中优先选择不会把局面锁死的行动，并预设退出与修复条件。",
+      "support_signals": [
+        "冲突",
+        "威胁",
+        "对抗",
+        "翻脸"
+      ],
+      "counter_signals": [
+        "冷却"
+      ],
+      "boundary": "用于解释与验证，不用于欺骗、胁迫、操控或利用个人脆弱性。"
+    },
+    {
+      "id": "direct_verification",
+      "title": "直接验证优先",
+      "status": "VALIDATED_PROCESS_RULE",
+      "principle": "能通过直接沟通、文件、时间点或实际行为验证的，不用猜测替代。",
+      "support_signals": [
+        "确认",
+        "问清楚",
+        "证据",
+        "记录"
+      ],
+      "counter_signals": [
+        "听说"
+      ],
+      "boundary": "用于解释与验证，不用于欺骗、胁迫、操控或利用个人脆弱性。"
     }
+  ],
+  "hypothesis_templates": [
+    {
+      "id": "information_gap",
+      "name": "信息或理解差异",
+      "signals": [
+        "不知道",
+        "没说",
+        "误会",
+        "不清楚",
+        "没回复"
+      ],
+      "counter_signals": [
+        "信息透明",
+        "已经说明"
+      ],
+      "questions": [
+        "双方掌握的信息是否一致？",
+        "有哪些关键限制尚未说明？"
+      ]
+    },
+    {
+      "id": "resource_constraint",
+      "name": "利益或资源约束",
+      "signals": [
+        "价格",
+        "钱",
+        "预算",
+        "付款",
+        "资源",
+        "期限",
+        "成本"
+      ],
+      "counter_signals": [
+        "资源充足",
+        "预算确认"
+      ],
+      "questions": [
+        "对方具体收益/损失是什么？",
+        "预算、时间或权限是否受限？"
+      ]
+    },
+    {
+      "id": "role_or_identity",
+      "name": "角色或身份防御",
+      "signals": [
+        "面子",
+        "尊重",
+        "否认",
+        "指责",
+        "冷淡",
+        "生气"
+      ],
+      "counter_signals": [
+        "可以承认",
+        "公开说明"
+      ],
+      "questions": [
+        "是否发生身份或角色威胁？",
+        "私下和公开场合表现是否不同？"
+      ]
+    },
+    {
+      "id": "coordination_failure",
+      "name": "协调接口失败",
+      "signals": [
+        "谁负责",
+        "没通知",
+        "没说时间",
+        "重复做",
+        "忘了"
+      ],
+      "counter_signals": [
+        "分工清楚",
+        "时间确认"
+      ],
+      "questions": [
+        "责任、时间和交付接口是否明确？",
+        "问题是否在流程而非态度？"
+      ]
+    },
+    {
+      "id": "time_or_stress",
+      "name": "时间/压力负荷",
+      "signals": [
+        "忙",
+        "加班",
+        "deadline",
+        "来不及",
+        "压力大",
+        "很累"
+      ],
+      "counter_signals": [
+        "不急",
+        "很轻松"
+      ],
+      "questions": [
+        "这是稳定变化还是短期负荷？",
+        "压力解除后行为是否恢复？"
+      ]
+    },
+    {
+      "id": "boundary_need",
+      "name": "边界或自主空间需求",
+      "signals": [
+        "先别",
+        "空间",
+        "别催",
+        "让我自己",
+        "不想聊"
+      ],
+      "counter_signals": [
+        "现在聊",
+        "一起解决"
+      ],
+      "questions": [
+        "对方在保护什么边界？",
+        "怎样验证而不增加控制感？"
+      ]
+    },
+    {
+      "id": "cooperation_intent",
+      "name": "仍有合作/修复意愿",
+      "signals": [
+        "一起",
+        "我来",
+        "我负责",
+        "重新约",
+        "我改",
+        "下一步"
+      ],
+      "counter_signals": [
+        "不配合",
+        "到此为止"
+      ],
+      "questions": [
+        "是否给出具体下一步？",
+        "承诺是否随后兑现？"
+      ]
+    },
+    {
+      "id": "commitment_uncertainty",
+      "name": "具体承诺尚未形成",
+      "signals": [
+        "再看看",
+        "以后再定",
+        "到时候看",
+        "不确定"
+      ],
+      "counter_signals": [
+        "我确认",
+        "周三三点",
+        "我负责"
+      ],
+      "questions": [
+        "缺的是意愿、信息还是权限？",
+        "什么条件满足后可以形成承诺？"
+      ]
+    }
+  ],
+  "guardrails": [
+    "hypotheses_not_facts",
+    "no_coercion",
+    "no_deception",
+    "no_vulnerability_exploitation",
+    "direct_verification_preferred"
   ]
 }

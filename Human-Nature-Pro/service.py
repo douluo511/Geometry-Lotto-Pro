@@ -20,7 +20,7 @@ class HumanNatureService:
         self.storage = storage
         self.net = net
         self.evidence = evidence
-        self.engine = HumanNatureEngine()
+        self.engine = HumanNatureEngine(self.storage.load())
 
     def analyze(self, text: str, goal: str):
         result = self.engine.analyze(text, goal)
@@ -32,7 +32,13 @@ class HumanNatureService:
         try:
             raw, receipt = self.net.get(url)
             data = validate_knowledge(json.loads(raw.decode("utf-8-sig")))
+            current=self.storage.load()
+            def _v(v): return tuple(int(x) if str(x).isdigit() else 0 for x in str(v).replace("-",".").split("."))
+            if _v(data.get("knowledge_version","0")) < _v(current.get("knowledge_version","0")):
+                self.evidence.record("NETWORK","PASS",source=receipt,update_status="NOOP_OLDER_REMOTE")
+                return {"status":"PASS","update_status":"NOOP_OLDER_REMOTE","knowledge_version":current.get("knowledge_version"),"source":receipt}
             self.storage.replace(raw)
+            self.engine.set_knowledge(self.storage.load())
             self.evidence.record("NETWORK", "PASS", source=receipt)
             return {
                 "status": "PASS",
@@ -45,6 +51,7 @@ class HumanNatureService:
 
     def repair(self):
         result = self.storage.repair()
+        self.engine.set_knowledge(self.storage.load())
         self.evidence.record("STORAGE", result["status"], result=result)
         return result
 
@@ -67,6 +74,7 @@ class HumanNatureService:
             "version": APP_VERSION,
             "knowledge_version": data.get("knowledge_version", "unknown"),
             "rules": len(data["rules"]),
+            "hypothesis_templates": len(data.get("hypothesis_templates", [])),
         }
 
     def self_test(self):

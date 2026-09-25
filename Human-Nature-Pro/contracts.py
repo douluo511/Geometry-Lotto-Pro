@@ -25,4 +25,8 @@ def validate_knowledge(data: Any) -> dict:
         raise ValueError("knowledge schema mismatch")
     if not isinstance(data.get("rules"), list) or not data["rules"]:
         raise ValueError("knowledge rules missing")
+    if not isinstance(data.get("hypothesis_templates"), list) or not data["hypothesis_templates"]:
+        raise ValueError("hypothesis templates missing")
+    if not isinstance(data.get("sources"), list) or not data["sources"]:
+        raise ValueError("knowledge sources missing")
     return data

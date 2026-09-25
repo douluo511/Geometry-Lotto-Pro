@@ -26,6 +26,7 @@ HARD_GATES = [
     "exact_exe",
     "gui_smoke",
     "same_hash",
+    "business_content",
 ]
 
 def evaluate(payload: dict) -> dict:
