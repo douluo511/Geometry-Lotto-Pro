@@ -1,0 +1,198 @@
+{
+  "canonical_hash": "6b7bd70107c22cca2fd6f3444e5ccd1dba958104c81355fdbd46d1b9f4ee5b5b",
+  "canonical_payload_sha256": "6b7bd70107c22cca2fd6f3444e5ccd1dba958104c81355fdbd46d1b9f4ee5b5b",
+  "crosscheck_count": 100,
+  "crosscheck_status": "PASS",
+  "draw_count": 2928,
+  "fetched_at": "2026-09-27T20:21:27Z",
+  "latest": {
+    "back": [
+      7,
+      9
+    ],
+    "draw_date": "2026-09-26",
+    "front": [
+      3,
+      24,
+      25,
+      26,
+      35
+    ],
+    "issue": "26110"
+  },
+  "national_raw_manifest": [
+    {
+      "bytes": 306232,
+      "page": 1,
+      "sha256": "2f95f3a471e64e550097e4ff8f90340a7320a24ff6959a5df0b6b951d501f03e"
+    },
+    {
+      "bytes": 326355,
+      "page": 2,
+      "sha256": "2ed40d65468c04fcc514528efe531362e19078f911a362b16e004d7b67e3113c"
+    },
+    {
+      "bytes": 366836,
+      "page": 3,
+      "sha256": "2f592b41c204b495ec6cba59aa675b65454bfedbd1fc5547900a34d383ddd0e5"
+    },
+    {
+      "bytes": 387272,
+      "page": 4,
+      "sha256": "071ee1777fd8b6f04cd6a10fb8c006d4a6037f0700cce736fe3116c94033c175"
+    },
+    {
+      "bytes": 326316,
+      "page": 5,
+      "sha256": "e2a26095907c6a2f15d2e79b041888bd9dc67225437c3bb5b5e5218fd24ca5fa"
+    },
+    {
+      "bytes": 370446,
+      "page": 6,
+      "sha256": "1f02f7cbf556720deaa03973fe0cfcede9958895a73984c79baed21f5090aacf"
+    },
+    {
+      "bytes": 381986,
+      "page": 7,
+      "sha256": "85c8b43e87c2b714739fc9f8c929bd36e10bf7878d7c9274416b061073c62f37"
+    },
+    {
+      "bytes": 326572,
+      "page": 8,
+      "sha256": "7b92e6826e23f40113b1f7aeda6b38c8fc983862ec3e991788838fc59ecc6c1e"
+    },
+    {
+      "bytes": 368720,
+      "page": 9,
+      "sha256": "89914932e15f7f329899cc84659373f08c8eca48d379428f3b6686faacfb206a"
+    },
+    {
+      "bytes": 326307,
+      "page": 10,
+      "sha256": "6e3d70935c265e7cdc22dc65bd2cdbeb381f62dcc681f3046209f662e02d06d8"
+    },
+    {
+      "bytes": 324349,
+      "page": 11,
+      "sha256": "a082c888da24a9f16d37e10d2196fff2a2ed733a57c420c247a6c7feea1e3ad7"
+    },
+    {
+      "bytes": 320096,
+      "page": 12,
+      "sha256": "2fae56f38ce71da14b43fe7fffcf0c8fe68a4c1f2eeed4ec9a7c8310fbafb5af"
+    },
+    {
+      "bytes": 320044,
+      "page": 13,
+      "sha256": "dd9ddb0f8f47ee9504bb53827228a0cb658585efb1b905784fb3a852c9f39f81"
+    },
+    {
+      "bytes": 319973,
+      "page": 14,
+      "sha256": "548361a5b4ebe4f73421900ce57f250fc57e1c365f3b89fbb741af127642f603"
+    },
+    {
+      "bytes": 319690,
+      "page": 15,
+      "sha256": "4d16693af8d28c969567260d80d41e6ac601a91d21eed2e1498aec834d9d59ad"
+    },
+    {
+      "bytes": 317781,
+      "page": 16,
+      "sha256": "8c6f4f3be7adbfa01ec8e555e6631f2c470183d7b85ed79366759d1328ce5ef6"
+    },
+    {
+      "bytes": 317647,
+      "page": 17,
+      "sha256": "78c9dca040b7f59f5d475acbc92cc19b63366099926aad802ac65c1321d047db"
+    },
+    {
+      "bytes": 317857,
+      "page": 18,
+      "sha256": "1b7577c02db281524234279e61935f9dd910fd9fcf5d6095d630a82caa686a93"
+    },
+    {
+      "bytes": 317742,
+      "page": 19,
+      "sha256": "a1c48e933da638a4277ee7d413708604b9281a0f67f4a921251ff52d51a85bb8"
+    },
+    {
+      "bytes": 317102,
+      "page": 20,
+      "sha256": "82c1736fca50935d7a99a9f36e3d17ba9dead5709ea2897c85fa5002a09456a3"
+    },
+    {
+      "bytes": 316679,
+      "page": 21,
+      "sha256": "15ff4cf3ab45bcdf92193ed921c660ba81c08c5df3d83498b537389401580cf6"
+    },
+    {
+      "bytes": 316367,
+      "page": 22,
+      "sha256": "31d5f7d270d06908041c820751e98a32d6e426605ac37cfd30b1079ae5e6da73"
+    },
+    {
+      "bytes": 316265,
+      "page": 23,
+      "sha256": "530bd750890935a443d96f1905f2627fd106b1d77559cfce655ae83bb2bdd5b0"
+    },
+    {
+      "bytes": 315300,
+      "page": 24,
+      "sha256": "0e526854e77a4388444df578b512ece0dd041885810a9e2c977daa93b03896b1"
+    },
+    {
+      "bytes": 312809,
+      "page": 25,
+      "sha256": "eb1302e7a19705347f6171900882e00683c16c99fe6dfe6ff25eabc5df412c50"
+    },
+    {
+      "bytes": 312600,
+      "page": 26,
+      "sha256": "da19a2e3a41dfee4743928418413e8dffaed4ad71e3fa2b048011dfbe3b1346f"
+    },
+    {
+      "bytes": 312528,
+      "page": 27,
+      "sha256": "9e15941de54ed35bd0fe04daeefe62af7bc24490df67e98f68f86b97b4eb3e66"
+    },
+    {
+      "bytes": 312629,
+      "page": 28,
+      "sha256": "87a8215dda6072ef62024bdb7c473362093a71a02660167426383c703695a65e"
+    },
+    {
+      "bytes": 311994,
+      "page": 29,
+      "sha256": "e5a8f0e326c3dfa236924fbd31e574f8baa615c9cbeed9c2caaa66d07ff04e14"
+    },
+    {
+      "bytes": 88855,
+      "page": 30,
+      "sha256": "a34ed3b79b6599b4cc3661cf5d74ef4bf8a892fdefc48965536a3e6d247b411b"
+    }
+  ],
+  "source_receipts": [
+    {
+      "detail": "官方分页 30 页，总数与唯一记录一致",
+      "draw_count": 2928,
+      "fetched_at": "2026-09-27T20:21:26Z",
+      "http_status": 200,
+      "latest_issue": "26110",
+      "raw_sha256": "cb9741d3185c95d958ed4f9dcbfb384466746e7eb00cf6cb5036519ef80fb790",
+      "source": "national",
+      "status": "PASS"
+    },
+    {
+      "detail": "省级体彩独立页面解析成功",
+      "draw_count": 100,
+      "fetched_at": "2026-09-27T20:21:26Z",
+      "http_status": 200,
+      "latest_issue": "26110",
+      "raw_sha256": "3c7433c0a6d8930fe0cfb222904faf8cf15c144eca31945c966dcb1d58dc7d2f",
+      "source": "jiangsu",
+      "status": "PASS"
+    }
+  ]
+}
+
