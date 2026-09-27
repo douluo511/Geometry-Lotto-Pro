@@ -1,0 +1,32 @@
+{
+  "checks": {
+    "evidence_court_execution": "PASS",
+    "four_entry_gui": "PASS",
+    "honest_no_dan": "PASS",
+    "honest_no_edge": "PASS",
+    "no_ambiguous_gate_status": "PASS",
+    "prediction_freeze": "PASS",
+    "real_network": "PASS",
+    "repair": "PASS",
+    "seed_integrity": "PASS",
+    "self_test": "PASS"
+  },
+  "court_hash": "0d8cd4b336c4ba7fa4aced02fae38b79b059830f0eac963c61b4007d905cf66b",
+  "latest": {
+    "back": [
+      7,
+      9
+    ],
+    "draw_date": "2026-09-26",
+    "front": [
+      3,
+      24,
+      25,
+      26,
+      35
+    ],
+    "issue": "26110"
+  },
+  "status": "PASS"
+}
+
