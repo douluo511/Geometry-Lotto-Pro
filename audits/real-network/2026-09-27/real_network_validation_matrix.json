@@ -1,0 +1,167 @@
+{
+  "schema": "master-real-network-audit/1.0",
+  "generated_date": "2026-09-27",
+  "timezone": "America/New_York",
+  "policy": "Only explicit PASS counts; PENDING/WARNING/UNAVAILABLE/SKIPPED/UNKNOWN/NOT_EVALUATED are FAIL for the final gate.",
+  "project_count": 18,
+  "network_pass_count": 0,
+  "final_gate_pass_count": 0,
+  "locally_reproducible_projects": 3,
+  "projects": [
+    {
+      "project": "双色球 SSQ",
+      "target": "v8.4",
+      "tested_artifact": "v6.1.0 (non-inheritable)",
+      "tested_sha256": "9ed8ba6f781da0fafd2640e1508d2245814f9c5381828fb3153810ae6c383d0b",
+      "live_source_reachability": "PASS",
+      "timeout": "PASS",
+      "limited_retry_backoff_jitter": "FAIL",
+      "multi_source_crosscheck": "PASS",
+      "multi_source_failover": "FAIL",
+      "parser_semantic_validation": "PASS",
+      "fail_closed": "PASS_FOR_INJECTED_OFFLINE_CASE_ONLY",
+      "contract_test": "FAIL",
+      "fault_injection": "FAIL_INCOMPLETE",
+      "raw_response_retention": "FAIL",
+      "timestamp_hash_source_receipts": "PASS",
+      "latest_issue": "2026112",
+      "canonical_sha256": "838c59b4c10c1ead087070dfbf4d51d75300a9483df34ae8fe24e4b4a3b28dae",
+      "network_gate": "FAIL",
+      "refactor_required": true,
+      "reason": "Target artifact absent; tested old binary lacks retry/backoff/jitter, content-type validation, raw-body retention, failover, contract tests, and complete fault injection."
+    },
+    {
+      "project": "大乐透 DLT",
+      "target": "v2.1.2 RC5",
+      "tested_artifact": "v1.0.0 (non-inheritable)",
+      "tested_sha256": "9023c913fc041e173bc7b879549740e4254b1bb4ab3c42e0733f1be653233427",
+      "live_source_reachability": "PASS",
+      "timeout": "PASS",
+      "limited_retry_backoff_jitter": "FAIL",
+      "multi_source_crosscheck": "PASS",
+      "multi_source_failover": "FAIL",
+      "parser_semantic_validation": "PASS",
+      "fail_closed": "PASS_FOR_INJECTED_OFFLINE_CASE_ONLY",
+      "contract_test": "FAIL",
+      "fault_injection": "FAIL_INCOMPLETE",
+      "raw_response_retention": "FAIL",
+      "timestamp_hash_source_receipts": "PASS",
+      "latest_issue": "26110",
+      "canonical_sha256": "6b7bd70107c22cca2fd6f3444e5ccd1dba958104c81355fdbd46d1b9f4ee5b5b",
+      "network_gate": "FAIL",
+      "refactor_required": true,
+      "reason": "Target artifact absent; tested old binary lacks retry/backoff/jitter, content-type validation, raw-body retention, failover, contract tests, and complete fault injection."
+    },
+    {
+      "project": "Stock AI Pro / 选股软件",
+      "tested_artifact": "StockAIPro.exe",
+      "tested_sha256": "f489194033f546dd25f3f64d234cc6e2381fde971625ee3126cecc94c26559b1",
+      "live_source_reachability": "FAIL_UNAVAILABLE",
+      "timeout": "PASS",
+      "limited_retry_backoff_jitter": "FAIL",
+      "multi_source_crosscheck": "FAIL",
+      "multi_source_failover": "FAIL",
+      "parser_semantic_validation": "FAIL_NOT_EXECUTED_ON_LIVE_DATA",
+      "fail_closed": "PASS_FINAL_GATE_REMAINED_FAIL",
+      "contract_test": "FAIL",
+      "fault_injection": "FAIL_INCOMPLETE",
+      "raw_response_retention": "FAIL",
+      "timestamp_hash_source_receipts": "FAIL",
+      "exact_binary_acceptance": "SOFTWARE_PASS_BUT_PRODUCTION_FINAL_FAIL_AND_NETWORK_SUBCHECKS_ABSENT",
+      "network_gate": "FAIL",
+      "refactor_required": true,
+      "reason": "All candidate live endpoints failed; exact binary used explicit demo data. Network architecture and acceptance logic do not meet the frozen protocol."
+    },
+    {
+      "project": "心理系统",
+      "network_gate": "FAIL_UNAVAILABLE",
+      "refactor_required": true,
+      "reason": "No current source, Exact EXE, or new-protocol evidence located in the Windows workspace."
+    },
+    {
+      "project": "人性系统",
+      "network_gate": "FAIL_UNAVAILABLE",
+      "refactor_required": true,
+      "reason": "No current source, Exact EXE, or new-protocol evidence located in the Windows workspace; prototype claims are non-inheritable."
+    },
+    {
+      "project": "投资金融系统",
+      "network_gate": "FAIL_UNAVAILABLE",
+      "refactor_required": true,
+      "reason": "No current source, Exact EXE, or new-protocol evidence located in the Windows workspace."
+    },
+    {
+      "project": "英语词根系统",
+      "network_gate": "FAIL_UNAVAILABLE",
+      "refactor_required": true,
+      "reason": "No current source, Exact EXE, or new-protocol evidence located in the Windows workspace."
+    },
+    {
+      "project": "国学智策/国学经典",
+      "network_gate": "FAIL_UNAVAILABLE",
+      "refactor_required": true,
+      "reason": "No current source, Exact EXE, or new-protocol evidence located in the Windows workspace."
+    },
+    {
+      "project": "头部信息系统",
+      "network_gate": "FAIL_UNAVAILABLE",
+      "refactor_required": true,
+      "reason": "No current source, Exact EXE, or new-protocol evidence located in the Windows workspace."
+    },
+    {
+      "project": "TalkCraft / 表达训练",
+      "network_gate": "FAIL_UNAVAILABLE",
+      "refactor_required": true,
+      "reason": "No current source, Exact EXE, or new-protocol evidence located in the Windows workspace."
+    },
+    {
+      "project": "真实资金金融系统",
+      "network_gate": "FAIL_UNAVAILABLE",
+      "refactor_required": true,
+      "reason": "No current source, Exact EXE, authorized real-money data connector, or new-protocol evidence located."
+    },
+    {
+      "project": "Passive Income Pipeline OS / 收益管道",
+      "network_gate": "FAIL_UNAVAILABLE",
+      "refactor_required": true,
+      "reason": "No current source, Exact EXE, or new-protocol evidence located in the Windows workspace."
+    },
+    {
+      "project": "地球Online / 人生底层系统",
+      "network_gate": "FAIL_UNAVAILABLE",
+      "refactor_required": true,
+      "reason": "No current source, Exact EXE, or new-protocol evidence located in the Windows workspace."
+    },
+    {
+      "project": "AI 音乐制作系统",
+      "network_gate": "FAIL_UNAVAILABLE",
+      "refactor_required": true,
+      "reason": "No current source, Exact EXE, API connector, or new-protocol evidence located in the Windows workspace."
+    },
+    {
+      "project": "法哲学原理研习系统",
+      "network_gate": "FAIL_UNAVAILABLE",
+      "refactor_required": true,
+      "reason": "No current source, Exact EXE, or new-protocol evidence located in the Windows workspace; candidate status is non-inheritable."
+    },
+    {
+      "project": "不赚辛苦钱操作系统",
+      "network_gate": "FAIL_UNAVAILABLE",
+      "refactor_required": true,
+      "reason": "No current source, Exact EXE, or new-protocol evidence located in the Windows workspace."
+    },
+    {
+      "project": "做自己主人系统",
+      "network_gate": "FAIL_UNAVAILABLE",
+      "refactor_required": true,
+      "reason": "No current source, Exact EXE, or new-protocol evidence located in the Windows workspace."
+    },
+    {
+      "project": "快乐8预测系统",
+      "network_gate": "FAIL_UNAVAILABLE",
+      "refactor_required": true,
+      "reason": "Planning status only; no current source, Exact EXE, or new-protocol evidence located in the Windows workspace."
+    }
+  ]
+}
+
