@@ -1,0 +1,35 @@
+{
+  "checks": {
+    "all_four_service_routes": "PASS",
+    "deterministic_final_gate": "PASS",
+    "evidence_court_execution": "PASS",
+    "four_entry_gui": "PASS",
+    "honest_no_dan": "PASS",
+    "honest_no_edge": "PASS",
+    "no_ambiguous_gate_status": "PASS",
+    "prediction_freeze": "PASS",
+    "production_isolation": "PASS",
+    "real_network": "PASS",
+    "repair": "PASS",
+    "seed_integrity": "PASS",
+    "self_test": "PASS"
+  },
+  "court_hash": "de9ef8c3fe029176048342e9c0672fc67917e0faf8b1278bf55b83842486040e",
+  "latest": {
+    "back": [
+      11
+    ],
+    "draw_date": "2026-09-27",
+    "front": [
+      1,
+      4,
+      11,
+      12,
+      17,
+      29
+    ],
+    "issue": "2026112"
+  },
+  "status": "PASS"
+}
+
