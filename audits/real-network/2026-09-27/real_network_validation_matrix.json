@@ -1,15 +1,18 @@
 {
   "schema": "master-real-network-audit/1.0",
-  "generated_date": "2026-09-27",
+  "generated_date": "2026-09-28",
   "timezone": "America/New_York",
   "policy": "Only explicit PASS counts; PENDING/WARNING/UNAVAILABLE/SKIPPED/UNKNOWN/NOT_EVALUATED are FAIL for the final gate.",
   "project_count": 18,
   "network_pass_count": 0,
   "final_gate_pass_count": 0,
+  "execution_master_issue": "https://github.com/douluo511/Geometry-Lotto-Pro/issues/11",
+  "frozen_policy_file": "HIGH_STANDARD_EXECUTION_POLICY.md",
   "locally_reproducible_projects": 3,
   "projects": [
     {
       "project": "双色球 SSQ",
+      "execution_issue": "https://github.com/douluo511/Geometry-Lotto-Pro/issues/6",
       "target": "v8.4",
       "tested_artifact": "v6.1.0 (non-inheritable)",
       "tested_sha256": "9ed8ba6f781da0fafd2640e1508d2245814f9c5381828fb3153810ae6c383d0b",
@@ -32,6 +35,7 @@
     },
     {
       "project": "大乐透 DLT",
+      "execution_issue": "https://github.com/douluo511/Geometry-Lotto-Pro/issues/7",
       "target": "v2.1.2 RC5",
       "tested_artifact": "v1.0.0 (non-inheritable)",
       "tested_sha256": "9023c913fc041e173bc7b879549740e4254b1bb4ab3c42e0733f1be653233427",
@@ -54,6 +58,7 @@
     },
     {
       "project": "Stock AI Pro / 选股软件",
+      "execution_issue": "https://github.com/douluo511/Geometry-Lotto-Pro/issues/16",
       "tested_artifact": "StockAIPro.exe",
       "tested_sha256": "f489194033f546dd25f3f64d234cc6e2381fde971625ee3126cecc94c26559b1",
       "live_source_reachability": "FAIL_UNAVAILABLE",
@@ -74,90 +79,107 @@
     },
     {
       "project": "心理系统",
+      "execution_issue": "https://github.com/douluo511/Geometry-Lotto-Pro/issues/9",
       "network_gate": "FAIL_UNAVAILABLE",
       "refactor_required": true,
       "reason": "No current source, Exact EXE, or new-protocol evidence located in the Windows workspace."
     },
     {
       "project": "人性系统",
+      "execution_issue": "https://github.com/douluo511/Geometry-Lotto-Pro/issues/12",
       "network_gate": "FAIL_UNAVAILABLE",
       "refactor_required": true,
       "reason": "No current source, Exact EXE, or new-protocol evidence located in the Windows workspace; prototype claims are non-inheritable."
     },
     {
       "project": "投资金融系统",
+      "execution_issue": "https://github.com/douluo511/Geometry-Lotto-Pro/issues/13",
+      "source_recovery": "OPEN_PR_2_BRANCH_AVAILABLE",
       "network_gate": "FAIL_UNAVAILABLE",
       "refactor_required": true,
       "reason": "No current source, Exact EXE, or new-protocol evidence located in the Windows workspace."
     },
     {
       "project": "英语词根系统",
+      "execution_issue": "https://github.com/douluo511/Geometry-Lotto-Pro/issues/8",
       "network_gate": "FAIL_UNAVAILABLE",
       "refactor_required": true,
       "reason": "No current source, Exact EXE, or new-protocol evidence located in the Windows workspace."
     },
     {
       "project": "国学智策/国学经典",
+      "execution_issue": "https://github.com/douluo511/Geometry-Lotto-Pro/issues/10",
       "network_gate": "FAIL_UNAVAILABLE",
       "refactor_required": true,
       "reason": "No current source, Exact EXE, or new-protocol evidence located in the Windows workspace."
     },
     {
       "project": "头部信息系统",
+      "execution_issue": "https://github.com/douluo511/Geometry-Lotto-Pro/issues/14",
+      "source_recovery": "OPEN_PR_3_BRANCH_AVAILABLE_REAL_NETWORK_FAILED",
       "network_gate": "FAIL_UNAVAILABLE",
       "refactor_required": true,
       "reason": "No current source, Exact EXE, or new-protocol evidence located in the Windows workspace."
     },
     {
       "project": "TalkCraft / 表达训练",
+      "execution_issue": "https://github.com/douluo511/Geometry-Lotto-Pro/issues/15",
       "network_gate": "FAIL_UNAVAILABLE",
       "refactor_required": true,
       "reason": "No current source, Exact EXE, or new-protocol evidence located in the Windows workspace."
     },
     {
       "project": "真实资金金融系统",
+      "execution_issue": "https://github.com/douluo511/Geometry-Lotto-Pro/issues/17",
       "network_gate": "FAIL_UNAVAILABLE",
       "refactor_required": true,
       "reason": "No current source, Exact EXE, authorized real-money data connector, or new-protocol evidence located."
     },
     {
       "project": "Passive Income Pipeline OS / 收益管道",
+      "execution_issue": "https://github.com/douluo511/Geometry-Lotto-Pro/issues/18",
       "network_gate": "FAIL_UNAVAILABLE",
       "refactor_required": true,
       "reason": "No current source, Exact EXE, or new-protocol evidence located in the Windows workspace."
     },
     {
       "project": "地球Online / 人生底层系统",
+      "execution_issue": "https://github.com/douluo511/Geometry-Lotto-Pro/issues/19",
       "network_gate": "FAIL_UNAVAILABLE",
       "refactor_required": true,
       "reason": "No current source, Exact EXE, or new-protocol evidence located in the Windows workspace."
     },
     {
       "project": "AI 音乐制作系统",
+      "execution_issue": "https://github.com/douluo511/Geometry-Lotto-Pro/issues/20",
       "network_gate": "FAIL_UNAVAILABLE",
       "refactor_required": true,
       "reason": "No current source, Exact EXE, API connector, or new-protocol evidence located in the Windows workspace."
     },
     {
       "project": "法哲学原理研习系统",
+      "execution_issue": "https://github.com/douluo511/Geometry-Lotto-Pro/issues/21",
       "network_gate": "FAIL_UNAVAILABLE",
       "refactor_required": true,
       "reason": "No current source, Exact EXE, or new-protocol evidence located in the Windows workspace; candidate status is non-inheritable."
     },
     {
       "project": "不赚辛苦钱操作系统",
+      "execution_issue": "https://github.com/douluo511/Geometry-Lotto-Pro/issues/22",
       "network_gate": "FAIL_UNAVAILABLE",
       "refactor_required": true,
       "reason": "No current source, Exact EXE, or new-protocol evidence located in the Windows workspace."
     },
     {
       "project": "做自己主人系统",
+      "execution_issue": "https://github.com/douluo511/Geometry-Lotto-Pro/issues/23",
       "network_gate": "FAIL_UNAVAILABLE",
       "refactor_required": true,
       "reason": "No current source, Exact EXE, or new-protocol evidence located in the Windows workspace."
     },
     {
       "project": "快乐8预测系统",
+      "execution_issue": "https://github.com/douluo511/Geometry-Lotto-Pro/issues/24",
       "network_gate": "FAIL_UNAVAILABLE",
       "refactor_required": true,
       "reason": "Planning status only; no current source, Exact EXE, or new-protocol evidence located in the Windows workspace."
