@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import tempfile
 from dataclasses import asdict
 from pathlib import Path
@@ -17,6 +18,7 @@ def main() -> int:
     report = {
         "schema": "psychology-real-network-v2",
         "status": "FAIL",
+        "github_sha": os.environ.get("GITHUB_SHA"),
         "network_gate": "FAIL",
         "source_count": 0,
         "sources": [],
