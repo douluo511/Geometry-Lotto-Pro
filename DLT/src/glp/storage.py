@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gc
 import json
 import shutil
 import os
@@ -103,12 +104,12 @@ class Store:
             backups.append(str(dst))
 
         # Remove the main corrupt database. A new database will be created.
-    if self.db_path.exists():
-        try:
-            os.remove(self.db_path)
-        except PermissionError:
-            gc.collect()
-            os.remove(self.db_path)
+        if self.db_path.exists():
+            try:
+                os.remove(self.db_path)
+            except PermissionError:
+                gc.collect()
+                os.remove(self.db_path)
 
         # WAL/SHM cleanup is best-effort because Windows can temporarily
         # retain handles even after the SQLite connection is closed.
@@ -136,10 +137,10 @@ class Store:
                 self.freeze(pred)
                 restored += 1
 
-                return {
-                    "backups": backups,
-                    "restored_freezes": restored,
-                } 
+        return {
+            "backups": backups,
+            "restored_freezes": restored,
+        }
 
     def save_dataset(self, dataset: CanonicalDataset, evidence: dict[str, Any]) -> None:
         payload = {
