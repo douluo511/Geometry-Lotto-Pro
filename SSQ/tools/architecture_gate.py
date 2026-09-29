@@ -40,10 +40,12 @@ def main() -> int:
         "netclient": "PASS" if (
             "NET.get(" in sources
             and "requests.get(" not in sources
-            and "RETRYABLE_STATUS" in net
+            and "class NetClient" in net
             and "glp_attempts" in net
-            and "rng.random()" in net
-            and "timeout_value" in net
+            and "_require_https" in net
+            and "_timeout_pair" in net
+            and "_retry_delay" in net
+            and "allow_redirects=False" in net
         ) else "FAIL",
         "storage": "PASS" if "from glp.storage import" in service else "FAIL",
         "engine": "PASS" if "from glp.engine import" in service else "FAIL",

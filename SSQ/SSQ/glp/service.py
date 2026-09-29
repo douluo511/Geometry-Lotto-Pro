@@ -5,7 +5,6 @@ import shutil
 import sqlite3
 import sys
 from dataclasses import asdict
-from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 
@@ -168,16 +167,32 @@ class LottoService:
         # A provincial fallback is allowed to extend only an integrity-verified
         # local baseline.  Structurally valid but tampered history must not be
         # "washed clean" by matching only the recent provincial window.
-        baseline_integrity = self._integrity_check()
+        # The packaged seed predates raw-byte preservation. It may bootstrap a
+        # live refresh, but it must never count as current Real Network PASS.
+        baseline_integrity = self.store.baseline_integrity_check()
         if not baseline_integrity.get("ok"):
             raise RuntimeError("local canonical baseline integrity FAIL; run 一键修复 before network update")
         if progress:
             progress("连接多官方源并构建 SSQ Canonical Dataset…")
         baseline_draws = self._load_draws()
-        dataset, evidences = build_canonical(progress=progress, baseline_draws=baseline_draws)
+        baseline_raw_verified = bool(self.store.integrity_check().get("ok"))
+        baseline_evidence = (
+            json.loads(self.store.evidence_path.read_text(encoding="utf-8"))
+            if baseline_raw_verified else None
+        )
+        dataset, evidences = build_canonical(
+            progress=progress,
+            baseline_draws=baseline_draws,
+            baseline_raw_verified=baseline_raw_verified,
+            baseline_evidence=baseline_evidence,
+            failure_sink=self.store.save_failure_evidence,
+        )
         if getattr(dataset, "crosscheck_status", None) != "PASS":
             raise RuntimeError("official source crosscheck did not PASS")
         self.store.save_dataset(dataset, evidences)
+        persisted_integrity = self._integrity_check()
+        if not persisted_integrity.get("ok"):
+            raise RuntimeError("persisted official network evidence failed strict integrity")
         replay_result = self.replay_all(progress=progress)
         latest = dataset.draws[-1]
         receipts = [asdict(r) for r in dataset.receipts]
@@ -194,6 +209,7 @@ class LottoService:
             "verification": evidences.get("verification"),
             "source": "official-source-quorum",
             "baseline_integrity": baseline_integrity,
+            "persisted_integrity": persisted_integrity,
             "source_receipts": receipts,
             "replayed": replay_result.get("replayed", 0),
         }
@@ -283,76 +299,16 @@ class LottoService:
         gate["gate_hash"] = sha256_json(gate)
         return gate
 
-    def _recent_validated_canonical(self, max_age_seconds: int = 900) -> dict[str, Any] | None:
-        """Reuse only a very recent official, hash-bound canonical snapshot.
-
-        This is not a network PASS substitute: the snapshot must already have
-        explicit official-source crosscheck evidence, integrity PASS, matching
-        canonical hash, and a retrieval timestamp within the bounded window.
-        """
-        integrity = self._integrity_check()
-        if not integrity.get("ok"):
-            return None
-        try:
-            evidence = json.loads(self.store.evidence_path.read_text(encoding="utf-8"))
-            verification = str(evidence.get("verification") or "")
-            allowed = (
-                verification == "TRUSTED_BASELINE_PLUS_SHANGHAI_HEBEI_CONSENSUS"
-                or verification.startswith("CWL_L0_PLUS_")
-            )
-            if not allowed or str(evidence.get("crosscheck_status")) != "PASS":
-                return None
-            canonical_hash = self._canonical_hash()
-            if str(evidence.get("canonical_hash")) != canonical_hash:
-                return None
-
-            fetched_raw = str(evidence.get("fetched_at") or "")
-            fetched = datetime.fromisoformat(fetched_raw.replace("Z", "+00:00"))
-            if fetched.tzinfo is None:
-                fetched = fetched.replace(tzinfo=timezone.utc)
-            age_seconds = (datetime.now(timezone.utc) - fetched.astimezone(timezone.utc)).total_seconds()
-            if age_seconds < 0 or age_seconds > float(max_age_seconds):
-                return None
-
-            latest = evidence.get("latest") or {}
-            latest_date = date.fromisoformat(str(latest.get("draw_date"))[:10])
-            draw_age_days = (datetime.now(timezone.utc).date() - latest_date).days
-            if draw_age_days < 0 or draw_age_days > 10:
-                return None
-
-            return {
-                "schema": "official-update-reuse-v1",
-                "game": "SSQ",
-                "latest": latest,
-                "latest_issue": latest.get("issue"),
-                "latest_date": latest.get("draw_date"),
-                "draw_count": int(evidence.get("draw_count", 0)),
-                "canonical_hash": canonical_hash,
-                "crosscheck_count": int(evidence.get("crosscheck_count", 0)),
-                "crosscheck_status": "PASS",
-                "verification": verification,
-                "source": "recent-validated-official-canonical",
-                "validated_snapshot_reuse": True,
-                "evidence_age_seconds": round(age_seconds, 3),
-                "integrity": integrity,
-            }
-        except Exception:
-            return None
-
     def predict(self, progress: Callable[[str], None] | None = None) -> dict[str, Any]:
         self.ensure_seed()
-        update_result = self._recent_validated_canonical()
+        update_result = None
         update_error = None
-        if update_result is not None:
+        try:
+            update_result = self.update(progress=progress)
+        except Exception as exc:
+            update_error = f"{type(exc).__name__}: {exc}"
             if progress:
-                progress("复用15分钟内同Hash官方验证Canonical；不重复发起网络请求")
-        else:
-            try:
-                update_result = self.update(progress=progress)
-            except Exception as exc:
-                update_error = f"{type(exc).__name__}: {exc}"
-                if progress:
-                    progress("官方更新不可用；Fail-Closed：可计算研究结果，但禁止正式 Freeze/PASS")
+                progress("官方更新不可用；Fail-Closed：可计算研究结果，但禁止正式 Freeze/PASS")
 
         draws = self._load_draws()
         canonical_hash = self._canonical_hash()
@@ -364,15 +320,27 @@ class LottoService:
         existing = self._existing_freeze(pred_dict["target_issue"])
         existing_gate = self._existing_gate(pred_dict["target_issue"])
         if existing is not None:
+            # An immutable historical decision is evidence of what was decided
+            # then, not proof that the current executable, data and network
+            # chain have passed again.  In particular, a failed update must
+            # never surface the stored PASS as today's Final Gate.
+            current_gate = {
+                "schema": "runtime-final-gate-v1",
+                "created_at": utc_now(),
+                "target_issue": pred_dict["target_issue"],
+                "status": "FAIL",
+                "hard_fail_count": 1,
+                "checks": {"current_version_revalidation": False},
+                "historical_gate_status": (existing_gate or {}).get("status", "UNKNOWN"),
+                "rule": "historical immutable gate cannot be reused as current-version PASS",
+            }
+            current_gate["gate_hash"] = sha256_json(current_gate)
             return {
                 "prediction": existing,
                 "effect_trace": trace,
                 "court": court,
-                "final_gate": existing_gate or {
-                    "status": "FAIL", "target_issue": pred_dict["target_issue"],
-                    "hard_fail_count": 1, "checks": {"immutable_gate_record": False},
-                    "rule": "existing immutable freeze without matching gate cannot be upgraded after the fact",
-                },
+                "final_gate": current_gate,
+                "historical_gate": existing_gate,
                 "auto_update": update_result,
                 "auto_update_error": update_error,
                 "immutable_freeze_preserved": True,
@@ -381,7 +349,12 @@ class LottoService:
         integrity = self._integrity_check()
         gate = self._release_gate(
             pred_dict, trace, court, canonical_hash,
-            source_verified=update_result is not None,
+            source_verified=(
+                isinstance(update_result, dict)
+                and update_result.get("crosscheck_status") == "PASS"
+                and isinstance(update_result.get("persisted_integrity"), dict)
+                and update_result["persisted_integrity"].get("ok") is True
+            ),
             integrity_ok=bool(integrity.get("ok")),
         )
         context = {
@@ -560,7 +533,13 @@ class LottoService:
             "decision": "ACCEPT" if isolation_ok else "REJECT",
             "outcome": f"freeze_count {before} -> {after}",
         })
-        software_verdict = "PASS" if court.get("software_verdict") == "PASS" and isolation_ok and self_test["status"] == "PASS" else "FAIL"
+        software_verdict = "PASS" if (
+            update_result is not None
+            and update_result.get("crosscheck_status") == "PASS"
+            and court.get("software_verdict") == "PASS"
+            and isolation_ok
+            and self_test["status"] == "PASS"
+        ) else "FAIL"
         result = {
             "schema": "advanced-audit-v8",
             "court": court,
@@ -599,7 +578,10 @@ class LottoService:
         try:
             seed_payload = json.loads(resource_path("official_seed.json").read_text(encoding="utf-8"))
             trusted_seed = [Draw.from_dict(x) for x in seed_payload.get("draws", [])]
-            dataset, evidences = build_canonical(progress=progress, baseline_draws=trusted_seed)
+            dataset, evidences = build_canonical(
+                progress=progress, baseline_draws=trusted_seed,
+                failure_sink=self.store.save_failure_evidence,
+            )
             if getattr(dataset, "crosscheck_status", None) != "PASS":
                 raise RuntimeError("official source crosscheck did not PASS")
             self.store.save_dataset(dataset, evidences)
@@ -642,7 +624,9 @@ class LottoService:
         try:
             self.ensure_seed()
             checks["ssq_identity"] = GAME == "SSQ" and FRONT_MAX == 33 and FRONT_PICK == 6 and BACK_MAX == 16 and BACK_PICK == 1
-            integrity = self._integrity_check()
+            # Self-test checks the bundled seed's structure. It does not turn
+            # that historical seed into live-network or Final Gate evidence.
+            integrity = self.store.baseline_integrity_check()
             checks["seed_integrity"] = bool(integrity.get("ok"))
             draws = self._load_draws()
             canonical_hash = self._canonical_hash()
@@ -658,7 +642,8 @@ class LottoService:
             checks["false_pass_blocked"] = bad_gate["status"] == "FAIL" and bad_gate["hard_fail_count"] >= 1
             checks["immutable_schema"] = self._freeze_triggers_present()
             checks["four_entry_backend"] = all(hasattr(self, n) for n in ("predict", "update", "repair", "audit"))
-            detail["integrity"] = integrity
+            detail["baseline_integrity"] = integrity
+            detail["strict_current_integrity"] = self._integrity_check()
         except Exception as exc:
             checks["self_test_completed"] = False
             detail["exception"] = f"{type(exc).__name__}: {exc}"

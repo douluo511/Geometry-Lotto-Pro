@@ -26,22 +26,37 @@ def main() -> int:
     p.add_argument("--exe", required=True)
     p.add_argument("--report", required=True)
     a = p.parse_args()
-    gates_src = json.loads(Path(a.gate_input).read_text(encoding="utf-8-sig")).get("gates", {})
-    gates = {k: gates_src.get(k, "UNKNOWN") for k in HARD_GATES}
+    gate_input = json.loads(Path(a.gate_input).read_text(encoding="utf-8-sig"))
+    # Never trust a caller-supplied list of PASS strings. Re-derive the result
+    # from current-run artifacts and reject a stale or hand-authored manifest.
+    from derive_gate_status import derive
+    expected = derive(Path(a.acceptance).parent, Path(a.exe))
+    manifest_matches = (
+        gate_input.get("schema") == expected["schema"]
+        and gate_input.get("gates") == expected["gates"]
+        and gate_input.get("proofs") == expected["proofs"]
+        and gate_input.get("commit_sha") == expected["commit_sha"]
+    )
+    gates = {k: expected["gates"].get(k, "UNKNOWN") for k in HARD_GATES}
     acceptance = json.loads(Path(a.acceptance).read_text(encoding="utf-8-sig"))
     exe = Path(a.exe)
     actual_hash = sha256(exe) if exe.exists() else None
-    if acceptance.get("final_release_gate") != "PASS" or int(acceptance.get("hard_fail_count", 999)) != 0:
+    if (acceptance.get("windows_exact_exe_acceptance") != "PASS"
+            or acceptance.get("final_release_gate") != "PENDING"
+            or int(acceptance.get("hard_fail_count", 999)) != 0):
         gates["exact_exe"] = "FAIL"
     if not actual_hash or actual_hash != acceptance.get("sha256"):
         gates["same_hash"] = "FAIL"
     failures = {k: v for k, v in gates.items() if v != "PASS"}
+    if not manifest_matches:
+        failures["gate_input_integrity"] = "FAIL"
     report = {
         "final_gate": "PASS" if not failures else "FAIL",
         "hard_fail_count": len(failures),
         "gates": gates,
         "exe_sha256": actual_hash,
         "failures": failures,
+        "gate_input_integrity": "PASS" if manifest_matches else "FAIL",
     }
     Path(a.report).write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps(report, ensure_ascii=False))

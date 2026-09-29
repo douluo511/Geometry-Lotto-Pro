@@ -49,6 +49,8 @@ report = {
     'sha256': exe_hash,
     'runner_os': os.environ.get('RUNNER_OS'),
     'runner_name': os.environ.get('RUNNER_NAME'),
+    'github_sha': os.environ.get('GITHUB_SHA'),
+    'github_run_id': os.environ.get('GITHUB_RUN_ID'),
     'python': sys.version,
     'checks': {},
     'final_release_gate': 'PENDING',
@@ -113,7 +115,10 @@ hard_fail = [k for k,v in report['checks'].items() if v.get('status') != 'PASS' 
 report['hard_failures'] = hard_fail
 report['hard_fail_count'] = len(hard_fail)
 report['windows_exact_exe_acceptance'] = 'PASS' if not hard_fail else 'FAIL'
-report['final_release_gate'] = 'PASS' if not hard_fail else 'FAIL'
+# This script proves only the native build and this exact EXE's own checks.
+# Physical GUI, independent real-network validation, and the other hard gates
+# are evaluated later; never label this partial report a final release PASS.
+report['final_release_gate'] = 'PENDING' if not hard_fail else 'FAIL'
 (evidence / 'WINDOWS_EXACT_EXE_ACCEPTANCE.json').write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
 (evidence / 'SHA256SUMS.txt').write_text(f'{exe_hash}  {exe.name}\n', encoding='utf-8')
 if hard_fail:

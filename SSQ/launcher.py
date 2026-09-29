@@ -10,6 +10,7 @@ import hashlib
 import json
 import os
 import random
+import re
 import sys
 import tempfile
 import traceback
@@ -32,6 +33,99 @@ def _write_result(path: str | None, payload: dict) -> None:
     tmp = dest.with_suffix(dest.suffix + '.tmp')
     tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding='utf-8')
     tmp.replace(dest)
+
+
+def _preserve_live_evidence(store, result_file: str) -> dict:
+    """Keep exact network bytes after the acceptance Store tempdir is removed."""
+    from glp.util import atomic_write
+
+    source_evidence = store.evidence_path.read_bytes()
+    evidence = json.loads(source_evidence.decode("utf-8"))
+    if evidence.get("raw_response_status") != "PASS":
+        raise ValueError("raw response persistence did not PASS")
+    records = evidence.get("raw_responses")
+    if not isinstance(records, list) or not records:
+        raise ValueError("raw response manifest is missing")
+    lineage = evidence.get("baseline_lineage")
+    baseline_records = lineage.get("raw_responses", []) if isinstance(lineage, dict) else []
+    if not isinstance(baseline_records, list):
+        raise ValueError("fallback baseline raw response manifest is malformed")
+    result_path = Path(result_file).resolve()
+    evidence_dir = result_path.parent
+    for record in [*records, *baseline_records]:
+        digest = record.get("sha256") if isinstance(record, dict) else None
+        if not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest):
+            raise ValueError("invalid raw response digest")
+        raw = (store.raw_root / f"{digest}.bin").read_bytes()
+        if hashlib.sha256(raw).hexdigest() != digest or len(raw) != record.get("bytes"):
+            raise ValueError("raw response bytes do not match manifest")
+        preserved = evidence_dir / "raw_responses" / f"{digest}.bin"
+        if preserved.exists():
+            if _sha256_file(preserved) != digest:
+                raise ValueError("existing acceptance raw artifact is corrupt")
+        else:
+            atomic_write(preserved, raw)
+        if _sha256_file(preserved) != digest:
+            raise ValueError("acceptance raw artifact failed read-back hash")
+    manifest_path = evidence_dir / f"{result_path.stem}-source-evidence.json"
+    atomic_write(manifest_path, source_evidence)
+    canonical_path = evidence_dir / f"{result_path.stem}-canonical-history.json"
+    atomic_write(canonical_path, store.history_path.read_bytes())
+    return {
+        "status": "PASS",
+        "manifest": manifest_path.name,
+        "manifest_sha256": _sha256_file(manifest_path),
+        "canonical": canonical_path.name,
+        "canonical_sha256": _sha256_file(canonical_path),
+        "raw_response_count": len(records),
+        "baseline_raw_response_count": len(baseline_records),
+    }
+
+
+def _preserve_failed_network_evidence(store, result_file: str) -> dict:
+    """Export exact FAIL manifests/raw bytes before the temporary Store vanishes."""
+    from glp.util import atomic_write
+
+    failures = sorted(store.failure_root.glob("*/failure_evidence.json"))
+    if not failures:
+        return {"status": "UNAVAILABLE", "reason": "no failed response bundle was persisted"}
+    destination_root = Path(result_file).resolve().parent / "failed"
+    exported = []
+    for manifest in failures:
+        source_bytes = manifest.read_bytes()
+        payload = json.loads(source_bytes.decode("utf-8"))
+        if payload.get("status") != "FAIL" or payload.get("crosscheck_status") != "FAIL":
+            raise ValueError("failed network bundle falsely claims PASS")
+        records = payload.get("raw_responses")
+        if not isinstance(records, list):
+            raise ValueError("failed network raw response list is malformed")
+        leaf = manifest.parent.name
+        if not re.fullmatch(r"[0-9a-f]{24}", leaf):
+            raise ValueError("failed network bundle directory is not an opaque ID")
+        (destination_root / "raw_responses").mkdir(parents=True, exist_ok=True)
+        for record in records:
+            digest = record.get("sha256") if isinstance(record, dict) else None
+            if (not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest)
+                    or record.get("artifact") != f"raw_responses/{digest}.bin"):
+                raise ValueError("failed network response metadata is malformed")
+            raw = (manifest.parent / "raw_responses" / f"{digest}.bin").read_bytes()
+            if hashlib.sha256(raw).hexdigest() != digest or len(raw) != record.get("bytes"):
+                raise ValueError("failed network raw response is hash-mismatched")
+            target = destination_root / "raw_responses" / f"{digest}.bin"
+            if not target.exists():
+                atomic_write(target, raw)
+            if _sha256_file(target) != digest:
+                raise ValueError("exported failed network response failed read-back")
+        exported_manifest = destination_root / f"{leaf}.json"
+        atomic_write(exported_manifest, source_bytes)
+        if _sha256_file(exported_manifest) != hashlib.sha256(source_bytes).hexdigest():
+            raise ValueError("exported failed network manifest failed read-back")
+        exported.append({
+            "manifest": str(exported_manifest.relative_to(Path(result_file).resolve().parent)).replace("\\", "/"),
+            "manifest_sha256": _sha256_file(exported_manifest),
+            "raw_response_count": len(records),
+        })
+    return {"status": "FAIL", "bundles": exported}
 
 
 def _random_world(draws, seed: int):
@@ -67,6 +161,8 @@ def main() -> int:
         'scope': args.check,
         'platform': sys.platform,
         'python': sys.version,
+        'github_sha': os.environ.get('GITHUB_SHA'),
+        'github_run_id': os.environ.get('GITHUB_RUN_ID'),
         'final_release_gate': 'PENDING',
     }
     if getattr(sys, 'frozen', False):
@@ -95,8 +191,16 @@ def main() -> int:
                 status = r.get('software_verdict', 'FAIL')
 
             elif args.check == 'update':
-                r = svc.update()
+                try:
+                    r = svc.update()
+                except Exception:
+                    out['failed_network_evidence'] = _preserve_failed_network_evidence(svc.store, args.result_file)
+                    raise
                 status = 'PASS' if r.get('crosscheck_status') == 'PASS' else 'FAIL'
+                if status == 'PASS':
+                    r['preserved_live_evidence'] = _preserve_live_evidence(svc.store, args.result_file)
+                else:
+                    out['failed_network_evidence'] = _preserve_failed_network_evidence(svc.store, args.result_file)
 
             elif args.check == 'predict':
                 from glp.engine import _next_target
@@ -112,7 +216,7 @@ def main() -> int:
                     'current_official_canonical_pass': (
                         isinstance(auto, dict)
                         and auto.get('crosscheck_status') == 'PASS'
-                        and auto.get('source') in ('official-source-quorum', 'recent-validated-official-canonical')
+                        and auto.get('source') == 'official-source-quorum'
                     ),
                     'target_from_updated_canonical': pred.get('target_issue') == expected_issue and pred.get('target_date') == expected_date,
                     'front_shape_valid': len(front) == 6 and len(set(front)) == 6 and all(1 <= x <= 33 for x in front),
@@ -191,61 +295,14 @@ def main() -> int:
                 status = 'PASS' if rejected and before == after else 'FAIL'
 
             elif args.check == 'corrupt-repair':
-                # Deterministic fault-injection gate: repair behavior is tested
-                # independently from the separate live Real Network gate.
                 svc.ensure_seed()
-                pristine_draws, pristine_hash = svc.store.load_draws()
-                from glp.domain import CanonicalDataset, SourceReceipt
-                from glp.util import utc_now
-                injected_receipt = SourceReceipt(
-                    source='fault_injection_trusted_dataset',
-                    fetched_at=utc_now(),
-                    http_status=200,
-                    raw_sha256=pristine_hash,
-                    draw_count=len(pristine_draws),
-                    latest_issue=pristine_draws[-1].issue,
-                    status='PASS',
-                    detail='deterministic repair fixture; not production Real Network evidence',
-                )
-                injected_dataset = CanonicalDataset(
-                    draws=pristine_draws,
-                    canonical_hash=pristine_hash,
-                    receipts=[injected_receipt],
-                    crosscheck_count=1,
-                    crosscheck_status='PASS',
-                )
-                injected_evidence = {
-                    'schema': 'fault-injection-repair-evidence-v1',
-                    'game': 'SSQ',
-                    'canonical_hash': pristine_hash,
-                    'draw_count': len(pristine_draws),
-                    'latest': pristine_draws[-1].to_dict(),
-                    'crosscheck_count': 1,
-                    'crosscheck_status': 'PASS',
-                    'verification': 'DETERMINISTIC_FAULT_INJECTION_ONLY',
-                    'source_receipts': [injected_receipt.__dict__],
-                }
-
                 payload = json.loads(svc.store.history_path.read_text(encoding='utf-8'))
                 payload['draws'][-1]['front'][0] = 1 if int(payload['draws'][-1]['front'][0]) != 1 else 2
                 svc.store.history_path.write_text(json.dumps(payload, ensure_ascii=False), encoding='utf-8')
                 before = svc._integrity_check()
-
-                import glp.service as service_module
-                original_build_canonical = service_module.build_canonical
-                service_module.build_canonical = lambda progress=None, baseline_draws=None: (injected_dataset, injected_evidence)
-                try:
-                    repair = svc.repair()
-                finally:
-                    service_module.build_canonical = original_build_canonical
-
+                repair = svc.repair()
                 after = svc._integrity_check()
-                r = {
-                    'before': before,
-                    'repair': repair,
-                    'after': after,
-                    'network_mode': 'DETERMINISTIC_INJECTED_FIXTURE',
-                }
+                r = {'before': before, 'repair': repair, 'after': after}
                 status = 'PASS' if not before.get('ok') and repair.get('status') == 'PASS' and after.get('ok') else 'FAIL'
 
             elif args.check.startswith('random-world-'):
@@ -269,6 +326,10 @@ def main() -> int:
             else:
                 raise RuntimeError('unknown check')
 
+            if (status != 'PASS' and 'failed_network_evidence' not in out
+                    and svc.store.failure_root.is_dir()):
+                out['failed_network_evidence'] = _preserve_failed_network_evidence(
+                    svc.store, args.result_file)
             out.update(status=status, result=r)
 
     except Exception as exc:

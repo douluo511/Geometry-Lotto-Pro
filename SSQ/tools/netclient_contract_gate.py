@@ -21,6 +21,7 @@ class FakeResponse:
         self.content = content
         self.headers = headers or {"Content-Type": "application/json"}
         self.url = url
+        self.history = []
 
     def raise_for_status(self):
         if self.status_code >= 400:
@@ -98,7 +99,8 @@ def _run() -> dict:
     )
 
     insecure_session = FakeSession([
-        FakeResponse(200, b"{}", {"Content-Type": "application/json"}, url="http://example.invalid/data"),
+        FakeResponse(200, b"{}", {"Content-Type": "application/json"},
+                     url="http://example.invalid/data"),
     ])
     try:
         NetClient(session=insecure_session, sleeper=lambda _: None).get("https://example.invalid/data")
@@ -107,7 +109,8 @@ def _run() -> dict:
         ledger = list(getattr(exc, "glp_attempts", ()))
         record(
             "https_redirect_downgrade_fail_closed",
-            bool(ledger) and ledger[-1]["outcome"] == "FINAL_INSECURE_REDIRECT",
+            len(insecure_session.calls) == 1 and bool(ledger)
+            and ledger[-1]["outcome"] == "FINAL_INSECURE_REDIRECT",
             ledger,
         )
     except Exception as exc:
@@ -149,14 +152,21 @@ def _run() -> dict:
         FakeResponse(503, headers={"Content-Type": "application/json", "Retry-After": "99"}),
         FakeResponse(200, headers={"Content-Type": "application/json"}),
     ])
-    response = NetClient(
-        max_attempts=2,
-        max_retry_after=5,
-        session=session,
-        sleeper=sleeps.append,
-        rng=random.Random(2),
-    ).get("https://example.invalid/data")
-    record("retry_after_hard_cap", sleeps == [5.0] and response.status_code == 200, sleeps)
+    try:
+        NetClient(
+            max_attempts=2,
+            max_retry_delay=5,
+            session=session,
+            sleeper=sleeps.append,
+            rng=random.Random(2),
+        ).get("https://example.invalid/data")
+        record("retry_after_hard_cap", False, "oversized Retry-After unexpectedly bypassed")
+    except requests.HTTPError as exc:
+        record(
+            "retry_after_hard_cap",
+            len(session.calls) == 1 and not sleeps and exc.response.status_code == 503,
+            {"calls": len(session.calls), "sleeps": sleeps, "status": exc.response.status_code},
+        )
 
     good = FakeResponse(200, b'{"x":1}', {"Content-Type": "application/json; charset=utf-8"})
     good.glp_attempts = ({"attempt": 1, "outcome": "HTTP_RESPONSE"},)
