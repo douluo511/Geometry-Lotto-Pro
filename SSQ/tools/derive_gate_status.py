@@ -7,13 +7,16 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import html
 import json
+import math
 import os
 import re
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qsl, urlsplit
 
 from release_gate_22 import HARD_GATES
 
@@ -59,6 +62,381 @@ def _raw_status_allowed(http_status: Any, receipt_status: str) -> bool:
     # as a documented FAIL, never as a successful 200 receipt. The Store's
     # independent validator verifies the actual status range and raw bytes.
     return receipt_status == "FAIL" or (receipt_status == "PASS" and http_status == 200)
+
+
+def _canonical_hash(draws: list[dict[str, Any]]) -> str:
+    return hashlib.sha256(json.dumps(draws, ensure_ascii=False, sort_keys=True,
+                                     separators=(",", ":")).encode("utf-8")).hexdigest()
+
+
+def _parsed_draw(issue: Any, draw_day: Any, reds: Any, blue: Any) -> dict[str, Any]:
+    """A gate-local SSQ schema check, independent of the producer's Draw object."""
+    issue = str(issue or "").strip()
+    if re.fullmatch(r"\d{5}", issue):
+        issue = "20" + issue
+    if not re.fullmatch(r"20\d{5}", issue):
+        raise ValueError("raw page has an invalid SSQ issue")
+    match = re.fullmatch(r"(20\d{2})[-/](\d{2})[-/](\d{2})(?:\s*\([^)]*\))?",
+                         str(draw_day or "").strip())
+    if match is None:
+        raise ValueError("raw page has an invalid SSQ date")
+    day = f"{match.group(1)}-{match.group(2)}-{match.group(3)}"
+    date.fromisoformat(day)
+    if issue[:4] != day[:4]:
+        raise ValueError("raw issue/date years disagree")
+
+    def numbers(value: Any, count: int) -> list[int]:
+        if isinstance(value, (list, tuple)):
+            tokens = list(value)
+        elif count == 6 and re.fullmatch(r"\d{12}", str(value or "").strip()):
+            compact = str(value).strip()
+            tokens = [compact[i:i + 2] for i in range(0, 12, 2)]
+        else:
+            tokens = re.split(r"[,，\s;|/-]+", str(value or "").strip())
+        if (len(tokens) != count or any(isinstance(token, bool)
+               or not re.fullmatch(r"\d{1,2}", str(token)) for token in tokens)):
+            raise ValueError("raw page has invalid ball tokens")
+        return [int(token) for token in tokens]
+
+    front = sorted(numbers(reds, 6))
+    back = numbers(blue, 1)
+    if (len(set(front)) != 6 or not all(1 <= number <= 33 for number in front)
+            or not 1 <= back[0] <= 16):
+        raise ValueError("raw page has out-of-range or repeated balls")
+    return {"issue": issue, "draw_date": day, "front": front, "back": back}
+
+
+def _ordered_draws(draws: list[dict[str, Any]], source: str) -> list[dict[str, Any]]:
+    if not draws:
+        raise ValueError(f"{source} raw history is empty")
+    ordered = sorted(draws, key=lambda row: (row["draw_date"], row["issue"]))
+    if any(ordered[i]["issue"] >= ordered[i + 1]["issue"]
+           or ordered[i]["draw_date"] >= ordered[i + 1]["draw_date"]
+           for i in range(len(ordered) - 1)):
+        raise ValueError(f"{source} raw history has duplicate/conflicting/nonmonotonic rows")
+    newest = date.fromisoformat(ordered[-1]["draw_date"])
+    today = datetime.now(timezone.utc).date()
+    if not today - timedelta(days=7) <= newest <= today + timedelta(days=1):
+        raise ValueError(f"{source} raw latest draw is stale or future dated")
+    return ordered
+
+
+def _successful_raw(record: dict[str, Any], evidence_dir: Path, source: str,
+                    content_types: set[str], parser_version: str) -> bytes:
+    if (record.get("source") != source or record.get("http_status") != 200
+            or record.get("parser_version") != parser_version
+            or not isinstance(record.get("content_type"), str)
+            or record["content_type"].split(";", 1)[0].strip().lower() not in content_types):
+        raise ValueError(f"{source} successful raw response has invalid provenance/media type")
+    attempts = record.get("attempts")
+    if not isinstance(attempts, list) or not attempts:
+        raise ValueError(f"{source} successful raw response has no NetClient attempt ledger")
+    terminal = attempts[-1]
+    if (not isinstance(terminal, dict) or terminal.get("outcome") != "HTTP_RESPONSE"
+            or terminal.get("status_code") != 200 or terminal.get("url") != record.get("url")
+            or isinstance(terminal.get("attempt"), bool)
+            or not isinstance(terminal.get("attempt"), int)
+            or not 1 <= terminal["attempt"] <= 3):
+        raise ValueError(f"{source} successful raw response has no matching terminal request")
+    for attempt in attempts:
+        if (not isinstance(attempt, dict) or isinstance(attempt.get("attempt"), bool)
+                or not isinstance(attempt.get("attempt"), int)
+                or not 1 <= attempt["attempt"] <= terminal["attempt"]
+                or not isinstance(attempt.get("url"), str)
+                or urlsplit(attempt["url"]).scheme != "https"
+                or urlsplit(attempt["url"]).hostname != urlsplit(record["requested_url"]).hostname
+                or isinstance(attempt.get("retry_delay"), bool)
+                or not isinstance(attempt.get("retry_delay"), (int, float))
+                or not math.isfinite(attempt["retry_delay"])
+                or not 0 <= attempt["retry_delay"] <= 30):
+            raise ValueError(f"{source} NetClient attempt ledger is malformed")
+    return (evidence_dir / "raw_responses" / f"{record['sha256']}.bin").read_bytes()
+
+
+def _parse_national_page(raw: bytes) -> tuple[list[dict[str, Any]], int]:
+    try:
+        payload = json.loads(raw.decode("utf-8-sig"))
+    except (UnicodeError, json.JSONDecodeError) as exc:
+        raise ValueError("CWL raw page is not valid UTF-8 JSON") from exc
+    if not isinstance(payload, dict):
+        raise ValueError("CWL raw page root is not an object")
+    state = payload.get("state")
+    if isinstance(state, bool) or str(state).upper() not in {"0", "OK", "PASS", "SUCCESS"}:
+        raise ValueError("CWL raw page did not report success")
+    rows = payload.get("result")
+    if not isinstance(rows, list) or not rows:
+        raise ValueError("CWL raw page has no result rows")
+    page_num = payload.get("pageNum")
+    if page_num is None:
+        total = payload.get("total")
+        if isinstance(total, bool) or not str(total or "").isdigit():
+            raise ValueError("CWL raw page has no valid page count")
+        page_num = (int(total) + 99) // 100
+    if isinstance(page_num, bool) or not str(page_num).isdigit() or not 1 <= int(page_num) <= 10000:
+        raise ValueError("CWL raw page count is invalid")
+    parsed = []
+    for row in rows:
+        if not isinstance(row, dict):
+            raise ValueError("CWL raw result row is not an object")
+        parsed.append(_parsed_draw(row.get("code"), row.get("date"),
+                                   row.get("red"), row.get("blue")))
+    if len({row["issue"] for row in parsed}) != len(parsed):
+        raise ValueError("CWL raw page repeats an issue")
+    return parsed, int(page_num)
+
+
+def _html_text(raw: bytes) -> tuple[str, str]:
+    markup = None
+    for encoding in ("utf-8-sig", "gb18030"):
+        try:
+            markup = raw.decode(encoding)
+            break
+        except UnicodeDecodeError:
+            continue
+    if markup is None:
+        raise ValueError("official HTML raw bytes cannot be decoded")
+    without_active = re.sub(r"(?is)<script\b.*?</script>|<style\b.*?</style>",
+                            " ", markup)
+    text = html.unescape(re.sub(r"(?is)<[^>]+>", " ", without_active))
+    return markup, re.sub(r"\s+", " ", text).strip()
+
+
+def _parse_shanghai_raw(raw: bytes) -> list[dict[str, Any]]:
+    """Independent gate-local table parser; unknown row shapes fail closed."""
+    _, text = _html_text(raw)
+    anchors = list(re.finditer(
+        r"(?<!\d)(20\d{5})\s+(20\d{2}-\d{2}-\d{2})(?:\([^)]*\))?",
+        text,
+    ))
+    if not anchors:
+        raise ValueError("Shanghai raw page contains no anchored SSQ draw rows")
+    draws: list[dict[str, Any]] = []
+    for index, anchor in enumerate(anchors):
+        end = anchors[index + 1].start() if index + 1 < len(anchors) else min(len(text), anchor.end() + 700)
+        tail = text[anchor.end():end]
+        compact = re.match(r"\s*(\d{12})\s+(\d{2})(?!\d)", tail)
+        if compact:
+            draw = _parsed_draw(anchor.group(1), anchor.group(2),
+                                compact.group(1), compact.group(2))
+        else:
+            # The official table may render each ball in a separate cell.
+            # Only the seven adjacent tokens immediately after the date may
+            # contribute; prize figures later in the row are not accepted.
+            tokens = re.findall(r"(?<!\d)\d{1,2}(?!\d)", tail[:260])
+            if len(tokens) < 7:
+                raise ValueError("Shanghai row has fewer than seven ball tokens")
+            draw = _parsed_draw(anchor.group(1), anchor.group(2), tokens[:6], tokens[6])
+        draws.append(draw)
+    if len(draws) != len(anchors):
+        raise ValueError("Shanghai raw rows were only partially parsed")
+    return _ordered_draws(draws, "Shanghai")
+
+
+def _parse_hebei_raw(home_raw: bytes, announce_raw: bytes) -> dict[str, Any]:
+    """Independently require issue/balls from home and date/balls from announcement."""
+    markup, _ = _html_text(home_raw)
+    panels = re.findall(r'<li\b[^>]*class=["\'][^"\']*kj-info-item[^"\']*["\'][^>]*>(.*?)</li>',
+                        markup, re.IGNORECASE | re.DOTALL)
+    ssq_panels = [panel for panel in panels if "logo_ssq.png" in panel]
+    if len(ssq_panels) != 1:
+        raise ValueError("Hebei home has no unique SSQ draw panel")
+    panel = ssq_panels[0]
+    panel_text = html.unescape(re.sub(r"(?is)<[^>]+>", " ", panel))
+    issue_match = re.search(r"第\s*(20\d{5})\s*期", panel_text)
+    ball_block = re.search(
+        r'<div\b[^>]*class=["\'][^"\']*cirle-number[^"\']*["\'][^>]*>(.*?)</div>',
+        panel, re.IGNORECASE | re.DOTALL,
+    )
+    if issue_match is None or ball_block is None:
+        raise ValueError("Hebei home issue or numbered-ball block is absent")
+    spans = re.findall(r"<span\b([^>]*)>\s*(\d{1,2})\s*</span>",
+                       ball_block.group(1), re.IGNORECASE | re.DOTALL)
+    if (len(spans) != 7 or any("blue-num" in attrs for attrs, _ in spans[:6])
+            or "blue-num" not in spans[-1][0]):
+        raise ValueError("Hebei home has no valid six-red/one-blue structure")
+    home_front = sorted(int(number) for _, number in spans[:6])
+    home_back = int(spans[-1][1])
+
+    _, announcement = _html_text(announce_raw)
+    date_match = re.search(r"开奖日期\s*[:：]?\s*(20\d{2}-\d{2}-\d{2})", announcement)
+    numbers_marker = re.search(r"开奖号码\s*[:：]?", announcement)
+    if date_match is None or numbers_marker is None:
+        raise ValueError("Hebei announcement lacks date or draw-number marker")
+    tokens = re.findall(r"(?<!\d)\d{1,2}(?!\d)",
+                        announcement[numbers_marker.end():numbers_marker.end() + 240])
+    if len(tokens) < 7:
+        raise ValueError("Hebei announcement has fewer than seven ball tokens")
+    announced_front = sorted(int(number) for number in tokens[:6])
+    announced_back = int(tokens[6])
+    if home_front != announced_front or home_back != announced_back:
+        raise ValueError("Hebei home and announcement ball sets conflict")
+    return _parsed_draw(issue_match.group(1), date_match.group(1),
+                        home_front, home_back)
+
+
+def _reparse_manifest(manifest: dict[str, Any], evidence_dir: Path,
+                      *, baseline: bool = False) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Rebuild source agreement from exported bytes, never the producer's result.
+
+    Parsers, merge, quorum and crosscheck decisions are gate-local. This
+    separate process never calls a fetch function or NetClient.
+    """
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "SSQ"))
+    from glp.constants import HEBEI_ANNOUNCE_URL, HEBEI_URL, NATIONAL_URL, SHANGHAI_URL
+    from glp.sources import PARSER_VERSION
+    from glp.storage import Store
+
+    if (manifest.get("parser_version") != PARSER_VERSION
+            or manifest.get("game") != "SSQ" or not _utc_recent(manifest.get("fetched_at"))):
+        raise ValueError("source manifest parser/game/fetch timestamp is not current")
+    Store.validate_raw_evidence(manifest, evidence_dir)
+    records = manifest["raw_responses"]
+    receipts = {row["source"]: row for row in manifest["source_receipts"]}
+    by_source: dict[str, list[dict[str, Any]]] = {name: [] for name in receipts}
+    for record in records:
+        by_source[record["source"]].append(record)
+    for source, receipt in receipts.items():
+        if not _utc_recent(receipt.get("fetched_at")):
+            raise ValueError(f"{source} receipt lacks a current UTC timestamp")
+        if receipt.get("status") == "FAIL" and not str(receipt.get("detail") or ""):
+            raise ValueError(f"{source} failed receipt has no failure reason")
+
+    parsed: dict[str, list[dict[str, Any]]] = {}
+    national = receipts["official_cwl_L0"]
+    if national["status"] == "PASS":
+        pages = manifest.get("national_raw_manifest")
+        if not isinstance(pages, list):
+            raise ValueError("CWL page manifest is missing")
+        by_page = {str(record.get("request_params", {}).get("pageNo")): record
+                   for record in by_source["official_cwl_L0"]}
+        all_draws: list[dict[str, Any]] = []
+        for page in sorted(pages, key=lambda row: row["page"]):
+            page_number = page["page"]
+            record = by_page.get(str(page_number))
+            if record is None or record.get("requested_url") != NATIONAL_URL:
+                raise ValueError("CWL page is not linked to an official raw response")
+            expected_params = {
+                "name": "ssq", "issueCount": "", "issueStart": "", "issueEnd": "",
+                "dayStart": "", "dayEnd": "", "pageNo": str(page_number),
+                "pageSize": "100", "week": "", "systemType": "PC",
+            }
+            if record.get("request_params") != expected_params:
+                raise ValueError("CWL raw page request parameters are not the production contract")
+            actual_query = dict(parse_qsl(urlsplit(record["url"]).query,
+                                          keep_blank_values=True))
+            if actual_query != expected_params:
+                raise ValueError("CWL response URL does not match its requested page")
+            raw = _successful_raw(record, evidence_dir, "official_cwl_L0",
+                                  {"application/json", "text/json"}, PARSER_VERSION)
+            if page.get("sha256") != record["sha256"] or page.get("bytes") != len(raw):
+                raise ValueError("CWL page receipt differs from preserved bytes")
+            page_draws, reported_pages = _parse_national_page(raw)
+            if reported_pages != len(pages):
+                raise ValueError("CWL page count changed during capture")
+            all_draws.extend(page_draws)
+        if len({draw["issue"] for draw in all_draws}) != len(all_draws):
+            raise ValueError("CWL pages repeat an issue")
+        parsed["official_cwl_L0"] = _ordered_draws(all_draws, "CWL")
+
+    shanghai = receipts["official_shanghai_L1"]
+    if shanghai["status"] == "PASS":
+        source_records = by_source["official_shanghai_L1"]
+        if len(source_records) != 1 or source_records[0].get("requested_url") != SHANGHAI_URL:
+            raise ValueError("Shanghai successful receipt has no unique official raw page")
+        raw = _successful_raw(source_records[0], evidence_dir, "official_shanghai_L1",
+                              {"text/html", "application/xhtml+xml"}, PARSER_VERSION)
+        parsed["official_shanghai_L1"] = _parse_shanghai_raw(raw)
+
+    hebei = receipts["official_hebei_L2"]
+    if hebei["status"] == "PASS":
+        source_records = {row["requested_url"]: row for row in by_source["official_hebei_L2"]}
+        if set(source_records) != {HEBEI_URL, HEBEI_ANNOUNCE_URL}:
+            raise ValueError("Hebei successful receipt lacks its two official pages")
+        home = _successful_raw(source_records[HEBEI_URL], evidence_dir, "official_hebei_L2",
+                               {"text/html", "application/xhtml+xml"}, PARSER_VERSION)
+        announce = _successful_raw(source_records[HEBEI_ANNOUNCE_URL], evidence_dir,
+                                   "official_hebei_L2",
+                                   {"text/html", "application/xhtml+xml"}, PARSER_VERSION)
+        parsed["official_hebei_L2"] = _ordered_draws(
+            [_parse_hebei_raw(home, announce)], "Hebei")
+
+    for source, draws in parsed.items():
+        receipt = receipts[source]
+        if receipt.get("draw_count") != len(draws) or receipt.get("latest_issue") != draws[-1]["issue"]:
+            raise ValueError(f"{source} receipt does not match reparsed draw history")
+    if len(parsed) < 2:
+        raise ValueError("fewer than two official sources could be reparsed")
+
+    crosscheck = 0
+    verification = manifest.get("verification")
+    if national["status"] == "PASS":
+        canonical = parsed["official_cwl_L0"]
+        by_issue = {draw["issue"]: draw for draw in canonical}
+        validators = 0
+        sh_draws = parsed.get("official_shanghai_L1")
+        if sh_draws is not None:
+            overlap = [draw for draw in sh_draws if draw["issue"] in by_issue]
+            if not overlap or any(by_issue[draw["issue"]] != draw for draw in overlap):
+                raise ValueError("CWL/Shanghai raw histories have no consistent overlap")
+            if canonical[-1] != sh_draws[-1]:
+                raise ValueError("CWL/Shanghai latest draw conflicts")
+            crosscheck += len(overlap)
+            validators += 1
+        hb_draws = parsed.get("official_hebei_L2")
+        if hb_draws is not None:
+            if canonical[-1] != hb_draws[-1]:
+                raise ValueError("CWL/Hebei latest draw conflicts")
+            crosscheck += 1
+            validators += 1
+        if (validators < 1 or verification != f"CWL_L0_PLUS_{validators}_PROVINCIAL_VALIDATOR"
+                or manifest.get("baseline_lineage") is not None):
+            raise ValueError("CWL source-quorum mode or baseline lineage is inconsistent")
+        # A prior baseline must also be reconstructed, but only from its own
+        # current preserved pages. It is never allowed to contain a second lineage.
+        if baseline and manifest.get("baseline_lineage") is not None:
+            raise ValueError("nested baseline lineage is not allowed")
+    else:
+        if baseline or verification != "TRUSTED_BASELINE_PLUS_SHANGHAI_HEBEI_CONSENSUS":
+            raise ValueError("CWL failure lacks an allowed provincial fallback mode")
+        sh_draws = parsed.get("official_shanghai_L1")
+        hb_draws = parsed.get("official_hebei_L2")
+        lineage = manifest.get("baseline_lineage")
+        if sh_draws is None or hb_draws is None or not isinstance(lineage, dict):
+            raise ValueError("provincial fallback lacks two current sources and baseline")
+        if sh_draws[-1] != hb_draws[-1]:
+            raise ValueError("Shanghai/Hebei latest draw conflicts")
+        baseline_draws, _ = _reparse_manifest(lineage, evidence_dir, baseline=True)
+        if (_canonical_hash(baseline_draws) != manifest.get("baseline_canonical_hash")
+                or len(baseline_draws) != manifest.get("baseline_draw_count")):
+            raise ValueError("baseline raw reparse differs from declared lineage")
+        by_issue = {draw["issue"]: draw for draw in sh_draws}
+        overlap = [draw for draw in baseline_draws if draw["issue"] in by_issue]
+        if (not overlap or baseline_draws[-1]["issue"] not in by_issue
+                or any(by_issue[draw["issue"]] != draw for draw in overlap)):
+            raise ValueError("baseline/Shanghai raw histories lack consistent overlap")
+        canonical = list(baseline_draws)
+        seen = {draw["issue"] for draw in canonical}
+        last_date = canonical[-1]["draw_date"]
+        for draw in sh_draws:
+            if draw["issue"] in seen:
+                continue
+            if draw["draw_date"] <= last_date:
+                raise ValueError("provincial fallback would regress canonical dates")
+            canonical.append(draw)
+            seen.add(draw["issue"])
+            last_date = draw["draw_date"]
+        crosscheck = len(overlap) + 1
+
+    canonical = _ordered_draws(canonical, "canonical")
+    if (manifest.get("crosscheck_count") != crosscheck
+            or manifest.get("canonical_hash") != _canonical_hash(canonical)
+            or manifest.get("canonical_payload_sha256") != _canonical_hash(canonical)
+            or manifest.get("draw_count") != len(canonical)
+            or manifest.get("latest") != canonical[-1]):
+        raise ValueError("raw-derived canonical/crosscheck does not match source manifest")
+    return canonical, {"sources": sorted(parsed), "crosscheck_count": crosscheck,
+                       "draw_count": len(canonical), "canonical_hash": _canonical_hash(canonical),
+                       "verification": verification}
 
 
 def _verify_gui_evidence(physical: dict[str, Any], evidence_dir: Path, exe: Path,
@@ -142,6 +520,34 @@ def _verify_gui_evidence(physical: dict[str, Any], evidence_dir: Path, exe: Path
         ledgers.append({"operation": operation, "experiment_id": observed["experiment_id"],
                         "ledger_sha256": _hash(ledger_path)})
     return {"ledgers": ledgers}
+
+
+def _corrupt_repair_is_fault_injection(evidence_dir: Path, exe_hash: str) -> bool:
+    report = _read(evidence_dir / "corrupt-repair.json")
+    if not isinstance(report, dict):
+        return False
+    result = report.get("result")
+    return bool(
+        report.get("status") == "PASS" and report.get("scope") == "corrupt-repair"
+        and report.get("game") == "SSQ" and report.get("platform") == "win32"
+        and report.get("github_sha") == os.environ.get("GITHUB_SHA")
+        and report.get("github_run_id") == os.environ.get("GITHUB_RUN_ID")
+        and report.get("exe_sha256") == exe_hash
+        and report.get("final_release_gate") == "PENDING"
+        and report.get("test_data_classification") == "TEST_ONLY_SYNTHETIC"
+        and report.get("real_network_status") == "PENDING"
+        and report.get("real_network_tested") is False
+        and report.get("production_repair_status") == "PENDING"
+        and isinstance(result, dict) and result.get("status") == "PASS"
+        and result.get("validation_scope") == "FAULT_INJECTION_ONLY"
+        and result.get("test_data_classification") == "TEST_ONLY_SYNTHETIC"
+        and result.get("real_network_status") == "PENDING"
+        and result.get("real_network_tested") is False
+        and result.get("production_repair_status") == "PENDING"
+        and result.get("synthetic_artifacts_exported") is False
+        and isinstance(result.get("checks"), dict) and result["checks"]
+        and all(value is True for value in result["checks"].values())
+    )
 
 
 def _verify_live_evidence(evidence_dir: Path, exe_hash: str) -> dict[str, Any]:
@@ -236,11 +642,21 @@ def _verify_live_evidence(evidence_dir: Path, exe_hash: str) -> dict[str, Any]:
         if (not artifact.is_file() or artifact.stat().st_size != record.get("bytes")
                 or _hash(artifact) != digest):
             raise ValueError("raw response bytes are missing or hash-mismatched")
+    reparsed, reparse_proof = _reparse_manifest(manifest, evidence_dir)
+    if draws != reparsed:
+        raise ValueError("preserved canonical rows differ from independent raw reparse")
     return {
         "result": str(update_path), "result_sha256": _hash(update_path),
         "manifest": str(manifest_path), "manifest_sha256": _hash(manifest_path),
         "canonical": str(canonical_path), "canonical_sha256": _hash(canonical_path),
         "raw_response_count": len(records),
+        "canonical_hash": result["canonical_hash"],
+        "canonical_reparse": "PASS",
+        "reparse": reparse_proof,
+        # Gate-local provincial parsers have synthetic contract tests, but no
+        # reviewed capture of the current official HTML structure yet. This
+        # distinct approval is needed before Real Network can be promoted.
+        "official_html_parser_contract": "PENDING",
     }
 
 
@@ -271,6 +687,7 @@ def derive(evidence: Path, exe: Path) -> dict[str, Any]:
             and acceptance.get("final_release_gate") == "PENDING"
             and acceptance.get("hard_fail_count") == 0
             and REQUIRED_EXE_CHECKS.issubset(checks)
+            and _corrupt_repair_is_fault_injection(evidence, actual_hash)
             and all(
                 isinstance(check, dict)
                 and check.get("status") == "PASS"
@@ -303,14 +720,15 @@ def derive(evidence: Path, exe: Path) -> dict[str, Any]:
             # The EXE result alone is insufficient: independently read and hash
             # every preserved raw response from this exact candidate run.
             try:
-                proofs["real_network"] = _verify_live_evidence(evidence, actual_hash)
-                # Raw hashes, receipts and quorum are necessary but not yet a
-                # sufficient independent RAW -> CANONICAL proof. Until every
-                # saved body is reparsed and compared to the exact canonical
-                # dataset, this hard gate must remain unpassed.
-                proofs["real_network"]["canonical_reparse"] = "PENDING"
+                live_proof = _verify_live_evidence(evidence, actual_hash)
+                live_proof.setdefault("canonical_reparse", "PENDING")
+                proofs["real_network"] = live_proof
+                # Independent byte reparse is necessary but not yet enough:
+                # current official HTML parser parity has not been validated
+                # against reviewed live captures. A synthetic fixture must
+                # never promote this hard gate.
                 gates["real_network"] = "PENDING"
-            except (OSError, TypeError, ValueError, KeyError) as exc:
+            except Exception as exc:
                 gates["real_network"] = "FAIL"
                 proofs["real_network"] = {"error": f"{type(exc).__name__}: {exc}"}
     physical_path = evidence / "physical_gui_click.json"

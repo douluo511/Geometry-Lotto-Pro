@@ -7,14 +7,72 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "SSQ"))
-from launcher import _preserve_failed_network_evidence, _preserve_live_evidence  # noqa: E402
+from launcher import (  # noqa: E402
+    _preserve_failed_network_evidence,
+    _preserve_live_evidence,
+    _run_corrupt_repair_fault_injection,
+    main,
+)
 
 
 class LauncherEvidenceTests(unittest.TestCase):
+    def test_corrupt_repair_uses_isolated_synthetic_raw_without_live_pass(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            result_path = Path(directory) / "corrupt-repair.json"
+            with patch.object(sys, "argv", [
+                "launcher.py", "--check", "corrupt-repair", "--result-file", str(result_path),
+            ]):
+                self.assertEqual(main(), 0)
+            result = json.loads(result_path.read_text(encoding="utf-8"))
+            detail = result["result"]
+            self.assertEqual(result["status"], "PASS")
+            self.assertEqual(result["scope"], "corrupt-repair")
+            self.assertEqual(result["final_release_gate"], "PENDING")
+            self.assertEqual(result["test_data_classification"], "TEST_ONLY_SYNTHETIC")
+            self.assertEqual(result["real_network_status"], "PENDING")
+            self.assertFalse(result["real_network_tested"])
+            self.assertEqual(result["production_repair_status"], "PENDING")
+            self.assertEqual(detail["validation_scope"], "FAULT_INJECTION_ONLY")
+            self.assertTrue(all(detail["checks"].values()))
+            self.assertEqual(detail["escaped_network_calls"], 0)
+            self.assertFalse(detail["synthetic_artifacts_exported"])
+            self.assertFalse((result_path.parent / "raw_responses").exists())
+            self.assertFalse((result_path.parent / "corrupt-repair-source-evidence.json").exists())
+
+    def test_corrupt_repair_restores_transport_after_exception(self) -> None:
+        import requests
+        import glp.sources as sources
+        from glp.service import LottoService
+        from glp.storage import Store
+
+        original_net_get = sources.NET.get
+        original_session_request = requests.sessions.Session.request
+        with tempfile.TemporaryDirectory() as directory:
+            svc = LottoService(Store(Path(directory) / "isolated-store"))
+            with patch.object(LottoService, "repair", side_effect=RuntimeError("injected repair failure")):
+                with self.assertRaisesRegex(RuntimeError, "injected repair failure"):
+                    _run_corrupt_repair_fault_injection(svc)
+        self.assertEqual(sources.NET.get, original_net_get)
+        self.assertIs(requests.sessions.Session.request, original_session_request)
+
+    def test_corrupt_repair_does_not_pass_when_raw_proof_fails(self) -> None:
+        from glp.service import LottoService
+        from glp.storage import Store
+
+        with tempfile.TemporaryDirectory() as directory:
+            svc = LottoService(Store(Path(directory) / "isolated-store"))
+            with patch.object(Store, "validate_raw_evidence", side_effect=ValueError("injected raw failure")):
+                result = _run_corrupt_repair_fault_injection(svc)
+        self.assertEqual(result["status"], "FAIL")
+        self.assertFalse(result["checks"]["synthetic_raw_hashes_match"])
+        self.assertEqual(result["real_network_status"], "PENDING")
+        self.assertEqual(result["production_repair_status"], "PENDING")
+
     def test_failed_network_bundle_survives_temporary_store(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

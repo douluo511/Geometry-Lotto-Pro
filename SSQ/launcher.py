@@ -14,6 +14,7 @@ import re
 import sys
 import tempfile
 import traceback
+from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -137,6 +138,129 @@ def _random_world(draws, seed: int):
         blue = (rng.randint(1, 16),)
         result.append(Draw(d.issue, d.draw_date, reds, blue))
     return result
+
+
+def _run_corrupt_repair_fault_injection(svc) -> dict:
+    """Exercise repair with parsed synthetic responses in this temporary Store only.
+
+    This proves the corruption/rebuild path, not official network availability or
+    production repair.  No synthetic raw bytes are exported as live evidence.
+    """
+    import requests
+    import glp.sources as sources
+    from glp.constants import HEBEI_URL, NATIONAL_URL, SHANGHAI_URL
+    from glp.storage import Store
+
+    svc.ensure_seed()
+    payload = json.loads(svc.store.history_path.read_text(encoding='utf-8'))
+    payload['draws'][-1]['front'][0] = 1 if int(payload['draws'][-1]['front'][0]) != 1 else 2
+    svc.store.history_path.write_text(json.dumps(payload, ensure_ascii=False), encoding='utf-8')
+    before = svc._integrity_check()
+
+    today = datetime.now(timezone.utc).date()
+    issue = f'{today.year}001'
+    day = today.isoformat()
+    national_raw = json.dumps({
+        'state': 0, 'result': [{
+            'code': issue, 'date': day, 'red': '01,02,03,04,05,06', 'blue': '01',
+        }], 'pageNum': 1,
+    }, separators=(',', ':')).encode('utf-8')
+    shanghai_raw = (
+        f'<html><body><table><tr><td>{issue}</td><td>{day}</td>'
+        '<td>010203040506</td><td>01</td></tr></table></body></html>'
+    ).encode('utf-8')
+    fixture_raw = {
+        'official_cwl_L0': national_raw,
+        'official_shanghai_L1': shanghai_raw,
+    }
+    transport_calls: list[str] = []
+    escaped_network_calls = {'count': 0}
+
+    def synthetic_get(url, *, params=None, headers=None, timeout=None):
+        transport_calls.append(url)
+        if url == NATIONAL_URL:
+            raw, media_type = national_raw, 'application/json'
+        elif url == SHANGHAI_URL:
+            raw, media_type = shanghai_raw, 'text/html'
+        elif url == HEBEI_URL:
+            raise requests.ConnectionError('fault-injection-only: third source unavailable')
+        else:
+            raise AssertionError(f'fault injection requested an unexpected URL: {url}')
+        response = requests.Response()
+        response.status_code = 200
+        response._content = raw
+        response.url = url
+        response.headers['Content-Type'] = media_type
+        response.glp_attempts = ()
+        return response
+
+    def forbidden_network(*_args, **_kwargs):
+        escaped_network_calls['count'] += 1
+        raise AssertionError('fault injection attempted real network I/O')
+
+    had_instance_get = 'get' in vars(sources.NET)
+    original_get = vars(sources.NET).get('get')
+    original_request = requests.sessions.Session.request
+    sources.NET.get = synthetic_get
+    requests.sessions.Session.request = forbidden_network
+    try:
+        repair = svc.repair()
+    finally:
+        if had_instance_get:
+            sources.NET.get = original_get
+        else:
+            del sources.NET.get
+        requests.sessions.Session.request = original_request
+
+    after = svc._integrity_check()
+    evidence = json.loads(svc.store.evidence_path.read_text(encoding='utf-8'))
+    records = evidence.get('raw_responses', [])
+    receipts = evidence.get('source_receipts', [])
+    accepted = {
+        record.get('source'): record.get('sha256')
+        for record in records if isinstance(record, dict)
+    }
+    expected = {source: hashlib.sha256(raw).hexdigest() for source, raw in fixture_raw.items()}
+    receipt_status = {
+        receipt.get('source'): receipt.get('status')
+        for receipt in receipts if isinstance(receipt, dict)
+    }
+    try:
+        raw_verified = Store.validate_raw_evidence(evidence, svc.store.root) == 2
+        canonical_verified = len(svc._load_draws()) == 1
+    except Exception:
+        raw_verified = False
+        canonical_verified = False
+    checks = {
+        'corruption_detected': before.get('ok') is False,
+        'synthetic_repair_succeeded': repair.get('status') == 'PASS' and repair.get('repaired') is True,
+        'integrity_restored_in_temporary_store': after.get('ok') is True,
+        'synthetic_raw_hashes_match': accepted == expected and raw_verified,
+        'synthetic_canonical_verified': canonical_verified,
+        'two_source_fixture_quorum': receipt_status == {
+            'official_cwl_L0': 'PASS',
+            'official_shanghai_L1': 'PASS',
+            'official_hebei_L2': 'FAIL',
+        },
+        'transport_isolation': transport_calls == [NATIONAL_URL, SHANGHAI_URL, HEBEI_URL]
+                               and escaped_network_calls['count'] == 0,
+    }
+    return {
+        'status': 'PASS' if all(checks.values()) else 'FAIL',
+        'validation_scope': 'FAULT_INJECTION_ONLY',
+        'test_data_classification': 'TEST_ONLY_SYNTHETIC',
+        'real_network_status': 'PENDING',
+        'real_network_tested': False,
+        'production_repair_status': 'PENDING',
+        'synthetic_artifacts_exported': False,
+        'checks': checks,
+        'before': before,
+        'repair': repair,
+        'after': after,
+        'synthetic_raw_sha256': expected,
+        'transport_calls': transport_calls,
+        'escaped_network_calls': escaped_network_calls['count'],
+    }
 
 
 def main() -> int:
@@ -295,15 +419,12 @@ def main() -> int:
                 status = 'PASS' if rejected and before == after else 'FAIL'
 
             elif args.check == 'corrupt-repair':
-                svc.ensure_seed()
-                payload = json.loads(svc.store.history_path.read_text(encoding='utf-8'))
-                payload['draws'][-1]['front'][0] = 1 if int(payload['draws'][-1]['front'][0]) != 1 else 2
-                svc.store.history_path.write_text(json.dumps(payload, ensure_ascii=False), encoding='utf-8')
-                before = svc._integrity_check()
-                repair = svc.repair()
-                after = svc._integrity_check()
-                r = {'before': before, 'repair': repair, 'after': after}
-                status = 'PASS' if not before.get('ok') and repair.get('status') == 'PASS' and after.get('ok') else 'FAIL'
+                r = _run_corrupt_repair_fault_injection(svc)
+                status = r['status']
+                out['test_data_classification'] = r['test_data_classification']
+                out['real_network_status'] = r['real_network_status']
+                out['real_network_tested'] = r['real_network_tested']
+                out['production_repair_status'] = r['production_repair_status']
 
             elif args.check.startswith('random-world-'):
                 from glp.evidence import run_evidence_court
