@@ -45,8 +45,9 @@ class InvestmentEngine:
     def scenario(self, metric:dict, valuation:dict):
         vol=max(float(metric.get("volatility_20d_ann") or 0),0.0001)
         dd=abs(float(metric.get("max_drawdown_60d") or 0))
+        insufficient = valuation.get("valuation_status") != "ANNUAL_EPS_PROXY"
         return {
-          "risk_state":"HIGH" if vol>=0.40 or dd>=0.25 else ("MEDIUM" if vol>=0.25 or dd>=0.15 else "LOWER"),
+          "risk_state":"HIGH" if vol>=0.40 or dd>=0.25 else ("MEDIUM" if vol>=0.25 or dd>=0.10 or insufficient else "LOWER"),
           "price_shock_minus_10":round(float(metric["close"])*0.90,4),
           "price_shock_minus_20":round(float(metric["close"])*0.80,4),
           "volatility_20d_ann":metric.get("volatility_20d_ann"),
