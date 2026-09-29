@@ -63,6 +63,18 @@ class LottoService:
 
         # Existing data must itself be valid before any automatic upgrade.
         local_draws, _ = self.store.load_draws()
+
+        # The embedded seed is a cold-start / monotonic-upgrade aid, not an authority
+        # over a newer canonical dataset that has already passed the current source
+        # evidence chain.  Real-network canonical data must never be rejected merely
+        # because an older packaged seed contains a historical discrepancy.
+        if local_draws[-1].issue >= seed_draws[-1].issue:
+            integrity = self.store.integrity_check()
+            if integrity.get("status") != "PASS":
+                raise ValueError("本地历史较新但证据链不完整，请运行一键修复")
+            self._import_legacy_freezes()
+            return
+
         local_by_issue = {d.issue: d.to_dict() for d in local_draws}
         for d in seed_draws:
             if d.issue in local_by_issue and local_by_issue[d.issue] != d.to_dict():
