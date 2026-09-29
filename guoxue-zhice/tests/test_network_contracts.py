@@ -111,8 +111,9 @@ class PersistenceFaultTests(unittest.TestCase):
             store=Store(Path(td))
             before_k=store.knowledge_path.read_bytes()
             before_s=store.state_path.read_bytes()
-            with self.assertRaises(ValueError):
+            with self.assertRaises(RuntimeError) as ctx:
                 MaintenanceEngine(store,FakeNet()).one_click_update()
+            self.assertIn("SHA256 mismatch", str(ctx.exception))
             self.assertEqual(before_k,store.knowledge_path.read_bytes())
             self.assertEqual(before_s,store.state_path.read_bytes())
 
