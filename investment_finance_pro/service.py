@@ -50,7 +50,8 @@ class InvestmentService:
             item, receipt = self.net.fetch_us_treasury_10y()
             macro["US_10Y_TREASURY"] = item
             providers.append({"source": "US_TREASURY:10Y", "ok": True, "detail": "latest official daily yield loaded"})
-            receipts.append(receipt)
+            raw_receipts.append(receipt)
+            receipts.append(_compact_receipt(receipt))
         except Exception as exc:
             providers.append({"source": "US_TREASURY:10Y", "ok": False, "detail": str(exc)})
 
@@ -58,7 +59,8 @@ class InvestmentService:
             item, receipt = self.net.fetch_fred_series("DFF")
             macro["FED_FUNDS_EFFECTIVE"] = item
             providers.append({"source":"FRED:DFF","ok":True,"detail":"latest effective federal funds rate loaded"})
-            receipts.append(receipt)
+            raw_receipts.append(receipt)
+            receipts.append(_compact_receipt(receipt))
         except Exception as exc:
             providers.append({"source":"FRED:DFF","ok":False,"detail":str(exc)})
 
