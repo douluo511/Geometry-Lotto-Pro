@@ -1,5 +1,6 @@
 from __future__ import annotations
 import json
+import os
 from pathlib import Path
 ROOT=Path(__file__).resolve().parent
 
@@ -19,7 +20,7 @@ def main()->int:
       "business_no_mindreading": "不是读心" in (ROOT/"core.py").read_text(encoding="utf-8"),
     }
     status="PASS" if all(checks.values()) else "FAIL"
-    report={"schema":"psychology-business-gate-v1","version":k.get("version"),"status":status,"hypothesis_count":len(hs),"source_count":len(src),"checks":checks}
+    report={"schema":"psychology-business-gate-v1","version":k.get("version"),"status":status,"github_sha":os.environ.get("GITHUB_SHA"),"hypothesis_count":len(hs),"source_count":len(src),"checks":checks}
     (ROOT/"business_gate.json").write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding="utf-8")
     print(json.dumps(report,ensure_ascii=True))
     return 0 if status=="PASS" else 2
