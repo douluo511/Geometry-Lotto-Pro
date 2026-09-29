@@ -1,4 +1,5 @@
 name: Human Nature Pro Full Hard-Gate Windows Release
+
 on:
   workflow_dispatch:
   push:
@@ -6,114 +7,212 @@ on:
     paths:
       - 'Human-Nature-Pro/**'
       - '.github/workflows/human-nature-pro-windows.yml'
+      - '.github/scripts/physical_gui_click_smoke.ps1'
+      - '.github/scripts/tk_button_points.py'
+
 permissions:
   contents: read
+
 jobs:
   full-release-gate:
     runs-on: windows-2022
-    timeout-minutes: 45
+    timeout-minutes: 60
     env:
       PYTHONUTF8: '1'
       PYTHONIOENCODING: 'utf-8'
     steps:
       - name: Checkout exact commit
         uses: actions/checkout@v4
+
       - name: Setup Python x64
         uses: actions/setup-python@v5
         with:
           python-version: '3.11.9'
           architecture: 'x64'
+
       - name: Install pinned dependencies
-        run: python -m pip install --disable-pip-version-check -r Human-Nature-Pro/requirements-build.txt
-      - name: Architecture and code completeness
         run: |
-          python -m compileall -q Human-Nature-Pro
-          python Human-Nature-Pro/architecture_gate.py
+          python -m pip install --disable-pip-version-check -r Human-Nature-Pro/requirements-build.txt
+          New-Item -ItemType Directory -Force evidence | Out-Null
+          New-Item -ItemType Directory -Force Human-Nature-Pro\dist\final | Out-Null
+
+      - name: Compile gate
+        run: python -m compileall -q Human-Nature-Pro
+
+      - name: Architecture mother gate
+        run: python Human-Nature-Pro/architecture_gate.py
+
       - name: Business Content Gate
         run: python Human-Nature-Pro/business_gate.py
+
       - name: Self-Test
-        run: python Human-Nature-Pro/app.py --self-test
+        shell: pwsh
+        run: |
+          python Human-Nature-Pro/app.py --self-test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          New-Item evidence\self_test.pass -ItemType File | Out-Null
+
+      - name: Unit Test
+        shell: pwsh
+        run: |
+          python Human-Nature-Pro/tests/test_core.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m unittest discover -s Human-Nature-Pro/tests -p "test_release_gate.py" -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          New-Item evidence\unit_tests.pass -ItemType File | Out-Null
+
       - name: Contract Test
-        run: python -m unittest discover -s Human-Nature-Pro/tests -p "test_contracts.py" -v
+        shell: pwsh
+        run: |
+          python -m unittest discover -s Human-Nature-Pro/tests -p "test_contracts.py" -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m unittest discover -s Human-Nature-Pro/tests -p "test_network_contracts.py" -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          New-Item evidence\contract_tests.pass -ItemType File | Out-Null
+
+      - name: Integration Test
+        shell: pwsh
+        run: |
+          python -m unittest discover -s Human-Nature-Pro/tests -p "test_integration.py" -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          New-Item evidence\integration_tests.pass -ItemType File | Out-Null
+
       - name: Fault Injection
-        run: python -m unittest discover -s Human-Nature-Pro/tests -p "test_fault_injection.py" -v
-      - name: Full Regression
-        run: python -m unittest discover -s Human-Nature-Pro/tests -v
+        shell: pwsh
+        run: |
+          python -m unittest discover -s Human-Nature-Pro/tests -p "test_fault_injection.py" -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          New-Item evidence\fault_injection.pass -ItemType File | Out-Null
+
+      - name: Business Validation
+        shell: pwsh
+        run: |
+          python -m unittest discover -s Human-Nature-Pro/tests -p "test_business_validation.py" -k business_core -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          New-Item evidence\business_validation.pass -ItemType File | Out-Null
+
+      - name: Counterexample Validation
+        shell: pwsh
+        run: |
+          python -m unittest discover -s Human-Nature-Pro/tests -p "test_business_validation.py" -k counterexample -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          New-Item evidence\counterexample_validation.pass -ItemType File | Out-Null
+
+      - name: Reversal Validation
+        shell: pwsh
+        run: |
+          python -m unittest discover -s Human-Nature-Pro/tests -p "test_business_validation.py" -k reversal -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          New-Item evidence\reversal_validation.pass -ItemType File | Out-Null
+
       - name: Real Network
-        run: python Human-Nature-Pro/real_network_check.py
+        shell: pwsh
+        run: |
+          python Human-Nature-Pro/real_network_check.py | Tee-Object -FilePath Human-Nature-Pro\real_network.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          New-Item evidence\real_network.pass -ItemType File | Out-Null
+
       - name: Windows Build
         shell: pwsh
         run: |
           Set-Location Human-Nature-Pro
           pyinstaller --noconfirm --clean --onefile --windowed --name Human_Nature_Pro --add-data "knowledge_base.json;." app.py
           if (-not (Test-Path dist\Human_Nature_Pro.exe)) { throw "EXE missing" }
+          Set-Location ..
+          New-Item evidence\windows_build.pass -ItemType File | Out-Null
+
       - name: Exact EXE Self-Test
         shell: pwsh
         run: |
           $p=Start-Process Human-Nature-Pro\dist\Human_Nature_Pro.exe -ArgumentList "--self-test" -Wait -PassThru
           if ($p.ExitCode -ne 0) { throw "Exact EXE self-test failed" }
+          New-Item evidence\exact_exe_self_test.pass -ItemType File | Out-Null
+
       - name: GUI Smoke
         shell: pwsh
         run: |
           $p=Start-Process Human-Nature-Pro\dist\Human_Nature_Pro.exe -ArgumentList "--gui-smoke" -Wait -PassThru
           if ($p.ExitCode -ne 0) { throw "GUI Smoke failed" }
+          New-Item evidence\gui_smoke.pass -ItemType File | Out-Null
+
+      - name: Freeze candidate bytes
+        shell: pwsh
+        run: |
+          Copy-Item Human-Nature-Pro\dist\Human_Nature_Pro.exe Human-Nature-Pro\dist\final\Human_Nature_Pro.exe -Force
+
+      - name: Same Hash
+        shell: pwsh
+        run: |
+          $pre=(Get-FileHash Human-Nature-Pro\dist\Human_Nature_Pro.exe -Algorithm SHA256).Hash.ToLower()
+          $post=(Get-FileHash Human-Nature-Pro\dist\final\Human_Nature_Pro.exe -Algorithm SHA256).Hash.ToLower()
+          if ($pre -ne $post) { throw "Same Hash failed" }
+          New-Item evidence\same_hash.pass -ItemType File | Out-Null
+          $post | Out-File Human-Nature-Pro\sha256.txt -Encoding ascii
+
+      - name: Final EXE Self-Test
+        shell: pwsh
+        run: |
+          $p=Start-Process Human-Nature-Pro\dist\final\Human_Nature_Pro.exe -ArgumentList "--self-test" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Final EXE self-test failed" }
+
       - name: Physical GUI Click Smoke
         shell: pwsh
         run: |
           python .\.github\scripts\tk_button_points.py --project-path Human-Nature-Pro --module app --entry run_gui --labels "分析当前局面;一键更新;一键修复;高级分析" --out ".\Human-Nature-Pro\gui_points.txt"
           $points=(Get-Content ".\Human-Nature-Pro\gui_points.txt" -Raw).Trim()
-          .\.github\scripts\physical_gui_click_smoke.ps1 -ExePath ".\Human-Nature-Pro\dist\Human_Nature_Pro.exe" -Points $points -EvidencePath ".\Human-Nature-Pro\physical_gui_click.json"
+          .\.github\scripts\physical_gui_click_smoke.ps1 -ExePath ".\Human-Nature-Pro\dist\final\Human_Nature_Pro.exe" -Points $points -EvidencePath ".\Human-Nature-Pro\physical_gui_click.json"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python Human-Nature-Pro\bind_physical_gui.py --exe ".\Human-Nature-Pro\dist\final\Human_Nature_Pro.exe" --evidence ".\Human-Nature-Pro\physical_gui_click.json" --marker ".\evidence\physical_gui_click.pass"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Same Hash
+      - name: Evidence-derived Final Gate
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force Human-Nature-Pro\dist\final | Out-Null
-          $pre=(Get-FileHash Human-Nature-Pro\dist\Human_Nature_Pro.exe -Algorithm SHA256).Hash.ToLower()
-          Copy-Item Human-Nature-Pro\dist\Human_Nature_Pro.exe Human-Nature-Pro\dist\final\Human_Nature_Pro.exe -Force
-          $post=(Get-FileHash Human-Nature-Pro\dist\final\Human_Nature_Pro.exe -Algorithm SHA256).Hash.ToLower()
-          if ($pre -ne $post) { throw "Same Hash failed" }
-          $post | Out-File Human-Nature-Pro\sha256.txt -Encoding ascii
-      - name: Final Gate
-        shell: pwsh
-        run: |
-          @'
-          {"gates":{"purpose_model":"PASS","five_why":"PASS","risk_boundary":"PASS","domain_model":"PASS","architecture":"PASS","function_contract":"PASS","interface_contract":"PASS","data_source":"PASS","netclient":"PASS","storage":"PASS","engine":"PASS","evidence":"PASS","service":"PASS","ui":"PASS","self_test":"PASS","contract_test":"PASS","fault_injection":"PASS","real_network":"PASS","windows_build":"PASS","exact_exe":"PASS","gui_smoke":"PASS","same_hash":"PASS","business_content":"PASS"}}
-          '@ | Out-File Human-Nature-Pro\gate_input.json -Encoding utf8
-          python Human-Nature-Pro/release_gate.py --input Human-Nature-Pro\gate_input.json --output Human-Nature-Pro\final_gate.json
-          $r=Get-Content Human-Nature-Pro\final_gate.json -Raw | ConvertFrom-Json
-          if ($r.final_gate -ne "PASS" -or $r.hard_fail_count -ne 0) { throw "Final Gate failed" }
+          python Human-Nature-Pro\collect_final_gates.py --evidence-dir evidence --architecture Human-Nature-Pro\architecture_gate.json --business Human-Nature-Pro\business_gate.json --candidate-exe Human-Nature-Pro\dist\Human_Nature_Pro.exe --final-exe Human-Nature-Pro\dist\final\Human_Nature_Pro.exe --physical-gui Human-Nature-Pro\physical_gui_click.json --repository-independent FAIL --out Human-Nature-Pro\gate_input.json
+          $collector=$LASTEXITCODE
+          python Human-Nature-Pro\release_gate.py --evidence-dir evidence --candidate-exe Human-Nature-Pro\dist\Human_Nature_Pro.exe --final-exe Human-Nature-Pro\dist\final\Human_Nature_Pro.exe --gate-input Human-Nature-Pro\gate_input.json --out Human-Nature-Pro\final_gate.json
+          $release=$LASTEXITCODE
+          Get-Content Human-Nature-Pro\final_gate.json
+          if ($collector -ne 0 -or $release -ne 0) { throw "Final Gate blocked: independent repository is mandatory" }
+
       - name: Acceptance Evidence
+        if: always()
         shell: pwsh
         run: |
-          $hash=(Get-FileHash Human-Nature-Pro\dist\final\Human_Nature_Pro.exe -Algorithm SHA256).Hash.ToLower()
-          @{project='Human Nature Pro';version='0.3.0';artifact='Human_Nature_Pro.exe';sha256=$hash;source_commit=$env:GITHUB_SHA;final_gate='PASS'} | ConvertTo-Json | Set-Content Human-Nature-Pro\FINAL_ACCEPTANCE.json -Encoding utf8
-          Write-Host "FINAL_EXE_SHA256=$hash"
+          $hash=""
+          if (Test-Path Human-Nature-Pro\dist\final\Human_Nature_Pro.exe) {
+            $hash=(Get-FileHash Human-Nature-Pro\dist\final\Human_Nature_Pro.exe -Algorithm SHA256).Hash.ToLower()
+          }
+          $fg="FAIL"
+          if (Test-Path Human-Nature-Pro\final_gate.json) {
+            $r=Get-Content Human-Nature-Pro\final_gate.json -Raw | ConvertFrom-Json
+            $fg=$r.final_gate
+          }
+          @{project='Human Nature Pro';version='0.4.0-staging';artifact='Human_Nature_Pro.exe';sha256=$hash;source_commit=$env:GITHUB_SHA;final_gate=$fg;repository_independence='FAIL';note='Monorepo staging evidence only; not a FINAL product'} | ConvertTo-Json | Set-Content Human-Nature-Pro\FINAL_ACCEPTANCE.json -Encoding utf8
+
       - name: Upload Unique Final Product
+        if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: Human_Nature_Pro_FINAL_v0.3.0
+          name: Human_Nature_Pro_FINAL
           path: Human-Nature-Pro/dist/final/Human_Nature_Pro.exe
           if-no-files-found: error
           retention-days: 30
           compression-level: 0
+
       - name: Upload Audit Evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Human_Nature_Pro_AUDIT_v0.3.0
+          name: Human_Nature_Pro_STAGING_AUDIT
           path: |
             Human-Nature-Pro/final_gate.json
+            Human-Nature-Pro/gate_input.json
             Human-Nature-Pro/FINAL_ACCEPTANCE.json
             Human-Nature-Pro/sha256.txt
             Human-Nature-Pro/physical_gui_click.json
             Human-Nature-Pro/business_gate.json
-          if-no-files-found: error
-
-# Hard-gate revalidation trigger: 2026-09-24 master-template human
-
-# physical-gui child-process discovery fix: 2026-09-24
-
-# physical-gui UIAutomation button-boundary fix: 2026-09-24
-
-# physical-gui full-desktop evidence fix: 2026-09-24
-
-# exact GUI physical click calibration: 2026-09-24
+            Human-Nature-Pro/architecture_gate.json
+            Human-Nature-Pro/real_network.log
+          if-no-files-found: warn
+          retention-days: 90
