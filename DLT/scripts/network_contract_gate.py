@@ -150,6 +150,55 @@ def main() -> int:
     except SourceError as exc:
         record("jiangsu_duplicate_issue_fail_closed", True, str(exc))
 
+    gd_html = """
+    <html><body>
+      <h1>中国体育彩票超级大乐透</h1>
+      <h2>第26111期开奖公告</h2>
+      <p>开奖日期：2026年9月28日</p>
+      <div>本期开奖号码：10 11 17 26 29 01 03</div>
+      <div>本期中奖情况</div>
+    </body></html>
+    """
+    try:
+        gd = sources._parse_guangdong_announcement(gd_html, "26111")
+        record(
+            "guangdong_official_parser",
+            gd.issue == "26111"
+            and gd.draw_date == "2026-09-28"
+            and gd.front == (10, 11, 17, 26, 29)
+            and gd.back == (1, 3),
+            gd.to_dict(),
+        )
+    except Exception as exc:
+        record("guangdong_official_parser", False, f"{type(exc).__name__}: {exc}")
+
+    try:
+        sources._parse_guangdong_announcement(gd_html, "26110")
+        record("guangdong_issue_mismatch_fail_closed", False, "wrong issue accepted")
+    except SourceError as exc:
+        record("guangdong_issue_mismatch_fail_closed", True, str(exc))
+
+    primary = [
+        sources._parse_result("26110", "2026-09-26", "03 24 25 26 35 07 09"),
+        sources._parse_result("26111", "2026-09-28", "10 11 17 26 29 01 03"),
+    ]
+    secondary = list(primary)
+    try:
+        count = sources._crosscheck(primary, secondary, minimum=2)
+        record("independent_source_crosscheck", count == 2, {"overlap": count})
+    except Exception as exc:
+        record("independent_source_crosscheck", False, f"{type(exc).__name__}: {exc}")
+
+    conflict = [
+        sources._parse_result("26110", "2026-09-26", "03 24 25 26 35 07 09"),
+        sources._parse_result("26111", "2026-09-28", "10 11 17 26 30 01 03"),
+    ]
+    try:
+        sources._crosscheck(primary, conflict, minimum=2)
+        record("independent_source_conflict_fail_closed", False, "conflicting official data accepted")
+    except SourceError as exc:
+        record("independent_source_conflict_fail_closed", True, str(exc))
+
     failures = [name for name, row in checks.items() if row["status"] != "PASS"]
     report = {
         "schema": "dlt-network-contract-gate-v1",
