@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import shutil
 import tempfile
+from dataclasses import asdict
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Iterable
 
 from contracts import validate_knowledge
 from domain import SourceRecord
@@ -15,6 +17,10 @@ class KnowledgeStorage:
     def __init__(self, local_path: Path, bundled_path: Path):
         self.local_path = Path(local_path)
         self.bundled_path = Path(bundled_path)
+
+    @property
+    def evidence_path(self) -> Path:
+        return self.local_path.with_suffix(".source.json")
 
     def _load(self, path: Path) -> Dict:
         with path.open("r", encoding="utf-8") as f:
@@ -35,32 +41,99 @@ class KnowledgeStorage:
     def load_knowledge(self) -> Dict:
         return self.ensure()
 
-    def replace_knowledge(self, payload: Dict, source: SourceRecord | None = None) -> None:
-        validate_knowledge(payload)
-        self.local_path.parent.mkdir(parents=True, exist_ok=True)
-        backup = self.local_path.with_suffix(".json.bak")
-        if self.local_path.exists():
-            shutil.copy2(self.local_path, backup)
+    @staticmethod
+    def _json_bytes(value) -> bytes:
+        return (json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode("utf-8")
 
-        fd, tmp = tempfile.mkstemp(prefix="pip_", suffix=".json", dir=str(self.local_path.parent))
+    @staticmethod
+    def _stage(path: Path, payload: bytes) -> Path:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        fd, tmp = tempfile.mkstemp(prefix=path.name + ".", suffix=".stage", dir=str(path.parent))
+        tmp_path = Path(tmp)
         try:
-            with os.fdopen(fd, "w", encoding="utf-8") as f:
-                json.dump(payload, f, ensure_ascii=False, indent=2)
+            with os.fdopen(fd, "wb") as f:
+                f.write(payload)
                 f.flush()
                 os.fsync(f.fileno())
-            os.replace(tmp, self.local_path)
-            self._load(self.local_path)
-            if source is not None:
-                evidence_path = self.local_path.with_suffix(".source.json")
-                with evidence_path.open("w", encoding="utf-8") as f:
-                    json.dump(source.__dict__, f, ensure_ascii=False, indent=2)
+            return tmp_path
         except Exception:
-            if backup.exists():
-                shutil.copy2(backup, self.local_path)
+            tmp_path.unlink(missing_ok=True)
+            raise
+
+    @staticmethod
+    def _restore(path: Path, previous: bytes | None) -> None:
+        if previous is None:
+            path.unlink(missing_ok=True)
+            return
+        staged = KnowledgeStorage._stage(path, previous)
+        os.replace(staged, path)
+
+    def replace_knowledge(
+        self,
+        payload: Dict,
+        sources: SourceRecord | Iterable[SourceRecord] | None = None,
+    ) -> None:
+        validate_knowledge(payload)
+        self.local_path.parent.mkdir(parents=True, exist_ok=True)
+
+        if sources is None:
+            source_list: list[SourceRecord] = []
+        elif isinstance(sources, SourceRecord):
+            source_list = [sources]
+        else:
+            source_list = list(sources)
+
+        knowledge_bytes = self._json_bytes(payload)
+        knowledge_sha = hashlib.sha256(knowledge_bytes).hexdigest()
+        evidence_core = {
+            "schema": "psychology-source-evidence-v2",
+            "knowledge_sha256": knowledge_sha,
+            "knowledge_version": payload.get("version"),
+            "source_count": len(source_list),
+            "sources": [asdict(s) for s in source_list],
+        }
+        commit_id = hashlib.sha256(
+            self._json_bytes(evidence_core) + knowledge_sha.encode("ascii")
+        ).hexdigest()
+        evidence_payload = {**evidence_core, "commit_id": commit_id}
+
+        old_knowledge = self.local_path.read_bytes() if self.local_path.exists() else None
+        old_evidence = self.evidence_path.read_bytes() if self.evidence_path.exists() else None
+        staged_knowledge: Path | None = None
+        staged_evidence: Path | None = None
+        evidence_committed = False
+        try:
+            # Stage and validate the exact bytes before mutating production state.
+            staged_knowledge = self._stage(self.local_path, knowledge_bytes)
+            self._load(staged_knowledge)
+            staged_evidence = self._stage(self.evidence_path, self._json_bytes(evidence_payload))
+
+            # Evidence first, canonical knowledge last. If the canonical replace
+            # fails, evidence is rolled back. Missing evidence can never be PASS.
+            os.replace(staged_evidence, self.evidence_path)
+            staged_evidence = None
+            evidence_committed = True
+            os.replace(staged_knowledge, self.local_path)
+            staged_knowledge = None
+
+            self._load(self.local_path)
+            saved_evidence = json.loads(self.evidence_path.read_text(encoding="utf-8"))
+            if saved_evidence.get("commit_id") != commit_id:
+                raise RuntimeError("source evidence commit_id mismatch")
+            if hashlib.sha256(self.local_path.read_bytes()).hexdigest() != knowledge_sha:
+                raise RuntimeError("knowledge hash mismatch after commit")
+        except Exception:
+            if evidence_committed:
+                self._restore(self.evidence_path, old_evidence)
+            current = self.local_path.read_bytes() if self.local_path.exists() else None
+            if current != old_knowledge:
+                self._restore(self.local_path, old_knowledge)
             raise
         finally:
-            if os.path.exists(tmp):
-                os.unlink(tmp)
+            if staged_knowledge is not None:
+                staged_knowledge.unlink(missing_ok=True)
+            if staged_evidence is not None:
+                staged_evidence.unlink(missing_ok=True)
 
     def repair_knowledge(self) -> Dict[str, str]:
         try:
