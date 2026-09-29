@@ -1,4 +1,4 @@
-# Investment Finance Pro — Engineering Freeze v1.0
+# Investment Finance Pro — Engineering Freeze v2.0
 
 This file freezes the non-degradable delivery line for Investment Finance Pro.
 
@@ -159,11 +159,16 @@ Required properties:
 - parse validation
 - no fake success on network failure
 
-Future hardening:
+Current hard requirements:
 - retry only for idempotent GET
-- exponential backoff + jitter
-- 429 / 5xx policy
-- payload hash and content-type evidence
+- separate connect/read timeout
+- finite retries with exponential backoff + jitter
+- explicit 408/429/5xx policy and Retry-After handling
+- HTTPS-only request and redirect-downgrade rejection
+- per-attempt ledger
+- raw payload preservation by SHA-256
+- payload hash/content-type/schema/freshness validation
+- independent Yahoo/Stooq market conflict detection and bounded fallback
 
 ## 10. Storage
 
@@ -227,6 +232,10 @@ Must prove:
 
 Must run on GitHub-hosted Windows before build and again against the built EXE.
 
+## 18A. Scientific OOS Gate
+
+Run the chronological OOS firewall on source and again through the exact EXE. It must execute equal-weight/random baselines, cost stress, bootstrap/permutation, dual holdout, leakage sentinel and component ablation. The release may PASS with NO_EDGE/UNVALIDATED, but may not automatically promote an edge.
+
 ## 19. Windows Build
 
 PyInstaller single-file windowed x86-64 EXE.
@@ -245,15 +254,18 @@ SHA-256(dist/InvestmentFinancePro.exe) MUST equal SHA-256(final/InvestmentFinanc
 
 ## 23. Final Gate
 
-PASS iff:
-- source self-test PASS
-- contract test PASS
-- fault injection PASS
-- source real-network PASS
-- exact EXE self-test PASS
-- exact EXE real-network PASS
-- GUI smoke PASS
-- same hash true
+PASS only when current-run evidence derives explicit PASS for:
+- purpose_model / five_why / risk_boundary / domain_model / architecture
+- function_contract / interface_contract / data_source / netclient / storage / engine / evidence / service / ui
+- self_test / unit_test / contract_test / integration_test / fault_injection
+- real_network
+- business_validation / oos_validation / counterexample_validation / reversal_validation
+- windows_build / exact_exe / exact_exe_network
+- gui_smoke / physical_gui_click
+- same_hash
+- business_content
+
+The workflow must never write a pre-filled all-PASS gate input. Missing, PARTIAL, PENDING, WARNING, SKIPPED, UNAVAILABLE, UNKNOWN, CANCELLED or FAIL evidence is Final Gate FAIL.
 
 ## 24. 唯一成品
 
