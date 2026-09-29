@@ -89,8 +89,8 @@ class PersistenceFaultTests(unittest.TestCase):
                 if source_id.startswith("manifest"):
                     payload=json.dumps({
                         "schema":1,
-                        "version":"x",
-                        "data_url":"https://example.invalid/knowledge.json",
+                        "version":"0.1.0",
+                        "data_url":"https://raw.githubusercontent.com/douluo511/Geometry-Lotto-Pro/main/guoxue-zhice/data/knowledge.json",
                         "sha256":"0"*64
                     }).encode()
                 else:
