@@ -99,7 +99,10 @@ class NetClient:
                     if len(payload) > self.policy.max_payload_bytes:
                         raise ValueError("payload too large")
                     content_type = (response.headers.get("Content-Type") or "").lower()
-                    if content_type and not any(x in content_type for x in ("xml", "rss", "atom", "text")):
+                    allowed_types = ("xml", "rss", "atom", "text")
+                    if source.source_type == "bls_api":
+                        allowed_types = allowed_types + ("json",)
+                    if content_type and not any(x in content_type for x in allowed_types):
                         raise ValueError(f"unexpected content type: {content_type}")
 
                     attempts.append({
