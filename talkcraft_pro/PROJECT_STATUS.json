@@ -1,0 +1,36 @@
+{
+  "project": "TalkCraft Pro",
+  "version": "1.0-full-candidate",
+  "engineering_completion_percent": 82,
+  "business_completion_percent": 90,
+  "overall_completion_percent": 82,
+  "engineering_final_gate": "PENDING_WINDOWS_EXACT_EXE",
+  "project_final_gate": "FAIL_NOT_YET_PROVEN",
+  "full_version": false,
+  "completed": {
+    "architecture": true,
+    "netclient": true,
+    "storage": true,
+    "engine": true,
+    "evidence": true,
+    "service": true,
+    "ui": true,
+    "self_test": true,
+    "contract_tests": true,
+    "fault_injection": true,
+    "windows_workflow": true,
+    "business_scope": true,
+    "case_library": 60,
+    "drills": 180,
+    "knowledge_domains": 10
+  },
+  "remaining": [
+    "Run real external network test in an environment with internet access",
+    "Run GitHub Windows build",
+    "Run Exact EXE self-test",
+    "Run GUI entity click smoke test",
+    "Verify Same Hash",
+    "Get explicit Final Gate PASS",
+    "Complete real-user usefulness/reversal validation before business 100%"
+  ]
+}
