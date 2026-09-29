@@ -242,7 +242,17 @@ for($i=0;$i -lt 4;$i++){
       $locator="FrozenNormalizedCoordinate"
     }
     Start-Sleep -Milliseconds $SettleMs
-    if(-not [PhysicalGuiClick]::IsWindow($hwnd)){ throw "GUI window disappeared after core button $($i+1)" }
+    if(-not [PhysicalGuiClick]::IsWindow($hwnd)){
+      # PyInstaller one-file may hand the visible window from the bootstrap process
+      # to the extracted child.  A stale HWND alone is not proof of an application
+      # crash. Re-resolve a visible main window belonging to this launch only.
+      $rebound = Wait-MainWindow $p $processName $baselinePids
+      $hwnd = $rebound.hwnd
+      $window = $rebound
+      if(-not [PhysicalGuiClick]::IsWindow($hwnd)){
+        throw "No live GUI window after core button $($i+1)"
+      }
+    }
     $after=Get-WindowHash $hwnd
     $changed=($before -ne $after)
     if(-not $changed){ throw "Core button $($i+1) produced no visible GUI change; click not proven" }
