@@ -34,3 +34,5 @@ jobs:
           print("SCRIPTS")
           for src in re.findall(r"<script\\b[^>]*src=[\\"']([^\\"']+)", text, flags=re.I):
               print(src)
+
+# probe trigger 2
