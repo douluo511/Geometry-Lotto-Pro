@@ -23,6 +23,8 @@ def main()->int:
       "sec":"fetch_sec_companyfacts" in n and "SEC:AAPL" in s,
       "business_dimensions":"business_dimensions" in s,
       "strict_network_ledger":all(x in n for x in ["FINAL_INSECURE_REDIRECT","RETRY_HTTP","RETRY_EXCEPTION","body_b64","requested_url","final_url"]),
+      "independent_market_source":"fetch_stooq_history" in n and "_crosscheck_market" in n and "crosscheck_status" in n,
+      "freshness_gate":"_require_fresh_date" in n and "stale/future date" in n,
       "raw_evidence_persistence":"raw_dir" in ev and "raw_sha256" in ev and "body_b64" in ev,
       "failed_snapshot_not_committed":'if state == "PASS":' in s and "snapshot_committed" in s,
       "research_boundary":"不是买卖建议" in spec and "不保证收益" in spec,
