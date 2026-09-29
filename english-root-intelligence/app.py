@@ -183,7 +183,9 @@ class App(tk.Tk):
             messagebox.showwarning("朗读", str(exc))
 
     def run_update(self):
+        self.title(f"{APP_NAME} v{APP_VERSION} · 一键更新已触发")
         self.status_var.set("正在联网检查并验证词根数据库更新…")
+        self.update_idletasks()
         threading.Thread(target=self._update_worker, daemon=True).start()
 
     def _update_worker(self):

@@ -7,13 +7,17 @@ import os
 import shutil
 import sys
 import tempfile
-import urllib.request
 from pathlib import Path
 from typing import Any
 
 APP_NAME = "English Root Intelligence"
-APP_VERSION = "0.3.0"
-MANIFEST_URL = "https://raw.githubusercontent.com/douluo511/Geometry-Lotto-Pro/main/english-root-intelligence/data/update_manifest.json"
+APP_VERSION = "0.4.0"
+UPDATE_REF = (os.environ.get("GLP_UPDATE_REF") or "main").strip() or "main"
+MANIFEST_URLS = (
+    f"https://raw.githubusercontent.com/douluo511/Geometry-Lotto-Pro/{UPDATE_REF}/english-root-intelligence/data/update_manifest.json",
+    f"https://github.com/douluo511/Geometry-Lotto-Pro/raw/{UPDATE_REF}/english-root-intelligence/data/update_manifest.json",
+)
+MANIFEST_URL = MANIFEST_URLS[0]
 
 PREFIXES = {
     "un": "not / reverse",
@@ -233,40 +237,11 @@ class MaintenanceEngine:
         self.store = store
 
     def one_click_update(self) -> dict[str, Any]:
-        with urllib.request.urlopen(MANIFEST_URL, timeout=15) as resp:
-            manifest = json.loads(resp.read().decode("utf-8"))
-        if manifest.get("schema") != 1 or not manifest.get("data_url") or not manifest.get("sha256"):
-            raise ValueError("远程更新清单无效")
-
-        with urllib.request.urlopen(str(manifest["data_url"]), timeout=20) as resp:
-            raw = resp.read()
-        digest = hashlib.sha256(raw).hexdigest()
-        if digest.lower() != str(manifest["sha256"]).lower():
-            raise ValueError("更新包 SHA256 校验失败")
-        value = validate_roots(json.loads(raw.decode("utf-8")))
-
-        tmp = self.store.data_dir / "roots.json.staging"
-        tmp.write_bytes(raw)
-        validate_roots(json.loads(tmp.read_text(encoding="utf-8")))
-        backup = self.store.data_dir / "roots.json.backup"
-        shutil.copy2(self.store.roots_path, backup)
-        try:
-            os.replace(tmp, self.store.roots_path)
-            self.store.load_roots()
-        except Exception:
-            if backup.exists():
-                shutil.copy2(backup, self.store.roots_path)
-            raise
-
-        p = self.store.load_progress()
-        p["last_update"] = dt.datetime.now().isoformat(timespec="seconds")
-        self.store.save_progress(p)
-        return {
-            "status": "PASS",
-            "version": value.get("version"),
-            "roots": len(value["roots"]),
-            "sha256": digest,
-        }
+        raise RuntimeError(
+            "legacy MaintenanceEngine network update is disabled; "
+            "use EnglishRootService.one_click_update so all production traffic "
+            "passes through the audited NetClient and evidence chain"
+        )
 
     def one_click_repair(self) -> dict[str, Any]:
         checks = []
