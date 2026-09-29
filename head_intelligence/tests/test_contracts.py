@@ -6,10 +6,11 @@ from head_intelligence.storage import AtomicStorage
 
 
 class FakeResponse:
-    def __init__(self, status_code=200, content=b"<rss><channel></channel></rss>", content_type="application/rss+xml"):
+    def __init__(self, status_code=200, content=b"<rss><channel></channel></rss>", content_type="application/rss+xml", url=None):
         self.status_code = status_code
         self.content = content
         self.headers = {"Content-Type": content_type}
+        self.url = url
 
     def raise_for_status(self):
         if self.status_code >= 400:
@@ -42,6 +43,8 @@ def test_netclient_contract_success():
     assert doc.http_status == 200
     assert doc.payload_hash
     assert doc.payload.startswith(b"<rss")
+    assert doc.final_url == "https://example.test/feed.xml"
+    assert doc.attempts[-1]["outcome"] == "HTTP_RESPONSE"
 
 
 def test_storage_contract_round_trip(tmp_path: Path):
