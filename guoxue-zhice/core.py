@@ -9,11 +9,12 @@ import sys
 import tempfile
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 from net_client import NetClient
 
 APP_NAME = "国学智策系统"
-APP_VERSION = "0.1.0"
+APP_VERSION = "0.2.0"
 MANIFEST_URLS = [
     "https://raw.githubusercontent.com/douluo511/Geometry-Lotto-Pro/main/guoxue-zhice/data/update_manifest.json",
     "https://raw.githubusercontent.com/douluo511/Geometry-Lotto-Pro/guoxue-zhice-v0.1/guoxue-zhice/data/update_manifest.json",
@@ -331,6 +332,22 @@ class ReviewEngine:
         return list(reversed(self.store.load_state()["reviews"][-limit:]))
 
 
+def _version_tuple(value: str) -> tuple[int, ...]:
+    parts = str(value).strip().lstrip("v").split(".")
+    if not parts or any(not x.isdigit() for x in parts):
+        raise ValueError(f"invalid semantic version: {value!r}")
+    return tuple(int(x) for x in parts)
+
+def _allowed_update_url(url: str) -> bool:
+    p = urlparse(str(url))
+    return p.scheme == "https" and p.hostname in {"raw.githubusercontent.com", "github.com"}
+
+def _alternate_github_distribution(url: str) -> str | None:
+    prefix = "https://raw.githubusercontent.com/douluo511/Geometry-Lotto-Pro/"
+    if str(url).startswith(prefix):
+        return "https://github.com/douluo511/Geometry-Lotto-Pro/raw/" + str(url)[len(prefix):]
+    return None
+
 class MaintenanceEngine:
     PARSER_VERSION = "guoxue-knowledge-parser-v0.2"
 
@@ -338,8 +355,8 @@ class MaintenanceEngine:
         self.store = store
         self.net = net or NetClient(connect_timeout=5, read_timeout=20, max_attempts=3)
 
-    def _fetch_manifest(self) -> tuple[dict[str, Any], dict[str, Any], bytes]:
-        failures = []
+    def _fetch_manifest(self) -> tuple[dict[str, Any], dict[str, Any], bytes, list[dict[str, Any]]]:
+        distribution_attempts: list[dict[str, Any]] = []
         for index, url in enumerate(MANIFEST_URLS, 1):
             source_id = f"manifest_distribution_{index}"
             try:
@@ -349,24 +366,56 @@ class MaintenanceEngine:
                     raise ValueError("manifest schema mismatch")
                 if not isinstance(value.get("version"), str) or not value["version"].strip():
                     raise ValueError("manifest version missing")
-                if not isinstance(value.get("data_url"), str) or not value["data_url"].startswith("https://"):
-                    raise ValueError("manifest data_url must be HTTPS")
+                _version_tuple(value["version"])
+                if not isinstance(value.get("data_url"), str) or not _allowed_update_url(value["data_url"]):
+                    raise ValueError("manifest data_url violates trusted HTTPS host policy")
                 digest = str(value.get("sha256") or "").lower()
                 if len(digest) != 64 or any(ch not in "0123456789abcdef" for ch in digest):
                     raise ValueError("manifest sha256 invalid")
-                return value, receipt.to_dict(), raw
+                distribution_attempts.append({"status":"PASS","source_id":source_id,"receipt":receipt.to_dict()})
+                return value, receipt.to_dict(), raw, distribution_attempts
             except Exception as exc:
-                failures.append({
+                distribution_attempts.append({
+                    "status": "FAIL",
                     "source_id": source_id,
                     "url": url,
                     "error": f"{type(exc).__name__}: {exc}",
                     "attempts": list(getattr(exc, "glp_attempts", ()) or ()),
                 })
-        raise RuntimeError("all manifest distribution paths failed: " + json.dumps(failures, ensure_ascii=False))
+        raise RuntimeError("all manifest distribution paths failed: " + json.dumps(distribution_attempts, ensure_ascii=False))
 
     def one_click_update(self) -> dict[str, Any]:
-        manifest, manifest_receipt, manifest_raw = self._fetch_manifest()
-        data_raw, data_receipt_obj = self.net.get_bytes(str(manifest["data_url"]), source_id="knowledge_data")
+        manifest, manifest_receipt, manifest_raw, manifest_attempts = self._fetch_manifest()
+        local_version = str(self.store.load_knowledge().get("version") or "0.0.0")
+        if _version_tuple(manifest["version"]) < _version_tuple(local_version):
+            raise ValueError(f"manifest version regression: remote={manifest['version']} local={local_version}")
+
+        data_urls = [str(manifest["data_url"])]
+        alternate = _alternate_github_distribution(data_urls[0])
+        if alternate and alternate not in data_urls:
+            data_urls.append(alternate)
+        data_attempts: list[dict[str, Any]] = []
+        data_raw = None
+        data_receipt_obj = None
+        for index, url in enumerate(data_urls, 1):
+            source_id = f"knowledge_distribution_{index}"
+            try:
+                raw, receipt = self.net.get_bytes(url, source_id=source_id)
+                digest_candidate = hashlib.sha256(raw).hexdigest()
+                if digest_candidate.lower() != str(manifest["sha256"]).lower():
+                    raise ValueError(f"knowledge SHA256 mismatch expected={manifest['sha256']} actual={digest_candidate}")
+                validate_knowledge(json.loads(raw.decode("utf-8-sig")))
+                data_attempts.append({"status":"PASS","source_id":source_id,"receipt":receipt.to_dict()})
+                data_raw, data_receipt_obj = raw, receipt
+                break
+            except Exception as exc:
+                data_attempts.append({
+                    "status":"FAIL","source_id":source_id,"url":url,
+                    "error":f"{type(exc).__name__}: {exc}",
+                    "attempts":list(getattr(exc,"glp_attempts",()) or ()),
+                })
+        if data_raw is None or data_receipt_obj is None:
+            raise RuntimeError("all knowledge distribution paths failed: " + json.dumps(data_attempts, ensure_ascii=False))
         digest = hashlib.sha256(data_raw).hexdigest()
         if digest.lower() != str(manifest["sha256"]).lower():
             raise ValueError(f"knowledge SHA256 mismatch expected={manifest['sha256']} actual={digest}")
@@ -380,7 +429,11 @@ class MaintenanceEngine:
             "manifest_sha256": hashlib.sha256(manifest_raw).hexdigest(),
             "knowledge_sha256": digest,
             "manifest_source": manifest_receipt,
+            "manifest_distribution_attempts": manifest_attempts,
+            "selected_manifest_source_id": manifest_receipt["source_id"],
             "knowledge_source": data_receipt,
+            "knowledge_distribution_attempts": data_attempts,
+            "selected_knowledge_source_id": data_receipt["source_id"],
             "fetched_at": data_receipt["fetched_at"],
             "classics": len(value["classics"]),
         }
@@ -392,6 +445,8 @@ class MaintenanceEngine:
             "sha256": digest,
             "source": data_receipt,
             "manifest_source": manifest_receipt,
+            "manifest_distribution_attempts": manifest_attempts,
+            "knowledge_distribution_attempts": data_attempts,
             "evidence": evidence,
         }
 
