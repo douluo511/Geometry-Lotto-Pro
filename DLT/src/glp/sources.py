@@ -172,6 +172,8 @@ def fetch_national_history(progress: Callable[[str], None] | None = None):
                 draws, raw, page_meta = future.result()
                 if int(page_meta["pages"]) != pages:
                     raise SourceError("国家体彩分页数量在请求期间发生变化")
+                if int(page_meta["total"]) != int(meta["total"]):
+                    raise SourceError("国家体彩总记录数在请求期间发生变化")
                 page_results[p] = (draws, raw, page_meta["evidence"])
                 done += 1
                 if progress and (done == pages or done % 5 == 0):
@@ -210,13 +212,21 @@ def _parse_jiangsu_html(text: str) -> list[Draw]:
         r"<td[^>]*>\s*(\d{5})\s*</td>\s*"
         r"<td[^>]*>\s*([\d\s]+?)\s*</td>", re.I | re.S,
     )
-    draws = []
-    for day, issue, result in row_pattern.findall(text):
+    draws: list[Draw] = []
+    seen: dict[str, Draw] = {}
+    for row_index, (day, issue, result) in enumerate(row_pattern.findall(text)):
         try:
-            draws.append(_parse_result(issue, day, result))
-        except Exception:
-            continue
-    return sorted({d.issue: d for d in draws}.values(), key=lambda d: (d.draw_date, d.issue))
+            draw = _parse_result(issue, day, result)
+        except Exception as exc:
+            raise SourceError(f"江苏体彩候选开奖行 {row_index} 非法，拒绝跳过坏行: {exc}") from exc
+        previous = seen.get(draw.issue)
+        if previous is not None:
+            if previous.to_dict() != draw.to_dict():
+                raise SourceError(f"江苏体彩同一期数据冲突: {draw.issue}")
+            raise SourceError(f"江苏体彩出现重复期号: {draw.issue}")
+        seen[draw.issue] = draw
+        draws.append(draw)
+    return sorted(draws, key=lambda d: (d.draw_date, d.issue))
 
 
 def fetch_jiangsu_recent(limit: int = 100):
