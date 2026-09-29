@@ -1,5 +1,6 @@
 import base64
 import hashlib
+import json
 import pathlib
 import random
 import sys
@@ -87,6 +88,62 @@ class NetClientContractTests(unittest.TestCase):
             stored=row["details"]["receipts"][0]
             self.assertEqual(stored["raw_sha256"],receipt["payload_hash"])
             self.assertTrue(pathlib.Path(stored["raw_path"]).exists())
+
+
+    def test_nasdaq_history_parser_accepts_keyless_public_shape(self):
+        payload={
+            "data":{
+                "tradesTable":{
+                    "rows":[
+                        {
+                            "date":f"09/{day:02d}/2026",
+                            "close":"$100.00",
+                            "open":"$99.50",
+                            "high":"$101.00",
+                            "low":"$99.00",
+                            "volume":"1,000,000",
+                        }
+                        for day in range(1,31)
+                    ]
+                }
+            }
+        }
+        rows=NetClient._parse_nasdaq_history(payload,"TEST")
+        self.assertEqual(len(rows),30)
+        self.assertEqual(rows[-1]["date"],"2026-09-30")
+        self.assertEqual(rows[-1]["close"],100.0)
+
+    def test_dff_fred_timeout_falls_back_to_official_nyfed(self):
+        nyfed={
+            "refRates":[
+                {
+                    "effectiveDate":"2026-09-28",
+                    "type":"EFFR",
+                    "percentRate":3.88,
+                }
+            ]
+        }
+        session=FakeSession([
+            requests.ReadTimeout("fred timeout"),
+            FakeResponse(
+                200,
+                json.dumps(nyfed).encode("utf-8"),
+                content_type="application/json",
+                url="https://markets.newyorkfed.org/api/rates/unsecured/effr/last/10.json",
+            ),
+        ])
+        client=NetClient(
+            max_attempts=1,
+            session=session,
+            sleeper=lambda _:None,
+            rng=random.Random(1),
+        )
+        item,receipt=client.fetch_fred_series("DFF")
+        self.assertEqual(item["series"],"DFF")
+        self.assertEqual(item["value"],3.88)
+        self.assertEqual(receipt["source_identity"],"NY_FED_EFFR")
+        self.assertEqual(receipt["fallback_for"],"FRED:DFF")
+        self.assertIn("ReadTimeout",receipt["primary_error"])
 
 
 if __name__=="__main__":
