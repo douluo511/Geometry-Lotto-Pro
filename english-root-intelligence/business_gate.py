@@ -20,7 +20,13 @@ def main()->int:
         "business_chunk_depth": all(isinstance(x.get("chunks"),list) and len(x["chunks"])>=3 for x in active),
         "business_provenance": len(sources) >= 3 and all(x.get("url") for x in sources),
         "business_uncertainty_boundary": "需要结合词典语境确认" in (ROOT/"core.py").read_text(encoding="utf-8"),
-        "business_update_integrity": "sha256" in (ROOT/"service.py").read_text(encoding="utf-8").lower() and "replace_roots" in (ROOT/"service.py").read_text(encoding="utf-8"),
+        "business_update_integrity": (
+          "sha256" in (ROOT/"service.py").read_text(encoding="utf-8").lower()
+          and "commit_update" in (ROOT/"service.py").read_text(encoding="utf-8")
+          and "MANIFEST_URLS" in (ROOT/"service.py").read_text(encoding="utf-8")
+          and "distinct_source_ids" in (ROOT/"service.py").read_text(encoding="utf-8")
+          and "evidence_row" in (ROOT/"service.py").read_text(encoding="utf-8")
+      ),
     }
     status="PASS" if all(checks.values()) else "FAIL"
     report={"schema":"english-root-business-gate-v2","github_sha":os.environ.get("GITHUB_SHA"),"version":roots.get("version"),"status":status,"active_families":len(active),"catalog_entries":len(entries),"checks":checks}
