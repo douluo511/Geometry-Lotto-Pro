@@ -3,7 +3,7 @@ import argparse, hashlib, json
 from datetime import datetime, timezone
 from pathlib import Path
 
-HARD_GATES=["purpose_model","five_why","risk_boundary","domain_model","architecture","function_contract","interface_contract","data_source","netclient","storage","engine","evidence","service","ui","self_test","unit_test","contract_test","integration_test","fault_injection","real_network","business_validation","counterexample_validation","reversal_validation","windows_build","exact_exe","gui_smoke","physical_gui_click","same_hash","business_content","repository_independence"]
+HARD_GATES=["purpose_model","five_why","risk_boundary","domain_model","architecture","function_contract","interface_contract","data_source","netclient","storage","engine","evidence","service","ui","self_test","unit_test","contract_test","integration_test","fault_injection","real_network","business_validation","counterexample_validation","reversal_validation","windows_build","exact_exe","exact_exe_network","gui_smoke","physical_gui_click","same_hash","business_content","repository_independence"]
 def sha256(p:Path)->str:
     h=hashlib.sha256()
     with p.open("rb") as f:
