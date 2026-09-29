@@ -6,7 +6,7 @@ ROOT=Path(__file__).resolve().parent
 REQ=[
     "MASTER_SYSTEM_ARCHITECTURE.md","BUSINESS_SPEC.md","domain.py","contracts.py",
     "net_client.py","storage.py","engine.py","evidence.py","service.py","app.py",
-    "release_gate.py","real_network_check.py",
+    "release_gate.py","real_network_check.py","updater.py","collect_final_gates.py","bind_physical_gui.py",
 ]
 
 def main()->int:
