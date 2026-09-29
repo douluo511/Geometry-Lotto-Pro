@@ -1,6 +1,6 @@
 # Head Intelligence — Frozen Engineering Contract
 
-Version target: 0.2.1
+Version target: 0.4.0
 
 ## Requirement / Purpose Model
 Collect, validate and structure research/head information so user judgments are based on traceable evidence rather than fixed or fabricated claims.
@@ -36,7 +36,7 @@ Each is a hard gate with explicit evidence.
 Final EXE is self-contained, tested as the exact frozen artifact, GUI-smoked, then copied with identical SHA256.
 
 ## Final Gate
-Exactly these 22 gates must all be PASS: purpose_model, five_why, risk_boundary, domain_model, architecture, function_contract, interface_contract, data_source, netclient, storage, engine, evidence, service, ui, self_test, contract_test, fault_injection, real_network, windows_build, exact_exe, gui_smoke, same_hash. Any other state => FAIL.
+Every current-run gate must be explicit PASS: purpose_model, five_why, risk_boundary, domain_model, architecture, function_contract, interface_contract, data_source, netclient, storage, engine, evidence, service, ui, self_test, unit_test, contract_test, integration_test, fault_injection, real_network, business_validation, counterexample_validation, reversal_validation, windows_build, exact_exe, gui_smoke, physical_gui_click, same_hash, business_content. The gate input must be derived from current-run evidence; hardcoded PASS is prohibited. Any missing, UNKNOWN, WARNING, PENDING, SKIPPED, UNAVAILABLE, CANCELLED or FAIL state => Final Gate FAIL.
 
 ## Unique Product
 One version, one EXE, one SHA256, one final report. Behavior-code changes invalidate all previous acceptance.
