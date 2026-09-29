@@ -5,6 +5,7 @@ import shutil
 import sqlite3
 import sys
 from dataclasses import asdict
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 
@@ -282,16 +283,76 @@ class LottoService:
         gate["gate_hash"] = sha256_json(gate)
         return gate
 
+    def _recent_validated_canonical(self, max_age_seconds: int = 900) -> dict[str, Any] | None:
+        """Reuse only a very recent official, hash-bound canonical snapshot.
+
+        This is not a network PASS substitute: the snapshot must already have
+        explicit official-source crosscheck evidence, integrity PASS, matching
+        canonical hash, and a retrieval timestamp within the bounded window.
+        """
+        integrity = self._integrity_check()
+        if not integrity.get("ok"):
+            return None
+        try:
+            evidence = json.loads(self.store.evidence_path.read_text(encoding="utf-8"))
+            verification = str(evidence.get("verification") or "")
+            allowed = (
+                verification == "TRUSTED_BASELINE_PLUS_SHANGHAI_HEBEI_CONSENSUS"
+                or verification.startswith("CWL_L0_PLUS_")
+            )
+            if not allowed or str(evidence.get("crosscheck_status")) != "PASS":
+                return None
+            canonical_hash = self._canonical_hash()
+            if str(evidence.get("canonical_hash")) != canonical_hash:
+                return None
+
+            fetched_raw = str(evidence.get("fetched_at") or "")
+            fetched = datetime.fromisoformat(fetched_raw.replace("Z", "+00:00"))
+            if fetched.tzinfo is None:
+                fetched = fetched.replace(tzinfo=timezone.utc)
+            age_seconds = (datetime.now(timezone.utc) - fetched.astimezone(timezone.utc)).total_seconds()
+            if age_seconds < 0 or age_seconds > float(max_age_seconds):
+                return None
+
+            latest = evidence.get("latest") or {}
+            latest_date = date.fromisoformat(str(latest.get("draw_date"))[:10])
+            draw_age_days = (datetime.now(timezone.utc).date() - latest_date).days
+            if draw_age_days < 0 or draw_age_days > 10:
+                return None
+
+            return {
+                "schema": "official-update-reuse-v1",
+                "game": "SSQ",
+                "latest": latest,
+                "latest_issue": latest.get("issue"),
+                "latest_date": latest.get("draw_date"),
+                "draw_count": int(evidence.get("draw_count", 0)),
+                "canonical_hash": canonical_hash,
+                "crosscheck_count": int(evidence.get("crosscheck_count", 0)),
+                "crosscheck_status": "PASS",
+                "verification": verification,
+                "source": "recent-validated-official-canonical",
+                "validated_snapshot_reuse": True,
+                "evidence_age_seconds": round(age_seconds, 3),
+                "integrity": integrity,
+            }
+        except Exception:
+            return None
+
     def predict(self, progress: Callable[[str], None] | None = None) -> dict[str, Any]:
         self.ensure_seed()
-        update_result = None
+        update_result = self._recent_validated_canonical()
         update_error = None
-        try:
-            update_result = self.update(progress=progress)
-        except Exception as exc:
-            update_error = f"{type(exc).__name__}: {exc}"
+        if update_result is not None:
             if progress:
-                progress("官方更新不可用；Fail-Closed：可计算研究结果，但禁止正式 Freeze/PASS")
+                progress("复用15分钟内同Hash官方验证Canonical；不重复发起网络请求")
+        else:
+            try:
+                update_result = self.update(progress=progress)
+            except Exception as exc:
+                update_error = f"{type(exc).__name__}: {exc}"
+                if progress:
+                    progress("官方更新不可用；Fail-Closed：可计算研究结果，但禁止正式 Freeze/PASS")
 
         draws = self._load_draws()
         canonical_hash = self._canonical_hash()
