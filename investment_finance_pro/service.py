@@ -22,6 +22,17 @@ def _compact_receipt(value):
         return {k:_compact_receipt(v) for k,v in value.items() if k != "body_b64"}
     return value
 
+def _failure_parts(net, exc):
+    receipt=dict(getattr(net,"last_receipt",{}) or {})
+    attempts=list(getattr(exc,"glp_attempts",()) or ())
+    compact={
+        "detail":f"{type(exc).__name__}: {exc}",
+        "attempts":attempts,
+    }
+    if receipt:
+        compact["receipt"]=_compact_receipt(receipt)
+    return compact,receipt
+
 class InvestmentService:
     def __init__(self, net=None, storage=None, engine=None, evidence=None):
         self.net = net or NetClient()
@@ -52,7 +63,10 @@ class InvestmentService:
                 raw_receipts.append(receipt)
                 receipts.append(_compact_receipt(receipt))
             except Exception as exc:
-                providers.append({"source": "MARKET:" + symbol, "ok": False, "detail": str(exc)})
+                failure,raw=_failure_parts(self.net,exc)
+                providers.append({"source":"MARKET:"+symbol,"ok":False,**failure})
+                if raw:
+                    raw_receipts.append(raw)
 
         macro = {}
         fundamentals = {}
@@ -63,7 +77,10 @@ class InvestmentService:
             raw_receipts.append(receipt)
             receipts.append(_compact_receipt(receipt))
         except Exception as exc:
-            providers.append({"source": "US_TREASURY:10Y", "ok": False, "detail": str(exc)})
+            failure,raw=_failure_parts(self.net,exc)
+            providers.append({"source":"US_TREASURY:10Y","ok":False,**failure})
+            if raw:
+                raw_receipts.append(raw)
 
         try:
             item, receipt = self.net.fetch_fred_series("DFF")
@@ -72,7 +89,10 @@ class InvestmentService:
             raw_receipts.append(receipt)
             receipts.append(_compact_receipt(receipt))
         except Exception as exc:
-            providers.append({"source":"FRED:DFF","ok":False,"detail":str(exc)})
+            failure,raw=_failure_parts(self.net,exc)
+            providers.append({"source":"FRED:DFF","ok":False,**failure})
+            if raw:
+                raw_receipts.append(raw)
 
         for symbol,cik in SEC_CIK.items():
             try:
@@ -82,7 +102,10 @@ class InvestmentService:
                 raw_receipts.append(receipt)
                 receipts.append(_compact_receipt(receipt))
             except Exception as exc:
-                providers.append({"source":"SEC:"+symbol,"ok":False,"detail":str(exc)})
+                failure,raw=_failure_parts(self.net,exc)
+                providers.append({"source":"SEC:"+symbol,"ok":False,**failure})
+                if raw:
+                    raw_receipts.append(raw)
 
         ok_count = sum(1 for p in providers if p["ok"])
         if providers and ok_count == len(providers):
@@ -152,22 +175,34 @@ class InvestmentService:
                 "receipt": receipt,
             })
         except Exception as exc:
-            checks.append({"source": "MARKET:SPY", "status": "FAIL", "detail": str(exc)})
+            failure,raw=_failure_parts(self.net,exc)
+            row={"source":"MARKET:SPY","status":"FAIL",**failure}
+            if raw: row["receipt"]=raw
+            checks.append(row)
         try:
             item, receipt = self.net.fetch_us_treasury_10y()
             checks.append({"source":"US_TREASURY:10Y","status":"PASS","last_date":item["date"],"receipt":receipt})
         except Exception as exc:
-            checks.append({"source":"US_TREASURY:10Y","status":"FAIL","detail":str(exc)})
+            failure,raw=_failure_parts(self.net,exc)
+            row={"source":"US_TREASURY:10Y","status":"FAIL",**failure}
+            if raw: row["receipt"]=raw
+            checks.append(row)
         try:
             item,receipt=self.net.fetch_fred_series("DFF")
             checks.append({"source":"FRED:DFF","status":"PASS","last_date":item["date"],"receipt":receipt})
         except Exception as exc:
-            checks.append({"source":"FRED:DFF","status":"FAIL","detail":str(exc)})
+            failure,raw=_failure_parts(self.net,exc)
+            row={"source":"FRED:DFF","status":"FAIL",**failure}
+            if raw: row["receipt"]=raw
+            checks.append(row)
         try:
             item,receipt=self.net.fetch_sec_companyfacts("AAPL",SEC_CIK["AAPL"])
             checks.append({"source":"SEC:AAPL","status":"PASS","filed":item["filed"],"receipt":receipt})
         except Exception as exc:
-            checks.append({"source":"SEC:AAPL","status":"FAIL","detail":str(exc)})
+            failure,raw=_failure_parts(self.net,exc)
+            row={"source":"SEC:AAPL","status":"FAIL",**failure}
+            if raw: row["receipt"]=raw
+            checks.append(row)
         status = "PASS" if all(x["status"] == "PASS" for x in checks) else "FAIL"
         raw_checks = checks
         report = {"status": status, "version": VERSION, "checks": _compact_receipt(raw_checks)}
