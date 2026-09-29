@@ -7,6 +7,7 @@ from contracts import validate_snapshot
 from engine import InvestmentEngine
 from evidence import EvidenceLedger
 from net_client import NetClient
+from scientific_validation import run_scientific_firewall
 from storage import SnapshotStorage
 
 APP_NAME = "Investment Finance Pro"
@@ -156,8 +157,25 @@ class InvestmentService:
         self.evidence.record("REAL_NETWORK", status, checks=checks)
         return report
 
+    def scientific_validation(self):
+        report, raw_receipts = run_scientific_firewall(self.net, self.engine, list(WATCHLIST))
+        self.evidence.record(
+            "SCIENTIFIC_FIREWALL",
+            report.get("status", "FAIL"),
+            report=report,
+            receipts=raw_receipts,
+        )
+        return report
+
     def health(self):
-        return {"status": "PASS", "version": VERSION, "cache_path": str(self.storage.path()), "model_status": "UNVALIDATED"}
+        cached = self.storage.read()
+        return {
+            "status": "PASS",
+            "version": VERSION,
+            "cache_path": str(self.storage.path()),
+            "model_status": "UNVALIDATED",
+            "snapshot_status": (cached or {}).get("update_state", "NONE"),
+        }
 
 def create_service(**kwargs):
     return InvestmentService(**kwargs)
