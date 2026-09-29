@@ -28,10 +28,32 @@ public static class PhysicalGuiClick {
   [DllImport("user32.dll")] public static extern void mouse_event(uint dwFlags, uint dx, uint dy, uint dwData, UIntPtr dwExtraInfo);
   public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
   [DllImport("user32.dll")] public static extern bool EnumChildWindows(IntPtr hWndParent, EnumWindowsProc lpEnumFunc, IntPtr lParam);
+  [DllImport("user32.dll")] public static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
+  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
   [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetWindowTextW(IntPtr hWnd, StringBuilder text, int maxCount);
   [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetClassNameW(IntPtr hWnd, StringBuilder text, int maxCount);
   [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hWnd);
   [DllImport("user32.dll")] public static extern bool IsWindow(IntPtr hWnd);
+
+  public static bool FindVisibleTopLevelWindow(int[] pids, out IntPtr hwnd, out int pid) {
+    var wanted = new HashSet<int>(pids ?? new int[0]);
+    IntPtr foundHwnd = IntPtr.Zero;
+    int foundPid = 0;
+    EnumWindows(delegate(IntPtr candidate, IntPtr lp) {
+      if (!IsWindowVisible(candidate)) return true;
+      uint ownerPid = 0;
+      GetWindowThreadProcessId(candidate, out ownerPid);
+      if (!wanted.Contains((int)ownerPid)) return true;
+      RECT r;
+      if (!GetWindowRect(candidate, out r) || r.Right <= r.Left || r.Bottom <= r.Top) return true;
+      foundHwnd = candidate;
+      foundPid = (int)ownerPid;
+      return false;
+    }, IntPtr.Zero);
+    hwnd = foundHwnd;
+    pid = foundPid;
+    return foundHwnd != IntPtr.Zero;
+  }
 
   public static bool FindChildButtonCenter(IntPtr parent, string name, out int x, out int y) {
     int fx = 0, fy = 0;
@@ -97,17 +119,30 @@ function Wait-MainWindow([System.Diagnostics.Process]$p,[string]$processName,[in
     Start-Sleep -Milliseconds 250
     try { $p.Refresh() } catch {}
     $candidates = @(Get-Process -Name $processName -ErrorAction SilentlyContinue | Where-Object {
-      $_.MainWindowHandle -ne 0 -and $baselinePids -notcontains $_.Id
+      $baselinePids -notcontains $_.Id
     })
     if($candidates.Count -gt 0){
-      $gui = $candidates | Sort-Object StartTime -Descending | Select-Object -First 1
-      return @{ hwnd=[IntPtr]$gui.MainWindowHandle; pid=$gui.Id }
+      # .NET Process.MainWindowHandle can remain zero for a native Win32 window
+      # created by a PyInstaller one-file child. Enumerate real top-level HWNDs
+      # and bind them to the exact new process IDs from this launch.
+      [IntPtr]$nativeHwnd = [IntPtr]::Zero
+      [int]$nativePid = 0
+      [int[]]$candidatePids = @($candidates | ForEach-Object { [int]$_.Id })
+      if([PhysicalGuiClick]::FindVisibleTopLevelWindow($candidatePids,[ref]$nativeHwnd,[ref]$nativePid)){
+        return @{ hwnd=$nativeHwnd; pid=$nativePid }
+      }
+
+      $gui = $candidates | Where-Object { $_.MainWindowHandle -ne 0 } | Sort-Object StartTime -Descending | Select-Object -First 1
+      if($null -ne $gui){
+        return @{ hwnd=[IntPtr]$gui.MainWindowHandle; pid=$gui.Id }
+      }
     }
     if(-not $p.HasExited -and $p.MainWindowHandle -ne 0){
       return @{ hwnd=[IntPtr]$p.MainWindowHandle; pid=$p.Id }
     }
   }
-  throw "Main window handle not found in bootloader or spawned GUI process"
+  $newPids = @(Get-Process -Name $processName -ErrorAction SilentlyContinue | Where-Object { $baselinePids -notcontains $_.Id } | ForEach-Object { $_.Id })
+  throw "Main window handle not found in bootloader or spawned GUI process; new_process_ids=$($newPids -join ',')"
 }
 function Get-Rect([IntPtr]$hwnd){
   $r=New-Object PhysicalGuiClick+RECT
