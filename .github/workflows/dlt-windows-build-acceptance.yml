@@ -110,8 +110,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Geometry-Lotto-Pro-DLT-Windows-Acceptance
+          # upload-artifact is an action (not a run step), so defaults.run.working-directory
+          # does not apply. Paths must be repository-root relative.
           path: |
-            dist/Geometry_Lotto_Pro_DLT.exe
-            artifacts/**
+            DLT/dist/Geometry_Lotto_Pro_DLT.exe
+            DLT/artifacts/**
           if-no-files-found: error
           retention-days: 30
