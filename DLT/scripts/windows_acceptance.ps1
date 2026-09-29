@@ -6,9 +6,9 @@ Write-Host "SHA256=$hash"
 New-Item -ItemType Directory -Force -Path artifacts | Out-Null
 $hash | Set-Content -Encoding ascii artifacts\exe.sha256.txt
 
-function Invoke-BoundedExe([string[]]$Args, [int]$TimeoutSeconds, [string]$EvidencePath, [string]$Label) {
+function Invoke-BoundedExe([string[]]$ArgumentList, [int]$TimeoutSeconds, [string]$EvidencePath, [string]$Label) {
   Write-Host "START_PHASE=$Label"
-  $p = Start-Process -FilePath $exe -ArgumentList $Args -PassThru
+  $p = Start-Process -FilePath $exe -ArgumentList $ArgumentList -PassThru
   $finished = $p.WaitForExit($TimeoutSeconds * 1000)
   if (-not $finished) {
     try { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue } catch {}
