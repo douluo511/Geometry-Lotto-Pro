@@ -16,9 +16,11 @@ Python 3.11+：`python app.py`
 真实网络更新：`python app.py --update`
 
 ## Windows Final Gate
-GitHub Actions 工作流会执行：单元/契约/故障注入 → 源码自检 → PyInstaller Windows EXE → Exact EXE 自检 → GUI 实体按钮点击 → artifact hash → same-hash → final gate。
+当前恢复分支**尚未包含 TalkCraft 专用 GitHub Actions Windows 工作流**，因此 Windows Build、Exact EXE、自检、GUI 实体按钮点击、Same Hash 与 Final Gate 均未建立当前版本证据。
 
-注意：当前生成环境不是 Windows，也无法在这里执行 GitHub Actions，因此包内的 Windows Final Gate 是“可执行验收工程”，不是已经通过的证据。只有 `reports/final_gate.json` 明确 `ok=true` 才能把 Engineering Final Gate 标记为 PASS。
+同时，`TrainingService` 与 `TalkCraftPro.spec` 都依赖 `talkcraft_pro/data/`，但当前恢复分支没有该目录；`sources.json`、`drills.json`、`cases.json` 等内容资产尚未从有来源的历史中恢复。缺失资产不得通过临时生成内容冒充“原始恢复”。
+
+只有在内容资产有明确来源、完整硬门工作流建立，并且当前 Windows 候选的机器可读 `final_gate` 明确 PASS 后，Engineering Final Gate 才能标记为 PASS。
 
 ## 一键更新原则
 只保存来源状态、HTTP 状态、payload SHA 和大小，不复制外部商业/版权内容。任何来源失败都会使总更新状态 FAIL；旧缓存不能冒充最新成功。
