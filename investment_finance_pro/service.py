@@ -169,8 +169,9 @@ class InvestmentService:
         except Exception as exc:
             checks.append({"source":"SEC:AAPL","status":"FAIL","detail":str(exc)})
         status = "PASS" if all(x["status"] == "PASS" for x in checks) else "FAIL"
-        report = {"status": status, "version": VERSION, "checks": checks}
-        self.evidence.record("REAL_NETWORK", status, checks=checks)
+        raw_checks = checks
+        report = {"status": status, "version": VERSION, "checks": _compact_receipt(raw_checks)}
+        self.evidence.record("REAL_NETWORK", status, checks=raw_checks)
         return report
 
     def scientific_validation(self):
