@@ -25,6 +25,7 @@ class App(tk.Tk):
         self.minsize(920, 680)
         self.configure(bg=BG)
         self.service = create_service()
+        self._goal_nav_seq = 0
         self.status_var = tk.StringVar(value="系统就绪 · 原典/解释/边界分层已启用")
         self._configure_style()
         self._build_shell()
@@ -99,6 +100,10 @@ class App(tk.Tk):
                               padx=16, pady=14, font=("Microsoft YaHei UI", 10))
         self.result.pack(fill="both", expand=True, padx=26, pady=(0, 24))
         self.analyze_goal()
+        self._goal_nav_seq += 1
+        self.title(f"{APP_NAME} v{APP_VERSION} · 目标推演 #{self._goal_nav_seq}")
+        self.status_var.set(f"目标推演已打开 · 导航响应 #{self._goal_nav_seq}")
+        self.update_idletasks()
 
     def analyze_goal(self):
         try:
