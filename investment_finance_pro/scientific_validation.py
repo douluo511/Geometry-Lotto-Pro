@@ -60,6 +60,8 @@ def run_scientific_firewall(net, engine, symbols: list[str]) -> tuple[dict[str, 
     for symbol in symbols:
         try:
             rows,provider,receipt=net.fetch_market_history(symbol)
+            if receipt.get("crosscheck_status") != "PASS":
+                raise ValueError(f"independent market crosscheck is {receipt.get('crosscheck_status','UNKNOWN')}")
             rows=sorted(rows,key=lambda x:x["date"])
             histories[symbol]=rows
             providers[symbol]={"status":"PASS","provider":provider,"rows":len(rows),"receipt":_compact_receipt(receipt)}
