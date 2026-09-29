@@ -82,6 +82,17 @@ jobs:
           print("SH_PROBE_HTTP", r.status_code, r.headers.get("Content-Type"), "bytes", len(r.content))
           r.raise_for_status()
           text = r.text
+          print("SH_PROBE_HTML_BEGIN")
+          print(text[:22000])
+          print("SH_PROBE_HTML_END")
+          print("SH_PROBE_INLINE_SCRIPTS")
+          for i, body in enumerate(re.findall(r"<script\\b[^>]*>(.*?)</script>", text, re.I|re.S)):
+              if body.strip():
+                  print("INLINE_SCRIPT", i, body[:12000])
+          print("SH_PROBE_URLS")
+          for u in sorted(set(re.findall(r"https?://[^\\\"'<> ]+|/[A-Za-z0-9_./?=&%-]+", text))):
+              if any(k in u.lower() for k in ("ssq","data","chart","api","query","issue","lottery")):
+                  print(u[:2000])
           print("SH_PROBE_FORMS")
           for i, form in enumerate(re.findall(r"<form\\b[^>]*>.*?</form>", text, re.I|re.S)[:10]):
               print("FORM", i, re.sub(r"\\s+", " ", form)[:16000])
