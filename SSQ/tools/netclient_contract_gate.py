@@ -16,10 +16,11 @@ from glp.util import sha256_bytes
 
 
 class FakeResponse:
-    def __init__(self, status_code=200, content=b"{}", headers=None):
+    def __init__(self, status_code=200, content=b"{}", headers=None, url="https://example.invalid/data"):
         self.status_code = status_code
         self.content = content
         self.headers = headers or {"Content-Type": "application/json"}
+        self.url = url
 
     def raise_for_status(self):
         if self.status_code >= 400:
@@ -96,6 +97,22 @@ def _run() -> dict:
         [call.get("timeout") for call in session.calls],
     )
 
+    insecure_session = FakeSession([
+        FakeResponse(200, b"{}", {"Content-Type": "application/json"}, url="http://example.invalid/data"),
+    ])
+    try:
+        NetClient(session=insecure_session, sleeper=lambda _: None).get("https://example.invalid/data")
+        record("https_redirect_downgrade_fail_closed", False, "insecure redirect unexpectedly accepted")
+    except requests.RequestException as exc:
+        ledger = list(getattr(exc, "glp_attempts", ()))
+        record(
+            "https_redirect_downgrade_fail_closed",
+            bool(ledger) and ledger[-1]["outcome"] == "FINAL_INSECURE_REDIRECT",
+            ledger,
+        )
+    except Exception as exc:
+        record("https_redirect_downgrade_fail_closed", False, f"{type(exc).__name__}: {exc}")
+
     sleeps = []
     session = FakeSession([
         requests.Timeout("t1"),
@@ -149,7 +166,11 @@ def _run() -> dict:
             "raw_payload_evidence",
             meta["sha256"] == sha256_bytes(good.content)
             and bool(meta["body_b64"])
-            and meta["attempts"][0]["attempt"] == 1,
+            and meta["attempts"][0]["attempt"] == 1
+            and meta["validation_result"] == "PASS"
+            and bool(meta["parser_version"])
+            and bool(meta["fetched_at"])
+            and meta["final_url"] == "https://example.invalid/data",
             meta,
         )
     except Exception as exc:
@@ -175,7 +196,7 @@ def _run() -> dict:
 
     failures = [name for name, row in checks.items() if row["status"] != "PASS"]
     return {
-        "schema": "ssq-netclient-contract-gate-v1",
+        "schema": "ssq-netclient-contract-gate-v2",
         "status": "PASS" if not failures else "FAIL",
         "hard_fail_count": len(failures),
         "failures": failures,
