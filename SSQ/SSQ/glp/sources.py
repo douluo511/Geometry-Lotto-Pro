@@ -10,6 +10,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict
 from typing import Callable, Iterable
 
+import requests
+
 from glp.net_client import NetClient
 from glp.constants import HEBEI_ANNOUNCE_URL, HEBEI_URL, NATIONAL_URL, SHANGHAI_URL
 from glp.domain import CanonicalDataset, Draw, SourceReceipt
