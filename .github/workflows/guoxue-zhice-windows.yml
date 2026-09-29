@@ -6,11 +6,13 @@ on:
     paths:
       - 'guoxue-zhice/**'
       - '.github/workflows/guoxue-zhice-windows.yml'
+      - '.github/scripts/physical_gui_click_smoke.ps1'
   push:
     branches: [main]
     paths:
       - 'guoxue-zhice/**'
       - '.github/workflows/guoxue-zhice-windows.yml'
+      - '.github/scripts/physical_gui_click_smoke.ps1'
 
 permissions:
   contents: read
