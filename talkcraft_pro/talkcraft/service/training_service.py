@@ -20,7 +20,7 @@ class TrainingService:
         out=[]
         for s in self.sources:
             r=self.net.get(s['url']); self.store.upsert_source(s['id'],r)
-            out.append({'source':s['id'],'name':s['name'],'ok':r.ok,'status':r.status,'sha256':r.sha256,'size':r.size,'error':r.error})
+            out.append({'source':s['id'],'name':s['name'],'ok':r.ok,'status':r.status,'sha256':r.sha256,'size':r.size,'error':r.error,'requested_url':r.requested_url,'final_url':r.final_url,'attempts':r.attempts})
         return {'ok':all(x['ok'] for x in out),'sources':out,'policy':'Any failed source keeps overall update FAIL; cache is not reported as fresh.'}
     def repair(self):
         checks={'db_integrity':self.store.integrity()=='ok','knowledge':(self.data/'knowledge.json').exists(),'drills':(self.data/'drills.json').exists(),'cases':(self.data/'cases.json').exists(),'sources':(self.data/'sources.json').exists()}
