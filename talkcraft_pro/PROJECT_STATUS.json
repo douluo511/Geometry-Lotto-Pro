@@ -1,36 +1,36 @@
 {
   "project": "TalkCraft Pro",
-  "version": "1.0-full-candidate",
-  "engineering_completion_percent": 82,
-  "business_completion_percent": 90,
-  "overall_completion_percent": 82,
-  "engineering_final_gate": "PENDING_WINDOWS_EXACT_EXE",
+  "version": "1.0-recovered-partial",
+  "measurement_status": "UNVERIFIED_UNTIL_MISSING_CONTENT_ASSETS_ARE_RECOVERED",
+  "engineering_completion_percent": null,
+  "business_completion_percent": null,
+  "overall_completion_percent": null,
+  "engineering_final_gate": "BLOCKED",
   "project_final_gate": "FAIL_NOT_YET_PROVEN",
   "full_version": false,
-  "completed": {
-    "architecture": true,
-    "netclient": true,
-    "storage": true,
-    "engine": true,
-    "evidence": true,
-    "service": true,
-    "ui": true,
-    "self_test": true,
-    "contract_tests": true,
-    "fault_injection": true,
-    "windows_workflow": true,
-    "business_scope": true,
-    "case_library": 60,
-    "drills": 180,
-    "knowledge_domains": 10
+  "recovered": {
+    "architecture_code": true,
+    "netclient_code": true,
+    "storage_code": true,
+    "engine_code": true,
+    "service_code": true,
+    "ui_code": true,
+    "pyinstaller_spec": true,
+    "source_branch": "recover/talkcraft-fullcandidate-20260929"
   },
-  "remaining": [
-    "Run real external network test in an environment with internet access",
-    "Run GitHub Windows build",
-    "Run Exact EXE self-test",
-    "Run GUI entity click smoke test",
-    "Verify Same Hash",
-    "Get explicit Final Gate PASS",
-    "Complete real-user usefulness/reversal validation before business 100%"
-  ]
+  "disproven_claims": {
+    "windows_workflow": false,
+    "tracked_data_directory": false,
+    "case_library_count_verified": false,
+    "drills_count_verified": false,
+    "knowledge_domains_verified": false
+  },
+  "blockers": [
+    "talkcraft_pro/data is absent although TrainingService requires sources.json, drills.json and cases.json",
+    "TalkCraftPro.spec references data/ for packaging but that directory is absent",
+    "No TalkCraft-specific GitHub Actions Windows workflow exists on this branch",
+    "No current unit/contract/integration/fault/business/reversal/release-gate test suite is tracked",
+    "Exact Windows EXE, physical GUI click, Same Hash and Final Gate cannot be proven until missing assets and hard-gate workflow are restored"
+  ],
+  "policy": "Do not synthesize missing original content and call it recovered; remain BLOCKED until provenance-backed assets are found or the product scope is explicitly re-authored and revalidated."
 }
