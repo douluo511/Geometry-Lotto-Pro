@@ -12,7 +12,10 @@ from urllib.parse import parse_qsl, urlsplit
 from uuid import uuid4
 
 from .domain import CanonicalDataset, Draw
-from .constants import (\n    HEBEI_ANNOUNCE_URL, HEBEI_URL, NATIONAL_URL, SHANGHAI_HISTORY_URL,\n    SHANGHAI_URL, SSQ_HISTORY_START_ISSUE,\n)
+from .constants import (
+    HEBEI_ANNOUNCE_URL, HEBEI_URL, NATIONAL_URL, SHANGHAI_HISTORY_URL,
+    SHANGHAI_URL, SSQ_HISTORY_START_ISSUE,
+)
 from .util import app_data_dir, atomic_json, atomic_write, sha256_bytes, sha256_json, utc_now
 
 
