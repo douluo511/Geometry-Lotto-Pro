@@ -109,7 +109,11 @@ def main() -> int:
                 front = [int(x) for x in pred.get('front', [])]
                 back = [int(x) for x in pred.get('back', [])]
                 autonomous_contract = {
-                    'live_update_pass': isinstance(auto, dict) and auto.get('crosscheck_status') == 'PASS',
+                    'current_official_canonical_pass': (
+                        isinstance(auto, dict)
+                        and auto.get('crosscheck_status') == 'PASS'
+                        and auto.get('source') in ('official-source-quorum', 'recent-validated-official-canonical')
+                    ),
                     'target_from_updated_canonical': pred.get('target_issue') == expected_issue and pred.get('target_date') == expected_date,
                     'front_shape_valid': len(front) == 6 and len(set(front)) == 6 and all(1 <= x <= 33 for x in front),
                     'back_shape_valid': len(back) == 1 and all(1 <= x <= 16 for x in back),
