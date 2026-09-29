@@ -15,7 +15,10 @@ from urllib.parse import parse_qsl, urlsplit
 import requests
 
 from glp.net_client import NetClient
-from glp.constants import (\n    HEBEI_ANNOUNCE_URL, HEBEI_URL, NATIONAL_URL, SHANGHAI_HISTORY_URL,\n    SHANGHAI_URL, SSQ_HISTORY_START_ISSUE,\n)
+from glp.constants import (
+    HEBEI_ANNOUNCE_URL, HEBEI_URL, NATIONAL_URL, SHANGHAI_HISTORY_URL,
+    SHANGHAI_URL, SSQ_HISTORY_START_ISSUE,
+)
 from glp.domain import CanonicalDataset, Draw, SourceReceipt
 from glp.util import canonical_json, sha256_bytes, sha256_json, utc_now
 
