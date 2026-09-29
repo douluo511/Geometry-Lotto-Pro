@@ -13,24 +13,34 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Inspect Shanghai HTTPS modern history page contract
+      - name: Test Shanghai HTTPS full issue-range GET
         shell: python
         run: |
-          import re, urllib.request, urllib.parse
-          url="https://www.swlc.net.cn/lottery/ssq.html?limit=100&view=previous"
-          req=urllib.request.Request(url,headers={"User-Agent":"Mozilla/5.0 SSQ-Probe/1.0"})
-          with urllib.request.urlopen(req,timeout=20) as r:
-              raw=r.read()
-              print("PAGE_HTTP",r.status,r.geturl(),r.headers.get("Content-Type"),len(raw))
-          text=raw.decode("utf-8","replace")
-          for key in ("自定义","按期号","issue","limit","previous","query","api","ajax","fetch","axios","start","end"):
-              pos=0
-              while True:
-                  i=text.lower().find(key.lower(),pos)
-                  if i<0: break
-                  print("MATCH",key)
-                  print(text[max(0,i-1000):min(len(text),i+2600)])
-                  pos=i+len(key)
-          print("SCRIPTS")
-          for src in re.findall(r"""<script\b[^>]*src=["']([^"']+)""",text,re.I):
-              print(urllib.parse.urljoin(url,src))
+          import re, urllib.request, urllib.parse, hashlib
+          base="https://www.swlc.net.cn/lottery/ssq.html"
+          tests=[
+            ("range100",{"view":"previous","limit":"100","start_issue":"2013001","end_issue":"2026113"}),
+            ("range2500",{"view":"previous","limit":"2500","start_issue":"2013001","end_issue":"2026113"}),
+          ]
+          for name,params in tests:
+              url=base+"?"+urllib.parse.urlencode(params)
+              req=urllib.request.Request(url,headers={"User-Agent":"Mozilla/5.0 SSQ-Probe/1.0"})
+              try:
+                  with urllib.request.urlopen(req,timeout=45) as r:
+                      raw=r.read()
+                      print("GET",name,"HTTP",r.status,"FINAL",r.geturl(),"CTYPE",r.headers.get("Content-Type"),
+                            "BYTES",len(raw),"SHA256",hashlib.sha256(raw).hexdigest())
+                  text=raw.decode("utf-8","replace")
+                  tbody=re.search(r"<tbody>(.*?)</tbody>",text,re.I|re.S)
+                  body=tbody.group(1) if tbody else ""
+                  rows=re.findall(r"<tr>(.*?)</tr>",body,re.I|re.S)
+                  issues=[]
+                  for row in rows:
+                      cells=re.findall(r"<td[^>]*>(.*?)</td>",row,re.I|re.S)
+                      if cells:
+                          clean=re.sub(r"<[^>]+>","",cells[0]).strip()
+                          if re.fullmatch(r"20\d{5}",clean): issues.append(clean)
+                  print("ROWS",name,len(rows),"ISSUES",len(issues),
+                        "FIRST",issues[0] if issues else None,"LAST",issues[-1] if issues else None)
+              except Exception as exc:
+                  print("GET_ERROR",name,type(exc).__name__,str(exc))
