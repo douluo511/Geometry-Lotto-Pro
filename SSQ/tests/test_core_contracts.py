@@ -254,31 +254,36 @@ class NetClientUnitTests(unittest.TestCase):
 
 
 class SourceFailoverTests(unittest.TestCase):
-    def test_primary_failure_secondary_consensus_cannot_recover_unverified_baseline(self):
+    def test_primary_failure_full_shanghai_can_reverify_unverified_baseline(self):
         draws = [
-            Draw("2026099", "2026-09-01", (1, 2, 3, 4, 5, 6), (1,)),
-            Draw("2026100", "2026-09-04", (2, 3, 4, 5, 6, 7), (2,)),
+            Draw("2013001", "2013-01-01", (1, 2, 3, 4, 5, 6), (1,)),
+            Draw("2026113", "2026-09-29", (3, 4, 20, 24, 29, 30), (11,)),
         ]
         latest = draws[-1]
         sh_receipt = receipt("official_shanghai_L1", latest)
         hb_receipt = receipt("official_hebei_L2", latest)
-        sh_raw = {"raw": b"<html>fixture</html>", "meta": {"status": 200}}
+        sh_manifest = [{"sequence": 1, "start_issue": "2013001", "end_issue": "2026999"}]
         hb_raw = {
             "home": {"raw": b"home", "meta": {"status": 200}},
             "announce": {"raw": b"announce", "meta": {"status": 200}},
         }
         with (
             patch.object(sources, "fetch_national_history", side_effect=SourceError("primary unavailable")),
-            patch.object(sources, "fetch_shanghai_history", return_value=(draws, sh_receipt, sh_raw)),
+            patch.object(sources, "fetch_shanghai_full_history",
+                         return_value=(draws, sh_receipt, sh_manifest)),
             patch.object(sources, "fetch_hebei_latest", return_value=(latest, hb_receipt, hb_raw)),
         ):
-            with self.assertRaises(SourceError):
-                build_canonical(baseline_draws=draws)
+            dataset, evidence = build_canonical(baseline_draws=draws)
+        self.assertEqual(dataset.draws, draws)
+        self.assertEqual(evidence["verification"], "SHANGHAI_FULL_L1_PLUS_HEBEI_CURRENT")
+        self.assertEqual(evidence["baseline_overlap_count"], len(draws))
+        self.assertEqual(evidence["crosscheck_count"], 1)
 
     def test_all_sources_unavailable_fails_closed(self):
         with (
             patch.object(sources, "fetch_national_history", side_effect=SourceError("n")),
             patch.object(sources, "fetch_shanghai_history", side_effect=SourceError("s")),
+            patch.object(sources, "fetch_shanghai_full_history", side_effect=SourceError("sf")),
             patch.object(sources, "fetch_hebei_latest", side_effect=SourceError("h")),
         ):
             with self.assertRaises(SourceError):
