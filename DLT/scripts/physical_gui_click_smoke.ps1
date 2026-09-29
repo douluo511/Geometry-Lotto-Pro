@@ -198,6 +198,7 @@ $exeResolved = Resolve-Path $ExePath
 $processName = [System.IO.Path]::GetFileNameWithoutExtension($exeResolved)
 for($i=0;$i -lt 4;$i++){
   $baselinePids = @(Get-Process -Name $processName -ErrorAction SilentlyContinue | ForEach-Object { $_.Id })
+  $window=$null
   $p=Start-Process -FilePath $exeResolved -PassThru
   try {
     $window=Wait-MainWindow $p $processName $baselinePids
