@@ -88,12 +88,12 @@ function Wait-MainWindow([System.Diagnostics.Process]$boot,[int[]]$baselinePids)
   throw "Exact EXE's newly spawned main window was not found"
 }
 
-function Get-Control([IntPtr]$window,[int]$id,[int]$pid,[string]$expectedClass){
+function Get-Control([IntPtr]$window,[int]$id,[int]$processId,[string]$expectedClass){
   $handle = [PhysicalGuiClick]::GetDlgItem($window,$id)
   if($handle -eq [IntPtr]::Zero){ throw "Control $id missing from exact EXE window" }
   if([PhysicalGuiClick]::GetParent($handle) -ne $window){ throw "Control $id is not a direct child" }
   [uint32]$ownerPid = 0
-  if([PhysicalGuiClick]::GetWindowThreadProcessId($handle,[ref]$ownerPid) -eq 0 -or $ownerPid -ne $pid){
+  if([PhysicalGuiClick]::GetWindowThreadProcessId($handle,[ref]$ownerPid) -eq 0 -or $ownerPid -ne $processId){
     throw "Control $id belongs to a different process"
   }
   $className = New-Object System.Text.StringBuilder 64
