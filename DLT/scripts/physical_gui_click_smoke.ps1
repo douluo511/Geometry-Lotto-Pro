@@ -15,6 +15,7 @@ Add-Type -AssemblyName System.Windows.Forms
 Add-Type @"
 using System;
 using System.Text;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 public static class PhysicalGuiClick {
   [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left; public int Top; public int Right; public int Bottom; }
@@ -54,6 +55,29 @@ public static class PhysicalGuiClick {
     }, IntPtr.Zero);
     x = fx; y = fy;
     return found;
+  }
+
+  public static bool FindNthVisibleButtonCenter(IntPtr parent, int index, out int x, out int y) {
+    var rects = new List<RECT>();
+    EnumChildWindows(parent, delegate(IntPtr child, IntPtr lp) {
+      var cls = new StringBuilder(128);
+      GetClassNameW(child, cls, cls.Capacity);
+      if (IsWindowVisible(child) &&
+          string.Equals(cls.ToString(), "Button", StringComparison.OrdinalIgnoreCase)) {
+        RECT r;
+        if (GetWindowRect(child, out r) && r.Right > r.Left && r.Bottom > r.Top) rects.Add(r);
+      }
+      return true;
+    }, IntPtr.Zero);
+    rects.Sort(delegate(RECT a, RECT b) {
+      int row = a.Top.CompareTo(b.Top);
+      return row != 0 ? row : a.Left.CompareTo(b.Left);
+    });
+    if (index < 0 || index >= rects.Count) { x = 0; y = 0; return false; }
+    var target = rects[index];
+    x = target.Left + (target.Right - target.Left) / 2;
+    y = target.Top + (target.Bottom - target.Top) / 2;
+    return true;
   }
 }
 "@
@@ -193,13 +217,19 @@ for($i=0;$i -lt 4;$i++){
         $click=Click-ScreenPoint $hwnd $point.x $point.y
         $locator=$point.locator
       } catch {
-        # Native Win32 controls may not be surfaced by the hosted runner's UIA
-        # provider or text enumeration. The workflow also supplies frozen
-        # layout coordinates for the same four production buttons. Fall back to
-        # those coordinates, still performing a real foreground mouse click.
-        $pt=$parsed[$i]
-        $click=Click-Normalized $hwnd $pt[0] $pt[1]
-        $locator="FrozenNormalizedCoordinate"
+        # Native Win32 controls may not expose accessible text on hosted runners.
+        # Enumerate the real visible BUTTON child HWNDs and use their actual screen
+        # rectangles before falling back to the frozen layout coordinates.
+        [int]$bx=0
+        [int]$by=0
+        if([PhysicalGuiClick]::FindNthVisibleButtonCenter($hwnd,$i,[ref]$bx,[ref]$by)){
+          $click=Click-ScreenPoint $hwnd $bx $by
+          $locator="Win32ButtonIndex"
+        } else {
+          $pt=$parsed[$i]
+          $click=Click-Normalized $hwnd $pt[0] $pt[1]
+          $locator="FrozenNormalizedCoordinate"
+        }
       }
     } else {
       $pt=$parsed[$i]
