@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import threading
 import tkinter as tk
 from tkinter import messagebox, ttk
@@ -226,6 +227,7 @@ def cli() -> int:
 
     if args.network_smoke_test:
         report = service.network_smoke_test()
+        print(json.dumps(report, ensure_ascii=False, indent=2))
         return 0 if report["status"] == "PASS" and report["deduped_count"] > 0 else 2
 
     if args.gui_smoke:
