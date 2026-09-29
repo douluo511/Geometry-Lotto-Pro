@@ -12,6 +12,7 @@ class Source:
     source_type: str = "official_rss"
     quality: float = 1.0
     enabled: bool = True
+    fallback_urls: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -24,6 +25,9 @@ class RawDocument:
     content_type: str
     payload_hash: str
     payload: bytes
+    requested_url: str = ""
+    final_url: str = ""
+    attempts: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass
@@ -60,6 +64,8 @@ class SourceHealth:
     raw_hash: str = ""
     elapsed_ms: int | None = None
     error: str = ""
+    selected_url: str = ""
+    attempts: list[dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
