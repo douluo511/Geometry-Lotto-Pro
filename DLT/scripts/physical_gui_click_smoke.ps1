@@ -188,11 +188,23 @@ for($i=0;$i -lt 4;$i++){
     }
     $before=Get-WindowHash $hwnd
     if($buttonNames.Count -eq 4){
-      $point=Find-ButtonPoint $hwnd $buttonNames[$i]
-      $click=Click-ScreenPoint $hwnd $point.x $point.y
+      try {
+        $point=Find-ButtonPoint $hwnd $buttonNames[$i]
+        $click=Click-ScreenPoint $hwnd $point.x $point.y
+        $locator=$point.locator
+      } catch {
+        # Native Win32 controls may not be surfaced by the hosted runner's UIA
+        # provider or text enumeration. The workflow also supplies frozen
+        # layout coordinates for the same four production buttons. Fall back to
+        # those coordinates, still performing a real foreground mouse click.
+        $pt=$parsed[$i]
+        $click=Click-Normalized $hwnd $pt[0] $pt[1]
+        $locator="FrozenNormalizedCoordinate"
+      }
     } else {
       $pt=$parsed[$i]
       $click=Click-Normalized $hwnd $pt[0] $pt[1]
+      $locator="FrozenNormalizedCoordinate"
     }
     Start-Sleep -Milliseconds $SettleMs
     $p.Refresh()
@@ -200,7 +212,7 @@ for($i=0;$i -lt 4;$i++){
     $after=Get-WindowHash $hwnd
     $changed=($before -ne $after)
     if(-not $changed){ throw "Core button $($i+1) produced no visible GUI change; click not proven" }
-    $results += [pscustomobject]@{button_index=$i+1;status="PASS";x=$click.x;y=$click.y;visual_changed=$true;before_sha256=$before;after_sha256=$after}
+    $results += [pscustomobject]@{button_index=$i+1;button_name=$(if($buttonNames.Count -eq 4){$buttonNames[$i]}else{""});status="PASS";locator=$locator;x=$click.x;y=$click.y;visual_changed=$true;before_sha256=$before;after_sha256=$after}
   } finally { Stop-Tree $p }
 }
 $dir=Split-Path -Parent $EvidencePath
