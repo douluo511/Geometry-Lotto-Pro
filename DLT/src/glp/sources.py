@@ -16,6 +16,7 @@ from .util import canonical_json, sha256_bytes, sha256_json, utc_now
 
 JIANGSU_DATA_PAGE = "https://api.js-lottery.com/wfzq/dlt/data"
 JIANGSU_LIST_URL = "https://api.js-lottery.com/Lottery/_ListData"
+GUANGDONG_ANNOUNCEMENT = "https://www.gdlottery.cn/f_html/kjgg/P085_{issue}.html"
 
 # Sporttery's WAF has periodically rejected otherwise-valid desktop requests.
 # Keep two explicit official-site profiles and fail closed if both fail.
@@ -38,7 +39,12 @@ PARSER_VERSION = "dlt-source-parser-v2-fail-closed"
 JIANGSU_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     "Accept": "text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8",
-    "Referer": "https://api.js-lottery.com/",
+    "Referer": "https://www.js-lottery.com/",
+}
+GUANGDONG_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,*/*;q=0.8",
+    "Referer": "https://www.gdlottery.cn/",
 }
 
 
@@ -229,6 +235,145 @@ def _parse_jiangsu_html(text: str) -> list[Draw]:
     return sorted(draws, key=lambda d: (d.draw_date, d.issue))
 
 
+
+def _decode_html(raw: bytes) -> str:
+    for encoding in ("utf-8", "gb18030"):
+        try:
+            return raw.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    raise SourceError("官方 HTML 响应编码不可验证")
+
+
+def fetch_jiangsu_history(progress: Callable[[str], None] | None = None, page_size: int = 100):
+    page_size = max(20, min(int(page_size), 100))
+    page_results: dict[int, tuple[list[Draw], dict]] = {}
+    seen: dict[str, Draw] = {}
+    empty_after_data = False
+
+    for page_index in range(1, 80):
+        response = NET.get(
+            JIANGSU_LIST_URL,
+            params={"itemType": "lo", "pageIndex": str(page_index), "pageSize": str(page_size)},
+            headers={**JIANGSU_HEADERS, "X-Requested-With": "XMLHttpRequest", "Referer": JIANGSU_DATA_PAGE},
+            timeout=(10, 30),
+            allow_redirects=True,
+        )
+        raw = bytes(response.content)
+        meta = _validate_response(response, raw, expected="html_or_json")
+        meta.update({
+            "source_identity": "official_jiangsu_sporttery",
+            "requested_url": JIANGSU_LIST_URL,
+            "page": page_index,
+            "page_size": page_size,
+        })
+        draws = _parse_jiangsu_html(_decode_html(raw))
+        if not draws:
+            if page_index == 1:
+                raise SourceError("江苏体彩历史接口第一页未解析到大乐透记录")
+            empty_after_data = True
+            break
+
+        for draw in draws:
+            previous = seen.get(draw.issue)
+            if previous is not None:
+                if previous.to_dict() != draw.to_dict():
+                    raise SourceError(f"江苏体彩跨页同一期数据冲突: {draw.issue}")
+                raise SourceError(f"江苏体彩跨页重复期号: {draw.issue}")
+            seen[draw.issue] = draw
+        page_results[page_index] = (draws, meta)
+
+        if progress and (page_index == 1 or page_index % 5 == 0):
+            progress(f"江苏体彩官方历史：已抓取 {len(seen)} 期")
+
+        if len(draws) < page_size:
+            empty_after_data = True
+            break
+
+    if not empty_after_data:
+        raise SourceError("江苏体彩历史分页超过安全上限，拒绝部分历史")
+    ordered = sorted(seen.values(), key=lambda d: (d.draw_date, d.issue))
+    if len(ordered) < 600:
+        raise SourceError(f"江苏体彩完整历史不足科学验证最低要求: {len(ordered)} < 600")
+    if ordered != sorted(ordered, key=lambda d: (d.draw_date, d.issue)):
+        raise SourceError("江苏体彩历史排序异常")
+
+    evidence_pages = [{"page": p, **page_results[p][1]} for p in sorted(page_results)]
+    receipt = SourceReceipt(
+        source="jiangsu_full",
+        fetched_at=utc_now(),
+        http_status=200,
+        raw_sha256=sha256_bytes("".join(x["sha256"] for x in evidence_pages).encode()),
+        draw_count=len(ordered),
+        latest_issue=ordered[-1].issue,
+        status="PASS",
+        detail=f"江苏体彩官方分页完整历史 {len(evidence_pages)} 页/{len(ordered)} 期",
+    )
+    return ordered, receipt, evidence_pages
+
+
+def _parse_guangdong_announcement(text: str, expected_issue: str) -> Draw:
+    plain = html.unescape(re.sub(r"<[^>]+>", " ", text))
+    plain = re.sub(r"\s+", " ", plain).strip()
+    issue = str(expected_issue)
+    if not re.search(rf"第\s*{re.escape(issue)}\s*期.*?开奖公告", plain):
+        raise SourceError(f"广东体彩公告期号不匹配: expected={issue}")
+
+    mdate = re.search(r"开奖日期\s*[:：]?\s*(\d{4})[年-](\d{1,2})[月-](\d{1,2})日?", plain)
+    if not mdate:
+        raise SourceError(f"广东体彩 {issue} 未解析到开奖日期")
+    draw_date = f"{int(mdate.group(1)):04d}-{int(mdate.group(2)):02d}-{int(mdate.group(3)):02d}"
+
+    marker = plain.find("本期开奖号码")
+    if marker < 0:
+        raise SourceError(f"广东体彩 {issue} 未找到本期开奖号码")
+    tail = plain[marker + len("本期开奖号码"):]
+    stop = tail.find("本期中奖情况")
+    if stop >= 0:
+        tail = tail[:stop]
+    nums = [int(x) for x in re.findall(r"(?<!\d)(\d{1,2})(?!\d)", tail)]
+    if len(nums) < 7:
+        raise SourceError(f"广东体彩 {issue} 开奖号码不足 7 个")
+    return _parse_result(issue, draw_date, " ".join(f"{n:02d}" for n in nums[:7]))
+
+
+def fetch_guangdong_issue(issue: str):
+    url = GUANGDONG_ANNOUNCEMENT.format(issue=issue)
+    response = NET.get(url, headers=GUANGDONG_HEADERS, timeout=(10, 30), allow_redirects=True)
+    raw = bytes(response.content)
+    meta = _validate_response(response, raw, expected="html_or_json")
+    meta.update({
+        "source_identity": "official_guangdong_sporttery",
+        "requested_url": url,
+        "issue": str(issue),
+    })
+    draw = _parse_guangdong_announcement(_decode_html(raw), str(issue))
+    return draw, meta
+
+
+def fetch_guangdong_recent(reference: list[Draw], limit: int = 10):
+    if len(reference) < limit:
+        raise SourceError("广东体彩交叉验证缺少参考期次")
+    selected = reference[-int(limit):]
+    draws: list[Draw] = []
+    evidence: list[dict] = []
+    for ref in selected:
+        draw, meta = fetch_guangdong_issue(ref.issue)
+        draws.append(draw)
+        evidence.append(meta)
+    receipt = SourceReceipt(
+        source="guangdong",
+        fetched_at=utc_now(),
+        http_status=200,
+        raw_sha256=sha256_bytes("".join(x["sha256"] for x in evidence).encode()),
+        draw_count=len(draws),
+        latest_issue=draws[-1].issue,
+        status="PASS",
+        detail=f"广东体彩官方逐期开奖公告 {len(draws)} 期",
+    )
+    return draws, receipt, evidence
+
+
 def fetch_jiangsu_recent(limit: int = 100):
     failures: list[str] = []
     # Prefer the public history page because it is the user-visible official surface.
@@ -263,35 +408,74 @@ def fetch_jiangsu_recent(limit: int = 100):
     raise SourceError("江苏体彩两个官方路径均失败: " + " | ".join(failures[-4:]))
 
 
-def build_canonical(progress: Callable[[str], None] | None = None):
-    national, national_receipt, raw_manifest = fetch_national_history(progress)
-    if progress:
-        progress("江苏体彩交叉验证中")
-    jiangsu, jiangsu_receipt, jiangsu_raw_evidence = fetch_jiangsu_recent(100)
-    jm = {d.issue: d for d in jiangsu}
-    overlap = [d for d in national if d.issue in jm]
-    if len(overlap) < 10:
-        raise SourceError("两个官方来源没有足够可交叉核对的共同期号")
-    mismatches = [d.issue for d in overlap if d.to_dict() != jm[d.issue].to_dict()]
+def _crosscheck(primary: list[Draw], secondary: list[Draw], minimum: int = 10) -> int:
+    sm = {d.issue: d for d in secondary}
+    overlap = [d for d in primary if d.issue in sm]
+    if len(overlap) < minimum:
+        raise SourceError(f"两个独立官方来源共同期号不足: {len(overlap)} < {minimum}")
+    mismatches = [d.issue for d in overlap if d.to_dict() != sm[d.issue].to_dict()]
     if mismatches:
-        raise SourceError("官方来源冲突，拒绝更新: " + ", ".join(mismatches[:10]))
-    if national[-1].issue != jiangsu[-1].issue:
-        raise SourceError(f"官方来源最新期不一致，拒绝更新: 国家体彩={national[-1].issue}, 江苏体彩={jiangsu[-1].issue}")
-    payload = [d.to_dict() for d in national]
+        raise SourceError("独立官方来源冲突，拒绝更新: " + ", ".join(mismatches[:10]))
+    if primary[-1].issue != secondary[-1].issue:
+        raise SourceError(
+            f"独立官方来源最新期不一致，拒绝更新: primary={primary[-1].issue}, secondary={secondary[-1].issue}"
+        )
+    return len(overlap)
+
+
+def build_canonical(progress: Callable[[str], None] | None = None):
+    national_failure: str | None = None
+    try:
+        national, national_receipt, raw_manifest = fetch_national_history(progress)
+        if progress:
+            progress("江苏体彩交叉验证中")
+        jiangsu, jiangsu_receipt, jiangsu_raw_evidence = fetch_jiangsu_recent(100)
+        overlap_count = _crosscheck(national, jiangsu, 10)
+        primary = national
+        receipts = [national_receipt, jiangsu_receipt]
+        source_mode = "national_plus_jiangsu"
+        source_evidence = {
+            "national_raw_manifest": raw_manifest,
+            "jiangsu_raw_evidence": jiangsu_raw_evidence,
+        }
+    except Exception as exc:
+        national_failure = f"{type(exc).__name__}: {exc}"
+        if progress:
+            progress("国家体彩接口不可用，切换江苏完整历史 + 广东独立官方公告")
+        jiangsu_full, jiangsu_receipt, jiangsu_pages = fetch_jiangsu_history(progress)
+        guangdong, guangdong_receipt, guangdong_evidence = fetch_guangdong_recent(jiangsu_full, 10)
+        overlap_count = _crosscheck(jiangsu_full, guangdong, 10)
+        primary = jiangsu_full
+        receipts = [jiangsu_receipt, guangdong_receipt]
+        source_mode = "jiangsu_full_plus_guangdong"
+        source_evidence = {
+            "national_failure": national_failure,
+            "jiangsu_full_raw_manifest": jiangsu_pages,
+            "guangdong_raw_manifest": guangdong_evidence,
+        }
+
+    payload = [d.to_dict() for d in primary]
     canonical_hash = sha256_json(payload)
     dataset = CanonicalDataset(
-        draws=national, canonical_hash=canonical_hash,
-        receipts=[national_receipt, jiangsu_receipt], crosscheck_count=len(overlap), crosscheck_status="PASS",
+        draws=primary,
+        canonical_hash=canonical_hash,
+        receipts=receipts,
+        crosscheck_count=overlap_count,
+        crosscheck_status="PASS",
     )
     evidence = {
-        "fetched_at": utc_now(), "canonical_hash": canonical_hash, "draw_count": len(national),
-        "latest": national[-1].to_dict(), "crosscheck_count": len(overlap), "crosscheck_status": "PASS",
+        "fetched_at": utc_now(),
+        "canonical_hash": canonical_hash,
+        "draw_count": len(primary),
+        "latest": primary[-1].to_dict(),
+        "crosscheck_count": overlap_count,
+        "crosscheck_status": "PASS",
         "network_gate": "PASS",
-        "schema": "dlt-official-source-evidence-v2",
+        "source_mode": source_mode,
+        "schema": "dlt-official-source-evidence-v3",
         "parser_version": PARSER_VERSION,
         "source_receipts": [asdict(x) for x in dataset.receipts],
-        "national_raw_manifest": raw_manifest,
-        "jiangsu_raw_evidence": jiangsu_raw_evidence,
+        **source_evidence,
         "canonical_payload_sha256": sha256_bytes(canonical_json(payload).encode("utf-8")),
     }
     return dataset, evidence
