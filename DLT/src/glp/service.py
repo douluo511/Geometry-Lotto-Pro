@@ -193,7 +193,7 @@ class LottoService:
         # invalidates predictive-edge evidence until Evidence Court is rerun.
         canonical_hash = canonical_hash or self.store.load_draws()[1]
         current_model_hash = model_identity()["model_hash"]
-        with self.store._connect() as db:
+        with self.store._connection() as db:
             row = db.execute(
                 "SELECT payload_json FROM experiments "
                 "WHERE kind='evidence_court' AND status='PASS' AND input_hash=? AND code_hash=? "
@@ -263,7 +263,7 @@ def self_test(root: Path | None = None) -> dict[str, Any]:
     check("Immutable Freeze", lambda: (_ for _ in ()).throw(AssertionError("freeze overwritten")) if first.front != second.front else None)
 
     def freeze_tamper_detection():
-        with store._connect() as db:
+        with store._connection() as db:
             row = db.execute("SELECT payload_json FROM freezes WHERE target_issue=?", ("26999",)).fetchone()
             value = json.loads(row["payload_json"])
             value["front"] = [6, 7, 8, 9, 10]
@@ -271,7 +271,7 @@ def self_test(root: Path | None = None) -> dict[str, Any]:
         if store.integrity_check()["status"] != "FAIL":
             raise AssertionError("tampered freeze payload was not detected")
         # Restore the original immutable payload so later self-tests operate on a valid ledger.
-        with store._connect() as db:
+        with store._connection() as db:
             db.execute("UPDATE freezes SET payload_json=? WHERE target_issue=?", (json.dumps(first.to_dict(), ensure_ascii=False, sort_keys=True), "26999"))
     check("Freeze tamper detection", freeze_tamper_detection)
 
@@ -311,7 +311,7 @@ def self_test(root: Path | None = None) -> dict[str, Any]:
             s2.freeze(pred)
 
             # Close/checkpoint WAL state before deliberately corrupting the ledger.
-            with s2._connect() as db:
+            with s2._connection() as db:
                 db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
             del s2
             gc.collect()
