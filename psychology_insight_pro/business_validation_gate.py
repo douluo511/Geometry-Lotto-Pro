@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 from core import analyze
@@ -78,6 +79,7 @@ def main() -> int:
     report = {
         "schema": "psychology-business-validation-v1",
         "status": "PASS" if business_validation and counterexample_validation and reversal_validation else "FAIL",
+        "github_sha": os.environ.get("GITHUB_SHA"),
         "business_validation": "PASS" if business_validation else "FAIL",
         "counterexample_validation": "PASS" if counterexample_validation else "FAIL",
         "reversal_validation": "PASS" if reversal_validation else "FAIL",
