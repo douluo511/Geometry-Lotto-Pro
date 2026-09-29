@@ -18,7 +18,7 @@ from head_intelligence.storage import AtomicStorage
 
 
 APP_NAME = "HeadIntelligence"
-APP_VERSION = "0.3.0"
+APP_VERSION = "0.4.0"
 SNAPSHOT_FILE = "latest_snapshot.json"
 
 DEFAULT_SOURCES = [
