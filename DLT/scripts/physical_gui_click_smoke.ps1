@@ -180,11 +180,15 @@ function Click-Normalized([IntPtr]$hwnd,[double]$rx,[double]$ry){
   [PhysicalGuiClick]::mouse_event($MOUSEEVENTF_LEFTUP,0,0,0,[UIntPtr]::Zero)
   return @{x=$x;y=$y}
 }
-function Stop-Tree([System.Diagnostics.Process]$p){
-  if(-not $p.HasExited){
-    & taskkill.exe /PID $p.Id /T /F | Out-Null
-    Start-Sleep -Milliseconds 300
+function Stop-Tree([System.Diagnostics.Process]$p,[int]$guiPid=0){
+  if($guiPid -gt 0 -and $guiPid -ne $p.Id){
+    try { Stop-Process -Id $guiPid -Force -ErrorAction SilentlyContinue } catch {}
   }
+  try {
+    $p.Refresh()
+    if(-not $p.HasExited){ & taskkill.exe /PID $p.Id /T /F | Out-Null }
+  } catch {}
+  Start-Sleep -Milliseconds 300
 }
 $buttonNames=@()
 if($ButtonTexts){ $buttonNames=@($ButtonTexts.Split(';')) }
@@ -207,8 +211,7 @@ for($i=0;$i -lt 4;$i++){
         [void](Click-Normalized $hwnd $pre[0] $pre[1])
       }
       Start-Sleep -Milliseconds $SettleMs
-      $p.Refresh()
-      if($p.HasExited){ throw "EXE exited during precondition click" }
+      if(-not [PhysicalGuiClick]::IsWindow($hwnd)){ throw "GUI window disappeared during precondition click" }
     }
     $before=Get-WindowHash $hwnd
     if($buttonNames.Count -eq 4){
@@ -237,13 +240,12 @@ for($i=0;$i -lt 4;$i++){
       $locator="FrozenNormalizedCoordinate"
     }
     Start-Sleep -Milliseconds $SettleMs
-    $p.Refresh()
-    if($p.HasExited){ throw "EXE exited after core button $($i+1)" }
+    if(-not [PhysicalGuiClick]::IsWindow($hwnd)){ throw "GUI window disappeared after core button $($i+1)" }
     $after=Get-WindowHash $hwnd
     $changed=($before -ne $after)
     if(-not $changed){ throw "Core button $($i+1) produced no visible GUI change; click not proven" }
     $results += [pscustomobject]@{button_index=$i+1;button_name=$(if($buttonNames.Count -eq 4){$buttonNames[$i]}else{""});status="PASS";locator=$locator;x=$click.x;y=$click.y;visual_changed=$true;before_sha256=$before;after_sha256=$after}
-  } finally { Stop-Tree $p }
+  } finally { Stop-Tree $p $(if($window){[int]$window.pid}else{0}) }
 }
 $dir=Split-Path -Parent $EvidencePath
 if($dir){ New-Item -ItemType Directory -Force $dir | Out-Null }
