@@ -59,6 +59,7 @@ class NetClient:
         return min(self.backoff_base * (2 ** (attempt - 1)) * (0.5 + self.rng.random()), 5.0)
 
     def _get_bytes(self, url: str, accept: str):
+        self.last_receipt = {}
         if not str(url).startswith("https://"):
             raise ValueError("HTTPS required")
         ledger = []
@@ -75,6 +76,19 @@ class NetClient:
                 )
                 status = int(getattr(response, "status_code", 0) or 0)
                 final_url = str(getattr(response, "url", "") or url)
+                response_raw = bytes(getattr(response, "content", b"") or b"")
+                response_ctype = (response.headers.get("Content-Type") or "").lower()
+                self.last_receipt = {
+                    "requested_url": url,
+                    "final_url": final_url,
+                    "http_status": status,
+                    "content_type": response_ctype,
+                    "payload_hash": hashlib.sha256(response_raw).hexdigest(),
+                    "bytes": len(response_raw),
+                    "fetched_at": datetime.now(timezone.utc).isoformat(),
+                    "attempts": list(ledger),
+                    "body_b64": base64.b64encode(response_raw).decode("ascii"),
+                }
                 if not final_url.startswith("https://"):
                     ledger.append({
                         "attempt": attempt, "outcome": "FINAL_INSECURE_REDIRECT",
@@ -92,14 +106,15 @@ class NetClient:
                         "status_code": status, "error_type": None,
                         "retry_delay": delay, "url": final_url,
                     })
+                    self.last_receipt["attempts"] = list(ledger)
                     self.sleeper(delay)
                     continue
 
                 response.raise_for_status()
-                raw = bytes(response.content)
+                raw = response_raw
                 if not raw or len(raw) > 10_000_000:
                     raise ValueError("invalid response size")
-                ctype = (response.headers.get("Content-Type") or "").lower()
+                ctype = response_ctype
                 ledger.append({
                     "attempt": attempt, "outcome": "HTTP_RESPONSE",
                     "status_code": status, "error_type": None,
