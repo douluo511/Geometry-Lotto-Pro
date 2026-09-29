@@ -145,6 +145,7 @@ def main() -> int:
     p = argparse.ArgumentParser()
     p.add_argument("--self-test", action="store_true")
     p.add_argument("--network-smoke", action="store_true")
+    p.add_argument("--scientific-gate", action="store_true")
     p.add_argument("--gui-smoke", action="store_true")
     p.add_argument("--report", default=None)
     args = p.parse_args()
@@ -157,6 +158,10 @@ def main() -> int:
         report = service.network_smoke()
         write_report(report, args.report)
         return 0 if report["status"] == "PASS" else 2
+    if args.scientific_gate:
+        report = service.scientific_validation()
+        write_report(report, args.report)
+        return 0 if report.get("status") == "PASS" and report.get("model_status") == "UNVALIDATED" and report.get("promotion_allowed") is False else 4
     return run_gui(smoke=args.gui_smoke)
 
 if __name__ == "__main__":
