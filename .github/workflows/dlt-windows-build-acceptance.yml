@@ -51,6 +51,18 @@ jobs:
         shell: pwsh
         run: ./scripts/windows_acceptance.ps1
 
+      - name: Exact EXE GUI construction gate
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force ".\\artifacts" | Out-Null
+          $out = (Resolve-Path ".\\artifacts").Path + "\\gui_self_test.json"
+          $p = Start-Process -FilePath ".\\dist\\Geometry_Lotto_Pro_DLT.exe" -ArgumentList @("--gui-self-test","--result-file",$out) -PassThru -Wait
+          if ($p.ExitCode -ne 0) { throw "Exact EXE GUI construction self-test failed with exit code $($p.ExitCode)" }
+          if (-not (Test-Path $out)) { throw "Exact EXE GUI construction evidence missing" }
+          $r = Get-Content $out -Raw | ConvertFrom-Json
+          Get-Content $out
+          if ($r.status -ne "PASS") { throw "Exact EXE GUI construction gate failed" }
+
       - name: Physical GUI Click Smoke
         shell: pwsh
         run: |
