@@ -7,6 +7,7 @@ SERVICE_METHODS = (
     "advanced_analysis",
     "self_test",
     "network_smoke",
+    "scientific_validation",
     "health",
 )
 
