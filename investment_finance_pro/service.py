@@ -143,7 +143,14 @@ class InvestmentService:
         try:
             rows, provider, receipt = self.net.fetch_market_history("SPY")
             metric = self.engine.compute_metrics(rows)
-            checks.append({"source": provider + ":SPY", "status": "PASS", "last_date": metric["date"], "receipt": receipt})
+            market_ok = receipt.get("crosscheck_status") == "PASS"
+            checks.append({
+                "source": provider + ":SPY",
+                "status": "PASS" if market_ok else "FAIL",
+                "last_date": metric["date"],
+                "crosscheck_status": receipt.get("crosscheck_status","UNKNOWN"),
+                "receipt": receipt,
+            })
         except Exception as exc:
             checks.append({"source": "MARKET:SPY", "status": "FAIL", "detail": str(exc)})
         try:
