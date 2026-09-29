@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import html
 import re
+from datetime import date, datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict
 from typing import Callable
@@ -408,6 +409,17 @@ def fetch_jiangsu_recent(limit: int = 100):
     raise SourceError("江苏体彩两个官方路径均失败: " + " | ".join(failures[-4:]))
 
 
+def _validate_freshness(draws: list[Draw], max_age_days: int = 7) -> None:
+    if not draws:
+        raise SourceError("官方数据为空，无法验证时效")
+    latest = datetime.strptime(draws[-1].draw_date[:10], "%Y-%m-%d").date()
+    age = (date.today() - latest).days
+    if age < 0:
+        raise SourceError(f"官方数据最新日期来自未来: {latest.isoformat()}")
+    if age > max_age_days:
+        raise SourceError(f"官方数据过期: latest={latest.isoformat()} age_days={age} > {max_age_days}")
+
+
 def _crosscheck(primary: list[Draw], secondary: list[Draw], minimum: int = 10) -> int:
     sm = {d.issue: d for d in secondary}
     overlap = [d for d in primary if d.issue in sm]
@@ -425,11 +437,18 @@ def _crosscheck(primary: list[Draw], secondary: list[Draw], minimum: int = 10) -
 
 def build_canonical(progress: Callable[[str], None] | None = None):
     national_failure: str | None = None
+    national = None
     try:
         national, national_receipt, raw_manifest = fetch_national_history(progress)
+    except Exception as exc:
+        national_failure = f"{type(exc).__name__}: {exc}"
+
+    if national is not None:
+        _validate_freshness(national)
         if progress:
             progress("江苏体彩交叉验证中")
         jiangsu, jiangsu_receipt, jiangsu_raw_evidence = fetch_jiangsu_recent(100)
+        _validate_freshness(jiangsu)
         overlap_count = _crosscheck(national, jiangsu, 10)
         primary = national
         receipts = [national_receipt, jiangsu_receipt]
@@ -438,12 +457,13 @@ def build_canonical(progress: Callable[[str], None] | None = None):
             "national_raw_manifest": raw_manifest,
             "jiangsu_raw_evidence": jiangsu_raw_evidence,
         }
-    except Exception as exc:
-        national_failure = f"{type(exc).__name__}: {exc}"
+    else:
         if progress:
             progress("国家体彩接口不可用，切换江苏完整历史 + 广东独立官方公告")
         jiangsu_full, jiangsu_receipt, jiangsu_pages = fetch_jiangsu_history(progress)
+        _validate_freshness(jiangsu_full)
         guangdong, guangdong_receipt, guangdong_evidence = fetch_guangdong_recent(jiangsu_full, 10)
+        _validate_freshness(guangdong)
         overlap_count = _crosscheck(jiangsu_full, guangdong, 10)
         primary = jiangsu_full
         receipts = [jiangsu_receipt, guangdong_receipt]
@@ -468,6 +488,7 @@ def build_canonical(progress: Callable[[str], None] | None = None):
         "canonical_hash": canonical_hash,
         "draw_count": len(primary),
         "latest": primary[-1].to_dict(),
+        "freshness_gate": "PASS",
         "crosscheck_count": overlap_count,
         "crosscheck_status": "PASS",
         "network_gate": "PASS",
