@@ -81,7 +81,7 @@ jobs:
         run: |
           python ..\.github\scripts\tk_button_points.py --project-path . --module app --entry main --labels "今日学习;一键更新;一键修复;高级分析" --out ".\gui_points.txt"
           $points=(Get-Content ".\gui_points.txt" -Raw).Trim()
-          ..\.github\scripts\physical_gui_click_smoke.ps1 -ExePath ".\dist\English_Root_Intelligence.exe" -Points $points -ButtonTexts "今日学习;一键更新;一键修复;高级分析" -SettleMs 1200 -EvidencePath ".\physical_gui_click.json"
+          ..\.github\scripts\physical_gui_click_smoke.ps1 -ExePath ".\dist\English_Root_Intelligence.exe" -Points $points -SettleMs 1200 -EvidencePath ".\physical_gui_click.json"
           python bind_physical_gui.py --exe ".\dist\English_Root_Intelligence.exe" --evidence ".\physical_gui_click.json"
 
       - name: Freeze final bytes
