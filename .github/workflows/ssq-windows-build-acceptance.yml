@@ -76,47 +76,20 @@ jobs:
         shell: pwsh
         run: |
           @'
-          import re, requests, sys
+          import requests, sys
           sys.stdout.reconfigure(encoding="utf-8")
-          url = "https://appsh.swlc.net.cn/shfcoc_datachart/datachart/ssq/jbzs/clg.html"
-          r = requests.get(url, timeout=(20,30), headers={"User-Agent":"Mozilla/5.0 SSQ-Probe/1.0"})
-          print("SH_PROBE_HTTP", r.status_code, r.headers.get("Content-Type"), "bytes", len(r.content))
-          r.raise_for_status()
-          text = r.text
-          print("SH_PROBE_HTML_BEGIN")
-          print(text[:22000])
-          print("SH_PROBE_HTML_END")
-          print("SH_PROBE_INLINE_SCRIPTS")
-          for i, body in enumerate(re.findall(r"<script\\b[^>]*>(.*?)</script>", text, re.I|re.S)):
-              if body.strip():
-                  print("INLINE_SCRIPT", i, body[:12000])
-          print("SH_PROBE_URLS")
-          for u in sorted(set(re.findall(r"https?://[^\\\"'<> ]+|/[A-Za-z0-9_./?=&%-]+", text))):
-              if any(k in u.lower() for k in ("ssq","data","chart","api","query","issue","lottery")):
-                  print(u[:2000])
-          print("SH_PROBE_FORMS")
-          for i, form in enumerate(re.findall(r"<form\\b[^>]*>.*?</form>", text, re.I|re.S)[:10]):
-              print("FORM", i, re.sub(r"\\s+", " ", form)[:16000])
-          print("SH_PROBE_INPUTS")
-          for tag in re.findall(r"<(?:input|select|option|button)\\b[^>]*>", text, re.I):
-              if re.search(r"(name|id|value|onclick)", tag, re.I):
-                  print(re.sub(r"\\s+", " ", tag)[:2000])
-          print("SH_PROBE_SCRIPTS")
-          script_srcs = re.findall(r"<script\\b[^>]*src=[\\\"']([^\\\"']+)", text, re.I)
-          for src in script_srcs:
-              print(src)
-          base = "https://appsh.swlc.net.cn"
-          full = base + "/shfcoc_datachart/js/v2.0/datachart/zdy.js"
+          full = "https://appsh.swlc.net.cn/shfcoc_datachart/js/v2.0/datachart/zdy.js"
           try:
-              jr = requests.get(full, timeout=(5,10), headers={"User-Agent":"Mozilla/5.0 SSQ-Probe/1.0","Referer":url})
-              print("SH_JS_HTTP", full, jr.status_code, jr.headers.get("Content-Type"), len(jr.content))
-              jr.raise_for_status()
-              body = jr.content.decode("utf-8","replace")
-              print("SH_JS_BEGIN", full)
-              print(body[:40000])
-              print("SH_JS_END", full)
+              r = requests.get(full, timeout=(5,10), headers={"User-Agent":"Mozilla/5.0 SSQ-Probe/1.0","Referer":"https://appsh.swlc.net.cn/shfcoc_datachart/datachart/ssq/jbzs/clg.html"})
+              print("SH_JS_HTTP", r.status_code, r.headers.get("Content-Type"), len(r.content))
+              r.raise_for_status()
+              body = r.content.decode("utf-8","replace")
+              print("SH_JS_BEGIN")
+              print(body[:50000])
+              print("SH_JS_END")
           except Exception as exc:
-              print("SH_JS_ERROR", full, type(exc).__name__, str(exc))
+              print("SH_JS_ERROR", type(exc).__name__, str(exc))
+          raise SystemExit(7)
           '@ | Set-Content tools\\_probe_shanghai.py -Encoding utf8
           python tools\\_probe_shanghai.py
 
