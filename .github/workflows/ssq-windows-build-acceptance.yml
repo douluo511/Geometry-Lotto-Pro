@@ -76,7 +76,8 @@ jobs:
         shell: pwsh
         run: |
           @'
-          import re, requests
+          import re, requests, sys
+          sys.stdout.reconfigure(encoding="utf-8")
           url = "https://appsh.swlc.net.cn/shfcoc_datachart/datachart/ssq/jbzs/clg.html"
           r = requests.get(url, timeout=(20,30), headers={"User-Agent":"Mozilla/5.0 SSQ-Probe/1.0"})
           print("SH_PROBE_HTTP", r.status_code, r.headers.get("Content-Type"), "bytes", len(r.content))
