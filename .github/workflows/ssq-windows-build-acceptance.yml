@@ -72,36 +72,6 @@ jobs:
             if ($LASTEXITCODE -ne 0 -or $r.status -ne 'PASS') { throw "fault injection failed: $check" }
           }
 
-      - name: Temporary Shanghai official datacenter contract probe
-        shell: pwsh
-        run: |
-          @'
-          import requests, sys
-          sys.stdout.reconfigure(encoding="utf-8")
-          paths = [
-              "/shfcoc_datachart/js/v2.0/datacenter/datechartcommon.js",
-              "/shfcoc_datachart/js/v2.0/datachart/boot.js",
-              "/shfcoc_datachart/js/v2.0/datachart/datachart_index_common.js",
-              "/shfcoc_datachart/js/v2.0/util.js",
-          ]
-          for path in paths:
-              full = "https://appsh.swlc.net.cn" + path
-              try:
-                  r = requests.get(full, timeout=(5,10), headers={"User-Agent":"Mozilla/5.0 SSQ-Probe/1.0","Referer":"https://appsh.swlc.net.cn/shfcoc_datachart/datachart/ssq/jbzs/clg.html"})
-                  print("SH_JS_HTTP", full, r.status_code, r.headers.get("Content-Type"), len(r.content))
-                  r.raise_for_status()
-                  body = r.content.decode("utf-8","replace")
-                  print("SH_JS_MATCH_BEGIN", full)
-                  for line in body.splitlines():
-                      if any(k in line for k in ("HW_LOAD_DATA","query_lottery","employee","lottery_zst","zst_data")) or "ajax" in line.lower() or "url:" in line.lower():
-                          print(line[:20000])
-                  print("SH_JS_MATCH_END", full)
-              except Exception as exc:
-                  print("SH_JS_ERROR", full, type(exc).__name__, str(exc))
-          raise SystemExit(7)
-          '@ | Set-Content tools\\_probe_shanghai.py -Encoding utf8
-          python tools\\_probe_shanghai.py
-
       - name: Source live official-network quorum smoke
         shell: pwsh
         run: |
