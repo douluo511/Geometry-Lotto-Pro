@@ -55,6 +55,7 @@ def main() -> int:
 
     arch = _read("ARCHITECTURE_GATE.json")
     business = _read("BUSINESS_GATE.json")
+    unit_gate = _read("UNIT_GATE.json")
     net_contract = _read("NETCLIENT_CONTRACT_GATE.json")
     source_self = _read("source-self.json")
     source_live = _read("source-live-update.json")
@@ -75,7 +76,11 @@ def main() -> int:
         gates.setdefault(required, "FAIL")
 
     gates["self_test"] = "PASS" if _pass(source_self) and _check_pass(acceptance, "self") else "FAIL"
+    gates["unit_test"] = "PASS" if _pass(unit_gate) else "FAIL"
     gates["contract_test"] = "PASS" if _pass(net_contract) else "FAIL"
+    gates["integration_test"] = "PASS" if all(
+        _check_pass(acceptance, name) for name in ("update", "predict", "audit", "gui")
+    ) else "FAIL"
     gates["fault_injection"] = "PASS" if (
         all(_pass(source_faults[name]) for name in fault_names)
         and all(_check_pass(acceptance, name) for name in fault_names)
@@ -101,6 +106,22 @@ def main() -> int:
         and str(acceptance.get("windows_exact_exe_acceptance", "")).upper() == "PASS"
         and int(acceptance.get("hard_fail_count", 999)) == 0
     )
+    science_ok = _check_pass(acceptance, "science")
+    random_worlds_ok = all(
+        _check_pass(acceptance, name)
+        for name in ("random-world-101", "random-world-202", "random-world-303")
+    )
+    gates["business_validation"] = "PASS" if (
+        _pass(business) and science_ok and _check_pass(acceptance, "audit")
+    ) else "FAIL"
+    gates["counterexample_validation"] = "PASS" if random_worlds_ok else "FAIL"
+    gates["reversal_validation"] = "PASS" if (
+        random_worlds_ok
+        and _pass(source_faults["offline-failclosed"])
+        and _pass(source_faults["integrity-tamper"])
+        and _check_pass(acceptance, "audit")
+    ) else "FAIL"
+
     gates["windows_build"] = "PASS" if windows_ok else "FAIL"
     gates["exact_exe"] = "PASS" if windows_ok and actual_hash and actual_hash == acceptance_hash else "FAIL"
     gates["gui_smoke"] = "PASS" if (
@@ -127,6 +148,7 @@ def main() -> int:
         "evidence_status": {
             "architecture": arch.get("status", "MISSING"),
             "business": business.get("status", "MISSING"),
+            "unit": unit_gate.get("status", "MISSING"),
             "netclient_contract": net_contract.get("status", "MISSING"),
             "source_self": source_self.get("status", "MISSING"),
             "source_live": source_live.get("status", "MISSING"),
