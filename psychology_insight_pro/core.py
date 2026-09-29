@@ -188,7 +188,7 @@ def analyze(text: str, knowledge: Dict[str, Any], baseline_text: str = "") -> An
         guidance=guidance_for(hypotheses, label),
         overall_confidence=label,
         disclaimer=(
-            "这是基于可观察信息的概率性心理推断，不是读心、测谎或心理诊断。"
+            "这是基于可观察信息的概率性心理推断：不是读心，不是测谎，也不是心理诊断。"
             "同一行为可能由多种原因造成，重要判断应结合直接沟通与后续行为验证。"
         ),
     )
