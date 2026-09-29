@@ -30,10 +30,11 @@ from glp.util import sha256_json, utc_now
 
 
 class FakeResponse:
-    def __init__(self, status_code=200, content=b"{}", headers=None):
+    def __init__(self, status_code=200, content=b"{}", headers=None, url="https://example.invalid/data"):
         self.status_code = status_code
         self.content = content
         self.headers = headers or {"Content-Type": "application/json"}
+        self.url = url
 
 
 class FakeSession:
@@ -168,6 +169,47 @@ class NetClientUnitTests(unittest.TestCase):
         with patch.object(sources, "NET", fake_net):
             with self.assertRaises(SourceError):
                 sources.fetch_national_page(1)
+
+    def test_malformed_row_fails_closed_instead_of_skipping(self):
+        response = FakeResponse(
+            200,
+            b'{"state":0,"pageNum":1,"result":[{"code":"2026100","date":"2026-09-01","red":"01,02,03,04,05,06","blue":"07"},{"code":"bad","date":"2026-09-04","red":"01,02,03,04,05,06","blue":"07"}]}',
+            {"Content-Type": "application/json"},
+        )
+        fake_net = type("N", (), {"get": lambda self, *a, **k: response})()
+        with patch.object(sources, "NET", fake_net):
+            with self.assertRaises(SourceError):
+                sources.fetch_national_page(1)
+
+    def test_duplicate_issue_on_page_fails_closed(self):
+        payload = (
+            b'{"state":0,"pageNum":1,"result":['
+            b'{"code":"2026100","date":"2026-09-01","red":"01,02,03,04,05,06","blue":"07"},'
+            b'{"code":"2026100","date":"2026-09-01","red":"01,02,03,04,05,06","blue":"07"}]}'
+        )
+        response = FakeResponse(200, payload, {"Content-Type": "application/json"})
+        fake_net = type("N", (), {"get": lambda self, *a, **k: response})()
+        with patch.object(sources, "NET", fake_net):
+            with self.assertRaises(SourceError):
+                sources.fetch_national_page(1)
+
+    def test_https_redirect_downgrade_fails_closed(self):
+        session = FakeSession([
+            FakeResponse(200, b"{}", {"Content-Type": "application/json"}, url="http://example.invalid/data"),
+        ])
+        client = NetClient(session=session, sleeper=lambda _: None)
+        with self.assertRaises(requests.RequestException) as cm:
+            client.get("https://example.invalid/data")
+        ledger = list(getattr(cm.exception, "glp_attempts", ()))
+        self.assertEqual(ledger[-1]["outcome"], "FINAL_INSECURE_REDIRECT")
+
+    def test_raw_evidence_has_parser_time_and_url(self):
+        response = FakeResponse(200, b'{"x":1}', {"Content-Type": "application/json"})
+        meta = _validate_http_payload(response, response.content, expected="json")
+        self.assertEqual(meta["validation_result"], "PASS")
+        self.assertTrue(meta["parser_version"])
+        self.assertTrue(meta["fetched_at"])
+        self.assertEqual(meta["final_url"], "https://example.invalid/data")
 
 
 class SourceFailoverTests(unittest.TestCase):

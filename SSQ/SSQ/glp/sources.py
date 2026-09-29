@@ -32,6 +32,7 @@ TIMEOUT = (20, 30)
 NET = NetClient(connect_timeout=20, read_timeout=30, max_attempts=3)
 MAX_PAYLOAD_BYTES = 8 * 1024 * 1024
 MAX_LATEST_AGE_DAYS = 10
+PARSER_VERSION = "ssq-source-parser-v8.6-fail-closed"
 
 
 def _attempts(response) -> list[dict]:
@@ -43,6 +44,9 @@ def _validate_http_payload(response, raw: bytes, *, expected: str) -> dict:
     status = int(getattr(response, "status_code", 0) or 0)
     if status < 200 or status >= 300:
         raise SourceError(f"HTTP status not acceptable: {status}")
+    final_url = str(getattr(response, "url", "") or "")
+    if final_url and not final_url.startswith("https://"):
+        raise SourceError(f"HTTPS 请求被降级到非 HTTPS 地址: {final_url}")
     if not raw:
         raise SourceError("官方源返回空响应")
     if len(raw) > MAX_PAYLOAD_BYTES:
@@ -63,6 +67,10 @@ def _validate_http_payload(response, raw: bytes, *, expected: str) -> dict:
         "sha256": sha256_bytes(raw),
         "attempts": _attempts(response),
         "body_b64": base64.b64encode(raw).decode("ascii"),
+        "fetched_at": utc_now(),
+        "final_url": final_url or None,
+        "parser_version": PARSER_VERSION,
+        "validation_result": "PASS",
     }
 
 
@@ -146,7 +154,9 @@ def _text(raw: bytes | str) -> str:
                 break
             except UnicodeDecodeError:
                 pass
-        text = decoded if decoded is not None else raw.decode("utf-8", errors="replace")
+        if decoded is None:
+            raise SourceError("官方 HTML 响应编码不可验证，拒绝替换解码")
+        text = decoded
     else:
         text = raw
     text = re.sub(r"(?is)<script\b.*?</script>|<style\b.*?</style>", " ", text)
@@ -200,6 +210,7 @@ def fetch_national_page(page_no: int) -> tuple[list[Draw], bytes, int, dict]:
     response = NET.get(NATIONAL_URL, params=_national_params(page_no), headers=HEADERS, timeout=TIMEOUT)
     raw = bytes(response.content)
     meta = _validate_http_payload(response, raw, expected="json")
+    meta.update({"source_identity": "official_cwl_L0", "requested_url": NATIONAL_URL, "page": int(page_no)})
     try:
         payload = response.json()
     except Exception:
@@ -217,16 +228,21 @@ def fetch_national_page(page_no: int) -> tuple[list[Draw], bytes, int, dict]:
     rows = payload.get("result")
     if not state_ok or not isinstance(rows, list):
         raise SourceError("中国福彩网主源状态或结构改变")
+    if not rows:
+        raise SourceError("中国福彩网主源返回空记录列表")
     draws: list[Draw] = []
-    for row in rows:
+    seen_issues: set[str] = set()
+    for row_index, row in enumerate(rows):
         if not isinstance(row, dict):
-            continue
+            raise SourceError(f"中国福彩网主源第 {row_index} 行不是对象，拒绝部分解析")
         try:
-            draws.append(_draw(row.get("code"), row.get("date"), row.get("red"), row.get("blue")))
-        except (SourceError, TypeError, ValueError):
-            continue
-    if not draws:
-        raise SourceError("中国福彩网主源未解析到双色球记录")
+            draw = _draw(row.get("code"), row.get("date"), row.get("red"), row.get("blue"))
+        except (SourceError, TypeError, ValueError) as exc:
+            raise SourceError(f"中国福彩网主源第 {row_index} 行非法，拒绝跳过坏行: {exc}") from exc
+        if draw.issue in seen_issues:
+            raise SourceError(f"中国福彩网主源单页出现重复期号: {draw.issue}")
+        seen_issues.add(draw.issue)
+        draws.append(draw)
     page_num = payload.get("pageNum")
     if page_num is None:
         total = payload.get("total")
@@ -261,8 +277,10 @@ def fetch_national_history(progress: Callable[[str], None] | None = None) -> tup
     for p in sorted(page_draws):
         for d in page_draws[p]:
             prev = unique.get(d.issue)
-            if prev is not None and not _same_draw(prev, d):
-                raise SourceError(f"中国福彩网主源同一期数据自相矛盾: {d.issue}")
+            if prev is not None:
+                if not _same_draw(prev, d):
+                    raise SourceError(f"中国福彩网主源同一期数据自相矛盾: {d.issue}")
+                raise SourceError(f"中国福彩网主源跨页出现重复期号: {d.issue}")
             unique[d.issue] = d
     ordered = sorted(unique.values(), key=lambda d: (d.draw_date, d.issue))
     if any(ordered[i].draw_date >= ordered[i + 1].draw_date for i in range(len(ordered) - 1)):
@@ -324,6 +342,7 @@ def fetch_shanghai_history() -> tuple[list[Draw], SourceReceipt, bytes]:
     response = NET.get(SHANGHAI_URL, headers=headers, timeout=TIMEOUT)
     raw = bytes(response.content)
     raw_meta = _validate_http_payload(response, raw, expected="html")
+    raw_meta.update({"source_identity": "official_shanghai_L1", "requested_url": SHANGHAI_URL})
     draws = parse_shanghai_history(raw)
     freshness = _validate_freshness(draws, "上海福彩")
     receipt = _response_receipt(
@@ -404,7 +423,9 @@ def fetch_hebei_latest() -> tuple[Draw, SourceReceipt, dict]:
     home_raw = bytes(home_response.content)
     announce_raw = bytes(announce_response.content)
     home_meta = _validate_http_payload(home_response, home_raw, expected="html")
+    home_meta.update({"source_identity": "official_hebei_L2_home", "requested_url": HEBEI_URL})
     announce_meta = _validate_http_payload(announce_response, announce_raw, expected="html")
+    announce_meta.update({"source_identity": "official_hebei_L2_announce", "requested_url": HEBEI_ANNOUNCE_URL})
     draw = parse_hebei_latest(home_raw, announce_raw)
     receipt = SourceReceipt(
         source="official_hebei_L2",
@@ -555,7 +576,8 @@ def build_canonical(
         crosscheck_status="PASS",
     )
     evidence = {
-        "schema": "official-source-evidence-v8.3",
+        "schema": "official-source-evidence-v8.6",
+        "parser_version": PARSER_VERSION,
         "game": "SSQ",
         "fetched_at": utc_now(),
         "canonical_hash": canonical_hash,
