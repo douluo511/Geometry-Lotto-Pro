@@ -7,12 +7,16 @@ on:
     paths:
       - "head_intelligence/**"
       - ".github/workflows/head-intelligence-windows.yml"
+      - ".github/scripts/physical_gui_click_smoke.ps1"
+      - ".github/scripts/tk_button_points.py"
   pull_request:
     branches:
       - main
     paths:
       - "head_intelligence/**"
       - ".github/workflows/head-intelligence-windows.yml"
+      - ".github/scripts/physical_gui_click_smoke.ps1"
+      - ".github/scripts/tk_button_points.py"
   workflow_dispatch:
 
 permissions:
@@ -21,7 +25,7 @@ permissions:
 jobs:
   hard-gate:
     runs-on: windows-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
 
     steps:
       - name: Checkout
@@ -69,12 +73,40 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           New-Item evidence/contract_tests.pass -ItemType File | Out-Null
 
+      - name: Integration Test
+        shell: pwsh
+        run: |
+          python -m pytest -q head_intelligence/tests/test_integration.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          New-Item evidence/integration_tests.pass -ItemType File | Out-Null
+
       - name: Fault Injection
         shell: pwsh
         run: |
           python -m pytest -q head_intelligence/tests/test_fault_injection.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           New-Item evidence/fault_injection.pass -ItemType File | Out-Null
+
+      - name: Business Validation
+        shell: pwsh
+        run: |
+          python -m pytest -q head_intelligence/tests/test_business_validation.py -k business_core
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          New-Item evidence/business_validation.pass -ItemType File | Out-Null
+
+      - name: Counterexample Validation
+        shell: pwsh
+        run: |
+          python -m pytest -q head_intelligence/tests/test_business_validation.py -k counterexample
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          New-Item evidence/counterexample_validation.pass -ItemType File | Out-Null
+
+      - name: Reversal Validation
+        shell: pwsh
+        run: |
+          python -m pytest -q head_intelligence/tests/test_business_validation.py -k reversal
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          New-Item evidence/reversal_validation.pass -ItemType File | Out-Null
 
       - name: Python Self-Test
         shell: pwsh
@@ -119,8 +151,8 @@ jobs:
       - name: Same Hash
         shell: pwsh
         run: |
-          $candidate = (Get-FileHash .\dist\HeadIntelligence.exe -Algorithm SHA256).Hash
-          $final = (Get-FileHash .\final\HeadIntelligence.exe -Algorithm SHA256).Hash
+          $candidate = (Get-FileHash .\dist\HeadIntelligence.exe -Algorithm SHA256).Hash.ToLower()
+          $final = (Get-FileHash .\final\HeadIntelligence.exe -Algorithm SHA256).Hash.ToLower()
           if ($candidate -ne $final) { throw "Same-hash gate failed" }
           New-Item evidence/same_hash.pass -ItemType File | Out-Null
           "sha256=$final" | Out-File .\final\BUILD_HASH.txt -Encoding ascii
@@ -132,14 +164,12 @@ jobs:
         run: |
           $p = Start-Process -FilePath .\final\HeadIntelligence.exe -ArgumentList "--self-test" -Wait -PassThru
           if ($p.ExitCode -ne 0) { exit $p.ExitCode }
-          New-Item evidence/final_exe_self_test.pass -ItemType File | Out-Null
 
       - name: Final GUI Smoke
         shell: pwsh
         run: |
           $p = Start-Process -FilePath .\final\HeadIntelligence.exe -ArgumentList "--gui-smoke" -Wait -PassThru
           if ($p.ExitCode -ne 0) { exit $p.ExitCode }
-          New-Item evidence/final_gui_smoke.pass -ItemType File | Out-Null
 
       - name: Physical GUI Click Smoke
         shell: pwsh
@@ -147,34 +177,32 @@ jobs:
           python .\.github\scripts\tk_button_points.py --project-path . --module head_intelligence.app --entry HeadIntelligenceApp --labels "信息判断;一键更新;一键修复;高级分析" --out ".\evidence\gui_points.txt"
           $points=(Get-Content ".\evidence\gui_points.txt" -Raw).Trim()
           .\.github\scripts\physical_gui_click_smoke.ps1 -ExePath ".\final\HeadIntelligence.exe" -Points $points -PreconditionIndex 3 -EvidencePath ".\evidence\physical_gui_click.json"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m head_intelligence.bind_physical_gui --exe ".\final\HeadIntelligence.exe" --evidence ".\evidence\physical_gui_click.json" --marker ".\evidence\physical_gui_click.pass"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Final Gate
+      - name: Evidence-derived Final Gate
         shell: pwsh
         run: |
-          @'
-          {"gates":{"purpose_model":"PASS","five_why":"PASS","risk_boundary":"PASS","domain_model":"PASS","architecture":"PASS","function_contract":"PASS","interface_contract":"PASS","data_source":"PASS","netclient":"PASS","storage":"PASS","engine":"PASS","evidence":"PASS","service":"PASS","ui":"PASS","self_test":"PASS","contract_test":"PASS","fault_injection":"PASS","real_network":"PASS","windows_build":"PASS","exact_exe":"PASS","gui_smoke":"PASS","same_hash":"PASS","business_content":"PASS"}}
-          '@ | Out-File evidence/gate_input.json -Encoding utf8
+          python -m head_intelligence.collect_final_gates --evidence-dir evidence --architecture head_intelligence/architecture_gate.json --business head_intelligence/business_gate.json --candidate-exe dist/HeadIntelligence.exe --final-exe final/HeadIntelligence.exe --physical-gui evidence/physical_gui_click.json --out evidence/gate_input.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -m head_intelligence.release_gate --evidence-dir evidence --candidate-exe dist/HeadIntelligence.exe --final-exe final/HeadIntelligence.exe --gate-input evidence/gate_input.json --out evidence/final_gate.json
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Upload unique passing artifact
         uses: actions/upload-artifact@v4
         with:
-          name: HeadIntelligence-FINAL-v0.3.0
+          name: HeadIntelligence-FINAL-v0.4.0
           path: |
             final/HeadIntelligence.exe
             final/BUILD_HASH.txt
             evidence/final_gate.json
+            evidence/gate_input.json
             evidence/physical_gui_click.json
-            head_intelligence/ARCHITECTURE.md
+            head_intelligence/architecture_gate.json
             head_intelligence/business_gate.json
+            head_intelligence/ARCHITECTURE.md
+            head_intelligence/ENGINEERING_SPEC.md
+            head_intelligence/BUSINESS_SPEC.md
           if-no-files-found: error
           retention-days: 30
-
-# Hard-gate revalidation trigger: 2026-09-24 master-template
-
-# physical-gui child-process discovery fix: 2026-09-24
-
-# physical-gui UIAutomation + desktop-hash fix: 2026-09-24
-
-# exact Tk geometry probe: 2026-09-24
