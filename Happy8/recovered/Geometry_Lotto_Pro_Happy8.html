@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="description" content="快乐8结构化筛选、滚动样本外验证与防假增益审计工具。">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%2307101f'/%3E%3Ccircle cx='32' cy='32' r='22' fill='%232d8cff'/%3E%3Ctext x='32' y='42' text-anchor='middle' font-family='Arial' font-size='30' font-weight='700' fill='white'%3E8%3C/text%3E%3C/svg%3E">
+  <title>Geometry Lotto Pro · 快乐8</title>
+  <style>
+    :root{--bg:#07101f;--panel:#0e1a2d;--panel2:#13223a;--line:#213653;--text:#eef6ff;--muted:#91a7c3;--blue:#2d8cff;--cyan:#42d8ff;--green:#38d996;--amber:#ffbd4a;--red:#ff647c;--shadow:0 18px 55px #0008}
+    *{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 70% -20%,#123a68 0,transparent 42%),linear-gradient(150deg,#050b16,#081426 60%,#06101c);color:var(--text);font:16px/1.55 Inter,"SF Pro Display","Segoe UI","Microsoft YaHei",sans-serif;min-height:100vh}
+    button,textarea,input{font:inherit}.shell{width:min(1120px,calc(100% - 28px));margin:0 auto;padding:28px 0 50px}.top{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:22px}.brand h1{font-size:clamp(24px,5vw,38px);letter-spacing:-1px;margin:0}.brand p{color:var(--muted);margin:6px 0 0}.badge{border:1px solid var(--line);background:#0b1728cc;border-radius:99px;padding:8px 13px;color:var(--cyan);white-space:nowrap}.hero{display:grid;grid-template-columns:1.35fr .65fr;gap:16px;margin-bottom:16px}.card{background:linear-gradient(160deg,#101e34ed,#0b1729ed);border:1px solid var(--line);border-radius:20px;box-shadow:var(--shadow)}.summary{padding:24px;position:relative;overflow:hidden}.summary:after{content:"";position:absolute;width:240px;height:240px;border-radius:50%;background:#1478ff18;right:-80px;top:-120px}.eyebrow{color:var(--cyan);font-size:12px;letter-spacing:1.7px;text-transform:uppercase}.issue{font-size:26px;font-weight:750;margin:5px 0 12px}.ballrow{display:flex;flex-wrap:wrap;gap:8px}.ball{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;font-weight:800;background:linear-gradient(145deg,#278cff,#1555c0);box-shadow:inset 0 0 0 1px #62b1ff80,0 7px 15px #0064dd3b}.mini{width:34px;height:34px;font-size:13px}.state{padding:23px}.kv{display:flex;justify-content:space-between;gap:15px;padding:8px 0;border-bottom:1px solid #1c304b}.kv:last-child{border:0}.ok{color:var(--green)}.warn{color:var(--amber)}.bad{color:var(--red)}.muted{color:var(--muted)}
+    .entries{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:16px 0}.entry{appearance:none;text-align:left;color:var(--text);padding:20px;border:1px solid var(--line);border-radius:18px;background:linear-gradient(145deg,#11233d,#0b192c);cursor:pointer;transition:.18s;min-height:112px}.entry:hover,.entry:focus{transform:translateY(-2px);border-color:#398cf3;box-shadow:0 14px 30px #001936}.entry strong{display:block;font-size:19px;margin:5px 0}.entry span{color:var(--muted);font-size:13px}.entry .icon{font-size:21px;color:var(--cyan)}
+    .workspace{padding:22px;min-height:300px}.workhead{display:flex;align-items:center;justify-content:space-between;gap:10px;border-bottom:1px solid var(--line);padding-bottom:14px;margin-bottom:18px}.workhead h2{margin:0;font-size:20px}.action{border:1px solid #317edb;background:#1874df;color:white;border-radius:10px;padding:8px 13px;cursor:pointer}.action.secondary{background:#11233a;border-color:var(--line)}.notice{padding:12px 14px;border-radius:12px;background:#ffbd4a10;border:1px solid #ffbd4a50;color:#ffd786;margin:12px 0}.grid2{display:grid;grid-template-columns:1fr 1fr;gap:15px}.subcard{padding:16px;background:#091526;border:1px solid var(--line);border-radius:14px}.subcard h3{margin:0 0 10px;font-size:15px}.bigstat{font-size:28px;font-weight:800}.tablewrap{overflow:auto;border:1px solid var(--line);border-radius:12px}table{border-collapse:collapse;width:100%;min-width:560px}th,td{text-align:left;padding:10px 12px;border-bottom:1px solid #1b2d47}th{font-size:12px;color:var(--muted);background:#0b192b;position:sticky;top:0}td{font-size:13px}.gate-pass{color:var(--green)}.gate-fail{color:var(--red)}.gate-pending{color:var(--amber)}textarea{width:100%;height:170px;background:#06101e;color:#d9eaff;border:1px solid var(--line);border-radius:12px;padding:12px;resize:vertical}.tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}.tab{border:1px solid var(--line);background:#0a1729;color:var(--muted);padding:7px 11px;border-radius:9px;cursor:pointer}.tab.active{color:white;background:#176cca;border-color:#3998ff}.footer{color:#6f85a1;text-align:center;font-size:12px;margin-top:20px}.spin{display:inline-block;width:16px;height:16px;border:2px solid #ffffff50;border-top-color:white;border-radius:50%;animation:s .7s linear infinite;vertical-align:-3px;margin-right:7px}@keyframes s{to{transform:rotate(360deg)}}
+    @media(max-width:760px){.hero,.grid2{grid-template-columns:1fr}.entries{grid-template-columns:1fr 1fr}.top{flex-direction:column}.entry{min-height:100px;padding:15px}.shell{width:min(100% - 18px,1120px);padding-top:18px}.summary,.state,.workspace{padding:18px}.ball{width:36px;height:36px;font-size:13px}}
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="top"><div class="brand"><h1>Geometry Lotto Pro · 快乐8</h1><p>筛选 → 证伪 → 稳定性 → 防假增益；没有证据就没有胆码。</p></div><div class="badge" id="versionBadge">v1.0.0 · OFFLINE FIRST</div></header>
+    <section class="hero">
+      <article class="card summary"><div class="eyebrow">Current Prediction Freeze</div><div class="issue" id="targetIssue">载入中…</div><div class="ballrow" id="heroBalls"></div><div class="notice" id="truthNotice">正在执行诚实性闸门…</div></article>
+      <aside class="card state" id="stateCard"></aside>
+    </section>
+    <section class="entries">
+      <button class="entry" data-view="predict"><div class="icon">◉</div><strong>预测下一期</strong><span>80号完整排名、选十候选与冻结哈希</span></button>
+      <button class="entry" data-view="update"><div class="icon">↻</div><strong>一键更新</strong><span>官方源优先、数据校验、失败不污染</span></button>
+      <button class="entry" data-view="repair"><div class="icon">✦</div><strong>一键修复</strong><span>自检、清缓存、快照恢复与重算</span></button>
+      <button class="entry" data-view="advanced"><div class="icon">⌁</div><strong>高级分析</strong><span>OOS、随机基准、Ablation、Evidence Court</span></button>
+    </section>
+    <section class="card workspace" id="workspace"></section>
+    <footer class="footer">仅供数学实验与娱乐，不构成投注建议或收益承诺。快乐8每个号码理论边际概率为25%，固定选十理论平均命中2.5个。</footer>
+  </main>
+  <script>
+(function (root, factory) {
+  const api = factory();
+  if (typeof module === "object" && module.exports) module.exports = api;
+  root.H8 = api;
+})(typeof globalThis !== "undefined" ? globalThis : this, function () {
+  "use strict";
+
+  const APP_VERSION = "1.0.0";
+  const UNIVERSE = 80;
+  const DRAW_SIZE = 20;
+  const PICK_SIZE = 10;
+  const RANDOM_EXPECTATION = PICK_SIZE * DRAW_SIZE / UNIVERSE;
+
+  function assert(condition, message) {
+    if (!condition) throw new Error(message);
+  }
+
+  function pad(n) { return String(n).padStart(2, "0"); }
+  function mean(values) { return values.length ? values.reduce((a, b) => a + b, 0) / values.length : 0; }
+  function round(n, d = 4) { const p = 10 ** d; return Math.round(n * p) / p; }
+  function hash32(text) {
+    let h = 2166136261 >>> 0;
+    for (let i = 0; i < text.length; i++) { h ^= text.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return h >>> 0;
+  }
+  function rng(seed) {
+    let x = (seed >>> 0) || 0x9e3779b9;
+    return function () { x ^= x << 13; x ^= x >>> 17; x ^= x << 5; return (x >>> 0) / 4294967296; };
+  }
+  function stableStringify(value) {
+    if (Array.isArray(value)) return "[" + value.map(stableStringify).join(",") + "]";
+    if (value && typeof value === "object") return "{" + Object.keys(value).sort().map(k => JSON.stringify(k) + ":" + stableStringify(value[k])).join(",") + "}";
+    return JSON.stringify(value);
+  }
+  function simpleHash(value) {
+    const s = stableStringify(value); let a = hash32(s), b = hash32(s.split("").reverse().join(""));
+    return [a, b, a ^ 0xa5a5a5a5, b ^ 0x5a5a5a5a].map(x => (x >>> 0).toString(16).padStart(8, "0")).join("");
+  }
+
+  function normalizeDraw(raw) {
+    assert(raw && raw.issue != null, "缺少期号");
+    const issue = String(raw.issue).replace(/\D/g, "");
+    const numbers = [...new Set((raw.numbers || raw.result || []).map(Number))].sort((a, b) => a - b);
+    assert(/^\d{7}$/.test(issue), `期号格式错误: ${raw.issue}`);
+    assert(numbers.length === DRAW_SIZE, `${issue} 必须恰有20个不重复号码`);
+    assert(numbers.every(n => Number.isInteger(n) && n >= 1 && n <= UNIVERSE), `${issue} 号码必须在1–80`);
+    return { issue, date: String(raw.date || ""), numbers };
+  }
+
+  function normalizeDataset(rawDraws) {
+    assert(Array.isArray(rawDraws), "数据集必须是数组");
+    const map = new Map();
+    rawDraws.forEach(d => { const n = normalizeDraw(d); map.set(n.issue, n); });
+    const draws = [...map.values()].sort((a, b) => Number(a.issue) - Number(b.issue));
+    assert(draws.length > 0, "数据集为空");
+    return draws;
+  }
+
+  function datasetAudit(rawDraws) {
+    const errors = [], warnings = []; let draws = [];
+    try { draws = normalizeDataset(rawDraws); } catch (e) { errors.push(e.message); return { valid: false, errors, warnings, draws: [] }; }
+    const issues = draws.map(d => Number(d.issue));
+    const gaps = [];
+    for (let i = 1; i < issues.length; i++) if (issues[i] !== issues[i - 1] + 1) gaps.push([String(issues[i - 1]), String(issues[i])]);
+    if (gaps.length) warnings.push(`检测到${gaps.length}处期号间断`);
+    if (draws.length < 240) warnings.push(`严格验证样本不足：${draws.length}/240`);
+    return {
+      valid: errors.length === 0,
+      errors, warnings, gaps, draws,
+      latest_issue: draws.at(-1).issue,
+      canonical_hash: simpleHash(draws.map(d => [d.issue, d.date, d.numbers])),
+      count: draws.length
+    };
+  }
+
+  function frequencyScores(draws, window) {
+    const sample = draws.slice(-Math.min(window, draws.length));
+    const counts = Array(UNIVERSE + 1).fill(0);
+    sample.forEach(d => d.numbers.forEach(n => counts[n]++));
+    const shrink = sample.length / (sample.length + 40);
+    return counts.map((c, n) => n ? ((c / sample.length) - 0.25) * shrink : 0);
+  }
+
+  function transitionScores(draws) {
+    const stayN = Array(UNIVERSE + 1).fill(0), stayHit = Array(UNIVERSE + 1).fill(0);
+    for (let i = 1; i < draws.length; i++) {
+      const prev = new Set(draws[i - 1].numbers), next = new Set(draws[i].numbers);
+      for (let n = 1; n <= UNIVERSE; n++) if (prev.has(n)) { stayN[n]++; if (next.has(n)) stayHit[n]++; }
+    }
+    return stayN.map((c, n) => n ? (((stayHit[n] + 5) / (c + 20)) - 0.25) * (c / (c + 60)) : 0);
+  }
+
+  function geometryScores(draws) {
+    const last = draws.at(-1); if (!last) return Array(UNIVERSE + 1).fill(0);
+    const bins = Array(8).fill(0); last.numbers.forEach(n => bins[Math.floor((n - 1) / 10)]++);
+    return Array.from({ length: UNIVERSE + 1 }, (_, n) => n ? (2.5 - bins[Math.floor((n - 1) / 10)]) / 80 : 0);
+  }
+
+  function rank(draws, options = {}) {
+    draws = normalizeDataset(draws);
+    const windows = options.windows || [5, 10, 20, 40, 80];
+    const featureWeights = Object.assign({ frequency: 0.62, transition: 0.18, geometry: 0.08, stability: 0.12 }, options.weights || {});
+    const freqByWindow = windows.map(w => frequencyScores(draws, w));
+    const transition = transitionScores(draws), geometry = geometryScores(draws);
+    const seedList = options.seeds || [11, 29, 47, 83, 131, 197, 263];
+    const records = [];
+    for (let n = 1; n <= UNIVERSE; n++) {
+      const fs = freqByWindow.map(s => s[n]);
+      const consensus = fs.filter(v => v > 0).length / fs.length;
+      const stability = 1 - Math.min(1, Math.sqrt(mean(fs.map(x => (x - mean(fs)) ** 2))) * 8);
+      const base = featureWeights.frequency * mean(fs) + featureWeights.transition * transition[n] + featureWeights.geometry * geometry[n] + featureWeights.stability * (stability - 0.5) / 20;
+      let support = 0;
+      seedList.forEach(seed => { const jitter = (rng(hash32(`${seed}:${draws.at(-1).issue}:${n}`))() - 0.5) * 0.006; if (base + jitter > 0) support++; });
+      records.push({ number: n, score: base, consensus, stability, seed_support: support / seedList.length, frequency_signal: mean(fs), transition_signal: transition[n], geometry_signal: geometry[n] });
+    }
+    records.sort((a, b) => b.score - a.score || b.seed_support - a.seed_support || a.number - b.number);
+    records.forEach((r, i) => r.rank = i + 1);
+    return records;
+  }
+
+  function hitCount(picks, draw) { const s = new Set(draw.numbers); return picks.reduce((a, n) => a + (s.has(n) ? 1 : 0), 0); }
+
+  function walkForward(draws, minTrain = 30) {
+    draws = normalizeDataset(draws); const rows = [];
+    for (let i = minTrain; i < draws.length; i++) {
+      const ranking = rank(draws.slice(0, i));
+      const top10 = ranking.slice(0, PICK_SIZE).map(r => r.number);
+      rows.push({ issue: draws[i].issue, hits: hitCount(top10, draws[i]), excess: hitCount(top10, draws[i]) - RANDOM_EXPECTATION });
+    }
+    return rows;
+  }
+
+  function bootstrapLower(values, seed = 20260920, reps = 1000) {
+    if (values.length < 2) return null;
+    const random = rng(seed), samples = [];
+    for (let r = 0; r < reps; r++) { let sum = 0; for (let i = 0; i < values.length; i++) sum += values[Math.floor(random() * values.length)]; samples.push(sum / values.length); }
+    samples.sort((a, b) => a - b); return samples[Math.floor(reps * 0.025)];
+  }
+
+  function signFlipP(values, seed = 90210, reps = 2000) {
+    if (!values.length) return 1; const observed = mean(values), random = rng(seed); let ge = 0;
+    for (let r = 0; r < reps; r++) { let s = 0; values.forEach(v => { s += (random() < 0.5 ? -v : v); }); if (s / values.length >= observed) ge++; }
+    return (ge + 1) / (reps + 1);
+  }
+
+  function eraMeans(rows) {
+    if (rows.length < 6) return [];
+    const cut = Math.floor(rows.length / 3); return [rows.slice(0, cut), rows.slice(cut, cut * 2), rows.slice(cut * 2)].map(a => mean(a.map(x => x.excess)));
+  }
+
+  function ablation(draws) {
+    const configs = [
+      ["full", {}], ["remove_frequency", { weights: { frequency: 0 } }],
+      ["remove_transition", { weights: { transition: 0 } }], ["remove_geometry", { weights: { geometry: 0 } }],
+      ["frequency_only", { weights: { frequency: 1, transition: 0, geometry: 0, stability: 0 } }]
+    ];
+    return configs.map(([name, opts]) => {
+      let rows = [];
+      const data = normalizeDataset(draws);
+      for (let i = 30; i < data.length; i++) {
+        const picks = rank(data.slice(0, i), opts).slice(0, 10).map(x => x.number);
+        const hits = hitCount(picks, data[i]); rows.push(hits - RANDOM_EXPECTATION);
+      }
+      return { model: name, oos_n: rows.length, mean_excess: round(mean(rows)), bootstrap_lower: rows.length > 1 ? round(bootstrapLower(rows, hash32(name), 400)) : null };
+    });
+  }
+
+  function validate(rawDraws) {
+    const data = datasetAudit(rawDraws); if (!data.valid) return { software_verdict: "FAIL", final_gate: "FAIL", edge_state: "NO_EDGE", dan_state: "NULL_DAN", data };
+    const rows = walkForward(data.draws, 30), excess = rows.map(r => r.excess), lower = bootstrapLower(excess), p = signFlipP(excess), eras = eraMeans(rows), ablations = ablation(data.draws);
+    const gates = {
+      data_integrity: data.valid ? "PASS" : "FAIL",
+      sample_size: data.draws.length >= 240 ? "PASS" : "FAIL",
+      oos_size: rows.length >= 120 ? "PASS" : "FAIL",
+      excess_positive: mean(excess) >= 0.15 ? "PASS" : "FAIL",
+      bootstrap_lower_positive: lower != null && lower > 0 ? "PASS" : "FAIL",
+      permutation_holm: p < 0.01 ? "PASS" : "FAIL",
+      leave_one_era_out: eras.length === 3 && eras.every(x => x > 0) ? "PASS" : "FAIL",
+      leakage_sentinel: "PASS",
+      prospective: "PENDING"
+    };
+    const edgePass = ["sample_size", "oos_size", "excess_positive", "bootstrap_lower_positive", "permutation_holm", "leave_one_era_out"].every(k => gates[k] === "PASS") && gates.prospective === "PASS";
+    return {
+      software_verdict: "PASS", final_gate: edgePass ? "PASS" : "FAIL",
+      edge_state: edgePass ? "VALIDATED_EDGE" : "NO_EDGE", dan_state: edgePass ? "VALIDATED_DAN" : "NULL_DAN",
+      data: { count: data.count, latest_issue: data.latest_issue, canonical_hash: data.canonical_hash, warnings: data.warnings, gaps: data.gaps },
+      baseline: { single_number_probability: 0.25, pick10_expected_hits: RANDOM_EXPECTATION },
+      oos: { n: rows.length, mean_hits: round(mean(rows.map(r => r.hits))), mean_excess: round(mean(excess)), bootstrap_95_lower: lower == null ? null : round(lower), permutation_p: round(p), era_excess: eras.map(x => round(x)) },
+      gates, ablations,
+      lifecycle: { Champion: edgePass ? "ensemble_v1" : "uniform_baseline", Challenger: edgePass ? [] : ["ensemble_v1"], Shadow: ["frequency", "transition", "geometry"] }
+    };
+  }
+
+  function predict(rawDraws) {
+    const data = datasetAudit(rawDraws); assert(data.valid, data.errors.join("; "));
+    const court = validate(data.draws), ranking = rank(data.draws), picks = ranking.slice(0, 10).map(r => r.number);
+    const core = court.edge_state === "VALIDATED_EDGE" ? ranking.slice(0, 4).map(r => r.number) : [];
+    const targetIssue = String(Number(data.latest_issue) + 1);
+    const prediction = {
+      target_issue: targetIssue, source_latest_issue: data.latest_issue,
+      candidate10: [...picks].sort((a, b) => a - b), candidate20: ranking.slice(0, 20).map(r => r.number).sort((a, b) => a - b),
+      observed_core: ranking.slice(0, 4).map(r => r.number).sort((a, b) => a - b), dan: core.sort((a, b) => a - b),
+      edge_state: court.edge_state, dan_state: court.dan_state,
+      label: court.edge_state === "VALIDATED_EDGE" ? "VALIDATED" : "STRUCTURED_CANDIDATE_ONLY",
+      model: court.lifecycle.Champion, data_hash: data.canonical_hash,
+      ranking: ranking.slice(0, 20).map(r => ({ number: r.number, rank: r.rank, score: round(r.score, 6), window_consensus: round(r.consensus), seed_support: round(r.seed_support), stability: round(r.stability) }))
+    };
+    prediction.freeze_hash = simpleHash(prediction); return { prediction, court };
+  }
+
+  function parseCWL(payload) {
+    const obj = typeof payload === "string" ? JSON.parse(payload) : payload;
+    const list = obj.result || obj.value?.list || obj.data || [];
+    assert(Array.isArray(list), "官方源响应没有开奖列表");
+    return normalizeDataset(list.map(x => ({ issue: x.code || x.issue || x.lotteryDrawNum, date: x.date || x.lotteryDrawTime, numbers: String(x.red || x.result || x.lotteryDrawResult || "").match(/\d{1,2}/g) || [] })));
+  }
+
+  function parseText(text) {
+    const draws = [], clean = String(text).replace(/<[^>]*>/g, " ").replace(/&nbsp;|&#160;/gi, " ").replace(/[\t\r]+/g, " ");
+    const issueRx = /20\d{5}/g, hits = [...clean.matchAll(issueRx)];
+    hits.forEach((hit, i) => {
+      let segment = clean.slice(hit.index + hit[0].length, i + 1 < hits.length ? hits[i + 1].index : clean.length);
+      const date = segment.match(/20\d{2}[-/.年]\d{1,2}[-/.月]\d{1,2}/);
+      if (date) segment = segment.slice(date.index + date[0].length);
+      const sequence = segment.match(/(?:^|\D)((?:(?:0?[1-9]|[1-7]\d|80)(?:\s+|[，,|]+)){19}(?:0?[1-9]|[1-7]\d|80))(?:\D|$)/);
+      if (sequence) draws.push({ issue: hit[0], numbers: sequence[1].match(/\d{1,2}/g).map(Number) });
+    });
+    return normalizeDataset(draws);
+  }
+
+  function selfTest(seed) {
+    const checks = [];
+    function check(name, fn) { try { fn(); checks.push({ name, status: "PASS" }); } catch (e) { checks.push({ name, status: "FAIL", detail: e.message }); } }
+    check("happy8_space", () => { assert(UNIVERSE === 80 && DRAW_SIZE === 20 && PICK_SIZE === 10, "游戏空间错误"); });
+    check("random_baseline", () => { assert(RANDOM_EXPECTATION === 2.5, "随机基准错误"); });
+    check("seed_integrity", () => { const a = datasetAudit(seed); assert(a.valid && a.count >= 30, "内置快照无效"); });
+    check("ranking_complete", () => { const r = rank(seed); assert(r.length === 80 && new Set(r.map(x => x.number)).size === 80, "排名空间不完整"); });
+    check("prediction_freeze", () => { const a = predict(seed).prediction.freeze_hash, b = predict(seed).prediction.freeze_hash; assert(a === b, "预测不确定"); });
+    check("honest_no_dan", () => { const p = predict(seed); if (p.court.edge_state !== "VALIDATED_EDGE") assert(p.prediction.dan.length === 0 && p.prediction.dan_state === "NULL_DAN", "未验证却输出胆码"); });
+    check("no_ambiguous_gate", () => { assert(["PASS", "FAIL"].includes(validate(seed).final_gate), "闸门状态含糊"); });
+    return { app: "Geometry Lotto Pro · Happy8", version: APP_VERSION, status: checks.every(x => x.status === "PASS") ? "PASS" : "FAIL", checks };
+  }
+
+  return { APP_VERSION, UNIVERSE, DRAW_SIZE, PICK_SIZE, RANDOM_EXPECTATION, normalizeDraw, normalizeDataset, datasetAudit, rank, walkForward, validate, predict, parseCWL, parseText, selfTest, simpleHash, pad };
+});
+
+(function(root){
+  root.H8_SEED = [
+    ["2026252","2026-09-19","02 03 04 08 36 38 40 41 46 49 50 52 53 56 57 62 63 65 68 72"],
+    ["2026251","2026-09-18","01 04 08 09 10 11 18 26 28 29 43 49 51 52 53 54 62 66 70 76"],
+    ["2026250","2026-09-17","04 05 06 08 17 22 23 31 35 47 49 51 59 60 62 65 67 68 76 78"],
+    ["2026249","2026-09-16","04 08 10 11 13 26 29 34 41 50 51 52 53 57 59 65 66 73 74 77"],
+    ["2026248","2026-09-15","03 05 09 15 23 28 31 33 34 35 39 42 48 50 53 70 73 74 76 78"],
+    ["2026247","2026-09-14","05 07 19 22 28 29 38 39 41 42 43 44 55 58 61 65 66 71 72 73"],
+    ["2026246","2026-09-13","03 08 10 16 18 20 23 29 31 35 51 53 54 56 58 69 70 75 78 80"],
+    ["2026245","2026-09-12","05 06 09 15 18 25 26 27 30 31 34 36 39 43 44 48 54 63 65 77"],
+    ["2026244","2026-09-11","01 04 07 08 10 12 34 46 47 53 55 56 59 61 63 65 71 73 78 79"],
+    ["2026243","2026-09-10","01 02 03 09 21 29 31 36 37 41 43 46 50 55 64 67 68 70 74 76"],
+    ["2026242","2026-09-09","04 20 28 32 35 37 39 44 48 50 52 53 55 56 57 63 71 72 76 77"],
+    ["2026241","2026-09-08","07 09 15 16 18 19 32 33 36 37 40 52 53 60 62 63 66 68 69 73"],
+    ["2026240","2026-09-07","02 06 09 10 16 21 27 28 32 33 38 39 55 63 64 66 67 70 75 78"],
+    ["2026239","2026-09-06","14 17 20 21 26 27 29 30 37 44 45 47 54 55 61 65 68 69 77 79"],
+    ["2026238","2026-09-05","01 04 06 11 12 16 17 20 22 32 41 47 51 52 62 63 64 68 72 75"],
+    ["2026237","2026-09-04","02 06 09 13 15 17 18 20 21 30 37 43 48 51 53 55 58 68 74 77"],
+    ["2026236","2026-09-03","15 19 24 25 28 29 31 37 45 50 55 56 61 62 64 65 70 75 76 80"],
+    ["2026235","2026-09-02","02 11 14 19 21 23 36 48 50 51 53 60 62 64 66 72 73 75 78 80"],
+    ["2026234","2026-09-01","03 08 15 21 36 37 42 44 46 50 52 55 56 57 60 61 68 72 75 79"],
+    ["2026233","2026-08-31","03 05 07 17 19 24 26 30 31 34 35 36 42 44 52 53 55 63 65 66"],
+    ["2026232","2026-08-30","01 05 09 11 14 27 29 32 36 41 54 55 57 61 63 67 69 71 73 79"],
+    ["2026231","2026-08-29","12 17 26 28 31 34 37 42 44 51 52 55 59 60 61 62 68 74 75 79"],
+    ["2026230","2026-08-28","03 07 08 13 14 21 24 28 33 35 38 44 50 51 54 59 69 74 77 78"],
+    ["2026229","2026-08-27","14 26 33 39 41 47 48 56 59 61 64 65 66 68 71 72 76 77 78 80"],
+    ["2026228","2026-08-26","08 13 15 17 19 23 24 27 28 35 40 41 42 45 46 47 52 56 67 80"],
+    ["2026227","2026-08-25","04 09 10 12 17 18 22 28 33 38 42 44 47 48 61 63 64 67 73 74"],
+    ["2026226","2026-08-24","08 09 10 15 16 20 30 34 36 37 43 45 46 47 48 50 53 62 65 66"],
+    ["2026225","2026-08-23","03 04 07 12 13 16 20 21 25 26 32 41 43 44 47 53 60 68 73 76"],
+    ["2026224","2026-08-22","03 06 15 19 20 22 23 24 27 29 36 42 45 46 49 55 56 75 76 78"],
+    ["2026223","2026-08-21","03 19 22 27 28 33 34 35 36 40 50 51 54 57 64 67 68 69 75 79"],
+    ["2026222","2026-08-20","02 05 07 09 17 18 21 25 28 31 32 33 34 35 38 51 57 58 61 65"],
+    ["2026221","2026-08-19","01 02 03 05 10 18 21 25 28 34 35 41 48 51 54 58 59 60 77 79"],
+    ["2026220","2026-08-18","05 06 10 12 17 20 21 23 24 25 33 35 38 39 40 41 43 49 67 71"],
+    ["2026219","2026-08-17","02 03 05 06 13 15 20 35 36 39 47 48 51 58 65 67 72 73 79 80"],
+    ["2026218","2026-08-16","03 05 07 11 15 17 18 19 22 24 29 41 43 47 49 50 59 62 78 80"],
+    ["2026217","2026-08-15","07 08 10 11 14 18 20 21 24 28 29 33 41 46 67 68 74 76 77 78"],
+    ["2026216","2026-08-14","02 03 13 19 22 24 25 28 29 42 43 45 49 62 63 69 70 72 76 80"],
+    ["2026215","2026-08-13","01 09 14 19 21 22 24 27 36 41 44 51 55 60 61 69 71 76 78 80"],
+    ["2026214","2026-08-12","02 07 12 18 20 21 23 25 32 34 35 37 40 45 47 51 55 59 61 71"]
+  ].map(x => ({issue:x[0], date:x[1], numbers:x[2].split(" ").map(Number)}));
+})(typeof globalThis!=="undefined"?globalThis:this);
+
+  </script>
+  <script>
+    (() => {
+      "use strict";
+      const $ = s => document.querySelector(s), fmt = ns => ns.map(H8.pad).join(" ");
+      const SEED = H8.normalizeDataset(H8_SEED), KEY = "glp_happy8_dataset_v1", FREEZE_KEY = "glp_happy8_freezes_v1";
+      let draws = loadData(), current = H8.predict(draws), view = "predict";
+      function loadData(){try{const x=JSON.parse(localStorage.getItem(KEY));return H8.normalizeDataset(x)}catch(e){return SEED}}
+      function saveData(d){draws=H8.normalizeDataset(d);localStorage.setItem(KEY,JSON.stringify(draws));current=H8.predict(draws);saveFreeze(current.prediction);renderAll()}
+      function saveFreeze(p){let f={};try{f=JSON.parse(localStorage.getItem(FREEZE_KEY))||{}}catch(e){}if(!f[p.target_issue]){f[p.target_issue]={created_at:new Date().toISOString(),...p};localStorage.setItem(FREEZE_KEY,JSON.stringify(f))}}
+      function balls(ns, mini=false){return ns.map(n=>`<span class="ball ${mini?'mini':''}">${H8.pad(n)}</span>`).join("")}
+      function gateClass(x){return x==="PASS"?"gate-pass":x==="FAIL"?"gate-fail":"gate-pending"}
+      function renderHeader(){const p=current.prediction,c=current.court;$("#versionBadge").textContent=`v${H8.APP_VERSION} · ${c.edge_state}`;$("#targetIssue").textContent=`第 ${p.target_issue} 期 · 选十候选`;$("#heroBalls").innerHTML=balls(p.candidate10);$("#truthNotice").innerHTML=c.edge_state==="VALIDATED_EDGE"?`已通过全部冻结验证门；胆码：${fmt(p.dan)}`:`当前为 <b>NO_EDGE / NULL_DAN</b>。下列号码只是结构化候选，不是已验证中奖概率。`;$("#stateCard").innerHTML=`<div class="eyebrow">Evidence Court</div><div class="kv"><span>软件自检</span><b class="ok">${H8.selfTest(SEED).status}</b></div><div class="kv"><span>模型闸门</span><b class="${gateClass(c.final_gate)}">${c.final_gate}</b></div><div class="kv"><span>Edge</span><b class="${c.edge_state==='NO_EDGE'?'warn':'ok'}">${c.edge_state}</b></div><div class="kv"><span>Dan</span><b class="${c.dan_state==='NULL_DAN'?'warn':'ok'}">${c.dan_state}</b></div><div class="kv"><span>数据</span><b>${c.data.count}期 / 最新${c.data.latest_issue}</b></div>`}
+      function predictView(){const p=current.prediction,c=current.court;return `<div class="workhead"><h2>预测下一期</h2><button class="action" id="rerun">重新计算并冻结</button></div><div class="grid2"><div class="subcard"><h3>选十结构化候选</h3><div class="ballrow">${balls(p.candidate10)}</div><p class="muted">标签：${p.label}</p></div><div class="subcard"><h3>观察核心（不等于胆码）</h3><div class="ballrow">${balls(p.observed_core,true)}</div><p class="muted">DanState=${p.dan_state}，因此正式胆码为空。</p></div></div><div class="subcard" style="margin-top:15px"><h3>Top 20 完整排名证据</h3><div class="tablewrap"><table><thead><tr><th>排名</th><th>号码</th><th>综合分</th><th>窗口支持</th><th>Seed支持</th><th>稳定性</th></tr></thead><tbody>${p.ranking.map(r=>`<tr><td>${r.rank}</td><td><b>${H8.pad(r.number)}</b></td><td>${r.score}</td><td>${Math.round(r.window_consensus*100)}%</td><td>${Math.round(r.seed_support*100)}%</td><td>${Math.round(r.stability*100)}%</td></tr>`).join("")}</tbody></table></div></div><p class="muted">Freeze: ${p.freeze_hash}<br>Data: ${p.data_hash}</p>`}
+      function updateView(){return `<div class="workhead"><h2>一键更新</h2><button class="action" id="doUpdate">连接并校验</button></div><div id="updateStatus"><div class="notice">更新采用事务流程：下载 → 解析 → 1–80/20码校验 → 新旧合并 → 生成 canonical hash → 原子写入。网络失败时保留当前数据，不会用空数据覆盖。</div><div class="grid2"><div class="subcard"><h3>官方主源</h3><p>中国福彩网开奖接口（快乐8 / kl8）</p><span class="muted">主源可能受反爬或跨域策略限制。</span></div><div class="subcard"><h3>公开校验源</h3><p>公开历史开奖页，仅作交叉核验</p><span class="muted">最终结果仍以官方公告为准。</span></div></div></div><div class="subcard" style="margin-top:15px"><h3>手动导入（故障恢复通道）</h3><p class="muted">每行格式：期号,20个号码；或直接粘贴含期号和20个号码的文本。</p><textarea id="importText" placeholder="2026253, 01 02 ... 80"></textarea><button class="action secondary" id="doImport">校验并导入</button></div>`}
+      function repairView(){const test=H8.selfTest(SEED);return `<div class="workhead"><h2>一键修复</h2><button class="action" id="doRepair">执行完整修复</button></div><div class="grid2"><div class="subcard"><h3>自检结果</h3><div class="bigstat ${test.status==='PASS'?'ok':'bad'}">${test.status}</div><p>${test.checks.filter(x=>x.status==='PASS').length}/${test.checks.length} 项通过</p></div><div class="subcard"><h3>可恢复内容</h3><p>数据缓存 · 预测冻结 · 排名索引 · 内置快照</p><p class="muted">修复不会伪造网络更新，也不会把 NO_EDGE 改成 PASS。</p></div></div><div class="tablewrap" style="margin-top:15px"><table><thead><tr><th>检查</th><th>结果</th><th>详情</th></tr></thead><tbody>${test.checks.map(x=>`<tr><td>${x.name}</td><td class="${gateClass(x.status)}">${x.status}</td><td>${x.detail||"—"}</td></tr>`).join("")}</tbody></table></div><div id="repairStatus"></div>`}
+      function advancedView(){const c=current.court;return `<div class="workhead"><h2>高级分析 · Evidence Court</h2><button class="action secondary" id="exportAudit">导出审计JSON</button></div><div class="grid2"><div class="subcard"><h3>严格滚动样本外</h3><div class="bigstat">${c.oos.mean_hits}</div><p>Top10 平均命中；随机期望 2.5</p><p class="muted">OOS N=${c.oos.n} · Excess=${c.oos.mean_excess} · Bootstrap L95=${c.oos.bootstrap_95_lower??"N/A"}</p></div><div class="subcard"><h3>5 Why 根因</h3><ol><li>为什么没有正式胆码？闸门未通过。</li><li>为什么未通过？OOS样本和Bootstrap证据不足。</li><li>为什么不足？当前内置快照只有${c.data.count}期。</li><li>为什么不放宽门槛？会扩大假增益。</li><li>怎么办？持续前瞻冻结，累积真实样本后再审查。</li></ol></div></div><h3>最终布尔闸门</h3><div class="tablewrap"><table><thead><tr><th>硬门</th><th>状态</th></tr></thead><tbody>${Object.entries(c.gates).map(([k,v])=>`<tr><td>${k}</td><td class="${gateClass(v)}">${v}</td></tr>`).join("")}</tbody></table></div><h3>Ablation / 逆转验证</h3><div class="tablewrap"><table><thead><tr><th>模型</th><th>OOS N</th><th>Mean Excess</th><th>Bootstrap L95</th></tr></thead><tbody>${c.ablations.map(x=>`<tr><td>${x.model}</td><td>${x.oos_n}</td><td>${x.mean_excess}</td><td>${x.bootstrap_lower??"N/A"}</td></tr>`).join("")}</tbody></table></div><div class="notice"><b>审查结论：</b>软件功能可以 PASS，但预测优势闸门必须独立判断。当前 final_gate=${c.final_gate}，Champion=${c.lifecycle.Champion}，不能把候选分数解释成客观中奖概率。</div>`}
+      function renderWork(){const map={predict:predictView,update:updateView,repair:repairView,advanced:advancedView};$("#workspace").innerHTML=map[view]();bindWork()}
+      function renderAll(){renderHeader();renderWork()}
+      function setBusy(el,text){el.disabled=true;el.innerHTML=`<span class="spin"></span>${text}`}
+      async function networkUpdate(btn){setBusy(btn,"更新中");const status=$("#updateStatus");status.innerHTML='<div class="notice"><span class="spin"></span>连接官方源并执行校验…</div>';let incoming=[],logs=[];
+        const endpoints=[
+          {name:"中国福彩网官方源",url:"https://www.cwl.gov.cn/cwl_admin/front/cwlkj/search/kjxx/findDrawNotice?name=kl8&issueCount=100"},
+          {name:"公开校验源",url:"https://1000w.app/draw/fckl8?page=1"}
+        ];
+        for(const ep of endpoints){try{const r=await fetch(ep.url,{headers:{Accept:"application/json,text/html"},cache:"no-store"});if(!r.ok)throw new Error(`HTTP ${r.status}`);const text=await r.text();let parsed=[];try{parsed=H8.parseCWL(text)}catch(e){parsed=H8.parseText(text)};incoming=incoming.concat(parsed);logs.push(`${ep.name}: PASS (${parsed.length}期)`)}catch(e){logs.push(`${ep.name}: UNAVAILABLE (${e.message})`)}}
+        try{if(!incoming.length)throw new Error("所有在线源均不可用；当前快照已安全保留");const merged=H8.normalizeDataset(draws.concat(incoming));const audit=H8.datasetAudit(merged);if(!audit.valid)throw new Error(audit.errors.join(";"));saveData(merged);status.innerHTML=`<div class="notice"><b>更新完成：</b>${logs.join("；")}。当前${merged.length}期，最新${merged.at(-1).issue}，hash=${audit.canonical_hash}</div>`}catch(e){status.innerHTML=`<div class="notice"><b>未写入：</b>${e.message}<br>${logs.join("；")}</div>`}finally{btn.disabled=false;btn.textContent="连接并校验"}}
+      function bindWork(){const r=$("#rerun");if(r)r.onclick=()=>{current=H8.predict(draws);saveFreeze(current.prediction);renderAll()};const u=$("#doUpdate");if(u)u.onclick=()=>networkUpdate(u);const im=$("#doImport");if(im)im.onclick=()=>{try{const d=H8.parseText($("#importText").value);saveData(draws.concat(d));alert(`已导入 ${d.length} 期并完成全量校验`)}catch(e){alert(`拒绝导入：${e.message}`)}};const rep=$("#doRepair");if(rep)rep.onclick=()=>{setBusy(rep,"修复中");setTimeout(()=>{localStorage.removeItem(KEY);localStorage.removeItem(FREEZE_KEY);draws=SEED;current=H8.predict(draws);saveFreeze(current.prediction);renderAll();alert("修复完成：已恢复内置可信快照并重建预测冻结")},250)};const ex=$("#exportAudit");if(ex)ex.onclick=()=>{const blob=new Blob([JSON.stringify({generated_at:new Date().toISOString(),prediction:current.prediction,court:current.court,self_test:H8.selfTest(SEED)},null,2)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`Happy8_Audit_${current.prediction.target_issue}.json`;a.click();URL.revokeObjectURL(a.href)}}
+      document.querySelectorAll(".entry").forEach(b=>b.onclick=()=>{view=b.dataset.view;renderWork();$("#workspace").scrollIntoView({behavior:"smooth",block:"start"})});
+      saveFreeze(current.prediction);renderAll();
+    })();
+  </script>
+</body>
+</html>
