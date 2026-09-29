@@ -12,7 +12,11 @@ from typing import Any
 
 APP_NAME = "English Root Intelligence"
 APP_VERSION = "0.3.0"
-MANIFEST_URL = "https://raw.githubusercontent.com/douluo511/Geometry-Lotto-Pro/main/english-root-intelligence/data/update_manifest.json"
+MANIFEST_URLS = (
+    "https://raw.githubusercontent.com/douluo511/Geometry-Lotto-Pro/main/english-root-intelligence/data/update_manifest.json",
+    "https://github.com/douluo511/Geometry-Lotto-Pro/raw/refs/heads/main/english-root-intelligence/data/update_manifest.json",
+)
+MANIFEST_URL = MANIFEST_URLS[0]
 
 PREFIXES = {
     "un": "not / reverse",
