@@ -13,16 +13,30 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Inspect Shanghai official SSQ page internals
+      - name: Inspect Shanghai official SSQ query JavaScript
         shell: python
         run: |
-          import urllib.request
-          url="https://appsh.swlc.net.cn/shfcoc_datachart/datachart/ssq/jbzs/clg.html"
-          req=urllib.request.Request(url,headers={"User-Agent":"Mozilla/5.0 SSQ-Probe/1.0"})
-          with urllib.request.urlopen(req,timeout=12) as r:
-              raw=r.read()
-              print("APP_SH_HTTP",r.status,r.headers.get("Content-Type"),"bytes",len(raw))
-          text=raw.decode("utf-8","replace")
-          print("HTML_BEGIN")
-          print(text)
-          print("HTML_END")
+          import re, urllib.request
+          base="https://appsh.swlc.net.cn"
+          paths=[
+            "/shfcoc_datachart/js/v2.0/datachart/zdy.js?v=20260929",
+            "/shfcoc_datachart/js/v2.0/datacenter/datechartcommon.js?v=20260929",
+            "/shfcoc_datachart/js/v2.0/datachart/datachart_index_common.js?v=20260929",
+            "/shfcoc_datachart/js/v2.0/datachart/boot.js?v=20260929",
+            "/shfcoc_datachart/js/v2.0/datachart/ssq/jbzs/clg.js?v=20260929",
+          ]
+          for path in paths:
+              url=base+path
+              req=urllib.request.Request(url,headers={"User-Agent":"Mozilla/5.0 SSQ-Probe/1.0","Referer":base+"/shfcoc_datachart/datachart/ssq/jbzs/clg.html"})
+              try:
+                  with urllib.request.urlopen(req,timeout=12) as r:
+                      raw=r.read()
+                      print("JS_HTTP",path,r.status,r.headers.get("Content-Type"),len(raw))
+                  text=raw.decode("utf-8","replace")
+                  print("JS_BEGIN",path)
+                  for line in text.splitlines():
+                      if re.search(r"(ajax|url|query|zdy_|issue|employee|load|data|from|to|json|post|get)",line,re.I):
+                          print(line[:30000])
+                  print("JS_END",path)
+              except Exception as exc:
+                  print("JS_ERROR",path,type(exc).__name__,str(exc))
