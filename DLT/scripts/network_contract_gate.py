@@ -150,33 +150,25 @@ def main() -> int:
     except SourceError as exc:
         record("jiangsu_duplicate_issue_fail_closed", True, str(exc))
 
-    gd_html = """
+    gs_html = """
     <html><body>
-      <h1>中国体育彩票超级大乐透</h1>
-      <h2>第26111期开奖公告</h2>
-      <p>开奖日期：2026年9月28日</p>
-      <div>本期开奖号码：10 11 17 26 29 01 03</div>
-      <div>本期中奖情况</div>
+      <div>2026-09-28 26111 10111726290103</div>
+      <div>2026-09-26 26110 03242526350709</div>
     </body></html>
     """
     try:
-        gd = sources._parse_guangdong_announcement(gd_html, "26111")
+        gs = sources._parse_gansu_history(gs_html)
         record(
-            "guangdong_official_parser",
-            gd.issue == "26111"
-            and gd.draw_date == "2026-09-28"
-            and gd.front == (10, 11, 17, 26, 29)
-            and gd.back == (1, 3),
-            gd.to_dict(),
+            "gansu_official_parser",
+            len(gs) == 2
+            and gs[-1].issue == "26111"
+            and gs[-1].draw_date == "2026-09-28"
+            and gs[-1].front == (10, 11, 17, 26, 29)
+            and gs[-1].back == (1, 3),
+            [x.to_dict() for x in gs],
         )
     except Exception as exc:
-        record("guangdong_official_parser", False, f"{type(exc).__name__}: {exc}")
-
-    try:
-        sources._parse_guangdong_announcement(gd_html, "26110")
-        record("guangdong_issue_mismatch_fail_closed", False, "wrong issue accepted")
-    except SourceError as exc:
-        record("guangdong_issue_mismatch_fail_closed", True, str(exc))
+        record("gansu_official_parser", False, f"{type(exc).__name__}: {exc}")
 
     primary = [
         sources._parse_result("26110", "2026-09-26", "03 24 25 26 35 07 09"),
