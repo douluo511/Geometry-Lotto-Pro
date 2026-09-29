@@ -1,7 +1,9 @@
 from __future__ import annotations
+
 import json
 import os
 import shutil
+import tempfile
 from pathlib import Path
 
 from core import Store, bundled_path
@@ -29,6 +31,81 @@ class RootStorage:
 
     def save_progress(self, value):
         return self.store.save_progress(value)
+
+    @staticmethod
+    def _stage(path: Path, data: bytes) -> Path:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        fd, name = tempfile.mkstemp(prefix=path.name + ".", suffix=".stage", dir=path.parent)
+        tmp = Path(name)
+        try:
+            with os.fdopen(fd, "wb") as handle:
+                handle.write(data)
+                handle.flush()
+                os.fsync(handle.fileno())
+            return tmp
+        except Exception:
+            tmp.unlink(missing_ok=True)
+            raise
+
+    @staticmethod
+    def _restore(path: Path, old: bytes | None) -> None:
+        if old is None:
+            path.unlink(missing_ok=True)
+            return
+        tmp = RootStorage._stage(path, old)
+        os.replace(tmp, path)
+
+    def commit_update(self, raw: bytes, fetched_at: str, evidence_path: Path, evidence_row: dict) -> dict:
+        value = validate_roots(json.loads(raw.decode("utf-8-sig")))
+        progress = self.store.load_progress()
+        progress["last_update"] = fetched_at
+
+        roots_path = self.store.roots_path
+        progress_path = self.store.progress_path
+        evidence_path = Path(evidence_path)
+
+        roots_bytes = raw
+        progress_bytes = (json.dumps(progress, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+        old_evidence = evidence_path.read_bytes() if evidence_path.exists() else b""
+        evidence_bytes = old_evidence + (json.dumps(evidence_row, ensure_ascii=False) + "\n").encode("utf-8")
+
+        old_roots = roots_path.read_bytes() if roots_path.exists() else None
+        old_progress = progress_path.read_bytes() if progress_path.exists() else None
+        old_evidence_bytes = evidence_path.read_bytes() if evidence_path.exists() else None
+
+        staged_roots = staged_progress = staged_evidence = None
+        committed: list[tuple[Path, bytes | None]] = []
+        try:
+            staged_roots = self._stage(roots_path, roots_bytes)
+            staged_progress = self._stage(progress_path, progress_bytes)
+            staged_evidence = self._stage(evidence_path, evidence_bytes)
+
+            os.replace(staged_evidence, evidence_path)
+            staged_evidence = None
+            committed.append((evidence_path, old_evidence_bytes))
+
+            os.replace(staged_progress, progress_path)
+            staged_progress = None
+            committed.append((progress_path, old_progress))
+
+            os.replace(staged_roots, roots_path)
+            staged_roots = None
+            committed.append((roots_path, old_roots))
+
+            self.store.load_roots()
+            self.store.load_progress()
+            return value
+        except Exception:
+            for path, old in reversed(committed):
+                try:
+                    self._restore(path, old)
+                except Exception:
+                    pass
+            raise
+        finally:
+            for tmp in (staged_roots, staged_progress, staged_evidence):
+                if tmp is not None:
+                    tmp.unlink(missing_ok=True)
 
     def replace_roots(self, raw: bytes) -> dict:
         value = validate_roots(json.loads(raw.decode("utf-8-sig")))
