@@ -166,7 +166,7 @@ jobs:
       - name: Physical GUI Click Smoke
         shell: pwsh
         run: |
-          python .\.github\scripts\tk_button_points.py --project-path talkcraft_pro --module app --entry TalkCraftApp --labels "今日训练;一键更新;一键修复;高级分析" --out ".\talkcraft_pro\gui_points.txt"
+          python .\.github\scripts\tk_button_points.py --project-path talkcraft_pro --module app --entry run_gui --labels "今日训练;一键更新;一键修复;高级分析" --out ".\talkcraft_pro\gui_points.txt"
           $points=(Get-Content ".\talkcraft_pro\gui_points.txt" -Raw).Trim()
           .\.github\scripts\physical_gui_click_smoke.ps1 -ExePath ".\talkcraft_pro\dist\final\TalkCraftPro.exe" -Points $points -EvidencePath ".\talkcraft_pro\physical_gui_click.json"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
