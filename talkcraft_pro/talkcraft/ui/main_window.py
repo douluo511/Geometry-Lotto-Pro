@@ -4,7 +4,7 @@ import threading, json
 
 class MainWindow:
     def __init__(self,svc):
-        self.svc=svc; self.root=tk.Tk(); self.root.title('TalkCraft Pro v1.0'); self.root.geometry('980x720'); self.root.minsize(800,620)
+        self.svc=svc; self.root=tk.Tk(); self.root.title('TalkCraft Pro v1.1'); self.root.geometry('980x720'); self.root.minsize(800,620)
         self.status=tk.StringVar(value='READY · 双完成度模式 · 未通过最终发布门')
         self._build()
     def _build(self):
@@ -12,8 +12,9 @@ class MainWindow:
         ttk.Label(top,text='TalkCraft Pro · 脱口秀表达训练系统',font=('Segoe UI',18,'bold')).pack(anchor='w')
         ttk.Label(top,text='观察 → 观点 → 结构 → 幽默 → 表达 → 互动 → Evidence → 逆转验证',foreground='#555').pack(anchor='w',pady=(4,12))
         btns=ttk.Frame(top); btns.pack(fill='x')
+        self.buttons=[]
         for text,cmd in [('今日训练',self.daily),('一键更新',self.update),('一键修复',self.repair),('高级分析',self.analytics)]:
-            ttk.Button(btns,text=text,command=cmd).pack(side='left',expand=True,fill='x',padx=4)
+            b=ttk.Button(btns,text=text,command=cmd); b.pack(side='left',expand=True,fill='x',padx=4); self.buttons.append(b)
         self.nb=ttk.Notebook(self.root); self.nb.pack(fill='both',expand=True,padx=16,pady=8)
         self.train=ttk.Frame(self.nb,padding=14); self.advanced=ttk.Frame(self.nb,padding=14); self.nb.add(self.train,text='训练'); self.nb.add(self.advanced,text='高级分析')
         self.prompt=tk.StringVar(value='点击“今日训练”开始。'); ttk.Label(self.train,textvariable=self.prompt,wraplength=900,font=('Segoe UI',12,'bold')).pack(anchor='w',pady=(0,8))
