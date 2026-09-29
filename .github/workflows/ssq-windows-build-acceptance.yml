@@ -106,18 +106,21 @@ jobs:
           for src in script_srcs:
               print(src)
           base = "https://appsh.swlc.net.cn"
-          wanted = [s for s in script_srcs if any(k in s for k in ("zdy.js","datechartcommon.js","ssq/jbzs/clg.js"))]
+          wanted = [s for s in script_srcs if s.split("?",1)[0].endswith("/zdy.js")]
           for src in wanted:
               full = base + src.split("?",1)[0]
-              jr = requests.get(full, timeout=(20,30), headers={"User-Agent":"Mozilla/5.0 SSQ-Probe/1.0","Referer":url})
-              print("SH_JS_HTTP", full, jr.status_code, jr.headers.get("Content-Type"), len(jr.content))
-              jr.raise_for_status()
-              body = jr.content.decode("utf-8","replace")
-              print("SH_JS_BEGIN", full)
-              for line in body.splitlines():
-                  if re.search(r"(ajax|url|issue|zdy_|param|query|json|post|get|data)", line, re.I):
-                      print(line[:20000])
-              print("SH_JS_END", full)
+              try:
+                  jr = requests.get(full, timeout=(5,8), headers={"User-Agent":"Mozilla/5.0 SSQ-Probe/1.0","Referer":url})
+                  print("SH_JS_HTTP", full, jr.status_code, jr.headers.get("Content-Type"), len(jr.content))
+                  jr.raise_for_status()
+                  body = jr.content.decode("utf-8","replace")
+                  print("SH_JS_BEGIN", full)
+                  for line in body.splitlines():
+                      if re.search(r"(ajax|url|issue|zdy_|param|query|json|post|get|data)", line, re.I):
+                          print(line[:20000])
+                  print("SH_JS_END", full)
+              except Exception as exc:
+                  print("SH_JS_ERROR", full, type(exc).__name__, str(exc))
           '@ | Set-Content tools\\_probe_shanghai.py -Encoding utf8
           python tools\\_probe_shanghai.py
 
