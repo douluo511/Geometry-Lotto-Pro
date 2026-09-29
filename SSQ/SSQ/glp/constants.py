@@ -9,7 +9,9 @@ BACK_MAX = 16
 BACK_PICK = 1
 
 NATIONAL_URL = "https://www.cwl.gov.cn/cwl_admin/front/cwlkj/search/kjxx/findDrawNotice"
-SHANGHAI_URL = "https://www.swlc.net.cn/lottery/ssq.html?limit=100&view=previous"\nSHANGHAI_HISTORY_URL = "https://www.swlc.net.cn/lottery/ssq.html"\nSSQ_HISTORY_START_ISSUE = "2013001"
+SHANGHAI_URL = "https://www.swlc.net.cn/lottery/ssq.html?limit=100&view=previous"
+SHANGHAI_HISTORY_URL = "https://www.swlc.net.cn/lottery/ssq.html"
+SSQ_HISTORY_START_ISSUE = "2013001"
 HEBEI_URL = "https://www.yzfcw.com/"
 HEBEI_ANNOUNCE_URL = "https://www.yzfcw.com/game/ssqAnnounce"
 SOURCE_NAMES = ("national", "shanghai", "hebei")
