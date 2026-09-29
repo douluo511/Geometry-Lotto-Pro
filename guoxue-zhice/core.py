@@ -7,12 +7,14 @@ import os
 import shutil
 import sys
 import tempfile
-import urllib.request
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
+
+from net_client import NetClient
 
 APP_NAME = "国学智策系统"
-APP_VERSION = "0.1.0"
+APP_VERSION = "0.2.0"
 MANIFEST_URLS = [
     "https://raw.githubusercontent.com/douluo511/Geometry-Lotto-Pro/main/guoxue-zhice/data/update_manifest.json",
     "https://raw.githubusercontent.com/douluo511/Geometry-Lotto-Pro/guoxue-zhice-v0.1/guoxue-zhice/data/update_manifest.json",
@@ -103,6 +105,7 @@ class Store:
         self.data_dir = self.root / "data"
         self.knowledge_path = self.data_dir / "knowledge.json"
         self.state_path = self.root / "state.json"
+        self.evidence_path = self.root / "network_evidence.json"
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self._ensure_seed()
 
@@ -131,6 +134,71 @@ class Store:
 
     def save_state(self, value: dict[str, Any]) -> None:
         atomic_json(self.state_path, value)
+
+    @staticmethod
+    def _stage_bytes(path: Path, data: bytes) -> Path:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        fd, name = tempfile.mkstemp(prefix=path.name + ".", suffix=".stage", dir=path.parent)
+        tmp = Path(name)
+        try:
+            with os.fdopen(fd, "wb") as handle:
+                handle.write(data)
+                handle.flush()
+                os.fsync(handle.fileno())
+            return tmp
+        except Exception:
+            tmp.unlink(missing_ok=True)
+            raise
+
+    @staticmethod
+    def _restore_bytes(path: Path, previous: bytes | None) -> None:
+        if previous is None:
+            path.unlink(missing_ok=True)
+            return
+        staged = Store._stage_bytes(path, previous)
+        os.replace(staged, path)
+
+    def commit_network_update(self, raw: bytes, evidence: dict[str, Any], fetched_at: str) -> dict[str, Any]:
+        value = validate_knowledge(json.loads(raw.decode("utf-8-sig")))
+        state = self.load_state()
+        state["last_update"] = fetched_at
+
+        knowledge_bytes = raw
+        state_bytes = (json.dumps(state, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+        evidence_bytes = (json.dumps(evidence, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+
+        old = {
+            self.knowledge_path: self.knowledge_path.read_bytes() if self.knowledge_path.exists() else None,
+            self.state_path: self.state_path.read_bytes() if self.state_path.exists() else None,
+            self.evidence_path: self.evidence_path.read_bytes() if self.evidence_path.exists() else None,
+        }
+        staged: dict[Path, Path] = {}
+        committed: list[Path] = []
+        try:
+            staged[self.knowledge_path] = self._stage_bytes(self.knowledge_path, knowledge_bytes)
+            staged[self.state_path] = self._stage_bytes(self.state_path, state_bytes)
+            staged[self.evidence_path] = self._stage_bytes(self.evidence_path, evidence_bytes)
+
+            for target in (self.evidence_path, self.state_path, self.knowledge_path):
+                os.replace(staged.pop(target), target)
+                committed.append(target)
+
+            self.load_knowledge()
+            self.load_state()
+            reloaded = json.loads(self.evidence_path.read_text(encoding="utf-8"))
+            if reloaded.get("status") != "PASS" or reloaded.get("knowledge_sha256") != evidence.get("knowledge_sha256"):
+                raise ValueError("network evidence post-write verification failed")
+            return value
+        except Exception:
+            for target in reversed(committed):
+                try:
+                    self._restore_bytes(target, old[target])
+                except Exception:
+                    pass
+            raise
+        finally:
+            for tmp in staged.values():
+                tmp.unlink(missing_ok=True)
 
     def append_analysis(self, item: dict[str, Any]) -> None:
         state = self.load_state()
@@ -264,53 +332,122 @@ class ReviewEngine:
         return list(reversed(self.store.load_state()["reviews"][-limit:]))
 
 
-class MaintenanceEngine:
-    def __init__(self, store: Store):
-        self.store = store
+def _version_tuple(value: str) -> tuple[int, ...]:
+    parts = str(value).strip().lstrip("v").split(".")
+    if not parts or any(not x.isdigit() for x in parts):
+        raise ValueError(f"invalid semantic version: {value!r}")
+    return tuple(int(x) for x in parts)
 
-    def _fetch_manifest(self) -> dict[str, Any]:
-        errors = []
-        for url in MANIFEST_URLS:
+def _allowed_update_url(url: str) -> bool:
+    p = urlparse(str(url))
+    return p.scheme == "https" and p.hostname in {"raw.githubusercontent.com", "github.com"}
+
+def _alternate_github_distribution(url: str) -> str | None:
+    prefix = "https://raw.githubusercontent.com/douluo511/Geometry-Lotto-Pro/"
+    if str(url).startswith(prefix):
+        return "https://github.com/douluo511/Geometry-Lotto-Pro/raw/" + str(url)[len(prefix):]
+    return None
+
+class MaintenanceEngine:
+    PARSER_VERSION = "guoxue-knowledge-parser-v0.2"
+
+    def __init__(self, store: Store, net: NetClient | None = None):
+        self.store = store
+        self.net = net or NetClient(connect_timeout=5, read_timeout=20, max_attempts=3)
+
+    def _fetch_manifest(self) -> tuple[dict[str, Any], dict[str, Any], bytes, list[dict[str, Any]]]:
+        distribution_attempts: list[dict[str, Any]] = []
+        for index, url in enumerate(MANIFEST_URLS, 1):
+            source_id = f"manifest_distribution_{index}"
             try:
-                with urllib.request.urlopen(url, timeout=15) as resp:
-                    value = json.loads(resp.read().decode("utf-8"))
-                if value.get("schema") != 1 or not value.get("data_url") or not value.get("sha256"):
-                    raise ValueError("manifest fields invalid")
-                return value
+                raw, receipt = self.net.get_bytes(url, source_id=source_id)
+                value = json.loads(raw.decode("utf-8-sig"))
+                if value.get("schema") != 1:
+                    raise ValueError("manifest schema mismatch")
+                if not isinstance(value.get("version"), str) or not value["version"].strip():
+                    raise ValueError("manifest version missing")
+                _version_tuple(value["version"])
+                if not isinstance(value.get("data_url"), str) or not _allowed_update_url(value["data_url"]):
+                    raise ValueError("manifest data_url violates trusted HTTPS host policy")
+                digest = str(value.get("sha256") or "").lower()
+                if len(digest) != 64 or any(ch not in "0123456789abcdef" for ch in digest):
+                    raise ValueError("manifest sha256 invalid")
+                distribution_attempts.append({"status":"PASS","source_id":source_id,"receipt":receipt.to_dict()})
+                return value, receipt.to_dict(), raw, distribution_attempts
             except Exception as exc:
-                errors.append(f"{url}: {exc}")
-        raise RuntimeError("无法获取更新清单；" + " | ".join(errors))
+                distribution_attempts.append({
+                    "status": "FAIL",
+                    "source_id": source_id,
+                    "url": url,
+                    "error": f"{type(exc).__name__}: {exc}",
+                    "attempts": list(getattr(exc, "glp_attempts", ()) or ()),
+                })
+        raise RuntimeError("all manifest distribution paths failed: " + json.dumps(distribution_attempts, ensure_ascii=False))
 
     def one_click_update(self) -> dict[str, Any]:
-        manifest = self._fetch_manifest()
-        with urllib.request.urlopen(str(manifest["data_url"]), timeout=20) as resp:
-            raw = resp.read()
-        digest = hashlib.sha256(raw).hexdigest()
+        manifest, manifest_receipt, manifest_raw, manifest_attempts = self._fetch_manifest()
+        local_version = str(self.store.load_knowledge().get("version") or "0.0.0")
+        if _version_tuple(manifest["version"]) < _version_tuple(local_version):
+            raise ValueError(f"manifest version regression: remote={manifest['version']} local={local_version}")
+
+        data_urls = [str(manifest["data_url"])]
+        alternate = _alternate_github_distribution(data_urls[0])
+        if alternate and alternate not in data_urls:
+            data_urls.append(alternate)
+        data_attempts: list[dict[str, Any]] = []
+        data_raw = None
+        data_receipt_obj = None
+        for index, url in enumerate(data_urls, 1):
+            source_id = f"knowledge_distribution_{index}"
+            try:
+                raw, receipt = self.net.get_bytes(url, source_id=source_id)
+                digest_candidate = hashlib.sha256(raw).hexdigest()
+                if digest_candidate.lower() != str(manifest["sha256"]).lower():
+                    raise ValueError(f"knowledge SHA256 mismatch expected={manifest['sha256']} actual={digest_candidate}")
+                validate_knowledge(json.loads(raw.decode("utf-8-sig")))
+                data_attempts.append({"status":"PASS","source_id":source_id,"receipt":receipt.to_dict()})
+                data_raw, data_receipt_obj = raw, receipt
+                break
+            except Exception as exc:
+                data_attempts.append({
+                    "status":"FAIL","source_id":source_id,"url":url,
+                    "error":f"{type(exc).__name__}: {exc}",
+                    "attempts":list(getattr(exc,"glp_attempts",()) or ()),
+                })
+        if data_raw is None or data_receipt_obj is None:
+            raise RuntimeError("all knowledge distribution paths failed: " + json.dumps(data_attempts, ensure_ascii=False))
+        digest = hashlib.sha256(data_raw).hexdigest()
         if digest.lower() != str(manifest["sha256"]).lower():
-            raise ValueError("更新包 SHA256 校验失败")
-        value = validate_knowledge(json.loads(raw.decode("utf-8")))
-
-        staging = self.store.data_dir / "knowledge.json.staging"
-        backup = self.store.data_dir / "knowledge.json.backup"
-        staging.write_bytes(raw)
-        validate_knowledge(json.loads(staging.read_text(encoding="utf-8")))
-        shutil.copy2(self.store.knowledge_path, backup)
-        try:
-            os.replace(staging, self.store.knowledge_path)
-            self.store.load_knowledge()
-        except Exception:
-            if backup.exists():
-                shutil.copy2(backup, self.store.knowledge_path)
-            raise
-
-        state = self.store.load_state()
-        state["last_update"] = dt.datetime.now().isoformat(timespec="seconds")
-        self.store.save_state(state)
+            raise ValueError(f"knowledge SHA256 mismatch expected={manifest['sha256']} actual={digest}")
+        value = validate_knowledge(json.loads(data_raw.decode("utf-8-sig")))
+        data_receipt = data_receipt_obj.to_dict()
+        evidence = {
+            "schema": "guoxue-network-evidence-v2",
+            "status": "PASS",
+            "parser_version": self.PARSER_VERSION,
+            "manifest_version": manifest["version"],
+            "manifest_sha256": hashlib.sha256(manifest_raw).hexdigest(),
+            "knowledge_sha256": digest,
+            "manifest_source": manifest_receipt,
+            "manifest_distribution_attempts": manifest_attempts,
+            "selected_manifest_source_id": manifest_receipt["source_id"],
+            "knowledge_source": data_receipt,
+            "knowledge_distribution_attempts": data_attempts,
+            "selected_knowledge_source_id": data_receipt["source_id"],
+            "fetched_at": data_receipt["fetched_at"],
+            "classics": len(value["classics"]),
+        }
+        self.store.commit_network_update(data_raw, evidence, fetched_at=data_receipt["fetched_at"])
         return {
             "status": "PASS",
             "version": value.get("version"),
             "classics": len(value["classics"]),
             "sha256": digest,
+            "source": data_receipt,
+            "manifest_source": manifest_receipt,
+            "manifest_distribution_attempts": manifest_attempts,
+            "knowledge_distribution_attempts": data_attempts,
+            "evidence": evidence,
         }
 
     def one_click_repair(self) -> dict[str, Any]:
