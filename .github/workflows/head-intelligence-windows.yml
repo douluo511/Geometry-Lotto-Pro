@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - head-intelligence-prototype
+      - main
     paths:
       - "head_intelligence/**"
       - ".github/workflows/head-intelligence-windows.yml"
