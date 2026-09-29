@@ -106,6 +106,15 @@ class NetClient:
                     allow_redirects=allow_redirects,
                 )
                 status = int(getattr(response, "status_code", 0) or 0)
+                final_url = str(getattr(response, "url", "") or "")
+                if final_url and not final_url.startswith("https://"):
+                    attempts.append(AttemptRecord(attempt, "FINAL_INSECURE_REDIRECT", status, None, 0.0, final_url))
+                    exc = requests.RequestException(f"HTTPS request redirected to non-HTTPS URL: {final_url}")
+                    try:
+                        setattr(exc, "glp_attempts", tuple(x.to_dict() for x in attempts))
+                    except Exception:
+                        pass
+                    raise exc
                 if status in RETRYABLE_STATUS and attempt < self.max_attempts:
                     delay = self._delay(attempt, response=response)
                     attempts.append(AttemptRecord(attempt, "RETRY_HTTP", status, None, delay, url))
