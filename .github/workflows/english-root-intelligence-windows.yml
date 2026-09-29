@@ -7,12 +7,14 @@ on:
       - 'english-root-intelligence/**'
       - '.github/workflows/english-root-intelligence-windows.yml'
       - '.github/scripts/physical_gui_click_smoke.ps1'
+      - '.github/scripts/tk_button_points.py'
   push:
     branches: [main]
     paths:
       - 'english-root-intelligence/**'
       - '.github/workflows/english-root-intelligence-windows.yml'
       - '.github/scripts/physical_gui_click_smoke.ps1'
+      - '.github/scripts/tk_button_points.py'
 
 permissions:
   contents: read
