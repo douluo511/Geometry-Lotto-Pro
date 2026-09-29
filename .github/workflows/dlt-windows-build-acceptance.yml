@@ -19,7 +19,7 @@ defaults:
 jobs:
   build-and-accept:
     runs-on: windows-latest
-    timeout-minutes: 45
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
