@@ -7,7 +7,7 @@ import tkinter as tk
 from tkinter import messagebox
 from tkinter import ttk
 
-from core import APP_NAME, APP_VERSION, GoalEngine, MaintenanceEngine, ReviewEngine, Store, self_test
+from service import APP_NAME, APP_VERSION, create_service, self_test
 
 BG = "#f4f7fb"
 CARD = "#ffffff"
@@ -24,10 +24,7 @@ class App(tk.Tk):
         self.geometry("1040x760")
         self.minsize(920, 680)
         self.configure(bg=BG)
-        self.store = Store()
-        self.goal_engine = GoalEngine(self.store)
-        self.review_engine = ReviewEngine(self.store)
-        self.maintenance = MaintenanceEngine(self.store)
+        self.service = create_service()
         self.status_var = tk.StringVar(value="系统就绪 · 原典/解释/边界分层已启用")
         self._configure_style()
         self._build_shell()
@@ -105,7 +102,7 @@ class App(tk.Tk):
 
     def analyze_goal(self):
         try:
-            r = self.goal_engine.analyze(self.goal_entry.get())
+            r = self.service.analyze_goal(self.goal_entry.get())
         except Exception as exc:
             messagebox.showerror("推演失败", str(exc))
             return
@@ -144,7 +141,7 @@ class App(tk.Tk):
 
     def _update_worker(self):
         try:
-            r = self.maintenance.one_click_update()
+            r = self.service.one_click_update()
             self.after(0, lambda: messagebox.showinfo(
                 "一键更新 PASS",
                 f"知识库版本：{r['version']}\n经典条目：{r['classics']}\nSHA256：{r['sha256'][:20]}…"
@@ -178,7 +175,7 @@ class App(tk.Tk):
     def save_review(self):
         try:
             values = [x.get("1.0", "end").strip() for x in self.review_boxes]
-            item = self.review_engine.save(*values)
+            item = self.service.save_review(*values)
             messagebox.showinfo("复盘已保存", f"保存时间：{item['timestamp']}\n以后可在高级分析中统计。")
             self.status_var.set("复盘已保存 · 决策与结果已进入本地审计记录")
         except Exception as exc:
@@ -186,7 +183,7 @@ class App(tk.Tk):
 
     def show_analysis(self):
         self.clear()
-        s = self.goal_engine.stats()
+        s = self.service.stats()
         tk.Label(self.content, text="高级分析", bg=BG, fg=TEXT,
                  font=("Microsoft YaHei UI", 20, "bold")).pack(anchor="w", pady=(4, 12))
         grid = tk.Frame(self.content, bg=BG)
