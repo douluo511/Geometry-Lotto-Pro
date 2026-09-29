@@ -17,6 +17,17 @@ import requests
 class NetClient:
     RETRY_STATUSES = (408, 429, 500, 502, 503, 504)
 
+    @staticmethod
+    def _require_fresh_date(day: str, max_age_days: int, label: str) -> None:
+        try:
+            parsed=datetime.fromisoformat(str(day)[:10]).date()
+        except Exception as exc:
+            raise ValueError(f"{label}: invalid date {day!r}") from exc
+        today=datetime.now(timezone.utc).date()
+        age=(today-parsed).days
+        if age < -2 or age > int(max_age_days):
+            raise ValueError(f"{label}: stale/future date {parsed.isoformat()} age_days={age}")
+
     def __init__(
         self,
         connect_timeout=6.0,
@@ -187,20 +198,107 @@ class NetClient:
             raise ValueError(f"{symbol}: Yahoo history too short ({len(rows)})")
         return rows
 
-    def fetch_market_history(self, symbol: str):
-        errors = []
-        safe = urllib.parse.quote(symbol, safe="")
-        for host in ("query1.finance.yahoo.com", "query2.finance.yahoo.com"):
-            url = (
+    def _fetch_yahoo_history(self, symbol: str):
+        errors=[]
+        safe=urllib.parse.quote(symbol,safe="")
+        for host in ("query1.finance.yahoo.com","query2.finance.yahoo.com"):
+            url=(
                 f"https://{host}/v8/finance/chart/{safe}"
                 "?range=6mo&interval=1d&events=div%2Csplits&includeAdjustedClose=true"
             )
             try:
-                payload, receipt = self._get_json(url)
-                return self._parse_yahoo_chart(payload, symbol), f"YahooChart:{host}", receipt
+                payload,receipt=self._get_json(url)
+                rows=self._parse_yahoo_chart(payload,symbol)
+                self._require_fresh_date(rows[-1]["date"],10,f"Yahoo {symbol}")
+                return rows,f"YahooChart:{host}",receipt
             except Exception as exc:
                 errors.append(f"{host}={type(exc).__name__}: {exc}")
         raise RuntimeError(" | ".join(errors))
+
+    def fetch_stooq_history(self, symbol: str):
+        end=datetime.now(timezone.utc).date()
+        start=end-timedelta(days=220)
+        stooq_symbol=symbol.lower()+".us"
+        url="https://stooq.com/q/d/l/?"+urllib.parse.urlencode({
+            "s":stooq_symbol,"d1":start.strftime("%Y%m%d"),"d2":end.strftime("%Y%m%d"),"i":"d"
+        })
+        raw,receipt=self._get_bytes(url,"text/csv,application/csv,text/plain;q=0.9,*/*;q=0.1")
+        rows=[]
+        for row in csv.DictReader(io.StringIO(raw.decode("utf-8-sig",errors="replace"))):
+            try:
+                close=float(row["Close"])
+                if not math.isfinite(close) or close<=0:
+                    continue
+                rows.append({
+                    "date":row["Date"],
+                    "open":float(row["Open"]),
+                    "high":float(row["High"]),
+                    "low":float(row["Low"]),
+                    "close":close,
+                    "volume":int(float(row["Volume"])) if row.get("Volume") else 0,
+                })
+            except (KeyError,TypeError,ValueError):
+                continue
+        rows.sort(key=lambda x:x["date"])
+        if len(rows)<30:
+            raise ValueError(f"{symbol}: Stooq history too short ({len(rows)})")
+        self._require_fresh_date(rows[-1]["date"],10,f"Stooq {symbol}")
+        return rows,"Stooq",receipt
+
+    @staticmethod
+    def _crosscheck_market(yahoo_rows, stooq_rows, symbol: str):
+        y={r["date"]:float(r["close"]) for r in yahoo_rows}
+        s={r["date"]:float(r["close"]) for r in stooq_rows}
+        common=sorted(set(y)&set(s))
+        if len(common)<20:
+            raise ValueError(f"{symbol}: independent market overlap too small ({len(common)})")
+        day=common[-1]
+        a=y[day]; b=s[day]
+        relative=abs(a-b)/max(abs(a),abs(b),1e-12)
+        if relative>0.05:
+            raise ValueError(f"{symbol}: Yahoo/Stooq conflict on {day}: {a} vs {b} rel={relative:.4f}")
+        return {"status":"PASS","date":day,"yahoo_close":a,"stooq_close":b,"relative_diff":relative,"overlap":len(common)}
+
+    def fetch_market_history(self, symbol: str):
+        yahoo_error=None
+        stooq_error=None
+        yahoo=None
+        stooq=None
+        try:
+            yahoo=self._fetch_yahoo_history(symbol)
+        except Exception as exc:
+            yahoo_error=f"{type(exc).__name__}: {exc}"
+        try:
+            stooq=self.fetch_stooq_history(symbol)
+        except Exception as exc:
+            stooq_error=f"{type(exc).__name__}: {exc}"
+
+        if yahoo and stooq:
+            yrows,yprovider,yreceipt=yahoo
+            srows,sprovider,sreceipt=stooq
+            cross=self._crosscheck_market(yrows,srows,symbol)
+            receipt=dict(yreceipt)
+            receipt["source_identity"]="YahooChart"
+            receipt["crosscheck_status"]="PASS"
+            receipt["crosscheck"]=cross
+            receipt["crosscheck_source_identity"]="Stooq"
+            receipt["crosscheck_receipt"]=sreceipt
+            return yrows,yprovider+"+StooqCrosscheck",receipt
+        if yahoo:
+            rows,provider,receipt=yahoo
+            receipt=dict(receipt)
+            receipt["source_identity"]="YahooChart"
+            receipt["crosscheck_status"]="UNAVAILABLE"
+            receipt["crosscheck_error"]=stooq_error
+            return rows,provider+"+SingleSource",receipt
+        if stooq:
+            rows,provider,receipt=stooq
+            receipt=dict(receipt)
+            receipt["source_identity"]="Stooq"
+            receipt["crosscheck_status"]="UNAVAILABLE"
+            receipt["crosscheck_error"]=yahoo_error
+            return rows,provider+"+FallbackSingleSource",receipt
+        raise RuntimeError(f"all independent market sources failed: yahoo={yahoo_error} | stooq={stooq_error}")
 
     def fetch_fred_series(self, series_id: str):
         start = (datetime.now(timezone.utc).date() - timedelta(days=550)).isoformat()
@@ -224,6 +322,7 @@ class NetClient:
         if not values:
             raise ValueError(f"FRED {series_id}: no numeric observations")
         day, value = values[-1]
+        self._require_fresh_date(day,14,f"FRED {series_id}")
         return {"series": series_id, "date": day, "value": value}, receipt
 
 
@@ -259,6 +358,7 @@ class NetClient:
             raise ValueError("US Treasury: no 10-year observations")
         observations.sort(key=lambda x: x[0])
         day, value = observations[-1]
+        self._require_fresh_date(day,14,"US Treasury 10Y")
         return {"series": "US_TREASURY_10Y", "date": day, "value": value}, receipt
 
     def fetch_sec_companyfacts(self, symbol: str, cik: int):
@@ -276,4 +376,5 @@ class NetClient:
         if not annual: raise ValueError("SEC annual EPS missing")
         annual.sort(key=lambda x:(str(x.get("fy")),str(x.get("filed",""))))
         row=annual[-1]
+        self._require_fresh_date(str(row.get("filed") or ""),550,f"SEC {symbol} 10-K")
         return {"symbol":symbol,"cik":int(cik),"fiscal_year":row.get("fy"),"annual_diluted_eps":float(row["val"]),"filed":row.get("filed"),"form":row.get("form")},receipt
