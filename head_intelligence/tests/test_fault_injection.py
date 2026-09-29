@@ -9,10 +9,11 @@ from head_intelligence.storage import AtomicStorage
 
 
 class FakeResponse:
-    def __init__(self, status_code=200, content=b"<rss><channel><item><title>A</title></item></channel></rss>", content_type="application/rss+xml"):
+    def __init__(self, status_code=200, content=b"<rss><channel><item><title>A</title></item></channel></rss>", content_type="application/rss+xml", url=None):
         self.status_code = status_code
         self.content = content
         self.headers = {"Content-Type": content_type}
+        self.url = url
 
     def raise_for_status(self):
         if self.status_code >= 400:
@@ -87,3 +88,41 @@ def test_corrupted_snapshot_health_fails(tmp_path: Path):
     health = engine.health_check()
     assert health["status"] == "FAIL"
     assert health["checks"]["snapshot_readable"] is False
+
+
+def test_primary_403_uses_ordered_official_fallback():
+    session = FakeSession([
+        FakeResponse(403, url="https://example.test/primary"),
+        FakeResponse(200, url="https://example.test/fallback"),
+    ])
+    client = NetClient(
+        policy=NetworkPolicy(max_attempts=1),
+        session=session,
+        sleeper=lambda _: None,
+        random_fn=lambda: 0.0,
+    )
+    source = Source(
+        id="fallback",
+        name="Fallback",
+        url="https://example.test/primary",
+        fallback_urls=("https://example.test/fallback",),
+    )
+    doc = client.fetch(source)
+    assert doc.http_status == 200
+    assert doc.final_url == "https://example.test/fallback"
+    assert session.calls == 2
+    assert any(x["outcome"] == "FINAL_EXCEPTION" for x in doc.attempts)
+    assert doc.attempts[-1]["outcome"] == "HTTP_RESPONSE"
+
+
+def test_https_downgrade_fails_closed():
+    session = FakeSession([FakeResponse(200, url="http://example.test/insecure")])
+    client = NetClient(
+        policy=NetworkPolicy(max_attempts=1),
+        session=session,
+        sleeper=lambda _: None,
+        random_fn=lambda: 0.0,
+    )
+    source = Source(id="redirect", name="Redirect", url="https://example.test/feed")
+    with pytest.raises(ValueError):
+        client.fetch(source)
