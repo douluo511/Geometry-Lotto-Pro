@@ -78,7 +78,7 @@ jobs:
           @'
           import requests, sys
           sys.stdout.reconfigure(encoding="utf-8")
-          full = "https://appsh.swlc.net.cn/shfcoc_datachart/js/v2.0/datachart/zdy.js"
+          full = "https://appsh.swlc.net.cn/shfcoc_datachart/js/v2.0/datachart/ssq/jbzs/clg.js"
           try:
               r = requests.get(full, timeout=(5,10), headers={"User-Agent":"Mozilla/5.0 SSQ-Probe/1.0","Referer":"https://appsh.swlc.net.cn/shfcoc_datachart/datachart/ssq/jbzs/clg.html"})
               print("SH_JS_HTTP", r.status_code, r.headers.get("Content-Type"), len(r.content))
