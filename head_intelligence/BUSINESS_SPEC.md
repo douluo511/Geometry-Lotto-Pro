@@ -1,4 +1,4 @@
-# Head Intelligence — Business Content Specification v0.3.0
+# Head Intelligence — Business Content Specification v0.4.0
 
 ## Purpose
 把“看信息”变成可审计的信息判断链：多官方源 → 原始证据 → 去重 → 时效 → 主题 → 交叉来源 → 决策相关性 → 快照。
@@ -14,7 +14,11 @@
 - 高级分析必须暴露 source health 和 snapshot，不只显示结论。
 
 ## Sources
-Federal Reserve Board RSS; U.S. SEC press-release RSS; U.S. Bureau of Labor Statistics RSS; U.S. Bureau of Economic Analysis news-release RSS.
+Federal Reserve Board RSS; U.S. SEC press-release RSS; U.S. Bureau of Labor Statistics Public Data API with official RSS fallbacks; U.S. Bureau of Economic Analysis news-release RSS.
 
 ## Boundary
 系统帮助判断信息的重要性、时效和证据来源，不替用户决定政治立场、投资动作或事实争议结论。
+
+
+## Validation boundary
+Business Validation, Counterexample Validation and Reversal Validation are independent hard gates. A partial source failure must fail closed and preserve the previous known-good snapshot; changing source quality/relevance may change ranking but must never be presented as changing factual truth.
