@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -35,9 +36,13 @@ DEFAULT_SOURCES = [
     ),
     Source(
         id="bls_latest",
-        name="U.S. Bureau of Labor Statistics - Latest Numbers",
-        url="https://www.bls.gov/feed/bls_latest.rss",
-        fallback_urls=("https://www.bls.gov/feed/empsit.rss",),
+        name="U.S. Bureau of Labor Statistics - Labor Market Indicators",
+        url="https://api.bls.gov/publicAPI/v1/timeseries/data/LNS14000000",
+        fallback_urls=(
+            "https://www.bls.gov/feed/bls_latest.rss",
+            "https://www.bls.gov/feed/empsit.rss",
+        ),
+        source_type="bls_api",
         quality=1.0,
     ),
     Source(
@@ -193,27 +198,30 @@ class InformationEngine:
         document = self.net_client.fetch(source)
         self.storage.save_raw(document)
 
-        parsed = feedparser.parse(document.payload)
-        if getattr(parsed, "bozo", False) and not parsed.entries:
-            raise RuntimeError(f"RSS parse failed: {getattr(parsed, 'bozo_exception', 'unknown')}")
+        if source.source_type == "bls_api" and "json" in document.content_type:
+            items = self._parse_bls_api(source, document.payload, document.fetched_at)
+        else:
+            parsed = feedparser.parse(document.payload)
+            if getattr(parsed, "bozo", False) and not parsed.entries:
+                raise RuntimeError(f"RSS parse failed: {getattr(parsed, 'bozo_exception', 'unknown')}")
 
-        items: list[InformationItem] = []
-        for entry in parsed.entries[:limit]:
-            title = self.evidence.clean_text(entry.get("title", ""))
-            link = str(entry.get("link", "")).strip()
-            summary = self.evidence.clean_text(entry.get("summary", entry.get("description", "")))
-            published_at = self._entry_time(entry)
-            if not title:
-                continue
-            items.append(
-                self._make_item(
-                    source=source,
-                    title=title,
-                    link=link,
-                    published_at=published_at,
-                    summary=summary,
+            items: list[InformationItem] = []
+            for entry in parsed.entries[:limit]:
+                title = self.evidence.clean_text(entry.get("title", ""))
+                link = str(entry.get("link", "")).strip()
+                summary = self.evidence.clean_text(entry.get("summary", entry.get("description", "")))
+                published_at = self._entry_time(entry)
+                if not title:
+                    continue
+                items.append(
+                    self._make_item(
+                        source=source,
+                        title=title,
+                        link=link,
+                        published_at=published_at,
+                        summary=summary,
+                    )
                 )
-            )
 
         health = SourceHealth(
             source_id=source.id,
@@ -227,6 +235,45 @@ class InformationEngine:
             attempts=list(document.attempts),
         )
         return items, health
+
+    def _parse_bls_api(self, source: Source, payload: bytes, fetched_at: str) -> list[InformationItem]:
+        try:
+            value = json.loads(payload.decode("utf-8-sig"))
+        except Exception as exc:
+            raise RuntimeError("BLS API returned invalid JSON") from exc
+        if not isinstance(value, dict) or value.get("status") != "REQUEST_SUCCEEDED":
+            raise RuntimeError(f"BLS API status not successful: {value.get('status') if isinstance(value, dict) else 'invalid'}")
+        results = value.get("Results") or {}
+        series = results.get("series") if isinstance(results, dict) else None
+        if not isinstance(series, list) or not series:
+            raise RuntimeError("BLS API returned no series")
+        items: list[InformationItem] = []
+        for row in series:
+            if not isinstance(row, dict):
+                raise RuntimeError("BLS API series row invalid")
+            series_id = str(row.get("seriesID") or "").strip()
+            data = row.get("data")
+            if not series_id or not isinstance(data, list) or not data:
+                raise RuntimeError("BLS API series missing id or data")
+            point = data[0]
+            if not isinstance(point, dict):
+                raise RuntimeError("BLS API latest data point invalid")
+            year = str(point.get("year") or "").strip()
+            period = str(point.get("period") or "").strip()
+            period_name = str(point.get("periodName") or period).strip()
+            raw_value = str(point.get("value") or "").strip()
+            if not year.isdigit() or len(year) != 4 or not period or not raw_value:
+                raise RuntimeError("BLS API latest data point missing required fields")
+            title = f"BLS Unemployment Rate: {raw_value}% ({period_name} {year})"
+            summary = f"Official BLS series {series_id}; latest available value={raw_value}; period={period_name} {year}."
+            items.append(self._make_item(
+                source=source,
+                title=title,
+                link="https://www.bls.gov/cps/",
+                published_at=fetched_at,
+                summary=summary,
+            ))
+        return items
 
     def _make_item(
         self,
