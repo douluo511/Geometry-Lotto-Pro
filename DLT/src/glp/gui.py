@@ -185,11 +185,17 @@ def gui_self_test() -> dict[str, Any]:
         predict=property(lambda self:self._ok("预测下一期")); update=property(lambda self:self._ok("一键更新")); repair=property(lambda self:self._ok("一键修复")); audit=property(lambda self:self._ok("高级分析"))
     app=NativeApp(StubService())
     checks=[]
-    try:
-        expected={BTN_PREDICT:"预测下一期",BTN_UPDATE:"一键更新",BTN_REPAIR:"一键修复",BTN_AUDIT:"高级分析"}
-        for cid,label in expected.items():
-            checks.append({"name":label,"status":"PASS" if cid in app.renderers else "FAIL"})
-        checks.append({"name":"Native Win32 window","status":"PASS" if app.user32.IsWindow(app.hwnd) else "FAIL"})
-    finally:
-        if app.user32.IsWindow(app.hwnd): app.user32.DestroyWindow(app.hwnd)
+    expected={BTN_PREDICT:"预测下一期",BTN_UPDATE:"一键更新",BTN_REPAIR:"一键修复",BTN_AUDIT:"高级分析"}
+    for cid,label in expected.items():
+        checks.append({"name":label,"status":"PASS" if cid in app.renderers else "FAIL"})
+    checks.append({"name":"Native Win32 window","status":"PASS" if app.user32.IsWindow(app.hwnd) else "FAIL"})
+    checks.append({
+        "name":"Four native button HWNDs",
+        "status":"PASS" if len(app.buttons)==4 and all(app.user32.IsWindow(h) for h in app.buttons) else "FAIL",
+    })
+    # Avoid synchronous DestroyWindow before a Win32 message loop has ever run.
+    # The exact EXE previously hung at this point on the Windows runner.
+    # Hiding keeps the probe non-interactive; process teardown owns cleanup.
+    if app.user32.IsWindow(app.hwnd):
+        app.user32.ShowWindow(app.hwnd, 0)
     return {"status":"PASS" if all(c["status"]=="PASS" for c in checks) else "FAIL","checks":checks}
