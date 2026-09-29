@@ -127,6 +127,29 @@ def main() -> int:
     except SourceError as exc:
         record("malformed_row_fail_closed", True, str(exc))
 
+    bad_jiangsu = """
+    <table>
+      <tr><td>2026-09-01</td><td>26100</td><td>01 02 03 04 05 01</td></tr>
+    </table>
+    """
+    try:
+        sources._parse_jiangsu_html(bad_jiangsu)
+        record("jiangsu_malformed_row_fail_closed", False, "bad Jiangsu row was skipped")
+    except SourceError as exc:
+        record("jiangsu_malformed_row_fail_closed", True, str(exc))
+
+    duplicate_jiangsu = """
+    <table>
+      <tr><td>2026-09-01</td><td>26100</td><td>01 02 03 04 05 01 02</td></tr>
+      <tr><td>2026-09-01</td><td>26100</td><td>01 02 03 04 05 01 02</td></tr>
+    </table>
+    """
+    try:
+        sources._parse_jiangsu_html(duplicate_jiangsu)
+        record("jiangsu_duplicate_issue_fail_closed", False, "duplicate Jiangsu issue accepted")
+    except SourceError as exc:
+        record("jiangsu_duplicate_issue_fail_closed", True, str(exc))
+
     failures = [name for name, row in checks.items() if row["status"] != "PASS"]
     report = {
         "schema": "dlt-network-contract-gate-v1",
