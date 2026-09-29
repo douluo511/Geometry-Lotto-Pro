@@ -3,13 +3,14 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import traceback
 from pathlib import Path
 
 from glp.constants import APP_NAME, APP_VERSION
-from glp.gui import run_gui, gui_self_test
+from glp.gui import run_gui, NativeApp, BTN_PREDICT, BTN_UPDATE, BTN_REPAIR, BTN_AUDIT
 from glp.service import LottoService, self_test
 from glp.util import sha256_bytes, utc_now
 
@@ -28,6 +29,62 @@ def _exe_sha256() -> str:
     except Exception:
         return ""
 
+
+def _gui_probe_evidence() -> dict:
+    class StubService:
+        def _ok(self, name):
+            return lambda progress=None: {"entry": name}
+        predict = property(lambda self: self._ok("预测下一期"))
+        update = property(lambda self: self._ok("一键更新"))
+        repair = property(lambda self: self._ok("一键修复"))
+        audit = property(lambda self: self._ok("高级分析"))
+
+    app = NativeApp(StubService())
+    checks = []
+    expected = {
+        BTN_PREDICT: "预测下一期",
+        BTN_UPDATE: "一键更新",
+        BTN_REPAIR: "一键修复",
+        BTN_AUDIT: "高级分析",
+    }
+    for cid, label in expected.items():
+        checks.append({"name": label, "status": "PASS" if cid in app.renderers else "FAIL"})
+    checks.append({"name": "Native Win32 window", "status": "PASS" if app.user32.IsWindow(app.hwnd) else "FAIL"})
+    checks.append({
+        "name": "Four native button HWNDs",
+        "status": "PASS" if len(app.buttons) == 4 and all(app.user32.IsWindow(h) for h in app.buttons) else "FAIL",
+    })
+    if app.user32.IsWindow(app.hwnd):
+        app.user32.ShowWindow(app.hwnd, 0)
+    return {"status": "PASS" if all(x["status"] == "PASS" for x in checks) else "FAIL", "checks": checks}
+
+
+def gui_self_test() -> dict:
+    if os.name != "nt":
+        return {"status": "FAIL", "checks": [{"name": "Native Win32 window", "status": "FAIL", "detail": "not Windows"}]}
+    if not getattr(sys, "frozen", False):
+        return _gui_probe_evidence()
+    fd, evidence_path = tempfile.mkstemp(prefix="glp_gui_probe_", suffix=".json")
+    os.close(fd)
+    try:
+        try:
+            cp = subprocess.run([sys.executable, "--gui-probe-child", "--result-file", evidence_path], timeout=30, check=False)
+        except subprocess.TimeoutExpired:
+            return {"status": "FAIL", "checks": [{"name": "Exact EXE GUI probe child", "status": "FAIL", "detail": "timeout"}]}
+        if cp.returncode != 0:
+            return {"status": "FAIL", "checks": [{"name": "Exact EXE GUI probe child", "status": "FAIL", "detail": "exit=" + str(cp.returncode)}]}
+        try:
+            data = json.loads(Path(evidence_path).read_text(encoding="utf-8"))
+        except Exception as exc:
+            return {"status": "FAIL", "checks": [{"name": "Exact EXE GUI probe evidence", "status": "FAIL", "detail": type(exc).__name__ + ":" + str(exc)}]}
+        data.setdefault("checks", []).append({"name": "Exact EXE GUI probe isolation", "status": "PASS"})
+        data["status"] = "PASS" if all(x.get("status") == "PASS" for x in data["checks"]) else "FAIL"
+        return data
+    finally:
+        try:
+            Path(evidence_path).unlink()
+        except OSError:
+            pass
 
 def run_acceptance(result_file: str | None = None) -> int:
     checks: list[dict] = []
@@ -153,10 +210,15 @@ def main() -> int:
     parser = argparse.ArgumentParser(prog="GeometryLottoPro")
     parser.add_argument("--self-test", action="store_true")
     parser.add_argument("--gui-self-test", action="store_true")
+    parser.add_argument("--gui-probe-child", action="store_true")
     parser.add_argument("--acceptance", action="store_true")
     parser.add_argument("--result-file")
     args = parser.parse_args()
 
+    if args.gui_probe_child:
+        value = _gui_probe_evidence()
+        _write_json(args.result_file, value)
+        os._exit(0 if value.get("status") == "PASS" else 2)
     if args.self_test:
         value = self_test()
         _write_json(args.result_file, value)
