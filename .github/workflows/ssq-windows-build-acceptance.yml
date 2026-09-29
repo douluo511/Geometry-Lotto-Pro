@@ -72,6 +72,29 @@ jobs:
             if ($LASTEXITCODE -ne 0 -or $r.status -ne 'PASS') { throw "fault injection failed: $check" }
           }
 
+      - name: Temporary Shanghai official datacenter contract probe
+        shell: pwsh
+        run: |
+          @'
+          import re, requests
+          url = "https://appsh.swlc.net.cn/shfcoc_datachart/datachart/ssq/jbzs/clg.html"
+          r = requests.get(url, timeout=(20,30), headers={"User-Agent":"Mozilla/5.0 SSQ-Probe/1.0"})
+          print("SH_PROBE_HTTP", r.status_code, r.headers.get("Content-Type"), "bytes", len(r.content))
+          r.raise_for_status()
+          text = r.text
+          print("SH_PROBE_FORMS")
+          for i, form in enumerate(re.findall(r"<form\\b[^>]*>.*?</form>", text, re.I|re.S)[:10]):
+              print("FORM", i, re.sub(r"\\s+", " ", form)[:16000])
+          print("SH_PROBE_INPUTS")
+          for tag in re.findall(r"<(?:input|select|option|button)\\b[^>]*>", text, re.I):
+              if re.search(r"(name|id|value|onclick)", tag, re.I):
+                  print(re.sub(r"\\s+", " ", tag)[:2000])
+          print("SH_PROBE_SCRIPTS")
+          for src in re.findall(r"<script\\b[^>]*src=[\\\"']([^\\\"']+)", text, re.I):
+              print(src)
+          '@ | Set-Content tools\\_probe_shanghai.py -Encoding utf8
+          python tools\\_probe_shanghai.py
+
       - name: Source live official-network quorum smoke
         shell: pwsh
         run: |
