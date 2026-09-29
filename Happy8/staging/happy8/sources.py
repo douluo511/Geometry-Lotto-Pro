@@ -99,7 +99,7 @@ def parse_jiangsu_latest(text: str) -> Draw:
     return Draw.from_values(issue, date.today().isoformat(), nums)
 
 
-def fetch_shanghai() -> tuple[list[Draw], SourceReceipt]:
+def fetch_shanghai() -> tuple[list[Draw], SourceReceipt, bytes]:
     response = NET.get(SHANGHAI_URL, headers=HEADERS, timeout=(10, 30), allow_redirects=True)
     raw = _validate_html_response(response)
     response.encoding = response.encoding or "utf-8"
@@ -115,10 +115,10 @@ def fetch_shanghai() -> tuple[list[Draw], SourceReceipt]:
         latest_issue=draws[-1].issue,
         status="PASS",
     )
-    return draws, receipt
+    return draws, receipt, raw
 
 
-def fetch_jiangsu_latest() -> tuple[Draw, SourceReceipt]:
+def fetch_jiangsu_latest() -> tuple[Draw, SourceReceipt, bytes]:
     response = NET.get(JIANGSU_URL, headers=HEADERS, timeout=(10, 30), allow_redirects=True)
     raw = _validate_html_response(response)
     response.encoding = response.encoding or "utf-8"
@@ -134,12 +134,12 @@ def fetch_jiangsu_latest() -> tuple[Draw, SourceReceipt]:
         latest_issue=draw.issue,
         status="PASS",
     )
-    return draw, receipt
+    return draw, receipt, raw
 
 
-def real_network_snapshot() -> dict[str, Any]:
-    shanghai, shanghai_receipt = fetch_shanghai()
-    jiangsu, jiangsu_receipt = fetch_jiangsu_latest()
+def build_official_snapshot() -> tuple[dict[str, Any], dict[str, bytes]]:
+    shanghai, shanghai_receipt, shanghai_raw = fetch_shanghai()
+    jiangsu, jiangsu_receipt, jiangsu_raw = fetch_jiangsu_latest()
     latest = shanghai[-1]
     if jiangsu.issue != latest.issue:
         raise RuntimeError(
@@ -151,13 +151,29 @@ def real_network_snapshot() -> dict[str, Any]:
     age = (date.today() - datetime.strptime(latest.draw_date, "%Y-%m-%d").date()).days
     if age < 0 or age > 7:
         raise RuntimeError(f"official Happy8 latest draw is stale/future: age_days={age}")
-    return {
-        "schema": "happy8-staging-official-network-v1",
+    import json
+    payload = [d.to_dict() for d in shanghai]
+    canonical_hash = hashlib.sha256(
+        json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    report = {
+        "schema": "happy8-staging-official-network-v2",
         "status": "PASS",
         "latest": latest.to_dict(),
         "history_count": len(shanghai),
+        "draws": payload,
+        "canonical_hash": canonical_hash,
         "crosscheck_count": 1,
         "crosscheck_status": "PASS",
         "source_receipts": [shanghai_receipt.to_dict(), jiangsu_receipt.to_dict()],
         "note": "staging network gate only; portfolio Final still requires independent repository and full history/science/Windows gates",
     }
+    return report, {
+        "shanghai_welfare_lottery.html": shanghai_raw,
+        "jiangsu_welfare_lottery.html": jiangsu_raw,
+    }
+
+
+def real_network_snapshot() -> dict[str, Any]:
+    report, _ = build_official_snapshot()
+    return report
