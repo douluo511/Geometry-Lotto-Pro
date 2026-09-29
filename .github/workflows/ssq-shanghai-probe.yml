@@ -13,23 +13,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Inspect Shanghai official SSQ custom-query contract
+      - name: Inspect Shanghai official SSQ page internals
         shell: python
         run: |
-          import re, urllib.request
+          import urllib.request
           url="https://appsh.swlc.net.cn/shfcoc_datachart/datachart/ssq/jbzs/clg.html"
           req=urllib.request.Request(url,headers={"User-Agent":"Mozilla/5.0 SSQ-Probe/1.0"})
           with urllib.request.urlopen(req,timeout=12) as r:
               raw=r.read()
               print("APP_SH_HTTP",r.status,r.headers.get("Content-Type"),"bytes",len(raw))
           text=raw.decode("utf-8","replace")
-          print("FORMS")
-          for form in re.findall(r"<form\\b[^>]*>.*?</form>",text,flags=re.I|re.S):
-              print(re.sub(r"\\s+"," ",form)[:20000])
-          print("INPUTS")
-          for tag in re.findall(r"<(?:input|select|option|button)\\b[^>]*>",text,flags=re.I):
-              if re.search(r"(name|id|value|onclick|action)",tag,flags=re.I):
-                  print(re.sub(r"\\s+"," ",tag)[:2500])
-          print("SCRIPTS")
-          for src in re.findall(r"""<script\\b[^>]*src=["']([^"']+)""",text,flags=re.I):
-              print(src)
+          print("HTML_BEGIN")
+          print(text)
+          print("HTML_END")
