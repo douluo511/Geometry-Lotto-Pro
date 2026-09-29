@@ -8,7 +8,7 @@ MARKERS={
  "integration_test":"integration_tests.pass","fault_injection":"fault_injection.pass",
  "real_network":"real_network.pass","business_validation":"business_validation.pass",
  "counterexample_validation":"counterexample_validation.pass","reversal_validation":"reversal_validation.pass",
- "windows_build":"windows_build.pass","exact_exe":"exact_exe_self_test.pass",
+ "windows_build":"windows_build.pass","exact_exe":"exact_exe_self_test.pass","exact_exe_network":"exact_exe_network.pass",
  "gui_smoke":"gui_smoke.pass","physical_gui_click":"physical_gui_click.pass","same_hash":"same_hash.pass",
 }
 def sha256(p:Path)->str:
