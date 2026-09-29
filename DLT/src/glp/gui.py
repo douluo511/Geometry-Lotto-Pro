@@ -74,9 +74,62 @@ class NativeApp:
         # Win64 handle-returning APIs must use pointer-sized restypes. Without this,
         # ctypes defaults to c_int and can truncate HWND/HINSTANCE/HFONT values.
         self.kernel32.GetModuleHandleW.restype = ctypes.c_void_p
+        self.kernel32.GetModuleHandleW.argtypes = [wintypes.LPCWSTR]
+
+        # Bind pointer-bearing Win32 APIs explicitly.  Without argtypes ctypes
+        # defaults Python integers to C int for untyped calls; on Win64 that can
+        # truncate HWND/HFONT/HINSTANCE values when child controls are created.
         self.user32.CreateWindowExW.restype = ctypes.c_void_p
+        self.user32.CreateWindowExW.argtypes = [
+            wintypes.DWORD, wintypes.LPCWSTR, wintypes.LPCWSTR, wintypes.DWORD,
+            ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int,
+            ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p,
+        ]
         self.user32.LoadCursorW.restype = ctypes.c_void_p
+        self.user32.LoadCursorW.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
         self.user32.DefWindowProcW.restype = ctypes.c_ssize_t
+        self.user32.DefWindowProcW.argtypes = [
+            ctypes.c_void_p, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM,
+        ]
+        self.user32.SendMessageW.restype = ctypes.c_ssize_t
+        self.user32.SendMessageW.argtypes = [
+            ctypes.c_void_p, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM,
+        ]
+        self.user32.SetWindowTextW.argtypes = [ctypes.c_void_p, wintypes.LPCWSTR]
+        self.user32.SetWindowTextW.restype = wintypes.BOOL
+        self.user32.EnableWindow.argtypes = [ctypes.c_void_p, wintypes.BOOL]
+        self.user32.EnableWindow.restype = wintypes.BOOL
+        self.user32.ShowWindow.argtypes = [ctypes.c_void_p, ctypes.c_int]
+        self.user32.ShowWindow.restype = wintypes.BOOL
+        self.user32.UpdateWindow.argtypes = [ctypes.c_void_p]
+        self.user32.UpdateWindow.restype = wintypes.BOOL
+        self.user32.IsWindow.argtypes = [ctypes.c_void_p]
+        self.user32.IsWindow.restype = wintypes.BOOL
+        self.user32.DestroyWindow.argtypes = [ctypes.c_void_p]
+        self.user32.DestroyWindow.restype = wintypes.BOOL
+        self.user32.PostMessageW.argtypes = [
+            ctypes.c_void_p, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM,
+        ]
+        self.user32.PostMessageW.restype = wintypes.BOOL
+        self.user32.SetTimer.argtypes = [
+            ctypes.c_void_p, ctypes.c_size_t, wintypes.UINT, ctypes.c_void_p,
+        ]
+        self.user32.SetTimer.restype = ctypes.c_size_t
+        self.user32.KillTimer.argtypes = [ctypes.c_void_p, ctypes.c_size_t]
+        self.user32.KillTimer.restype = wintypes.BOOL
+        self.user32.GetMessageW.argtypes = [
+            ctypes.POINTER(wintypes.MSG), ctypes.c_void_p, wintypes.UINT, wintypes.UINT,
+        ]
+        self.user32.GetMessageW.restype = wintypes.BOOL
+        self.user32.TranslateMessage.argtypes = [ctypes.POINTER(wintypes.MSG)]
+        self.user32.TranslateMessage.restype = wintypes.BOOL
+        self.user32.DispatchMessageW.argtypes = [ctypes.POINTER(wintypes.MSG)]
+        self.user32.DispatchMessageW.restype = ctypes.c_ssize_t
+        self.user32.PeekMessageW.argtypes = [
+            ctypes.POINTER(wintypes.MSG), ctypes.c_void_p, wintypes.UINT, wintypes.UINT, wintypes.UINT,
+        ]
+        self.user32.PeekMessageW.restype = wintypes.BOOL
+
         self.gdi32.CreateFontW.restype = ctypes.c_void_p
         self.service = service or LottoService()
         self.events: queue.Queue = queue.Queue()
@@ -100,7 +153,7 @@ class NativeApp:
         self.hinstance = self.kernel32.GetModuleHandleW(None)
         self.class_name = "GeometryLottoProV2Window"
         self._wndproc_ref = WNDPROC(self._wndproc)
-        wc=WNDCLASSW(); wc.lpfnWndProc=self._wndproc_ref; wc.hInstance=self.hinstance; wc.hCursor=self.user32.LoadCursorW(None, 32512); wc.hbrBackground=6; wc.lpszClassName=self.class_name
+        wc=WNDCLASSW(); wc.lpfnWndProc=self._wndproc_ref; wc.hInstance=self.hinstance; wc.hCursor=self.user32.LoadCursorW(None, self.ctypes.c_void_p(32512)); wc.hbrBackground=6; wc.lpszClassName=self.class_name
         atom=self.user32.RegisterClassW(ctypes.byref(wc))
         if not atom and ctypes.get_last_error() not in (0,1410):
             raise ctypes.WinError()
@@ -185,11 +238,32 @@ def gui_self_test() -> dict[str, Any]:
         predict=property(lambda self:self._ok("预测下一期")); update=property(lambda self:self._ok("一键更新")); repair=property(lambda self:self._ok("一键修复")); audit=property(lambda self:self._ok("高级分析"))
     app=NativeApp(StubService())
     checks=[]
-    try:
-        expected={BTN_PREDICT:"预测下一期",BTN_UPDATE:"一键更新",BTN_REPAIR:"一键修复",BTN_AUDIT:"高级分析"}
-        for cid,label in expected.items():
-            checks.append({"name":label,"status":"PASS" if cid in app.renderers else "FAIL"})
-        checks.append({"name":"Native Win32 window","status":"PASS" if app.user32.IsWindow(app.hwnd) else "FAIL"})
-    finally:
-        if app.user32.IsWindow(app.hwnd): app.user32.DestroyWindow(app.hwnd)
+    expected={BTN_PREDICT:"预测下一期",BTN_UPDATE:"一键更新",BTN_REPAIR:"一键修复",BTN_AUDIT:"高级分析"}
+    for cid,label in expected.items():
+        checks.append({"name":label,"status":"PASS" if cid in app.renderers else "FAIL"})
+    checks.append({"name":"Native Win32 window","status":"PASS" if app.user32.IsWindow(app.hwnd) else "FAIL"})
+    checks.append({
+        "name":"Four native button HWNDs",
+        "status":"PASS" if len(app.buttons)==4 and all(app.user32.IsWindow(h) for h in app.buttons) else "FAIL",
+    })
+    # Close through the real Win32 message path and pump messages for a bounded
+    # interval. Merely hiding the top-level HWND leaves timer/window resources
+    # alive in the packaged EXE and can prevent the GUI probe from terminating.
+    cleanup_ok = True
+    if app.user32.IsWindow(app.hwnd):
+        app.user32.ShowWindow(app.hwnd, 0)
+        app.user32.PostMessageW(app.hwnd, app.WM_CLOSE, 0, 0)
+        msg = app.wintypes.MSG()
+        deadline = time.time() + 5.0
+        PM_REMOVE = 0x0001
+        while app.user32.IsWindow(app.hwnd) and time.time() < deadline:
+            pumped = False
+            while app.user32.PeekMessageW(app.ctypes.byref(msg), None, 0, 0, PM_REMOVE):
+                pumped = True
+                app.user32.TranslateMessage(app.ctypes.byref(msg))
+                app.user32.DispatchMessageW(app.ctypes.byref(msg))
+            if not pumped:
+                time.sleep(0.01)
+        cleanup_ok = not bool(app.user32.IsWindow(app.hwnd))
+    checks.append({"name":"Native Win32 cleanup","status":"PASS" if cleanup_ok else "FAIL"})
     return {"status":"PASS" if all(c["status"]=="PASS" for c in checks) else "FAIL","checks":checks}
