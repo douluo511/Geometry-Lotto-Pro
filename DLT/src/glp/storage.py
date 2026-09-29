@@ -5,11 +5,12 @@ import json
 import shutil
 import os
 import sqlite3
+import tempfile
 from pathlib import Path
 from typing import Any
 
 from .domain import CanonicalDataset, Draw, Prediction
-from .util import app_data_dir, atomic_json, sha256_json, utc_now
+from .util import app_data_dir, atomic_json, atomic_write, sha256_json, utc_now
 
 
 class Store:
@@ -142,15 +143,76 @@ class Store:
             "restored_freezes": restored,
         }
 
+    @staticmethod
+    def _json_bytes(value: Any) -> bytes:
+        return (json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode("utf-8")
+
+    @staticmethod
+    def _stage_bytes(path: Path, data: bytes) -> Path:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        fd, tmp = tempfile.mkstemp(prefix=path.name + ".", suffix=".stage", dir=path.parent)
+        tmp_path = Path(tmp)
+        try:
+            with os.fdopen(fd, "wb") as fh:
+                fh.write(data)
+                fh.flush()
+                os.fsync(fh.fileno())
+            return tmp_path
+        except Exception:
+            tmp_path.unlink(missing_ok=True)
+            raise
+
+    @staticmethod
+    def _commit_replace(staged: Path, target: Path) -> None:
+        os.replace(staged, target)
+
+    @staticmethod
+    def _restore_bytes(path: Path, previous: bytes | None) -> None:
+        if previous is None:
+            path.unlink(missing_ok=True)
+        else:
+            atomic_write(path, previous)
+
     def save_dataset(self, dataset: CanonicalDataset, evidence: dict[str, Any]) -> None:
+        evidence_payload = dict(evidence)
+        commit_id = sha256_json({
+            "canonical_hash": dataset.canonical_hash,
+            "evidence_hash": sha256_json(evidence_payload),
+        })
         payload = {
-            "schema": 2,
+            "schema": 3,
             "game": "DLT",
             "canonical_hash": dataset.canonical_hash,
+            "commit_id": commit_id,
             "draws": [d.to_dict() for d in dataset.draws],
         }
-        atomic_json(self.history_path, payload)
-        atomic_json(self.evidence_path, evidence)
+        evidence_payload["commit_id"] = commit_id
+
+        old_history = self.history_path.read_bytes() if self.history_path.exists() else None
+        old_evidence = self.evidence_path.read_bytes() if self.evidence_path.exists() else None
+        staged_history: Path | None = None
+        staged_evidence: Path | None = None
+        evidence_committed = False
+        try:
+            staged_history = self._stage_bytes(self.history_path, self._json_bytes(payload))
+            staged_evidence = self._stage_bytes(self.evidence_path, self._json_bytes(evidence_payload))
+            self._commit_replace(staged_evidence, self.evidence_path)
+            staged_evidence = None
+            evidence_committed = True
+            self._commit_replace(staged_history, self.history_path)
+            staged_history = None
+        except Exception:
+            if evidence_committed:
+                self._restore_bytes(self.evidence_path, old_evidence)
+            current_history = self.history_path.read_bytes() if self.history_path.exists() else None
+            if current_history != old_history:
+                self._restore_bytes(self.history_path, old_history)
+            raise
+        finally:
+            if staged_history is not None:
+                staged_history.unlink(missing_ok=True)
+            if staged_evidence is not None:
+                staged_evidence.unlink(missing_ok=True)
 
     def load_draws(self) -> tuple[list[Draw], str]:
         if not self.history_path.exists():
@@ -287,6 +349,13 @@ class Store:
             if not self.evidence_path.exists():
                 raise FileNotFoundError("source_evidence.json missing")
             evidence = json.loads(self.evidence_path.read_text(encoding="utf-8"))
+            history_payload = json.loads(self.history_path.read_text(encoding="utf-8"))
+            history_commit = history_payload.get("commit_id")
+            evidence_commit = evidence.get("commit_id")
+            if bool(history_commit) != bool(evidence_commit):
+                raise ValueError("dataset/evidence commit_id presence mismatch")
+            if history_commit and str(history_commit) != str(evidence_commit):
+                raise ValueError("dataset/evidence commit_id mismatch")
             if str(evidence.get("canonical_hash")) != digest:
                 raise ValueError("source evidence canonical_hash mismatch")
             if str(evidence.get("crosscheck_status")) != "PASS":
