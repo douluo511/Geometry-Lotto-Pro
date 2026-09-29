@@ -136,7 +136,9 @@ class App(tk.Tk):
         self.status_var.set("推演完成 · 输出已标记为行动假设，不把经典当圣旨")
 
     def run_update(self):
+        self.title(f"{APP_NAME} v{APP_VERSION} · 一键更新已触发")
         self.status_var.set("正在联网获取知识库清单并做 SHA256 / 结构校验…")
+        self.update_idletasks()
         threading.Thread(target=self._update_worker, daemon=True).start()
 
     def _update_worker(self):
