@@ -450,6 +450,143 @@ def fetch_shanghai_history(record_raw: RawRecorder | None = None) -> tuple[list[
     return draws, receipt, raw
 
 
+
+def _shanghai_full_chunk_specs(start_issue: str) -> list[dict[str, str]]:
+    start = _issue(start_issue)
+    start_year = int(start[:4])
+    start_seq = int(start[-3:])
+    current_year = datetime.now(timezone.utc).year
+    if start_year < 2003 or start_year > current_year:
+        raise SourceError(f"Shanghai full-history start year is invalid: {start}")
+    specs: list[dict[str, str]] = []
+    sequence = 0
+    for year in range(start_year, current_year + 1):
+        for low, high in ((1, 99), (100, 999)):
+            if year == start_year:
+                low = max(low, start_seq)
+            if low > high:
+                continue
+            sequence += 1
+            specs.append({
+                "sequence": str(sequence),
+                "view": "previous",
+                "limit": "100",
+                "start_issue": f"{year}{low:03d}",
+                "end_issue": f"{year}{high:03d}",
+            })
+    return specs
+
+
+def fetch_shanghai_full_history(
+    start_issue: str = SSQ_HISTORY_START_ISSUE,
+    record_raw: RawRecorder | None = None,
+    progress: Callable[[str], None] | None = None,
+) -> tuple[list[Draw], SourceReceipt, list[dict]]:
+    """Fetch complete SSQ history from Shanghai's official HTTPS issue-range form."""
+    specs = _shanghai_full_chunk_specs(start_issue)
+    headers = dict(HEADERS)
+    headers["Referer"] = "https://www.swlc.net.cn/"
+    all_draws: list[Draw] = []
+    manifest: list[dict] = []
+    current_year = datetime.now(timezone.utc).year
+
+    for spec in specs:
+        params = {
+            "view": spec["view"],
+            "limit": spec["limit"],
+            "start_issue": spec["start_issue"],
+            "end_issue": spec["end_issue"],
+        }
+        response = _get_official(
+            "official_shanghai_L1", SHANGHAI_HISTORY_URL, record_raw,
+            params=params, headers=headers,
+        )
+        response.raise_for_status()
+        raw = bytes(response.content)
+        _record_response(
+            record_raw, "official_shanghai_L1", response, raw,
+            SHANGHAI_HISTORY_URL, params,
+        )
+        _response_body(response, "Shanghai full history", json_expected=False, raw=raw)
+
+        actual = urlsplit(str(getattr(response, "url", "") or ""))
+        actual_params = dict(parse_qsl(actual.query, keep_blank_values=True))
+        if actual.scheme.lower() != "https" or actual.hostname != urlsplit(SHANGHAI_HISTORY_URL).hostname:
+            raise SourceError("Shanghai full-history response left the official HTTPS host")
+        if actual_params != params:
+            raise SourceError(
+                f"Shanghai full-history response query differs from request: "
+                f"expected={params!r} actual={actual_params!r}"
+            )
+
+        try:
+            chunk_draws = parse_shanghai_history(raw)
+        except SourceError:
+            year = int(spec["start_issue"][:4])
+            if year != current_year or int(spec["start_issue"][-3:]) < 100:
+                raise
+            markup = _html_markup(raw)
+            if "<tbody" not in markup.lower() or re.search(
+                r"20\d{5}\s+20\d{2}-\d{2}-\d{2}", _text(raw)
+            ):
+                raise
+            chunk_draws = []
+
+        for draw in chunk_draws:
+            if not (spec["start_issue"] <= draw.issue <= spec["end_issue"]):
+                raise SourceError(
+                    f"Shanghai returned issue outside requested range: {draw.issue} "
+                    f"not in {spec['start_issue']}..{spec['end_issue']}"
+                )
+        if int(spec["start_issue"][:4]) < current_year and not chunk_draws:
+            raise SourceError(
+                f"Shanghai historical range is unexpectedly empty: "
+                f"{spec['start_issue']}..{spec['end_issue']}"
+            )
+
+        all_draws.extend(chunk_draws)
+        manifest.append({
+            "sequence": int(spec["sequence"]),
+            "start_issue": spec["start_issue"],
+            "end_issue": spec["end_issue"],
+            "sha256": sha256_bytes(raw),
+            "bytes": len(raw),
+            "url": str(response.url),
+            "draw_count": len(chunk_draws),
+            "first_issue": chunk_draws[0].issue if chunk_draws else None,
+            "last_issue": chunk_draws[-1].issue if chunk_draws else None,
+        })
+        if progress:
+            progress(f"上海福彩全历史：{len(manifest)}/{len(specs)} 分块")
+
+    ordered = _unique_draws(all_draws, "Shanghai full history")
+    if not ordered or ordered[0].issue != _issue(start_issue):
+        raise SourceError(
+            f"Shanghai full history does not start at required issue {start_issue}: "
+            f"{ordered[0].issue if ordered else 'EMPTY'}"
+        )
+    _validate_history(ordered, "Shanghai full history")
+
+    by_year: dict[str, list[int]] = {}
+    for draw in ordered:
+        by_year.setdefault(draw.issue[:4], []).append(int(draw.issue[-3:]))
+    for year, suffixes in by_year.items():
+        first = int(start_issue[-3:]) if year == start_issue[:4] else 1
+        if suffixes != list(range(first, max(suffixes) + 1)):
+            raise SourceError(f"Shanghai full history has issue gaps/duplicates in {year}")
+
+    receipt = SourceReceipt(
+        source="official_shanghai_L1",
+        fetched_at=utc_now(),
+        http_status=200,
+        raw_sha256=sha256_json(manifest),
+        draw_count=len(ordered),
+        latest_issue=ordered[-1].issue,
+        status="PASS",
+        detail=f"上海市福利彩票发行中心 HTTPS 按期号全历史；chunks={len(manifest)}",
+    )
+    return ordered, receipt, manifest
+
 def _hebei_home_snapshot(raw: bytes | str) -> dict:
     # Parse only the draw panel. News headlines contain unrelated prize amounts.
     markup = _html_markup(raw)
@@ -786,12 +923,29 @@ def _build_canonical_impl(
         "source_receipts": [asdict(r) for r in receipts],
         "source_errors": errors,
         "national_raw_manifest": raw_manifest,
+        "shanghai_raw_manifest": shanghai_raw_manifest or None,
         "raw_responses": sorted(raw_responses, key=lambda r: (r["source"], r["url"], r["fetched_at"])),
         "raw_response_status": "PENDING_PERSISTENCE",
         "_raw_response_payloads": raw_payloads,
         "baseline_lineage": baseline_evidence if verification == "TRUSTED_BASELINE_PLUS_SHANGHAI_HEBEI_CONSENSUS" else None,
-        "baseline_canonical_hash": baseline_evidence["canonical_hash"] if verification == "TRUSTED_BASELINE_PLUS_SHANGHAI_HEBEI_CONSENSUS" else None,
-        "baseline_draw_count": len(baseline) if verification == "TRUSTED_BASELINE_PLUS_SHANGHAI_HEBEI_CONSENSUS" else None,
+        "baseline_canonical_hash": (
+            baseline_evidence["canonical_hash"]
+            if verification == "TRUSTED_BASELINE_PLUS_SHANGHAI_HEBEI_CONSENSUS"
+            else sha256_json([d.to_dict() for d in baseline])
+            if verification == "SHANGHAI_FULL_L1_PLUS_HEBEI_CURRENT" and baseline
+            else None
+        ),
+        "baseline_draw_count": (
+            len(baseline)
+            if verification in {
+                "TRUSTED_BASELINE_PLUS_SHANGHAI_HEBEI_CONSENSUS",
+                "SHANGHAI_FULL_L1_PLUS_HEBEI_CURRENT",
+            }
+            else None
+        ),
+        "baseline_overlap_count": (
+            overlap if verification == "SHANGHAI_FULL_L1_PLUS_HEBEI_CURRENT" else None
+        ),
         "canonical_payload_sha256": sha256_bytes(canonical_json(draw_dicts).encode("utf-8")),
     }
     return dataset, evidence
