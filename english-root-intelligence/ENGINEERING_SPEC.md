@@ -1,6 +1,6 @@
 # English Root Intelligence — Frozen Engineering Contract
 
-Version target: 0.2.0
+Version target: 0.4.0
 
 ## Requirement / Purpose Model
 Understand vocabulary and spoken chunks through roots/prefixes/suffixes without inventing etymology. The system must support daily study, one-click update, repair, and analysis.
@@ -21,13 +21,13 @@ UI -> Service -> Engine / Storage / NetClient / Evidence -> Data Source.
 Service functions are the sole production UI boundary; contracts validate root and manifest schemas.
 
 ## Data Source
-HTTPS update manifest plus hashed root dataset. Production network PASS requires actual remote response and matching SHA256.
+Two independently addressable trusted HTTPS manifest paths plus two independently addressable data distribution paths. Production network PASS requires current-run raw responses, matching SHA256, semantic agreement, complete attempt ledgers, and source quorum.
 
 ## NetClient
 Separate connect/read timeout, bounded GET retry, 429/5xx transient handling, backoff+jitter, content/size/hash evidence.
 
 ## Storage
-Staging, fsync, schema validation, backup, atomic replace, post-write verification, rollback/repair.
+Roots, progress and evidence are all staged before mutation; commit is rollback-safe across all three files. Any evidence/progress/data persistence failure leaves production roots/progress unchanged.
 
 ## Engine
 Conservative root analysis; low-confidence unknowns remain unknown rather than fabricated.
