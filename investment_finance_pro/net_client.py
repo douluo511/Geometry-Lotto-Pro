@@ -230,40 +230,93 @@ class NetClient:
                 errors.append(f"{host}={type(exc).__name__}: {exc}")
         raise RuntimeError(" | ".join(errors))
 
-    def fetch_stooq_history(self, symbol: str):
+    @staticmethod
+    def _nasdaq_number(value):
+        if value is None:
+            raise ValueError("missing numeric value")
+        text=str(value).strip().replace("$","").replace(",","")
+        if text in {"","--","N/A","NA"}:
+            raise ValueError("invalid numeric value")
+        return float(text)
+
+    @classmethod
+    def _parse_nasdaq_history(cls, payload: dict, symbol: str):
+        data=payload.get("data") if isinstance(payload,dict) else None
+        rows=None
+        if isinstance(data,dict):
+            trades=data.get("tradesTable")
+            if isinstance(trades,dict):
+                rows=trades.get("rows")
+            if rows is None:
+                rows=data.get("rows")
+        if rows is None and isinstance(payload,dict):
+            rows=payload.get("marketData")
+        if not isinstance(rows,list):
+            raise ValueError(f"{symbol}: Nasdaq history rows missing")
+        out=[]
+        for row in rows:
+            if not isinstance(row,dict):
+                continue
+            try:
+                raw_date=row.get("date") or row.get("Date")
+                if not raw_date:
+                    continue
+                text=str(raw_date).strip().split(" ")[0]
+                if "/" in text:
+                    dt=datetime.strptime(text,"%m/%d/%Y").date()
+                else:
+                    dt=datetime.fromisoformat(text[:10]).date()
+                close=cls._nasdaq_number(row.get("close") if "close" in row else row.get("Close"))
+                open_=cls._nasdaq_number(row.get("open") if "open" in row else row.get("Open"))
+                high=cls._nasdaq_number(row.get("high") if "high" in row else row.get("High"))
+                low=cls._nasdaq_number(row.get("low") if "low" in row else row.get("Low"))
+                volume_raw=row.get("volume") if "volume" in row else row.get("Volume")
+                volume=int(cls._nasdaq_number(volume_raw)) if volume_raw not in (None,"","--") else 0
+                if not all(math.isfinite(x) and x>0 for x in (open_,high,low,close)):
+                    continue
+                out.append({"date":dt.isoformat(),"open":open_,"high":high,"low":low,"close":close,"volume":volume})
+            except (TypeError,ValueError):
+                continue
+        out.sort(key=lambda x:x["date"])
+        if len(out)<30:
+            raise ValueError(f"{symbol}: Nasdaq history too short ({len(out)})")
+        return out
+
+    def fetch_nasdaq_history(self, symbol: str):
         end=datetime.now(timezone.utc).date()
         start=end-timedelta(days=220)
-        stooq_symbol=symbol.lower()+".us"
-        url="https://stooq.com/q/d/l/?"+urllib.parse.urlencode({
-            "s":stooq_symbol,"d1":start.strftime("%Y%m%d"),"d2":end.strftime("%Y%m%d"),"i":"d"
-        })
-        raw,receipt=self._get_bytes(url,"text/csv,application/csv,text/plain;q=0.9,*/*;q=0.1")
-        rows=[]
-        for row in csv.DictReader(io.StringIO(raw.decode("utf-8-sig",errors="replace"))):
+        assetclass="etf" if symbol.upper() in {"SPY","QQQ"} else "stocks"
+        urls=[
+            "https://api.nasdaq.com/api/quote/"+urllib.parse.quote(symbol.upper(),safe="")+"/historical?"+
+            urllib.parse.urlencode({
+                "assetclass":assetclass,
+                "fromdate":start.isoformat(),
+                "todate":end.isoformat(),
+                "limit":"500",
+            }),
+            "https://charting.nasdaq.com/data/charting/historical?"+
+            urllib.parse.urlencode({
+                "symbol":symbol.upper(),
+                "date":f"{start.isoformat()}~{end.isoformat()}",
+            }),
+        ]
+        errors=[]
+        for url in urls:
             try:
-                close=float(row["Close"])
-                if not math.isfinite(close) or close<=0:
-                    continue
-                rows.append({
-                    "date":row["Date"],
-                    "open":float(row["Open"]),
-                    "high":float(row["High"]),
-                    "low":float(row["Low"]),
-                    "close":close,
-                    "volume":int(float(row["Volume"])) if row.get("Volume") else 0,
-                })
-            except (KeyError,TypeError,ValueError):
-                continue
-        rows.sort(key=lambda x:x["date"])
-        if len(rows)<30:
-            raise ValueError(f"{symbol}: Stooq history too short ({len(rows)})")
-        self._require_fresh_date(rows[-1]["date"],10,f"Stooq {symbol}")
-        return rows,"Stooq",receipt
+                payload,receipt=self._get_json(url)
+                rows=self._parse_nasdaq_history(payload,symbol)
+                self._require_fresh_date(rows[-1]["date"],10,f"Nasdaq {symbol}")
+                receipt=dict(receipt)
+                receipt["source_identity"]="Nasdaq"
+                return rows,"Nasdaq",receipt
+            except Exception as exc:
+                errors.append(f"{url}={type(exc).__name__}: {exc}")
+        raise RuntimeError(" | ".join(errors))
 
     @staticmethod
-    def _crosscheck_market(yahoo_rows, stooq_rows, symbol: str):
+    def _crosscheck_market(yahoo_rows, nasdaq_rows, symbol: str):
         y={r["date"]:float(r["close"]) for r in yahoo_rows}
-        s={r["date"]:float(r["close"]) for r in stooq_rows}
+        s={r["date"]:float(r["close"]) for r in nasdaq_rows}
         common=sorted(set(y)&set(s))
         if len(common)<20:
             raise ValueError(f"{symbol}: independent market overlap too small ({len(common)})")
@@ -271,75 +324,124 @@ class NetClient:
         a=y[day]; b=s[day]
         relative=abs(a-b)/max(abs(a),abs(b),1e-12)
         if relative>0.05:
-            raise ValueError(f"{symbol}: Yahoo/Stooq conflict on {day}: {a} vs {b} rel={relative:.4f}")
+            raise ValueError(f"{symbol}: Yahoo/Nasdaq conflict on {day}: {a} vs {b} rel={relative:.4f}")
         return {"status":"PASS","date":day,"yahoo_close":a,"stooq_close":b,"relative_diff":relative,"overlap":len(common)}
 
     def fetch_market_history(self, symbol: str):
         yahoo_error=None
-        stooq_error=None
+        nasdaq_error=None
         yahoo=None
-        stooq=None
+        nasdaq=None
         try:
             yahoo=self._fetch_yahoo_history(symbol)
         except Exception as exc:
             yahoo_error=f"{type(exc).__name__}: {exc}"
         try:
-            stooq=self.fetch_stooq_history(symbol)
+            nasdaq=self.fetch_nasdaq_history(symbol)
         except Exception as exc:
-            stooq_error=f"{type(exc).__name__}: {exc}"
+            nasdaq_error=f"{type(exc).__name__}: {exc}"
 
-        if yahoo and stooq:
+        if yahoo and nasdaq:
             yrows,yprovider,yreceipt=yahoo
-            srows,sprovider,sreceipt=stooq
-            cross=self._crosscheck_market(yrows,srows,symbol)
+            nrows,nprovider,nreceipt=nasdaq
+            cross=self._crosscheck_market(yrows,nrows,symbol)
             receipt=dict(yreceipt)
             receipt["source_identity"]="YahooChart"
             receipt["crosscheck_status"]="PASS"
             receipt["crosscheck"]=cross
-            receipt["crosscheck_source_identity"]="Stooq"
-            receipt["crosscheck_receipt"]=sreceipt
-            return yrows,yprovider+"+StooqCrosscheck",receipt
+            receipt["crosscheck_source_identity"]="Nasdaq"
+            receipt["crosscheck_receipt"]=nreceipt
+            return yrows,yprovider+"+NasdaqCrosscheck",receipt
         if yahoo:
             rows,provider,receipt=yahoo
             receipt=dict(receipt)
             receipt["source_identity"]="YahooChart"
             receipt["crosscheck_status"]="UNAVAILABLE"
-            receipt["crosscheck_error"]=stooq_error
+            receipt["crosscheck_error"]=nasdaq_error
             return rows,provider+"+SingleSource",receipt
-        if stooq:
-            rows,provider,receipt=stooq
+        if nasdaq:
+            rows,provider,receipt=nasdaq
             receipt=dict(receipt)
-            receipt["source_identity"]="Stooq"
+            receipt["source_identity"]="Nasdaq"
             receipt["crosscheck_status"]="UNAVAILABLE"
             receipt["crosscheck_error"]=yahoo_error
             return rows,provider+"+FallbackSingleSource",receipt
-        raise RuntimeError(f"all independent market sources failed: yahoo={yahoo_error} | stooq={stooq_error}")
+        raise RuntimeError(f"all independent market sources failed: yahoo={yahoo_error} | nasdaq={nasdaq_error}")
 
-    def fetch_fred_series(self, series_id: str):
-        start = (datetime.now(timezone.utc).date() - timedelta(days=550)).isoformat()
-        url = (
-            "https://fred.stlouisfed.org/graph/fredgraph.csv?"
-            + urllib.parse.urlencode({"id": series_id, "cosd": start})
-        )
-        raw, receipt = self._get_bytes(url, "text/csv,application/csv,text/plain;q=0.9,*/*;q=0.1")
-        text = raw.decode("utf-8-sig", errors="replace")
-        values = []
+    @staticmethod
+    def _parse_fred_csv(raw: bytes, series_id: str):
+        text=raw.decode("utf-8-sig",errors="replace")
+        values=[]
         for row in csv.DictReader(io.StringIO(text)):
-            value_key = series_id if series_id in row else next((k for k in row if k not in {"DATE", "observation_date"}), None)
+            value_key=series_id if series_id in row else next((k for k in row if k not in {"DATE","observation_date"}),None)
             if not value_key:
                 continue
             try:
-                value = float(row[value_key])
+                value=float(row[value_key])
                 if math.isfinite(value):
-                    values.append((row.get("DATE") or row.get("observation_date") or "", value))
-            except (TypeError, ValueError):
+                    values.append((row.get("DATE") or row.get("observation_date") or "",value))
+            except (TypeError,ValueError):
                 continue
         if not values:
             raise ValueError(f"FRED {series_id}: no numeric observations")
-        day, value = values[-1]
-        self._require_fresh_date(day,14,f"FRED {series_id}")
-        return {"series": series_id, "date": day, "value": value}, receipt
+        return values
 
+    @staticmethod
+    def _parse_nyfed_effr(payload: dict):
+        rows=payload.get("refRates") if isinstance(payload,dict) else None
+        if not isinstance(rows,list) or not rows:
+            raise ValueError("NY Fed EFFR: refRates missing")
+        candidates=[r for r in rows if isinstance(r,dict) and str(r.get("type","")).upper()=="EFFR"]
+        if not candidates:
+            raise ValueError("NY Fed EFFR: no EFFR rows")
+        candidates.sort(key=lambda r:str(r.get("effectiveDate") or ""))
+        row=candidates[-1]
+        day=str(row.get("effectiveDate") or "")
+        value=float(row.get("percentRate"))
+        if not math.isfinite(value):
+            raise ValueError("NY Fed EFFR: invalid percentRate")
+        return {"series":"DFF","date":day,"value":value,"source":"NY_FED_EFFR"}
+
+    def fetch_fred_series(self, series_id: str):
+        start=(datetime.now(timezone.utc).date()-timedelta(days=550)).isoformat()
+        fred_url=(
+            "https://fred.stlouisfed.org/graph/fredgraph.csv?"
+            + urllib.parse.urlencode({"id":series_id,"cosd":start})
+        )
+        primary_error=None
+        primary_attempts=[]
+        try:
+            raw,receipt=self._get_bytes(fred_url,"text/csv,application/csv,text/plain;q=0.9,*/*;q=0.1")
+            values=self._parse_fred_csv(raw,series_id)
+            day,value=values[-1]
+            self._require_fresh_date(day,14,f"FRED {series_id}")
+            receipt=dict(receipt)
+            receipt["source_identity"]="FRED"
+            return {"series":series_id,"date":day,"value":value},receipt
+        except Exception as exc:
+            primary_error=f"{type(exc).__name__}: {exc}"
+            primary_attempts=list(getattr(exc,"glp_attempts",()) or ())
+            if series_id!="DFF":
+                raise
+
+        ny_url="https://markets.newyorkfed.org/api/rates/unsecured/effr/last/10.json"
+        try:
+            payload,receipt=self._get_json(ny_url)
+            item=self._parse_nyfed_effr(payload)
+            self._require_fresh_date(item["date"],14,"NY Fed EFFR")
+            receipt=dict(receipt)
+            receipt["source_identity"]="NY_FED_EFFR"
+            receipt["fallback_for"]="FRED:DFF"
+            receipt["primary_error"]=primary_error
+            receipt["primary_attempts"]=primary_attempts
+            return {"series":"DFF","date":item["date"],"value":item["value"],"source":"NY_FED_EFFR"},receipt
+        except Exception as fallback_exc:
+            exc=RuntimeError(
+                "DFF primary and official fallback failed: "
+                f"FRED={primary_error} | NYFED={type(fallback_exc).__name__}: {fallback_exc}"
+            )
+            setattr(exc,"glp_attempts",tuple(primary_attempts)+tuple(getattr(fallback_exc,"glp_attempts",()) or ()))
+            raise exc
 
     def fetch_us_treasury_10y(self):
         year = datetime.now(timezone.utc).year
