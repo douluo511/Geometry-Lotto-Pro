@@ -14,6 +14,7 @@ Add-Type -AssemblyName UIAutomationTypes
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type @"
 using System;
+using System.Text;
 using System.Runtime.InteropServices;
 public static class PhysicalGuiClick {
   [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left; public int Top; public int Right; public int Bottom; }
@@ -24,6 +25,36 @@ public static class PhysicalGuiClick {
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
   [DllImport("user32.dll")] public static extern bool SetCursorPos(int X, int Y);
   [DllImport("user32.dll")] public static extern void mouse_event(uint dwFlags, uint dx, uint dy, uint dwData, UIntPtr dwExtraInfo);
+  public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+  [DllImport("user32.dll")] public static extern bool EnumChildWindows(IntPtr hWndParent, EnumWindowsProc lpEnumFunc, IntPtr lParam);
+  [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetWindowTextW(IntPtr hWnd, StringBuilder text, int maxCount);
+  [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetClassNameW(IntPtr hWnd, StringBuilder text, int maxCount);
+  [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hWnd);
+
+  public static bool FindChildButtonCenter(IntPtr parent, string name, out int x, out int y) {
+    int fx = 0, fy = 0;
+    bool found = false;
+    EnumChildWindows(parent, delegate(IntPtr child, IntPtr lp) {
+      var cls = new StringBuilder(128);
+      var txt = new StringBuilder(512);
+      GetClassNameW(child, cls, cls.Capacity);
+      GetWindowTextW(child, txt, txt.Capacity);
+      if (IsWindowVisible(child) &&
+          string.Equals(cls.ToString(), "Button", StringComparison.OrdinalIgnoreCase) &&
+          string.Equals(txt.ToString(), name, StringComparison.Ordinal)) {
+        RECT r;
+        if (GetWindowRect(child, out r) && r.Right > r.Left && r.Bottom > r.Top) {
+          fx = r.Left + (r.Right - r.Left) / 2;
+          fy = r.Top + (r.Bottom - r.Top) / 2;
+          found = true;
+          return false;
+        }
+      }
+      return true;
+    }, IntPtr.Zero);
+    x = fx; y = fy;
+    return found;
+  }
 }
 "@
 $MOUSEEVENTF_LEFTDOWN=0x0002
@@ -83,12 +114,21 @@ function Find-ButtonPoint([IntPtr]$hwnd,[string]$name){
       if($el.Current.ControlType -eq [System.Windows.Automation.ControlType]::Button -and $el.Current.Name -eq $name){
         $r=$el.Current.BoundingRectangle
         if($r.Width -gt 2 -and $r.Height -gt 2){
-          return @{x=[int]($r.Left+$r.Width/2);y=[int]($r.Top+$r.Height/2);name=$name}
+          return @{x=[int]($r.Left+$r.Width/2);y=[int]($r.Top+$r.Height/2);name=$name;locator="UIAutomation"}
         }
       }
     } catch {}
   }
-  throw "Button not found in UI Automation tree: $name"
+
+  # Native Win32 applications do not always expose child BUTTON controls through
+  # the runner's UI Automation provider. Enumerate real child HWNDs by exact
+  # button text, then still perform a foreground cursor + physical mouse_event click.
+  [int]$wx=0
+  [int]$wy=0
+  if([PhysicalGuiClick]::FindChildButtonCenter($hwnd,$name,[ref]$wx,[ref]$wy)){
+    return @{x=$wx;y=$wy;name=$name;locator="Win32ChildHWND"}
+  }
+  throw "Button not found in UI Automation tree or Win32 child HWNDs: $name"
 }
 function Click-ScreenPoint([IntPtr]$hwnd,[int]$x,[int]$y){
   [void][PhysicalGuiClick]::SetForegroundWindow($hwnd)
