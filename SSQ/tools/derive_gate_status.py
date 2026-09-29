@@ -282,7 +282,10 @@ def _reparse_manifest(manifest: dict[str, Any], evidence_dir: Path,
     separate process never calls a fetch function or NetClient.
     """
     sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "SSQ"))
-    from glp.constants import HEBEI_ANNOUNCE_URL, HEBEI_URL, NATIONAL_URL, SHANGHAI_URL
+    from glp.constants import (
+        HEBEI_ANNOUNCE_URL, HEBEI_URL, NATIONAL_URL, SHANGHAI_HISTORY_URL,
+        SHANGHAI_URL, SSQ_HISTORY_START_ISSUE,
+    )
     from glp.sources import PARSER_VERSION
     from glp.storage import Store
 
@@ -341,11 +344,73 @@ def _reparse_manifest(manifest: dict[str, Any], evidence_dir: Path,
     shanghai = receipts["official_shanghai_L1"]
     if shanghai["status"] == "PASS":
         source_records = by_source["official_shanghai_L1"]
-        if len(source_records) != 1 or source_records[0].get("requested_url") != SHANGHAI_URL:
-            raise ValueError("Shanghai successful receipt has no unique official raw page")
-        raw = _successful_raw(source_records[0], evidence_dir, "official_shanghai_L1",
-                              {"text/html", "application/xhtml+xml"}, PARSER_VERSION)
-        parsed["official_shanghai_L1"] = _parse_shanghai_raw(raw)
+        shanghai_manifest = manifest.get("shanghai_raw_manifest")
+        if isinstance(shanghai_manifest, list) and shanghai_manifest:
+            ordered_chunks = sorted(shanghai_manifest, key=lambda row: row["sequence"])
+            if [row.get("sequence") for row in ordered_chunks] != list(range(1, len(ordered_chunks) + 1)):
+                raise ValueError("Shanghai chunk manifest sequence is incomplete")
+            by_range = {
+                (
+                    str(record.get("request_params", {}).get("start_issue")),
+                    str(record.get("request_params", {}).get("end_issue")),
+                ): record
+                for record in source_records
+                if record.get("requested_url") == SHANGHAI_HISTORY_URL
+            }
+            all_draws: list[dict[str, Any]] = []
+            for chunk in ordered_chunks:
+                key = (str(chunk.get("start_issue")), str(chunk.get("end_issue")))
+                record = by_range.get(key)
+                expected_params = {
+                    "view": "previous", "limit": "100",
+                    "start_issue": key[0], "end_issue": key[1],
+                }
+                if record is None or record.get("request_params") != expected_params:
+                    raise ValueError("Shanghai chunk is not linked to its official HTTPS request")
+                actual_query = dict(parse_qsl(urlsplit(record["url"]).query, keep_blank_values=True))
+                if actual_query != expected_params:
+                    raise ValueError("Shanghai chunk response URL differs from requested range")
+                raw = _successful_raw(
+                    record, evidence_dir, "official_shanghai_L1",
+                    {"text/html", "application/xhtml+xml"}, PARSER_VERSION,
+                )
+                if chunk.get("sha256") != record["sha256"] or chunk.get("bytes") != len(raw):
+                    raise ValueError("Shanghai chunk manifest differs from preserved bytes")
+                declared_count = chunk.get("draw_count")
+                if declared_count == 0:
+                    _, html_text = _html_text(raw)
+                    if re.search(r"(?<!\d)20\d{5}\s+20\d{2}-\d{2}-\d{2}", html_text):
+                        raise ValueError("Shanghai chunk declared empty but contains draw rows")
+                    chunk_draws = []
+                else:
+                    chunk_draws = _parse_shanghai_raw(raw)
+                    if len(chunk_draws) != declared_count:
+                        raise ValueError("Shanghai chunk draw count differs from manifest")
+                    if (chunk.get("first_issue") != chunk_draws[0]["issue"]
+                            or chunk.get("last_issue") != chunk_draws[-1]["issue"]):
+                        raise ValueError("Shanghai chunk first/last issue differs from raw reparse")
+                    if any(not key[0] <= draw["issue"] <= key[1] for draw in chunk_draws):
+                        raise ValueError("Shanghai raw row falls outside requested issue range")
+                all_draws.extend(chunk_draws)
+            if len({draw["issue"] for draw in all_draws}) != len(all_draws):
+                raise ValueError("Shanghai full-history chunks repeat an issue")
+            shanghai_full = _ordered_draws(all_draws, "Shanghai full history")
+            if not shanghai_full or shanghai_full[0]["issue"] != SSQ_HISTORY_START_ISSUE:
+                raise ValueError("Shanghai full-history raw set has the wrong frozen start issue")
+            by_year: dict[str, list[int]] = {}
+            for draw in shanghai_full:
+                by_year.setdefault(draw["issue"][:4], []).append(int(draw["issue"][-3:]))
+            for year, suffixes in by_year.items():
+                first = int(SSQ_HISTORY_START_ISSUE[-3:]) if year == SSQ_HISTORY_START_ISSUE[:4] else 1
+                if suffixes != list(range(first, max(suffixes) + 1)):
+                    raise ValueError(f"Shanghai full-history raw set has issue gaps in {year}")
+            parsed["official_shanghai_L1"] = shanghai_full
+        else:
+            if len(source_records) != 1 or source_records[0].get("requested_url") != SHANGHAI_URL:
+                raise ValueError("Shanghai successful receipt has no unique official raw page")
+            raw = _successful_raw(source_records[0], evidence_dir, "official_shanghai_L1",
+                                  {"text/html", "application/xhtml+xml"}, PARSER_VERSION)
+            parsed["official_shanghai_L1"] = _parse_shanghai_raw(raw)
 
     hebei = receipts["official_hebei_L2"]
     if hebei["status"] == "PASS":
@@ -396,36 +461,55 @@ def _reparse_manifest(manifest: dict[str, Any], evidence_dir: Path,
         if baseline and manifest.get("baseline_lineage") is not None:
             raise ValueError("nested baseline lineage is not allowed")
     else:
-        if baseline or verification != "TRUSTED_BASELINE_PLUS_SHANGHAI_HEBEI_CONSENSUS":
-            raise ValueError("CWL failure lacks an allowed provincial fallback mode")
         sh_draws = parsed.get("official_shanghai_L1")
         hb_draws = parsed.get("official_hebei_L2")
-        lineage = manifest.get("baseline_lineage")
-        if sh_draws is None or hb_draws is None or not isinstance(lineage, dict):
-            raise ValueError("provincial fallback lacks two current sources and baseline")
+        if sh_draws is None or hb_draws is None:
+            raise ValueError("CWL failure lacks two current provincial sources")
         if sh_draws[-1] != hb_draws[-1]:
             raise ValueError("Shanghai/Hebei latest draw conflicts")
-        baseline_draws, _ = _reparse_manifest(lineage, evidence_dir, baseline=True)
-        if (_canonical_hash(baseline_draws) != manifest.get("baseline_canonical_hash")
-                or len(baseline_draws) != manifest.get("baseline_draw_count")):
-            raise ValueError("baseline raw reparse differs from declared lineage")
-        by_issue = {draw["issue"]: draw for draw in sh_draws}
-        overlap = [draw for draw in baseline_draws if draw["issue"] in by_issue]
-        if (not overlap or baseline_draws[-1]["issue"] not in by_issue
-                or any(by_issue[draw["issue"]] != draw for draw in overlap)):
-            raise ValueError("baseline/Shanghai raw histories lack consistent overlap")
-        canonical = list(baseline_draws)
-        seen = {draw["issue"] for draw in canonical}
-        last_date = canonical[-1]["draw_date"]
-        for draw in sh_draws:
-            if draw["issue"] in seen:
-                continue
-            if draw["draw_date"] <= last_date:
-                raise ValueError("provincial fallback would regress canonical dates")
-            canonical.append(draw)
-            seen.add(draw["issue"])
-            last_date = draw["draw_date"]
-        crosscheck = len(overlap) + 1
+        if verification == "TRUSTED_BASELINE_PLUS_SHANGHAI_HEBEI_CONSENSUS":
+            if baseline:
+                raise ValueError("nested provincial fallback lineage is not allowed")
+            lineage = manifest.get("baseline_lineage")
+            if not isinstance(lineage, dict):
+                raise ValueError("provincial fallback lacks prior raw baseline lineage")
+            baseline_draws, _ = _reparse_manifest(lineage, evidence_dir, baseline=True)
+            if (_canonical_hash(baseline_draws) != manifest.get("baseline_canonical_hash")
+                    or len(baseline_draws) != manifest.get("baseline_draw_count")):
+                raise ValueError("baseline raw reparse differs from declared lineage")
+            by_issue = {draw["issue"]: draw for draw in sh_draws}
+            overlap = [draw for draw in baseline_draws if draw["issue"] in by_issue]
+            if (not overlap or baseline_draws[-1]["issue"] not in by_issue
+                    or any(by_issue[draw["issue"]] != draw for draw in overlap)):
+                raise ValueError("baseline/Shanghai raw histories lack consistent overlap")
+            canonical = list(baseline_draws)
+            seen = {draw["issue"] for draw in canonical}
+            last_date = canonical[-1]["draw_date"]
+            for draw in sh_draws:
+                if draw["issue"] in seen:
+                    continue
+                if draw["draw_date"] <= last_date:
+                    raise ValueError("provincial fallback would regress canonical dates")
+                canonical.append(draw)
+                seen.add(draw["issue"])
+                last_date = draw["draw_date"]
+            crosscheck = len(overlap) + 1
+        elif verification == "SHANGHAI_FULL_L1_PLUS_HEBEI_CURRENT":
+            if baseline or manifest.get("baseline_lineage") is not None:
+                raise ValueError("Shanghai full-history mode must not inherit raw baseline lineage")
+            count = manifest.get("baseline_draw_count")
+            overlap_count = manifest.get("baseline_overlap_count")
+            baseline_hash = manifest.get("baseline_canonical_hash")
+            if (isinstance(count, bool) or not isinstance(count, int) or not 0 < count <= len(sh_draws)
+                    or overlap_count != count
+                    or not isinstance(baseline_hash, str)
+                    or not re.fullmatch(r"[0-9a-f]{64}", baseline_hash)
+                    or _canonical_hash(sh_draws[:count]) != baseline_hash):
+                raise ValueError("Shanghai full-history mode does not reverify the declared baseline prefix")
+            canonical = list(sh_draws)
+            crosscheck = 1
+        else:
+            raise ValueError("CWL failure lacks an allowed fail-closed verification mode")
 
     canonical = _ordered_draws(canonical, "canonical")
     if (manifest.get("crosscheck_count") != crosscheck
