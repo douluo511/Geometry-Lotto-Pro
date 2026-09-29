@@ -15,8 +15,12 @@ WATCHLIST = ["SPY", "QQQ", "AAPL", "MSFT", "NVDA", "GOOGL", "AMZN"]
 SEC_CIK={"AAPL":320193,"MSFT":789019,"NVDA":1045810,"GOOGL":1652044,"AMZN":1018724}
 VERSION = "0.4.0"
 
-def _compact_receipt(receipt: dict) -> dict:
-    return {k:v for k,v in receipt.items() if k != "body_b64"}
+def _compact_receipt(value):
+    if isinstance(value, list):
+        return [_compact_receipt(x) for x in value]
+    if isinstance(value, dict):
+        return {k:_compact_receipt(v) for k,v in value.items() if k != "body_b64"}
+    return value
 
 class InvestmentService:
     def __init__(self, net=None, storage=None, engine=None, evidence=None):
@@ -39,7 +43,12 @@ class InvestmentService:
             try:
                 rows, provider, receipt = self.net.fetch_market_history(symbol)
                 metrics[symbol] = self.engine.compute_metrics(rows)
-                providers.append({"source": provider + ":" + symbol, "ok": True, "detail": f"{len(rows)} rows"})
+                crosscheck_ok = receipt.get("crosscheck_status") == "PASS"
+                providers.append({
+                    "source": provider + ":" + symbol,
+                    "ok": crosscheck_ok,
+                    "detail": f"{len(rows)} rows; crosscheck={receipt.get('crosscheck_status','UNKNOWN')}",
+                })
                 raw_receipts.append(receipt)
                 receipts.append(_compact_receipt(receipt))
             except Exception as exc:
