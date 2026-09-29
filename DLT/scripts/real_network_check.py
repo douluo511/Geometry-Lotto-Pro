@@ -18,11 +18,11 @@ def main() -> int:
         source_mode = evidence.get("source_mode")
         if source_mode == "national_plus_jiangsu":
             source_evidence_ok = bool(evidence.get("national_raw_manifest")) and bool(evidence.get("jiangsu_raw_evidence"))
-        elif source_mode == "jiangsu_full_plus_guangdong":
+        elif source_mode == "jiangsu_full_plus_gansu":
             source_evidence_ok = (
                 bool(evidence.get("national_failure"))
                 and bool(evidence.get("jiangsu_full_raw_manifest"))
-                and bool(evidence.get("guangdong_raw_manifest"))
+                and bool(evidence.get("gansu_raw_evidence"))
             )
         else:
             source_evidence_ok = False
