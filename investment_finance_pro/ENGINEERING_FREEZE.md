@@ -94,7 +94,7 @@ Source
 Production:
 - fetch_text
 - fetch_yahoo_history
-- fetch_stooq_history
+- fetch_nasdaq_history
 - fetch_market_history
 - fetch_fred_series
 - compute_metrics
@@ -143,9 +143,9 @@ Required keys:
 
 Current MVP:
 - Yahoo Chart (market history, primary)
-- Stooq (market history, fallback)
-- FRED DGS10
-- FRED DFF
+- Nasdaq historical API (independent market cross-check)
+- U.S. Treasury official 10Y
+- FRED DFF primary with New York Fed official EFFR fallback
 
 Source identity must be present in the snapshot evidence.
 
@@ -168,7 +168,7 @@ Current hard requirements:
 - per-attempt ledger
 - raw payload preservation by SHA-256
 - payload hash/content-type/schema/freshness validation
-- independent Yahoo/Stooq market conflict detection and bounded fallback
+- independent Yahoo/Nasdaq market conflict detection and bounded fallback; FRED DFF may fall back only to official New York Fed EFFR with primary-failure evidence preserved
 
 ## 10. Storage
 
