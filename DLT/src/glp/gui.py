@@ -185,11 +185,32 @@ def gui_self_test() -> dict[str, Any]:
         predict=property(lambda self:self._ok("预测下一期")); update=property(lambda self:self._ok("一键更新")); repair=property(lambda self:self._ok("一键修复")); audit=property(lambda self:self._ok("高级分析"))
     app=NativeApp(StubService())
     checks=[]
-    try:
-        expected={BTN_PREDICT:"预测下一期",BTN_UPDATE:"一键更新",BTN_REPAIR:"一键修复",BTN_AUDIT:"高级分析"}
-        for cid,label in expected.items():
-            checks.append({"name":label,"status":"PASS" if cid in app.renderers else "FAIL"})
-        checks.append({"name":"Native Win32 window","status":"PASS" if app.user32.IsWindow(app.hwnd) else "FAIL"})
-    finally:
-        if app.user32.IsWindow(app.hwnd): app.user32.DestroyWindow(app.hwnd)
+    expected={BTN_PREDICT:"预测下一期",BTN_UPDATE:"一键更新",BTN_REPAIR:"一键修复",BTN_AUDIT:"高级分析"}
+    for cid,label in expected.items():
+        checks.append({"name":label,"status":"PASS" if cid in app.renderers else "FAIL"})
+    checks.append({"name":"Native Win32 window","status":"PASS" if app.user32.IsWindow(app.hwnd) else "FAIL"})
+    checks.append({
+        "name":"Four native button HWNDs",
+        "status":"PASS" if len(app.buttons)==4 and all(app.user32.IsWindow(h) for h in app.buttons) else "FAIL",
+    })
+    # Close through the real Win32 message path and pump messages for a bounded
+    # interval. Merely hiding the top-level HWND leaves timer/window resources
+    # alive in the packaged EXE and can prevent the GUI probe from terminating.
+    cleanup_ok = True
+    if app.user32.IsWindow(app.hwnd):
+        app.user32.ShowWindow(app.hwnd, 0)
+        app.user32.PostMessageW(app.hwnd, app.WM_CLOSE, 0, 0)
+        msg = app.wintypes.MSG()
+        deadline = time.time() + 5.0
+        PM_REMOVE = 0x0001
+        while app.user32.IsWindow(app.hwnd) and time.time() < deadline:
+            pumped = False
+            while app.user32.PeekMessageW(app.ctypes.byref(msg), None, 0, 0, PM_REMOVE):
+                pumped = True
+                app.user32.TranslateMessage(app.ctypes.byref(msg))
+                app.user32.DispatchMessageW(app.ctypes.byref(msg))
+            if not pumped:
+                time.sleep(0.01)
+        cleanup_ok = not bool(app.user32.IsWindow(app.hwnd))
+    checks.append({"name":"Native Win32 cleanup","status":"PASS" if cleanup_ok else "FAIL"})
     return {"status":"PASS" if all(c["status"]=="PASS" for c in checks) else "FAIL","checks":checks}
