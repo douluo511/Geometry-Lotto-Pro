@@ -74,9 +74,62 @@ class NativeApp:
         # Win64 handle-returning APIs must use pointer-sized restypes. Without this,
         # ctypes defaults to c_int and can truncate HWND/HINSTANCE/HFONT values.
         self.kernel32.GetModuleHandleW.restype = ctypes.c_void_p
+        self.kernel32.GetModuleHandleW.argtypes = [wintypes.LPCWSTR]
+
+        # Bind pointer-bearing Win32 APIs explicitly.  Without argtypes ctypes
+        # defaults Python integers to C int for untyped calls; on Win64 that can
+        # truncate HWND/HFONT/HINSTANCE values when child controls are created.
         self.user32.CreateWindowExW.restype = ctypes.c_void_p
+        self.user32.CreateWindowExW.argtypes = [
+            wintypes.DWORD, wintypes.LPCWSTR, wintypes.LPCWSTR, wintypes.DWORD,
+            ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int,
+            ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p,
+        ]
         self.user32.LoadCursorW.restype = ctypes.c_void_p
+        self.user32.LoadCursorW.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
         self.user32.DefWindowProcW.restype = ctypes.c_ssize_t
+        self.user32.DefWindowProcW.argtypes = [
+            ctypes.c_void_p, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM,
+        ]
+        self.user32.SendMessageW.restype = ctypes.c_ssize_t
+        self.user32.SendMessageW.argtypes = [
+            ctypes.c_void_p, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM,
+        ]
+        self.user32.SetWindowTextW.argtypes = [ctypes.c_void_p, wintypes.LPCWSTR]
+        self.user32.SetWindowTextW.restype = wintypes.BOOL
+        self.user32.EnableWindow.argtypes = [ctypes.c_void_p, wintypes.BOOL]
+        self.user32.EnableWindow.restype = wintypes.BOOL
+        self.user32.ShowWindow.argtypes = [ctypes.c_void_p, ctypes.c_int]
+        self.user32.ShowWindow.restype = wintypes.BOOL
+        self.user32.UpdateWindow.argtypes = [ctypes.c_void_p]
+        self.user32.UpdateWindow.restype = wintypes.BOOL
+        self.user32.IsWindow.argtypes = [ctypes.c_void_p]
+        self.user32.IsWindow.restype = wintypes.BOOL
+        self.user32.DestroyWindow.argtypes = [ctypes.c_void_p]
+        self.user32.DestroyWindow.restype = wintypes.BOOL
+        self.user32.PostMessageW.argtypes = [
+            ctypes.c_void_p, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM,
+        ]
+        self.user32.PostMessageW.restype = wintypes.BOOL
+        self.user32.SetTimer.argtypes = [
+            ctypes.c_void_p, ctypes.c_size_t, wintypes.UINT, ctypes.c_void_p,
+        ]
+        self.user32.SetTimer.restype = ctypes.c_size_t
+        self.user32.KillTimer.argtypes = [ctypes.c_void_p, ctypes.c_size_t]
+        self.user32.KillTimer.restype = wintypes.BOOL
+        self.user32.GetMessageW.argtypes = [
+            ctypes.POINTER(wintypes.MSG), ctypes.c_void_p, wintypes.UINT, wintypes.UINT,
+        ]
+        self.user32.GetMessageW.restype = wintypes.BOOL
+        self.user32.TranslateMessage.argtypes = [ctypes.POINTER(wintypes.MSG)]
+        self.user32.TranslateMessage.restype = wintypes.BOOL
+        self.user32.DispatchMessageW.argtypes = [ctypes.POINTER(wintypes.MSG)]
+        self.user32.DispatchMessageW.restype = ctypes.c_ssize_t
+        self.user32.PeekMessageW.argtypes = [
+            ctypes.POINTER(wintypes.MSG), ctypes.c_void_p, wintypes.UINT, wintypes.UINT, wintypes.UINT,
+        ]
+        self.user32.PeekMessageW.restype = wintypes.BOOL
+
         self.gdi32.CreateFontW.restype = ctypes.c_void_p
         self.service = service or LottoService()
         self.events: queue.Queue = queue.Queue()
@@ -100,7 +153,7 @@ class NativeApp:
         self.hinstance = self.kernel32.GetModuleHandleW(None)
         self.class_name = "GeometryLottoProV2Window"
         self._wndproc_ref = WNDPROC(self._wndproc)
-        wc=WNDCLASSW(); wc.lpfnWndProc=self._wndproc_ref; wc.hInstance=self.hinstance; wc.hCursor=self.user32.LoadCursorW(None, 32512); wc.hbrBackground=6; wc.lpszClassName=self.class_name
+        wc=WNDCLASSW(); wc.lpfnWndProc=self._wndproc_ref; wc.hInstance=self.hinstance; wc.hCursor=self.user32.LoadCursorW(None, self.ctypes.c_void_p(32512)); wc.hbrBackground=6; wc.lpszClassName=self.class_name
         atom=self.user32.RegisterClassW(ctypes.byref(wc))
         if not atom and ctypes.get_last_error() not in (0,1410):
             raise ctypes.WinError()
