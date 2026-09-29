@@ -32,7 +32,7 @@ class ContractTests(unittest.TestCase):
     def test_service_public_contract(self):
         service = PsychologyService(
             KnowledgeStorage(self.local, self.bundled),
-            NetClient(timeout=0.2, retries=0),
+            NetClient(connect_timeout=0.1, read_timeout=0.2, retries=0),
             "https://example.com/knowledge.json",
         )
         for name in ("analyze_text", "update_knowledge", "repair", "health"):
@@ -45,7 +45,7 @@ class ContractTests(unittest.TestCase):
     def test_risk_boundary_contract(self):
         service = PsychologyService(
             KnowledgeStorage(self.local, self.bundled),
-            NetClient(timeout=0.2, retries=0),
+            NetClient(connect_timeout=0.1, read_timeout=0.2, retries=0),
             "https://example.com/knowledge.json",
         )
         result = service.analyze_text("嗯。")

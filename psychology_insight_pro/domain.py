@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import List
+from typing import Any, List
 
 
 @dataclass(frozen=True)
@@ -47,6 +47,11 @@ class SourceRecord:
     http_status: int
     sha256: str
     bytes_count: int
+    content_type: str = ""
+    source_id: str = ""
+    parser_version: str = "psychology-knowledge-v1"
+    attempts: tuple[dict[str, Any], ...] = ()
+    raw_b64: str = ""
 
 
 @dataclass(frozen=True)
@@ -55,3 +60,5 @@ class UpdateResult:
     message: str
     version: str
     source: SourceRecord | None = None
+    sources: tuple[SourceRecord, ...] = ()
+    network_gate: str = "FAIL"

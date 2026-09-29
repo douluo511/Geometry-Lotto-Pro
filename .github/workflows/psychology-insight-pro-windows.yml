@@ -6,6 +6,10 @@ on:
     paths:
       - 'psychology_insight_pro/**'
       - '.github/workflows/psychology-insight-pro-windows.yml'
+  pull_request:
+    paths:
+      - 'psychology_insight_pro/**'
+      - '.github/workflows/psychology-insight-pro-windows.yml'
   workflow_dispatch:
 
 permissions:
@@ -13,139 +17,139 @@ permissions:
 
 jobs:
   full-release-gate:
-    runs-on: windows-latest
-    timeout-minutes: 25
+    runs-on: windows-2022
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: pwsh
 
     steps:
-      - name: Checkout
+      - name: Checkout exact commit
         uses: actions/checkout@v4
 
-      - name: Setup Python
+      - name: Setup Python x64
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+          architecture: 'x64'
 
-      - name: Install build tools
-        shell: pwsh
+      - name: Install build dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install pyinstaller
+          python -m pip install pyinstaller requests
 
-      - name: Architecture and code completeness
-        shell: pwsh
+      - name: Compile gate
         run: |
           python -m compileall -q psychology_insight_pro
+          if ($LASTEXITCODE -ne 0) { throw "Compile gate failed" }
+
+      - name: Architecture gate
+        run: |
           python psychology_insight_pro/architecture_gate.py
-          if ($LASTEXITCODE -ne 0) { throw "Architecture Gate failed" }
+          if ($LASTEXITCODE -ne 0) { throw "Architecture gate failed" }
 
       - name: Business Content Gate
-        shell: pwsh
         run: |
           python psychology_insight_pro/business_gate.py
           if ($LASTEXITCODE -ne 0) { throw "Business Content Gate failed" }
 
-      - name: Self-Test
-        shell: pwsh
+      - name: Unit Gate
         run: |
-          python psychology_insight_pro/app.py --self-test
-          if ($LASTEXITCODE -ne 0) { throw "Self-Test failed" }
+          python psychology_insight_pro/validation_gate.py --mode unit
+          if ($LASTEXITCODE -ne 0) { throw "Unit Gate failed" }
 
-      - name: Contract Test
-        shell: pwsh
+      - name: Contract Gate
         run: |
-          python psychology_insight_pro/tests/test_contracts.py
-          if ($LASTEXITCODE -ne 0) { throw "Contract Test failed" }
+          python psychology_insight_pro/validation_gate.py --mode contract
+          if ($LASTEXITCODE -ne 0) { throw "Contract Gate failed" }
 
-      - name: Fault Injection
-        shell: pwsh
+      - name: Fault Injection Gate
         run: |
-          python psychology_insight_pro/tests/test_fault_injection.py
-          if ($LASTEXITCODE -ne 0) { throw "Fault Injection failed" }
+          python psychology_insight_pro/validation_gate.py --mode fault
+          if ($LASTEXITCODE -ne 0) { throw "Fault Injection Gate failed" }
 
-      - name: Full Regression
-        shell: pwsh
+      - name: Integration Gate
+        run: |
+          python psychology_insight_pro/validation_gate.py --mode integration
+          if ($LASTEXITCODE -ne 0) { throw "Integration Gate failed" }
+
+      - name: Full regression
         run: |
           python -m unittest discover -s psychology_insight_pro/tests -v
+          if ($LASTEXITCODE -ne 0) { throw "Full regression failed" }
 
-      - name: Real Network
-        shell: pwsh
+      - name: Business Counterexample Reversal Gate
+        run: |
+          python psychology_insight_pro/business_validation_gate.py
+          if ($LASTEXITCODE -ne 0) { throw "Business validation failed" }
+
+      - name: Real Network through production update path
         run: |
           python psychology_insight_pro/real_network_check.py
           if ($LASTEXITCODE -ne 0) { throw "Real Network failed" }
 
-      - name: Windows Build
-        shell: pwsh
+      - name: Native Windows Build
         run: |
           pyinstaller --noconfirm --clean --noupx --onefile --windowed --name Psychology_Insight_Pro --add-data "psychology_insight_pro/knowledge.json;." psychology_insight_pro/app.py
           if (-not (Test-Path ".\dist\Psychology_Insight_Pro.exe")) { throw "EXE missing" }
 
-      - name: Exact EXE Self-Test
-        shell: pwsh
+      - name: Exact Candidate Gate
         run: |
-          $exe = Resolve-Path ".\dist\Psychology_Insight_Pro.exe"
-          $p = Start-Process -FilePath $exe -ArgumentList "--self-test" -Wait -PassThru
-          if ($p.ExitCode -ne 0) { throw "Exact EXE self-test failed: $($p.ExitCode)" }
-
-      - name: GUI Smoke
-        shell: pwsh
-        run: |
-          $exe = Resolve-Path ".\dist\Psychology_Insight_Pro.exe"
-          $p = Start-Process -FilePath $exe -ArgumentList "--gui-smoke" -Wait -PassThru
-          if ($p.ExitCode -ne 0) { throw "GUI smoke failed: $($p.ExitCode)" }
+          python psychology_insight_pro/exact_candidate_gate.py --exe ".\dist\Psychology_Insight_Pro.exe" --output ".\psychology_insight_pro\exact_candidate_gate.json"
+          if ($LASTEXITCODE -ne 0) { throw "Exact Candidate Gate failed" }
 
       - name: Physical GUI Click Smoke
-        shell: pwsh
         run: |
-          .\.github\scripts\physical_gui_click_smoke.ps1 -ExePath ".\dist\Psychology_Insight_Pro.exe" -Points "0.45,0.43;0.90,0.43;0.45,0.79;0.90,0.79" -EvidencePath ".\dist\physical_gui_click.json"
+          .\.github\scripts\physical_gui_click_smoke.ps1 -ExePath ".\dist\Psychology_Insight_Pro.exe" -Points "0.45,0.43;0.90,0.43;0.45,0.79;0.90,0.79" -EvidencePath ".\psychology_insight_pro\physical_gui_click.json"
+          if ($LASTEXITCODE -ne 0) { throw "Physical GUI Click failed" }
+          python psychology_insight_pro/bind_physical_gui.py --exe ".\dist\Psychology_Insight_Pro.exe" --evidence ".\psychology_insight_pro\physical_gui_click.json"
+          if ($LASTEXITCODE -ne 0) { throw "Physical GUI evidence binding failed" }
 
-      - name: Same Hash
-        shell: pwsh
+      - name: Freeze final bytes
         run: |
-          $source = ".\dist\Psychology_Insight_Pro.exe"
-          $pre = (Get-FileHash $source -Algorithm SHA256).Hash.ToLower()
           New-Item -ItemType Directory -Force ".\dist\final" | Out-Null
-          Copy-Item $source ".\dist\final\Psychology_Insight_Pro.exe" -Force
-          $post = (Get-FileHash ".\dist\final\Psychology_Insight_Pro.exe" -Algorithm SHA256).Hash.ToLower()
-          if ($pre -ne $post) { throw "Same Hash failed: $pre != $post" }
-          $pre | Out-File ".\dist\pre.sha256.txt" -Encoding ascii
-          $post | Out-File ".\dist\final.sha256.txt" -Encoding ascii
+          Copy-Item ".\dist\Psychology_Insight_Pro.exe" ".\dist\final\Psychology_Insight_Pro.exe" -Force
 
-      - name: Final Gate
-        shell: pwsh
+      - name: Evidence-derived Final Gate and Same Hash
         run: |
-          @'
-          {"gates":{"purpose_model":"PASS","five_why":"PASS","risk_boundary":"PASS","domain_model":"PASS","architecture":"PASS","function_contract":"PASS","interface_contract":"PASS","data_source":"PASS","netclient":"PASS","storage":"PASS","engine":"PASS","evidence":"PASS","service":"PASS","ui":"PASS","self_test":"PASS","contract_test":"PASS","fault_injection":"PASS","real_network":"PASS","windows_build":"PASS","exact_exe":"PASS","gui_smoke":"PASS","same_hash":"PASS","business_content":"PASS"}}
-          '@ | Out-File ".\dist\gate_input.json" -Encoding utf8
+          python psychology_insight_pro/collect_final_gates.py --exe ".\dist\Psychology_Insight_Pro.exe" --final-exe ".\dist\final\Psychology_Insight_Pro.exe" --physical-gui ".\psychology_insight_pro\physical_gui_click.json" --output ".\dist\mother_gates.json"
+          $collectorExit = $LASTEXITCODE
 
-          python psychology_insight_pro/release_gate.py --input ".\dist\gate_input.json" --output ".\dist\final_gate.json"
-          if ($LASTEXITCODE -ne 0) { throw "Final Gate failed" }
+          python psychology_insight_pro/release_gate.py --input ".\dist\mother_gates.json" --output ".\dist\final_gate.json"
+          $releaseExit = $LASTEXITCODE
 
-          $gate = Get-Content ".\dist\final_gate.json" -Raw | ConvertFrom-Json
-          if ($gate.final_gate -ne "PASS") { throw "Final Gate is not PASS" }
+          $mother = Get-Content ".\dist\mother_gates.json" -Raw | ConvertFrom-Json
+          $final = Get-Content ".\dist\final_gate.json" -Raw | ConvertFrom-Json
+          if ($collectorExit -ne 0 -or $releaseExit -ne 0 -or $mother.status -ne "PASS" -or $final.final_gate -ne "PASS" -or [int]$final.hard_fail_count -ne 0) {
+            throw "Evidence-derived Final Gate failed"
+          }
+          Write-Host "PSYCHOLOGY_FINAL_SHA256=$($final.exe_sha256)"
+          Write-Host "FINAL_RELEASE_GATE=PASS"
 
       - name: Acceptance Evidence
-        shell: pwsh
         run: |
-          $hash = (Get-FileHash ".\dist\final\Psychology_Insight_Pro.exe" -Algorithm SHA256).Hash.ToLower()
-          "artifact=Psychology_Insight_Pro.exe" | Out-File ".\dist\acceptance.txt" -Encoding utf8
-          "app_version=0.3.0" | Out-File ".\dist\acceptance.txt" -Append -Encoding utf8
-          "source_commit=$env:GITHUB_SHA" | Out-File ".\dist\acceptance.txt" -Append -Encoding utf8
-          "self_test=PASS" | Out-File ".\dist\acceptance.txt" -Append -Encoding utf8
-          "contract_test=PASS" | Out-File ".\dist\acceptance.txt" -Append -Encoding utf8
-          "fault_injection=PASS" | Out-File ".\dist\acceptance.txt" -Append -Encoding utf8
-          "real_network=PASS" | Out-File ".\dist\acceptance.txt" -Append -Encoding utf8
-          "windows_build=PASS" | Out-File ".\dist\acceptance.txt" -Append -Encoding utf8
-          "exact_exe=PASS" | Out-File ".\dist\acceptance.txt" -Append -Encoding utf8
-          "gui_smoke=PASS" | Out-File ".\dist\acceptance.txt" -Append -Encoding utf8
-          "same_hash=PASS" | Out-File ".\dist\acceptance.txt" -Append -Encoding utf8
-          "final_gate=PASS" | Out-File ".\dist\acceptance.txt" -Append -Encoding utf8
-          "sha256=$hash" | Out-File ".\dist\acceptance.txt" -Append -Encoding utf8
+          $final = Get-Content ".\dist\final_gate.json" -Raw | ConvertFrom-Json
+          $mother = Get-Content ".\dist\mother_gates.json" -Raw | ConvertFrom-Json
+          @(
+            "artifact=Psychology_Insight_Pro.exe"
+            "app_version=0.4.0"
+            "source_commit=$env:GITHUB_SHA"
+            "final_gate=$($final.final_gate)"
+            "hard_fail_count=$($final.hard_fail_count)"
+            "sha256=$($final.exe_sha256)"
+            "real_network=$($mother.gates.real_network)"
+            "physical_gui=$($mother.gates.gui_smoke)"
+            "same_hash=$($mother.gates.same_hash)"
+            "business_content=$($mother.gates.business_content)"
+            "counterexample_validation=$($mother.gates.counterexample_validation)"
+            "reversal_validation=$($mother.gates.reversal_validation)"
+          ) | Out-File ".\dist\acceptance.txt" -Encoding utf8
           Get-Content ".\dist\acceptance.txt"
 
       - name: Upload Unique Final Product
         uses: actions/upload-artifact@v4
         with:
-          name: Psychology_Insight_Pro_FINAL_v0.3.0
+          name: Psychology_Insight_Pro_FINAL_v0.4.0
           path: dist/final/Psychology_Insight_Pro.exe
           if-no-files-found: error
           retention-days: 30
@@ -154,23 +158,20 @@ jobs:
       - name: Upload Audit Evidence
         uses: actions/upload-artifact@v4
         with:
-          name: Psychology_Insight_Pro_AUDIT_v0.3.0
+          name: Psychology_Insight_Pro_AUDIT_v0.4.0
           path: |
             dist/acceptance.txt
             dist/final_gate.json
-            dist/pre.sha256.txt
-            dist/final.sha256.txt
-            dist/physical_gui_click.json
+            dist/mother_gates.json
+            psychology_insight_pro/architecture_gate.json
             psychology_insight_pro/business_gate.json
+            psychology_insight_pro/unit_gate.json
+            psychology_insight_pro/contract_gate.json
+            psychology_insight_pro/fault_gate.json
+            psychology_insight_pro/integration_gate.json
+            psychology_insight_pro/business_validation_gate.json
+            psychology_insight_pro/real_network_evidence.json
+            psychology_insight_pro/exact_candidate_gate.json
+            psychology_insight_pro/physical_gui_click.json
           if-no-files-found: error
           retention-days: 30
-
-# Hard-gate revalidation trigger: 2026-09-24 master-template
-
-# physical-gui child-process discovery fix: 2026-09-24
-
-# physical-gui UIAutomation + desktop-hash fix: 2026-09-24
-
-# exact Tk geometry probe: 2026-09-24
-
-# psychology repeated-open-button coordinate exception: 2026-09-24

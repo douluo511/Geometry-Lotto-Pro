@@ -11,9 +11,14 @@ from tkinter import messagebox, ttk
 from service import PsychologyService, create_service
 
 APP_NAME = "Psychology Insight Pro"
-APP_VERSION = "0.3.0"
+APP_VERSION = "0.4.0"
 RAW_BASE = "https://raw.githubusercontent.com/douluo511/Geometry-Lotto-Pro/main/psychology_insight_pro"
-KNOWLEDGE_URL = RAW_BASE + "/knowledge.json"
+CDN_BASE = "https://cdn.jsdelivr.net/gh/douluo511/Geometry-Lotto-Pro@main/psychology_insight_pro"
+KNOWLEDGE_URLS = (
+    RAW_BASE + "/knowledge.json",
+    CDN_BASE + "/knowledge.json",
+)
+KNOWLEDGE_URL = KNOWLEDGE_URLS[0]
 
 
 def resource_path(name: str) -> Path:
@@ -32,7 +37,7 @@ def make_service() -> PsychologyService:
     return create_service(
         local_path=app_data_dir() / "knowledge.json",
         bundled_path=resource_path("knowledge.json"),
-        knowledge_url=KNOWLEDGE_URL,
+        knowledge_url=KNOWLEDGE_URLS,
     )
 
 
@@ -170,7 +175,14 @@ class PsychologyApp(tk.Tk):
         def worker():
             try:
                 r = self.service.update_knowledge()
-                proof = f"\nHTTP {r.source.http_status}\nSHA256 {r.source.sha256[:16]}…" if r.source else ""
+                proof = ""
+                if r.source:
+                    proof = (
+                        f"\nNetwork Gate {r.network_gate}"
+                        f"\n一致分发源 {len(r.sources)}"
+                        f"\nHTTP {r.source.http_status}"
+                        f"\nSHA256 {r.source.sha256[:16]}…"
+                    )
                 self.after(0, lambda: self._notify("一键更新", f"{r.message}\n版本：{r.version}{proof}"))
             except Exception as e:
                 self.after(0, lambda: self._notify("一键更新失败", f"当前可用版本保持不变。\n\n{e}", True))
