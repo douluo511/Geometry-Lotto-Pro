@@ -82,6 +82,14 @@ jobs:
             Write-Host "SOURCE_LIVE_STATUS=$($r.status)"
             Write-Host "SOURCE_LIVE_ERROR=$($r.error)"
             Write-Host "SOURCE_LIVE_FAILURE_EVIDENCE=$($r.failed_network_evidence | ConvertTo-Json -Compress -Depth 6)"
+            foreach ($bundle in $r.failed_network_evidence.bundles) {
+              if ($bundle.manifest -notmatch '^failed/[0-9a-f]{24}\.json$') { throw 'unsafe failure manifest path' }
+              $manifest = Get-Content (Join-Path 'evidence\SSQ' $bundle.manifest) -Raw | ConvertFrom-Json
+              Write-Host "SOURCE_LIVE_SOURCE_ERRORS=$($manifest.source_errors | ConvertTo-Json -Compress -Depth 8)"
+              Write-Host "SOURCE_LIVE_RECEIPTS=$($manifest.source_receipts | ConvertTo-Json -Compress -Depth 8)"
+              $rawMeta = $manifest.raw_responses | Select-Object source,http_status,sha256,bytes,fetched_at
+              Write-Host "SOURCE_LIVE_RAW_METADATA=$($rawMeta | ConvertTo-Json -Compress -Depth 8)"
+            }
           }
           if ($LASTEXITCODE -ne 0 -or $r.status -ne 'PASS') { throw "source live official-network quorum failed" }
           if ($r.result.crosscheck_status -ne 'PASS') { throw "source crosscheck_status=$($r.result.crosscheck_status)" }
