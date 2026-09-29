@@ -9,7 +9,7 @@ import traceback
 from pathlib import Path
 
 from glp.constants import APP_NAME, APP_VERSION
-from glp.gui import run_gui
+from glp.gui import gui_self_test, run_gui
 from glp.service import LottoService, self_test
 from glp.util import sha256_bytes, utc_now
 
@@ -155,6 +155,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(prog="GeometryLottoPro")
     parser.add_argument("--self-test", action="store_true")
     parser.add_argument("--acceptance", action="store_true")
+    parser.add_argument("--gui-self-test", action="store_true")
     parser.add_argument("--result-file")
     args = parser.parse_args()
 
@@ -165,6 +166,11 @@ def main() -> int:
         return 0 if value.get("status") == "PASS" else 2
     if args.acceptance:
         return run_acceptance(args.result_file)
+    if args.gui_self_test:
+        value = gui_self_test()
+        _write_json(args.result_file, value)
+        print(json.dumps(value, ensure_ascii=False, indent=2))
+        return 0 if value.get("status") == "PASS" else 2
 
     run_gui()
     return 0
