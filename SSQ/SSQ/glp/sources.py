@@ -1,14 +1,14 @@
 from __future__ import annotations
 
+import base64
 import html as _html
 import json
 import math
 import re
+from datetime import date, datetime, timezone
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict
 from typing import Callable, Iterable
-
-import requests
 
 from glp.net_client import NetClient
 from glp.constants import HEBEI_ANNOUNCE_URL, HEBEI_URL, NATIONAL_URL, SHANGHAI_URL
@@ -28,6 +28,56 @@ HEADERS = {
 }
 TIMEOUT = (20, 30)
 NET = NetClient(connect_timeout=20, read_timeout=30, max_attempts=3)
+MAX_PAYLOAD_BYTES = 8 * 1024 * 1024
+MAX_LATEST_AGE_DAYS = 10
+
+
+def _attempts(response) -> list[dict]:
+    value = getattr(response, "glp_attempts", ())
+    return [dict(x) for x in value] if value else []
+
+
+def _validate_http_payload(response, raw: bytes, *, expected: str) -> dict:
+    status = int(getattr(response, "status_code", 0) or 0)
+    if status < 200 or status >= 300:
+        raise SourceError(f"HTTP status not acceptable: {status}")
+    if not raw:
+        raise SourceError("官方源返回空响应")
+    if len(raw) > MAX_PAYLOAD_BYTES:
+        raise SourceError(f"官方源响应过大: {len(raw)} bytes")
+    content_type = str(getattr(response, "headers", {}).get("Content-Type", "")).lower()
+    if expected == "json":
+        if "json" not in content_type:
+            raise SourceError(f"Content-Type 非 JSON: {content_type or 'missing'}")
+    elif expected == "html":
+        if not any(x in content_type for x in ("text/html", "application/xhtml+xml")):
+            raise SourceError(f"Content-Type 非 HTML: {content_type or 'missing'}")
+    else:
+        raise ValueError(f"unknown expected payload kind: {expected}")
+    return {
+        "http_status": status,
+        "content_type": content_type,
+        "bytes": len(raw),
+        "sha256": sha256_bytes(raw),
+        "attempts": _attempts(response),
+        "body_b64": base64.b64encode(raw).decode("ascii"),
+    }
+
+
+def _validate_freshness(draws: list[Draw], source: str) -> dict:
+    if not draws:
+        raise SourceError(f"{source} 无可验证开奖记录")
+    try:
+        latest = datetime.strptime(draws[-1].draw_date, "%Y-%m-%d").date()
+    except Exception as exc:
+        raise SourceError(f"{source} 最新开奖日期非法") from exc
+    today = datetime.now(timezone.utc).date()
+    age = (today - latest).days
+    if age < -1:
+        raise SourceError(f"{source} 最新开奖日期位于未来: {draws[-1].draw_date}")
+    if age > MAX_LATEST_AGE_DAYS:
+        raise SourceError(f"{source} 数据过旧: latest={draws[-1].draw_date} age_days={age}")
+    return {"latest_date": draws[-1].draw_date, "age_days": age, "max_age_days": MAX_LATEST_AGE_DAYS}
 
 
 def _issue(value: object) -> str:
@@ -144,10 +194,10 @@ def _national_params(page_no: int, page_size: int = 100) -> dict[str, str]:
     }
 
 
-def fetch_national_page(page_no: int) -> tuple[list[Draw], bytes, int]:
+def fetch_national_page(page_no: int) -> tuple[list[Draw], bytes, int, dict]:
     response = NET.get(NATIONAL_URL, params=_national_params(page_no), headers=HEADERS, timeout=TIMEOUT)
-    response.raise_for_status()
     raw = bytes(response.content)
+    meta = _validate_http_payload(response, raw, expected="json")
     try:
         payload = response.json()
     except Exception:
@@ -183,13 +233,13 @@ def fetch_national_page(page_no: int) -> tuple[list[Draw], bytes, int]:
         pages = max(1, int(page_num))
     except Exception as exc:
         raise SourceError("中国福彩网页数无效") from exc
-    return draws, raw, pages
+    return draws, raw, pages, meta
 
 
 def fetch_national_history(progress: Callable[[str], None] | None = None) -> tuple[list[Draw], SourceReceipt, list[dict]]:
-    first, raw_first, pages = fetch_national_page(1)
+    first, raw_first, pages, first_meta = fetch_national_page(1)
     page_draws: dict[int, list[Draw]] = {1: first}
-    raw_manifest = [{"page": 1, "sha256": sha256_bytes(raw_first), "bytes": len(raw_first)}]
+    raw_manifest = [{"page": 1, **first_meta}]
     if progress:
         progress(f"中国福彩网主源：1/{pages} 页")
     if pages > 1:
@@ -198,11 +248,11 @@ def fetch_national_history(progress: Callable[[str], None] | None = None) -> tup
             futures = {pool.submit(fetch_national_page, p): p for p in range(2, pages + 1)}
             for future in as_completed(futures):
                 p = futures[future]
-                draws, raw, reported_pages = future.result()
+                draws, raw, reported_pages, meta = future.result()
                 if reported_pages != pages:
                     raise SourceError("中国福彩网分页数量在请求期间发生变化")
                 page_draws[p] = draws
-                raw_manifest.append({"page": p, "sha256": sha256_bytes(raw), "bytes": len(raw)})
+                raw_manifest.append({"page": p, **meta})
                 if progress:
                     progress(f"中国福彩网主源：{len(page_draws)}/{pages} 页")
     unique: dict[str, Draw] = {}
@@ -215,6 +265,7 @@ def fetch_national_history(progress: Callable[[str], None] | None = None) -> tup
     ordered = sorted(unique.values(), key=lambda d: (d.draw_date, d.issue))
     if any(ordered[i].draw_date >= ordered[i + 1].draw_date for i in range(len(ordered) - 1)):
         raise SourceError("中国福彩网主源日期顺序异常")
+    freshness = _validate_freshness(ordered, "中国福彩网主源")
     receipt = SourceReceipt(
         source="official_cwl_L0",
         fetched_at=utc_now(),
@@ -223,7 +274,7 @@ def fetch_national_history(progress: Callable[[str], None] | None = None) -> tup
         draw_count=len(ordered),
         latest_issue=ordered[-1].issue,
         status="PASS",
-        detail=f"中国福利彩票发行管理中心 API；pages={pages}",
+        detail=f"中国福利彩票发行管理中心 API；pages={pages}；freshness_days={freshness['age_days']}",
     )
     return ordered, receipt, sorted(raw_manifest, key=lambda x: x["page"])
 
@@ -269,14 +320,15 @@ def fetch_shanghai_history() -> tuple[list[Draw], SourceReceipt, bytes]:
     headers = dict(HEADERS)
     headers["Referer"] = "https://www.swlc.net.cn/"
     response = NET.get(SHANGHAI_URL, headers=headers, timeout=TIMEOUT)
-    response.raise_for_status()
     raw = bytes(response.content)
+    raw_meta = _validate_http_payload(response, raw, expected="html")
     draws = parse_shanghai_history(raw)
+    freshness = _validate_freshness(draws, "上海福彩")
     receipt = _response_receipt(
         "official_shanghai_L1", response, raw, len(draws), draws[-1].issue,
-        "上海市福利彩票发行中心 双色球往期开奖专页",
+        f"上海市福利彩票发行中心 双色球往期开奖专页；freshness_days={freshness['age_days']}",
     )
-    return draws, receipt, raw
+    return draws, receipt, {"raw": raw, "meta": raw_meta}
 
 
 def _hebei_home_snapshot(raw: bytes | str) -> dict:
@@ -346,11 +398,11 @@ def fetch_hebei_latest() -> tuple[Draw, SourceReceipt, dict]:
     headers = dict(HEADERS)
     headers["Referer"] = "https://www.yzfcw.com/"
     home_response = NET.get(HEBEI_URL, headers=headers, timeout=TIMEOUT)
-    home_response.raise_for_status()
     announce_response = NET.get(HEBEI_ANNOUNCE_URL, headers=headers, timeout=TIMEOUT)
-    announce_response.raise_for_status()
     home_raw = bytes(home_response.content)
     announce_raw = bytes(announce_response.content)
+    home_meta = _validate_http_payload(home_response, home_raw, expected="html")
+    announce_meta = _validate_http_payload(announce_response, announce_raw, expected="html")
     draw = parse_hebei_latest(home_raw, announce_raw)
     receipt = SourceReceipt(
         source="official_hebei_L2",
@@ -365,7 +417,11 @@ def fetch_hebei_latest() -> tuple[Draw, SourceReceipt, dict]:
         status="PASS",
         detail="河北省福利彩票发行管理中心：首页期号/号码 + 双色球开奖公告日期/号码，双页面内部共识",
     )
-    return draw, receipt, {"home": home_raw, "announce": announce_raw}
+    _validate_freshness([draw], "河北福彩")
+    return draw, receipt, {
+        "home": {"raw": home_raw, "meta": home_meta},
+        "announce": {"raw": announce_raw, "meta": announce_meta},
+    }
 
 
 def _overlap_verify(a: Iterable[Draw], b: Iterable[Draw], label: str) -> int:
@@ -409,6 +465,8 @@ def build_canonical(
     shanghai_draws: list[Draw] | None = None
     hebei_draw: Draw | None = None
     raw_manifest: list[dict] = []
+    shanghai_raw: dict | None = None
+    hebei_raw: dict | None = None
 
     if progress:
         progress("真实官方网络：连接中国福彩网主源…")
@@ -422,7 +480,7 @@ def build_canonical(
     if progress:
         progress("真实官方网络：连接上海福彩双色球专页…")
     try:
-        shanghai_draws, receipt, _ = fetch_shanghai_history()
+        shanghai_draws, receipt, shanghai_raw = fetch_shanghai_history()
         receipts.append(receipt)
     except Exception as exc:
         errors["shanghai"] = f"{type(exc).__name__}: {exc}"
@@ -431,7 +489,7 @@ def build_canonical(
     if progress:
         progress("真实官方网络：连接河北福彩双色球专页…")
     try:
-        hebei_draw, receipt, _ = fetch_hebei_latest()
+        hebei_draw, receipt, hebei_raw = fetch_hebei_latest()
         receipts.append(receipt)
     except Exception as exc:
         errors["hebei"] = f"{type(exc).__name__}: {exc}"
@@ -507,6 +565,21 @@ def build_canonical(
         "source_receipts": [asdict(r) for r in receipts],
         "source_errors": errors,
         "national_raw_manifest": raw_manifest,
+        "shanghai_raw_evidence": (
+            {
+                "meta": shanghai_raw["meta"],
+                "body_b64": base64.b64encode(shanghai_raw["raw"]).decode("ascii"),
+            } if shanghai_raw else None
+        ),
+        "hebei_raw_evidence": (
+            {
+                key: {
+                    "meta": value["meta"],
+                    "body_b64": base64.b64encode(value["raw"]).decode("ascii"),
+                }
+                for key, value in hebei_raw.items()
+            } if hebei_raw else None
+        ),
         "canonical_payload_sha256": sha256_bytes(canonical_json(draw_dicts).encode("utf-8")),
     }
     return dataset, evidence
