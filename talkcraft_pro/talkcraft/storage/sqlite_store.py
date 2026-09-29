@@ -1,10 +1,21 @@
 import sqlite3, json, time
+from contextlib import contextmanager
 from pathlib import Path
 
 class Store:
     def __init__(self,path):
         self.path=Path(path); self.path.parent.mkdir(parents=True,exist_ok=True); self._init()
-    def _conn(self): return sqlite3.connect(self.path)
+    @contextmanager
+    def _conn(self):
+        conn=sqlite3.connect(self.path)
+        try:
+            yield conn
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
     def _init(self):
         with self._conn() as c:
             c.execute('CREATE TABLE IF NOT EXISTS evidence(id INTEGER PRIMARY KEY AUTOINCREMENT, ts INTEGER, text TEXT, scores TEXT, payload TEXT)')
