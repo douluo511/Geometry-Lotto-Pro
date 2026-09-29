@@ -54,6 +54,23 @@ def main() -> int:
     exact = read(ROOT / "exact_candidate_gate.json")
     physical = read(Path(a.physical_gui))
 
+    current_run_reports = {
+        "architecture": arch,
+        "business": business,
+        "unit": unit,
+        "contract": contract,
+        "fault": fault,
+        "integration": integration,
+        "real_network": real,
+        "business_validation": business_validation,
+        "exact_candidate": exact,
+        "physical_gui": physical,
+    }
+    current_run_binding = {
+        name: (report.get("github_sha") == github_sha)
+        for name, report in current_run_reports.items()
+    }
+
     gates = {
         k: ("PASS" if str(v).upper() == "PASS" else "FAIL")
         for k, v in (arch.get("gates") or {}).items()
@@ -65,41 +82,57 @@ def main() -> int:
     ]:
         gates.setdefault(required, "FAIL")
 
-    gates["self_test"] = "PASS" if str((exact.get("self_test") or {}).get("status", "")).upper() == "PASS" else "FAIL"
-    gates["unit_test"] = "PASS" if passed(unit) else "FAIL"
-    gates["contract_test"] = "PASS" if passed(contract) else "FAIL"
-    gates["integration_test"] = "PASS" if passed(integration) else "FAIL"
-    gates["fault_injection"] = "PASS" if passed(fault) else "FAIL"
+    arch_bound = current_run_binding["architecture"]
+    for name in [
+        "purpose_model", "five_why", "risk_boundary", "domain_model", "architecture",
+        "function_contract", "interface_contract", "data_source", "netclient", "storage",
+        "engine", "evidence", "service", "ui",
+    ]:
+        if not arch_bound:
+            gates[name] = "FAIL"
+
+    gates["self_test"] = "PASS" if current_run_binding["exact_candidate"] and str((exact.get("self_test") or {}).get("status", "")).upper() == "PASS" else "FAIL"
+    gates["unit_test"] = "PASS" if current_run_binding["unit"] and passed(unit) else "FAIL"
+    gates["contract_test"] = "PASS" if current_run_binding["contract"] and passed(contract) else "FAIL"
+    gates["integration_test"] = "PASS" if current_run_binding["integration"] and passed(integration) else "FAIL"
+    gates["fault_injection"] = "PASS" if current_run_binding["fault"] and passed(fault) else "FAIL"
 
     distinct_sources = set(real.get("distinct_source_ids") or [])
     gates["real_network"] = "PASS" if (
-        passed(real)
+        current_run_binding["real_network"]
+        and passed(real)
         and str(real.get("network_gate", "")).upper() == "PASS"
         and int(real.get("source_count", 0)) >= 2
         and len(distinct_sources) >= 2
     ) else "FAIL"
 
-    gates["business_validation"] = "PASS" if str(business_validation.get("business_validation", "")).upper() == "PASS" else "FAIL"
-    gates["counterexample_validation"] = "PASS" if str(business_validation.get("counterexample_validation", "")).upper() == "PASS" else "FAIL"
-    gates["reversal_validation"] = "PASS" if str(business_validation.get("reversal_validation", "")).upper() == "PASS" else "FAIL"
+    bv_bound = current_run_binding["business_validation"]
+    gates["business_validation"] = "PASS" if bv_bound and str(business_validation.get("business_validation", "")).upper() == "PASS" else "FAIL"
+    gates["counterexample_validation"] = "PASS" if bv_bound and str(business_validation.get("counterexample_validation", "")).upper() == "PASS" else "FAIL"
+    gates["reversal_validation"] = "PASS" if bv_bound and str(business_validation.get("reversal_validation", "")).upper() == "PASS" else "FAIL"
 
     source_exe = Path(a.exe)
     final_exe = Path(a.final_exe)
     source_hash = sha256(source_exe)
     final_hash = sha256(final_exe)
     exact_hash = exact.get("exe_sha256")
-    current_sha_ok = not exact.get("github_sha") or exact.get("github_sha") == github_sha
+    current_sha_ok = current_run_binding["exact_candidate"]
+    physical_hash_ok = (
+        current_run_binding["physical_gui"]
+        and physical.get("exe_sha256") == source_hash
+    )
 
     gates["windows_build"] = "PASS" if str(exact.get("windows_build", "")).upper() == "PASS" and current_sha_ok else "FAIL"
     gates["exact_exe"] = "PASS" if str(exact.get("exact_exe", "")).upper() == "PASS" and source_hash == exact_hash else "FAIL"
     gates["gui_smoke"] = "PASS" if (
         str((exact.get("gui_smoke") or {}).get("status", "")).upper() == "PASS"
+        and physical_hash_ok
         and passed(physical)
         and len(physical.get("buttons") or []) == 4
         and all(str(x.get("status", "")).upper() == "PASS" and x.get("visual_changed") is True for x in (physical.get("buttons") or []))
     ) else "FAIL"
     gates["same_hash"] = "PASS" if source_hash and source_hash == final_hash == exact_hash else "FAIL"
-    gates["business_content"] = "PASS" if passed(business) else "FAIL"
+    gates["business_content"] = "PASS" if current_run_binding["business"] and passed(business) else "FAIL"
 
     failures = {k: v for k, v in gates.items() if v != "PASS"}
     report = {
@@ -111,6 +144,7 @@ def main() -> int:
         "failures": failures,
         "exe_sha256": source_hash,
         "final_exe_sha256": final_hash,
+        "current_run_binding": current_run_binding,
         "evidence_status": {
             "architecture": arch.get("status", "MISSING"),
             "business_content": business.get("status", "MISSING"),
