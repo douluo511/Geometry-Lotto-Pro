@@ -61,12 +61,16 @@ class KnowledgeStorage:
             raise
 
     @staticmethod
+    def _commit_replace(staged: Path, target: Path) -> None:
+        os.replace(staged, target)
+
+    @staticmethod
     def _restore(path: Path, previous: bytes | None) -> None:
         if previous is None:
             path.unlink(missing_ok=True)
             return
         staged = KnowledgeStorage._stage(path, previous)
-        os.replace(staged, path)
+        KnowledgeStorage._commit_replace(staged, path)
 
     def replace_knowledge(
         self,
@@ -110,10 +114,10 @@ class KnowledgeStorage:
 
             # Evidence first, canonical knowledge last. If the canonical replace
             # fails, evidence is rolled back. Missing evidence can never be PASS.
-            os.replace(staged_evidence, self.evidence_path)
+            self._commit_replace(staged_evidence, self.evidence_path)
             staged_evidence = None
             evidence_committed = True
-            os.replace(staged_knowledge, self.local_path)
+            self._commit_replace(staged_knowledge, self.local_path)
             staged_knowledge = None
 
             self._load(self.local_path)
