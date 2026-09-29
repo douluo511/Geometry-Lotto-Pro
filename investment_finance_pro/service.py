@@ -14,6 +14,9 @@ WATCHLIST = ["SPY", "QQQ", "AAPL", "MSFT", "NVDA", "GOOGL", "AMZN"]
 SEC_CIK={"AAPL":320193,"MSFT":789019,"NVDA":1045810,"GOOGL":1652044,"AMZN":1018724}
 VERSION = "0.4.0"
 
+def _compact_receipt(receipt: dict) -> dict:
+    return {k:v for k,v in receipt.items() if k != "body_b64"}
+
 class InvestmentService:
     def __init__(self, net=None, storage=None, engine=None, evidence=None):
         self.net = net or NetClient()
@@ -30,12 +33,14 @@ class InvestmentService:
         metrics = {}
         providers = []
         receipts = []
+        raw_receipts = []
         for symbol in WATCHLIST:
             try:
                 rows, provider, receipt = self.net.fetch_market_history(symbol)
                 metrics[symbol] = self.engine.compute_metrics(rows)
                 providers.append({"source": provider + ":" + symbol, "ok": True, "detail": f"{len(rows)} rows"})
-                receipts.append(receipt)
+                raw_receipts.append(receipt)
+                receipts.append(_compact_receipt(receipt))
             except Exception as exc:
                 providers.append({"source": "MARKET:" + symbol, "ok": False, "detail": str(exc)})
 
@@ -62,7 +67,8 @@ class InvestmentService:
                 item,receipt=self.net.fetch_sec_companyfacts(symbol,cik)
                 fundamentals[symbol]=item
                 providers.append({"source":"SEC:"+symbol,"ok":True,"detail":"latest 10-K annual diluted EPS loaded"})
-                receipts.append(receipt)
+                raw_receipts.append(receipt)
+                receipts.append(_compact_receipt(receipt))
             except Exception as exc:
                 providers.append({"source":"SEC:"+symbol,"ok":False,"detail":str(exc)})
 
@@ -95,7 +101,7 @@ class InvestmentService:
             "NETWORK",
             state,
             providers=providers,
-            receipts=receipts,
+            receipts=raw_receipts,
             snapshot_committed=(state == "PASS"),
         )
         return payload
