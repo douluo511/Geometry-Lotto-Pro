@@ -40,7 +40,7 @@ def main() -> int:
             "error": str(exc),
         }
     out.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(json.dumps(report, ensure_ascii=False))
+    print(json.dumps(report, ensure_ascii=True))
     return 0 if report["status"] == "PASS" else 2
 
 
