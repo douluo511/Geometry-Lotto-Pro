@@ -15,12 +15,23 @@ Python 3.11+：`python app.py`
 
 真实网络更新：`python app.py --update`
 
+## v1.1 来源恢复状态
+
+当前版本为 **1.1-reauthored-20260929**。它不是把遗失的 legacy JSON 冒充“原件恢复”，而是基于已找回的 TalkCraft 浏览器原型和用户既有训练系统文档，按明确 provenance 重新结构化：
+
+- 10 个原始训练主题
+- 6 个训练机制
+- 7 个评分维度
+- 60 个案例骨架
+- 180 个训练任务
+- 3 个独立真实网络来源
+- 每个案例包含边界、失败模式、逆转问题
+- 每个训练任务包含明确验收条件
+
+当前工程已补齐 strict NetClient、raw provenance、SQLite Evidence、Architecture Gate、Business Gate、Unit/Contract/Integration/Fault/Business/Counterexample/Reversal 测试、Real Network、Exact EXE Network、GUI Smoke、Physical GUI、Same Hash 和 evidence-derived Final Gate。
+
 ## Windows Final Gate
-当前恢复分支**尚未包含 TalkCraft 专用 GitHub Actions Windows 工作流**，因此 Windows Build、Exact EXE、自检、GUI 实体按钮点击、Same Hash 与 Final Gate 均未建立当前版本证据。
 
-同时，`TrainingService` 与 `TalkCraftPro.spec` 都依赖 `talkcraft_pro/data/`，但当前恢复分支没有该目录；`sources.json`、`drills.json`、`cases.json` 等内容资产尚未从有来源的历史中恢复。缺失资产不得通过临时生成内容冒充“原始恢复”。
+当前恢复分支已建立 TalkCraft 专用 Windows staging workflow。该 workflow 会完整执行技术硬门，但在本 monorepo 中 **repository_independence 固定为 FAIL**，因此即使其他技术门全部 PASS，也只能产生 staging audit evidence，不能上传 Portfolio Final 成品。
 
-只有在内容资产有明确来源、完整硬门工作流建立，并且当前 Windows 候选的机器可读 `final_gate` 明确 PASS 后，Engineering Final Gate 才能标记为 PASS。
-
-## 一键更新原则
-只保存来源状态、HTTP 状态、payload SHA 和大小，不复制外部商业/版权内容。任何来源失败都会使总更新状态 FAIL；旧缓存不能冒充最新成功。
+只有迁移到独立仓库后，对同一候选重新完成 Windows Build → Exact EXE → Real Network → Physical GUI → Same Hash → Final Gate，并让 repository_independence=PASS，才允许宣布 Final。
