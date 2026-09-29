@@ -10,12 +10,12 @@ from dataclasses import asdict
 from datetime import date, datetime, timedelta, timezone
 from threading import Lock
 from typing import Callable, Iterable
-from urllib.parse import urlsplit
+from urllib.parse import parse_qsl, urlsplit
 
 import requests
 
 from glp.net_client import NetClient
-from glp.constants import HEBEI_ANNOUNCE_URL, HEBEI_URL, NATIONAL_URL, SHANGHAI_URL
+from glp.constants import (\n    HEBEI_ANNOUNCE_URL, HEBEI_URL, NATIONAL_URL, SHANGHAI_HISTORY_URL,\n    SHANGHAI_URL, SSQ_HISTORY_START_ISSUE,\n)
 from glp.domain import CanonicalDataset, Draw, SourceReceipt
 from glp.util import canonical_json, sha256_bytes, sha256_json, utc_now
 
@@ -653,10 +653,33 @@ def _build_canonical_impl(
         attempt_ledger["national"] = [dict(item) for item in getattr(exc, "glp_attempts", ())]
         receipts.append(_failed_receipt("official_cwl_L0", errors["national"]))
 
+    baseline = list(baseline_draws or ())
+    prior_raw_fallback = (
+        national_draws is None
+        and baseline_raw_verified
+        and isinstance(baseline_evidence, dict)
+        and baseline_evidence.get("schema") == "official-source-evidence-v8.5"
+        and baseline_evidence.get("raw_response_status") == "PASS"
+        and baseline_evidence.get("canonical_hash") == sha256_json([d.to_dict() for d in baseline])
+        and any(
+            r.get("source") == "official_cwl_L0" and r.get("status") == "PASS"
+            for r in baseline_evidence.get("source_receipts", []) if isinstance(r, dict)
+        )
+    )
+    shanghai_raw_manifest: list[dict] = []
     if progress:
-        progress("真实官方网络：连接上海福彩双色球专页…")
+        progress(
+            "真实官方网络：连接上海福彩 HTTPS 全历史…"
+            if national_draws is None and not prior_raw_fallback
+            else "真实官方网络：连接上海福彩双色球专页…"
+        )
     try:
-        shanghai_draws, receipt, _ = fetch_shanghai_history(record_raw)
+        if national_draws is None and not prior_raw_fallback:
+            shanghai_draws, receipt, shanghai_raw_manifest = fetch_shanghai_full_history(
+                SSQ_HISTORY_START_ISSUE, record_raw, progress,
+            )
+        else:
+            shanghai_draws, receipt, _ = fetch_shanghai_history(record_raw)
         receipts.append(receipt)
     except Exception as exc:
         errors["shanghai"] = f"{type(exc).__name__}: {exc}"
@@ -702,26 +725,33 @@ def _build_canonical_impl(
         canonical_draws = national_draws
         verification = f"CWL_L0_PLUS_{validators}_PROVINCIAL_VALIDATOR"
     else:
-        # Hardened fallback: do not turn a temporary CWL API 403 into an app-wide outage.
-        # It is allowed only when the trusted baseline overlaps Shanghai's official
-        # 100-draw window, and Shanghai's newest draw independently matches Hebei.
-        baseline = list(baseline_draws or ())
-        if (not baseline_raw_verified or not isinstance(baseline_evidence, dict)
-                or baseline_evidence.get("schema") != "official-source-evidence-v8.5"
-                or baseline_evidence.get("raw_response_status") != "PASS"
-                or baseline_evidence.get("canonical_hash") != sha256_json([d.to_dict() for d in baseline])
-                or not any(r.get("source") == "official_cwl_L0" and r.get("status") == "PASS"
-                           for r in baseline_evidence.get("source_receipts", []) if isinstance(r, dict))):
-            raise SourceError("provincial fallback requires a prior raw-verified CWL baseline")
         if shanghai_draws is None or hebei_draw is None:
             raise SourceError("中国福彩主源不可用时，上海+河北双官方补偿链必须同时可用；诊断=" + json.dumps(errors, ensure_ascii=False))
         if not _same_draw(shanghai_draws[-1], hebei_draw):
             raise SourceError(
                 f"省级双官方源最新期冲突，拒绝更新: Shanghai={shanghai_draws[-1].issue} Hebei={hebei_draw.issue}"
             )
-        canonical_draws, overlap = _merge_trusted_baseline(baseline, shanghai_draws)
-        crosscheck_count = overlap + 1
-        verification = "TRUSTED_BASELINE_PLUS_SHANGHAI_HEBEI_CONSENSUS"
+        if prior_raw_fallback:
+            canonical_draws, overlap = _merge_trusted_baseline(baseline, shanghai_draws)
+            crosscheck_count = overlap + 1
+            verification = "TRUSTED_BASELINE_PLUS_SHANGHAI_HEBEI_CONSENSUS"
+        else:
+            if not shanghai_raw_manifest:
+                raise SourceError("CWL 不可用且上海全历史 raw manifest 缺失")
+            if shanghai_draws[0].issue != SSQ_HISTORY_START_ISSUE:
+                raise SourceError("上海全历史起点不符合冻结的 SSQ 历史范围")
+            overlap = 0
+            if baseline:
+                if len(shanghai_draws) < len(baseline):
+                    raise SourceError("上海全历史短于本地 baseline，拒绝替换")
+                overlap = _overlap_verify(baseline, shanghai_draws, "baseline-vs-Shanghai-full")
+                if overlap != len(baseline):
+                    raise SourceError("上海全历史未完整覆盖本地 baseline")
+                if [d.issue for d in shanghai_draws[:len(baseline)]] != [d.issue for d in baseline]:
+                    raise SourceError("上海全历史不能证明 baseline 是其严格前缀")
+            canonical_draws = shanghai_draws
+            crosscheck_count = 1
+            verification = "SHANGHAI_FULL_L1_PLUS_HEBEI_CURRENT"
 
     if not canonical_draws:
         raise SourceError("Canonical Dataset 为空")
