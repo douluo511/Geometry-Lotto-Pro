@@ -13,10 +13,10 @@ from net_client import NetClient
 from storage import RootStorage
 
 def _alternate_data_url(url: str) -> str:
-    prefix = "https://raw.githubusercontent.com/douluo511/Geometry-Lotto-Pro/main/"
+    prefix = "https://raw.githubusercontent.com/douluo511/Geometry-Lotto-Pro/"
     if url.startswith(prefix):
-        suffix = url[len(prefix):]
-        return "https://github.com/douluo511/Geometry-Lotto-Pro/raw/refs/heads/main/" + suffix
+        remainder = url[len(prefix):]
+        return "https://github.com/douluo511/Geometry-Lotto-Pro/raw/" + remainder
     raise ValueError("cannot derive independent distribution path for data_url")
 
 class EnglishRootService:
