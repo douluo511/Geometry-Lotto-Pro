@@ -17,7 +17,7 @@ from .util import canonical_json, sha256_bytes, sha256_json, utc_now
 
 JIANGSU_DATA_PAGE = "https://api.js-lottery.com/wfzq/dlt/data"
 JIANGSU_LIST_URL = "https://api.js-lottery.com/Lottery/_ListData"
-GUANGDONG_ANNOUNCEMENT = "https://www.gdlottery.cn/f_html/kjgg/P085_{issue}.html"
+GANSU_HISTORY_URL = "https://www.gstc.org.cn/wanfa/dlt_history"
 
 # Sporttery's WAF has periodically rejected otherwise-valid desktop requests.
 # Keep two explicit official-site profiles and fail closed if both fail.
@@ -42,10 +42,10 @@ JIANGSU_HEADERS = {
     "Accept": "text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8",
     "Referer": "https://www.js-lottery.com/",
 }
-GUANGDONG_HEADERS = {
+GANSU_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     "Accept": "text/html,application/xhtml+xml,*/*;q=0.8",
-    "Referer": "https://www.gdlottery.cn/",
+    "Referer": "https://www.gstc.org.cn/",
 }
 
 
@@ -313,66 +313,55 @@ def fetch_jiangsu_history(progress: Callable[[str], None] | None = None, page_si
     return ordered, receipt, evidence_pages
 
 
-def _parse_guangdong_announcement(text: str, expected_issue: str) -> Draw:
+def _parse_gansu_history(text: str) -> list[Draw]:
     plain = html.unescape(re.sub(r"<[^>]+>", " ", text))
     plain = re.sub(r"\s+", " ", plain).strip()
-    issue = str(expected_issue)
-    if not re.search(rf"第\s*{re.escape(issue)}\s*期.*?开奖公告", plain):
-        raise SourceError(f"广东体彩公告期号不匹配: expected={issue}")
+    pattern = re.compile(
+        r"(\d{4}-\d{2}-\d{2})\s+(\d{5})\s+((?:(?:\d{2})\s*){7})(?!\d)"
+    )
+    draws: list[Draw] = []
+    seen: dict[str, Draw] = {}
+    for row_index, (day, issue, compact) in enumerate(pattern.findall(plain)):
+        nums = re.findall(r"\d{2}", compact)
+        if len(nums) != 7:
+            raise SourceError(f"甘肃体彩候选开奖行 {row_index} 号码数量异常")
+        try:
+            draw = _parse_result(issue, day, " ".join(nums))
+        except Exception as exc:
+            raise SourceError(f"甘肃体彩候选开奖行 {row_index} 非法: {exc}") from exc
+        previous = seen.get(draw.issue)
+        if previous is not None:
+            if previous.to_dict() != draw.to_dict():
+                raise SourceError(f"甘肃体彩同一期数据冲突: {draw.issue}")
+            raise SourceError(f"甘肃体彩重复期号: {draw.issue}")
+        seen[draw.issue] = draw
+        draws.append(draw)
+    return sorted(draws, key=lambda d: (d.draw_date, d.issue))
 
-    mdate = re.search(r"开奖日期\s*[:：]?\s*(\d{4})[年-](\d{1,2})[月-](\d{1,2})日?", plain)
-    if not mdate:
-        raise SourceError(f"广东体彩 {issue} 未解析到开奖日期")
-    draw_date = f"{int(mdate.group(1)):04d}-{int(mdate.group(2)):02d}-{int(mdate.group(3)):02d}"
 
-    marker = plain.find("本期开奖号码")
-    if marker < 0:
-        raise SourceError(f"广东体彩 {issue} 未找到本期开奖号码")
-    tail = plain[marker + len("本期开奖号码"):]
-    stop = tail.find("本期中奖情况")
-    if stop >= 0:
-        tail = tail[:stop]
-    nums = [int(x) for x in re.findall(r"(?<!\d)(\d{1,2})(?!\d)", tail)]
-    if len(nums) < 7:
-        raise SourceError(f"广东体彩 {issue} 开奖号码不足 7 个")
-    return _parse_result(issue, draw_date, " ".join(f"{n:02d}" for n in nums[:7]))
-
-
-def fetch_guangdong_issue(issue: str):
-    url = GUANGDONG_ANNOUNCEMENT.format(issue=issue)
-    response = NET.get(url, headers=GUANGDONG_HEADERS, timeout=(10, 30), allow_redirects=True)
+def fetch_gansu_recent(limit: int = 20):
+    response = NET.get(GANSU_HISTORY_URL, headers=GANSU_HEADERS, timeout=(10, 30), allow_redirects=True)
     raw = bytes(response.content)
     meta = _validate_response(response, raw, expected="html_or_json")
     meta.update({
-        "source_identity": "official_guangdong_sporttery",
-        "requested_url": url,
-        "issue": str(issue),
+        "source_identity": "official_gansu_sporttery",
+        "requested_url": GANSU_HISTORY_URL,
     })
-    draw = _parse_guangdong_announcement(_decode_html(raw), str(issue))
-    return draw, meta
-
-
-def fetch_guangdong_recent(reference: list[Draw], limit: int = 10):
-    if len(reference) < limit:
-        raise SourceError("广东体彩交叉验证缺少参考期次")
-    selected = reference[-int(limit):]
-    draws: list[Draw] = []
-    evidence: list[dict] = []
-    for ref in selected:
-        draw, meta = fetch_guangdong_issue(ref.issue)
-        draws.append(draw)
-        evidence.append(meta)
+    draws = _parse_gansu_history(_decode_html(raw))
+    if len(draws) < 10:
+        raise SourceError(f"甘肃体彩历史页可核对记录不足: {len(draws)}")
+    draws = draws[-max(10, min(int(limit), len(draws))):]
     receipt = SourceReceipt(
-        source="guangdong",
+        source="gansu",
         fetched_at=utc_now(),
-        http_status=200,
-        raw_sha256=sha256_bytes("".join(x["sha256"] for x in evidence).encode()),
+        http_status=int(response.status_code),
+        raw_sha256=sha256_bytes(raw),
         draw_count=len(draws),
         latest_issue=draws[-1].issue,
         status="PASS",
-        detail=f"广东体彩官方逐期开奖公告 {len(draws)} 期",
+        detail=f"甘肃省体育彩票管理中心官方历史页最近 {len(draws)} 期",
     )
-    return draws, receipt, evidence
+    return draws, receipt, meta
 
 
 def fetch_jiangsu_recent(limit: int = 100):
@@ -459,19 +448,19 @@ def build_canonical(progress: Callable[[str], None] | None = None):
         }
     else:
         if progress:
-            progress("国家体彩接口不可用，切换江苏完整历史 + 广东独立官方公告")
+            progress("国家体彩接口不可用，切换江苏完整历史 + 甘肃独立官方历史页")
         jiangsu_full, jiangsu_receipt, jiangsu_pages = fetch_jiangsu_history(progress)
         _validate_freshness(jiangsu_full)
-        guangdong, guangdong_receipt, guangdong_evidence = fetch_guangdong_recent(jiangsu_full, 10)
-        _validate_freshness(guangdong)
-        overlap_count = _crosscheck(jiangsu_full, guangdong, 10)
+        gansu, gansu_receipt, gansu_evidence = fetch_gansu_recent(20)
+        _validate_freshness(gansu)
+        overlap_count = _crosscheck(jiangsu_full, gansu, 10)
         primary = jiangsu_full
-        receipts = [jiangsu_receipt, guangdong_receipt]
-        source_mode = "jiangsu_full_plus_guangdong"
+        receipts = [jiangsu_receipt, gansu_receipt]
+        source_mode = "jiangsu_full_plus_gansu"
         source_evidence = {
             "national_failure": national_failure,
             "jiangsu_full_raw_manifest": jiangsu_pages,
-            "guangdong_raw_manifest": guangdong_evidence,
+            "gansu_raw_evidence": gansu_evidence,
         }
 
     payload = [d.to_dict() for d in primary]
