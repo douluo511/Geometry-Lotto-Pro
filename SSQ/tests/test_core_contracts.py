@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import random
+from datetime import datetime, timezone
 import sys
 import tempfile
 import unittest
@@ -26,6 +27,7 @@ from glp.sources import (
     parse_shanghai_history,
 )
 from glp.storage import Store
+from glp.service import LottoService
 from glp.util import sha256_json, utc_now
 
 
@@ -81,6 +83,56 @@ def dataset_pair(extra: bool = False):
         "crosscheck_status": "PASS",
     }
     return ds, ev
+
+
+class RecentCanonicalReuseTests(unittest.TestCase):
+    def _save_official_snapshot(self, root: Path, *, verification: str, fetched_at: str):
+        today = datetime.now(timezone.utc).date().isoformat()
+        draw = Draw("2026999", today, (1, 2, 3, 4, 5, 6), (1,))
+        digest = sha256_json([draw.to_dict()])
+        ds = CanonicalDataset([draw], digest, [receipt("official_fixture", draw)], 1, "PASS")
+        ev = {
+            "schema": "official-source-evidence-v8.6",
+            "game": "SSQ",
+            "fetched_at": fetched_at,
+            "canonical_hash": digest,
+            "draw_count": 1,
+            "latest": draw.to_dict(),
+            "crosscheck_count": 1,
+            "crosscheck_status": "PASS",
+            "verification": verification,
+        }
+        store = Store(root)
+        store.save_dataset(ds, ev)
+        return LottoService(store)
+
+    def test_recent_official_hash_bound_snapshot_can_be_reused(self):
+        with tempfile.TemporaryDirectory() as td:
+            svc = self._save_official_snapshot(
+                Path(td),
+                verification="TRUSTED_BASELINE_PLUS_SHANGHAI_HEBEI_CONSENSUS",
+                fetched_at=utc_now(),
+            )
+            snap = svc._recent_validated_canonical(max_age_seconds=900)
+            self.assertIsNotNone(snap)
+            self.assertEqual(snap["crosscheck_status"], "PASS")
+            self.assertTrue(snap["validated_snapshot_reuse"])
+
+    def test_stale_or_nonofficial_snapshot_cannot_be_reused(self):
+        with tempfile.TemporaryDirectory() as td:
+            stale = self._save_official_snapshot(
+                Path(td),
+                verification="TRUSTED_BASELINE_PLUS_SHANGHAI_HEBEI_CONSENSUS",
+                fetched_at="2020-01-01T00:00:00Z",
+            )
+            self.assertIsNone(stale._recent_validated_canonical(max_age_seconds=900))
+        with tempfile.TemporaryDirectory() as td:
+            injected = self._save_official_snapshot(
+                Path(td),
+                verification="DETERMINISTIC_INJECTED_FIXTURE",
+                fetched_at=utc_now(),
+            )
+            self.assertIsNone(injected._recent_validated_canonical(max_age_seconds=900))
 
 
 class DomainContractTests(unittest.TestCase):
