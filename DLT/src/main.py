@@ -48,15 +48,24 @@ def run_acceptance(result_file: str | None = None) -> int:
         "final_release_gate": "NOT_PASS",
     }
 
+    def checkpoint(phase: str, detail=None) -> None:
+        report["current_phase"] = phase
+        report["last_progress_at"] = utc_now()
+        if detail is not None:
+            report["progress_detail"] = detail
+        _write_json(result_file, report)
+
     def add(name: str, status: str, detail=None):
         item = {"name": name, "status": status}
         if detail is not None:
             item["detail"] = detail
         checks.append(item)
+        checkpoint(name, detail)
 
     try:
         with tempfile.TemporaryDirectory(prefix="glp_acceptance_") as td:
             os.environ["GLP_DATA_DIR"] = td
+            checkpoint("code_self_test")
             st = self_test(Path(td) / "selftest")
             add("code_self_test", st.get("status", "FAIL"), st)
             if st.get("status") != "PASS":
@@ -66,6 +75,7 @@ def run_acceptance(result_file: str | None = None) -> int:
                 add("windows_runtime", "FAIL", "acceptance requires native Windows")
                 raise RuntimeError("not running on Windows")
 
+            checkpoint("native_gui_self_test")
             gst = gui_self_test()
             add("native_gui_self_test", gst.get("status", "FAIL"), gst)
             report["windows_runtime_gate"] = gst.get("status", "FAIL")
@@ -75,7 +85,8 @@ def run_acceptance(result_file: str | None = None) -> int:
 
             svc = LottoService()
 
-            update = svc.update()
+            checkpoint("real_network_dual_source")
+            update = svc.update(lambda msg: checkpoint("real_network_dual_source", msg))
             network_ok = update.get("network_gate") == "PASS" and update.get("crosscheck_status") == "PASS"
             add("real_network_dual_source", "PASS" if network_ok else "FAIL", {
                 "latest": update.get("latest"),
@@ -88,16 +99,19 @@ def run_acceptance(result_file: str | None = None) -> int:
             if not network_ok:
                 raise RuntimeError("real network dual-source check failed")
 
-            pred = svc.predict()
+            checkpoint("entry_predict")
+            pred = svc.predict(lambda msg: checkpoint("entry_predict", msg))
             add("entry_predict", "PASS", {"target_issue": pred["prediction"]["target_issue"], "edge_state": pred["prediction"]["edge_state"], "dan_state": pred["prediction"]["dan_state"]})
 
-            rep = svc.repair()
+            checkpoint("entry_repair")
+            rep = svc.repair(lambda msg: checkpoint("entry_repair", msg))
             repair_ok = rep.get("after", {}).get("status") == "PASS"
             add("entry_repair", "PASS" if repair_ok else "FAIL", rep)
             if not repair_ok:
                 raise RuntimeError("repair entry failed")
 
-            audit = svc.audit()
+            checkpoint("entry_audit_scientific")
+            audit = svc.audit(lambda msg: checkpoint("entry_audit_scientific", msg))
             court = audit.get("court", {})
             sci_ok = court.get("software_verdict") == "PASS" and court.get("scientific_gate") == "PASS"
             add("entry_audit_scientific", "PASS" if sci_ok else "FAIL", {
@@ -127,6 +141,7 @@ def run_acceptance(result_file: str | None = None) -> int:
     except Exception as exc:
         report["error"] = {"type": type(exc).__name__, "message": str(exc), "traceback": traceback.format_exc()}
     finally:
+        report["current_phase"] = "finished"
         report["finished_at"] = utc_now()
         _write_json(result_file, report)
         print(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True))
