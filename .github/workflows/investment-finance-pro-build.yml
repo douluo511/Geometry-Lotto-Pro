@@ -1,0 +1,267 @@
+name: Investment Finance Pro - Evidence-Derived Full Release
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [investment-finance-pro-mvp, main]
+    paths:
+      - "investment_finance_pro/**"
+      - ".github/workflows/investment-finance-pro-build.yml"
+      - ".github/scripts/physical_gui_click_smoke.ps1"
+      - ".github/scripts/tk_button_points.py"
+  pull_request:
+    branches: [main]
+    paths:
+      - "investment_finance_pro/**"
+      - ".github/workflows/investment-finance-pro-build.yml"
+      - ".github/scripts/physical_gui_click_smoke.ps1"
+      - ".github/scripts/tk_button_points.py"
+
+permissions:
+  contents: read
+
+jobs:
+  full-release-gate:
+    runs-on: windows-2022
+    timeout-minutes: 120
+    env:
+      PYTHONUTF8: '1'
+      PYTHONIOENCODING: 'utf-8'
+
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@v4
+
+      - name: Setup Python x64
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11.9'
+          architecture: 'x64'
+
+      - name: Install pinned dependencies
+        run: |
+          python -m pip install --disable-pip-version-check -r investment_finance_pro/requirements-build.txt
+          New-Item -ItemType Directory -Force evidence | Out-Null
+          New-Item -ItemType Directory -Force final | Out-Null
+
+      - name: Compile gate
+        run: python -m compileall -q investment_finance_pro
+
+      - name: Architecture mother gate
+        run: python investment_finance_pro/architecture_gate.py
+
+      - name: Business Content Gate
+        run: python investment_finance_pro/business_gate.py
+
+      - name: Source Self-Test
+        shell: pwsh
+        run: |
+          python investment_finance_pro/app.py --self-test --report source_self_test.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          New-Item evidence/source_self_test.pass -ItemType File | Out-Null
+
+      - name: Unit Test
+        shell: pwsh
+        run: |
+          python -m unittest discover -s investment_finance_pro/tests -p "test_engine.py" -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m unittest discover -s investment_finance_pro/tests -p "test_release_gate.py" -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          New-Item evidence/unit_tests.pass -ItemType File | Out-Null
+
+      - name: Contract Test
+        shell: pwsh
+        run: |
+          python -m unittest discover -s investment_finance_pro/tests -p "test_contracts.py" -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m unittest discover -s investment_finance_pro/tests -p "test_network_contracts.py" -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          New-Item evidence/contract_tests.pass -ItemType File | Out-Null
+
+      - name: Integration Test
+        shell: pwsh
+        run: |
+          python -m unittest discover -s investment_finance_pro/tests -p "test_integration.py" -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          New-Item evidence/integration_tests.pass -ItemType File | Out-Null
+
+      - name: Fault Injection
+        shell: pwsh
+        run: |
+          python -m unittest discover -s investment_finance_pro/tests -p "test_fault_injection.py" -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          New-Item evidence/fault_injection.pass -ItemType File | Out-Null
+
+      - name: Business Validation
+        shell: pwsh
+        run: |
+          python -m unittest discover -s investment_finance_pro/tests -p "test_business_validation.py" -k business_output -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          New-Item evidence/business_validation.pass -ItemType File | Out-Null
+
+      - name: Counterexample Validation
+        shell: pwsh
+        run: |
+          python -m unittest discover -s investment_finance_pro/tests -p "test_business_validation.py" -k counterexample -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          New-Item evidence/counterexample_validation.pass -ItemType File | Out-Null
+
+      - name: Reversal Validation
+        shell: pwsh
+        run: |
+          python -m unittest discover -s investment_finance_pro/tests -p "test_business_validation.py" -k reversal -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          New-Item evidence/reversal_validation.pass -ItemType File | Out-Null
+
+      - name: Scientific Firewall Unit Regression
+        run: python -m unittest discover -s investment_finance_pro/tests -p "test_scientific_firewall.py" -v
+
+      - name: Source Real Network
+        shell: pwsh
+        run: |
+          python investment_finance_pro/real_network_check.py | Tee-Object -FilePath source_real_network.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          New-Item evidence/real_network.pass -ItemType File | Out-Null
+
+      - name: Source OOS Scientific Firewall
+        shell: pwsh
+        run: |
+          python investment_finance_pro/app.py --scientific-gate --report source_science.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $r=Get-Content source_science.json -Raw | ConvertFrom-Json
+          if ($r.status -ne "PASS" -or $r.scientific_gate -ne "PASS" -or $r.model_status -ne "UNVALIDATED" -or $r.promotion_allowed -ne $false) {
+            throw "Source OOS firewall did not fail closed"
+          }
+
+      - name: Windows Build
+        shell: pwsh
+        run: |
+          pyinstaller --noconfirm --clean --onefile --windowed --name InvestmentFinancePro --paths investment_finance_pro investment_finance_pro/app.py
+          if (-not (Test-Path .\dist\InvestmentFinancePro.exe)) { throw "EXE missing" }
+          New-Item evidence/windows_build.pass -ItemType File | Out-Null
+
+      - name: Exact EXE Self-Test
+        shell: pwsh
+        run: |
+          $p=Start-Process .\dist\InvestmentFinancePro.exe -ArgumentList @("--self-test","--report","exe_self_test.json") -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Exact EXE self-test failed: $($p.ExitCode)" }
+          $r=Get-Content exe_self_test.json -Raw | ConvertFrom-Json
+          if ($r.status -ne "PASS") { throw "Exact EXE self-test status=$($r.status)" }
+          New-Item evidence/exact_exe_self_test.pass -ItemType File | Out-Null
+
+      - name: Exact EXE Real Network
+        shell: pwsh
+        run: |
+          $p=Start-Process .\dist\InvestmentFinancePro.exe -ArgumentList @("--network-smoke","--report","exe_network_smoke.json") -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Exact EXE network failed: $($p.ExitCode)" }
+          $r=Get-Content exe_network_smoke.json -Raw | ConvertFrom-Json
+          if ($r.status -ne "PASS") { throw "Exact EXE network status=$($r.status)" }
+          New-Item evidence/exact_exe_network.pass -ItemType File | Out-Null
+
+      - name: Exact EXE OOS Scientific Firewall
+        shell: pwsh
+        run: |
+          $p=Start-Process .\dist\InvestmentFinancePro.exe -ArgumentList @("--scientific-gate","--report","exe_science.json") -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Exact EXE science failed: $($p.ExitCode)" }
+          $r=Get-Content exe_science.json -Raw | ConvertFrom-Json
+          if ($r.status -ne "PASS" -or $r.scientific_gate -ne "PASS" -or $r.model_status -ne "UNVALIDATED" -or $r.promotion_allowed -ne $false) {
+            throw "Exact EXE OOS firewall did not fail closed"
+          }
+
+      - name: GUI Smoke
+        shell: pwsh
+        run: |
+          $p=Start-Process .\dist\InvestmentFinancePro.exe -ArgumentList "--gui-smoke" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "GUI smoke failed: $($p.ExitCode)" }
+          New-Item evidence/gui_smoke.pass -ItemType File | Out-Null
+
+      - name: Stage unique final EXE
+        shell: pwsh
+        run: Copy-Item .\dist\InvestmentFinancePro.exe .\final\InvestmentFinancePro.exe -Force
+
+      - name: Same Hash
+        shell: pwsh
+        run: |
+          $tested=(Get-FileHash .\dist\InvestmentFinancePro.exe -Algorithm SHA256).Hash.ToLower()
+          $final=(Get-FileHash .\final\InvestmentFinancePro.exe -Algorithm SHA256).Hash.ToLower()
+          if ($tested -ne $final) { throw "Same Hash failed" }
+          New-Item evidence/same_hash.pass -ItemType File | Out-Null
+          "sha256=$final" | Out-File .\final\BUILD_HASH.txt -Encoding ascii
+          "commit=$env:GITHUB_SHA" | Add-Content .\final\BUILD_HASH.txt
+          "workflow_run=$env:GITHUB_RUN_ID" | Add-Content .\final\BUILD_HASH.txt
+
+      - name: Final EXE Self-Test
+        shell: pwsh
+        run: |
+          $p=Start-Process .\final\InvestmentFinancePro.exe -ArgumentList @("--self-test","--report","final_self_test.json") -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Final EXE self-test failed" }
+
+      - name: Physical GUI Click Smoke
+        shell: pwsh
+        run: |
+          python .\.github\scripts\tk_button_points.py --project-path investment_finance_pro --module app --entry run_gui --labels "投资机会;一键更新;一键修复;高级分析" --out ".\gui_points.txt"
+          $points=(Get-Content ".\gui_points.txt" -Raw).Trim()
+          .\.github\scripts\physical_gui_click_smoke.ps1 -ExePath ".\final\InvestmentFinancePro.exe" -Points $points -EvidencePath ".\physical_gui_click.json"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python investment_finance_pro/bind_physical_gui.py --exe ".\final\InvestmentFinancePro.exe" --evidence ".\physical_gui_click.json" --marker ".\evidence\physical_gui_click.pass"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Evidence-derived Final Gate
+        shell: pwsh
+        run: |
+          python investment_finance_pro/collect_final_gates.py --evidence-dir evidence --architecture investment_finance_pro/architecture_gate.json --business investment_finance_pro/business_gate.json --source-science source_science.json --exe-science exe_science.json --candidate-exe dist/InvestmentFinancePro.exe --final-exe final/InvestmentFinancePro.exe --physical-gui physical_gui_click.json --out gate_input.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python investment_finance_pro/release_gate.py --input gate_input.json --evidence-dir evidence --tested-exe dist/InvestmentFinancePro.exe --final-exe final/InvestmentFinancePro.exe --report final_gate.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $r=Get-Content final_gate.json -Raw | ConvertFrom-Json
+          if ($r.final_gate -ne "PASS" -or [int]$r.hard_fail_count -ne 0) { throw "Final Gate failed" }
+
+      - name: Acceptance Evidence
+        shell: pwsh
+        run: |
+          $hash=(Get-FileHash .\final\InvestmentFinancePro.exe -Algorithm SHA256).Hash.ToLower()
+          @{
+            project='Investment Finance Pro'
+            version='0.4.0'
+            artifact='InvestmentFinancePro.exe'
+            sha256=$hash
+            source_commit=$env:GITHUB_SHA
+            workflow_run=$env:GITHUB_RUN_ID
+            final_gate='PASS'
+            model_status='UNVALIDATED'
+          } | ConvertTo-Json | Set-Content FINAL_ACCEPTANCE.json -Encoding utf8
+          Write-Host "FINAL_EXE_SHA256=$hash"
+          Write-Host "FINAL_RELEASE_GATE=PASS"
+
+      - name: Upload Unique Final Product
+        uses: actions/upload-artifact@v4
+        with:
+          name: Investment_Finance_Pro_FINAL_v0.4.0
+          path: |
+            final/InvestmentFinancePro.exe
+            final/BUILD_HASH.txt
+            FINAL_ACCEPTANCE.json
+            final_gate.json
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+      - name: Upload Audit Evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: Investment_Finance_Pro_AUDIT_v0.4.0
+          path: |
+            gate_input.json
+            source_self_test.json
+            source_real_network.log
+            source_science.json
+            exe_self_test.json
+            exe_network_smoke.json
+            exe_science.json
+            physical_gui_click.json
+            investment_finance_pro/architecture_gate.json
+            investment_finance_pro/business_gate.json
+            investment_finance_pro/BUSINESS_SPEC.md
+            investment_finance_pro/ENGINEERING_FREEZE.md
+          if-no-files-found: error
+          retention-days: 90
