@@ -6,6 +6,7 @@ import shutil
 import os
 import sqlite3
 import tempfile
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -41,8 +42,18 @@ class Store:
         db.execute("PRAGMA foreign_keys=ON")
         return db
 
+    @contextmanager
+    def _db(self):
+        """Transactional SQLite scope that always closes the Windows file handle."""
+        db = self._connect()
+        try:
+            with db:
+                yield db
+        finally:
+            db.close()
+
     def _init_db(self) -> None:
-        with self._connect() as db:
+        with self._db() as db:
             db.executescript(
                 """
                 CREATE TABLE IF NOT EXISTS experiments (
@@ -75,7 +86,7 @@ class Store:
             )
 
     def _archive_freezes(self) -> None:
-        with self._connect() as db:
+        with self._db() as db:
             rows = db.execute("SELECT payload_json FROM freezes ORDER BY target_issue").fetchall()
         values = [json.loads(r["payload_json"]) for r in rows]
         atomic_json(self.freeze_archive_path, {"schema": 1, "freezes": values})
@@ -230,7 +241,7 @@ class Store:
     def append_experiment(self, kind: str, status: str, input_hash: str, code_hash: str, payload: dict[str, Any]) -> int:
         if status not in {"PASS", "FAIL"}:
             raise ValueError(f"实验状态必须明确为 PASS/FAIL，收到: {status}")
-        with self._connect() as db:
+        with self._db() as db:
             cur = db.execute(
                 "INSERT INTO experiments(created_at,kind,status,input_hash,code_hash,payload_json) VALUES(?,?,?,?,?,?)",
                 (utc_now(), kind, status, input_hash, code_hash, json.dumps(payload, ensure_ascii=False, sort_keys=True)),
@@ -247,7 +258,7 @@ class Store:
             raise ValueError(f"Freeze hash mismatch for issue {prediction.target_issue}")
 
     def freeze(self, prediction: Prediction) -> Prediction:
-        with self._connect() as db:
+        with self._db() as db:
             row = db.execute("SELECT payload_json FROM freezes WHERE target_issue=?", (prediction.target_issue,)).fetchone()
             if row:
                 existing = Prediction(**json.loads(row["payload_json"]))
@@ -276,7 +287,7 @@ class Store:
         return frozen
 
     def freezes(self) -> list[Prediction]:
-        with self._connect() as db:
+        with self._db() as db:
             rows = db.execute("SELECT payload_json FROM freezes ORDER BY target_issue").fetchall()
         values = [Prediction(**json.loads(r["payload_json"])) for r in rows]
         for pred in values:
@@ -284,7 +295,7 @@ class Store:
         return values
 
     def save_replay(self, prediction_id: str, issue: str, payload: dict[str, Any]) -> None:
-        with self._connect() as db:
+        with self._db() as db:
             db.execute(
                 "INSERT OR IGNORE INTO replays(prediction_id,replayed_at,actual_issue,payload_json) VALUES(?,?,?,?)",
                 (prediction_id, utc_now(), issue, json.dumps(payload, ensure_ascii=False, sort_keys=True)),
@@ -297,7 +308,7 @@ class Store:
             query += "WHERE f.selector_hash=? "
             params = (selector_hash,)
         query += "ORDER BY f.target_issue"
-        with self._connect() as db:
+        with self._db() as db:
             rows = db.execute(query, params).fetchall()
         return [json.loads(r["payload_json"]) for r in rows]
 
@@ -306,7 +317,7 @@ class Store:
         try:
             if self._db_init_error:
                 raise sqlite3.DatabaseError(self._db_init_error)
-            with self._connect() as db:
+            with self._db() as db:
                 row = db.execute("PRAGMA integrity_check").fetchone()
                 ok = bool(row and str(row[0]).lower() == "ok")
                 freeze_rows = db.execute("SELECT payload_json FROM freezes ORDER BY target_issue").fetchall()
