@@ -24,6 +24,7 @@ def receipt(tag):
         "fetched_at":"2026-09-29T00:00:00+00:00",
         "attempts":[{"attempt":1,"outcome":"HTTP_RESPONSE","status_code":200}],
         "body_b64":base64.b64encode(raw).decode("ascii"),
+        "crosscheck_status":"PASS",
     }
 
 
