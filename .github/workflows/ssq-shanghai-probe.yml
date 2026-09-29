@@ -11,36 +11,39 @@ on:
 jobs:
   probe:
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    timeout-minutes: 5
     steps:
-      - name: Locate Shanghai endpoint configuration fast
+      - name: Test Shanghai HTTPS issue-range POST
         shell: python
         run: |
-          import urllib.request
-          base="https://appsh.swlc.net.cn"
-          ref=base+"/shfcoc_datachart/datachart/ssq/jbzs/clg.html"
-          paths=[
-            "/shfcoc_datachart/js/v2.0/datachart/iframe.js?v=20260929",
-            "/shfcoc_datachart/js/v2.0/commtools/procommon.js?v=20260929",
-            "/shfcoc_datachart/js/v2.0/util.js?v=20260929",
-            "/shfcoc_datachart/js/v2.0/datachart/datachart_index_common.js?v=20260929",
-            "/shfcoc_datachart/js/v2.0/datacenter/datechartcommon.js?v=20260929",
+          import json, urllib.request, urllib.parse, hashlib
+          url="https://appsh.swlc.net.cn/shfcoc_ldatacenter/aword/execQueryAllAnalysis.ctl"
+          referer="https://appsh.swlc.net.cn/shfcoc_datachart/datachart/ssq/jbzs/clg.html"
+          headers={
+              "User-Agent":"Mozilla/5.0 SSQ-Probe/1.0",
+              "Referer":referer,
+              "Content-Type":"application/x-www-form-urlencoded; charset=UTF-8",
+              "X-Requested-With":"XMLHttpRequest",
+          }
+          tests=[
+              ("recent",{"lottcode":"01","num":"29","ttype":"2","beginnum":"2026109","ebdinnum":"2026113"}),
+              ("baseline",{"lottcode":"01","num":"29","ttype":"2","beginnum":"2013001","ebdinnum":"2026113"}),
           ]
-          keys=("xg_glable_conf","lottery_zst_data","webGlobalService","dowebdata","dowebxmldata")
-          for path in paths:
-              url=base+path
+          for name,data in tests:
+              body=urllib.parse.urlencode(data).encode()
+              req=urllib.request.Request(url,data=body,headers=headers,method="POST")
               try:
-                  req=urllib.request.Request(url,headers={"User-Agent":"Mozilla/5.0 SSQ-Probe/1.0","Referer":ref})
-                  with urllib.request.urlopen(req,timeout=8) as r:
-                      text=r.read().decode("utf-8","replace")
-                      print("HTTP",path,r.status,len(text))
+                  with urllib.request.urlopen(req,timeout=60) as r:
+                      raw=r.read()
+                      print("POST",name,"HTTP",r.status,"FINAL",r.geturl(),"CTYPE",r.headers.get("Content-Type"),
+                            "BYTES",len(raw),"SHA256",hashlib.sha256(raw).hexdigest())
+                  obj=json.loads(raw.decode("utf-8"))
+                  result=obj.get("result") if isinstance(obj,dict) else None
+                  print("JSON",name,"TYPE",type(obj).__name__,"KEYS",sorted(obj.keys()) if isinstance(obj,dict) else None,
+                        "RESULT_COUNT",len(result) if isinstance(result,list) else None)
+                  if isinstance(result,list) and result:
+                      print("FIRST",json.dumps(result[0],ensure_ascii=False,sort_keys=True))
+                      print("LAST",json.dumps(result[-1],ensure_ascii=False,sort_keys=True))
               except Exception as exc:
-                  print("ERROR",path,type(exc).__name__,str(exc)); continue
-              for key in keys:
-                  pos=0
-                  while True:
-                      i=text.find(key,pos)
-                      if i<0: break
-                      print("MATCH",path,key)
-                      print(text[max(0,i-800):min(len(text),i+1800)])
-                      pos=i+len(key)
+                  print("POST_ERROR",name,type(exc).__name__,str(exc))
+                  raise
