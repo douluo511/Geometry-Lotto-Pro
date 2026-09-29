@@ -8,11 +8,11 @@ import tempfile
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlsplit
+from urllib.parse import parse_qsl, urlsplit
 from uuid import uuid4
 
 from .domain import CanonicalDataset, Draw
-from .constants import HEBEI_ANNOUNCE_URL, HEBEI_URL, NATIONAL_URL, SHANGHAI_URL
+from .constants import (\n    HEBEI_ANNOUNCE_URL, HEBEI_URL, NATIONAL_URL, SHANGHAI_HISTORY_URL,\n    SHANGHAI_URL, SSQ_HISTORY_START_ISSUE,\n)
 from .util import app_data_dir, atomic_json, atomic_write, sha256_bytes, sha256_json, utc_now
 
 
@@ -49,7 +49,7 @@ class Store:
             raise ValueError("raw response manifest is empty")
         expected_urls = {
             "official_cwl_L0": {NATIONAL_URL},
-            "official_shanghai_L1": {SHANGHAI_URL},
+            "official_shanghai_L1": {SHANGHAI_URL, SHANGHAI_HISTORY_URL},
             "official_hebei_L2": {HEBEI_URL, HEBEI_ANNOUNCE_URL},
         }
         by_source: dict[str, list[dict]] = {source: [] for source in expected_urls}
@@ -134,9 +134,62 @@ class Store:
         shanghai = receipt_by_source["official_shanghai_L1"]
         if shanghai.get("status") == "PASS":
             records_for_source = by_source["official_shanghai_L1"]
-            if (len(records_for_source) != 1 or records_for_source[0]["http_status"] != 200
-                    or records_for_source[0]["sha256"] != shanghai.get("raw_sha256")):
-                raise ValueError("Shanghai raw response does not match receipt")
+            shanghai_manifest = evidence.get("shanghai_raw_manifest")
+            if isinstance(shanghai_manifest, list) and shanghai_manifest:
+                ordered = sorted(shanghai_manifest, key=lambda entry: entry.get("sequence", 0))
+                if [entry.get("sequence") for entry in ordered] != list(range(1, len(ordered) + 1)):
+                    raise ValueError("Shanghai raw chunk sequence has gaps or duplicates")
+                latest_year = int(latest_issue[:4]) if re.fullmatch(r"20\d{5}", latest_issue) else 0
+                start_year = int(SSQ_HISTORY_START_ISSUE[:4])
+                expected_ranges = []
+                for year in range(start_year, latest_year + 1):
+                    expected_ranges.extend([
+                        (f"{year}001", f"{year}099"),
+                        (f"{year}100", f"{year}999"),
+                    ])
+                actual_ranges = [(entry.get("start_issue"), entry.get("end_issue")) for entry in ordered]
+                if actual_ranges != expected_ranges:
+                    raise ValueError("Shanghai full-history chunk ranges are incomplete or unexpected")
+                if len(records_for_source) != len(ordered) or any(record["http_status"] != 200 for record in records_for_source):
+                    raise ValueError("Shanghai full-history raw response count/status differs from manifest")
+                if shanghai.get("raw_sha256") != sha256_json(ordered):
+                    raise ValueError("Shanghai full-history manifest does not match receipt")
+                for entry in ordered:
+                    if (not isinstance(entry.get("draw_count"), int) or isinstance(entry.get("draw_count"), bool)
+                            or entry["draw_count"] < 0
+                            or not isinstance(entry.get("bytes"), int) or entry["bytes"] <= 0
+                            or not re.fullmatch(r"[0-9a-f]{64}", str(entry.get("sha256", "")))):
+                        raise ValueError("Shanghai full-history manifest row is malformed")
+                    expected_params = {
+                        "view": "previous", "limit": "100",
+                        "start_issue": entry["start_issue"], "end_issue": entry["end_issue"],
+                    }
+                    matching = [
+                        record for record in records_for_source
+                        if record.get("requested_url") == SHANGHAI_HISTORY_URL
+                        and record.get("request_params") == expected_params
+                    ]
+                    if len(matching) != 1:
+                        raise ValueError("Shanghai chunk has no unique raw response")
+                    record = matching[0]
+                    actual_params = dict(parse_qsl(urlsplit(record["url"]).query, keep_blank_values=True))
+                    if actual_params != expected_params:
+                        raise ValueError("Shanghai raw response URL query differs from manifest contract")
+                    if record["sha256"] != entry["sha256"] or record["bytes"] != entry["bytes"]:
+                        raise ValueError("Shanghai raw response does not match chunk manifest")
+                    if entry["draw_count"] == 0:
+                        if entry.get("first_issue") is not None or entry.get("last_issue") is not None:
+                            raise ValueError("empty Shanghai chunk claims first/last issue")
+                    else:
+                        if (not re.fullmatch(r"20\d{5}", str(entry.get("first_issue", "")))
+                                or not re.fullmatch(r"20\d{5}", str(entry.get("last_issue", "")))
+                                or not entry["start_issue"] <= entry["first_issue"] <= entry["last_issue"] <= entry["end_issue"]):
+                            raise ValueError("Shanghai chunk first/last issue is outside its request range")
+            else:
+                if (len(records_for_source) != 1 or records_for_source[0]["http_status"] != 200
+                        or records_for_source[0]["requested_url"] != SHANGHAI_URL
+                        or records_for_source[0]["sha256"] != shanghai.get("raw_sha256")):
+                    raise ValueError("Shanghai raw response does not match receipt")
         hebei = receipt_by_source["official_hebei_L2"]
         if hebei.get("status") == "PASS":
             records_for_source = by_source["official_hebei_L2"]
@@ -160,6 +213,19 @@ class Store:
                                for r in baseline.get("source_receipts", []) if isinstance(r, dict))):
                 raise ValueError("provincial fallback has no raw-verified CWL baseline lineage")
             Store._check_raw_evidence(baseline, raw_root)
+        elif verification == "SHANGHAI_FULL_L1_PLUS_HEBEI_CURRENT":
+            count = evidence.get("baseline_draw_count")
+            overlap = evidence.get("baseline_overlap_count")
+            baseline_hash = str(evidence.get("baseline_canonical_hash") or "")
+            if (national.get("status") != "FAIL" or shanghai.get("status") != "PASS"
+                    or hebei.get("status") != "PASS"
+                    or not isinstance(evidence.get("shanghai_raw_manifest"), list)
+                    or not evidence["shanghai_raw_manifest"]
+                    or evidence.get("baseline_lineage") is not None
+                    or isinstance(count, bool) or not isinstance(count, int) or count <= 0
+                    or overlap != count
+                    or not re.fullmatch(r"[0-9a-f]{64}", baseline_hash)):
+                raise ValueError("Shanghai full-history fallback evidence is incomplete")
         else:
             validators = int(shanghai.get("status") == "PASS") + int(hebei.get("status") == "PASS")
             if (national.get("status") != "PASS" or validators < 1
@@ -431,14 +497,22 @@ class Store:
 
     @staticmethod
     def _check_baseline_prefix(evidence: dict[str, Any], draws: list[dict[str, Any]]) -> None:
-        if (evidence.get("schema") != "official-source-evidence-v8.5"
-                or evidence.get("verification") != "TRUSTED_BASELINE_PLUS_SHANGHAI_HEBEI_CONSENSUS"):
+        if evidence.get("schema") != "official-source-evidence-v8.5":
+            return
+        verification = evidence.get("verification")
+        if verification not in {
+            "TRUSTED_BASELINE_PLUS_SHANGHAI_HEBEI_CONSENSUS",
+            "SHANGHAI_FULL_L1_PLUS_HEBEI_CURRENT",
+        }:
             return
         count = evidence.get("baseline_draw_count")
         if isinstance(count, bool) or not isinstance(count, int) or not 0 < count <= len(draws):
             raise ValueError("fallback baseline draw count is invalid")
         if sha256_json(draws[:count]) != evidence.get("baseline_canonical_hash"):
             raise ValueError("fallback canonical history does not preserve its verified baseline")
+        if (verification == "SHANGHAI_FULL_L1_PLUS_HEBEI_CURRENT"
+                and evidence.get("baseline_overlap_count") != count):
+            raise ValueError("Shanghai full-history fallback did not reverify every baseline row")
 
     def _integrity_check(self, *, require_raw: bool) -> dict[str, Any]:
         checks: list[dict[str, Any]] = []
