@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import base64
 import csv
 import hashlib
 import io
 import json
 import math
+import random
 import time
 import urllib.parse
 import xml.etree.ElementTree as ET
@@ -13,56 +15,136 @@ from datetime import datetime, timedelta, timezone
 import requests
 
 class NetClient:
-    def __init__(self, connect_timeout=6.0, read_timeout=30.0, max_attempts=3, backoff_base=0.4):
+    RETRY_STATUSES = (408, 429, 500, 502, 503, 504)
+
+    def __init__(
+        self,
+        connect_timeout=6.0,
+        read_timeout=30.0,
+        max_attempts=3,
+        backoff_base=0.4,
+        session=None,
+        sleeper=time.sleep,
+        rng=None,
+    ):
         self.connect_timeout = float(connect_timeout)
         self.read_timeout = float(read_timeout)
-        self.max_attempts = max(1, min(int(max_attempts), 4))
+        self.max_attempts = int(max_attempts)
         self.backoff_base = float(backoff_base)
+        if self.connect_timeout <= 0 or self.read_timeout <= 0:
+            raise ValueError("timeouts must be positive")
+        if self.max_attempts < 1 or self.max_attempts > 4:
+            raise ValueError("max_attempts must be between 1 and 4")
+        if self.backoff_base < 0:
+            raise ValueError("backoff_base must be nonnegative")
+        self.session = session or requests.Session()
+        self.sleeper = sleeper
+        self.rng = rng or random.Random()
         self.last_receipt = {}
 
+    def _retry_delay(self, attempt: int, retry_after: str | None = None) -> float:
+        if retry_after and str(retry_after).isdigit():
+            return min(float(retry_after), 5.0)
+        return min(self.backoff_base * (2 ** (attempt - 1)) * (0.5 + self.rng.random()), 5.0)
+
     def _get_bytes(self, url: str, accept: str):
-        if not url.startswith("https://"):
+        if not str(url).startswith("https://"):
             raise ValueError("HTTPS required")
-        last = None
+        ledger = []
         for attempt in range(1, self.max_attempts + 1):
             try:
-                response = requests.get(
+                response = self.session.get(
                     url,
                     timeout=(self.connect_timeout, self.read_timeout),
                     headers={
-                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) InvestmentFinancePro/0.2",
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) InvestmentFinancePro/0.4",
                         "Accept": accept,
                     },
                     allow_redirects=True,
                 )
-                if response.status_code in (408, 429, 500, 502, 503, 504) and attempt < self.max_attempts:
-                    retry_after = response.headers.get("Retry-After")
-                    delay = float(retry_after) if retry_after and retry_after.isdigit() else self.backoff_base * (2 ** (attempt - 1)) + 0.01 * attempt
-                    time.sleep(min(delay, 5.0))
+                status = int(getattr(response, "status_code", 0) or 0)
+                final_url = str(getattr(response, "url", "") or url)
+                if not final_url.startswith("https://"):
+                    ledger.append({
+                        "attempt": attempt, "outcome": "FINAL_INSECURE_REDIRECT",
+                        "status_code": status, "error_type": None,
+                        "retry_delay": 0.0, "url": final_url,
+                    })
+                    exc = ValueError(f"HTTPS request redirected to non-HTTPS URL: {final_url}")
+                    setattr(exc, "glp_attempts", tuple(ledger))
+                    raise exc
+
+                if status in self.RETRY_STATUSES and attempt < self.max_attempts:
+                    delay = self._retry_delay(attempt, response.headers.get("Retry-After"))
+                    ledger.append({
+                        "attempt": attempt, "outcome": "RETRY_HTTP",
+                        "status_code": status, "error_type": None,
+                        "retry_delay": delay, "url": final_url,
+                    })
+                    self.sleeper(delay)
                     continue
+
                 response.raise_for_status()
                 raw = bytes(response.content)
                 if not raw or len(raw) > 10_000_000:
                     raise ValueError("invalid response size")
                 ctype = (response.headers.get("Content-Type") or "").lower()
+                ledger.append({
+                    "attempt": attempt, "outcome": "HTTP_RESPONSE",
+                    "status_code": status, "error_type": None,
+                    "retry_delay": 0.0, "url": final_url,
+                })
                 self.last_receipt = {
-                    "url": str(response.url),
-                    "http_status": int(response.status_code),
+                    "requested_url": url,
+                    "final_url": final_url,
+                    "http_status": status,
                     "content_type": ctype,
                     "payload_hash": hashlib.sha256(raw).hexdigest(),
                     "bytes": len(raw),
                     "fetched_at": datetime.now(timezone.utc).isoformat(),
-                    "attempts": attempt,
+                    "attempts": list(ledger),
+                    "body_b64": base64.b64encode(raw).decode("ascii"),
                 }
                 return raw, dict(self.last_receipt)
-            except (requests.Timeout, requests.ConnectionError, requests.HTTPError, ValueError) as exc:
-                last = exc
-                code = getattr(getattr(exc, "response", None), "status_code", 0)
-                retryable = isinstance(exc, (requests.Timeout, requests.ConnectionError)) or code in (408, 429, 500, 502, 503, 504)
-                if attempt >= self.max_attempts or not retryable:
+            except (requests.Timeout, requests.ConnectionError) as exc:
+                if attempt < self.max_attempts:
+                    delay = self._retry_delay(attempt)
+                    ledger.append({
+                        "attempt": attempt, "outcome": "RETRY_EXCEPTION",
+                        "status_code": None, "error_type": type(exc).__name__,
+                        "retry_delay": delay, "url": url,
+                    })
+                    self.sleeper(delay)
+                    continue
+                ledger.append({
+                    "attempt": attempt, "outcome": "FINAL_EXCEPTION",
+                    "status_code": None, "error_type": type(exc).__name__,
+                    "retry_delay": 0.0, "url": url,
+                })
+                setattr(exc, "glp_attempts", tuple(ledger))
+                raise
+            except (requests.HTTPError, ValueError) as exc:
+                if getattr(exc, "glp_attempts", None):
                     raise
-                time.sleep(self.backoff_base * (2 ** (attempt - 1)) + 0.01 * attempt)
-        raise RuntimeError(str(last))
+                code = int(getattr(getattr(exc, "response", None), "status_code", 0) or 0)
+                retryable = code in self.RETRY_STATUSES
+                if retryable and attempt < self.max_attempts:
+                    delay = self._retry_delay(attempt)
+                    ledger.append({
+                        "attempt": attempt, "outcome": "RETRY_EXCEPTION",
+                        "status_code": code or None, "error_type": type(exc).__name__,
+                        "retry_delay": delay, "url": url,
+                    })
+                    self.sleeper(delay)
+                    continue
+                ledger.append({
+                    "attempt": attempt, "outcome": "FINAL_EXCEPTION",
+                    "status_code": code or None, "error_type": type(exc).__name__,
+                    "retry_delay": 0.0, "url": url,
+                })
+                setattr(exc, "glp_attempts", tuple(ledger))
+                raise
+        raise RuntimeError("network retry loop exhausted")
 
     def _get_json(self, url: str):
         raw, receipt = self._get_bytes(url, "application/json,text/plain;q=0.9,*/*;q=0.1")
