@@ -4,6 +4,13 @@ on:
   workflow_dispatch:
   push:
     branches: [ main ]
+    paths:
+      - 'DLT/**'
+      - '.github/workflows/dlt-windows-build-acceptance.yml'
+  pull_request:
+    paths:
+      - 'DLT/**'
+      - '.github/workflows/dlt-windows-build-acceptance.yml'
 
 defaults:
   run:
@@ -23,6 +30,13 @@ jobs:
         run: python -m pip install --disable-pip-version-check -r requirements.txt
       - name: Source compile check
         run: python -m compileall -q src
+      - name: Import/runtime smoke
+        shell: pwsh
+        run: |
+          $env:PYTHONPATH = "$PWD\src"
+          python -c "from glp.storage import Store; from glp.sources import build_canonical; from glp.net_client import NetClient; print('DLT_IMPORT_RUNTIME=PASS')"
+      - name: Deterministic contract and fault gate
+        run: python scripts/contract_gate.py
       - name: Source self-test
         shell: pwsh
         run: |
