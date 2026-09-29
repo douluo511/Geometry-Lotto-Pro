@@ -5,7 +5,7 @@
 
 ## Business hard gates
 - 市场行情：真实日线，记录来源、HTTP、时间与 payload hash。
-- 官方宏观：U.S. Treasury 10Y + FRED effective fed funds。
+- 官方宏观：U.S. Treasury 10Y + FRED DFF；若 FRED 图表下载路径在当前网络环境超时，只允许回退到 New York Fed 官方 EFFR Markets Data API，并保留 FRED 主路径失败证据。
 - 公司事实：SEC Company Facts，至少能取得一只真实公司最近 10-K 年度 EPS。
 - Engine 自己拥有 metrics / valuation / scenario / rank，不再把生产计算代理给 legacy_backend。
 - 风险至少包括年化波动、60 日最大回撤、-10%/-20% 压力情景。
@@ -14,8 +14,9 @@
 - 任一生产数据源失败必须显式 PARTIAL/FAILED，不能用缓存伪装实时 PASS。
 
 ## Sources
-- Yahoo Chart + Stooq 独立交叉核对（市场行情）；正常 PASS 要求两者在最近共同交易日无重大冲突。
-- Yahoo 不可用时允许 Stooq 作为可用 fallback，但单源 fallback 只能形成 PARTIAL，不得成为 live PASS。
+- Yahoo Chart + Nasdaq 独立历史行情交叉核对（市场行情）；正常 PASS 要求两者在最近共同交易日无重大冲突。
+- Yahoo 或 Nasdaq 任一路不可用时，单源结果只能形成 PARTIAL，不得成为 live PASS；不得把同一供应商的镜像主机伪装成独立交叉源。
+- Stooq 无密钥下载接口已不作为生产硬门来源；如未来重新启用，必须通过独立凭据与当前契约验证后再纳入。
 - U.S. Treasury（官方 10Y 利率）；FRED DFF（官方/权威宏观时间序列）；SEC Company Facts（官方申报事实）。
 - 所有生产源必须执行 freshness 检查、HTTP/Content-Type/结构校验并保留逐次网络 ledger 与 raw payload hash。
 
