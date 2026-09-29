@@ -3,7 +3,7 @@ name: Investment Finance Pro - Evidence-Derived Full Release
 on:
   workflow_dispatch:
   push:
-    branches: [investment-finance-pro-mvp]
+    branches: [investment-finance-pro-mvp, main]
     paths:
       - "investment_finance_pro/**"
       - ".github/workflows/investment-finance-pro-build.yml"
