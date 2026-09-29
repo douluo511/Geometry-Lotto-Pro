@@ -78,6 +78,11 @@ jobs:
           $env:PYTHONPATH = "$PWD\SSQ"
           python launcher.py --check update --result-file evidence\SSQ\source-live-update.json
           $r = Get-Content evidence\SSQ\source-live-update.json -Raw | ConvertFrom-Json
+          if ($r.status -ne 'PASS') {
+            Write-Host "SOURCE_LIVE_STATUS=$($r.status)"
+            Write-Host "SOURCE_LIVE_ERROR=$($r.error)"
+            Write-Host "SOURCE_LIVE_FAILURE_EVIDENCE=$($r.failed_network_evidence | ConvertTo-Json -Compress -Depth 6)"
+          }
           if ($LASTEXITCODE -ne 0 -or $r.status -ne 'PASS') { throw "source live official-network quorum failed" }
           if ($r.result.crosscheck_status -ne 'PASS') { throw "source crosscheck_status=$($r.result.crosscheck_status)" }
           Write-Host "SOURCE_LIVE_LATEST=$($r.result.latest_issue)"
