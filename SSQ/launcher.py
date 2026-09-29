@@ -187,14 +187,61 @@ def main() -> int:
                 status = 'PASS' if rejected and before == after else 'FAIL'
 
             elif args.check == 'corrupt-repair':
+                # Deterministic fault-injection gate: repair behavior is tested
+                # independently from the separate live Real Network gate.
                 svc.ensure_seed()
+                pristine_draws, pristine_hash = svc.store.load_draws()
+                from glp.domain import CanonicalDataset, SourceReceipt
+                from glp.util import utc_now
+                injected_receipt = SourceReceipt(
+                    source='fault_injection_trusted_dataset',
+                    fetched_at=utc_now(),
+                    http_status=200,
+                    raw_sha256=pristine_hash,
+                    draw_count=len(pristine_draws),
+                    latest_issue=pristine_draws[-1].issue,
+                    status='PASS',
+                    detail='deterministic repair fixture; not production Real Network evidence',
+                )
+                injected_dataset = CanonicalDataset(
+                    draws=pristine_draws,
+                    canonical_hash=pristine_hash,
+                    receipts=[injected_receipt],
+                    crosscheck_count=1,
+                    crosscheck_status='PASS',
+                )
+                injected_evidence = {
+                    'schema': 'fault-injection-repair-evidence-v1',
+                    'game': 'SSQ',
+                    'canonical_hash': pristine_hash,
+                    'draw_count': len(pristine_draws),
+                    'latest': pristine_draws[-1].to_dict(),
+                    'crosscheck_count': 1,
+                    'crosscheck_status': 'PASS',
+                    'verification': 'DETERMINISTIC_FAULT_INJECTION_ONLY',
+                    'source_receipts': [injected_receipt.__dict__],
+                }
+
                 payload = json.loads(svc.store.history_path.read_text(encoding='utf-8'))
                 payload['draws'][-1]['front'][0] = 1 if int(payload['draws'][-1]['front'][0]) != 1 else 2
                 svc.store.history_path.write_text(json.dumps(payload, ensure_ascii=False), encoding='utf-8')
                 before = svc._integrity_check()
-                repair = svc.repair()
+
+                import glp.service as service_module
+                original_build_canonical = service_module.build_canonical
+                service_module.build_canonical = lambda progress=None, baseline_draws=None: (injected_dataset, injected_evidence)
+                try:
+                    repair = svc.repair()
+                finally:
+                    service_module.build_canonical = original_build_canonical
+
                 after = svc._integrity_check()
-                r = {'before': before, 'repair': repair, 'after': after}
+                r = {
+                    'before': before,
+                    'repair': repair,
+                    'after': after,
+                    'network_mode': 'DETERMINISTIC_INJECTED_FIXTURE',
+                }
                 status = 'PASS' if not before.get('ok') and repair.get('status') == 'PASS' and after.get('ok') else 'FAIL'
 
             elif args.check.startswith('random-world-'):
