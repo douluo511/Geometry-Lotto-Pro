@@ -37,6 +37,7 @@ DEFAULT_SOURCES = [
         id="bls_latest",
         name="U.S. Bureau of Labor Statistics - Latest Numbers",
         url="https://www.bls.gov/feed/bls_latest.rss",
+        fallback_urls=("https://www.bls.gov/feed/empsit.rss",),
         quality=1.0,
     ),
     Source(
@@ -222,6 +223,8 @@ class InformationEngine:
             http_status=document.http_status,
             raw_hash=document.payload_hash,
             elapsed_ms=round((time.perf_counter() - started) * 1000),
+            selected_url=document.final_url or document.url,
+            attempts=list(document.attempts),
         )
         return items, health
 
