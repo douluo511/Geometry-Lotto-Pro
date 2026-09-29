@@ -3,16 +3,16 @@ from datetime import datetime, timezone
 from pathlib import Path
 import os
 
-import legacy_backend as legacy
 from contracts import validate_snapshot
 from engine import InvestmentEngine
 from evidence import EvidenceLedger
 from net_client import NetClient
 from storage import SnapshotStorage
 
-APP_NAME = legacy.APP_NAME
+APP_NAME = "Investment Finance Pro"
+WATCHLIST = ["SPY", "QQQ", "AAPL", "MSFT", "NVDA", "GOOGL", "AMZN"]
 SEC_CIK={"AAPL":320193,"MSFT":789019,"NVDA":1045810,"GOOGL":1652044,"AMZN":1018724}
-VERSION = "0.3.0"
+VERSION = "0.4.0"
 
 class InvestmentService:
     def __init__(self, net=None, storage=None, engine=None, evidence=None):
@@ -30,7 +30,7 @@ class InvestmentService:
         metrics = {}
         providers = []
         receipts = []
-        for symbol in legacy.WATCHLIST:
+        for symbol in WATCHLIST:
             try:
                 rows, provider, receipt = self.net.fetch_market_history(symbol)
                 metrics[symbol] = self.engine.compute_metrics(rows)
@@ -89,8 +89,15 @@ class InvestmentService:
             "metrics": metrics,
             "ranking": self.engine.rank(metrics, fundamentals, macro),
         }
-        self.storage.write(payload)
-        self.evidence.record("NETWORK", state, providers=providers, receipts=receipts)
+        if state == "PASS":
+            self.storage.write(payload)
+        self.evidence.record(
+            "NETWORK",
+            state,
+            providers=providers,
+            receipts=receipts,
+            snapshot_committed=(state == "PASS"),
+        )
         return payload
 
     def repair(self):
