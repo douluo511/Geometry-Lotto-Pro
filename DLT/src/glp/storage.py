@@ -1,14 +1,17 @@
 from __future__ import annotations
 
+import gc
 import json
 import shutil
 import os
 import sqlite3
+import tempfile
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
 from .domain import CanonicalDataset, Draw, Prediction
-from .util import app_data_dir, atomic_json, sha256_json, utc_now
+from .util import app_data_dir, atomic_json, atomic_write, sha256_json, utc_now
 
 
 class Store:
@@ -39,8 +42,18 @@ class Store:
         db.execute("PRAGMA foreign_keys=ON")
         return db
 
+    @contextmanager
+    def _connection(self):
+        """Transactional SQLite scope that always closes the Windows file handle."""
+        db = self._connect()
+        try:
+            with db:
+                yield db
+        finally:
+            db.close()
+
     def _init_db(self) -> None:
-        with self._connect() as db:
+        with self._connection() as db:
             db.executescript(
                 """
                 CREATE TABLE IF NOT EXISTS experiments (
@@ -73,7 +86,7 @@ class Store:
             )
 
     def _archive_freezes(self) -> None:
-        with self._connect() as db:
+        with self._connection() as db:
             rows = db.execute("SELECT payload_json FROM freezes ORDER BY target_issue").fetchall()
         values = [json.loads(r["payload_json"]) for r in rows]
         atomic_json(self.freeze_archive_path, {"schema": 1, "freezes": values})
@@ -95,31 +108,29 @@ class Store:
         except Exception:
             pass
 
-        # Back up the main database first. This is the forensic evidence
-        # required for recovery. WAL/SHM are best-effort on Windows.
+        # Back up the main database first. This is forensic recovery evidence.
         if self.db_path.exists():
             dst = self.root / f"{self.db_path.name}.corrupt.{stamp}.bak"
             shutil.copy2(self.db_path, dst)
             backups.append(str(dst))
 
-        # Remove the main corrupt database. A new database will be created.
-    if self.db_path.exists():
-        try:
-            os.remove(self.db_path)
-        except PermissionError:
-            gc.collect()
-            os.remove(self.db_path)
+        # Remove the corrupt main database. On Windows, force a collection once
+        # before retrying if a recently closed SQLite handle is still pending.
+        if self.db_path.exists():
+            try:
+                os.remove(self.db_path)
+            except PermissionError:
+                gc.collect()
+                os.remove(self.db_path)
 
-        # WAL/SHM cleanup is best-effort because Windows can temporarily
-        # retain handles even after the SQLite connection is closed.
+        # WAL/SHM cleanup is best-effort because Windows can transiently retain
+        # sidecar handles even after the main connection is closed.
         for suffix in ("-wal", "-shm"):
             sidecar = Path(str(self.db_path) + suffix)
             if sidecar.exists():
                 try:
                     sidecar.unlink()
-                except PermissionError:
-                    pass
-                except OSError:
+                except (PermissionError, OSError):
                     pass
 
         self._db_init_error = ""
@@ -128,28 +139,90 @@ class Store:
 
         restored = 0
         if self.freeze_archive_path.exists():
-            value = json.loads(
-                self.freeze_archive_path.read_text(encoding="utf-8")
-            )
+            value = json.loads(self.freeze_archive_path.read_text(encoding="utf-8"))
             for item in value.get("freezes", []):
                 pred = Prediction(**item)
                 self.freeze(pred)
                 restored += 1
 
-                return {
-                    "backups": backups,
-                    "restored_freezes": restored,
-                } 
+        return {
+            "backups": backups,
+            "restored_freezes": restored,
+        }
+
+    @staticmethod
+    def _json_bytes(value: Any) -> bytes:
+        return (json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode("utf-8")
+
+    @staticmethod
+    def _stage_bytes(path: Path, data: bytes) -> Path:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        fd, tmp = tempfile.mkstemp(prefix=path.name + ".", suffix=".stage", dir=path.parent)
+        staged = Path(tmp)
+        try:
+            with os.fdopen(fd, "wb") as fh:
+                fh.write(data)
+                fh.flush()
+                os.fsync(fh.fileno())
+            return staged
+        except Exception:
+            staged.unlink(missing_ok=True)
+            raise
+
+    @staticmethod
+    def _commit_replace(staged: Path, target: Path) -> None:
+        os.replace(staged, target)
+
+    @staticmethod
+    def _restore_bytes(path: Path, previous: bytes | None) -> None:
+        if previous is None:
+            path.unlink(missing_ok=True)
+        else:
+            atomic_write(path, previous)
 
     def save_dataset(self, dataset: CanonicalDataset, evidence: dict[str, Any]) -> None:
+        evidence_payload = dict(evidence)
+        commit_id = sha256_json({
+            "canonical_hash": dataset.canonical_hash,
+            "evidence_hash": sha256_json(evidence_payload),
+        })
         payload = {
-            "schema": 2,
+            "schema": 3,
             "game": "DLT",
             "canonical_hash": dataset.canonical_hash,
+            "commit_id": commit_id,
             "draws": [d.to_dict() for d in dataset.draws],
         }
-        atomic_json(self.history_path, payload)
-        atomic_json(self.evidence_path, evidence)
+        evidence_payload["commit_id"] = commit_id
+
+        history_bytes = self._json_bytes(payload)
+        evidence_bytes = self._json_bytes(evidence_payload)
+        old_history = self.history_path.read_bytes() if self.history_path.exists() else None
+        old_evidence = self.evidence_path.read_bytes() if self.evidence_path.exists() else None
+
+        staged_history: Path | None = None
+        staged_evidence: Path | None = None
+        evidence_committed = False
+        try:
+            staged_history = self._stage_bytes(self.history_path, history_bytes)
+            staged_evidence = self._stage_bytes(self.evidence_path, evidence_bytes)
+            self._commit_replace(staged_evidence, self.evidence_path)
+            staged_evidence = None
+            evidence_committed = True
+            self._commit_replace(staged_history, self.history_path)
+            staged_history = None
+        except Exception:
+            if evidence_committed:
+                self._restore_bytes(self.evidence_path, old_evidence)
+            current_history = self.history_path.read_bytes() if self.history_path.exists() else None
+            if current_history != old_history:
+                self._restore_bytes(self.history_path, old_history)
+            raise
+        finally:
+            if staged_history is not None:
+                staged_history.unlink(missing_ok=True)
+            if staged_evidence is not None:
+                staged_evidence.unlink(missing_ok=True)
 
     def load_draws(self) -> tuple[list[Draw], str]:
         if not self.history_path.exists():
@@ -167,7 +240,7 @@ class Store:
     def append_experiment(self, kind: str, status: str, input_hash: str, code_hash: str, payload: dict[str, Any]) -> int:
         if status not in {"PASS", "FAIL"}:
             raise ValueError(f"实验状态必须明确为 PASS/FAIL，收到: {status}")
-        with self._connect() as db:
+        with self._connection() as db:
             cur = db.execute(
                 "INSERT INTO experiments(created_at,kind,status,input_hash,code_hash,payload_json) VALUES(?,?,?,?,?,?)",
                 (utc_now(), kind, status, input_hash, code_hash, json.dumps(payload, ensure_ascii=False, sort_keys=True)),
@@ -184,7 +257,7 @@ class Store:
             raise ValueError(f"Freeze hash mismatch for issue {prediction.target_issue}")
 
     def freeze(self, prediction: Prediction) -> Prediction:
-        with self._connect() as db:
+        with self._connection() as db:
             row = db.execute("SELECT payload_json FROM freezes WHERE target_issue=?", (prediction.target_issue,)).fetchone()
             if row:
                 existing = Prediction(**json.loads(row["payload_json"]))
@@ -213,7 +286,7 @@ class Store:
         return frozen
 
     def freezes(self) -> list[Prediction]:
-        with self._connect() as db:
+        with self._connection() as db:
             rows = db.execute("SELECT payload_json FROM freezes ORDER BY target_issue").fetchall()
         values = [Prediction(**json.loads(r["payload_json"])) for r in rows]
         for pred in values:
@@ -221,7 +294,7 @@ class Store:
         return values
 
     def save_replay(self, prediction_id: str, issue: str, payload: dict[str, Any]) -> None:
-        with self._connect() as db:
+        with self._connection() as db:
             db.execute(
                 "INSERT OR IGNORE INTO replays(prediction_id,replayed_at,actual_issue,payload_json) VALUES(?,?,?,?)",
                 (prediction_id, utc_now(), issue, json.dumps(payload, ensure_ascii=False, sort_keys=True)),
@@ -234,7 +307,7 @@ class Store:
             query += "WHERE f.selector_hash=? "
             params = (selector_hash,)
         query += "ORDER BY f.target_issue"
-        with self._connect() as db:
+        with self._connection() as db:
             rows = db.execute(query, params).fetchall()
         return [json.loads(r["payload_json"]) for r in rows]
 
@@ -243,7 +316,7 @@ class Store:
         try:
             if self._db_init_error:
                 raise sqlite3.DatabaseError(self._db_init_error)
-            with self._connect() as db:
+            with self._connection() as db:
                 row = db.execute("PRAGMA integrity_check").fetchone()
                 ok = bool(row and str(row[0]).lower() == "ok")
                 freeze_rows = db.execute("SELECT payload_json FROM freezes ORDER BY target_issue").fetchall()
@@ -286,6 +359,13 @@ class Store:
             if not self.evidence_path.exists():
                 raise FileNotFoundError("source_evidence.json missing")
             evidence = json.loads(self.evidence_path.read_text(encoding="utf-8"))
+            history = json.loads(self.history_path.read_text(encoding="utf-8"))
+            history_commit = history.get("commit_id")
+            evidence_commit = evidence.get("commit_id")
+            if bool(history_commit) != bool(evidence_commit):
+                raise ValueError("history/evidence commit_id presence mismatch")
+            if history_commit and history_commit != evidence_commit:
+                raise ValueError("history/evidence commit_id mismatch")
             if str(evidence.get("canonical_hash")) != digest:
                 raise ValueError("source evidence canonical_hash mismatch")
             if str(evidence.get("crosscheck_status")) != "PASS":
