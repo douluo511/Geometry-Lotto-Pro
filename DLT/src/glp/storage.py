@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gc
 import json
 import shutil
 import os
@@ -96,31 +97,29 @@ class Store:
         except Exception:
             pass
 
-        # Back up the main database first. This is the forensic evidence
-        # required for recovery. WAL/SHM are best-effort on Windows.
+        # Back up the main database first. This is forensic recovery evidence.
         if self.db_path.exists():
             dst = self.root / f"{self.db_path.name}.corrupt.{stamp}.bak"
             shutil.copy2(self.db_path, dst)
             backups.append(str(dst))
 
-        # Remove the main corrupt database. A new database will be created.
-    if self.db_path.exists():
-        try:
-            os.remove(self.db_path)
-        except PermissionError:
-            gc.collect()
-            os.remove(self.db_path)
+        # Remove the corrupt main database. On Windows, force a collection once
+        # before retrying if a recently closed SQLite handle is still pending.
+        if self.db_path.exists():
+            try:
+                os.remove(self.db_path)
+            except PermissionError:
+                gc.collect()
+                os.remove(self.db_path)
 
-        # WAL/SHM cleanup is best-effort because Windows can temporarily
-        # retain handles even after the SQLite connection is closed.
+        # WAL/SHM cleanup is best-effort because Windows can transiently retain
+        # sidecar handles even after the main connection is closed.
         for suffix in ("-wal", "-shm"):
             sidecar = Path(str(self.db_path) + suffix)
             if sidecar.exists():
                 try:
                     sidecar.unlink()
-                except PermissionError:
-                    pass
-                except OSError:
+                except (PermissionError, OSError):
                     pass
 
         self._db_init_error = ""
@@ -129,18 +128,16 @@ class Store:
 
         restored = 0
         if self.freeze_archive_path.exists():
-            value = json.loads(
-                self.freeze_archive_path.read_text(encoding="utf-8")
-            )
+            value = json.loads(self.freeze_archive_path.read_text(encoding="utf-8"))
             for item in value.get("freezes", []):
                 pred = Prediction(**item)
                 self.freeze(pred)
                 restored += 1
 
-                return {
-                    "backups": backups,
-                    "restored_freezes": restored,
-                } 
+        return {
+            "backups": backups,
+            "restored_freezes": restored,
+        }
 
     @staticmethod
     def _json_bytes(value: Any) -> bytes:
