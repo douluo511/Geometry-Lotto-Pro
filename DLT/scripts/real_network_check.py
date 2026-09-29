@@ -15,12 +15,23 @@ def main() -> int:
     out.parent.mkdir(parents=True, exist_ok=True)
     try:
         dataset, evidence = build_canonical()
+        source_mode = evidence.get("source_mode")
+        if source_mode == "national_plus_jiangsu":
+            source_evidence_ok = bool(evidence.get("national_raw_manifest")) and bool(evidence.get("jiangsu_raw_evidence"))
+        elif source_mode == "jiangsu_full_plus_guangdong":
+            source_evidence_ok = (
+                bool(evidence.get("national_failure"))
+                and bool(evidence.get("jiangsu_full_raw_manifest"))
+                and bool(evidence.get("guangdong_raw_manifest"))
+            )
+        else:
+            source_evidence_ok = False
         ok = (
             dataset.crosscheck_status == "PASS"
             and evidence.get("network_gate") == "PASS"
+            and evidence.get("freshness_gate") == "PASS"
             and evidence.get("crosscheck_status") == "PASS"
-            and bool(evidence.get("national_raw_manifest"))
-            and bool(evidence.get("jiangsu_raw_evidence"))
+            and source_evidence_ok
         )
         report = {
             "schema": "dlt-real-network-check-v1",
@@ -28,6 +39,7 @@ def main() -> int:
             "latest_issue": dataset.draws[-1].issue if dataset.draws else None,
             "draw_count": len(dataset.draws),
             "canonical_hash": dataset.canonical_hash,
+            "source_mode": evidence.get("source_mode"),
             "crosscheck_count": dataset.crosscheck_count,
             "crosscheck_status": dataset.crosscheck_status,
             "evidence": evidence,
