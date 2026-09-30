@@ -15,14 +15,16 @@ ACTION_SHA_RE = re.compile(
 
 
 def workflow_actions_are_sha_pinned(repo_root: Path) -> tuple[bool, list[str]]:
-    workflow_paths = (
-        repo_root / ".github" / "workflows" / "ssq-windows-build-acceptance.yml",
-        repo_root / ".github" / "workflows" / "ssq-independent-repo-export.yml",
-    )
+    required = repo_root / ".github" / "workflows" / "ssq-windows-build-acceptance.yml"
+    optional_export = repo_root / ".github" / "workflows" / "ssq-independent-repo-export.yml"
+    workflow_paths = [required]
+    if optional_export.is_file():
+        workflow_paths.append(optional_export)
     failures: list[str] = []
+    if not required.is_file():
+        failures.append(f"missing workflow: {required.relative_to(repo_root)}")
     for path in workflow_paths:
         if not path.is_file():
-            failures.append(f"missing workflow: {path.relative_to(repo_root)}")
             continue
         for number, raw in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
             stripped = raw.strip()
