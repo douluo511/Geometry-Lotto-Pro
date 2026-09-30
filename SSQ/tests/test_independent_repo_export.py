@@ -133,6 +133,59 @@ class IndependentRepoExportTests(unittest.TestCase):
             self.assertEqual(proof["status"], "FAIL")
             self.assertFalse(proof["checks"]["no_unmanifested_files"])
 
+    def test_tampered_sha256s_file_fails_verification(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            base = Path(td)
+            source = base / "source"
+            target = base / "target"
+            source.mkdir()
+            self.make_source(source)
+            self.assertEqual(export_repository(source, target, "9" * 40)["status"], "PASS")
+
+            (target / "MIGRATION_SHA256SUMS.txt").write_text(
+                "0" * 64 + "  SSQ/SSQ/glp/core.py\n", encoding="utf-8"
+            )
+            proof = verify_export(target)
+            self.assertEqual(proof["status"], "FAIL")
+            self.assertFalse(proof["checks"]["sha256sums_match_manifest"])
+
+    def test_duplicate_manifest_path_fails_verification(self) -> None:
+        import json
+        with tempfile.TemporaryDirectory() as td:
+            base = Path(td)
+            source = base / "source"
+            target = base / "target"
+            source.mkdir()
+            self.make_source(source)
+            self.assertEqual(export_repository(source, target, "e" * 40)["status"], "PASS")
+
+            manifest_path = target / "MIGRATION_MANIFEST.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["files"].append(dict(manifest["files"][0]))
+            manifest_path.write_text(
+                json.dumps(manifest, ensure_ascii=False, sort_keys=True, indent=2) + "\n",
+                encoding="utf-8",
+            )
+            proof = verify_export(target)
+            self.assertEqual(proof["status"], "FAIL")
+            self.assertFalse(proof["checks"]["unique_manifest_paths"])
+            self.assertTrue(proof["duplicate_paths"])
+
+    def test_symlink_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            base = Path(td)
+            source = base / "source"
+            target = base / "target"
+            source.mkdir()
+            self.make_source(source)
+            link = source / "SSQ" / "SSQ" / "glp" / "linked.py"
+            try:
+                link.symlink_to(source / "SSQ" / "SSQ" / "glp" / "core.py")
+            except (OSError, NotImplementedError):
+                self.skipTest("symlinks unavailable on this runner")
+            with self.assertRaises(ValueError):
+                export_repository(source, target, "f" * 40)
+
     def test_nonempty_destination_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             base = Path(td)
