@@ -674,6 +674,82 @@ class ReleaseGateEvidenceTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     _verify_updater_release_network(root, updater_hash, "b" * 64)
 
+    def test_updater_release_network_requires_real_waited_pid(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            updater_hash = "a" * 64
+            digest = "b" * 64
+            version = "9.0.0"
+            manifest_url = (
+                "https://github.com/douluo511/Geometry-Lotto-Pro-SSQ/"
+                "releases/download/v9/manifest.json"
+            )
+            artifact_url = (
+                "https://github.com/douluo511/Geometry-Lotto-Pro-SSQ/"
+                "releases/download/v9/app.exe"
+            )
+
+            def write_report(wait: dict) -> None:
+                service = {
+                    "status": "PASS",
+                    "schema": "ssq-software-update-result-v1",
+                    "manifest": {
+                        "schema": "ssq-software-update-manifest-v1",
+                        "app": "Geometry Lotto Pro SSQ",
+                        "version": version,
+                        "artifact_url": artifact_url,
+                        "artifact_sha256": digest,
+                        "artifact_bytes": 123,
+                    },
+                    "manifest_receipt": {
+                        "status": "PASS", "http_status": 200, "bytes": 99,
+                        "sha256": "c" * 64, "requested_url": manifest_url,
+                        "final_url": manifest_url,
+                    },
+                    "manifest_raw_sha256": "c" * 64,
+                    "artifact_receipt": {
+                        "status": "PASS", "http_status": 200, "bytes": 123,
+                        "sha256": digest, "requested_url": artifact_url,
+                        "final_url": "https://release-assets.githubusercontent.com/fake",
+                    },
+                    "replacement": {
+                        "status": "PASS", "expected_sha256": digest,
+                        "staged_sha256": digest, "installed_sha256": digest,
+                        "previous_preserved": True,
+                        "post_replace_validation": {
+                            "status": "PASS", "expected_version": version,
+                            "reported_version": version, "target_sha256": digest,
+                        },
+                    },
+                    "wait_for_main": wait,
+                }
+                report = {
+                    "schema": "ssq-independent-updater-v2",
+                    "mode": "software-update", "status": "PASS",
+                    "github_sha": "a" * 40, "github_run_id": "12345",
+                    "updater_exe_sha256": updater_hash, "parent_pid_match": True,
+                    "service_result": service,
+                    "service_result_sha256": _sha_for_test(service),
+                }
+                (root / "updater-software-release-network.json").write_text(
+                    json.dumps(report), encoding="utf-8"
+                )
+
+            with patch.dict(os.environ, {
+                "GITHUB_SHA": "a" * 40, "GITHUB_RUN_ID": "12345",
+            }):
+                write_report({"status": "PASS", "waited": False})
+                with self.assertRaisesRegex(ValueError, "wait evidence"):
+                    _verify_updater_release_network(root, updater_hash, digest)
+
+                write_report({
+                    "status": "PASS", "waited": True, "pid": 4321, "elapsed": 0.5,
+                })
+                proof = _verify_updater_release_network(root, updater_hash, digest)
+                self.assertTrue(proof["waited_for_main"])
+                self.assertEqual(proof["wait_pid"], 4321)
+                self.assertGreater(proof["wait_elapsed"], 0)
+
     def test_updater_release_network_rejects_shared_repo_urls(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
