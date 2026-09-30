@@ -13,12 +13,13 @@ from .domain import Draw
 from .net_client import NetClient
 
 
+NATIONAL_URL = "https://www.cwl.gov.cn/cwl_admin/front/cwlkj/search/kjxx/findDrawNotice"
 SHANGHAI_HISTORY_URL = "https://www.swlc.net.cn/lottery/kl8.html"
 HAPPY8_HISTORY_START_ISSUE = "2020001"
 JIANGSU_URL = "https://www.jslottery.com/"
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Happy8Evidence/0.3",
-    "Accept": "text/html,application/xhtml+xml",
+    "Accept": "application/json,text/html;q=0.9,application/xhtml+xml;q=0.8,*/*;q=0.5",
     "Referer": "https://www.swlc.net.cn/",
 }
 NET = NetClient(connect_timeout=10, read_timeout=30, max_attempts=3)
@@ -72,6 +73,170 @@ def _numbers_from_compact(value: str) -> tuple[int, ...]:
     if len(digits) != 40 or not digits.isdigit():
         raise ValueError("Happy8 compact result must contain exactly forty digits")
     return tuple(int(digits[i:i + 2]) for i in range(0, 40, 2))
+
+
+
+def _national_params(page_no: int, page_size: int = 100) -> dict[str, str]:
+    return {
+        "name": "kl8",
+        "issueCount": "",
+        "issueStart": "",
+        "issueEnd": "",
+        "dayStart": "",
+        "dayEnd": "",
+        "pageNo": str(page_no),
+        "pageSize": str(page_size),
+        "week": "",
+        "systemType": "PC",
+    }
+
+
+def _validate_national_response(response) -> bytes:
+    raw = bytes(response.content)
+    status = int(response.status_code)
+    if status != 200:
+        attempts = list(getattr(response, "happy8_attempts", ()))
+        raise RuntimeError(
+            f"CWL Happy8 HTTP {status}; bytes={len(raw)} sha256={hashlib.sha256(raw).hexdigest()} "
+            f"attempts={attempts!r}"
+        )
+    ctype = str(response.headers.get("Content-Type", "")).lower()
+    if "json" not in ctype:
+        raise RuntimeError(f"CWL Happy8 content type is not JSON: {ctype!r}")
+    if not raw or len(raw) > 8 * 1024 * 1024:
+        raise RuntimeError(f"CWL Happy8 invalid response size: {len(raw)}")
+    return raw
+
+
+def _parse_national_payload(raw: bytes) -> tuple[list[Draw], int | None, int | None]:
+    try:
+        payload = json.loads(raw.decode("utf-8-sig"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise RuntimeError("CWL Happy8 returned invalid JSON") from exc
+    if not isinstance(payload, dict):
+        raise RuntimeError("CWL Happy8 payload is not an object")
+    state = payload.get("state")
+    try:
+        state_ok = int(state) == 0
+    except Exception:
+        state_ok = str(state).upper() in {"OK", "PASS", "SUCCESS"}
+    rows = payload.get("result")
+    if not state_ok or not isinstance(rows, list):
+        raise RuntimeError(f"CWL Happy8 response state/schema changed: state={state!r}")
+    draws: list[Draw] = []
+    seen: set[str] = set()
+    for index, row in enumerate(rows):
+        if not isinstance(row, dict):
+            raise RuntimeError(f"CWL Happy8 row {index} is not an object")
+        issue = row.get("code") or row.get("issue") or row.get("lotteryDrawNum")
+        day = row.get("date") or row.get("lotteryDrawTime")
+        balls = row.get("red") or row.get("result") or row.get("lotteryDrawResult")
+        issue_text = str(issue or "").strip()
+        day_text = str(day or "").strip()[:10]
+        nums = [int(x) for x in re.findall(r"\d{1,2}", str(balls or ""))]
+        try:
+            draw = Draw.from_values(issue_text, day_text, nums)
+        except Exception as exc:
+            raise RuntimeError(f"CWL Happy8 row {index} violates draw schema") from exc
+        if draw.issue in seen:
+            raise RuntimeError(f"CWL Happy8 page repeats issue {draw.issue}")
+        seen.add(draw.issue)
+        draws.append(draw)
+    page_num = payload.get("pageNum")
+    total = payload.get("total")
+    try:
+        pages = int(page_num) if page_num not in (None, "") else None
+    except Exception as exc:
+        raise RuntimeError(f"CWL Happy8 invalid pageNum: {page_num!r}") from exc
+    try:
+        total_count = int(total) if total not in (None, "") else None
+    except Exception as exc:
+        raise RuntimeError(f"CWL Happy8 invalid total: {total!r}") from exc
+    return draws, pages, total_count
+
+
+def fetch_national_full_history() -> tuple[list[Draw], SourceReceipt, dict[str, bytes], list[dict[str, Any]]]:
+    page_size = 100
+    page = 1
+    reported_pages: int | None = None
+    all_draws: list[Draw] = []
+    raw_sources: dict[str, bytes] = {}
+    manifest: list[dict[str, Any]] = []
+    headers = dict(HEADERS)
+    headers["Referer"] = "https://www.cwl.gov.cn/"
+
+    while True:
+        params = _national_params(page, page_size)
+        response = NET.get(NATIONAL_URL, params=params, headers=headers, timeout=(10, 30), allow_redirects=True)
+        actual = urlsplit(str(getattr(response, "url", "") or NATIONAL_URL))
+        if actual.scheme.lower() != "https" or actual.hostname != urlsplit(NATIONAL_URL).hostname:
+            raise RuntimeError("CWL Happy8 response left official HTTPS host")
+        raw = _validate_national_response(response)
+        draws, pages, total_count = _parse_national_payload(raw)
+        if page == 1:
+            if pages is None and total_count is not None:
+                pages = max(1, (total_count + page_size - 1) // page_size)
+            if pages is None or pages < 1 or pages > 10000:
+                raise RuntimeError(f"CWL Happy8 page count invalid: {pages!r}")
+            reported_pages = pages
+        elif pages is not None and pages != reported_pages:
+            raise RuntimeError("CWL Happy8 page count changed during fetch")
+        if not draws:
+            raise RuntimeError(f"CWL Happy8 page {page} contained no draws")
+        filename = f"national_page_{page:04d}.json"
+        raw_sources[filename] = raw
+        manifest.append({
+            "sequence": page,
+            "page": page,
+            "filename": filename,
+            "http_status": int(response.status_code),
+            "sha256": hashlib.sha256(raw).hexdigest(),
+            "bytes": len(raw),
+            "draw_count": len(draws),
+            "first_issue": min(d.issue for d in draws),
+            "last_issue": max(d.issue for d in draws),
+            "url": str(response.url),
+        })
+        all_draws.extend(draws)
+        if page >= int(reported_pages):
+            break
+        page += 1
+
+    seen: dict[str, Draw] = {}
+    for draw in all_draws:
+        prior = seen.get(draw.issue)
+        if prior and prior != draw:
+            raise RuntimeError(f"CWL Happy8 conflicting duplicate issue {draw.issue}")
+        seen[draw.issue] = draw
+    ordered = sorted(seen.values(), key=lambda d: (d.draw_date, d.issue))
+    if not ordered or ordered[0].issue != HAPPY8_HISTORY_START_ISSUE:
+        raise RuntimeError(
+            f"CWL Happy8 full history does not start at {HAPPY8_HISTORY_START_ISSUE}: "
+            f"{ordered[0].issue if ordered else 'EMPTY'}"
+        )
+    by_year: dict[str, list[int]] = {}
+    for draw in ordered:
+        by_year.setdefault(draw.issue[:4], []).append(int(draw.issue[-3:]))
+    for year, suffixes in by_year.items():
+        first = int(HAPPY8_HISTORY_START_ISSUE[-3:]) if year == HAPPY8_HISTORY_START_ISSUE[:4] else 1
+        if suffixes != list(range(first, max(suffixes) + 1)):
+            raise RuntimeError(f"CWL Happy8 history has issue gaps/duplicates in {year}")
+    latest_day = datetime.strptime(ordered[-1].draw_date, "%Y-%m-%d").date()
+    age = (date.today() - latest_day).days
+    if age < 0 or age > 7:
+        raise RuntimeError(f"CWL Happy8 latest draw is stale/future: age_days={age}")
+    receipt = SourceReceipt(
+        source="national_welfare_lottery",
+        url=NATIONAL_URL,
+        http_status=200,
+        fetched_at=_utc_now(),
+        raw_sha256=_sha256_json(manifest),
+        bytes=sum(int(x["bytes"]) for x in manifest),
+        draw_count=len(ordered),
+        latest_issue=ordered[-1].issue,
+        status="PASS",
+    )
+    return ordered, receipt, raw_sources, manifest
 
 
 def parse_shanghai_history(text: str, *, allow_empty: bool = False) -> list[Draw]:
@@ -292,12 +457,28 @@ def fetch_jiangsu_latest() -> tuple[Draw, SourceReceipt, bytes]:
 
 
 def build_official_snapshot() -> tuple[dict[str, Any], dict[str, bytes]]:
-    shanghai, shanghai_receipt, raw_sources, manifest = fetch_shanghai_full_history()
+    history_error: str | None = None
+    try:
+        history, history_receipt, raw_sources, manifest = fetch_national_full_history()
+        history_source = "national_welfare_lottery"
+        verification = "CWL_FULL_HISTORY_PLUS_JIANGSU_CURRENT"
+    except Exception as national_exc:
+        history_error = f"{type(national_exc).__name__}: {national_exc}"
+        try:
+            history, history_receipt, raw_sources, manifest = fetch_shanghai_full_history()
+            history_source = "shanghai_welfare_lottery"
+            verification = "SHANGHAI_FULL_HISTORY_PLUS_JIANGSU_CURRENT"
+        except Exception as shanghai_exc:
+            raise RuntimeError(
+                "Happy8 full-history official sources unavailable; "
+                f"CWL={history_error}; Shanghai={type(shanghai_exc).__name__}: {shanghai_exc}"
+            ) from shanghai_exc
+
     jiangsu, jiangsu_receipt, jiangsu_raw = fetch_jiangsu_latest()
-    latest = shanghai[-1]
+    latest = history[-1]
     if jiangsu.issue != latest.issue:
         raise RuntimeError(
-            f"independent official sources latest issue mismatch: Shanghai={latest.issue} Jiangsu={jiangsu.issue}"
+            f"independent official sources latest issue mismatch: history={latest.issue} Jiangsu={jiangsu.issue}"
         )
     if jiangsu.numbers != latest.numbers:
         raise RuntimeError(f"independent official sources conflict on {latest.issue}")
@@ -306,28 +487,33 @@ def build_official_snapshot() -> tuple[dict[str, Any], dict[str, bytes]]:
     if age < 0 or age > 7:
         raise RuntimeError(f"official Happy8 latest draw is stale/future: age_days={age}")
 
-    payload = [d.to_dict() for d in shanghai]
+    payload = [d.to_dict() for d in history]
     canonical_hash = _sha256_json(payload)
     report = {
-        "schema": "happy8-staging-official-network-v3",
+        "schema": "happy8-staging-official-network-v4",
         "status": "PASS",
         "latest": latest.to_dict(),
-        "history_count": len(shanghai),
+        "history_count": len(history),
         "draws": payload,
         "canonical_hash": canonical_hash,
         "crosscheck_count": 1,
         "crosscheck_status": "PASS",
-        "source_receipts": [shanghai_receipt.to_dict(), jiangsu_receipt.to_dict()],
-        "shanghai_raw_manifest": manifest,
-        "verification": "SHANGHAI_FULL_HISTORY_PLUS_JIANGSU_CURRENT",
+        "history_source": history_source,
+        "history_raw_manifest": manifest,
+        "source_receipts": [history_receipt.to_dict(), jiangsu_receipt.to_dict()],
+        "verification": verification,
+        "source_errors": {"national_welfare_lottery": history_error} if history_error else {},
         "note": (
-            "Staging network gate with raw-verifiable Shanghai full history and Jiangsu current crosscheck; "
-            "portfolio Final still requires scientific/prospective, Windows, same-hash and independent-repository gates."
+            "Fail-closed official network gate: CWL kl8 is primary full-history source; "
+            "Shanghai official full history is fallback only; Jiangsu independently crosschecks current draw. "
+            "Portfolio Final still requires Windows/Exact EXE/GUI/Same Hash and repository independence."
         ),
     }
+    # Backward-compatible alias for existing Shanghai storage/tests when fallback is used.
+    if history_source == "shanghai_welfare_lottery":
+        report["shanghai_raw_manifest"] = manifest
     raw_sources["jiangsu_welfare_lottery.html"] = jiangsu_raw
     return report, raw_sources
-
 
 def real_network_snapshot() -> dict[str, Any]:
     report, _ = build_official_snapshot()
