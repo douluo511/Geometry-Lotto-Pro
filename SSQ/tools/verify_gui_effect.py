@@ -27,9 +27,13 @@ def _sha256_json(value: Any) -> str:
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
-def inspect_effect(data_dir: Path, operation: str, after_id: int = 0) -> dict[str, Any]:
-    if operation not in EVENT_KINDS or after_id < 0:
-        raise ValueError("unknown operation or negative baseline ID")
+def inspect_effect(
+    data_dir: Path, operation: str, after_id: int = 0,
+    experiment_id: int | None = None,
+) -> dict[str, Any]:
+    if (operation not in EVENT_KINDS or after_id < 0
+            or (experiment_id is not None and experiment_id <= 0)):
+        raise ValueError("unknown operation, negative baseline ID, or invalid experiment ID")
     db_path = data_dir / "ledger.sqlite3"
     result: dict[str, Any] = {
         "status": "PENDING", "operation": operation, "after_id": after_id,
@@ -44,11 +48,18 @@ def inspect_effect(data_dir: Path, operation: str, after_id: int = 0) -> dict[st
             result["latest_id"] = int(row[0])
             kinds = EVENT_KINDS[operation]
             placeholders = ",".join("?" for _ in kinds)
-            event = db.execute(
-                f"SELECT id,kind,status,created_at,payload_json FROM experiments "
-                f"WHERE id>? AND kind IN ({placeholders}) ORDER BY id DESC LIMIT 1",
-                (after_id, *kinds),
-            ).fetchone()
+            if experiment_id is None:
+                event = db.execute(
+                    f"SELECT id,kind,status,created_at,payload_json FROM experiments "
+                    f"WHERE id>? AND kind IN ({placeholders}) ORDER BY id DESC LIMIT 1",
+                    (after_id, *kinds),
+                ).fetchone()
+            else:
+                event = db.execute(
+                    f"SELECT id,kind,status,created_at,payload_json FROM experiments "
+                    f"WHERE id=? AND id>? AND kind IN ({placeholders}) LIMIT 1",
+                    (experiment_id, after_id, *kinds),
+                ).fetchone()
             if event is None:
                 return result
             event_id, kind, status, created_at, raw_payload = event
