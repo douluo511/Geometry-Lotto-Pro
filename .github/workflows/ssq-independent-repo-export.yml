@@ -1,0 +1,78 @@
+name: SSQ Independent Repository Export Verification
+
+on:
+  pull_request:
+    paths:
+      - "SSQ/tools/export_independent_repo.py"
+      - "SSQ/tests/test_independent_repo_export.py"
+      - ".github/workflows/ssq-independent-repo-export.yml"
+      - ".github/workflows/ssq-windows-build-acceptance.yml"
+      - ".github/scripts/ssq_physical_gui_click_smoke.ps1"
+      - "SSQ/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact source head
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Exact checkout identity
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          ACTUAL_SHA="$(git rev-parse HEAD)"
+          test "$ACTUAL_SHA" = "$EXPECTED_SHA"
+          echo "source_sha=$ACTUAL_SHA"
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.11"
+
+      - name: Exporter adversarial regression
+        run: python SSQ/tests/test_independent_repo_export.py
+
+      - name: Deterministic SSQ-only export
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          EXPORT_DIR: ${{ runner.temp }}/ssq-independent-repo
+        run: |
+          set -euo pipefail
+          python SSQ/tools/export_independent_repo.py \
+            --destination "$EXPORT_DIR" \
+            --source-commit "$SOURCE_SHA" \
+            | tee "$RUNNER_TEMP/SSQ_INDEPENDENT_REPO_EXPORT_PROOF.json"
+
+      - name: Independent verification pass
+        shell: bash
+        env:
+          EXPORT_DIR: ${{ runner.temp }}/ssq-independent-repo
+        run: |
+          set -euo pipefail
+          python SSQ/tools/export_independent_repo.py \
+            --destination "$EXPORT_DIR" \
+            --verify-only \
+            | tee "$RUNNER_TEMP/SSQ_INDEPENDENT_REPO_VERIFY_PROOF.json"
+          grep -q '"status": "PASS"' "$RUNNER_TEMP/SSQ_INDEPENDENT_REPO_VERIFY_PROOF.json"
+
+      - name: Upload reproducible independent-repository export
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: SSQ-INDEPENDENT-REPO-EXPORT-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            ${{ runner.temp }}/ssq-independent-repo
+            ${{ runner.temp }}/SSQ_INDEPENDENT_REPO_EXPORT_PROOF.json
+            ${{ runner.temp }}/SSQ_INDEPENDENT_REPO_VERIFY_PROOF.json
+          if-no-files-found: error
+          retention-days: 30

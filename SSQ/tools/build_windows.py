@@ -7,11 +7,38 @@ if os.name != 'nt':
 if sys.version_info[:2] != (3, 11):
     raise SystemExit(f'Python 3.11 required, got {sys.version}')
 
+# PyInstaller documents PYTHONHASHSEED + SOURCE_DATE_EPOCH as the controls
+# required for bit-for-bit reproducible bundles, including Windows PE timestamp.
+DETERMINISTIC_PYTHONHASHSEED = '1'
+DETERMINISTIC_SOURCE_DATE_EPOCH = '946684800'  # 2000-01-01T00:00:00Z
+os.environ['PYTHONHASHSEED'] = DETERMINISTIC_PYTHONHASHSEED
+os.environ['SOURCE_DATE_EPOCH'] = DETERMINISTIC_SOURCE_DATE_EPOCH
+
 root = Path(__file__).resolve().parents[1]
 project = root / 'SSQ'
 dist = root / 'dist'
 evidence = root / 'evidence' / 'SSQ'
 bundle = root / 'updater_bundle'
+primary_build_root = root / 'primary_build'
+primary_updater_work = primary_build_root / 'updater-work'
+primary_updater_spec = primary_build_root / 'updater-spec'
+primary_main_work = primary_build_root / 'main-work'
+primary_main_spec = primary_build_root / 'main-spec'
+repro_root = root / 'reproducible_build'
+repro_dist = repro_root / 'dist'
+repro_bundle = repro_root / 'updater_bundle'
+repro_updater_work = repro_root / 'updater-work'
+repro_updater_spec = repro_root / 'updater-spec'
+repro_main_work = repro_root / 'main-work'
+repro_main_spec = repro_root / 'main-spec'
+for clean_root in (primary_build_root, repro_root):
+    if clean_root.exists():
+        shutil.rmtree(clean_root)
+for directory in (
+    primary_updater_work, primary_updater_spec, primary_main_work, primary_main_spec,
+    repro_dist, repro_updater_work, repro_updater_spec, repro_main_work, repro_main_spec,
+):
+    directory.mkdir(parents=True, exist_ok=True)
 dist.mkdir(exist_ok=True)
 evidence.mkdir(parents=True, exist_ok=True)
 name = 'Geometry_Lotto_Pro_SSQ_Windows_Verified'
@@ -26,6 +53,28 @@ def file_sha256(path: Path) -> str:
     return h.hexdigest()
 
 
+def command_with_arg(command: list[str], flag: str, value: Path | str) -> list[str]:
+    out = list(command)
+    try:
+        index = out.index(flag)
+    except ValueError as exc:
+        raise RuntimeError(f'build command is missing {flag}') from exc
+    if index + 1 >= len(out):
+        raise RuntimeError(f'build command has no value after {flag}')
+    out[index + 1] = str(value)
+    return out
+
+
+def command_with_value(command: list[str], old: str, new: str) -> list[str]:
+    out = list(command)
+    try:
+        index = out.index(old)
+    except ValueError as exc:
+        raise RuntimeError(f'build command is missing expected value: {old}') from exc
+    out[index] = new
+    return out
+
+
 # 1) Build the independent updater first. It owns Update/Repair execution but
 # reuses the same audited Service/NetClient/Storage path; it has no network bypass.
 updater_cmd = [
@@ -36,6 +85,8 @@ updater_cmd = [
     '--collect-all', 'certifi',
     '--hidden-import', 'glp.service', '--hidden-import', 'glp.storage', '--hidden-import', 'glp.sources',
     '--distpath', str(dist),
+    '--workpath', str(primary_updater_work),
+    '--specpath', str(primary_updater_spec),
     str(root / 'updater.py'),
 ]
 subprocess.run(updater_cmd, cwd=root, check=True)
@@ -68,6 +119,46 @@ updater_acceptance = {
     'github_sha': os.environ.get('GITHUB_SHA'),
     'github_run_id': os.environ.get('GITHUB_RUN_ID'),
     'checks': {},
+}
+
+updater_repro_ok = False
+repro_updater_hash = None
+repro_updater_error = None
+try:
+    repro_updater_cmd = command_with_arg(updater_cmd, '--distpath', repro_dist)
+    repro_updater_cmd = command_with_arg(repro_updater_cmd, '--workpath', repro_updater_work)
+    repro_updater_cmd = command_with_arg(repro_updater_cmd, '--specpath', repro_updater_spec)
+    subprocess.run(repro_updater_cmd, cwd=root, check=True)
+    repro_updater_exe = repro_dist / updater_exe.name
+    repro_updater_hash = file_sha256(repro_updater_exe)
+    updater_repro_ok = repro_updater_hash == updater_hash
+except Exception as exc:
+    repro_updater_error = f'{type(exc).__name__}: {exc}'
+
+updater_workspace_isolated = bool(
+    primary_updater_work.resolve() != repro_updater_work.resolve()
+    and primary_updater_spec.resolve() != repro_updater_spec.resolve()
+    and dist.resolve() != repro_dist.resolve()
+)
+
+updater_acceptance['checks']['reproducible-build'] = {
+    'status': 'PASS' if updater_repro_ok and updater_workspace_isolated else 'FAIL',
+    'exit_code': 0 if updater_repro_ok and updater_workspace_isolated else 1,
+    'hash_matches': updater_repro_ok,
+    'primary_sha256': updater_hash,
+    'rebuild_sha256': repro_updater_hash,
+    'error': repro_updater_error,
+    'workspace_isolated': updater_workspace_isolated,
+    'workspace_paths': {
+        'primary_dist': str(dist.resolve()),
+        'rebuild_dist': str(repro_dist.resolve()),
+        'primary_workpath': str(primary_updater_work.resolve()),
+        'rebuild_workpath': str(repro_updater_work.resolve()),
+        'primary_specpath': str(primary_updater_spec.resolve()),
+        'rebuild_specpath': str(repro_updater_spec.resolve()),
+    },
+    'pythonhashseed': DETERMINISTIC_PYTHONHASHSEED,
+    'source_date_epoch': DETERMINISTIC_SOURCE_DATE_EPOCH,
 }
 
 
@@ -224,11 +315,93 @@ cmd = [
     '--hidden-import', 'glp.gui', '--hidden-import', 'glp.service', '--hidden-import', 'glp.evidence',
     '--hidden-import', 'glp.updater_client',
     '--distpath', str(dist),
+    '--workpath', str(primary_main_work),
+    '--specpath', str(primary_main_spec),
     str(root / 'launcher.py'),
 ]
 subprocess.run(cmd, cwd=root, check=True)
 exe = dist / f'{name}.exe'
 exe_hash = file_sha256(exe)
+
+main_repro_ok = False
+repro_exe_hash = None
+main_repro_error = None
+if updater_repro_ok:
+    try:
+        if repro_bundle.exists():
+            shutil.rmtree(repro_bundle)
+        repro_bundle.mkdir(parents=True)
+        repro_updater_exe = repro_dist / updater_exe.name
+        repro_bundled_updater = repro_bundle / updater_exe.name
+        repro_bundled_updater.write_bytes(repro_updater_exe.read_bytes())
+        repro_manifest = dict(updater_manifest)
+        repro_manifest['sha256'] = repro_updater_hash
+        repro_manifest['bytes'] = repro_updater_exe.stat().st_size
+        (repro_bundle / 'updater_manifest.json').write_text(
+            json.dumps(repro_manifest, ensure_ascii=False, indent=2) + '\n',
+            encoding='utf-8',
+        )
+
+        repro_cmd = command_with_arg(cmd, '--distpath', repro_dist)
+        repro_cmd = command_with_arg(repro_cmd, '--workpath', repro_main_work)
+        repro_cmd = command_with_arg(repro_cmd, '--specpath', repro_main_spec)
+        repro_cmd = command_with_value(
+            repro_cmd,
+            str(bundle) + ';updater_bundle',
+            str(repro_bundle) + ';updater_bundle',
+        )
+        subprocess.run(repro_cmd, cwd=root, check=True)
+        repro_exe = repro_dist / exe.name
+        repro_exe_hash = file_sha256(repro_exe)
+        main_repro_ok = repro_exe_hash == exe_hash
+    except Exception as exc:
+        main_repro_error = f'{type(exc).__name__}: {exc}'
+else:
+    main_repro_error = 'updater rebuild was not byte-identical'
+
+workspace_isolated = bool(
+    primary_updater_work.resolve() != repro_updater_work.resolve()
+    and primary_updater_spec.resolve() != repro_updater_spec.resolve()
+    and primary_main_work.resolve() != repro_main_work.resolve()
+    and primary_main_spec.resolve() != repro_main_spec.resolve()
+    and dist.resolve() != repro_dist.resolve()
+)
+
+repro_report = {
+    'schema': 'ssq-reproducible-build-v1',
+    'status': 'PASS' if updater_repro_ok and main_repro_ok and workspace_isolated else 'FAIL',
+    'github_sha': os.environ.get('GITHUB_SHA'),
+    'github_run_id': os.environ.get('GITHUB_RUN_ID'),
+    'python': sys.version,
+    'deterministic_environment': {
+        'PYTHONHASHSEED': DETERMINISTIC_PYTHONHASHSEED,
+        'SOURCE_DATE_EPOCH': DETERMINISTIC_SOURCE_DATE_EPOCH,
+    },
+    'workspace_isolated': workspace_isolated,
+    'workspace_paths': {
+        'primary_dist': str(dist.resolve()),
+        'rebuild_dist': str(repro_dist.resolve()),
+        'primary_workpath': str(primary_main_work.resolve()),
+        'rebuild_workpath': str(repro_main_work.resolve()),
+        'primary_specpath': str(primary_main_spec.resolve()),
+        'rebuild_specpath': str(repro_main_spec.resolve()),
+    },
+    'updater': {
+        'primary_sha256': updater_hash,
+        'rebuild_sha256': repro_updater_hash,
+        'same_hash': updater_repro_ok,
+        'error': repro_updater_error,
+    },
+    'main': {
+        'primary_sha256': exe_hash,
+        'rebuild_sha256': repro_exe_hash,
+        'same_hash': main_repro_ok,
+        'error': main_repro_error,
+    },
+}
+(evidence / 'REPRODUCIBLE_BUILD.json').write_text(
+    json.dumps(repro_report, ensure_ascii=False, indent=2), encoding='utf-8'
+)
 
 # 3) Prove software replacement against real built main-EXE bytes using the
 # already frozen exact updater EXE. These are LOCAL artifact transaction gates,
@@ -329,6 +502,12 @@ report = {
     'schema': 'ssq-windows-exact-exe-acceptance-v3',
     'artifact': exe.name,
     'sha256': exe_hash,
+    'reproducible_build': {
+        'report': 'REPRODUCIBLE_BUILD.json',
+        'status': repro_report['status'],
+        'pythonhashseed': DETERMINISTIC_PYTHONHASHSEED,
+        'source_date_epoch': DETERMINISTIC_SOURCE_DATE_EPOCH,
+    },
     'updater': {
         'artifact': updater_exe.name,
         'sha256': updater_hash,
@@ -345,6 +524,18 @@ report = {
     'python': sys.version,
     'checks': {},
     'final_release_gate': 'PENDING',
+}
+
+report['checks']['reproducible-build'] = {
+    'exit_code': 0 if repro_report['status'] == 'PASS' else 1,
+    'status': repro_report['status'],
+    'exe_hash_matches': main_repro_ok,
+    'primary_sha256': exe_hash,
+    'rebuild_sha256': repro_exe_hash,
+    'updater_primary_sha256': updater_hash,
+    'updater_rebuild_sha256': repro_updater_hash,
+    'workspace_isolated': workspace_isolated,
+    'workspace_paths': dict(repro_report['workspace_paths']),
 }
 
 for check in checks:

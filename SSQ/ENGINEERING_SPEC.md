@@ -107,3 +107,30 @@ Portfolio FINAL is stricter than staging acceptance and cannot be inferred from 
 - Audit evidence must upload successfully before the user-facing FINAL artifact. The user-facing FINAL artifact contains one main Windows EXE only; audit evidence is stored separately.
 - Any change to version, release workflow, source/parser, updater, model/rules, UI→Service binding, or evidence contracts invalidates prior PASS and requires the complete chain again.
 
+## Reproducible Build / Supply Chain
+
+Final acceptance requires bit-for-bit rebuild proof, not merely a hash that stays unchanged after one build.
+
+- Python is pinned to 3.11.9 x64 in Windows CI.
+- The full direct + transitive build dependency closure is exact-version frozen in `requirements-build.txt`.
+- CI installs that closure with `--no-deps --only-binary=:all:`; dynamic dependency resolution is forbidden.
+- All official GitHub Actions used by SSQ workflows are pinned to immutable 40-character commit SHAs.
+- PyInstaller builds run with frozen `PYTHONHASHSEED=1` and `SOURCE_DATE_EPOCH=946684800`.
+- The independent Updater EXE is clean-built twice; SHA256 must be identical.
+- The main Windows EXE is then clean-built twice with the corresponding byte-identical updater bundle; SHA256 must be identical.
+- Primary and rebuild passes must use physically distinct `--distpath`, `--workpath`, and `--specpath` locations. Shared build/spec/work directories are non-PASS even if the resulting SHA256 happens to match.
+- `REPRODUCIBLE_BUILD.json` is current-run evidence and `reproducible_build` is a first-class Final Gate.
+- Any dependency, action pin, Python version, deterministic-build setting or build script change invalidates prior reproducibility evidence and requires the full chain again.
+
+### Short-lived persisted official-evidence reuse
+
+Advanced-analysis audit may reuse persisted official-source evidence only as a short-lived same-session optimization. Reuse requires:
+- current storage integrity PASS;
+- SSQ identity, canonical hash and crosscheck PASS;
+- at least two PASS official-source receipts;
+- top-level evidence `fetched_at` and every counted PASS receipt `fetched_at` parse as timezone-aware UTC timestamps;
+- no future timestamp;
+- evidence and receipt age no greater than 15 minutes.
+
+Anything older, malformed, future-dated, or incomplete must trigger a fresh real-network update. Persisted historical evidence must never masquerade as a current network PASS.
+

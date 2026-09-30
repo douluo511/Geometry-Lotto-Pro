@@ -5,6 +5,7 @@ import shutil
 import sqlite3
 import sys
 from dataclasses import asdict
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 
@@ -33,6 +34,24 @@ def resource_path(name: str) -> Path:
 
 def _json_dumps(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
+MAX_REUSED_OFFICIAL_EVIDENCE_AGE_SECONDS = 15 * 60
+
+
+def _utc_age_seconds(value: Any) -> float | None:
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return None
+    age = (datetime.now(timezone.utc) - parsed.astimezone(timezone.utc)).total_seconds()
+    if age < 0:
+        return None
+    return age
 
 
 class LottoService:
@@ -504,6 +523,52 @@ class LottoService:
         finally:
             db.close()
 
+    def _current_verified_official_snapshot(self) -> dict[str, Any] | None:
+        """Reuse local official evidence only when strict current integrity PASSes.
+
+        This never turns the packaged seed into a current-source PASS. It only
+        avoids a redundant network fetch when another verified operation has
+        already persisted current raw-byte-bound multi-official evidence.
+        """
+        integrity = self._integrity_check()
+        if not integrity.get("ok"):
+            return None
+        try:
+            evidence = json.loads(Path(self.store.evidence_path).read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            return None
+        receipts = evidence.get("source_receipts")
+        evidence_age = _utc_age_seconds(evidence.get("fetched_at"))
+        pass_receipts = [
+            row for row in receipts
+            if isinstance(row, dict) and row.get("status") == "PASS"
+        ] if isinstance(receipts, list) else []
+        receipt_ages = [_utc_age_seconds(row.get("fetched_at")) for row in pass_receipts]
+        if (
+            evidence.get("game") != "SSQ"
+            or evidence.get("crosscheck_status") != "PASS"
+            or evidence.get("canonical_hash") != self._canonical_hash()
+            or evidence_age is None
+            or evidence_age > MAX_REUSED_OFFICIAL_EVIDENCE_AGE_SECONDS
+            or len(pass_receipts) < 2
+            or any(
+                age is None or age > MAX_REUSED_OFFICIAL_EVIDENCE_AGE_SECONDS
+                for age in receipt_ages
+            )
+        ):
+            return None
+        return {
+            "schema": "persisted-current-official-evidence-v1",
+            "source": "persisted-current-official-evidence",
+            "crosscheck_status": "PASS",
+            "canonical_hash": evidence.get("canonical_hash"),
+            "source_receipts": receipts,
+            "persisted_integrity": integrity,
+            "reused_current_evidence": True,
+            "evidence_age_seconds": evidence_age,
+            "max_reuse_age_seconds": MAX_REUSED_OFFICIAL_EVIDENCE_AGE_SECONDS,
+        }
+
     def audit(self, progress: Callable[[str], None] | None = None) -> dict[str, Any]:
         """Advanced analysis is intentionally non-freezing.
 
@@ -511,12 +576,13 @@ class LottoService:
         research preview, but it never writes a formal prediction/freeze/gate.
         """
         self.ensure_seed()
-        update_result = None
+        update_result = self._current_verified_official_snapshot()
         update_error = None
-        try:
-            update_result = self.update(progress=progress)
-        except Exception as exc:
-            update_error = f"{type(exc).__name__}: {exc}"
+        if update_result is None:
+            try:
+                update_result = self.update(progress=progress)
+            except Exception as exc:
+                update_error = f"{type(exc).__name__}: {exc}"
         draws = self._load_draws()
         canonical_hash = self._canonical_hash()
         before = self._freeze_count()
