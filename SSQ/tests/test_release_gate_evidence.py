@@ -1052,6 +1052,13 @@ class ReleaseGateEvidenceTests(unittest.TestCase):
                     "software-local-install-acceptance", "software-local-rollback-acceptance",
                 )
             }
+            updater_checks["reproducible-build"] = {
+                "status": "PASS",
+                "exit_code": 0,
+                "hash_matches": True,
+                "primary_sha256": updater_hash,
+                "rebuild_sha256": updater_hash,
+            }
             (root / "UPDATER_EXACT_EXE_ACCEPTANCE.json").write_text(json.dumps({
                 "schema": "ssq-updater-exact-exe-acceptance-v2",
                 "artifact": updater_exe.name, "sha256": updater_hash,
