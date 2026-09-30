@@ -14,7 +14,7 @@ sys.path.insert(0, str(ROOT))
 
 from happy8.net_client import NetClient
 
-PAGE_URL = "https://www.scflcp.com.cn/kl8"
+PAGE_URL = "https://www.scflcp.com.cn/kl8info.jhtml"
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Happy8SichuanContractProbe/0.1",
     "Accept": "text/html,application/xhtml+xml,*/*;q=0.5",
@@ -112,6 +112,8 @@ def inspect() -> dict:
         "selects": [],
         "detail_links": [],
         "navigation_links": [],
+        "raw_anchor_tags": [],
+        "pagination_hints": [],
         "forms": [],
         "script_srcs": [],
         "inline_hints": [],
@@ -141,6 +143,20 @@ def inspect() -> dict:
             dedup.append(row)
     report["detail_links"] = dedup[:300]
 
+    report["raw_anchor_tags"] = [
+        re.sub(r"\\s+", " ", tag)[:1200]
+        for tag in re.findall(r"(?is)<a\\b[^>]*>", markup)
+        if re.search(r"(?i)(?:下一页|尾页|page|pageno|kl8info)", tag)
+    ][:300]
+
+    pagination_hints = []
+    for token in re.findall(r"""(?is)(?:href|onclick)\\s*=\\s*['\"]([^'\"]+)['\"]""", markup):
+        value = html.unescape(token).strip()
+        if re.search(r"(?i)(?:kl8info|page|pageno|next|last|下一页|尾页)", value):
+            if value not in pagination_hints:
+                pagination_hints.append(value[:1200])
+    report["pagination_hints"] = pagination_hints[:500]
+
     navigation = []
     for href, body in re.findall(
         r"(?is)<a\\b[^>]*href\\s*=\\s*['\\\"]([^'\\\"]+)['\\\"][^>]*>(.*?)</a>",
@@ -152,8 +168,8 @@ def inspect() -> dict:
         if not _official(absolute):
             continue
         haystack = f"{parsed.path}?{parsed.query} {label}".lower()
-        if "/kl8" in parsed.path.lower() or any(
-            token in haystack for token in ("page", "pageno", "history", "previous", "上一", "下一", "首页", "末页")
+        if "/kl8info" in parsed.path.lower() or any(
+            token in haystack for token in ("page", "pageno", "history", "previous", "上一", "下一", "首页", "末页", "尾页")
         ):
             row = {"label": label, "url": absolute}
             if row not in navigation:
@@ -217,10 +233,14 @@ def inspect() -> dict:
         "current_numbers_machine_readable": bool(report["page"]["number_candidates"]),
         "detail_links_discovered": bool(dedup),
         "detail_probe_numbers": any(x.get("numbers") for x in report["detail_probes"]),
-        "issue_navigation_discovered": bool(option_issues or report["inline_hints"]),
+        "issue_navigation_discovered": bool(
+            option_issues or report["navigation_links"] or report["pagination_hints"] or report["inline_hints"]
+        ),
     }
     report["history_navigation_candidates"] = {
         "navigation_link_count": len(report["navigation_links"]),
+        "pagination_hint_count": len(report["pagination_hints"]),
+        "raw_anchor_tag_count": len(report["raw_anchor_tags"]),
         "form_count": len(report["forms"]),
         "note": (
             "Diagnostic only. A candidate is not production-qualified until an old issue can be fetched "
