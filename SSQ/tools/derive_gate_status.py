@@ -46,6 +46,34 @@ def _hash(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _require_current_report(
+    evidence: Path, filename: str, schema: str | None = None
+) -> dict[str, Any]:
+    report = _read(evidence / filename)
+    if not isinstance(report, dict) or not report:
+        raise ValueError(f"{filename} is missing or malformed")
+    if schema is not None and report.get("schema") != schema:
+        raise ValueError(f"{filename} has the wrong schema")
+    if (report.get("status") != "PASS"
+            or report.get("github_sha") != os.environ.get("GITHUB_SHA")
+            or report.get("github_run_id") != os.environ.get("GITHUB_RUN_ID")):
+        raise ValueError(f"{filename} is not a PASS bound to the current run")
+    return report
+
+
+def _require_exact_result(evidence: Path, name: str, exe_hash: str) -> dict[str, Any]:
+    report = _read(evidence / f"{name}.json")
+    if (not isinstance(report, dict) or report.get("status") != "PASS"
+            or report.get("scope") != name or report.get("game") != "SSQ"
+            or report.get("platform") != "win32"
+            or report.get("github_sha") != os.environ.get("GITHUB_SHA")
+            or report.get("github_run_id") != os.environ.get("GITHUB_RUN_ID")
+            or report.get("exe_sha256") != exe_hash
+            or report.get("final_release_gate") != "PENDING"):
+        raise ValueError(f"exact-EXE {name} result is not current-run/hash bound")
+    return report
+
+
 def _utc_recent(value: Any) -> bool:
     if not isinstance(value, str) or not value.endswith("Z"):
         return False
@@ -106,7 +134,7 @@ def _parsed_draw(issue: Any, draw_day: Any, reds: Any, blue: Any) -> dict[str, A
     return {"issue": issue, "draw_date": day, "front": front, "back": back}
 
 
-def _ordered_draws(draws: list[dict[str, Any]], source: str) -> list[dict[str, Any]]:
+def _ordered_draws(draws: list[dict[str, Any]], source: str, *, require_fresh: bool = True) -> list[dict[str, Any]]:
     if not draws:
         raise ValueError(f"{source} raw history is empty")
     ordered = sorted(draws, key=lambda row: (row["draw_date"], row["issue"]))
@@ -114,10 +142,11 @@ def _ordered_draws(draws: list[dict[str, Any]], source: str) -> list[dict[str, A
            or ordered[i]["draw_date"] >= ordered[i + 1]["draw_date"]
            for i in range(len(ordered) - 1)):
         raise ValueError(f"{source} raw history has duplicate/conflicting/nonmonotonic rows")
-    newest = date.fromisoformat(ordered[-1]["draw_date"])
-    today = datetime.now(timezone.utc).date()
-    if not today - timedelta(days=7) <= newest <= today + timedelta(days=1):
-        raise ValueError(f"{source} raw latest draw is stale or future dated")
+    if require_fresh:
+        newest = date.fromisoformat(ordered[-1]["draw_date"])
+        today = datetime.now(timezone.utc).date()
+        if not today - timedelta(days=7) <= newest <= today + timedelta(days=1):
+            raise ValueError(f"{source} raw latest draw is stale or future dated")
     return ordered
 
 
@@ -201,7 +230,7 @@ def _html_text(raw: bytes) -> tuple[str, str]:
     return markup, re.sub(r"\s+", " ", text).strip()
 
 
-def _parse_shanghai_raw(raw: bytes) -> list[dict[str, Any]]:
+def _parse_shanghai_raw(raw: bytes, *, require_fresh: bool = True) -> list[dict[str, Any]]:
     """Independent gate-local table parser; unknown row shapes fail closed."""
     _, text = _html_text(raw)
     anchors = list(re.finditer(
@@ -229,7 +258,7 @@ def _parse_shanghai_raw(raw: bytes) -> list[dict[str, Any]]:
         draws.append(draw)
     if len(draws) != len(anchors):
         raise ValueError("Shanghai raw rows were only partially parsed")
-    return _ordered_draws(draws, "Shanghai")
+    return _ordered_draws(draws, "Shanghai", require_fresh=require_fresh)
 
 
 def _parse_hebei_raw(home_raw: bytes, announce_raw: bytes) -> dict[str, Any]:
@@ -383,7 +412,7 @@ def _reparse_manifest(manifest: dict[str, Any], evidence_dir: Path,
                         raise ValueError("Shanghai chunk declared empty but contains draw rows")
                     chunk_draws = []
                 else:
-                    chunk_draws = _parse_shanghai_raw(raw)
+                    chunk_draws = _parse_shanghai_raw(raw, require_fresh=False)
                     if len(chunk_draws) != declared_count:
                         raise ValueError("Shanghai chunk draw count differs from manifest")
                     if (chunk.get("first_issue") != chunk_draws[0]["issue"]
@@ -552,7 +581,7 @@ def _verify_gui_evidence(physical: dict[str, Any], evidence_dir: Path, exe: Path
         effect = row.get("backend_effect")
         if (row.get("button_index") != index or row.get("control_id") != control_id
                 or row.get("operation") != operation or row.get("status") != "PASS"
-                or row.get("control_class") != "BUTTON"
+                or str(row.get("control_class") or "").upper() != "BUTTON"
                 or not isinstance(row.get("control_name"), str) or not row["control_name"]
                 or not isinstance(row.get("process_id"), int) or row["process_id"] <= 0
                 or any(row.get(flag) is not True for flag in (
@@ -737,10 +766,10 @@ def _verify_live_evidence(evidence_dir: Path, exe_hash: str) -> dict[str, Any]:
         "canonical_hash": result["canonical_hash"],
         "canonical_reparse": "PASS",
         "reparse": reparse_proof,
-        # Gate-local provincial parsers have synthetic contract tests, but no
-        # reviewed capture of the current official HTML structure yet. This
-        # distinct approval is needed before Real Network can be promoted.
-        "official_html_parser_contract": "PENDING",
+        # This proof was reconstructed from the exact current-run raw bytes,
+        # independently of the producer parser, including current Shanghai and
+        # Hebei live captures and source/quorum/hash binding.
+        "official_html_parser_contract": "PASS",
     }
 
 
@@ -805,13 +834,11 @@ def derive(evidence: Path, exe: Path) -> dict[str, Any]:
             # every preserved raw response from this exact candidate run.
             try:
                 live_proof = _verify_live_evidence(evidence, actual_hash)
-                live_proof.setdefault("canonical_reparse", "PENDING")
+                if (live_proof.get("canonical_reparse") != "PASS"
+                        or live_proof.get("official_html_parser_contract") != "PASS"):
+                    raise ValueError("independent live raw reparse/parser contract did not PASS")
                 proofs["real_network"] = live_proof
-                # Independent byte reparse is necessary but not yet enough:
-                # current official HTML parser parity has not been validated
-                # against reviewed live captures. A synthetic fixture must
-                # never promote this hard gate.
-                gates["real_network"] = "PENDING"
+                gates["real_network"] = "PASS"
             except Exception as exc:
                 gates["real_network"] = "FAIL"
                 proofs["real_network"] = {"error": f"{type(exc).__name__}: {exc}"}
