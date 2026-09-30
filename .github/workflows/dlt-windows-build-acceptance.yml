@@ -83,9 +83,38 @@ jobs:
           $exe = Resolve-Path dist\Geometry_Lotto_Pro_DLT.exe
           $hash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLower()
           $repositoryIndependence = 'FAIL'
+          $updaterProcess = 'FAIL'
+          $updaterExactExe = 'FAIL'
+          $updaterAtomicRollback = 'FAIL'
+          $updaterRealNetwork = 'FAIL'
+          $updaterSameHash = 'FAIL'
+          $updaterReportPath = 'artifacts\updater_acceptance.json'
+          $updaterExePath = 'dist\Geometry_Lotto_Pro_DLT_Updater.exe'
+          if ((Test-Path $updaterReportPath) -and (Test-Path $updaterExePath)) {
+            $updater = Get-Content $updaterReportPath -Raw | ConvertFrom-Json
+            $updaterHash = (Get-FileHash $updaterExePath -Algorithm SHA256).Hash.ToLower()
+            $updaterBound = (
+              $updater.schema -eq 'dlt-updater-exact-acceptance-v1' -and
+              $updater.github_sha -eq $env:GITHUB_SHA -and
+              $updater.github_run_id -eq $env:GITHUB_RUN_ID -and
+              $updater.updater_sha256 -eq $updaterHash
+            )
+            if ($updaterBound) {
+              $updaterProcess = [string]$updater.updater_process
+              $updaterExactExe = [string]$updater.updater_exact_exe
+              $updaterAtomicRollback = [string]$updater.updater_atomic_rollback
+              $updaterRealNetwork = [string]$updater.updater_real_network
+              $updaterSameHash = [string]$updater.updater_same_hash
+            }
+          }
 
           $ok = (
             $repositoryIndependence -eq 'PASS' -and
+            $updaterProcess -eq 'PASS' -and
+            $updaterExactExe -eq 'PASS' -and
+            $updaterAtomicRollback -eq 'PASS' -and
+            $updaterRealNetwork -eq 'PASS' -and
+            $updaterSameHash -eq 'PASS' -and
             $contract.status -eq 'PASS' -and
             $fault.status -eq 'PASS' -and
             $live.status -eq 'PASS' -and
@@ -94,7 +123,7 @@ jobs:
             $gui.status -eq 'PASS'
           )
           $final = [ordered]@{
-            schema = 'dlt-evidence-derived-final-gate-v1'
+            schema = 'dlt-evidence-derived-final-gate-v2'
             final_gate = $(if ($ok) { 'PASS' } else { 'FAIL' })
             exe_sha256 = $hash
             contract_gate = $contract.status
@@ -102,11 +131,16 @@ jobs:
             real_network_gate = $live.status
             exact_exe_gate = $accept.final_release_gate
             physical_gui_click_gate = $gui.status
+            updater_process = $updaterProcess
+            updater_exact_exe = $updaterExactExe
+            updater_atomic_rollback = $updaterAtomicRollback
+            updater_real_network = $updaterRealNetwork
+            updater_same_hash = $updaterSameHash
             repository_independence = $repositoryIndependence
           }
           $final | ConvertTo-Json -Depth 6 | Set-Content artifacts\final_gate.json -Encoding utf8
           Get-Content artifacts\final_gate.json
-          if (-not $ok) { throw 'DLT Final Gate blocked: independent repository is mandatory' }
+          if (-not $ok) { throw 'DLT Final Gate blocked: inspect repository independence and updater hard gates' }
 
       - name: Upload exact EXE and evidence only after all hard gates pass
         if: success()
