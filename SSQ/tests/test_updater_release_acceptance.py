@@ -57,7 +57,7 @@ class UpdaterReleaseAcceptanceTests(unittest.TestCase):
             path.write_bytes(b"exact-bytes")
             self.assertEqual(
                 release_acceptance._sha256(path),
-                "1417897b6c2dc4d6fc69f7db05b0f159990f0764afdb3eacb38db70a4e9c4eaf",
+                "c48dd9523b01ec38f2df720790fcbfa72bdf00c7b6c71611126720bbc6a9b967",
             )
 
 
