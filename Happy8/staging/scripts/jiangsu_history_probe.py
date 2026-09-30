@@ -68,6 +68,56 @@ def _fetch(url: str, *, params=None) -> tuple[object, bytes, str]:
         raise RuntimeError(f"response left official HTTPS host: {final_url}")
     return response, raw, _decode(raw)
 
+def _fetch_cwl(url: str) -> tuple[object, bytes, str]:
+    parsed = urlsplit(url)
+    if parsed.hostname not in {"www.cwl.gov.cn", "cwl.gov.cn"}:
+        raise RuntimeError(f"not a CWL URL: {url}")
+    secure_url = url.replace("http://", "https://", 1)
+    headers = dict(HEADERS)
+    headers["Referer"] = HISTORY_URL
+    response = NET.get(secure_url, headers=headers, timeout=(10, 30), allow_redirects=True)
+    raw = bytes(response.content)
+    final_url = str(getattr(response, "url", "") or secure_url)
+    final = urlsplit(final_url)
+    if int(response.status_code) != 200:
+        raise RuntimeError(f"CWL article HTTP {response.status_code}: {final_url}")
+    if final.scheme.lower() != "https" or final.hostname not in {"www.cwl.gov.cn", "cwl.gov.cn"}:
+        raise RuntimeError(f"CWL article left official HTTPS host: {final_url}")
+    return response, raw, _decode(raw)
+
+
+def inspect_cwl_article(issue: str, url: str) -> dict:
+    response, raw, markup = _fetch_cwl(url)
+    plain = _plain(markup)
+    number_candidates = _numbers(plain)
+    image_attrs = []
+    for tag in re.findall(r"(?is)<img\b[^>]*>", markup):
+        compact = re.sub(r"\s+", " ", html.unescape(tag))[:1600]
+        if re.search(r"(?i)(?:ball|num|number|kj|code|open|draw|开奖|号码|20\d{5})", compact):
+            image_attrs.append(compact)
+            if len(image_attrs) >= 120:
+                break
+    issue_contexts = []
+    for marker in ("开奖号码", issue):
+        pos = plain.find(marker)
+        if pos >= 0:
+            issue_contexts.append(plain[max(0, pos - 300):pos + 1400])
+    return {
+        "issue": issue,
+        "url": str(response.url),
+        "http_status": int(response.status_code),
+        "content_type": str(response.headers.get("Content-Type", "")),
+        "bytes": len(raw),
+        "sha256": hashlib.sha256(raw).hexdigest(),
+        "issue_visible": issue in plain,
+        "date_tokens": re.findall(r"20\d{2}[-/.年]\d{1,2}[-/.月]\d{1,2}", plain)[:20],
+        "visible_20_number_candidates": number_candidates[:10],
+        "image_attrs": image_attrs,
+        "contexts": issue_contexts,
+        "text_head": plain[:1800],
+    }
+
+
 
 def inspect_page(page: int, periods: str = "") -> dict:
     params = {
@@ -177,6 +227,7 @@ def main() -> int:
         "production_accepted": False,
         "pages": [],
         "detail_probes": [],
+        "cwl_article_probes": [],
         "note": "Diagnostic only; production admission requires reproducible complete-history coverage, schema validation, provenance and current crosscheck.",
     }
     try:
@@ -186,6 +237,26 @@ def main() -> int:
             inspect_page(1, "2020001"),
             inspect_page(1, "2021001"),
         ]
+        cwl_candidates = []
+        for source_page in [report["pages"][0], *report["period_searches"]]:
+            for anchor in source_page.get("anchors", []):
+                label = str(anchor.get("label") or "")
+                url = str(anchor.get("url") or "")
+                issue_match = re.search(r"20\d{5}", label)
+                host = urlsplit(url).hostname
+                if issue_match and host in {"www.cwl.gov.cn", "cwl.gov.cn"}:
+                    pair = (issue_match.group(0), url)
+                    if pair not in cwl_candidates:
+                        cwl_candidates.append(pair)
+        for issue, url in cwl_candidates[:6]:
+            try:
+                report["cwl_article_probes"].append(inspect_cwl_article(issue, url))
+            except Exception as exc:
+                report["cwl_article_probes"].append({
+                    "issue": issue,
+                    "url": url,
+                    "error": f"{type(exc).__name__}: {exc}",
+                })
         detail_urls = []
         for page in report["pages"]:
             for anchor in page["anchors"]:
@@ -215,6 +286,14 @@ def main() -> int:
             for page in report["pages"]
         )
         details_have_numbers = any(x.get("visible_20_number_candidates") for x in report["detail_probes"])
+        cwl_articles_accessible = any(
+            x.get("http_status") == 200 and x.get("issue_visible")
+            for x in report["cwl_article_probes"]
+        )
+        cwl_articles_have_numbers = any(
+            x.get("visible_20_number_candidates")
+            for x in report["cwl_article_probes"]
+        )
         report["checks"] = {
             "official_https_pages": all(_official(page["final_url"]) for page in report["pages"]),
             "early_history_visible": early_visible,
@@ -222,6 +301,8 @@ def main() -> int:
             "detail_links_discovered": bool(detail_urls),
             "detail_numbers_machine_readable": details_have_numbers,
             "exact_start_issue_search": exact_start_search,
+            "cwl_article_https_accessible": cwl_articles_accessible,
+            "cwl_article_numbers_machine_readable": cwl_articles_have_numbers,
         }
         report["contract_discovery"] = (
             "JIANGSU_HISTORY_CONTRACT_CANDIDATE"
