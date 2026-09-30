@@ -102,12 +102,12 @@ def synthetic_fallback_bundle(root: Path) -> tuple[dict, list[dict]]:
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     issue, day = draw["issue"], draw["draw_date"]
     home_raw = (
-        f'<li class="kj-info-item"><img src="logo_ssq.png"/><p>�� {issue} ��</p>'
+        f'<li class="kj-info-item"><img src="logo_ssq.png"/><p>第 {issue} 期</p>'
         '<div class="cirle-number">'
         + "".join(f"<span>{number:02d}</span>" for number in range(1, 7))
         + '<span class="blue-num">07</span></div></li>'
     ).encode("utf-8")
-    announce_raw = f"�������ڣ�{day} �������룺01 02 03 04 05 06 07".encode("utf-8")
+    announce_raw = f"开奖日期：{day} 开奖号码：01 02 03 04 05 06 07".encode("utf-8")
     records = [dict(next(row for row in baseline["raw_responses"]
                          if row["source"] == "official_shanghai_L1"))]
     hebei_hashes = {}

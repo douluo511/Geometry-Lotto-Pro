@@ -252,7 +252,7 @@ def _parsed_draw(issue: Any, draw_day: Any, reds: Any, blue: Any) -> dict[str, A
             compact = str(value).strip()
             tokens = [compact[i:i + 2] for i in range(0, 12, 2)]
         else:
-            tokens = re.split(r"[,��\s;|/-]+", str(value or "").strip())
+            tokens = re.split(r"[,，\s;|/-]+", str(value or "").strip())
         if (len(tokens) != count or any(isinstance(token, bool)
                or not re.fullmatch(r"\d{1,2}", str(token)) for token in tokens)):
             raise ValueError("raw page has invalid ball tokens")
@@ -403,7 +403,7 @@ def _parse_hebei_raw(home_raw: bytes, announce_raw: bytes) -> dict[str, Any]:
         raise ValueError("Hebei home has no unique SSQ draw panel")
     panel = ssq_panels[0]
     panel_text = html.unescape(re.sub(r"(?is)<[^>]+>", " ", panel))
-    issue_match = re.search(r"��\s*(20\d{5})\s*��", panel_text)
+    issue_match = re.search(r"第\s*(20\d{5})\s*期", panel_text)
     ball_block = re.search(
         r'<div\b[^>]*class=["\'][^"\']*cirle-number[^"\']*["\'][^>]*>(.*?)</div>',
         panel, re.IGNORECASE | re.DOTALL,
@@ -419,8 +419,8 @@ def _parse_hebei_raw(home_raw: bytes, announce_raw: bytes) -> dict[str, Any]:
     home_back = int(spans[-1][1])
 
     _, announcement = _html_text(announce_raw)
-    date_match = re.search(r"��������\s*[:��]?\s*(20\d{2}-\d{2}-\d{2})", announcement)
-    numbers_marker = re.search(r"��������\s*[:��]?", announcement)
+    date_match = re.search(r"开奖日期\s*[:：]?\s*(20\d{2}-\d{2}-\d{2})", announcement)
+    numbers_marker = re.search(r"开奖号码\s*[:：]?", announcement)
     if date_match is None or numbers_marker is None:
         raise ValueError("Hebei announcement lacks date or draw-number marker")
     tokens = re.findall(r"(?<!\d)\d{1,2}(?!\d)",

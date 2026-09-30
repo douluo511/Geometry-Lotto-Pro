@@ -39,7 +39,7 @@ Each entry's observed effect payload also needs `entry_bindings`: a list whose m
 
 Paths are clean, relative paths with `/`, beneath the evidence root. Absolute paths, remote URLs as local artifacts, traversal, symlinks/junction escapes and Windows alternate streams are rejected. A source URL is provenance metadata, not permission for the validator to fetch arbitrary URLs. Retain sensitive raw evidence in a controlled directory, not a public commit.
 
-All unit-test fixtures��including the positive consistency example��are synthetic and explicitly labelled. They are not real network, Windows acceptance or business proof. There is deliberately no production PASS sample to copy into a release report.
+All unit-test fixtures—including the positive consistency example—are synthetic and explicitly labelled. They are not real network, Windows acceptance or business proof. There is deliberately no production PASS sample to copy into a release report.
 
 ## Proof boundaries and remaining work
 

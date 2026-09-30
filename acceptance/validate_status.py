@@ -17,7 +17,7 @@ SHA256 = re.compile(r"^[0-9a-fA-F]{64}$")
 UTC = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z$")
 FINGERPRINT_FIELDS = ("commit_sha", "tree_sha", "config_sha256", "dependencies_sha256",
                       "data_sha256", "model_sha256", "tested_exe_sha256")
-PLACEHOLDER = re.compile(r"\b(?:TODO|TBD|MOCK|PLACEHOLDER|DEMO)\b|����д|ռλ", re.I)
+PLACEHOLDER = re.compile(r"\b(?:TODO|TBD|MOCK|PLACEHOLDER|DEMO)\b|待填写|占位", re.I)
 
 
 class InvalidInput(ValueError):
