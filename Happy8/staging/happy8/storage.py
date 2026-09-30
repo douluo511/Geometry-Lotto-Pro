@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import shutil
 import tempfile
 from pathlib import Path
@@ -37,6 +38,61 @@ def _atomic_bytes(path: Path, value: bytes) -> None:
             pass
 
 
+def _validate_raw_bundle(report: dict[str, Any], raw_sources: dict[str, bytes]) -> dict[str, str]:
+    receipts = report.get("source_receipts")
+    if not isinstance(receipts, list) or len(receipts) < 2:
+        raise ValueError("at least two source receipts are required")
+    receipt_by_source = {str(x.get("source")): x for x in receipts}
+
+    shanghai = receipt_by_source.get("shanghai_welfare_lottery")
+    jiangsu = receipt_by_source.get("jiangsu_welfare_lottery")
+    if not shanghai or not jiangsu:
+        raise ValueError("required official source receipts are missing")
+
+    manifest = report.get("shanghai_raw_manifest")
+    if not isinstance(manifest, list) or not manifest:
+        raise ValueError("Shanghai full-history raw manifest is missing")
+    manifest_hash = sha256_json(manifest)
+    if manifest_hash != shanghai.get("raw_sha256"):
+        raise ValueError("Shanghai raw manifest SHA mismatch")
+    if sum(int(x.get("bytes") or 0) for x in manifest) != int(shanghai.get("bytes") or 0):
+        raise ValueError("Shanghai raw manifest byte count mismatch")
+
+    seen_files: set[str] = set()
+    for item in manifest:
+        filename = str(item.get("filename") or "")
+        if not re.fullmatch(r"shanghai_20\d{5}_20\d{5}\.html", filename):
+            raise ValueError(f"unsafe Shanghai raw filename: {filename!r}")
+        if filename in seen_files:
+            raise ValueError(f"duplicate Shanghai raw filename: {filename}")
+        seen_files.add(filename)
+        raw = raw_sources.get(filename)
+        if raw is None:
+            raise ValueError(f"missing Shanghai raw response: {filename}")
+        if sha256_bytes(raw) != item.get("sha256"):
+            raise ValueError(f"Shanghai raw SHA mismatch: {filename}")
+        if len(raw) != int(item.get("bytes") or -1):
+            raise ValueError(f"Shanghai raw byte count mismatch: {filename}")
+
+    jiangsu_name = "jiangsu_welfare_lottery.html"
+    jiangsu_raw = raw_sources.get(jiangsu_name)
+    if jiangsu_raw is None:
+        raise ValueError("missing Jiangsu raw response")
+    if sha256_bytes(jiangsu_raw) != jiangsu.get("raw_sha256"):
+        raise ValueError("Jiangsu raw SHA mismatch")
+    if len(jiangsu_raw) != int(jiangsu.get("bytes") or -1):
+        raise ValueError("Jiangsu raw byte count mismatch")
+
+    extra = set(raw_sources) - seen_files - {jiangsu_name}
+    if extra:
+        raise ValueError(f"unexpected raw source files: {sorted(extra)!r}")
+
+    return {
+        "shanghai_welfare_lottery": str(shanghai["raw_sha256"]),
+        "jiangsu_welfare_lottery": str(jiangsu["raw_sha256"]),
+    }
+
+
 class Store:
     """Generation-based RAW→CANONICAL→EVIDENCE store with atomic CURRENT pointer."""
 
@@ -56,26 +112,10 @@ class Store:
         if canonical_hash != report.get("canonical_hash"):
             raise ValueError("canonical hash mismatch before commit")
 
-        receipts = report.get("source_receipts")
-        if not isinstance(receipts, list) or len(receipts) < 2:
-            raise ValueError("at least two source receipts are required")
-        receipt_by_source = {str(x.get("source")): x for x in receipts}
-
-        expected_files = {
-            "shanghai_welfare_lottery": "shanghai_welfare_lottery.html",
-            "jiangsu_welfare_lottery": "jiangsu_welfare_lottery.html",
-        }
-        for source, filename in expected_files.items():
-            receipt = receipt_by_source.get(source)
-            raw = raw_sources.get(filename)
-            if not receipt or raw is None:
-                raise ValueError(f"missing raw provenance for {source}")
-            if sha256_bytes(raw) != receipt.get("raw_sha256"):
-                raise ValueError(f"raw SHA mismatch for {source}")
-
+        source_raw_hashes = _validate_raw_bundle(report, raw_sources)
         generation_material = {
             "canonical_hash": canonical_hash,
-            "source_raw_hashes": {k: receipt_by_source[k]["raw_sha256"] for k in sorted(expected_files)},
+            "source_raw_hashes": source_raw_hashes,
         }
         generation_id = sha256_json(generation_material)
         final_dir = self.generations / generation_id
@@ -89,20 +129,22 @@ class Store:
                     _atomic_bytes(raw_dir / filename, raw)
 
                 canonical = {
-                    "schema": "happy8-canonical-v1",
+                    "schema": "happy8-canonical-v2",
                     "canonical_hash": canonical_hash,
                     "draw_count": len(draws),
                     "draws": draws,
                 }
                 evidence = {
-                    "schema": "happy8-source-evidence-v1",
+                    "schema": "happy8-source-evidence-v2",
                     "canonical_hash": canonical_hash,
                     "network_schema": report.get("schema"),
                     "latest": report.get("latest"),
                     "history_count": report.get("history_count"),
                     "crosscheck_count": report.get("crosscheck_count"),
                     "crosscheck_status": report.get("crosscheck_status"),
-                    "source_receipts": receipts,
+                    "verification": report.get("verification"),
+                    "source_receipts": report.get("source_receipts"),
+                    "shanghai_raw_manifest": report.get("shanghai_raw_manifest"),
                 }
                 _atomic_bytes(stage / "CANONICAL.json", (canonical_json(canonical) + "\n").encode("utf-8"))
                 _atomic_bytes(stage / "EVIDENCE.json", (canonical_json(evidence) + "\n").encode("utf-8"))
@@ -112,7 +154,7 @@ class Store:
                 raise
 
         pointer = {
-            "schema": "happy8-current-pointer-v1",
+            "schema": "happy8-current-pointer-v2",
             "generation_id": generation_id,
             "canonical_hash": canonical_hash,
         }
@@ -132,23 +174,34 @@ class Store:
             evidence = json.loads((generation / "EVIDENCE.json").read_text(encoding="utf-8"))
 
             computed = sha256_json(canonical["draws"])
-            checks.append({"name": "canonical_hash", "status": "PASS" if computed == canonical.get("canonical_hash") == pointer.get("canonical_hash") else "FAIL"})
-            checks.append({"name": "evidence_binding", "status": "PASS" if evidence.get("canonical_hash") == computed else "FAIL"})
-            checks.append({"name": "crosscheck", "status": "PASS" if evidence.get("crosscheck_status") == "PASS" and int(evidence.get("crosscheck_count") or 0) >= 1 else "FAIL"})
+            checks.append({
+                "name": "canonical_hash",
+                "status": "PASS" if computed == canonical.get("canonical_hash") == pointer.get("canonical_hash") else "FAIL",
+            })
+            checks.append({
+                "name": "evidence_binding",
+                "status": "PASS" if evidence.get("canonical_hash") == computed else "FAIL",
+            })
+            checks.append({
+                "name": "crosscheck",
+                "status": "PASS"
+                if evidence.get("crosscheck_status") == "PASS" and int(evidence.get("crosscheck_count") or 0) >= 1
+                else "FAIL",
+            })
 
-            receipts = {str(x.get("source")): x for x in evidence.get("source_receipts", [])}
-            raw_pairs = {
-                "shanghai_welfare_lottery": generation / "RAW" / "shanghai_welfare_lottery.html",
-                "jiangsu_welfare_lottery": generation / "RAW" / "jiangsu_welfare_lottery.html",
+            raw_sources = {
+                path.name: path.read_bytes()
+                for path in (generation / "RAW").iterdir()
+                if path.is_file()
             }
-            raw_ok = True
-            for source, path in raw_pairs.items():
-                receipt = receipts.get(source)
-                if not receipt or not path.exists() or sha256_bytes(path.read_bytes()) != receipt.get("raw_sha256"):
-                    raw_ok = False
-            checks.append({"name": "raw_provenance", "status": "PASS" if raw_ok else "FAIL"})
+            integrity_report = {
+                "source_receipts": evidence.get("source_receipts"),
+                "shanghai_raw_manifest": evidence.get("shanghai_raw_manifest"),
+            }
+            _validate_raw_bundle(integrity_report, raw_sources)
+            checks.append({"name": "raw_provenance", "status": "PASS"})
         except Exception as exc:
             checks.append({"name": "store_read", "status": "FAIL", "detail": f"{type(exc).__name__}: {exc}"})
 
         status = "PASS" if checks and all(x["status"] == "PASS" for x in checks) else "FAIL"
-        return {"schema": "happy8-storage-integrity-v1", "status": status, "checks": checks}
+        return {"schema": "happy8-storage-integrity-v2", "status": status, "checks": checks}
