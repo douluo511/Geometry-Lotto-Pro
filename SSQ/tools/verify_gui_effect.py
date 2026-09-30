@@ -176,19 +176,23 @@ def inspect_effect(
                 result["display_token"] = freeze_hash if isinstance(freeze_hash, str) else ""
             elif operation == "update":
                 integrity = payload.get("persisted_integrity")
-                valid = bool(
-                    payload.get("crosscheck_status") == "PASS"
-                    and isinstance(integrity, dict) and integrity.get("ok") is True
-                    and payload.get("canonical_hash")
-                    and (data_dir / "source_evidence.json").is_file()
-                )
+                update_checks = {
+                    "crosscheck_status": payload.get("crosscheck_status") == "PASS",
+                    "persisted_integrity": isinstance(integrity, dict) and integrity.get("ok") is True,
+                    "canonical_hash": bool(payload.get("canonical_hash")),
+                    "source_evidence_file": (data_dir / "source_evidence.json").is_file(),
+                }
+                result["contract_checks"] = update_checks
+                valid = all(update_checks.values())
                 result["display_token"] = payload.get("canonical_hash", "")
             elif operation == "repair":
                 integrity = payload.get("after") if payload.get("repaired") else payload.get("integrity")
-                valid = bool(
-                    payload.get("status") == "PASS"
-                    and isinstance(integrity, dict) and integrity.get("ok") is True
-                )
+                repair_checks = {
+                    "service_status": payload.get("status") == "PASS",
+                    "persisted_integrity": isinstance(integrity, dict) and integrity.get("ok") is True,
+                }
+                result["contract_checks"] = repair_checks
+                valid = all(repair_checks.values())
                 result["display_token"] = payload.get("canonical_hash") or payload.get("detail", "")
             else:
                 court = payload.get("court")
@@ -202,6 +206,7 @@ def inspect_effect(
             if operation in {"update", "repair"}:
                 updater = _verify_updater_process(data_dir, operation, parent_pid, payload)
                 result["updater_process"] = updater
+                result.setdefault("contract_checks", {})["updater_process"] = updater.get("status") == "PASS"
                 valid = valid and updater.get("status") == "PASS"
             if not isinstance(result.get("display_token"), str) or not result["display_token"]:
                 valid = False
