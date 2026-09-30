@@ -15,6 +15,7 @@ sys.path.insert(0, str(ROOT))
 from happy8.net_client import NetClient
 
 BASE = "https://www.gdfc.org.cn/datas/drawinfo/kl8/draw_{issue}.html"
+HEBEI_URL = "https://www.hebfucai.cn/game/kl8Announce"
 ISSUES = ("2020001", "2021001", "2025231")
 NET = NetClient(connect_timeout=10, read_timeout=30, max_attempts=3)
 HEADERS = {
@@ -124,19 +125,129 @@ def inspect_issue(issue: str) -> dict:
         return record
 
 
+
+def inspect_hebei_contract() -> dict:
+    url = HEBEI_URL
+    record = {
+        "url": url,
+        "source": "hebei_welfare_lottery",
+        "release_gate": "DIAGNOSTIC_ONLY",
+    }
+    headers = dict(HEADERS)
+    headers["Referer"] = "https://www.hebfucai.cn/"
+    try:
+        response = NET.get(url, headers=headers, timeout=(10, 30), allow_redirects=True)
+        raw = bytes(response.content)
+        final_url = str(getattr(response, "url", "") or url)
+        parsed = urlsplit(final_url)
+        expected = urlsplit(url)
+        record.update({
+            "http_status": int(response.status_code),
+            "final_url": final_url,
+            "raw_sha256": hashlib.sha256(raw).hexdigest(),
+            "bytes": len(raw),
+            "content_type": str(response.headers.get("Content-Type", "")),
+            "attempts": list(getattr(response, "happy8_attempts", ())),
+            "official_https_host": parsed.scheme.lower() == "https" and parsed.hostname == expected.hostname,
+        })
+        if int(response.status_code) != 200 or not record["official_https_host"]:
+            record["diagnostic"] = "HTTP_OR_HOST_NOT_USABLE"
+            return record
+
+        markup = _decode(raw)
+        plain = _plain(markup)
+        title_match = re.search(r"(?is)<title[^>]*>(.*?)</title>", markup)
+        record["title"] = _plain(title_match.group(1))[:180] if title_match else ""
+
+        forms = [
+            re.sub(r"\s+", " ", tag)[:500]
+            for tag in re.findall(r"(?is)<form\b[^>]*>", markup)[:30]
+        ]
+        selects = [
+            re.sub(r"\s+", " ", tag)[:500]
+            for tag in re.findall(r"(?is)<select\b[^>]*>", markup)[:30]
+        ]
+        options = [
+            re.sub(r"\s+", " ", body)[:240]
+            for body in re.findall(r"(?is)<option\b[^>]*>.*?</option>", markup)[:3000]
+        ]
+        option_issues = re.findall(r"20\d{5}", " ".join(options))
+        record["forms"] = forms
+        record["selects"] = selects
+        record["option_count"] = len(options)
+        record["option_issue_count"] = len(option_issues)
+        record["option_issue_first"] = option_issues[:10]
+        record["option_issue_last"] = option_issues[-10:]
+
+        script_srcs = [
+            html.unescape(x)[:400]
+            for x in re.findall(r"(?is)<script\b[^>]*\bsrc\s*=\s*['\"]([^'\"]+)['\"]", markup)
+        ]
+        record["script_srcs"] = script_srcs[:120]
+
+        inline_hints = []
+        for body in re.findall(r"(?is)<script\b(?![^>]*\bsrc\s*=)[^>]*>(.*?)</script>", markup):
+            compact = re.sub(r"\s+", " ", body)
+            for match in re.finditer(
+                r"(?i).{0,140}(?:kl8|issue|period|announce|ajax|fetch|select|开奖|期号).{0,260}",
+                compact,
+            ):
+                inline_hints.append(match.group(0)[:500])
+                if len(inline_hints) >= 100:
+                    break
+            if len(inline_hints) >= 100:
+                break
+        record["inline_hints"] = inline_hints
+
+        urls = []
+        for value in re.findall(r"""(?is)(?:https?://[^'"\s<>]+|/[A-Za-z0-9_./?=&%-]{4,})""", markup):
+            if re.search(r"(?i)(?:kl8|announce|issue|period|draw|lottery|kj|api)", value):
+                value = html.unescape(value)[:500]
+                if value not in urls:
+                    urls.append(value)
+                if len(urls) >= 120:
+                    break
+        record["contract_url_hints"] = urls
+
+        candidates = []
+        for m in re.finditer(
+            r"(?<!\d)((?:0?[1-9]|[1-7]\d|80)(?:[\s,，|;/\-]+(?:0?[1-9]|[1-7]\d|80)){19})(?!\d)",
+            plain,
+        ):
+            nums = [int(x) for x in re.findall(r"\d{1,2}", m.group(1))]
+            if len(nums) == 20 and len(set(nums)) == 20 and all(1 <= n <= 80 for n in nums):
+                candidates.append(nums)
+                if len(candidates) >= 30:
+                    break
+        record["visible_20_number_candidates"] = candidates
+        record["visible_issue_tokens"] = re.findall(r"20\d{5}", plain)[:80]
+        record["diagnostic"] = (
+            "HEBEI_CONTRACT_DISCOVERED"
+            if selects or inline_hints or urls or option_issues
+            else "HEBEI_HTML_HAS_NUMBERS_BUT_NO_QUERY_CONTRACT"
+        )
+        return record
+    except Exception as exc:
+        record["diagnostic"] = "REQUEST_OR_PARSE_ERROR"
+        record["error"] = f"{type(exc).__name__}: {exc}"
+        return record
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", required=True)
     args = parser.parse_args()
-    probes = [inspect_issue(issue) for issue in ISSUES]
+    guangdong = [inspect_issue(issue) for issue in ISSUES]
+    hebei = inspect_hebei_contract()
     report = {
-        "schema": "happy8-official-fallback-probe-v1",
+        "schema": "happy8-official-fallback-probe-v2",
         "status": "DIAGNOSTIC_ONLY",
         "production_accepted": False,
-        "source": "guangdong_welfare_lottery",
+        "sources": ["guangdong_welfare_lottery", "hebei_welfare_lottery"],
         "issues": list(ISSUES),
-        "probes": probes,
-        "note": "This probe cannot satisfy Real Network or Final Gate; it only discovers an official raw contract.",
+        "guangdong_probes": guangdong,
+        "hebei_probe": hebei,
+        "note": "Diagnostic evidence only. No source is admitted to production without a reproducible historical contract and raw provenance.",
     }
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
