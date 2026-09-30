@@ -18,7 +18,7 @@ sys.path.insert(0, str(TOOLS))
 sys.path.insert(0, str(TOOLS.parent / "SSQ"))
 from derive_gate_status import (  # noqa: E402
     REQUIRED_BUSINESS_CHECKS, REQUIRED_EXE_CHECKS, REQUIRED_NETCLIENT_CHECKS,
-    _raw_status_allowed, _reparse_manifest, _verify_checkout_identity,
+    _raw_status_allowed, _reparse_manifest, _repro_workspace_isolated, _verify_checkout_identity,
     _verify_gui_evidence, _verify_gui_update_source, _verify_reversal_contract,
     _verify_updater_release_network, derive,
 )
@@ -362,6 +362,34 @@ class ReleaseGateEvidenceTests(unittest.TestCase):
                 "checks": {"synthetic_transport_isolation": True},
             },
         }), encoding="utf-8")
+
+    def test_reproducible_build_requires_physically_isolated_workspace(self) -> None:
+        good = {
+            "workspace_isolated": True,
+            "workspace_paths": {
+                "primary_dist": "D:/a/project/dist",
+                "rebuild_dist": "D:/a/project/repro/dist",
+                "primary_workpath": "D:/a/project/primary/main-work",
+                "rebuild_workpath": "D:/a/project/repro/main-work",
+                "primary_specpath": "D:/a/project/primary/main-spec",
+                "rebuild_specpath": "D:/a/project/repro/main-spec",
+            },
+        }
+        self.assertTrue(_repro_workspace_isolated(good))
+
+        for bad in (
+            {**good, "workspace_isolated": False},
+            {**good, "workspace_paths": {
+                **good["workspace_paths"],
+                "rebuild_workpath": good["workspace_paths"]["primary_workpath"],
+            }},
+            {**good, "workspace_paths": {
+                **good["workspace_paths"],
+                "rebuild_specpath": "",
+            }},
+        ):
+            with self.subTest(bad=bad):
+                self.assertFalse(_repro_workspace_isolated(bad))
 
     def test_synthetic_raw_contract_rebuilds_canonical_without_network(self) -> None:
         # This exercises the offline verifier, not the Real Network gate.
