@@ -7,6 +7,13 @@ if os.name != 'nt':
 if sys.version_info[:2] != (3, 11):
     raise SystemExit(f'Python 3.11 required, got {sys.version}')
 
+# PyInstaller documents PYTHONHASHSEED + SOURCE_DATE_EPOCH as the controls
+# required for bit-for-bit reproducible bundles, including Windows PE timestamp.
+DETERMINISTIC_PYTHONHASHSEED = '1'
+DETERMINISTIC_SOURCE_DATE_EPOCH = '946684800'  # 2000-01-01T00:00:00Z
+os.environ['PYTHONHASHSEED'] = DETERMINISTIC_PYTHONHASHSEED
+os.environ['SOURCE_DATE_EPOCH'] = DETERMINISTIC_SOURCE_DATE_EPOCH
+
 root = Path(__file__).resolve().parents[1]
 project = root / 'SSQ'
 dist = root / 'dist'
@@ -24,6 +31,28 @@ def file_sha256(path: Path) -> str:
         for block in iter(lambda: fh.read(1024 * 1024), b''):
             h.update(block)
     return h.hexdigest()
+
+
+def command_with_arg(command: list[str], flag: str, value: Path | str) -> list[str]:
+    out = list(command)
+    try:
+        index = out.index(flag)
+    except ValueError as exc:
+        raise RuntimeError(f'build command is missing {flag}') from exc
+    if index + 1 >= len(out):
+        raise RuntimeError(f'build command has no value after {flag}')
+    out[index + 1] = str(value)
+    return out
+
+
+def command_with_value(command: list[str], old: str, new: str) -> list[str]:
+    out = list(command)
+    try:
+        index = out.index(old)
+    except ValueError as exc:
+        raise RuntimeError(f'build command is missing expected value: {old}') from exc
+    out[index] = new
+    return out
 
 
 # 1) Build the independent updater first. It owns Update/Repair execution but
@@ -68,6 +97,36 @@ updater_acceptance = {
     'github_sha': os.environ.get('GITHUB_SHA'),
     'github_run_id': os.environ.get('GITHUB_RUN_ID'),
     'checks': {},
+}
+
+repro_root = root / 'reproducible_build'
+repro_dist = repro_root / 'dist'
+repro_bundle = repro_root / 'updater_bundle'
+if repro_root.exists():
+    shutil.rmtree(repro_root)
+repro_dist.mkdir(parents=True)
+
+updater_repro_ok = False
+repro_updater_hash = None
+repro_updater_error = None
+try:
+    repro_updater_cmd = command_with_arg(updater_cmd, '--distpath', repro_dist)
+    subprocess.run(repro_updater_cmd, cwd=root, check=True)
+    repro_updater_exe = repro_dist / updater_exe.name
+    repro_updater_hash = file_sha256(repro_updater_exe)
+    updater_repro_ok = repro_updater_hash == updater_hash
+except Exception as exc:
+    repro_updater_error = f'{type(exc).__name__}: {exc}'
+
+updater_acceptance['checks']['reproducible-build'] = {
+    'status': 'PASS' if updater_repro_ok else 'FAIL',
+    'exit_code': 0 if updater_repro_ok else 1,
+    'hash_matches': updater_repro_ok,
+    'primary_sha256': updater_hash,
+    'rebuild_sha256': repro_updater_hash,
+    'error': repro_updater_error,
+    'pythonhashseed': DETERMINISTIC_PYTHONHASHSEED,
+    'source_date_epoch': DETERMINISTIC_SOURCE_DATE_EPOCH,
 }
 
 
@@ -230,6 +289,67 @@ subprocess.run(cmd, cwd=root, check=True)
 exe = dist / f'{name}.exe'
 exe_hash = file_sha256(exe)
 
+main_repro_ok = False
+repro_exe_hash = None
+main_repro_error = None
+if updater_repro_ok:
+    try:
+        if repro_bundle.exists():
+            shutil.rmtree(repro_bundle)
+        repro_bundle.mkdir(parents=True)
+        repro_updater_exe = repro_dist / updater_exe.name
+        repro_bundled_updater = repro_bundle / updater_exe.name
+        repro_bundled_updater.write_bytes(repro_updater_exe.read_bytes())
+        repro_manifest = dict(updater_manifest)
+        repro_manifest['sha256'] = repro_updater_hash
+        repro_manifest['bytes'] = repro_updater_exe.stat().st_size
+        (repro_bundle / 'updater_manifest.json').write_text(
+            json.dumps(repro_manifest, ensure_ascii=False, indent=2) + '\n',
+            encoding='utf-8',
+        )
+
+        repro_cmd = command_with_arg(cmd, '--distpath', repro_dist)
+        repro_cmd = command_with_value(
+            repro_cmd,
+            str(bundle) + ';updater_bundle',
+            str(repro_bundle) + ';updater_bundle',
+        )
+        subprocess.run(repro_cmd, cwd=root, check=True)
+        repro_exe = repro_dist / exe.name
+        repro_exe_hash = file_sha256(repro_exe)
+        main_repro_ok = repro_exe_hash == exe_hash
+    except Exception as exc:
+        main_repro_error = f'{type(exc).__name__}: {exc}'
+else:
+    main_repro_error = 'updater rebuild was not byte-identical'
+
+repro_report = {
+    'schema': 'ssq-reproducible-build-v1',
+    'status': 'PASS' if updater_repro_ok and main_repro_ok else 'FAIL',
+    'github_sha': os.environ.get('GITHUB_SHA'),
+    'github_run_id': os.environ.get('GITHUB_RUN_ID'),
+    'python': sys.version,
+    'deterministic_environment': {
+        'PYTHONHASHSEED': DETERMINISTIC_PYTHONHASHSEED,
+        'SOURCE_DATE_EPOCH': DETERMINISTIC_SOURCE_DATE_EPOCH,
+    },
+    'updater': {
+        'primary_sha256': updater_hash,
+        'rebuild_sha256': repro_updater_hash,
+        'same_hash': updater_repro_ok,
+        'error': repro_updater_error,
+    },
+    'main': {
+        'primary_sha256': exe_hash,
+        'rebuild_sha256': repro_exe_hash,
+        'same_hash': main_repro_ok,
+        'error': main_repro_error,
+    },
+}
+(evidence / 'REPRODUCIBLE_BUILD.json').write_text(
+    json.dumps(repro_report, ensure_ascii=False, indent=2), encoding='utf-8'
+)
+
 # 3) Prove software replacement against real built main-EXE bytes using the
 # already frozen exact updater EXE. These are LOCAL artifact transaction gates,
 # not release-network evidence.
@@ -329,6 +449,12 @@ report = {
     'schema': 'ssq-windows-exact-exe-acceptance-v3',
     'artifact': exe.name,
     'sha256': exe_hash,
+    'reproducible_build': {
+        'report': 'REPRODUCIBLE_BUILD.json',
+        'status': repro_report['status'],
+        'pythonhashseed': DETERMINISTIC_PYTHONHASHSEED,
+        'source_date_epoch': DETERMINISTIC_SOURCE_DATE_EPOCH,
+    },
     'updater': {
         'artifact': updater_exe.name,
         'sha256': updater_hash,
@@ -345,6 +471,16 @@ report = {
     'python': sys.version,
     'checks': {},
     'final_release_gate': 'PENDING',
+}
+
+report['checks']['reproducible-build'] = {
+    'exit_code': 0 if repro_report['status'] == 'PASS' else 1,
+    'status': repro_report['status'],
+    'exe_hash_matches': main_repro_ok,
+    'primary_sha256': exe_hash,
+    'rebuild_sha256': repro_exe_hash,
+    'updater_primary_sha256': updater_hash,
+    'updater_rebuild_sha256': repro_updater_hash,
 }
 
 for check in checks:
