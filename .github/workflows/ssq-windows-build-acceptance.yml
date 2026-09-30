@@ -196,20 +196,29 @@ jobs:
           name: SSQ-CANDIDATE-FAIL-EVIDENCE-${{ github.sha }}
           path: |
             SSQ/evidence/SSQ/**
+            SSQ/dist/Geometry_Lotto_Pro_SSQ_Windows_Verified.exe
             SSQ/dist/Geometry_Lotto_Pro_SSQ_Updater.exe
           if-no-files-found: warn
           retention-days: 30
 
       - name: Upload final EXE only after all hard gates pass
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: Geometry-Lotto-Pro-SSQ-FINAL-v8.5.0-Windows-x64
-          path: |
-            SSQ/dist/Geometry_Lotto_Pro_SSQ_Windows_Verified.exe
-            SSQ/evidence/SSQ/**
+          path: SSQ/dist/Geometry_Lotto_Pro_SSQ_Windows_Verified.exe
           if-no-files-found: error
           retention-days: 30
           compression-level: 0
+
+      - name: Upload final audit evidence separately
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Geometry-Lotto-Pro-SSQ-FINAL-AUDIT-${{ github.sha }}
+          path: SSQ/evidence/SSQ/**
+          if-no-files-found: error
+          retention-days: 30
 
 # Hard-gate revalidation trigger: 2026-09-24 master-template
 
