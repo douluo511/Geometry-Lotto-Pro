@@ -121,3 +121,15 @@ Final acceptance requires bit-for-bit rebuild proof, not merely a hash that stay
 - `REPRODUCIBLE_BUILD.json` is current-run evidence and `reproducible_build` is a first-class Final Gate.
 - Any dependency, action pin, Python version, deterministic-build setting or build script change invalidates prior reproducibility evidence and requires the full chain again.
 
+### Short-lived persisted official-evidence reuse
+
+Advanced-analysis audit may reuse persisted official-source evidence only as a short-lived same-session optimization. Reuse requires:
+- current storage integrity PASS;
+- SSQ identity, canonical hash and crosscheck PASS;
+- at least two PASS official-source receipts;
+- top-level evidence `fetched_at` and every counted PASS receipt `fetched_at` parse as timezone-aware UTC timestamps;
+- no future timestamp;
+- evidence and receipt age no greater than 15 minutes.
+
+Anything older, malformed, future-dated, or incomplete must trigger a fresh real-network update. Persisted historical evidence must never masquerade as a current network PASS.
+
