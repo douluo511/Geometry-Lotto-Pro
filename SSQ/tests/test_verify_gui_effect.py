@@ -69,11 +69,32 @@ class GuiBackendEffectTests(unittest.TestCase):
     def test_visual_only_or_failed_backend_cannot_pass(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
+            blocked = {
+                "gate": {
+                    "status": "FAIL",
+                    "hard_fail_count": 2,
+                    "checks": {
+                        "source_freshness": False,
+                        "data_integrity": True,
+                        "evidence_hash_binding": False,
+                    },
+                    "gate_hash": "blocked-gate",
+                },
+                "auto_update_error": "SourceError: injected diagnostic failure",
+            }
             with closing(make_db(root)) as db:
-                event(db, "prediction_blocked", "FAIL", {"gate": {"status": "FAIL"}})
+                event(db, "prediction_blocked", "FAIL", blocked)
             proof = inspect_effect(root, "predict")
             self.assertEqual(proof["status"], "FAIL")
             self.assertEqual(proof["kind"], "prediction_blocked")
+            self.assertEqual(proof["failure_detail"]["gate_status"], "FAIL")
+            self.assertEqual(proof["failure_detail"]["hard_fail_count"], 2)
+            self.assertEqual(
+                proof["failure_detail"]["failed_checks"],
+                ["evidence_hash_binding", "source_freshness"],
+            )
+            self.assertEqual(proof["failure_detail"]["gate_hash"], "blocked-gate")
+            self.assertIn("injected diagnostic failure", proof["failure_detail"]["auto_update_error"])
 
     def test_predict_requires_persisted_freeze_and_gate(self) -> None:
         with tempfile.TemporaryDirectory() as td:
