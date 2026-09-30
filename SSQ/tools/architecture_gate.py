@@ -45,7 +45,13 @@ def main() -> int:
             and "## Independent Updater / Repair Process" in spec
         ) else "FAIL",
         "function_contract": "PASS" if "## Function / Interface Contract" in spec else "FAIL",
-        "interface_contract": "PASS" if "predict / update / repair / audit" in spec else "FAIL",
+        "interface_contract": "PASS" if all(token in spec for token in (
+            "LottoService.predict",
+            "UpdaterClient.update",
+            "UpdaterClient.repair",
+            "LottoService.audit",
+            "software-update",
+        )) else "FAIL",
         "data_source": "PASS" if "## Data Sources" in spec and "official" in sources.lower() else "FAIL",
         "netclient": "PASS" if (
             "NET.get(" in sources
