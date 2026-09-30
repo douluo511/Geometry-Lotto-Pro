@@ -138,13 +138,16 @@ class GuiBackendEffectTests(unittest.TestCase):
             }
             with closing(make_db(root)) as db:
                 event(db, "official_update", "PASS", payload)
-            self.assertEqual(inspect_effect(root, "update")["status"], "FAIL")
+            missing_evidence = inspect_effect(root, "update")
+            self.assertEqual(missing_evidence["status"], "FAIL")
+            self.assertFalse(missing_evidence["contract_checks"]["source_evidence_file"])
             (root / "source_evidence.json").write_text("{}", encoding="utf-8")
             self.assertEqual(inspect_effect(root, "update", parent_pid=4242)["status"], "FAIL")
             write_updater_proof(root, "update", payload)
             proof = inspect_effect(root, "update", parent_pid=4242)
             self.assertEqual(proof["status"], "PASS")
             self.assertEqual(proof["updater_process"]["child_pid"], 4342)
+            self.assertTrue(all(proof["contract_checks"].values()))
             self.assertEqual(proof["updater_process"]["updater_exe_sha256"], "a" * 64)
 
     def test_repair_and_audit_require_operation_specific_contract(self) -> None:
