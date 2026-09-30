@@ -1055,6 +1055,12 @@ def _verify_updater_release_network(evidence: Path, updater_hash: str, main_exe_
             or artifact_receipt.get("bytes") != size):
         raise ValueError("software-update release receipt hash/size binding mismatch")
     post = replacement.get("post_replace_validation")
+    wait_elapsed = wait.get("elapsed")
+    wait_elapsed_ok = (
+        isinstance(wait_elapsed, (int, float))
+        and not isinstance(wait_elapsed, bool)
+        and wait_elapsed > 0
+    )
     if (replacement.get("status") != "PASS"
             or replacement.get("expected_sha256") != digest
             or replacement.get("staged_sha256") != digest
@@ -1065,8 +1071,12 @@ def _verify_updater_release_network(evidence: Path, updater_hash: str, main_exe_
             or post.get("expected_version") != version
             or post.get("reported_version") != version
             or post.get("target_sha256") != digest
-            or wait.get("status") != "PASS"):
-        raise ValueError("software-update installed artifact/self-test evidence is incomplete")
+            or wait.get("status") != "PASS"
+            or wait.get("waited") is not True
+            or type(wait.get("pid")) is not int
+            or wait.get("pid") <= 0
+            or not wait_elapsed_ok):
+        raise ValueError("software-update installed artifact/self-test/wait evidence is incomplete")
     return {
         "report": str(evidence / "updater-software-release-network.json"),
         "report_sha256": _hash(evidence / "updater-software-release-network.json"),
@@ -1078,6 +1088,9 @@ def _verify_updater_release_network(evidence: Path, updater_hash: str, main_exe_
         "manifest_raw_sha256": service.get("manifest_raw_sha256"),
         "installed_sha256": replacement.get("installed_sha256"),
         "post_replace_self_test": "PASS",
+        "waited_for_main": True,
+        "wait_pid": wait.get("pid"),
+        "wait_elapsed": wait_elapsed,
     }
 
 def _verify_checkout_identity(evidence: Path) -> dict[str, Any]:
