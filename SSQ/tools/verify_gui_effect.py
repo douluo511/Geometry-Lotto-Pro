@@ -40,16 +40,32 @@ def _verify_updater_process(
         child_pid = int(proof.get("pid") or 0)
         recorded_parent = int(proof.get("parent_pid") or 0)
         expected_parent = int(proof.get("expected_parent_pid") or 0)
+        raw_ancestors = proof.get("ancestor_pids")
+        ancestor_pids = (
+            [int(value) for value in raw_ancestors]
+            if isinstance(raw_ancestors, list)
+            and all(isinstance(value, int) and value > 0 for value in raw_ancestors)
+            else []
+        )
         updater_hash = str(proof.get("updater_exe_sha256") or "")
         payload_hash = str(proof.get("service_result_sha256") or "")
         data_root = Path(str(proof.get("data_dir") or "")).resolve()
+        process_chain_ok = bool(
+            child_pid > 0
+            and child_pid != parent_pid
+            and recorded_parent > 0
+            and ancestor_pids
+            and recorded_parent == ancestor_pids[0]
+            and expected_parent == parent_pid
+            and parent_pid in ancestor_pids
+            and child_pid not in ancestor_pids
+        )
         valid = bool(
             proof.get("schema") == "ssq-independent-updater-v2"
             and proof.get("status") == "PASS"
             and proof.get("mode") == operation
             and proof.get("parent_pid_match") is True
-            and child_pid > 0 and child_pid != parent_pid
-            and recorded_parent == parent_pid and expected_parent == parent_pid
+            and process_chain_ok
             and len(updater_hash) == 64 and all(ch in "0123456789abcdef" for ch in updater_hash)
             and data_root == data_dir.resolve()
             and payload_hash == _sha256_json(service_payload)
@@ -59,6 +75,8 @@ def _verify_updater_process(
             status="PASS" if valid else "FAIL",
             child_pid=child_pid,
             parent_pid=recorded_parent,
+            expected_parent_pid=expected_parent,
+            ancestor_pids=ancestor_pids,
             updater_exe_sha256=updater_hash,
             service_result_sha256=payload_hash,
         )
