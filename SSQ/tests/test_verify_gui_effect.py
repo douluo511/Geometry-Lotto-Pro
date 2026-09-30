@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 import sys
 import tempfile
@@ -127,6 +128,26 @@ class GuiBackendEffectTests(unittest.TestCase):
             self.assertEqual(exact["status"], "PASS")
             self.assertEqual(exact["experiment_id"], first_id)
             self.assertEqual(exact["display_token"], "first")
+
+
+    def test_relative_data_dir_replays_read_only_ledger(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            data = root / "data"
+            data.mkdir()
+            with closing(make_db(data)) as db:
+                event(db, "repair", "PASS", {
+                    "status": "PASS", "repaired": False, "integrity": {"ok": True},
+                    "detail": "integrity OK; no repair required",
+                })
+            old_cwd = os.getcwd()
+            try:
+                os.chdir(root)
+                proof = inspect_effect(Path("data"), "repair")
+            finally:
+                os.chdir(old_cwd)
+            self.assertEqual(proof["status"], "PASS")
+            self.assertEqual(proof["kind"], "repair")
 
 if __name__ == "__main__":
     unittest.main()
