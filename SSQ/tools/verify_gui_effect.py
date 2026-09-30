@@ -115,7 +115,27 @@ def inspect_effect(
                 created_at=created_at, payload_sha256=_sha256_json(payload),
             )
             if status != "PASS" or kind == "prediction_blocked":
-                result.update(status="FAIL", reason="backend operation did not PASS")
+                detail: dict[str, Any] = {}
+                if kind == "prediction_blocked":
+                    gate = payload.get("gate")
+                    if isinstance(gate, dict):
+                        checks = gate.get("checks")
+                        failed_checks = (
+                            sorted(str(name) for name, ok in checks.items() if ok is not True)
+                            if isinstance(checks, dict) else []
+                        )
+                        detail = {
+                            "gate_status": gate.get("status"),
+                            "hard_fail_count": gate.get("hard_fail_count"),
+                            "failed_checks": failed_checks,
+                            "gate_hash": gate.get("gate_hash"),
+                            "auto_update_error": payload.get("auto_update_error"),
+                        }
+                result.update(
+                    status="FAIL",
+                    reason="backend operation did not PASS",
+                    failure_detail=detail,
+                )
                 return result
             if operation == "predict":
                 gate_hash = payload.get("gate_hash")
