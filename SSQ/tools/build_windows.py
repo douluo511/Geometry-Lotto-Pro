@@ -135,18 +135,20 @@ try:
 except Exception as exc:
     repro_updater_error = f'{type(exc).__name__}: {exc}'
 
+updater_workspace_isolated = bool(
+    primary_updater_work.resolve() != repro_updater_work.resolve()
+    and primary_updater_spec.resolve() != repro_updater_spec.resolve()
+    and dist.resolve() != repro_dist.resolve()
+)
+
 updater_acceptance['checks']['reproducible-build'] = {
-    'status': 'PASS' if updater_repro_ok else 'FAIL',
-    'exit_code': 0 if updater_repro_ok else 1,
+    'status': 'PASS' if updater_repro_ok and updater_workspace_isolated else 'FAIL',
+    'exit_code': 0 if updater_repro_ok and updater_workspace_isolated else 1,
     'hash_matches': updater_repro_ok,
     'primary_sha256': updater_hash,
     'rebuild_sha256': repro_updater_hash,
     'error': repro_updater_error,
-    'workspace_isolated': (
-        primary_updater_work.resolve() != repro_updater_work.resolve()
-        and primary_updater_spec.resolve() != repro_updater_spec.resolve()
-        and dist.resolve() != repro_dist.resolve()
-    ),
+    'workspace_isolated': updater_workspace_isolated,
     'workspace_paths': {
         'primary_dist': str(dist.resolve()),
         'rebuild_dist': str(repro_dist.resolve()),
