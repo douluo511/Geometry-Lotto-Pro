@@ -25,7 +25,7 @@ REQUIRED_EXE_CHECKS = frozenset({
     "self", "integrity-tamper", "offline-failclosed", "corrupt-repair",
     "update", "science", "random-world-101", "random-world-202",
     "random-world-303", "predict", "audit", "gui",
-    "unicode-path-no-python-path", "default-gui-launch",
+    "unicode-path-no-python-path", "default-gui-launch", "reproducible-build",
 })
 
 # A nonempty subset, truthy string (including "FAIL"), or bool-as-int count
@@ -1407,6 +1407,43 @@ def derive(evidence: Path, exe: Path) -> dict[str, Any]:
         )
         gates["windows_build"] = "PASS" if acceptance_ok else "FAIL"
         gates["exact_exe"] = "PASS" if acceptance_ok else "FAIL"
+        reproducible_check = checks.get("reproducible-build")
+        reproducible_ok = bool(
+            acceptance_ok
+            and isinstance(reproducible_check, dict)
+            and reproducible_check.get("status") == "PASS"
+            and reproducible_check.get("exit_code") == 0
+            and reproducible_check.get("exe_hash_matches") is True
+            and reproducible_check.get("primary_sha256") == actual_hash
+            and reproducible_check.get("rebuild_sha256") == actual_hash
+            and isinstance(reproducible_check.get("updater_primary_sha256"), str)
+            and reproducible_check.get("updater_primary_sha256")
+                == reproducible_check.get("updater_rebuild_sha256")
+        )
+        gates["reproducible_build"] = "PASS" if reproducible_ok else "FAIL"
+        proofs["reproducible_build"] = {
+            "report": str(evidence / "REPRODUCIBLE_BUILD.json"),
+            "report_sha256": (
+                _hash(evidence / "REPRODUCIBLE_BUILD.json")
+                if (evidence / "REPRODUCIBLE_BUILD.json").is_file() else None
+            ),
+            "main_primary_sha256": (
+                reproducible_check.get("primary_sha256")
+                if isinstance(reproducible_check, dict) else None
+            ),
+            "main_rebuild_sha256": (
+                reproducible_check.get("rebuild_sha256")
+                if isinstance(reproducible_check, dict) else None
+            ),
+            "updater_primary_sha256": (
+                reproducible_check.get("updater_primary_sha256")
+                if isinstance(reproducible_check, dict) else None
+            ),
+            "updater_rebuild_sha256": (
+                reproducible_check.get("updater_rebuild_sha256")
+                if isinstance(reproducible_check, dict) else None
+            ),
+        }
         # Build/CLI checks prove only a narrow exact-EXE hash. The cross-stage
         # Same Hash gate also needs the physical GUI and live-network evidence.
         gates["same_hash"] = "PENDING" if acceptance_ok else "FAIL"
@@ -1550,6 +1587,14 @@ def derive(evidence: Path, exe: Path) -> dict[str, Any]:
         }
         if not isinstance(updater_checks, dict) or not required_updater_checks.issubset(updater_checks):
             raise ValueError("updater exact-EXE check set incomplete")
+        updater_repro = updater_checks.get("reproducible-build")
+        if (not isinstance(updater_repro, dict)
+                or updater_repro.get("status") != "PASS"
+                or updater_repro.get("exit_code") != 0
+                or updater_repro.get("hash_matches") is not True
+                or updater_repro.get("primary_sha256") != updater_actual_hash
+                or updater_repro.get("rebuild_sha256") != updater_actual_hash):
+            raise ValueError("updater reproducible-build evidence incomplete")
         process_ok = all(
             isinstance(updater_checks[name], dict)
             and updater_checks[name].get("status") == "PASS"
