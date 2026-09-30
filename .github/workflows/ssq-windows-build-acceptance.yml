@@ -184,11 +184,23 @@ jobs:
 
           $final = Get-Content evidence\SSQ\FINAL_22_GATE.json -Raw | ConvertFrom-Json
           if ($releaseExit -ne 0 -or $final.final_gate -ne 'PASS' -or [int]$final.hard_fail_count -ne 0) {
-            throw "Final Gate blocked: inspect all non-PASS gates (repository independence and updater release-network are mandatory)"
+            throw "Final Gate blocked: inspect all non-PASS gates"
           }
+
           $acceptance = Get-Content $reportPath -Raw | ConvertFrom-Json
           $releaseVersion = [string]$acceptance.checks.self.version
-          if ($releaseVersion -notmatch '^\d+\.\d+\.\d+(?:\+[A-Za-z0-9.-]+)?
+          $stableVersionPattern = '^\d+\.\d+\.\d+(?:\+[A-Za-z0-9.-]+)?$'
+          if ($releaseVersion -notmatch $stableVersionPattern) {
+            throw "stable release version missing from exact-EXE self evidence: $releaseVersion"
+          }
+
+          "version=$releaseVersion" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "sha256=$($final.exe_sha256)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          Write-Host "SSQ_FINAL_EXE=$(Resolve-Path $exePath)"
+          Write-Host "SSQ_FINAL_VERSION=$releaseVersion"
+          Write-Host "SSQ_FINAL_SHA256=$($final.exe_sha256)"
+          Write-Host "FINAL_RELEASE_GATE=PASS"
+
       - name: Upload candidate diagnostic evidence when acceptance fails
         if: failure()
         uses: actions/upload-artifact@v4
