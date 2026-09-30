@@ -34,6 +34,10 @@ class SoftwareUpdaterTests(unittest.TestCase):
         payload["artifact_url"] = "https://github.com/other/repo/releases/download/v8.6.0/app.exe"
         with self.assertRaises(ValueError):
             updater._parse_software_manifest(json.dumps(payload).encode("utf-8"))
+        payload["artifact_url"] = "https://github.com/douluo511/Geometry-Lotto-Pro-SSQ/releases/download/v8.6.0/app.exe"
+        payload["version"] = "latest"
+        with self.assertRaises(ValueError):
+            updater._parse_software_manifest(json.dumps(payload).encode("utf-8"))
 
     def test_atomic_replace_and_previous_preservation(self):
         with tempfile.TemporaryDirectory() as td:
