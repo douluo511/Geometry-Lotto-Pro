@@ -52,6 +52,7 @@ def main()->int:
     p.add_argument("--candidate-exe",required=True)
     p.add_argument("--final-exe",required=True)
     p.add_argument("--physical-gui",required=True)
+    p.add_argument("--repository-independent",choices=["PASS","FAIL"],required=True)
     p.add_argument("--out",required=True)
     a=p.parse_args()
     ed=Path(a.evidence_dir)
@@ -62,6 +63,7 @@ def main()->int:
         gates[gate]="PASS" if (ed/marker).exists() else "FAIL"
     gates["business_content"]="PASS" if business.get("status")=="PASS" else "FAIL"
     gates["oos_validation"]="PASS" if _science_ok(Path(a.source_science)) and _science_ok(Path(a.exe_science)) else "FAIL"
+    gates["repository_independence"]=a.repository_independent
 
     candidate=Path(a.candidate_exe); final=Path(a.final_exe)
     ch=sha256(candidate) if candidate.exists() else None
