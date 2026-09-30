@@ -28,6 +28,40 @@ jobs:
       - name: Checkout exact commit
         uses: actions/checkout@v4
 
+      - name: Exact checkout identity gate
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path "SSQ\evidence\SSQ" | Out-Null
+          $eventName = "${{ github.event_name }}"
+          $eventHead = "${{ github.event.pull_request.head.sha }}"
+          $githubSha = "${{ github.sha }}"
+          $actual = (git rev-parse HEAD).Trim()
+          $parentText = (git show -s --format=%P HEAD).Trim()
+          $parents = @()
+          if (-not [string]::IsNullOrWhiteSpace($parentText)) {
+            $parents = @($parentText -split ' ' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+          }
+          if ($eventName -eq "pull_request") {
+            $ok = (-not [string]::IsNullOrWhiteSpace($eventHead)) -and (($actual -eq $eventHead) -or ($parents -contains $eventHead))
+          } else {
+            $ok = $actual -eq $githubSha
+          }
+          $report = [ordered]@{
+            schema = "ssq-checkout-identity-v1"
+            status = $(if ($ok) { "PASS" } else { "FAIL" })
+            github_sha = $env:GITHUB_SHA
+            github_run_id = $env:GITHUB_RUN_ID
+            event = $eventName
+            event_head_sha = $eventHead
+            actual_checkout_sha = $actual
+            parent_shas = $parents
+          }
+          $report | ConvertTo-Json -Depth 6 | Set-Content "SSQ\evidence\SSQ\CHECKOUT_IDENTITY_GATE.json" -Encoding utf8
+          Write-Host ($report | ConvertTo-Json -Compress -Depth 6)
+          if (-not $ok) {
+            throw "checkout identity is stale or does not contain the current candidate HEAD"
+          }
+
       - name: Setup pinned Python x64
         uses: actions/setup-python@v5
         with:
