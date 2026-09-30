@@ -32,8 +32,17 @@ def _verify_updater_process(
 ) -> dict[str, Any]:
     proof_path = data_dir / "updater_last_run.json"
     result: dict[str, Any] = {"status": "FAIL", "path": str(proof_path)}
-    if operation not in {"update", "repair"} or parent_pid <= 0 or not proof_path.is_file():
-        result["reason"] = "updater process evidence missing or parent PID invalid"
+    if operation not in {"update", "repair"} or parent_pid <= 0:
+        result["reason"] = "updater operation or parent PID is invalid"
+        return result
+    if not proof_path.is_file():
+        # The child updater commits its service ledger before the parent
+        # UpdaterClient can persist updater_last_run.json after child exit.
+        # This is a bounded transient state: keep polling, never promote it.
+        result.update(
+            status="PENDING",
+            reason="updater process evidence has not been persisted yet",
+        )
         return result
     try:
         proof = json.loads(proof_path.read_text(encoding="utf-8-sig"))
@@ -203,13 +212,21 @@ def inspect_effect(
                     and court.get("court_hash")
                 )
                 result["display_token"] = court.get("court_hash", "") if isinstance(court, dict) else ""
+            token_ok = isinstance(result.get("display_token"), str) and bool(result["display_token"])
+            if not token_ok:
+                valid = False
             if operation in {"update", "repair"}:
                 updater = _verify_updater_process(data_dir, operation, parent_pid, payload)
                 result["updater_process"] = updater
-                result.setdefault("contract_checks", {})["updater_process"] = updater.get("status") == "PASS"
-                valid = valid and updater.get("status") == "PASS"
-            if not isinstance(result.get("display_token"), str) or not result["display_token"]:
-                valid = False
+                updater_status = updater.get("status")
+                result.setdefault("contract_checks", {})["updater_process"] = updater_status == "PASS"
+                if updater_status == "PENDING" and valid:
+                    result.update(
+                        status="PENDING",
+                        reason="waiting for updater process evidence to be persisted",
+                    )
+                    return result
+                valid = valid and updater_status == "PASS"
             result["status"] = "PASS" if valid else "FAIL"
             if not valid:
                 result["reason"] = "operation-specific persisted contract is incomplete"
