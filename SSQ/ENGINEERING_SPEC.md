@@ -93,3 +93,17 @@ Any FAIL/PENDING/WARNING/UNAVAILABLE/SKIPPED/UNKNOWN => FINAL_GATE=FAIL.
 The user-facing deliverable remains one top-level main EXE. That main EXE embeds the separately built and accepted updater EXE bytes plus a hash manifest; at runtime the updater is materialized and executed as a distinct process. Final delivery is allowed only after main EXE + embedded updater bytes + release-host updater path all match current-run evidence and Final Gate PASS.
 
 Behavior, model, rules, data chain, source parser, updater, build, UI→Service/Updater binding, release policy or production parameter changes invalidate prior acceptance.
+
+## Portfolio FINAL Promotion Rules
+
+Portfolio FINAL is stricter than staging acceptance and cannot be inferred from a green PR.
+
+- Repository identity is machine-derived. FINAL requires `GITHUB_REPOSITORY=douluo511/Geometry-Lotto-Pro-SSQ` under GitHub Actions.
+- Release context is machine-derived. FINAL requires the independent repository frozen `main` branch and event `push` or explicit `workflow_dispatch`. Pull requests and candidate branches are acceptance-only.
+- The exact main EXE must report a stable release SemVer. Verification/prerelease versions such as `8.5.0-verification` are non-PASS for `release_version` and can never be labeled Portfolio FINAL.
+- Real software-update acceptance must download the verified prior release and current candidate from the independent repository over HTTPS, validate manifest/artifact SHA256 and byte counts, and prove an actual N→N+1 version transition.
+- Updater handoff must use the verified prior-release Exact main EXE itself as the live wait target. A synthetic sleeper/process is insufficient. Final evidence binds the prior-main PID, SHA256 and version to the updater wait proof.
+- The acceptance candidate release is explicitly non-FINAL. If Final Gate later passes, promotion must reuse the exact already-tested EXE bytes; no rebuild is allowed.
+- Audit evidence must upload successfully before the user-facing FINAL artifact. The user-facing FINAL artifact contains one main Windows EXE only; audit evidence is stored separately.
+- Any change to version, release workflow, source/parser, updater, model/rules, UI→Service binding, or evidence contracts invalidates prior PASS and requires the complete chain again.
+
