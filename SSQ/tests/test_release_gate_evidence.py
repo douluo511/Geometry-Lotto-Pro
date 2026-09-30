@@ -619,6 +619,29 @@ class ReleaseGateEvidenceTests(unittest.TestCase):
                 "8.5.0-verification",
             )
 
+    def test_portfolio_final_requires_independent_main_release_context(self) -> None:
+        base = {
+            "GITHUB_ACTIONS": "true",
+            "GITHUB_REPOSITORY": "douluo511/Geometry-Lotto-Pro-SSQ",
+            "GITHUB_SERVER_URL": "https://github.com",
+        }
+        cases = [
+            ("pull_request", "refs/pull/7/merge", "FAIL"),
+            ("push", "refs/heads/feature/test", "FAIL"),
+            ("push", "refs/heads/ssq-final-candidate", "FAIL"),
+            ("push", "refs/heads/main", "PASS"),
+            ("workflow_dispatch", "refs/heads/main", "PASS"),
+        ]
+        from derive_gate_status import _release_context_proof
+        for event, ref, expected in cases:
+            with self.subTest(event=event, ref=ref):
+                with patch.dict(os.environ, {
+                    **base, "GITHUB_EVENT_NAME": event, "GITHUB_REF": ref,
+                }, clear=False):
+                    status, proof = _release_context_proof()
+                self.assertEqual(status, expected)
+                self.assertEqual(proof["status"], expected)
+
     def test_missing_evidence_never_passes(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
