@@ -109,6 +109,54 @@ class SoftwareUpdaterTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             updater._require_forward_version("8.5.0+build.1", "8.5.0+build.2")
 
+    def test_software_update_rejects_unverifiable_target_before_network(self):
+        with tempfile.TemporaryDirectory() as td:
+            target = Path(td) / "old.exe"
+            target.write_bytes(b"not-a-valid-main")
+            with mock.patch.object(
+                updater, "_exact_main_self_test",
+                return_value=(False, {"status": "FAIL", "reported_version": None}),
+            ), mock.patch.object(updater, "_bounded_get") as get:
+                result = updater._software_update(target, "https://github.com/douluo511/Geometry-Lotto-Pro-SSQ/releases/download/v9/manifest.json")
+            self.assertEqual(result["status"], "FAIL")
+            self.assertIn("version discovery", result["error"])
+            get.assert_not_called()
+
+    def test_software_update_compares_manifest_to_installed_target_version(self):
+        with tempfile.TemporaryDirectory() as td:
+            target = Path(td) / "old.exe"
+            target.write_bytes(b"old-main")
+            artifact = b"new-main"
+            manifest = {
+                "schema": updater.SOFTWARE_MANIFEST_SCHEMA,
+                "app": "Geometry Lotto Pro SSQ",
+                "version": "9.0.0",
+                "artifact_url": "https://github.com/douluo511/Geometry-Lotto-Pro-SSQ/releases/download/v9/app.exe",
+                "artifact_sha256": hashlib.sha256(artifact).hexdigest(),
+                "artifact_bytes": len(artifact),
+            }
+            manifest_raw = json.dumps(manifest).encode("utf-8")
+            manifest_receipt = {"status": "PASS", "requested_url": "manifest"}
+            artifact_receipt = {"status": "PASS", "requested_url": manifest["artifact_url"]}
+            with mock.patch.object(
+                updater, "_exact_main_self_test",
+                return_value=(True, {"status": "PASS", "reported_version": "8.5.0"}),
+            ), mock.patch.object(
+                updater, "_bounded_get",
+                side_effect=[(manifest_raw, manifest_receipt), (artifact, artifact_receipt)],
+            ), mock.patch.object(
+                updater, "_require_forward_version"
+            ) as forward, mock.patch.object(
+                updater, "_apply_verified_artifact",
+                return_value={"status": "PASS", "installed_sha256": hashlib.sha256(artifact).hexdigest()},
+            ):
+                result = updater._software_update(
+                    target,
+                    "https://github.com/douluo511/Geometry-Lotto-Pro-SSQ/releases/download/v9/manifest.json",
+                )
+            forward.assert_called_once_with("8.5.0", "9.0.0")
+            self.assertEqual(result["from_version"], "8.5.0")
+            self.assertEqual(result["to_version"], "9.0.0")
     def test_manifest_accepts_semver_build_metadata(self):
         payload = {
             "schema": updater.SOFTWARE_MANIFEST_SCHEMA,
