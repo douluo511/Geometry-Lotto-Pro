@@ -1077,6 +1077,34 @@ def _verify_updater_release_network(evidence: Path, updater_hash: str, main_exe_
             or wait.get("pid") <= 0
             or not wait_elapsed_ok):
         raise ValueError("software-update installed artifact/self-test/wait evidence is incomplete")
+
+    summary = _require_current_report(
+        evidence, "UPDATER_REAL_RELEASE_ACCEPTANCE.json",
+        "ssq-updater-real-release-acceptance-v1",
+    )
+    wait_target = summary.get("wait_target")
+    base_artifact_receipt = summary.get("base_artifact_receipt")
+    summary_wait = summary.get("wait_for_main")
+    if (summary.get("repository") != EXPECTED_INDEPENDENT_REPOSITORY
+            or summary.get("updater_exe_sha256") != updater_hash
+            or summary.get("candidate_exe_sha256") != main_exe_hash
+            or summary.get("installed_sha256") != main_exe_hash
+            or summary.get("candidate_version") != version
+            or summary.get("exact_updater_report") != "updater-software-release-network.json"
+            or summary.get("exact_updater_report_sha256") != _hash(
+                evidence / "updater-software-release-network.json"
+            )
+            or not isinstance(wait_target, dict)
+            or wait_target.get("kind") != "exact_base_main_exe"
+            or type(wait_target.get("pid")) is not int
+            or wait_target.get("pid") != wait.get("pid")
+            or wait_target.get("pid") <= 0
+            or wait_target.get("sha256") != summary.get("base_artifact_sha256")
+            or wait_target.get("version") != summary.get("base_version")
+            or not isinstance(base_artifact_receipt, dict)
+            or base_artifact_receipt.get("sha256") != wait_target.get("sha256")
+            or summary_wait != wait):
+        raise ValueError("real-release summary is not bound to the exact prior main handoff")
     return {
         "report": str(evidence / "updater-software-release-network.json"),
         "report_sha256": _hash(evidence / "updater-software-release-network.json"),
@@ -1091,6 +1119,10 @@ def _verify_updater_release_network(evidence: Path, updater_hash: str, main_exe_
         "waited_for_main": True,
         "wait_pid": wait.get("pid"),
         "wait_elapsed": wait_elapsed,
+        "wait_target_sha256": wait_target.get("sha256"),
+        "wait_target_version": wait_target.get("version"),
+        "summary_report": str(evidence / "UPDATER_REAL_RELEASE_ACCEPTANCE.json"),
+        "summary_sha256": _hash(evidence / "UPDATER_REAL_RELEASE_ACCEPTANCE.json"),
     }
 
 def _verify_checkout_identity(evidence: Path) -> dict[str, Any]:
