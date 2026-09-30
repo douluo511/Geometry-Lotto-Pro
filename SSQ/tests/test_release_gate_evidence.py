@@ -484,10 +484,14 @@ class ReleaseGateEvidenceTests(unittest.TestCase):
         self.assertIn("gate_input_integrity", final["failures"])
 
 
-    def test_reversal_contract_binds_audit_court_to_science_court(self) -> None:
+    def test_reversal_contract_binds_invariant_science_and_audit_contract(self) -> None:
         reverse = {"remove": True, "shuffle": True, "random_replace": True}
+        policy = {"schema": "false-edge-firewall-v8", "alpha": 0.01}
         science = {"result": {
-            "court_hash": "court-proof",
+            "court_hash": "science-run-hash",
+            "pre_registered_policy": policy,
+            "model_hash": "model-proof",
+            "selector_hash": "selector-proof",
             "reverse_validation": reverse,
             "ablation": {"executed": True},
         }}
@@ -497,14 +501,19 @@ class ReleaseGateEvidenceTests(unittest.TestCase):
                 "software_verdict": "PASS",
                 "edge_state": "NO_EDGE",
                 "dan_state": "NULL_DAN",
-                "court_hash": "court-proof",
+                "court_hash": "audit-run-hash",
+                "pre_registered_policy": policy,
+                "model_hash": "model-proof",
+                "selector_hash": "selector-proof",
                 "reverse_validation": reverse,
                 "ablation": {"executed": True},
+                "final_validation": {"status": "PASS"},
             },
         }}
         proof = _verify_reversal_contract(science, audit)
-        self.assertEqual(proof["court_hash"], "court-proof")
-        audit["result"]["court"]["court_hash"] = "mismatch"
+        self.assertEqual(proof["science_court_hash"], "science-run-hash")
+        self.assertEqual(proof["audit_court_hash"], "audit-run-hash")
+        audit["result"]["court"]["selector_hash"] = "mismatch"
         with self.assertRaises(ValueError):
             _verify_reversal_contract(science, audit)
 
