@@ -112,15 +112,15 @@ jobs:
           if (-not (Test-Path $reportPath)) { throw "acceptance report missing" }
           if (-not (Test-Path $exePath)) { throw "exact EXE missing" }
 
-          python tools/derive_gate_status.py --evidence-dir evidence\SSQ --exe $exePath --report evidence\SSQ\mother-gates.json
+          python tools/derive_gate_status.py --evidence-dir evidence\SSQ --exe $exePath --report evidence\SSQ\mother-gates.json --repository-independent FAIL
           if ($LASTEXITCODE -ne 0) { throw "gate derivation failed" }
 
-          python tools/release_gate_22.py --gate-input evidence\SSQ\mother-gates.json --acceptance $reportPath --exe $exePath --report evidence\SSQ\FINAL_22_GATE.json
+          python tools/release_gate_22.py --gate-input evidence\SSQ\mother-gates.json --acceptance $reportPath --exe $exePath --report evidence\SSQ\FINAL_22_GATE.json --repository-independent FAIL
           $releaseExit = $LASTEXITCODE
 
           $final = Get-Content evidence\SSQ\FINAL_22_GATE.json -Raw | ConvertFrom-Json
           if ($releaseExit -ne 0 -or $final.final_gate -ne 'PASS' -or [int]$final.hard_fail_count -ne 0) {
-            throw "Evidence-derived Final Gate failed"
+            throw "Final Gate blocked: independent repository is mandatory"
           }
           Write-Host "SSQ_FINAL_EXE=$(Resolve-Path $exePath)"
           Write-Host "SSQ_FINAL_SHA256=$($final.exe_sha256)"
