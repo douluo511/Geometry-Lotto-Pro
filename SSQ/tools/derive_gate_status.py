@@ -12,6 +12,7 @@ import json
 import math
 import os
 import re
+import sqlite3
 import sys
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -25,6 +26,22 @@ REQUIRED_EXE_CHECKS = frozenset({
     "update", "science", "random-world-101", "random-world-202",
     "random-world-303", "predict", "audit", "gui",
     "unicode-path-no-python-path", "default-gui-launch",
+})
+
+# A nonempty subset, truthy string (including "FAIL"), or bool-as-int count
+# must not turn a partial/static report into an acceptance PASS.
+REQUIRED_BUSINESS_CHECKS = frozenset({
+    "business_game_contract", "business_official_sources", "business_four_entries",
+    "business_model_inventory", "business_walk_forward", "business_statistics",
+    "business_ablation", "business_leakage_and_confirmation",
+    "business_freeze_audit_isolation", "business_no_overclaim",
+})
+REQUIRED_NETCLIENT_CHECKS = frozenset({
+    "https_only", "timeout_pair_required", "429_retry_then_success",
+    "separate_connect_read_timeout", "https_redirect_downgrade_fail_closed",
+    "retry_cap_exception_fail_closed", "retry_after_hard_cap",
+    "raw_payload_evidence", "wrong_content_type_fail_closed",
+    "empty_payload_fail_closed",
 })
 
 EXPECTED_INDEPENDENT_REPOSITORY = "douluo511/Geometry-Lotto-Pro-SSQ"
@@ -691,6 +708,61 @@ def _reparse_manifest(manifest: dict[str, Any], evidence_dir: Path,
                        "verification": verification}
 
 
+def _verify_gui_update_source(data_dir: Path, observed: dict[str, Any]) -> dict[str, Any]:
+    """Reparse the bytes produced by this GUI click, not a separate CLI run."""
+    source_path = data_dir / "source_evidence.json"
+    canonical_path = data_dir / "canonical_history.json"
+    manifest = _read(source_path)
+    canonical = _read(canonical_path)
+    if not manifest or not canonical:
+        raise ValueError("GUI update source manifest/canonical history is missing")
+    # Includes the Store's provenance/hash/freshness checks for every raw byte
+    # record, then independently reconstructs parsing and source agreement.
+    reparsed, reparse_proof = _reparse_manifest(manifest, data_dir)
+    digest = _canonical_hash(reparsed)
+    if (canonical.get("game") != "SSQ"
+            or canonical.get("schema") != 4
+            or canonical.get("draws") != reparsed
+            or canonical.get("canonical_hash") != digest
+            or manifest.get("canonical_hash") != digest
+            or observed.get("display_token") != digest):
+        raise ValueError("GUI update raw/canonical/displayed ledger token mismatch")
+    # Bind the same click's source receipts and data to its exact ledger event.
+    # Merely presenting a different valid manifest next to a PASS ledger fails.
+    event_id = observed.get("experiment_id")
+    if isinstance(event_id, bool) or not isinstance(event_id, int) or event_id <= 0:
+        raise ValueError("GUI update has no exact ledger event ID")
+    db_path = (data_dir / "ledger.sqlite3").resolve()
+    db = sqlite3.connect(db_path.as_uri() + "?mode=ro", uri=True)
+    try:
+        row = db.execute(
+            "SELECT kind,status,payload_json FROM experiments WHERE id=?", (event_id,),
+        ).fetchone()
+    finally:
+        db.close()
+    if row is None or row[0] != "official_update" or row[1] != "PASS":
+        raise ValueError("GUI update ledger event is not an official update PASS")
+    payload = json.loads(row[2])
+    if (not isinstance(payload, dict)
+            or payload.get("canonical_hash") != digest
+            or payload.get("source_receipts") != manifest.get("source_receipts")
+            or payload.get("draw_count") != len(reparsed)
+            or payload.get("latest") != reparsed[-1]
+            or payload.get("latest_issue") != reparsed[-1]["issue"]
+            or payload.get("crosscheck_status") != "PASS"
+            or payload.get("crosscheck_count") != manifest.get("crosscheck_count")
+            or payload.get("verification") != manifest.get("verification")):
+        raise ValueError("GUI update ledger/source evidence binding mismatch")
+    return {
+        "manifest_sha256": _hash(source_path),
+        "canonical_sha256": _hash(canonical_path),
+        "canonical_hash": digest,
+        "raw_response_count": len(manifest["raw_responses"]),
+        "canonical_reparse": "PASS",
+        "reparse": reparse_proof,
+    }
+
+
 def _verify_gui_evidence(physical: dict[str, Any], evidence_dir: Path, exe: Path,
                          acceptance_ok: bool) -> dict[str, Any]:
     if (not acceptance_ok or not exe.is_file()
@@ -766,14 +838,13 @@ def _verify_gui_evidence(physical: dict[str, Any], evidence_dir: Path, exe: Path
                 or not all(effect.get(field) == observed.get(field) for field in fields)):
             raise ValueError(f"physical GUI row {index} is not backed by a matching ledger event")
         if operation == "update":
-            sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "SSQ"))
-            from glp.storage import Store
-            source_manifest = _read(data_dir / "source_evidence.json")
-            if not source_manifest or Store.validate_raw_evidence(source_manifest, data_dir) < 1:
-                raise ValueError("GUI update did not preserve verified official raw responses")
+            source_proof = _verify_gui_update_source(data_dir, observed)
         ledger_path = data_dir / "ledger.sqlite3"
-        ledgers.append({"operation": operation, "experiment_id": observed["experiment_id"],
-                        "ledger_sha256": _hash(ledger_path)})
+        ledger_proof = {"operation": operation, "experiment_id": observed["experiment_id"],
+                        "ledger_sha256": _hash(ledger_path)}
+        if operation == "update":
+            ledger_proof["source_evidence"] = source_proof
+        ledgers.append(ledger_proof)
     return {"ledgers": ledgers}
 
 
@@ -962,13 +1033,15 @@ def derive(evidence: Path, exe: Path) -> dict[str, Any]:
         contract = _require_current_report(
             evidence, "NETCLIENT_CONTRACT_GATE.json", "ssq-netclient-contract-gate-v2"
         )
-        if int(contract.get("hard_fail_count", -1)) != 0:
+        hard_fail_count = contract.get("hard_fail_count")
+        if type(hard_fail_count) is not int or hard_fail_count != 0:
             raise ValueError("NetClient contract hard failures are nonzero")
         checks = contract.get("checks")
-        if not isinstance(checks, dict) or not checks or any(
+        if (not isinstance(checks, dict) or not REQUIRED_NETCLIENT_CHECKS.issubset(checks)
+                or any(
             not isinstance(row, dict) or row.get("status") != "PASS"
             for row in checks.values()
-        ):
+        )):
             raise ValueError("NetClient contract check set is incomplete")
         gates["contract_test"] = "PASS"
         gates["netclient"] = "PASS" if gates["netclient"] == "PASS" else "FAIL"
@@ -986,7 +1059,8 @@ def derive(evidence: Path, exe: Path) -> dict[str, Any]:
             evidence, "BUSINESS_GATE.json", "ssq-business-gate-v1"
         )
         checks = business.get("checks")
-        if not isinstance(checks, dict) or not checks or not all(checks.values()):
+        if (not isinstance(checks, dict) or not REQUIRED_BUSINESS_CHECKS.issubset(checks)
+                or any(value is not True for value in checks.values())):
             raise ValueError("business content checks are incomplete")
         gates["business_content"] = "PASS"
         proofs["business_content"] = {
@@ -1298,7 +1372,7 @@ def derive(evidence: Path, exe: Path) -> dict[str, Any]:
             gates["gui_smoke"] = "PASS"
             proofs["gui_smoke"] = {"report": str(physical_path),
                                    "report_sha256": _hash(physical_path), **gui_proof}
-        except (OSError, TypeError, ValueError, KeyError) as exc:
+        except (OSError, TypeError, ValueError, KeyError, sqlite3.Error) as exc:
             gates["gui_smoke"] = "FAIL"
             proofs["gui_smoke"] = {"error": f"{type(exc).__name__}: {exc}"}
             gates["same_hash"] = "FAIL"
