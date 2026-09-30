@@ -41,17 +41,82 @@ def _file_sha256(path: Path) -> str:
     return h.hexdigest()
 
 
+def _process_ancestor_chain(limit: int = 12) -> list[int]:
+    """Return parent -> grandparent PID chain, including PyInstaller bootloader."""
+    if os.name != "nt":
+        parent = int(os.getppid())
+        return [parent] if parent > 0 else []
+
+    import ctypes
+    from ctypes import wintypes
+
+    TH32CS_SNAPPROCESS = 0x00000002
+    INVALID_HANDLE_VALUE = ctypes.c_void_p(-1).value
+
+    class PROCESSENTRY32W(ctypes.Structure):
+        _fields_ = [
+            ("dwSize", wintypes.DWORD),
+            ("cntUsage", wintypes.DWORD),
+            ("th32ProcessID", wintypes.DWORD),
+            ("th32DefaultHeapID", ctypes.c_size_t),
+            ("th32ModuleID", wintypes.DWORD),
+            ("cntThreads", wintypes.DWORD),
+            ("th32ParentProcessID", wintypes.DWORD),
+            ("pcPriClassBase", ctypes.c_long),
+            ("dwFlags", wintypes.DWORD),
+            ("szExeFile", wintypes.WCHAR * 260),
+        ]
+
+    kernel32 = ctypes.windll.kernel32
+    kernel32.CreateToolhelp32Snapshot.argtypes = [wintypes.DWORD, wintypes.DWORD]
+    kernel32.CreateToolhelp32Snapshot.restype = wintypes.HANDLE
+    kernel32.Process32FirstW.argtypes = [wintypes.HANDLE, ctypes.POINTER(PROCESSENTRY32W)]
+    kernel32.Process32FirstW.restype = wintypes.BOOL
+    kernel32.Process32NextW.argtypes = [wintypes.HANDLE, ctypes.POINTER(PROCESSENTRY32W)]
+    kernel32.Process32NextW.restype = wintypes.BOOL
+    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+
+    snap = kernel32.CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0)
+    if snap in (None, 0, INVALID_HANDLE_VALUE):
+        parent = int(os.getppid())
+        return [parent] if parent > 0 else []
+    parents: dict[int, int] = {}
+    try:
+        entry = PROCESSENTRY32W()
+        entry.dwSize = ctypes.sizeof(PROCESSENTRY32W)
+        ok = bool(kernel32.Process32FirstW(snap, ctypes.byref(entry)))
+        while ok:
+            parents[int(entry.th32ProcessID)] = int(entry.th32ParentProcessID)
+            ok = bool(kernel32.Process32NextW(snap, ctypes.byref(entry)))
+    finally:
+        kernel32.CloseHandle(snap)
+
+    chain: list[int] = []
+    current = int(os.getpid())
+    seen = {current}
+    for _ in range(max(1, limit)):
+        parent = int(parents.get(current, 0))
+        if parent <= 0 or parent in seen:
+            break
+        chain.append(parent)
+        seen.add(parent)
+        current = parent
+    return chain
+
+
 def _metadata(mode: str, root: Path) -> dict[str, Any]:
     exe = Path(sys.executable).resolve()
     expected_parent = int(os.environ.get("GLP_UPDATER_PARENT_PID", "0") or 0)
-    actual_parent = int(os.getppid())
+    ancestors = _process_ancestor_chain()
+    actual_parent = int(ancestors[0]) if ancestors else int(os.getppid())
     return {
         "schema": SCHEMA,
         "mode": mode,
         "pid": int(os.getpid()),
         "parent_pid": actual_parent,
+        "ancestor_pids": ancestors,
         "expected_parent_pid": expected_parent,
-        "parent_pid_match": bool(expected_parent and actual_parent == expected_parent),
+        "parent_pid_match": bool(expected_parent and expected_parent in ancestors),
         "data_dir": str(root.resolve()),
         "updater_exe": str(exe),
         "updater_exe_sha256": _file_sha256(exe) if exe.is_file() else "",
