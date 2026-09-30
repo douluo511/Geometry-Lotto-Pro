@@ -38,7 +38,7 @@ jobs:
         run: python -m pip install --disable-pip-version-check -r requirements-build.txt
 
       - name: Code completeness compile gate
-        run: python -m compileall -q SSQ launcher.py tools
+        run: python -m compileall -q SSQ launcher.py updater.py tools
 
       - name: Architecture mother-template gate
         run: python tools/architecture_gate.py
@@ -120,7 +120,7 @@ jobs:
 
           $final = Get-Content evidence\SSQ\FINAL_22_GATE.json -Raw | ConvertFrom-Json
           if ($releaseExit -ne 0 -or $final.final_gate -ne 'PASS' -or [int]$final.hard_fail_count -ne 0) {
-            throw "Final Gate blocked: independent repository is mandatory"
+            throw "Final Gate blocked: inspect all non-PASS gates (repository independence and updater release-network are mandatory)"
           }
           Write-Host "SSQ_FINAL_EXE=$(Resolve-Path $exePath)"
           Write-Host "SSQ_FINAL_SHA256=$($final.exe_sha256)"
@@ -131,7 +131,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: SSQ-CANDIDATE-FAIL-EVIDENCE-${{ github.sha }}
-          path: SSQ/evidence/SSQ/**
+          path: |
+            SSQ/evidence/SSQ/**
+            SSQ/dist/Geometry_Lotto_Pro_SSQ_Updater.exe
           if-no-files-found: warn
           retention-days: 30
 
