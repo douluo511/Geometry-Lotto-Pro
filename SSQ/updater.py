@@ -23,6 +23,8 @@ from glp.util import app_data_dir, atomic_json, sha256_bytes, sha256_json
 
 SCHEMA = "ssq-independent-updater-v2"
 SOFTWARE_MANIFEST_SCHEMA = "ssq-software-update-manifest-v1"
+TRUSTED_RELEASE_OWNER = "douluo511"
+TRUSTED_RELEASE_REPOSITORY = "Geometry-Lotto-Pro-SSQ"
 TRUSTED_UPDATE_HOSTS = {
     "github.com",
     "raw.githubusercontent.com",
@@ -125,7 +127,7 @@ def _metadata(mode: str, root: Path) -> dict[str, Any]:
     }
 
 
-def _trusted_https(url: str) -> bool:
+def _basic_trusted_https(url: str) -> bool:
     parsed = urlsplit(str(url))
     return (
         parsed.scheme.lower() == "https"
@@ -136,9 +138,41 @@ def _trusted_https(url: str) -> bool:
     )
 
 
+def _trusted_release_request(url: str, *, kind: str) -> bool:
+    """Initial request must identify the frozen SSQ release publisher/repository."""
+    if not _basic_trusted_https(url):
+        return False
+    parsed = urlsplit(str(url))
+    path = parsed.path or ""
+    repo_prefix = f"/{TRUSTED_RELEASE_OWNER}/{TRUSTED_RELEASE_REPOSITORY}/"
+    if parsed.hostname == "github.com":
+        if not path.startswith(repo_prefix):
+            return False
+        if kind == "artifact":
+            return path.startswith(repo_prefix + "releases/download/")
+        if kind == "manifest":
+            return (
+                path.startswith(repo_prefix + "releases/download/")
+                or path.startswith(repo_prefix + "raw/")
+                or path.startswith(repo_prefix + "blob/")
+            )
+        return False
+    if parsed.hostname == "raw.githubusercontent.com":
+        raw_prefix = f"/{TRUSTED_RELEASE_OWNER}/{TRUSTED_RELEASE_REPOSITORY}/"
+        return kind == "manifest" and path.startswith(raw_prefix)
+    # Direct object/release-assets URLs are not accepted from a manifest because
+    # they do not themselves identify the trusted repository. They may only be
+    # reached as HTTPS redirects from a verified github.com request.
+    return False
+
+
+def _trusted_redirect_target(url: str) -> bool:
+    return _basic_trusted_https(url)
+
+
 def _bounded_get(url: str, *, kind: str, max_bytes: int) -> tuple[bytes, dict[str, Any]]:
-    if not _trusted_https(url):
-        raise ValueError(f"{kind} URL violates trusted HTTPS policy")
+    if not _trusted_release_request(url, kind=kind):
+        raise ValueError(f"{kind} URL violates trusted release repository policy")
     session = requests.Session()
     attempts: list[dict[str, Any]] = []
     last_error: Exception | None = None
@@ -155,8 +189,8 @@ def _bounded_get(url: str, *, kind: str, max_bytes: int) -> tuple[bytes, dict[st
                 },
             )
             final_url = str(response.url)
-            if not _trusted_https(final_url):
-                raise RuntimeError(f"{kind} redirect left trusted HTTPS hosts: {final_url}")
+            if not _trusted_redirect_target(final_url):
+                raise RuntimeError(f"{kind} redirect left trusted GitHub HTTPS hosts: {final_url}")
             status = int(response.status_code)
             raw = bytes(response.content)
             receipt = {
@@ -240,8 +274,8 @@ def _parse_software_manifest(raw: bytes) -> dict[str, Any]:
     size = value.get("artifact_bytes")
     if not version:
         raise ValueError("software manifest version missing")
-    if not _trusted_https(artifact_url):
-        raise ValueError("software artifact URL violates trusted HTTPS policy")
+    if not _trusted_release_request(artifact_url, kind="artifact"):
+        raise ValueError("software artifact URL violates trusted release repository policy")
     if len(digest) != 64 or any(ch not in "0123456789abcdef" for ch in digest):
         raise ValueError("software manifest artifact SHA256 invalid")
     if not isinstance(size, int) or size <= 0 or size > MAX_ARTIFACT_BYTES:
