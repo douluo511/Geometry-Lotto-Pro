@@ -44,35 +44,44 @@ def _validate_raw_bundle(report: dict[str, Any], raw_sources: dict[str, bytes]) 
         raise ValueError("at least two source receipts are required")
     receipt_by_source = {str(x.get("source")): x for x in receipts}
 
-    shanghai = receipt_by_source.get("shanghai_welfare_lottery")
+    history_source = str(report.get("history_source") or "shanghai_welfare_lottery")
+    history = receipt_by_source.get(history_source)
     jiangsu = receipt_by_source.get("jiangsu_welfare_lottery")
-    if not shanghai or not jiangsu:
-        raise ValueError("required official source receipts are missing")
+    if not history or history.get("status") != "PASS" or not jiangsu or jiangsu.get("status") != "PASS":
+        raise ValueError("required official PASS source receipts are missing")
 
-    manifest = report.get("shanghai_raw_manifest")
+    manifest = report.get("history_raw_manifest")
+    if manifest is None and history_source == "shanghai_welfare_lottery":
+        manifest = report.get("shanghai_raw_manifest")
     if not isinstance(manifest, list) or not manifest:
-        raise ValueError("Shanghai full-history raw manifest is missing")
+        raise ValueError("full-history raw manifest is missing")
     manifest_hash = sha256_json(manifest)
-    if manifest_hash != shanghai.get("raw_sha256"):
-        raise ValueError("Shanghai raw manifest SHA mismatch")
-    if sum(int(x.get("bytes") or 0) for x in manifest) != int(shanghai.get("bytes") or 0):
-        raise ValueError("Shanghai raw manifest byte count mismatch")
+    if manifest_hash != history.get("raw_sha256"):
+        raise ValueError("history raw manifest SHA mismatch")
+    if sum(int(x.get("bytes") or 0) for x in manifest) != int(history.get("bytes") or 0):
+        raise ValueError("history raw manifest byte count mismatch")
 
     seen_files: set[str] = set()
     for item in manifest:
         filename = str(item.get("filename") or "")
-        if not re.fullmatch(r"shanghai_20\d{5}_20\d{5}\.html", filename):
-            raise ValueError(f"unsafe Shanghai raw filename: {filename!r}")
+        if history_source == "national_welfare_lottery":
+            safe = re.fullmatch(r"national_page_\d{4}\.json", filename)
+        elif history_source == "shanghai_welfare_lottery":
+            safe = re.fullmatch(r"shanghai_20\d{5}_20\d{5}\.html", filename)
+        else:
+            safe = None
+        if not safe:
+            raise ValueError(f"unsafe history raw filename/source: {history_source} {filename!r}")
         if filename in seen_files:
-            raise ValueError(f"duplicate Shanghai raw filename: {filename}")
+            raise ValueError(f"duplicate history raw filename: {filename}")
         seen_files.add(filename)
         raw = raw_sources.get(filename)
         if raw is None:
-            raise ValueError(f"missing Shanghai raw response: {filename}")
+            raise ValueError(f"missing history raw response: {filename}")
         if sha256_bytes(raw) != item.get("sha256"):
-            raise ValueError(f"Shanghai raw SHA mismatch: {filename}")
+            raise ValueError(f"history raw SHA mismatch: {filename}")
         if len(raw) != int(item.get("bytes") or -1):
-            raise ValueError(f"Shanghai raw byte count mismatch: {filename}")
+            raise ValueError(f"history raw byte count mismatch: {filename}")
 
     jiangsu_name = "jiangsu_welfare_lottery.html"
     jiangsu_raw = raw_sources.get(jiangsu_name)
@@ -88,7 +97,7 @@ def _validate_raw_bundle(report: dict[str, Any], raw_sources: dict[str, bytes]) 
         raise ValueError(f"unexpected raw source files: {sorted(extra)!r}")
 
     return {
-        "shanghai_welfare_lottery": str(shanghai["raw_sha256"]),
+        history_source: str(history["raw_sha256"]),
         "jiangsu_welfare_lottery": str(jiangsu["raw_sha256"]),
     }
 
@@ -144,6 +153,8 @@ class Store:
                     "crosscheck_status": report.get("crosscheck_status"),
                     "verification": report.get("verification"),
                     "source_receipts": report.get("source_receipts"),
+                    "history_source": report.get("history_source"),
+                    "history_raw_manifest": report.get("history_raw_manifest"),
                     "shanghai_raw_manifest": report.get("shanghai_raw_manifest"),
                 }
                 _atomic_bytes(stage / "CANONICAL.json", (canonical_json(canonical) + "\n").encode("utf-8"))
@@ -196,6 +207,8 @@ class Store:
             }
             integrity_report = {
                 "source_receipts": evidence.get("source_receipts"),
+                "history_source": evidence.get("history_source"),
+                "history_raw_manifest": evidence.get("history_raw_manifest"),
                 "shanghai_raw_manifest": evidence.get("shanghai_raw_manifest"),
             }
             _validate_raw_bundle(integrity_report, raw_sources)
