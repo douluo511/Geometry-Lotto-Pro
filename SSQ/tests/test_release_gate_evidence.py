@@ -383,6 +383,98 @@ class ReleaseGateEvidenceTests(unittest.TestCase):
         for gate in ("business_content", "contract_test", "fault_injection"):
             self.assertEqual(report["gates"][gate], "FAIL", gate)
 
+    def test_updater_mechanics_pass_cannot_replace_real_release_network(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            exe = root / "candidate.exe"
+            updater_exe = root / "Geometry_Lotto_Pro_SSQ_Updater.exe"
+            exe.write_bytes(b"candidate-build")
+            updater_exe.write_bytes(b"exact-updater")
+            digest = hashlib.sha256(exe.read_bytes()).hexdigest()
+            updater_hash = hashlib.sha256(updater_exe.read_bytes()).hexdigest()
+            checks = self.complete_exe_checks()
+            checks["self"]["updater_bundle_integrity"] = True
+            checks["self"]["embedded_updater_sha256"] = updater_hash
+            (root / "WINDOWS_EXACT_EXE_ACCEPTANCE.json").write_text(json.dumps({
+                "runner_os": "Windows", "artifact": exe.name, "sha256": digest,
+                "github_sha": "a" * 40, "github_run_id": "12345",
+                "windows_exact_exe_acceptance": "PASS", "final_release_gate": "PENDING",
+                "hard_fail_count": 0, "checks": checks,
+                "updater": {
+                    "artifact": updater_exe.name, "sha256": updater_hash,
+                    "manifest": {"sha256": updater_hash},
+                    "status": "PASS", "software_release_network": "PENDING",
+                    "release_gate": "PENDING",
+                },
+            }), encoding="utf-8")
+            self.write_synthetic_corrupt_repair_contract(root, digest)
+            updater_checks = {
+                name: {
+                    "status": "PASS", "exit_code": 0, "hash_matches": True,
+                    "separate_process": True, "parent_pid_match": True,
+                }
+                for name in (
+                    "self-test", "software-self-test", "offline-failclosed", "update", "repair",
+                    "software-local-install-acceptance", "software-local-rollback-acceptance",
+                )
+            }
+            (root / "UPDATER_EXACT_EXE_ACCEPTANCE.json").write_text(json.dumps({
+                "schema": "ssq-updater-exact-exe-acceptance-v2",
+                "artifact": updater_exe.name, "sha256": updater_hash,
+                "runner_os": "Windows", "github_sha": "a" * 40,
+                "github_run_id": "12345", "checks": updater_checks,
+                "hard_fail_count": 0, "updater_exact_exe": "PASS",
+                "software_release_network": "PENDING",
+                "software_release_reason": "no independent release host",
+                "updater_release_gate": "PENDING",
+            }), encoding="utf-8")
+            (root / "updater-software-self-test.json").write_text(json.dumps({
+                "schema": "ssq-independent-updater-v2",
+                "mode": "software-self-test", "status": "PASS",
+                "github_sha": "a" * 40, "github_run_id": "12345",
+                "updater_exe_sha256": updater_hash, "parent_pid_match": True,
+                "service_result": {
+                    "status": "PASS",
+                    "checks": {
+                        "atomic_replace_success": True,
+                        "previous_bytes_preserved": True,
+                        "post_replace_validation_bound": True,
+                        "forced_validation_failure_rolls_back": True,
+                        "rollback_hash_restored": True,
+                    },
+                },
+            }), encoding="utf-8")
+            (root / "updater-local-main-install.json").write_text(json.dumps({
+                "schema": "ssq-independent-updater-v2",
+                "mode": "software-local-install-acceptance", "status": "PASS",
+                "github_sha": "a" * 40, "github_run_id": "12345",
+                "updater_exe_sha256": updater_hash, "parent_pid_match": True,
+                "service_result": {
+                    "status": "PASS",
+                    "release_network_status": "PENDING",
+                    "transaction": {"status": "PASS", "installed_sha256": digest},
+                },
+            }), encoding="utf-8")
+            (root / "updater-local-main-rollback.json").write_text(json.dumps({
+                "schema": "ssq-independent-updater-v2",
+                "mode": "software-local-rollback-acceptance", "status": "PASS",
+                "github_sha": "a" * 40, "github_run_id": "12345",
+                "updater_exe_sha256": updater_hash, "parent_pid_match": True,
+                "service_result": {
+                    "status": "PASS",
+                    "release_network_status": "PENDING",
+                    "expect_rollback": True,
+                    "transaction": {"status": "FAIL", "rolled_back": True},
+                },
+            }), encoding="utf-8")
+            with patch.dict(os.environ, {"GITHUB_SHA": "a" * 40, "GITHUB_RUN_ID": "12345"}):
+                report = derive(root, exe)
+        self.assertEqual(report["gates"]["updater_process"], "PASS")
+        self.assertEqual(report["gates"]["updater_exact_exe"], "PASS")
+        self.assertEqual(report["gates"]["updater_atomic_rollback"], "PASS")
+        self.assertEqual(report["gates"]["updater_same_hash"], "PASS")
+        self.assertEqual(report["gates"]["updater_real_network"], "PENDING")
+
     def test_synthetic_fault_injection_must_not_claim_real_network(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
