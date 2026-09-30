@@ -168,6 +168,7 @@ jobs:
           ..\.github\scripts\ssq_physical_gui_click_smoke.ps1 -ExePath ".\dist\Geometry_Lotto_Pro_SSQ_Windows_Verified.exe" -EvidencePath ".\evidence\SSQ\physical_gui_click.json"
 
       - name: Final evidence-derived release and same-hash proof
+        id: final_gate
         shell: pwsh
         run: |
           $reportPath = "evidence\SSQ\WINDOWS_EXACT_EXE_ACCEPTANCE.json"
@@ -185,7 +186,61 @@ jobs:
           if ($releaseExit -ne 0 -or $final.final_gate -ne 'PASS' -or [int]$final.hard_fail_count -ne 0) {
             throw "Final Gate blocked: inspect all non-PASS gates (repository independence and updater release-network are mandatory)"
           }
+          $acceptance = Get-Content $reportPath -Raw | ConvertFrom-Json
+          $releaseVersion = [string]$acceptance.checks.self.version
+          if ($releaseVersion -notmatch '^\d+\.\d+\.\d+(?:\+[A-Za-z0-9.-]+)?
+      - name: Upload candidate diagnostic evidence when acceptance fails
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: SSQ-CANDIDATE-FAIL-EVIDENCE-${{ github.sha }}
+          path: |
+            SSQ/evidence/SSQ/**
+            SSQ/dist/Geometry_Lotto_Pro_SSQ_Windows_Verified.exe
+            SSQ/dist/Geometry_Lotto_Pro_SSQ_Updater.exe
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Upload final audit evidence before release artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Geometry-Lotto-Pro-SSQ-RELEASE-GATE-PASS-AUDIT-${{ github.sha }}
+          path: SSQ/evidence/SSQ/**
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload final EXE only after all hard gates and audit upload pass
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Geometry-Lotto-Pro-SSQ-FINAL-${{ steps.final_gate.outputs.version }}-Windows-x64
+          path: SSQ/dist/Geometry_Lotto_Pro_SSQ_Windows_Verified.exe
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+# Hard-gate revalidation trigger: 2026-09-24 master-template
+
+# physical-gui child-process discovery fix: 2026-09-24
+
+# physical-gui UIAutomation + desktop-hash fix: 2026-09-24
+
+# native client-coordinate physical click: 2026-09-24
+
+# SSQ exact native client centers: 2026-09-24
+
+# physical-gui native Win32 identity rerun trigger: 2026-09-30
+
+# physical-gui fully native Win32 rerun trigger: 2026-09-30
+# hard-gate retrigger: 2026-09-30 current-head full rerun
+) {
+            throw "stable release version missing from exact-EXE self evidence: $releaseVersion"
+          }
+          "version=$releaseVersion" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "sha256=$($final.exe_sha256)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           Write-Host "SSQ_FINAL_EXE=$(Resolve-Path $exePath)"
+          Write-Host "SSQ_FINAL_VERSION=$releaseVersion"
           Write-Host "SSQ_FINAL_SHA256=$($final.exe_sha256)"
           Write-Host "FINAL_RELEASE_GATE=PASS"
 
