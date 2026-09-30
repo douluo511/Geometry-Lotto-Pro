@@ -167,6 +167,21 @@ jobs:
           $r = Get-Content ./release-fixture/equal-evidence.json -Raw | ConvertFrom-Json
           if ($r.status -ne 'FAIL') { throw "equal-version evidence must be FAIL" }
 
+      - name: Prerelease forward candidate fails closed
+        shell: pwsh
+        run: |
+          $self = [ordered]@{
+            status = 'PASS'
+            game = 'SSQ'
+            version = '8.5.1-rc.1'
+            exe_sha256 = (Get-FileHash -Algorithm SHA256 './release-fixture/Geometry_Lotto_Pro_SSQ_Windows_Verified.exe').Hash.ToLowerInvariant()
+          }
+          ($self | ConvertTo-Json) | Set-Content ./release-fixture/prerelease-self.json -Encoding utf8
+          $p = Start-Process python -ArgumentList @('tools/prepare_ssq_release_manifest.py','--exe','./release-fixture/Geometry_Lotto_Pro_SSQ_Windows_Verified.exe','--version','8.5.1-rc.1','--base-version','8.5.0','--tag','v8.5.1-rc.1','--self-test','./release-fixture/prerelease-self.json','--output','./release-fixture/prerelease.json','--evidence','./release-fixture/prerelease-evidence.json') -Wait -PassThru
+          if ($p.ExitCode -eq 0) { throw "prerelease forward candidate must fail" }
+          $r = Get-Content ./release-fixture/prerelease-evidence.json -Raw | ConvertFrom-Json
+          if ($r.status -ne 'FAIL') { throw "prerelease candidate evidence must be FAIL" }
+
       - name: Self-test hash tamper fails closed
         shell: pwsh
         run: |
