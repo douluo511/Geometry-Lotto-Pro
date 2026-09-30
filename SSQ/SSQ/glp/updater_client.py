@@ -126,6 +126,101 @@ class UpdaterClient:
         }
         return enriched
 
+    def launch_software_update(
+        self,
+        manifest_url: str,
+        *,
+        target_exe: Path | None = None,
+        progress: Callable[[str], None] | None = None,
+    ) -> dict[str, Any]:
+        """Hand software replacement to the exact updater process, then let caller exit.
+
+        This method intentionally returns HANDOFF_READY, never PASS. The updater
+        must wait for this main PID to exit, perform the verified transaction,
+        run the new exact-main self-test, and write its own result evidence.
+        """
+        updater, manifest = self._materialize()
+        target = Path(target_exe or sys.executable).resolve()
+        if not target.is_file():
+            raise RuntimeError("software update target EXE is missing")
+        if not isinstance(manifest_url, str) or not manifest_url.startswith("https://"):
+            raise ValueError("software update manifest must be HTTPS")
+
+        runs = self.data_root / "updater_runs"
+        runs.mkdir(parents=True, exist_ok=True)
+        token = uuid4().hex
+        result_path = runs / f"software-{token}.json"
+        handoff_path = runs / f"software-{token}.handoff.json"
+        env = os.environ.copy()
+        env["GLP_DATA_DIR"] = str(self.data_root)
+        env["GLP_UPDATER_PARENT_PID"] = str(os.getpid())
+
+        flags = 0
+        if os.name == "nt":
+            flags = (
+                getattr(subprocess, "DETACHED_PROCESS", 0x00000008)
+                | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0x00000200)
+                | getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
+            )
+        cmd = [
+            str(updater),
+            "--mode", "software-update",
+            "--result-file", str(result_path),
+            "--target-exe", str(target),
+            "--manifest-url", manifest_url,
+            "--wait-pid", str(os.getpid()),
+        ]
+        if progress:
+            progress("软件更新已交接独立 Updater；主程序退出后才允许替换")
+        proc = subprocess.Popen(
+            cmd,
+            env=env,
+            creationflags=flags,
+            close_fds=True,
+        )
+        handoff = {
+            "schema": "ssq-software-update-handoff-v1",
+            "status": "HANDOFF_READY",
+            "main_pid": os.getpid(),
+            "updater_pid": int(proc.pid),
+            "updater_exe": str(updater),
+            "updater_sha256": manifest["sha256"],
+            "target_exe": str(target),
+            "target_before_sha256": _sha256_file(target),
+            "manifest_url": manifest_url,
+            "result_file": str(result_path),
+            "handoff_file": str(handoff_path),
+        }
+        atomic_json(handoff_path, handoff)
+        return handoff
+
+    def read_software_update_result(self, handoff: dict[str, Any]) -> dict[str, Any]:
+        """Verify updater-produced result on the next application launch."""
+        if handoff.get("schema") != "ssq-software-update-handoff-v1":
+            raise ValueError("software update handoff schema mismatch")
+        result_path = Path(str(handoff.get("result_file") or "")).resolve()
+        if not result_path.is_file():
+            return {"status": "PENDING", "reason": "updater result not written yet"}
+        report = json.loads(result_path.read_text(encoding="utf-8-sig"))
+        expected = str(handoff.get("updater_sha256") or "")
+        if (
+            report.get("schema") != "ssq-independent-updater-v2"
+            or report.get("mode") != "software-update"
+            or report.get("updater_exe_sha256") != expected
+            or int(report.get("expected_parent_pid") or 0) != int(handoff.get("main_pid") or 0)
+        ):
+            raise RuntimeError("software updater result is not bound to the handoff")
+        service_result = report.get("service_result")
+        if not isinstance(service_result, dict):
+            raise RuntimeError("software updater result has no transaction evidence")
+        return {
+            "status": report.get("status", "FAIL"),
+            "updater_exe_sha256": expected,
+            "result_file": str(result_path),
+            "result_sha256": sha256_json(report),
+            "transaction": service_result,
+        }
+
     def update(self, progress: Callable[[str], None] | None = None) -> dict[str, Any]:
         return self._run("update", progress)
 
