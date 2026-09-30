@@ -324,7 +324,8 @@ class ReleaseGateEvidenceTests(unittest.TestCase):
             root = Path(directory)
             report = derive(root, root / "missing.exe")
         self.assertEqual(set(report["gates"]), set(HARD_GATES))
-        self.assertTrue(all(value == "PENDING" for value in report["gates"].values()))
+        self.assertFalse(any(value == "PASS" for value in report["gates"].values()))
+        self.assertTrue(any(value == "FAIL" for value in report["gates"].values()))
 
     def test_gui_report_without_exact_acceptance_fails_closed(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -380,7 +381,7 @@ class ReleaseGateEvidenceTests(unittest.TestCase):
         self.assertEqual(report["gates"]["real_network"], "FAIL")
         self.assertEqual(report["gates"]["gui_smoke"], "FAIL")
         for gate in ("business_content", "contract_test", "fault_injection"):
-            self.assertEqual(report["gates"][gate], "PENDING", gate)
+            self.assertEqual(report["gates"][gate], "FAIL", gate)
 
     def test_synthetic_fault_injection_must_not_claim_real_network(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -435,7 +436,7 @@ class ReleaseGateEvidenceTests(unittest.TestCase):
                     self.assertEqual(result["gates"]["exact_exe"], "FAIL")
                     self.assertEqual(result["gates"]["same_hash"], "FAIL")
 
-    def test_raw_receipts_without_independent_reparse_remain_pending(self) -> None:
+    def test_raw_receipts_without_independent_reparse_fail_closed(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             exe = root / "candidate.exe"
@@ -454,9 +455,9 @@ class ReleaseGateEvidenceTests(unittest.TestCase):
                   patch("derive_gate_status._verify_live_evidence",
                         return_value={"raw_response_count": 24})):
                 report = derive(root, exe)
-        self.assertEqual(report["gates"]["real_network"], "PENDING")
+        self.assertEqual(report["gates"]["real_network"], "FAIL")
         self.assertEqual(report["gates"]["same_hash"], "PENDING")
-        self.assertEqual(report["proofs"]["real_network"]["canonical_reparse"], "PENDING")
+        self.assertIn("error", report["proofs"]["real_network"])
 
     def test_hand_authored_all_pass_manifest_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
