@@ -1003,6 +1003,25 @@ def _sha256_json(value: Any) -> str:
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
+def _software_version_precedence(version: Any) -> tuple[Any, ...]:
+    match = re.fullmatch(
+        r"(\d+)\.(\d+)\.(\d+)(?:-([A-Za-z0-9.-]+))?(?:\+([A-Za-z0-9.-]+))?",
+        str(version).strip(),
+    )
+    if not match:
+        raise ValueError(f"invalid software version: {version!r}")
+    core = tuple(int(match.group(i)) for i in (1, 2, 3))
+    prerelease = match.group(4)
+    if prerelease is None:
+        return (*core, 1, ())
+    identifiers: list[tuple[int, Any]] = []
+    for token in prerelease.split("."):
+        if not token:
+            raise ValueError("empty prerelease identifier")
+        identifiers.append((0, int(token)) if token.isdigit() else (1, token))
+    return (*core, 0, tuple(identifiers))
+
+
 def _verify_updater_release_network(evidence: Path, updater_hash: str, main_exe_hash: str) -> dict[str, Any]:
     report = _require_current_report(
         evidence, "updater-software-release-network.json", "ssq-independent-updater-v2"
@@ -1083,8 +1102,22 @@ def _verify_updater_release_network(evidence: Path, updater_hash: str, main_exe_
         "ssq-updater-real-release-acceptance-v1",
     )
     wait_target = summary.get("wait_target")
+    base_manifest_receipt = summary.get("base_manifest_receipt")
     base_artifact_receipt = summary.get("base_artifact_receipt")
     summary_wait = summary.get("wait_for_main")
+    base_version = summary.get("base_version")
+    base_manifest_url = summary.get("base_manifest_url")
+    base_artifact_url = (
+        base_artifact_receipt.get("requested_url")
+        if isinstance(base_artifact_receipt, dict) else None
+    )
+    try:
+        version_forward = (
+            _software_version_precedence(version)
+            > _software_version_precedence(base_version)
+        )
+    except ValueError as exc:
+        raise ValueError(f"real-release version evidence is invalid: {exc}") from exc
     if (summary.get("repository") != EXPECTED_INDEPENDENT_REPOSITORY
             or summary.get("updater_exe_sha256") != updater_hash
             or summary.get("candidate_exe_sha256") != main_exe_hash
@@ -1100,11 +1133,40 @@ def _verify_updater_release_network(evidence: Path, updater_hash: str, main_exe_
             or wait_target.get("pid") != wait.get("pid")
             or wait_target.get("pid") <= 0
             or wait_target.get("sha256") != summary.get("base_artifact_sha256")
-            or wait_target.get("version") != summary.get("base_version")
+            or wait_target.get("version") != base_version
+            or service.get("from_version") != base_version
+            or service.get("to_version") != version
+            or not version_forward
+            or not _trusted_ssq_release_url(base_manifest_url)
+            or not _trusted_ssq_release_url(base_artifact_url)
+            or not isinstance(base_manifest_receipt, dict)
+            or base_manifest_receipt.get("requested_url") != base_manifest_url
+            or base_manifest_receipt.get("status") != "PASS"
+            or base_manifest_receipt.get("http_status") != 200
+            or type(base_manifest_receipt.get("bytes")) is not int
+            or base_manifest_receipt.get("bytes") <= 0
+            or base_manifest_receipt.get("sha256") != summary.get("base_manifest_raw_sha256")
             or not isinstance(base_artifact_receipt, dict)
+            or base_artifact_receipt.get("status") != "PASS"
+            or base_artifact_receipt.get("http_status") != 200
             or base_artifact_receipt.get("sha256") != wait_target.get("sha256")
+            or base_artifact_receipt.get("sha256") != summary.get("base_artifact_sha256")
+            or base_artifact_receipt.get("bytes") != summary.get("base_artifact_bytes")
             or summary_wait != wait):
-        raise ValueError("real-release summary is not bound to the exact prior main handoff")
+        raise ValueError("real-release summary is not bound to trusted prior release and exact main handoff")
+    for label, receipt in (
+        ("base_manifest", base_manifest_receipt),
+        ("base_artifact", base_artifact_receipt),
+    ):
+        final_url = receipt.get("final_url")
+        parsed_final = urlsplit(final_url) if isinstance(final_url, str) else None
+        if (parsed_final is None
+                or parsed_final.scheme != "https"
+                or parsed_final.hostname not in {
+                    "github.com", "objects.githubusercontent.com",
+                    "release-assets.githubusercontent.com",
+                }):
+            raise ValueError(f"{label} final URL is not a trusted HTTPS release target")
     return {
         "report": str(evidence / "updater-software-release-network.json"),
         "report_sha256": _hash(evidence / "updater-software-release-network.json"),
@@ -1121,6 +1183,10 @@ def _verify_updater_release_network(evidence: Path, updater_hash: str, main_exe_
         "wait_elapsed": wait_elapsed,
         "wait_target_sha256": wait_target.get("sha256"),
         "wait_target_version": wait_target.get("version"),
+        "base_manifest_url": base_manifest_url,
+        "base_artifact_url": base_artifact_url,
+        "base_version": base_version,
+        "version_forward": True,
         "summary_report": str(evidence / "UPDATER_REAL_RELEASE_ACCEPTANCE.json"),
         "summary_sha256": _hash(evidence / "UPDATER_REAL_RELEASE_ACCEPTANCE.json"),
     }
