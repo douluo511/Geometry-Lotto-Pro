@@ -1080,12 +1080,52 @@ def _verify_updater_release_network(evidence: Path, updater_hash: str, main_exe_
         "post_replace_self_test": "PASS",
     }
 
+def _verify_checkout_identity(evidence: Path) -> dict[str, Any]:
+    report = _require_current_report(
+        evidence, "CHECKOUT_IDENTITY_GATE.json", "ssq-checkout-identity-v1"
+    )
+    event = report.get("event")
+    actual = report.get("actual_checkout_sha")
+    expected_head = report.get("event_head_sha")
+    parents = report.get("parent_shas")
+    sha_re = re.compile(r"[0-9a-f]{40}")
+    if not isinstance(actual, str) or sha_re.fullmatch(actual) is None:
+        raise ValueError("checkout identity has no valid actual SHA")
+    if not isinstance(parents, list) or any(
+        not isinstance(value, str) or sha_re.fullmatch(value) is None for value in parents
+    ):
+        raise ValueError("checkout identity parent list is malformed")
+    if event == "pull_request":
+        if (not isinstance(expected_head, str)
+                or sha_re.fullmatch(expected_head) is None
+                or not (actual == expected_head or expected_head in parents)):
+            raise ValueError("pull-request checkout does not contain the current event HEAD")
+    elif event in {"push", "workflow_dispatch"}:
+        if actual != os.environ.get("GITHUB_SHA"):
+            raise ValueError("push/dispatch checkout does not equal GITHUB_SHA")
+    else:
+        raise ValueError(f"unsupported checkout identity event: {event}")
+    return {
+        "report": str(evidence / "CHECKOUT_IDENTITY_GATE.json"),
+        "report_sha256": _hash(evidence / "CHECKOUT_IDENTITY_GATE.json"),
+        "event": event,
+        "actual_checkout_sha": actual,
+        "event_head_sha": expected_head,
+        "parent_shas": parents,
+    }
+
 def derive(evidence: Path, exe: Path) -> dict[str, Any]:
     gates = {name: "PENDING" for name in HARD_GATES}
     proofs: dict[str, Any] = {}
     repository_status, repository_proof = _repository_independence_proof()
     gates["repository_independence"] = repository_status
     proofs["repository_independence"] = repository_proof
+    checkout_identity_ok = False
+    try:
+        proofs["checkout_identity"] = _verify_checkout_identity(evidence)
+        checkout_identity_ok = True
+    except Exception as exc:
+        proofs["checkout_identity"] = {"error": f"{type(exc).__name__}: {exc}"}
 
     architecture_names = (
         "purpose_model", "five_why", "risk_boundary", "domain_model", "architecture",
@@ -1202,7 +1242,8 @@ def derive(evidence: Path, exe: Path) -> dict[str, Any]:
         current_sha = os.environ.get("GITHUB_SHA")
         current_run = os.environ.get("GITHUB_RUN_ID")
         acceptance_ok = (
-            acceptance.get("runner_os") == "Windows"
+            checkout_identity_ok
+            and acceptance.get("runner_os") == "Windows"
             and isinstance(current_sha, str) and bool(re.fullmatch(r"[0-9a-f]{40}", current_sha))
             and isinstance(current_run, str) and bool(re.fullmatch(r"\d+", current_run))
             and acceptance.get("github_sha") == current_sha
