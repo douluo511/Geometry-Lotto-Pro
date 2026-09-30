@@ -1,0 +1,145 @@
+from __future__ import annotations
+
+import argparse
+import hashlib
+import html
+import json
+import re
+from pathlib import Path
+from urllib.parse import urlsplit
+
+from happy8.net_client import NetClient
+
+BASE = "https://www.gdfc.org.cn/datas/drawinfo/kl8/draw_{issue}.html"
+ISSUES = ("2020001", "2021001", "2025231")
+NET = NetClient(connect_timeout=10, read_timeout=30, max_attempts=3)
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Happy8OfficialProbe/0.1",
+    "Accept": "text/html,application/xhtml+xml",
+    "Referer": "https://www.gdfc.org.cn/",
+}
+
+
+def _decode(raw: bytes) -> str:
+    for enc in ("utf-8-sig", "utf-8", "gb18030"):
+        try:
+            return raw.decode(enc)
+        except UnicodeDecodeError:
+            pass
+    return raw.decode("utf-8", errors="replace")
+
+
+def _plain(markup: str) -> str:
+    value = re.sub(r"(?is)<script\b.*?</script>|<style\b.*?</style>", " ", markup)
+    value = re.sub(r"(?is)<[^>]+>", " ", value)
+    return re.sub(r"\s+", " ", html.unescape(value)).strip()
+
+
+def inspect_issue(issue: str) -> dict:
+    url = BASE.format(issue=issue)
+    record = {"issue": issue, "url": url, "source": "guangdong_welfare_lottery", "release_gate": "DIAGNOSTIC_ONLY"}
+    try:
+        response = NET.get(url, headers=HEADERS, timeout=(10, 30), allow_redirects=True)
+        raw = bytes(response.content)
+        final_url = str(getattr(response, "url", "") or url)
+        parsed = urlsplit(final_url)
+        expected = urlsplit(url)
+        record.update({
+            "http_status": int(response.status_code),
+            "final_url": final_url,
+            "raw_sha256": hashlib.sha256(raw).hexdigest(),
+            "bytes": len(raw),
+            "content_type": str(response.headers.get("Content-Type", "")),
+            "attempts": list(getattr(response, "happy8_attempts", ())),
+            "official_https_host": parsed.scheme.lower() == "https" and parsed.hostname == expected.hostname,
+        })
+        if int(response.status_code) != 200 or not record["official_https_host"]:
+            record["diagnostic"] = "HTTP_OR_HOST_NOT_USABLE"
+            return record
+
+        markup = _decode(raw)
+        plain = _plain(markup)
+        title_match = re.search(r"(?is)<title[^>]*>(.*?)</title>", markup)
+        record["title"] = _plain(title_match.group(1))[:180] if title_match else ""
+        record["issue_visible"] = issue in plain
+        date_match = re.search(r"(20\d{2})[-年/.](\d{1,2})[-月/.](\d{1,2})", plain)
+        record["visible_date"] = "-".join(x.zfill(2) for x in date_match.groups()) if date_match else None
+
+        image_srcs = [
+            html.unescape(x)[:300]
+            for x in re.findall(r"(?is)<img\b[^>]*\bsrc\s*=\s*['\"]([^'\"]+)['\"]", markup)
+        ]
+        script_srcs = [
+            html.unescape(x)[:300]
+            for x in re.findall(r"(?is)<script\b[^>]*\bsrc\s*=\s*['\"]([^'\"]+)['\"]", markup)
+        ]
+        record["image_srcs"] = image_srcs[:120]
+        record["script_srcs"] = script_srcs[:80]
+
+        candidate_attrs = []
+        for tag in re.findall(r"(?is)<(?:span|li|div|img|input)\b[^>]*>", markup):
+            if re.search(r"(?i)(?:ball|num|code|result|kj|open|award|lottery|号码|开奖)", tag):
+                candidate_attrs.append(re.sub(r"\s+", " ", tag)[:500])
+                if len(candidate_attrs) >= 80:
+                    break
+        record["candidate_markup"] = candidate_attrs
+
+        compact20 = []
+        for m in re.finditer(r"(?<!\d)((?:0?[1-9]|[1-7]\d|80)(?:[\s,，|;/\-]+(?:0?[1-9]|[1-7]\d|80)){19})(?!\d)", plain):
+            nums = [int(x) for x in re.findall(r"\d{1,2}", m.group(1))]
+            if len(nums) == 20 and len(set(nums)) == 20 and all(1 <= n <= 80 for n in nums):
+                compact20.append(nums)
+                if len(compact20) >= 8:
+                    break
+        record["visible_20_number_candidates"] = compact20
+
+        src_number_hints = []
+        for src in image_srcs:
+            nums = [int(x) for x in re.findall(r"(?<!\d)(\d{1,2})(?!\d)", src)]
+            if any(1 <= n <= 80 for n in nums):
+                src_number_hints.append({"src": src, "tokens": [n for n in nums if 1 <= n <= 80][:30]})
+                if len(src_number_hints) >= 80:
+                    break
+        record["image_number_hints"] = src_number_hints
+
+        markers = {}
+        for marker in ("本期中奖号码", "中奖号码", "开奖号码", "开奖公告"):
+            pos = plain.find(marker)
+            if pos >= 0:
+                markers[marker] = plain[max(0, pos - 120):pos + 700]
+        record["text_markers"] = markers
+        record["diagnostic"] = (
+            "MACHINE_READABLE_20_NUMBERS_VISIBLE"
+            if compact20 else
+            "HTML_REQUIRES_FURTHER_CONTRACT_DISCOVERY"
+        )
+        return record
+    except Exception as exc:
+        record["diagnostic"] = "REQUEST_OR_PARSE_ERROR"
+        record["error"] = f"{type(exc).__name__}: {exc}"
+        return record
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--output", required=True)
+    args = parser.parse_args()
+    probes = [inspect_issue(issue) for issue in ISSUES]
+    report = {
+        "schema": "happy8-official-fallback-probe-v1",
+        "status": "DIAGNOSTIC_ONLY",
+        "production_accepted": False,
+        "source": "guangdong_welfare_lottery",
+        "issues": list(ISSUES),
+        "probes": probes,
+        "note": "This probe cannot satisfy Real Network or Final Gate; it only discovers an official raw contract.",
+    }
+    output = Path(args.output)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    print(json.dumps(report, ensure_ascii=False, indent=2))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
