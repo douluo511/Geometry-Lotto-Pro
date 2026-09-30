@@ -9,7 +9,7 @@ HARD_GATES=[
     "engine","evidence","service","ui",
     "self_test","unit_test","contract_test","integration_test","fault_injection",
     "real_network","business_validation","counterexample_validation","reversal_validation",
-    "windows_build","exact_exe","gui_smoke","physical_gui_click","same_hash","business_content",
+    "windows_build","exact_exe","gui_smoke","physical_gui_click","same_hash","business_content","repository_independence",
 ]
 MARKERS={
     "self_test":"python_self_test.pass",
