@@ -44,7 +44,7 @@ def _verify_updater_process(
         payload_hash = str(proof.get("service_result_sha256") or "")
         data_root = Path(str(proof.get("data_dir") or "")).resolve()
         valid = bool(
-            proof.get("schema") == "ssq-independent-updater-v1"
+            proof.get("schema") == "ssq-independent-updater-v2"
             and proof.get("status") == "PASS"
             and proof.get("mode") == operation
             and proof.get("parent_pid_match") is True
