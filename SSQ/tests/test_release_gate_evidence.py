@@ -742,9 +742,45 @@ class ReleaseGateEvidenceTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "wait evidence"):
                     _verify_updater_release_network(root, updater_hash, digest)
 
-                write_report({
+                good_wait = {
                     "status": "PASS", "waited": True, "pid": 4321, "elapsed": 0.5,
-                })
+                }
+                write_report(good_wait)
+                release_report = root / "updater-software-release-network.json"
+                summary = {
+                    "schema": "ssq-updater-real-release-acceptance-v1",
+                    "status": "PASS",
+                    "github_sha": "a" * 40,
+                    "github_run_id": "12345",
+                    "repository": "douluo511/Geometry-Lotto-Pro-SSQ",
+                    "updater_exe_sha256": updater_hash,
+                    "candidate_exe_sha256": digest,
+                    "candidate_version": version,
+                    "installed_sha256": digest,
+                    "installed_version": version,
+                    "base_version": "8.9.0",
+                    "base_artifact_sha256": "d" * 64,
+                    "base_artifact_bytes": 456,
+                    "base_artifact_receipt": {
+                        "status": "PASS", "http_status": 200, "bytes": 456,
+                        "sha256": "d" * 64,
+                    },
+                    "wait_target": {
+                        "kind": "exact_base_main_exe",
+                        "pid": 4321,
+                        "sha256": "d" * 64,
+                        "version": "8.9.0",
+                        "artifact": "updater-release-base-main.exe",
+                    },
+                    "wait_for_main": good_wait,
+                    "exact_updater_report": "updater-software-release-network.json",
+                    "exact_updater_report_sha256": hashlib.sha256(
+                        release_report.read_bytes()
+                    ).hexdigest(),
+                }
+                (root / "UPDATER_REAL_RELEASE_ACCEPTANCE.json").write_text(
+                    json.dumps(summary), encoding="utf-8"
+                )
                 proof = _verify_updater_release_network(root, updater_hash, digest)
                 self.assertTrue(proof["waited_for_main"])
                 self.assertEqual(proof["wait_pid"], 4321)
