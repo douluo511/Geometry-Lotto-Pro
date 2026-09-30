@@ -34,6 +34,7 @@ def main()->int:
     p.add_argument("--candidate-exe",required=True)
     p.add_argument("--final-exe",required=True)
     p.add_argument("--physical-gui",required=True)
+    p.add_argument("--repository-independent",choices=["PASS","FAIL"],required=True)
     p.add_argument("--out",required=True)
     a=p.parse_args()
     ed=Path(a.evidence_dir)
@@ -43,6 +44,7 @@ def main()->int:
     for gate,marker in MARKERS.items():
         gates[gate]="PASS" if (ed/marker).exists() else "FAIL"
     gates["business_content"]="PASS" if business.get("status")=="PASS" else "FAIL"
+    gates["repository_independence"]=a.repository_independent
     candidate=Path(a.candidate_exe); final=Path(a.final_exe)
     ch=sha256(candidate) if candidate.exists() else None
     fh=sha256(final) if final.exists() else None
