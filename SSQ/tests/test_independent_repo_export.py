@@ -7,7 +7,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
 from export_independent_repo import export_repository, verify_export  # noqa: E402
-from architecture_gate import workflow_actions_are_sha_pinned  # noqa: E402
+from architecture_gate import (  # noqa: E402
+    build_requirements_are_frozen,
+    workflow_actions_are_sha_pinned,
+)
 
 
 def write(root: Path, rel: str, data: bytes = b"x") -> None:
@@ -17,6 +20,26 @@ def write(root: Path, rel: str, data: bytes = b"x") -> None:
 
 
 class WorkflowSupplyChainTests(unittest.TestCase):
+    def test_build_dependency_closure_rejects_unpinned_or_resolver_install(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            repo = Path(td)
+            ssq = repo / "SSQ"
+            ssq.mkdir()
+            (ssq / "requirements-build.txt").write_text(
+                "pyinstaller==6.22.3\nrequests>=2\n", encoding="utf-8"
+            )
+            wf = repo / ".github" / "workflows"
+            wf.mkdir(parents=True)
+            (wf / "ssq-windows-build-acceptance.yml").write_text(
+                "run: python -m pip install -r requirements-build.txt\n",
+                encoding="utf-8",
+            )
+            ok, failures = build_requirements_are_frozen(ssq, repo)
+            self.assertFalse(ok)
+            self.assertTrue(any("not exact pinned" in row for row in failures))
+            self.assertTrue(any("dependency closure differs" in row for row in failures))
+            self.assertTrue(any("no-deps" in row for row in failures))
+
     def test_official_actions_must_be_pinned_to_full_commit_sha(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
