@@ -185,10 +185,12 @@ jobs:
       - name: Evidence-derived Final Gate
         shell: pwsh
         run: |
-          python -m head_intelligence.collect_final_gates --evidence-dir evidence --architecture head_intelligence/architecture_gate.json --business head_intelligence/business_gate.json --candidate-exe dist/HeadIntelligence.exe --final-exe final/HeadIntelligence.exe --physical-gui evidence/physical_gui_click.json --out evidence/gate_input.json
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m head_intelligence.collect_final_gates --evidence-dir evidence --architecture head_intelligence/architecture_gate.json --business head_intelligence/business_gate.json --candidate-exe dist/HeadIntelligence.exe --final-exe final/HeadIntelligence.exe --physical-gui evidence/physical_gui_click.json --repository-independent FAIL --out evidence/gate_input.json
+          $collectorExit=$LASTEXITCODE
           python -m head_intelligence.release_gate --evidence-dir evidence --candidate-exe dist/HeadIntelligence.exe --final-exe final/HeadIntelligence.exe --gate-input evidence/gate_input.json --out evidence/final_gate.json
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $releaseExit=$LASTEXITCODE
+          $final=Get-Content evidence/final_gate.json -Raw | ConvertFrom-Json
+          if ($collectorExit -ne 0 -or $releaseExit -ne 0 -or $final.final_gate -ne "PASS" -or [int]$final.hard_fail_count -ne 0) { throw "Final Gate blocked: independent repository is mandatory" }
 
       - name: Upload unique passing artifact
         uses: actions/upload-artifact@v4
@@ -207,3 +209,18 @@ jobs:
             head_intelligence/BUSINESS_SPEC.md
           if-no-files-found: error
           retention-days: 30
+
+
+      - name: Upload audit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: HeadIntelligence-AUDIT-repository-independence
+          path: |
+            evidence/gate_input.json
+            evidence/final_gate.json
+            evidence/physical_gui_click.json
+            head_intelligence/architecture_gate.json
+            head_intelligence/business_gate.json
+          if-no-files-found: warn
+          retention-days: 90
