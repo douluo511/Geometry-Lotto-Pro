@@ -55,7 +55,11 @@ def _safe_ssq_files(root: Path) -> Iterable[Path]:
     ssq = root / "SSQ"
     if not ssq.is_dir():
         raise FileNotFoundError("SSQ project directory missing")
-    for path in sorted(p for p in ssq.rglob("*") if p.is_file()):
+    for path in sorted(ssq.rglob("*")):
+        if path.is_symlink():
+            raise ValueError(f"symlink is forbidden in independent export source: {path.relative_to(root)}")
+        if not path.is_file():
+            continue
         rel = path.relative_to(root)
         if any(part in EXCLUDED_PARTS for part in rel.parts):
             continue
@@ -65,7 +69,10 @@ def _safe_ssq_files(root: Path) -> Iterable[Path]:
 
 
 def _copy(root: Path, destination: Path, rel: Path) -> None:
-    source = (root / rel).resolve()
+    unresolved = root / rel
+    if unresolved.is_symlink():
+        raise ValueError(f"symlink is forbidden in independent export source: {rel}")
+    source = unresolved.resolve()
     try:
         source.relative_to(root.resolve())
     except ValueError as exc:
@@ -137,7 +144,19 @@ def export_repository(root: Path, destination: Path, source_commit: str | None =
 
 def verify_export(destination: Path) -> dict:
     destination = destination.resolve()
+    symlinks = [
+        p.relative_to(destination).as_posix()
+        for p in destination.rglob("*")
+        if p.is_symlink()
+    ]
     manifest_path = destination / "MIGRATION_MANIFEST.json"
+    sums_path = destination / "MIGRATION_SHA256SUMS.txt"
+    if manifest_path.is_symlink() or sums_path.is_symlink() or symlinks:
+        return {
+            "status": "FAIL",
+            "checks": {"no_symlinks": False},
+            "symlinks": sorted(set(symlinks)),
+        }
     if not manifest_path.is_file():
         return {"status": "FAIL", "error": "MIGRATION_MANIFEST.json missing"}
     try:
@@ -146,6 +165,7 @@ def verify_export(destination: Path) -> dict:
         return {"status": "FAIL", "error": f"invalid manifest: {exc}"}
 
     checks = {
+        "no_symlinks": True,
         "schema": manifest.get("schema") == SCHEMA,
         "source_repository": manifest.get("source_repository") == SOURCE_REPOSITORY,
         "target_repository": manifest.get("target_repository") == TARGET_REPOSITORY,
@@ -159,6 +179,7 @@ def verify_export(destination: Path) -> dict:
         return {"status": "FAIL", "checks": checks}
 
     expected = {}
+    duplicate_paths: list[str] = []
     for row in rows:
         if not isinstance(row, dict):
             checks["file_manifest"] = False
@@ -170,7 +191,20 @@ def verify_export(destination: Path) -> dict:
         except ValueError:
             checks["file_manifest"] = False
             return {"status": "FAIL", "checks": checks, "error": "manifest path escape"}
+        if rel in expected:
+            duplicate_paths.append(rel)
         expected[rel] = row
+    checks["unique_manifest_paths"] = not duplicate_paths
+
+    expected_sums = "".join(
+        f'{row.get("sha256")}  {str(row.get("path") or "")}\n'
+        for row in rows
+    )
+    try:
+        actual_sums = sums_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError):
+        actual_sums = ""
+    checks["sha256sums_match_manifest"] = bool(actual_sums) and actual_sums == expected_sums
 
     actual_paths = {
         p.relative_to(destination).as_posix()
@@ -216,6 +250,8 @@ def verify_export(destination: Path) -> dict:
         "file_count": len(expected),
         "checks": checks,
         "mismatches": mismatches,
+        "duplicate_paths": duplicate_paths,
+        "symlinks": [],
         "manifest_sha256": sha256_file(manifest_path),
     }
 
