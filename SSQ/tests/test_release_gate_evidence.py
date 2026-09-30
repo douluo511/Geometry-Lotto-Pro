@@ -17,7 +17,7 @@ sys.path.insert(0, str(TOOLS))
 sys.path.insert(0, str(TOOLS.parent / "SSQ"))
 from derive_gate_status import (  # noqa: E402
     REQUIRED_EXE_CHECKS, _raw_status_allowed, _reparse_manifest,
-    _verify_gui_evidence, derive,
+    _verify_gui_evidence, _verify_reversal_contract, derive,
 )
 from release_gate_22 import HARD_GATES  # noqa: E402
 from glp.constants import HEBEI_ANNOUNCE_URL, HEBEI_URL, NATIONAL_URL, SHANGHAI_URL  # noqa: E402
@@ -483,6 +483,30 @@ class ReleaseGateEvidenceTests(unittest.TestCase):
         self.assertEqual(final["gate_input_integrity"], "FAIL")
         self.assertIn("gate_input_integrity", final["failures"])
 
+
+    def test_reversal_contract_binds_audit_court_to_science_court(self) -> None:
+        reverse = {"remove": True, "shuffle": True, "random_replace": True}
+        science = {"result": {
+            "court_hash": "court-proof",
+            "reverse_validation": reverse,
+            "ablation": {"executed": True},
+        }}
+        audit = {"result": {
+            "software_verdict": "PASS",
+            "court": {
+                "software_verdict": "PASS",
+                "edge_state": "NO_EDGE",
+                "dan_state": "NULL_DAN",
+                "court_hash": "court-proof",
+                "reverse_validation": reverse,
+                "ablation": {"executed": True},
+            },
+        }}
+        proof = _verify_reversal_contract(science, audit)
+        self.assertEqual(proof["court_hash"], "court-proof")
+        audit["result"]["court"]["court_hash"] = "mismatch"
+        with self.assertRaises(ValueError):
+            _verify_reversal_contract(science, audit)
 
 if __name__ == "__main__":
     unittest.main()
