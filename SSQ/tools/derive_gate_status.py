@@ -27,6 +27,30 @@ REQUIRED_EXE_CHECKS = frozenset({
     "unicode-path-no-python-path", "default-gui-launch",
 })
 
+EXPECTED_INDEPENDENT_REPOSITORY = "douluo511/Geometry-Lotto-Pro-SSQ"
+EXPECTED_GITHUB_SERVER_URL = "https://github.com"
+
+
+def _repository_independence_proof() -> tuple[str, dict[str, Any]]:
+    actual_repository = str(os.environ.get("GITHUB_REPOSITORY") or "").strip()
+    actual_server = str(os.environ.get("GITHUB_SERVER_URL") or "").rstrip("/")
+    github_actions = str(os.environ.get("GITHUB_ACTIONS") or "").lower() == "true"
+    checks = {
+        "github_actions": github_actions,
+        "repository_exact": actual_repository == EXPECTED_INDEPENDENT_REPOSITORY,
+        "server_exact": actual_server == EXPECTED_GITHUB_SERVER_URL,
+    }
+    status = "PASS" if all(checks.values()) else "FAIL"
+    return status, {
+        "status": status,
+        "expected_repository": EXPECTED_INDEPENDENT_REPOSITORY,
+        "actual_repository": actual_repository,
+        "expected_server_url": EXPECTED_GITHUB_SERVER_URL,
+        "actual_server_url": actual_server,
+        "checks": checks,
+        "source": "GitHub Actions immutable environment",
+    }
+
 
 def _read(path: Path) -> dict[str, Any] | None:
     if not path.is_file():
@@ -891,10 +915,12 @@ def _verify_live_evidence(evidence_dir: Path, exe_hash: str) -> dict[str, Any]:
     }
 
 
-def derive(evidence: Path, exe: Path, repository_independence: str = "FAIL") -> dict[str, Any]:
+def derive(evidence: Path, exe: Path) -> dict[str, Any]:
     gates = {name: "PENDING" for name in HARD_GATES}
-    gates["repository_independence"] = repository_independence
     proofs: dict[str, Any] = {}
+    repository_status, repository_proof = _repository_independence_proof()
+    gates["repository_independence"] = repository_status
+    proofs["repository_independence"] = repository_proof
 
     architecture_names = (
         "purpose_model", "five_why", "risk_boundary", "domain_model", "architecture",
@@ -1308,9 +1334,8 @@ def main() -> int:
     parser.add_argument("--evidence-dir", type=Path, required=True)
     parser.add_argument("--exe", type=Path, required=True)
     parser.add_argument("--report", type=Path, required=True)
-    parser.add_argument("--repository-independent", choices=["PASS", "FAIL"], required=True)
     args = parser.parse_args()
-    report = derive(args.evidence_dir, args.exe, args.repository_independent)
+    report = derive(args.evidence_dir, args.exe)
     args.report.parent.mkdir(parents=True, exist_ok=True)
     args.report.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps(report, ensure_ascii=False))
