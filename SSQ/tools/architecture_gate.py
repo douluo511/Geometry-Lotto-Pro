@@ -115,6 +115,7 @@ def main() -> int:
     net = (PKG / "net_client.py").read_text(encoding="utf-8")
     updater = (ROOT / "updater.py").read_text(encoding="utf-8")
     updater_client = (PKG / "updater_client.py").read_text(encoding="utf-8")
+    build_windows = (ROOT / "tools" / "build_windows.py").read_text(encoding="utf-8")
 
     gates = {
         "purpose_model": "PASS" if "## Requirement / Purpose Model" in spec else "FAIL",
@@ -161,6 +162,16 @@ def main() -> int:
     checks["build_dependency_closure_frozen"] = requirements_frozen
     if requirement_failures:
         checks["build_dependency_closure_failures"] = False
+
+    checks["reproducible_build_workspace_isolation_contract"] = all(
+        token in build_windows
+        for token in (
+            "--workpath", "--specpath",
+            "primary_updater_work", "repro_updater_work",
+            "primary_main_work", "repro_main_work",
+            "workspace_isolated",
+        )
+    )
 
     checks["sources_use_netclient"] = gates["netclient"] == "PASS"
     checks["ui_uses_service"] = gates["ui"] == "PASS"
