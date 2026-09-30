@@ -5,6 +5,7 @@ on:
     paths:
       - 'tools/bootstrap_independent_repo.ps1'
       - 'tools/prepare_ssq_release_manifest.py'
+      - 'tools/publish_ssq_release_pair.ps1'
       - '.github/workflows/independent-repo-bootstrap-contract.yml'
   workflow_dispatch:
 
@@ -29,6 +30,21 @@ jobs:
           if ($errors.Count -ne 0) {
             $errors | Format-List | Out-String | Write-Host
             throw "PowerShell parser reported syntax errors"
+          }
+
+      - name: Release publisher PowerShell syntax gate
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path 'tools/publish_ssq_release_pair.ps1'),
+            [ref]$tokens,
+            [ref]$errors
+          ) | Out-Null
+          if ($errors.Count -ne 0) {
+            $errors | Format-List | Out-String | Write-Host
+            throw "release publisher PowerShell parser reported syntax errors"
           }
 
       - name: Python syntax gate
@@ -165,3 +181,50 @@ jobs:
           if ($p.ExitCode -eq 0) { throw "tampered self-test hash must fail" }
           $r = Get-Content ./release-fixture/tampered-evidence.json -Raw | ConvertFrom-Json
           if ($r.status -ne 'FAIL') { throw "tampered-hash evidence must be FAIL" }
+
+
+      - name: Release pair publisher plan-only passes
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path ./pair-base,./pair-candidate | Out-Null
+          $baseExe = './pair-base/Geometry_Lotto_Pro_SSQ_Windows_Verified.exe'
+          $candidateExe = './pair-candidate/Geometry_Lotto_Pro_SSQ_Windows_Verified.exe'
+          'base-pair-bytes' | Set-Content -Path $baseExe -NoNewline -Encoding utf8
+          'candidate-pair-bytes' | Set-Content -Path $candidateExe -NoNewline -Encoding utf8
+          $baseSha = (Get-FileHash -Algorithm SHA256 $baseExe).Hash.ToLowerInvariant()
+          $candidateSha = (Get-FileHash -Algorithm SHA256 $candidateExe).Hash.ToLowerInvariant()
+          ([ordered]@{status='PASS';game='SSQ';version='8.5.0-verification';exe_sha256=$baseSha} | ConvertTo-Json) |
+            Set-Content ./pair-base/self.json -Encoding utf8
+          ([ordered]@{status='PASS';game='SSQ';version='8.5.0';exe_sha256=$candidateSha} | ConvertTo-Json) |
+            Set-Content ./pair-candidate/self.json -Encoding utf8
+
+          & pwsh -NoProfile -File ./tools/publish_ssq_release_pair.ps1             -BaseExe $baseExe             -CandidateExe $candidateExe             -BaseVersion 8.5.0-verification             -CandidateVersion 8.5.0             -BaseSelfTest ./pair-base/self.json             -CandidateSelfTest ./pair-candidate/self.json             -PlanOnly             -EvidencePath ./pair-evidence.json
+          if ($LASTEXITCODE -ne 0) { throw "release pair plan-only should PASS" }
+          $r = Get-Content ./pair-evidence.json -Raw | ConvertFrom-Json
+          if ($r.status -ne 'PASS') { throw "release pair evidence status mismatch" }
+          if ($r.remote_verification -ne 'NOT_RUN_PLAN_ONLY') { throw "plan-only must not claim remote release verification" }
+          if ($r.base.version -ne '8.5.0-verification' -or $r.candidate.version -ne '8.5.0') {
+            throw "release pair version binding mismatch"
+          }
+          if ($r.base.exe_sha256 -ne $baseSha -or $r.candidate.exe_sha256 -ne $candidateSha) {
+            throw "release pair hash binding mismatch"
+          }
+
+      - name: Release pair publisher wrong repository fails closed
+        shell: pwsh
+        run: |
+          $p = Start-Process pwsh -ArgumentList @(
+            '-NoProfile','-File','./tools/publish_ssq_release_pair.ps1',
+            '-BaseExe','./pair-base/Geometry_Lotto_Pro_SSQ_Windows_Verified.exe',
+            '-CandidateExe','./pair-candidate/Geometry_Lotto_Pro_SSQ_Windows_Verified.exe',
+            '-BaseVersion','8.5.0-verification',
+            '-CandidateVersion','8.5.0',
+            '-BaseSelfTest','./pair-base/self.json',
+            '-CandidateSelfTest','./pair-candidate/self.json',
+            '-TargetRepo','douluo511/Wrong-Repository',
+            '-PlanOnly',
+            '-EvidencePath','./pair-wrong-repo.json'
+          ) -Wait -PassThru
+          if ($p.ExitCode -eq 0) { throw "wrong release repository must fail" }
+          $r = Get-Content ./pair-wrong-repo.json -Raw | ConvertFrom-Json
+          if ($r.status -ne 'FAIL') { throw "wrong release repository evidence must be FAIL" }
