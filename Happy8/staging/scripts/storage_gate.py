@@ -41,11 +41,13 @@ def sample():
             "source":"shanghai_welfare_lottery",
             "raw_sha256":sha256_json(manifest),
             "bytes":len(raw[sh_name]),
+            "status":"PASS",
         },
         {
             "source":"jiangsu_welfare_lottery",
             "raw_sha256":sha256_bytes(raw["jiangsu_welfare_lottery.html"]),
             "bytes":len(raw["jiangsu_welfare_lottery.html"]),
+            "status":"PASS",
         },
     ]
     report = {
@@ -58,6 +60,8 @@ def sample():
         "crosscheck_count":1,
         "crosscheck_status":"PASS",
         "verification":"SHANGHAI_FULL_HISTORY_PLUS_JIANGSU_CURRENT",
+        "history_source":"shanghai_welfare_lottery",
+        "history_raw_manifest":manifest,
         "source_receipts":receipts,
         "shanghai_raw_manifest":manifest,
     }
@@ -96,7 +100,7 @@ def main() -> int:
         }
 
         bad_manifest = copy.deepcopy(report)
-        bad_manifest["shanghai_raw_manifest"][0]["sha256"] = "0" * 64
+        bad_manifest["history_raw_manifest"][0]["sha256"] = "0" * 64
         try:
             store.commit_official_snapshot(bad_manifest, raw)
             checks["manifest_tamper_fail_closed"] = {"status":"FAIL"}
