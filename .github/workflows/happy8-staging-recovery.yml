@@ -38,6 +38,14 @@ jobs:
         run: python scripts/sichuan_history_probe.py --output evidence/sichuan_history_probe.json
       - name: CWL-designated media history contract diagnostic
         run: python scripts/zhcw_history_probe.py --output evidence/zhcw_history_probe.json
+      - name: Diagnostic source non-production guard
+        shell: pwsh
+        run: |
+          $r = Get-Content evidence/zhcw_history_probe.json -Raw | ConvertFrom-Json
+          if ($r.status -ne 'DIAGNOSTIC_ONLY') { throw "diagnostic status was promoted" }
+          if ($r.production_accepted -ne $false) { throw "diagnostic source was incorrectly production-accepted" }
+          if ($r.classification_claim -ne 'NOT_EVALUATED_FOR_PRODUCTION') { throw "diagnostic source classification drifted" }
+          Write-Host "DIAGNOSTIC_NON_PRODUCTION_GUARD=PASS"
       - name: Live dual-official-source network gate
         run: python scripts/real_network_check.py --output evidence/live_official_history.json
       - name: Current-history scientific validation gate
