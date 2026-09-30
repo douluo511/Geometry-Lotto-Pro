@@ -99,6 +99,30 @@ jobs:
       - name: Native Windows build plus exact-EXE acceptance
         run: python tools/build_windows.py
 
+      - name: Independent repository real-release updater acceptance
+        if: ${{ github.repository == 'douluo511/Geometry-Lotto-Pro-SSQ' }}
+        shell: pwsh
+        env:
+          SSQ_UPDATER_BASE_MANIFEST_URL: ${{ vars.SSQ_UPDATER_BASE_MANIFEST_URL }}
+          SSQ_RELEASE_MANIFEST_URL: ${{ vars.SSQ_RELEASE_MANIFEST_URL }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:SSQ_UPDATER_BASE_MANIFEST_URL)) {
+            throw "SSQ_UPDATER_BASE_MANIFEST_URL is required in the independent repository"
+          }
+          if ([string]::IsNullOrWhiteSpace($env:SSQ_RELEASE_MANIFEST_URL)) {
+            throw "SSQ_RELEASE_MANIFEST_URL is required in the independent repository"
+          }
+          python tools/updater_release_acceptance.py `
+            --updater-exe "dist\Geometry_Lotto_Pro_SSQ_Updater.exe" `
+            --candidate-exe "dist\Geometry_Lotto_Pro_SSQ_Windows_Verified.exe" `
+            --base-manifest-url "$env:SSQ_UPDATER_BASE_MANIFEST_URL" `
+            --release-manifest-url "$env:SSQ_RELEASE_MANIFEST_URL" `
+            --evidence-dir "evidence\SSQ"
+          $r = Get-Content "evidence\SSQ\UPDATER_REAL_RELEASE_ACCEPTANCE.json" -Raw | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or $r.status -ne 'PASS') {
+            throw "independent repository real-release updater acceptance failed"
+          }
+
       - name: Physical GUI Click Smoke
         shell: pwsh
         run: |
