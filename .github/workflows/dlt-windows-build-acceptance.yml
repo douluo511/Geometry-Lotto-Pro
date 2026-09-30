@@ -82,8 +82,10 @@ jobs:
           $gui = Get-Content artifacts\physical_gui_click.json -Raw | ConvertFrom-Json
           $exe = Resolve-Path dist\Geometry_Lotto_Pro_DLT.exe
           $hash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLower()
+          $repositoryIndependence = 'FAIL'
 
           $ok = (
+            $repositoryIndependence -eq 'PASS' -and
             $contract.status -eq 'PASS' -and
             $fault.status -eq 'PASS' -and
             $live.status -eq 'PASS' -and
@@ -100,10 +102,11 @@ jobs:
             real_network_gate = $live.status
             exact_exe_gate = $accept.final_release_gate
             physical_gui_click_gate = $gui.status
+            repository_independence = $repositoryIndependence
           }
           $final | ConvertTo-Json -Depth 6 | Set-Content artifacts\final_gate.json -Encoding utf8
           Get-Content artifacts\final_gate.json
-          if (-not $ok) { throw 'DLT evidence-derived Final Gate failed' }
+          if (-not $ok) { throw 'DLT Final Gate blocked: independent repository is mandatory' }
 
       - name: Upload exact EXE and evidence only after all hard gates pass
         if: success()
@@ -117,3 +120,14 @@ jobs:
             DLT/artifacts/**
           if-no-files-found: error
           retention-days: 30
+
+
+      - name: Upload DLT audit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Geometry-Lotto-Pro-DLT-AUDIT-repository-independence
+          path: |
+            DLT/artifacts/**
+          if-no-files-found: warn
+          retention-days: 90
