@@ -52,7 +52,8 @@ def build_manifest(
     exe: Path,
     *,
     version: str,
-    base_version: str,
+    base_version: str | None,
+    baseline: bool,
     tag: str,
     self_test: Path,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -63,7 +64,13 @@ def build_manifest(
         raise ValueError(f"unexpected artifact filename: {exe.name}")
 
     stable_version_key(version)
-    require_forward(base_version, version)
+    if baseline:
+        if base_version is not None:
+            raise ValueError("--baseline cannot be combined with --base-version")
+    else:
+        if base_version is None:
+            raise ValueError("--base-version is required for a forward candidate manifest")
+        require_forward(base_version, version)
 
     if tag not in {version, f"v{version}"}:
         raise ValueError("release tag must be exactly VERSION or vVERSION")
@@ -100,6 +107,7 @@ def build_manifest(
         "schema": "ssq-release-manifest-preparation-v1",
         "status": "PASS",
         "repository": REPOSITORY,
+        "mode": "BASELINE" if baseline else "FORWARD_CANDIDATE",
         "base_version": base_version,
         "candidate_version": version,
         "release_tag": tag,
@@ -111,7 +119,7 @@ def build_manifest(
         "self_test_sha256": sha256_file(self_test.resolve()),
         "checks": {
             "stable_candidate_version": True,
-            "strictly_forward_version": True,
+            "strictly_forward_version": True if not baseline else "NOT_APPLICABLE_BASELINE",
             "exact_artifact_filename": True,
             "exact_self_test_pass": True,
             "game_identity": True,
@@ -127,7 +135,8 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--exe", type=Path, required=True)
     parser.add_argument("--version", required=True)
-    parser.add_argument("--base-version", required=True)
+    parser.add_argument("--base-version")
+    parser.add_argument("--baseline", action="store_true")
     parser.add_argument("--tag", required=True)
     parser.add_argument("--self-test", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
@@ -139,6 +148,7 @@ def main() -> int:
             args.exe,
             version=args.version,
             base_version=args.base_version,
+            baseline=args.baseline,
             tag=args.tag,
             self_test=args.self_test,
         )
