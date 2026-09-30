@@ -1,0 +1,54 @@
+name: Human Nature Pro Independent Repository Export Verification
+
+on:
+  pull_request:
+    paths:
+      - "Human-Nature-Pro/**"
+      - ".github/workflows/human-nature-pro-independent-repo-export.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact source head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Exact checkout identity
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Adversarial exporter regression
+        run: python Human-Nature-Pro/tests/test_independent_repo_export.py
+      - name: Export and verify
+        shell: bash
+        env:
+          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          OUT: ${{ runner.temp }}/independent-repo
+        run: |
+          set -euo pipefail
+          python Human-Nature-Pro/tools/export_independent_repo.py --destination "$OUT" --source-commit "$SHA" | tee "$RUNNER_TEMP/export-proof.json"
+          python Human-Nature-Pro/tools/export_independent_repo.py --destination "$OUT" --verify-only | tee "$RUNNER_TEMP/verify-proof.json"
+          grep -q '"status": "PASS"' "$RUNNER_TEMP/verify-proof.json"
+      - name: Upload verified export
+        uses: actions/upload-artifact@v4
+        with:
+          name: HUMAN-NATURE-PRO-INDEPENDENT-REPO-EXPORT-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            ${{ runner.temp }}/independent-repo
+            ${{ runner.temp }}/export-proof.json
+            ${{ runner.temp }}/verify-proof.json
+          if-no-files-found: error
+          retention-days: 30
