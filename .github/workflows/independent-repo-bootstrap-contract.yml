@@ -1,0 +1,97 @@
+name: Independent Repository Bootstrap Contract
+
+on:
+  pull_request:
+    paths:
+      - 'tools/bootstrap_independent_repo.ps1'
+      - '.github/workflows/independent-repo-bootstrap-contract.yml'
+  workflow_dispatch:
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: PowerShell syntax gate
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path 'tools/bootstrap_independent_repo.ps1'),
+            [ref]$tokens,
+            [ref]$errors
+          ) | Out-Null
+          if ($errors.Count -ne 0) {
+            $errors | Format-List | Out-String | Write-Host
+            throw "PowerShell parser reported syntax errors"
+          }
+
+      - name: Build verified synthetic export fixture
+        shell: pwsh
+        run: |
+          $root = Join-Path $PWD 'bootstrap-fixture'
+          New-Item -ItemType Directory -Force -Path $root | Out-Null
+          'contract-payload' | Set-Content -Path (Join-Path $root 'payload.txt') -NoNewline -Encoding utf8
+          $payload = Join-Path $root 'payload.txt'
+          $sha = (Get-FileHash -Algorithm SHA256 $payload).Hash.ToLowerInvariant()
+          $bytes = (Get-Item $payload).Length
+          $source = '1111111111111111111111111111111111111111'
+          $manifest = [ordered]@{
+            schema = 'ssq-independent-repo-export-v1'
+            source_repository = 'douluo511/Geometry-Lotto-Pro'
+            target_repository = 'douluo511/Geometry-Lotto-Pro-SSQ'
+            source_commit = $source
+            files = @(
+              [ordered]@{
+                path = 'payload.txt'
+                sha256 = $sha
+                bytes = $bytes
+              }
+            )
+          }
+          ($manifest | ConvertTo-Json -Depth 8) + [Environment]::NewLine |
+            Set-Content -Path (Join-Path $root 'MIGRATION_MANIFEST.json') -Encoding utf8
+          "$sha  payload.txt" |
+            Set-Content -Path (Join-Path $root 'MIGRATION_SHA256SUMS.txt') -Encoding utf8
+
+      - name: Plan-only verified export passes
+        shell: pwsh
+        run: |
+          ./tools/bootstrap_independent_repo.ps1             -ExportDir ./bootstrap-fixture             -TargetRepo douluo511/Geometry-Lotto-Pro-SSQ             -Visibility public             -ExpectedSourceCommit 1111111111111111111111111111111111111111             -PlanOnly             -EvidencePath ./bootstrap-pass.json
+          if ($LASTEXITCODE -ne 0) { throw "verified fixture should PASS" }
+          $r = Get-Content ./bootstrap-pass.json -Raw | ConvertFrom-Json
+          if ($r.status -ne 'PASS') { throw "plan-only status is not PASS" }
+          if ($r.remote_verification -ne 'NOT_RUN_PLAN_ONLY') { throw "plan-only must not claim remote verification" }
+          if ($r.source.file_count -ne 1) { throw "unexpected manifest file count" }
+
+      - name: Mutated file fails closed
+        shell: pwsh
+        run: |
+          Copy-Item ./bootstrap-fixture ./bootstrap-mutated -Recurse
+          Add-Content -Path ./bootstrap-mutated/payload.txt -Value 'tamper'
+          ./tools/bootstrap_independent_repo.ps1             -ExportDir ./bootstrap-mutated             -TargetRepo douluo511/Geometry-Lotto-Pro-SSQ             -Visibility public             -ExpectedSourceCommit 1111111111111111111111111111111111111111             -PlanOnly             -EvidencePath ./bootstrap-mutated.json
+          if ($LASTEXITCODE -eq 0) { throw "mutated export must fail" }
+          $r = Get-Content ./bootstrap-mutated.json -Raw | ConvertFrom-Json
+          if ($r.status -ne 'FAIL') { throw "mutated export evidence must be FAIL" }
+
+      - name: Unmanifested file fails closed
+        shell: pwsh
+        run: |
+          Copy-Item ./bootstrap-fixture ./bootstrap-extra -Recurse
+          'rogue' | Set-Content -Path ./bootstrap-extra/rogue.txt -Encoding utf8
+          ./tools/bootstrap_independent_repo.ps1             -ExportDir ./bootstrap-extra             -TargetRepo douluo511/Geometry-Lotto-Pro-SSQ             -Visibility public             -ExpectedSourceCommit 1111111111111111111111111111111111111111             -PlanOnly             -EvidencePath ./bootstrap-extra.json
+          if ($LASTEXITCODE -eq 0) { throw "unmanifested file must fail" }
+          $r = Get-Content ./bootstrap-extra.json -Raw | ConvertFrom-Json
+          if ($r.status -ne 'FAIL') { throw "unmanifested file evidence must be FAIL" }
+
+      - name: Wrong target repository fails closed
+        shell: pwsh
+        run: |
+          ./tools/bootstrap_independent_repo.ps1             -ExportDir ./bootstrap-fixture             -TargetRepo douluo511/Wrong-Repository             -Visibility public             -ExpectedSourceCommit 1111111111111111111111111111111111111111             -PlanOnly             -EvidencePath ./bootstrap-wrong-target.json
+          if ($LASTEXITCODE -eq 0) { throw "wrong target repository must fail" }
+          $r = Get-Content ./bootstrap-wrong-target.json -Raw | ConvertFrom-Json
+          if ($r.status -ne 'FAIL') { throw "wrong-target evidence must be FAIL" }
