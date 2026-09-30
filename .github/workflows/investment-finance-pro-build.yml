@@ -209,12 +209,12 @@ jobs:
       - name: Evidence-derived Final Gate
         shell: pwsh
         run: |
-          python investment_finance_pro/collect_final_gates.py --evidence-dir evidence --architecture investment_finance_pro/architecture_gate.json --business investment_finance_pro/business_gate.json --source-science source_science.json --exe-science exe_science.json --candidate-exe dist/InvestmentFinancePro.exe --final-exe final/InvestmentFinancePro.exe --physical-gui physical_gui_click.json --out gate_input.json
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python investment_finance_pro/collect_final_gates.py --evidence-dir evidence --architecture investment_finance_pro/architecture_gate.json --business investment_finance_pro/business_gate.json --source-science source_science.json --exe-science exe_science.json --candidate-exe dist/InvestmentFinancePro.exe --final-exe final/InvestmentFinancePro.exe --physical-gui physical_gui_click.json --repository-independent FAIL --out gate_input.json
+          $collectorExit=$LASTEXITCODE
           python investment_finance_pro/release_gate.py --input gate_input.json --evidence-dir evidence --tested-exe dist/InvestmentFinancePro.exe --final-exe final/InvestmentFinancePro.exe --report final_gate.json
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $releaseExit=$LASTEXITCODE
           $r=Get-Content final_gate.json -Raw | ConvertFrom-Json
-          if ($r.final_gate -ne "PASS" -or [int]$r.hard_fail_count -ne 0) { throw "Final Gate failed" }
+          if ($collectorExit -ne 0 -or $releaseExit -ne 0 -or $r.final_gate -ne "PASS" -or [int]$r.hard_fail_count -ne 0) { throw "Final Gate blocked: independent repository is mandatory" }
 
       - name: Acceptance Evidence
         shell: pwsh
@@ -227,11 +227,12 @@ jobs:
             sha256=$hash
             source_commit=$env:GITHUB_SHA
             workflow_run=$env:GITHUB_RUN_ID
-            final_gate='PASS'
+            final_gate=$r.final_gate
+            repository_independence='FAIL'
             model_status='UNVALIDATED'
           } | ConvertTo-Json | Set-Content FINAL_ACCEPTANCE.json -Encoding utf8
           Write-Host "FINAL_EXE_SHA256=$hash"
-          Write-Host "FINAL_RELEASE_GATE=PASS"
+          Write-Host "FINAL_RELEASE_GATE=$($r.final_gate)"
 
       - name: Upload Unique Final Product
         uses: actions/upload-artifact@v4
@@ -247,6 +248,7 @@ jobs:
           compression-level: 0
 
       - name: Upload Audit Evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: Investment_Finance_Pro_AUDIT_v0.4.0
