@@ -36,7 +36,7 @@ jobs:
       - name: Exact checkout identity gate
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path "SSQ\evidence\SSQ" | Out-Null
+          New-Item -ItemType Directory -Force -Path "evidence\SSQ" | Out-Null
           $eventName = "${{ github.event_name }}"
           $eventHead = "${{ github.event.pull_request.head.sha }}"
           $githubSha = "${{ github.sha }}"
@@ -61,7 +61,7 @@ jobs:
             actual_checkout_sha = $actual
             parent_shas = $parents
           }
-          $report | ConvertTo-Json -Depth 6 | Set-Content "SSQ\evidence\SSQ\CHECKOUT_IDENTITY_GATE.json" -Encoding utf8
+          $report | ConvertTo-Json -Depth 6 | Set-Content "evidence\SSQ\CHECKOUT_IDENTITY_GATE.json" -Encoding utf8
           Write-Host ($report | ConvertTo-Json -Compress -Depth 6)
           if (-not $ok) {
             throw "checkout identity is stale or does not contain the current candidate HEAD"
