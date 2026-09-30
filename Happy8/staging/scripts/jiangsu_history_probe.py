@@ -69,12 +69,12 @@ def _fetch(url: str, *, params=None) -> tuple[object, bytes, str]:
     return response, raw, _decode(raw)
 
 
-def inspect_page(page: int) -> dict:
+def inspect_page(page: int, periods: str = "") -> dict:
     params = {
         "locale": "zh-CN",
         "lottery_type_id": "17",
         "page": str(page),
-        "periods": "",
+        "periods": periods,
     }
     response, raw, markup = _fetch(HISTORY_URL, params=params)
     final_url = str(response.url)
@@ -96,8 +96,42 @@ def inspect_page(page: int) -> dict:
             except Exception:
                 continue
             pagination.append(p)
+    issue_contexts = []
+    for match in list(re.finditer(r"20\d{5}", markup))[:12]:
+        issue_contexts.append(re.sub(r"\s+", " ", markup[max(0, match.start()-500):match.end()+900])[:1600])
+
+    attribute_candidates = []
+    for match in re.finditer(
+        r"""(?is)\b(?:href|src|onclick|data-[a-z0-9_-]+|value)\s*=\s*['\"]([^'\"]+)['\"]""",
+        markup,
+    ):
+        value = html.unescape(match.group(1)).strip()
+        if re.search(r"(?i)(?:2020\d{3}|2021\d{3}|winning|lottery|period|issue|history|detail|ajax)", value):
+            if value not in attribute_candidates:
+                attribute_candidates.append(value[:1200])
+
+    script_srcs = [
+        urljoin(final_url, html.unescape(src))
+        for src in re.findall(r"""(?is)<script\b[^>]*\bsrc\s*=\s*['\"]([^'\"]+)['\"]""", markup)
+    ][:100]
+    inline_hints = []
+    for body in re.findall(r"(?is)<script\b(?![^>]*\bsrc\s*=)[^>]*>(.*?)</script>", markup):
+        compact = re.sub(r"\s+", " ", body)
+        for match in re.finditer(
+            r"(?i).{0,220}(?:winning_history|lottery_type_id|periods|ajax|fetch|url\s*:|issue|开奖).{0,420}",
+            compact,
+        ):
+            row = match.group(0)[:900]
+            if row not in inline_hints:
+                inline_hints.append(row)
+            if len(inline_hints) >= 100:
+                break
+        if len(inline_hints) >= 100:
+            break
+
     return {
         "page": page,
+        "periods": periods,
         "final_url": final_url,
         "http_status": int(response.status_code),
         "content_type": str(response.headers.get("Content-Type", "")),
@@ -108,7 +142,11 @@ def inspect_page(page: int) -> dict:
         "visible_20_number_candidates": _numbers(plain),
         "anchors": anchors[:100],
         "pagination_pages": sorted(set(pagination))[:500],
-        "text_head": plain[:1000],
+        "issue_contexts": issue_contexts,
+        "attribute_candidates": attribute_candidates[:200],
+        "script_srcs": script_srcs,
+        "inline_hints": inline_hints,
+        "text_head": plain[:1800],
     }
 
 
@@ -142,8 +180,12 @@ def main() -> int:
         "note": "Diagnostic only; production admission requires reproducible complete-history coverage, schema validation, provenance and current crosscheck.",
     }
     try:
-        for page in (1, 95, 100):
+        for page in (1, 100, 105):
             report["pages"].append(inspect_page(page))
+        report["period_searches"] = [
+            inspect_page(1, "2020001"),
+            inspect_page(1, "2021001"),
+        ]
         detail_urls = []
         for page in report["pages"]:
             for anchor in page["anchors"]:
@@ -165,6 +207,9 @@ def main() -> int:
             any(issue.startswith(("2020", "2021")) for issue in page["issue_tokens"])
             for page in report["pages"]
         )
+        exact_start_search = any(
+            "2020001" in page["issue_tokens"] for page in report["period_searches"]
+        )
         current_visible = any(
             any(issue.startswith("2026") for issue in page["issue_tokens"])
             for page in report["pages"]
@@ -176,6 +221,7 @@ def main() -> int:
             "current_history_visible": current_visible,
             "detail_links_discovered": bool(detail_urls),
             "detail_numbers_machine_readable": details_have_numbers,
+            "exact_start_issue_search": exact_start_search,
         }
         report["contract_discovery"] = (
             "JIANGSU_HISTORY_CONTRACT_CANDIDATE"
