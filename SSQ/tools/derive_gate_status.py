@@ -1003,7 +1003,7 @@ def _sha256_json(value: Any) -> str:
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
-def _verify_updater_release_network(evidence: Path, updater_hash: str) -> dict[str, Any]:
+def _verify_updater_release_network(evidence: Path, updater_hash: str, main_exe_hash: str) -> dict[str, Any]:
     report = _require_current_report(
         evidence, "updater-software-release-network.json", "ssq-independent-updater-v2"
     )
@@ -1037,6 +1037,7 @@ def _verify_updater_release_network(evidence: Path, updater_hash: str) -> dict[s
             or manifest.get("artifact_url") != artifact_url
             or not isinstance(digest, str) or len(digest) != 64
             or any(ch not in "0123456789abcdef" for ch in digest)
+            or digest != main_exe_hash
             or type(size) is not int or size <= 0):
         raise ValueError("software-update manifest is not a trusted independent-repo release")
     for label, receipt in (("manifest", manifest_receipt), ("artifact", artifact_receipt)):
@@ -1432,7 +1433,7 @@ def derive(evidence: Path, exe: Path) -> dict[str, Any]:
         release_gate = str(updater.get("updater_release_gate") or "PENDING")
         release_proof: dict[str, Any] | None = None
         if release_state == "PASS" and release_gate == "PASS":
-            release_proof = _verify_updater_release_network(evidence, updater_actual_hash)
+            release_proof = _verify_updater_release_network(evidence, updater_actual_hash, actual_hash)
             gates["updater_real_network"] = "PASS"
         elif release_state in {"PENDING", "WARNING", "UNAVAILABLE", "SKIPPED", "UNKNOWN"}:
             gates["updater_real_network"] = "PENDING"
