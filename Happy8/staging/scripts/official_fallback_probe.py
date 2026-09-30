@@ -6,6 +6,7 @@ import html
 import json
 import re
 import sys
+import requests
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -16,6 +17,7 @@ from happy8.net_client import NetClient
 
 BASE = "https://www.gdfc.org.cn/datas/drawinfo/kl8/draw_{issue}.html"
 HEBEI_URL = "https://www.hebfucai.cn/game/kl8Announce"
+HEBEI_NUMBER_URL = "https://www.hebfucai.cn/getKl8LotteryNumber"
 ISSUES = ("2020001", "2021001", "2025231")
 NET = NetClient(connect_timeout=10, read_timeout=30, max_attempts=3)
 HEADERS = {
@@ -167,15 +169,24 @@ def inspect_hebei_contract() -> dict:
             re.sub(r"\s+", " ", tag)[:500]
             for tag in re.findall(r"(?is)<select\b[^>]*>", markup)[:30]
         ]
-        options = [
-            re.sub(r"\s+", " ", body)[:240]
-            for body in re.findall(r"(?is)<option\b[^>]*>.*?</option>", markup)[:3000]
-        ]
-        option_issues = re.findall(r"20\d{5}", " ".join(options))
+        option_pairs = []
+        for attrs, body in re.findall(r"(?is)<option\b([^>]*)>(.*?)</option>", markup)[:3000]:
+            text_value = _plain(body)[:120]
+            value_match = re.search(r"(?i)\bvalue\s*=\s*['\"]?([^'\"\s>]+)", attrs)
+            raw_value = html.unescape(value_match.group(1))[:160] if value_match else ""
+            issue_match = re.search(r"20\d{5}", text_value)
+            option_pairs.append({
+                "value": raw_value,
+                "text": text_value,
+                "issue": issue_match.group(0) if issue_match else None,
+            })
+        option_issues = [x["issue"] for x in option_pairs if x["issue"]]
         record["forms"] = forms
         record["selects"] = selects
-        record["option_count"] = len(options)
+        record["option_count"] = len(option_pairs)
         record["option_issue_count"] = len(option_issues)
+        record["option_pairs_first"] = option_pairs[:10]
+        record["option_pairs_last"] = option_pairs[-10:]
         record["option_issue_first"] = option_issues[:10]
         record["option_issue_last"] = option_issues[-10:]
 
@@ -221,6 +232,61 @@ def inspect_hebei_contract() -> dict:
                     break
         record["visible_20_number_candidates"] = candidates
         record["visible_issue_tokens"] = re.findall(r"20\d{5}", plain)[:80]
+
+        def post_number_probe(label: str, lottery_id: str) -> dict:
+            probe = {"label": label, "lottery_id": str(lottery_id), "url": HEBEI_NUMBER_URL}
+            try:
+                post_headers = dict(headers)
+                post_headers["X-Requested-With"] = "XMLHttpRequest"
+                result = requests.post(
+                    HEBEI_NUMBER_URL,
+                    data={"lotteryId": str(lottery_id)},
+                    headers=post_headers,
+                    timeout=(10, 20),
+                    allow_redirects=True,
+                )
+                body = bytes(result.content)
+                final = str(result.url)
+                probe.update({
+                    "http_status": int(result.status_code),
+                    "final_url": final,
+                    "raw_sha256": hashlib.sha256(body).hexdigest(),
+                    "bytes": len(body),
+                    "content_type": str(result.headers.get("Content-Type", "")),
+                    "official_https_host": (
+                        urlsplit(final).scheme.lower() == "https"
+                        and urlsplit(final).hostname == urlsplit(HEBEI_NUMBER_URL).hostname
+                    ),
+                })
+                values = []
+                try:
+                    payload = json.loads(_decode(body))
+                    if isinstance(payload, list):
+                        for item in payload[:20]:
+                            if isinstance(item, dict) and "value" in item:
+                                token = str(item["value"]).strip()
+                                if re.fullmatch(r"0?[1-9]|[1-7]\d|80", token):
+                                    values.append(int(token))
+                except Exception as exc:
+                    probe["json_error"] = f"{type(exc).__name__}: {exc}"
+                probe["first_20_values"] = values
+                probe["valid_20_numbers"] = (
+                    len(values) == 20 and len(set(values)) == 20 and all(1 <= n <= 80 for n in values)
+                )
+                probe["body_head"] = _decode(body)[:700]
+            except Exception as exc:
+                probe["error"] = f"{type(exc).__name__}: {exc}"
+            return probe
+
+        post_probes = []
+        if option_pairs:
+            current = option_pairs[0]
+            if current.get("value"):
+                post_probes.append(post_number_probe("current_option_value", current["value"]))
+            if current.get("issue"):
+                post_probes.append(post_number_probe("current_issue_literal", current["issue"]))
+        post_probes.append(post_number_probe("early_issue_literal_2021001", "2021001"))
+        record["number_endpoint_probes"] = post_probes
         record["diagnostic"] = (
             "HEBEI_CONTRACT_DISCOVERED"
             if selects or inline_hints or urls or option_issues
@@ -240,7 +306,7 @@ def main() -> int:
     guangdong = [inspect_issue(issue) for issue in ISSUES]
     hebei = inspect_hebei_contract()
     report = {
-        "schema": "happy8-official-fallback-probe-v2",
+        "schema": "happy8-official-fallback-probe-v3",
         "status": "DIAGNOSTIC_ONLY",
         "production_accepted": False,
         "sources": ["guangdong_welfare_lottery", "hebei_welfare_lottery"],
@@ -252,7 +318,7 @@ def main() -> int:
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    print(json.dumps(report, ensure_ascii=False, indent=2))
+    print(json.dumps(report, ensure_ascii=True, indent=2))
     return 0
 
 
