@@ -100,6 +100,25 @@ jobs:
           $r = Get-Content ./bootstrap-wrong-target.json -Raw | ConvertFrom-Json
           if ($r.status -ne 'FAIL') { throw "wrong-target evidence must be FAIL" }
 
+      - name: Verified baseline release manifest passes
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path ./baseline-fixture | Out-Null
+          $exe = './baseline-fixture/Geometry_Lotto_Pro_SSQ_Windows_Verified.exe'
+          'verified-base-bytes' | Set-Content -Path $exe -NoNewline -Encoding utf8
+          $sha = (Get-FileHash -Algorithm SHA256 $exe).Hash.ToLowerInvariant()
+          $self = [ordered]@{
+            status = 'PASS'
+            game = 'SSQ'
+            version = '8.5.0'
+            exe_sha256 = $sha
+          }
+          ($self | ConvertTo-Json) | Set-Content ./baseline-fixture/self.json -Encoding utf8
+          python tools/prepare_ssq_release_manifest.py --exe $exe --version 8.5.0 --baseline --tag v8.5.0 --self-test ./baseline-fixture/self.json --output ./baseline-fixture/manifest.json --evidence ./baseline-fixture/evidence.json
+          if ($LASTEXITCODE -ne 0) { throw "verified baseline manifest should PASS" }
+          $e = Get-Content ./baseline-fixture/evidence.json -Raw | ConvertFrom-Json
+          if ($e.status -ne 'PASS' -or $e.mode -ne 'BASELINE') { throw "baseline evidence identity mismatch" }
+
       - name: Release manifest binds exact bytes and forward version
         shell: pwsh
         run: |
