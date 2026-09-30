@@ -171,6 +171,42 @@ class IndependentRepoExportTests(unittest.TestCase):
             self.assertFalse(proof["checks"]["unique_manifest_paths"])
             self.assertTrue(proof["duplicate_paths"])
 
+    def test_destination_root_symlink_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            base = Path(td)
+            source = base / "source"
+            real_target = base / "real-target"
+            link_target = base / "target-link"
+            source.mkdir()
+            real_target.mkdir()
+            self.make_source(source)
+            try:
+                link_target.symlink_to(real_target, target_is_directory=True)
+            except (OSError, NotImplementedError):
+                self.skipTest("directory symlinks unavailable on this runner")
+            with self.assertRaises(ValueError):
+                export_repository(source, link_target, "1" * 40)
+            proof = verify_export(link_target)
+            self.assertEqual(proof["status"], "FAIL")
+            self.assertFalse(proof["checks"]["no_symlinks"])
+
+    def test_required_path_parent_symlink_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            base = Path(td)
+            source = base / "source"
+            target = base / "target"
+            source.mkdir()
+            self.make_source(source)
+            github = source / ".github"
+            real_github = source / "real-github"
+            github.rename(real_github)
+            try:
+                github.symlink_to(real_github, target_is_directory=True)
+            except (OSError, NotImplementedError):
+                self.skipTest("directory symlinks unavailable on this runner")
+            with self.assertRaises(ValueError):
+                export_repository(source, target, "2" * 40)
+
     def test_symlink_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             base = Path(td)
