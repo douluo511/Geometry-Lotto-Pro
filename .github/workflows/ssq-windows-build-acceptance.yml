@@ -9,10 +9,12 @@ on:
     paths:
       - 'SSQ/**'
       - '.github/workflows/ssq-windows-build-acceptance.yml'
+      - '.github/scripts/ssq_physical_gui_click_smoke.ps1'
   pull_request:
     paths:
       - 'SSQ/**'
       - '.github/workflows/ssq-windows-build-acceptance.yml'
+      - '.github/scripts/ssq_physical_gui_click_smoke.ps1'
 
 defaults:
   run:
@@ -76,6 +78,19 @@ jobs:
           $env:PYTHONPATH = "$PWD\SSQ"
           python launcher.py --check update --result-file evidence\SSQ\source-live-update.json
           $r = Get-Content evidence\SSQ\source-live-update.json -Raw | ConvertFrom-Json
+          if ($r.status -ne 'PASS') {
+            Write-Host "SOURCE_LIVE_STATUS=$($r.status)"
+            Write-Host "SOURCE_LIVE_ERROR=$($r.error)"
+            Write-Host "SOURCE_LIVE_FAILURE_EVIDENCE=$($r.failed_network_evidence | ConvertTo-Json -Compress -Depth 6)"
+            foreach ($bundle in $r.failed_network_evidence.bundles) {
+              if ($bundle.manifest -notmatch '^failed/[0-9a-f]{24}\.json$') { throw 'unsafe failure manifest path' }
+              $manifest = Get-Content (Join-Path 'evidence\SSQ' $bundle.manifest) -Raw | ConvertFrom-Json
+              Write-Host "SOURCE_LIVE_SOURCE_ERRORS=$($manifest.source_errors | ConvertTo-Json -Compress -Depth 8)"
+              Write-Host "SOURCE_LIVE_RECEIPTS=$($manifest.source_receipts | ConvertTo-Json -Compress -Depth 8)"
+              $rawMeta = $manifest.raw_responses | Select-Object source,http_status,sha256,bytes,fetched_at
+              Write-Host "SOURCE_LIVE_RAW_METADATA=$($rawMeta | ConvertTo-Json -Compress -Depth 8)"
+            }
+          }
           if ($LASTEXITCODE -ne 0 -or $r.status -ne 'PASS') { throw "source live official-network quorum failed" }
           if ($r.result.crosscheck_status -ne 'PASS') { throw "source crosscheck_status=$($r.result.crosscheck_status)" }
           Write-Host "SOURCE_LIVE_LATEST=$($r.result.latest_issue)"
@@ -87,7 +102,7 @@ jobs:
       - name: Physical GUI Click Smoke
         shell: pwsh
         run: |
-          ..\.github\scripts\physical_gui_click_smoke.ps1 -ExePath ".\dist\Geometry_Lotto_Pro_SSQ_Windows_Verified.exe" -Points "0.26,0.183;0.74,0.183;0.26,0.268;0.74,0.268"  -EvidencePath ".\evidence\SSQ\physical_gui_click.json"
+          ..\.github\scripts\ssq_physical_gui_click_smoke.ps1 -ExePath ".\dist\Geometry_Lotto_Pro_SSQ_Windows_Verified.exe" -EvidencePath ".\evidence\SSQ\physical_gui_click.json"
 
       - name: Final evidence-derived release and same-hash proof
         shell: pwsh
@@ -97,20 +112,28 @@ jobs:
           if (-not (Test-Path $reportPath)) { throw "acceptance report missing" }
           if (-not (Test-Path $exePath)) { throw "exact EXE missing" }
 
-          python tools/collect_mother_gates.py --exe $exePath --output evidence\SSQ\mother-gates.json
-          $collectorExit = $LASTEXITCODE
+          python tools/derive_gate_status.py --evidence-dir evidence\SSQ --exe $exePath --report evidence\SSQ\mother-gates.json
+          if ($LASTEXITCODE -ne 0) { throw "gate derivation failed" }
 
           python tools/release_gate_22.py --gate-input evidence\SSQ\mother-gates.json --acceptance $reportPath --exe $exePath --report evidence\SSQ\FINAL_22_GATE.json
           $releaseExit = $LASTEXITCODE
 
-          $mother = Get-Content evidence\SSQ\mother-gates.json -Raw | ConvertFrom-Json
           $final = Get-Content evidence\SSQ\FINAL_22_GATE.json -Raw | ConvertFrom-Json
-          if ($collectorExit -ne 0 -or $releaseExit -ne 0 -or $mother.status -ne 'PASS' -or $final.final_gate -ne 'PASS' -or [int]$final.hard_fail_count -ne 0) {
+          if ($releaseExit -ne 0 -or $final.final_gate -ne 'PASS' -or [int]$final.hard_fail_count -ne 0) {
             throw "Evidence-derived Final Gate failed"
           }
           Write-Host "SSQ_FINAL_EXE=$(Resolve-Path $exePath)"
           Write-Host "SSQ_FINAL_SHA256=$($final.exe_sha256)"
           Write-Host "FINAL_RELEASE_GATE=PASS"
+
+      - name: Upload candidate diagnostic evidence when acceptance fails
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: SSQ-CANDIDATE-FAIL-EVIDENCE-${{ github.sha }}
+          path: SSQ/evidence/SSQ/**
+          if-no-files-found: warn
+          retention-days: 30
 
       - name: Upload final EXE only after all hard gates pass
         uses: actions/upload-artifact@v4
@@ -132,3 +155,8 @@ jobs:
 # native client-coordinate physical click: 2026-09-24
 
 # SSQ exact native client centers: 2026-09-24
+
+# physical-gui native Win32 identity rerun trigger: 2026-09-30
+
+# physical-gui fully native Win32 rerun trigger: 2026-09-30
+# hard-gate retrigger: 2026-09-30 current-head full rerun

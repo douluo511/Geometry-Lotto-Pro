@@ -22,6 +22,7 @@ def main() -> int:
         "status": "PASS" if proc.returncode == 0 else "FAIL",
         "exit_code": proc.returncode,
         "github_sha": os.environ.get("GITHUB_SHA"),
+        "github_run_id": os.environ.get("GITHUB_RUN_ID"),
         "python": sys.version,
         "tested_code": {
             "net_client_sha256": _sha(ROOT / "SSQ" / "glp" / "net_client.py"),

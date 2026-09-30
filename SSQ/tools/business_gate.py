@@ -1,5 +1,6 @@
 from __future__ import annotations
 import json
+import os
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 
@@ -26,7 +27,7 @@ def main()->int:
       "business_no_overclaim": "NULL_DAN" in service or "NO_EDGE" in service,
     }
     status="PASS" if all(checks.values()) else "FAIL"
-    report={"schema":"ssq-business-gate-v1","status":status,"policy":p,"checks":checks}
+    report={"schema":"ssq-business-gate-v1","status":status,"github_sha":os.environ.get("GITHUB_SHA"),"github_run_id":os.environ.get("GITHUB_RUN_ID"),"policy":p,"checks":checks}
     out=ROOT/"evidence"/"SSQ"/"BUSINESS_GATE.json"; out.parent.mkdir(parents=True,exist_ok=True)
     out.write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding="utf-8")
     print(json.dumps(report,ensure_ascii=True))

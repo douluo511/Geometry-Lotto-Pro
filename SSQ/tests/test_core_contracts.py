@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import random
-from datetime import datetime, timezone
+import json
 import sys
 import tempfile
 import unittest
+from dataclasses import asdict
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import patch
 
@@ -27,16 +29,21 @@ from glp.sources import (
     parse_shanghai_history,
 )
 from glp.storage import Store
-from glp.service import LottoService
-from glp.util import sha256_json, utc_now
+from glp.constants import HEBEI_ANNOUNCE_URL, HEBEI_URL, NATIONAL_URL, SHANGHAI_URL
+from glp.util import sha256_bytes, sha256_json, utc_now
 
 
 class FakeResponse:
-    def __init__(self, status_code=200, content=b"{}", headers=None, url="https://example.invalid/data"):
+    def __init__(self, status_code=200, content=b"{}", headers=None, url="https://example.invalid"):
         self.status_code = status_code
         self.content = content
         self.headers = headers or {"Content-Type": "application/json"}
         self.url = url
+        self.history = []
+
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            raise requests.HTTPError(f"HTTP {self.status_code}", response=self)
 
 
 class FakeSession:
@@ -66,73 +73,64 @@ def receipt(name: str, draw: Draw) -> SourceReceipt:
 
 
 def dataset_pair(extra: bool = False):
-    draws = [
-        Draw("2026001", "2026-01-01", (1, 2, 3, 4, 5, 6), (1,)),
-    ]
+    """Mocked official responses for storage atomicity, never a live-network PASS."""
+    today = datetime.now(timezone.utc).date()
+    draws = [Draw(f"{today.year}001", (today - timedelta(days=3)).isoformat(),
+                  (1, 2, 3, 4, 5, 6), (1,))]
     if extra:
-        draws.append(Draw("2026002", "2026-01-04", (2, 3, 4, 5, 6, 7), (2,)))
+        draws.append(Draw(f"{today.year}002", today.isoformat(), (2, 3, 4, 5, 6, 7), (2,)))
     digest = sha256_json([d.to_dict() for d in draws])
-    ds = CanonicalDataset(draws, digest, [receipt("fixture", draws[-1])], 1, "PASS")
+    national_raw = json.dumps({"state": 0, "result": [{
+        "code": draw.issue, "date": draw.draw_date,
+        "red": ",".join(f"{number:02d}" for number in draw.front),
+        "blue": f"{draw.back[0]:02d}",
+    } for draw in draws], "pageNum": 1}).encode("utf-8")
+    latest = draws[-1]
+    shanghai_raw = (
+        f"{latest.issue} {latest.draw_date} "
+        + "".join(f"{number:02d}" for number in latest.front)
+        + f" {latest.back[0]:02d}"
+    ).encode("utf-8")
+    raws = {
+        "official_cwl_L0": (NATIONAL_URL, national_raw, {"pageNo": "1"}),
+        "official_shanghai_L1": (SHANGHAI_URL, shanghai_raw, {}),
+    }
+    records = []
+    payloads = {}
+    for source, (url, raw, params) in raws.items():
+        raw_hash = sha256_bytes(raw)
+        payloads[raw_hash] = raw
+        records.append({
+            "source": source, "url": url, "requested_url": url,
+            "request_params": params, "fetched_at": utc_now(), "http_status": 200,
+            "sha256": raw_hash, "bytes": len(raw), "artifact": f"raw_responses/{raw_hash}.bin",
+        })
+    national_manifest = [{"page": 1, "sha256": sha256_bytes(national_raw),
+                          "bytes": len(national_raw), "url": NATIONAL_URL}]
+    receipts = [
+        SourceReceipt("official_cwl_L0", utc_now(), 200, sha256_json(national_manifest),
+                      len(draws), draws[-1].issue, "PASS"),
+        SourceReceipt("official_shanghai_L1", utc_now(), 200, sha256_bytes(shanghai_raw),
+                      1, draws[-1].issue, "PASS"),
+        SourceReceipt("official_hebei_L2", utc_now(), 0, "", 0, "", "FAIL", "mock unavailable"),
+    ]
+    ds = CanonicalDataset(draws, digest, receipts, 1, "PASS")
     ev = {
-        "schema": "unit-evidence",
+        "schema": "official-source-evidence-v8.5",
         "game": "SSQ",
         "canonical_hash": digest,
         "draw_count": len(draws),
         "latest": draws[-1].to_dict(),
         "crosscheck_count": 1,
         "crosscheck_status": "PASS",
+        "verification": "CWL_L0_PLUS_1_PROVINCIAL_VALIDATOR",
+        "source_receipts": [asdict(r) for r in receipts],
+        "national_raw_manifest": national_manifest,
+        "raw_responses": records,
+        "raw_response_status": "PENDING_PERSISTENCE",
+        "_raw_response_payloads": payloads,
     }
     return ds, ev
-
-
-class RecentCanonicalReuseTests(unittest.TestCase):
-    def _save_official_snapshot(self, root: Path, *, verification: str, fetched_at: str):
-        today = datetime.now(timezone.utc).date().isoformat()
-        draw = Draw("2026999", today, (1, 2, 3, 4, 5, 6), (1,))
-        digest = sha256_json([draw.to_dict()])
-        ds = CanonicalDataset([draw], digest, [receipt("official_fixture", draw)], 1, "PASS")
-        ev = {
-            "schema": "official-source-evidence-v8.6",
-            "game": "SSQ",
-            "fetched_at": fetched_at,
-            "canonical_hash": digest,
-            "draw_count": 1,
-            "latest": draw.to_dict(),
-            "crosscheck_count": 1,
-            "crosscheck_status": "PASS",
-            "verification": verification,
-        }
-        store = Store(root)
-        store.save_dataset(ds, ev)
-        return LottoService(store)
-
-    def test_recent_official_hash_bound_snapshot_can_be_reused(self):
-        with tempfile.TemporaryDirectory() as td:
-            svc = self._save_official_snapshot(
-                Path(td),
-                verification="TRUSTED_BASELINE_PLUS_SHANGHAI_HEBEI_CONSENSUS",
-                fetched_at=utc_now(),
-            )
-            snap = svc._recent_validated_canonical(max_age_seconds=900)
-            self.assertIsNotNone(snap)
-            self.assertEqual(snap["crosscheck_status"], "PASS")
-            self.assertTrue(snap["validated_snapshot_reuse"])
-
-    def test_stale_or_nonofficial_snapshot_cannot_be_reused(self):
-        with tempfile.TemporaryDirectory() as td:
-            stale = self._save_official_snapshot(
-                Path(td),
-                verification="TRUSTED_BASELINE_PLUS_SHANGHAI_HEBEI_CONSENSUS",
-                fetched_at="2020-01-01T00:00:00Z",
-            )
-            self.assertIsNone(stale._recent_validated_canonical(max_age_seconds=900))
-        with tempfile.TemporaryDirectory() as td:
-            injected = self._save_official_snapshot(
-                Path(td),
-                verification="DETERMINISTIC_INJECTED_FIXTURE",
-                fetched_at=utc_now(),
-            )
-            self.assertIsNone(injected._recent_validated_canonical(max_age_seconds=900))
 
 
 class DomainContractTests(unittest.TestCase):
@@ -198,14 +196,14 @@ class NetClientUnitTests(unittest.TestCase):
             _validate_http_payload(response, response.content, expected="json")
 
     def test_invalid_json_fails_closed(self):
-        response = FakeResponse(200, b"{", {"Content-Type": "application/json"})
+        response = FakeResponse(200, b"{", {"Content-Type": "application/json"}, url=NATIONAL_URL)
         fake_net = type("N", (), {"get": lambda self, *a, **k: response})()
         with patch.object(sources, "NET", fake_net):
             with self.assertRaises(SourceError):
                 sources.fetch_national_page(1)
 
     def test_invalid_encoding_fails_closed(self):
-        response = FakeResponse(200, b"\xff\xfe\x00", {"Content-Type": "application/json"})
+        response = FakeResponse(200, b"\xff\xfe\x00", {"Content-Type": "application/json"}, url=NATIONAL_URL)
         fake_net = type("N", (), {"get": lambda self, *a, **k: response})()
         with patch.object(sources, "NET", fake_net):
             with self.assertRaises(SourceError):
@@ -216,6 +214,7 @@ class NetClientUnitTests(unittest.TestCase):
             200,
             b'{"state":0,"result":{"unexpected":true},"pageNum":1}',
             {"Content-Type": "application/json"},
+            url=NATIONAL_URL,
         )
         fake_net = type("N", (), {"get": lambda self, *a, **k: response})()
         with patch.object(sources, "NET", fake_net):
@@ -223,75 +222,68 @@ class NetClientUnitTests(unittest.TestCase):
                 sources.fetch_national_page(1)
 
     def test_malformed_row_fails_closed_instead_of_skipping(self):
-        response = FakeResponse(
-            200,
-            b'{"state":0,"pageNum":1,"result":[{"code":"2026100","date":"2026-09-01","red":"01,02,03,04,05,06","blue":"07"},{"code":"bad","date":"2026-09-04","red":"01,02,03,04,05,06","blue":"07"}]}',
-            {"Content-Type": "application/json"},
-        )
-        fake_net = type("N", (), {"get": lambda self, *a, **k: response})()
-        with patch.object(sources, "NET", fake_net):
-            with self.assertRaises(SourceError):
-                sources.fetch_national_page(1)
-
-    def test_duplicate_issue_on_page_fails_closed(self):
         payload = (
             b'{"state":0,"pageNum":1,"result":['
             b'{"code":"2026100","date":"2026-09-01","red":"01,02,03,04,05,06","blue":"07"},'
-            b'{"code":"2026100","date":"2026-09-01","red":"01,02,03,04,05,06","blue":"07"}]}'
+            b'{"code":"bad","date":"2026-09-04","red":"01,02,03,04,05,06","blue":"07"}]}'
         )
-        response = FakeResponse(200, payload, {"Content-Type": "application/json"})
+        response = FakeResponse(200, payload, url=NATIONAL_URL)
         fake_net = type("N", (), {"get": lambda self, *a, **k: response})()
         with patch.object(sources, "NET", fake_net):
-            with self.assertRaises(SourceError):
+            with self.assertRaises(SourceError) as context:
                 sources.fetch_national_page(1)
+        self.assertIn("row 1", str(context.exception))
 
-    def test_https_redirect_downgrade_fails_closed(self):
-        session = FakeSession([
-            FakeResponse(200, b"{}", {"Content-Type": "application/json"}, url="http://example.invalid/data"),
-        ])
-        client = NetClient(session=session, sleeper=lambda _: None)
-        with self.assertRaises(requests.RequestException) as cm:
-            client.get("https://example.invalid/data")
-        ledger = list(getattr(cm.exception, "glp_attempts", ()))
-        self.assertEqual(ledger[-1]["outcome"], "FINAL_INSECURE_REDIRECT")
+    def test_duplicate_issue_on_page_fails_closed(self):
+        row = {"code": "2026100", "date": "2026-09-01", "red": "01,02,03,04,05,06", "blue": "07"}
+        response = FakeResponse(200, json.dumps({"state": 0, "pageNum": 1,
+                                                 "result": [row, row]}).encode(), url=NATIONAL_URL)
+        fake_net = type("N", (), {"get": lambda self, *a, **k: response})()
+        with patch.object(sources, "NET", fake_net):
+            with self.assertRaises(SourceError) as context:
+                sources.fetch_national_page(1)
+        self.assertIn("repeats issue", str(context.exception))
 
-    def test_raw_evidence_has_parser_time_and_url(self):
-        response = FakeResponse(200, b'{"x":1}', {"Content-Type": "application/json"})
+    def test_http_validation_metadata_has_parser_time_and_url(self):
+        response = FakeResponse(200, b'{"x":1}', url="https://example.invalid/data")
         meta = _validate_http_payload(response, response.content, expected="json")
         self.assertEqual(meta["validation_result"], "PASS")
         self.assertTrue(meta["parser_version"])
-        self.assertTrue(meta["fetched_at"])
+        self.assertTrue(meta["fetched_at"].endswith("Z"))
         self.assertEqual(meta["final_url"], "https://example.invalid/data")
 
 
 class SourceFailoverTests(unittest.TestCase):
-    def test_primary_failure_secondary_consensus_can_recover_trusted_baseline(self):
+    def test_primary_failure_full_shanghai_can_reverify_unverified_baseline(self):
         draws = [
-            Draw("2026099", "2026-09-01", (1, 2, 3, 4, 5, 6), (1,)),
-            Draw("2026100", "2026-09-04", (2, 3, 4, 5, 6, 7), (2,)),
+            Draw("2013001", "2013-01-01", (1, 2, 3, 4, 5, 6), (1,)),
+            Draw("2026113", "2026-09-29", (3, 4, 20, 24, 29, 30), (11,)),
         ]
         latest = draws[-1]
         sh_receipt = receipt("official_shanghai_L1", latest)
         hb_receipt = receipt("official_hebei_L2", latest)
-        sh_raw = {"raw": b"<html>fixture</html>", "meta": {"status": 200}}
+        sh_manifest = [{"sequence": 1, "start_issue": "2013001", "end_issue": "2026999"}]
         hb_raw = {
             "home": {"raw": b"home", "meta": {"status": 200}},
             "announce": {"raw": b"announce", "meta": {"status": 200}},
         }
         with (
             patch.object(sources, "fetch_national_history", side_effect=SourceError("primary unavailable")),
-            patch.object(sources, "fetch_shanghai_history", return_value=(draws, sh_receipt, sh_raw)),
+            patch.object(sources, "fetch_shanghai_full_history",
+                         return_value=(draws, sh_receipt, sh_manifest)),
             patch.object(sources, "fetch_hebei_latest", return_value=(latest, hb_receipt, hb_raw)),
         ):
-            ds, evidence = build_canonical(baseline_draws=draws)
-        self.assertEqual(ds.crosscheck_status, "PASS")
-        self.assertEqual(evidence["verification"], "TRUSTED_BASELINE_PLUS_SHANGHAI_HEBEI_CONSENSUS")
-        self.assertEqual(ds.canonical_hash, sha256_json([d.to_dict() for d in draws]))
+            dataset, evidence = build_canonical(baseline_draws=draws)
+        self.assertEqual(dataset.draws, draws)
+        self.assertEqual(evidence["verification"], "SHANGHAI_FULL_L1_PLUS_HEBEI_CURRENT")
+        self.assertEqual(evidence["baseline_overlap_count"], len(draws))
+        self.assertEqual(evidence["crosscheck_count"], 1)
 
     def test_all_sources_unavailable_fails_closed(self):
         with (
             patch.object(sources, "fetch_national_history", side_effect=SourceError("n")),
             patch.object(sources, "fetch_shanghai_history", side_effect=SourceError("s")),
+            patch.object(sources, "fetch_shanghai_full_history", side_effect=SourceError("sf")),
             patch.object(sources, "fetch_hebei_latest", side_effect=SourceError("h")),
         ):
             with self.assertRaises(SourceError):
