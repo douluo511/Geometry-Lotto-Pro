@@ -9,10 +9,11 @@ Final promotion for any one product requires **all** of the following on that pr
 1. current-run evidence for requirements / 5 Why / risk boundary / Domain / architecture / contracts;
 2. fail-closed NetClient, raw provenance, atomic Storage and auditable Evidence;
 3. Unit / Contract / Integration / Fault Injection / Real Network / Business / Counterexample / Reversal validation;
-4. native Windows Build / Exact EXE / Physical GUI Click / Same Hash;
-5. `repository_independence=PASS`;
-6. evidence-derived Final Gate `PASS` with `hard_fail_count=0`;
-7. only then, the unique final artifact may be uploaded.
+4. an independent Updater/Repair process with manifest/hash verification, rollback-safe failure handling, and machine evidence from the exact updater artifact;
+5. native Windows Build / Exact EXE / Physical GUI Click / Same Hash for both the main product and updater where applicable;
+6. `repository_independence=PASS`;
+7. evidence-derived Final Gate `PASS` with `hard_fail_count=0`;
+8. only then, the unique final product set may be uploaded.
 
 A scientifically honest `NO_EDGE / NULL_DAN` is valid. Fabricated predictive edge, inherited historical PASS, missing evidence, or any PENDING/WARNING/SKIPPED/UNAVAILABLE/UNKNOWN state is not PASS.
 
