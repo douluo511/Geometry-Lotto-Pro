@@ -7,7 +7,7 @@ HARD_GATES=[
     "engine","evidence","service","ui","self_test","unit_test","contract_test",
     "integration_test","fault_injection","real_network","business_validation",
     "counterexample_validation","reversal_validation","windows_build","exact_exe",
-    "gui_smoke","same_hash","business_content"
+    "gui_smoke","same_hash","business_content","repository_independence"
 ]
 def main():
  p=argparse.ArgumentParser(); p.add_argument("--input",required=True); p.add_argument("--output",required=True); a=p.parse_args(); d=json.loads(Path(a.input).read_text(encoding="utf-8-sig")); g={k:d.get("gates",{}).get(k,"UNKNOWN") for k in HARD_GATES}; bad={k:v for k,v in g.items() if v!="PASS"}; r={"final_gate":"PASS" if not bad else "FAIL","hard_fail_count":len(bad),"gates":g,"failures":bad}; Path(a.output).write_text(json.dumps(r,indent=2),encoding="utf-8"); print(json.dumps(r)); return 0 if not bad else 2
