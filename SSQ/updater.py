@@ -12,7 +12,7 @@ import tempfile
 import time
 from pathlib import Path
 from typing import Any, Callable
-from urllib.parse import urlsplit
+from urllib.parse import urljoin, urlsplit
 from uuid import uuid4
 
 import requests
@@ -171,6 +171,44 @@ def _trusted_redirect_target(url: str) -> bool:
     return _basic_trusted_https(url)
 
 
+def _get_with_verified_redirects(
+    session: requests.Session,
+    url: str,
+    *,
+    headers: dict[str, str],
+    timeout: tuple[float, float],
+    max_redirects: int = 5,
+):
+    """Follow redirects only after validating each next hop."""
+    current = url
+    chain: list[dict[str, Any]] = []
+    for hop in range(max_redirects + 1):
+        response = session.get(
+            current,
+            timeout=timeout,
+            allow_redirects=False,
+            headers=headers,
+        )
+        status = int(response.status_code)
+        if status not in {301, 302, 303, 307, 308}:
+            response.updater_redirect_chain = chain
+            return response
+        location = str(response.headers.get("Location", "")).strip()
+        if not location:
+            raise RuntimeError(f"redirect HTTP {status} has no Location header")
+        next_url = urljoin(current, location)
+        if not _trusted_redirect_target(next_url):
+            raise RuntimeError(f"redirect target violates trusted HTTPS policy before request: {next_url}")
+        chain.append({
+            "hop": hop + 1,
+            "status_code": status,
+            "from_url": current,
+            "to_url": next_url,
+        })
+        current = next_url
+    raise RuntimeError(f"redirect chain exceeded {max_redirects} hops")
+
+
 def _bounded_get(url: str, *, kind: str, max_bytes: int) -> tuple[bytes, dict[str, Any]]:
     if not _trusted_release_request(url, kind=kind):
         raise ValueError(f"{kind} URL violates trusted release repository policy")
@@ -180,10 +218,10 @@ def _bounded_get(url: str, *, kind: str, max_bytes: int) -> tuple[bytes, dict[st
     for attempt in range(1, 4):
         delay = 0.0
         try:
-            response = session.get(
+            response = _get_with_verified_redirects(
+                session,
                 url,
                 timeout=(5.0, 45.0),
-                allow_redirects=True,
                 headers={
                     "User-Agent": "GeometryLottoPro-SSQ-Updater/2",
                     "Accept": "application/json,text/plain,*/*" if kind == "manifest" else "application/octet-stream,*/*",
@@ -202,6 +240,7 @@ def _bounded_get(url: str, *, kind: str, max_bytes: int) -> tuple[bytes, dict[st
                 "content_type": str(response.headers.get("Content-Type", "")),
                 "bytes": len(raw),
                 "sha256": hashlib.sha256(raw).hexdigest(),
+                "redirect_chain": list(getattr(response, "updater_redirect_chain", ())),
             }
             if status == 429 or 500 <= status <= 599:
                 retry_after = str(response.headers.get("Retry-After", "")).strip()
