@@ -476,6 +476,7 @@ class ReleaseGateEvidenceTests(unittest.TestCase):
                 sys.executable, "-B", str(TOOLS / "release_gate_22.py"),
                 "--gate-input", str(gates), "--acceptance", str(acceptance),
                 "--exe", str(exe), "--report", str(report),
+                "--repository-independent", "FAIL",
             ], capture_output=True, text=True)
             final = json.loads(report.read_text(encoding="utf-8"))
         self.assertNotEqual(result.returncode, 0)

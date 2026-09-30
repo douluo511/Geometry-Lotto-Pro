@@ -891,8 +891,9 @@ def _verify_live_evidence(evidence_dir: Path, exe_hash: str) -> dict[str, Any]:
     }
 
 
-def derive(evidence: Path, exe: Path) -> dict[str, Any]:
+def derive(evidence: Path, exe: Path, repository_independence: str = "FAIL") -> dict[str, Any]:
     gates = {name: "PENDING" for name in HARD_GATES}
+    gates["repository_independence"] = repository_independence
     proofs: dict[str, Any] = {}
 
     architecture_names = (
@@ -1163,8 +1164,9 @@ def main() -> int:
     parser.add_argument("--evidence-dir", type=Path, required=True)
     parser.add_argument("--exe", type=Path, required=True)
     parser.add_argument("--report", type=Path, required=True)
+    parser.add_argument("--repository-independent", choices=["PASS", "FAIL"], required=True)
     args = parser.parse_args()
-    report = derive(args.evidence_dir, args.exe)
+    report = derive(args.evidence_dir, args.exe, args.repository_independent)
     args.report.parent.mkdir(parents=True, exist_ok=True)
     args.report.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps(report, ensure_ascii=False))
