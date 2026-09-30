@@ -25,6 +25,20 @@ EXCLUDED_PARTS = {
 }
 EXCLUDED_SUFFIXES = {".pyc", ".pyo"}
 
+ALLOWED_ROOT_FILES = {"README.md", ".gitignore", "PORTFOLIO_GOVERNANCE.md"}
+ALLOWED_EXACT_PATHS = {
+    ".github/workflows/ssq-windows-build-acceptance.yml",
+    ".github/scripts/ssq_physical_gui_click_smoke.ps1",
+}
+
+
+def _allowed_export_path(rel: str) -> bool:
+    return (
+        rel.startswith("SSQ/")
+        or rel in ALLOWED_ROOT_FILES
+        or rel in ALLOWED_EXACT_PATHS
+    )
+
 
 def sha256_file(path: Path) -> str:
     h = hashlib.sha256()
@@ -212,6 +226,7 @@ def verify_export(destination: Path) -> dict:
         if p.is_file() and p.name not in {"MIGRATION_MANIFEST.json", "MIGRATION_SHA256SUMS.txt"}
     }
     checks["no_unmanifested_files"] = actual_paths == set(expected)
+    checks["allowed_paths_only"] = all(_allowed_export_path(rel) for rel in actual_paths)
     checks["no_other_projects"] = not any(
         rel.split("/", 1)[0] in {
             "DLT", "english-root-intelligence", "guoxue-zhice",
