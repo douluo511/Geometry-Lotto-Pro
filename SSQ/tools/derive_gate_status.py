@@ -850,7 +850,10 @@ def _verify_gui_evidence(physical: dict[str, Any], evidence_dir: Path, exe: Path
         experiment_id = effect.get("experiment_id")
         if not isinstance(experiment_id, int) or experiment_id <= 0:
             raise ValueError(f"physical GUI row {index} has no exact ledger event ID")
-        observed = inspect_effect(\n            data_dir, operation, 0, experiment_id=experiment_id,\n            parent_pid=int(row["process_id"]),\n        )
+        observed = inspect_effect(
+            data_dir, operation, 0, experiment_id=experiment_id,
+            parent_pid=int(row["process_id"]),
+        )
         fields = ("status", "operation", "after_id", "experiment_id", "kind",
                   "event_status", "payload_sha256", "display_token")
         if (observed.get("status") != "PASS"
