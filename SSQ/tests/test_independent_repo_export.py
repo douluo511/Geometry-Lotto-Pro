@@ -7,12 +7,39 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
 from export_independent_repo import export_repository, verify_export  # noqa: E402
+from architecture_gate import workflow_actions_are_sha_pinned  # noqa: E402
 
 
 def write(root: Path, rel: str, data: bytes = b"x") -> None:
     path = root / rel
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(data)
+
+
+class WorkflowSupplyChainTests(unittest.TestCase):
+    def test_official_actions_must_be_pinned_to_full_commit_sha(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            wf = root / ".github" / "workflows"
+            wf.mkdir(parents=True)
+            (wf / "ssq-windows-build-acceptance.yml").write_text(
+                "steps:\n  - uses: actions/checkout@v4\n", encoding="utf-8"
+            )
+            (wf / "ssq-independent-repo-export.yml").write_text(
+                "steps:\n  - uses: actions/setup-python@" + "a" * 40 + " # v5\n",
+                encoding="utf-8",
+            )
+            ok, failures = workflow_actions_are_sha_pinned(root)
+            self.assertFalse(ok)
+            self.assertTrue(any("checkout@v4" in row for row in failures))
+
+            (wf / "ssq-windows-build-acceptance.yml").write_text(
+                "steps:\n  - uses: actions/checkout@" + "b" * 40 + " # v4\n",
+                encoding="utf-8",
+            )
+            ok, failures = workflow_actions_are_sha_pinned(root)
+            self.assertTrue(ok)
+            self.assertEqual(failures, [])
 
 
 class IndependentRepoExportTests(unittest.TestCase):
