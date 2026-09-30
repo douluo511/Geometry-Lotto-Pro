@@ -25,6 +25,31 @@ EXCLUDED_PARTS = {
 }
 EXCLUDED_SUFFIXES = {".pyc", ".pyo"}
 
+def _absolute_unresolved(path: Path) -> Path:
+    return Path(os.path.abspath(os.fspath(path)))
+
+
+def _reject_symlink_components(path: Path, *, label: str, stop: Path | None = None) -> None:
+    current = _absolute_unresolved(path)
+    if stop is None:
+        for cursor in reversed([current, *current.parents]):
+            if cursor.is_symlink():
+                raise ValueError(f"symlink is forbidden for {label}: {cursor}")
+        return
+    stop_abs = _absolute_unresolved(stop)
+    try:
+        relative = current.relative_to(stop_abs)
+    except ValueError as exc:
+        raise ValueError(f"{label} escaped expected root") from exc
+    cursor = stop_abs
+    if cursor.is_symlink():
+        raise ValueError(f"symlink is forbidden for {label}: {cursor}")
+    for part in relative.parts:
+        cursor = cursor / part
+        if cursor.is_symlink():
+            raise ValueError(f"symlink is forbidden for {label}: {cursor}")
+
+
 ALLOWED_ROOT_FILES = {"README.md", ".gitignore", "PORTFOLIO_GOVERNANCE.md"}
 ALLOWED_EXACT_PATHS = {
     ".github/workflows/ssq-windows-build-acceptance.yml",
@@ -66,7 +91,9 @@ def _source_commit(root: Path) -> str:
 
 
 def _safe_ssq_files(root: Path) -> Iterable[Path]:
+    _reject_symlink_components(root, label="source repository root")
     ssq = root / "SSQ"
+    _reject_symlink_components(ssq, label="SSQ source tree", stop=root)
     if not ssq.is_dir():
         raise FileNotFoundError("SSQ project directory missing")
     for path in sorted(ssq.rglob("*")):
@@ -84,8 +111,7 @@ def _safe_ssq_files(root: Path) -> Iterable[Path]:
 
 def _copy(root: Path, destination: Path, rel: Path) -> None:
     unresolved = root / rel
-    if unresolved.is_symlink():
-        raise ValueError(f"symlink is forbidden in independent export source: {rel}")
+    _reject_symlink_components(unresolved, label=f"independent export source {rel}", stop=root)
     source = unresolved.resolve()
     try:
         source.relative_to(root.resolve())
@@ -120,8 +146,12 @@ def _manifest_for(destination: Path, source_commit: str) -> dict:
 
 
 def export_repository(root: Path, destination: Path, source_commit: str | None = None) -> dict:
-    root = root.resolve()
-    destination = destination.resolve()
+    root_unresolved = _absolute_unresolved(root)
+    destination_unresolved = _absolute_unresolved(destination)
+    _reject_symlink_components(root_unresolved, label="source repository root")
+    _reject_symlink_components(destination_unresolved, label="export destination")
+    root = root_unresolved.resolve()
+    destination = destination_unresolved.resolve()
     if destination == root or root in destination.parents:
         raise ValueError("destination must be outside the source repository")
     if destination.exists() and any(destination.iterdir()):
@@ -157,7 +187,17 @@ def export_repository(root: Path, destination: Path, source_commit: str | None =
 
 
 def verify_export(destination: Path) -> dict:
-    destination = destination.resolve()
+    destination_unresolved = _absolute_unresolved(destination)
+    try:
+        _reject_symlink_components(destination_unresolved, label="export destination")
+    except ValueError as exc:
+        return {
+            "status": "FAIL",
+            "checks": {"no_symlinks": False},
+            "symlinks": [str(destination_unresolved)],
+            "error": str(exc),
+        }
+    destination = destination_unresolved.resolve()
     symlinks = [
         p.relative_to(destination).as_posix()
         for p in destination.rglob("*")
