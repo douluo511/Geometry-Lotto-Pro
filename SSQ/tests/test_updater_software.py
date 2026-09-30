@@ -143,6 +143,45 @@ class SoftwareUpdaterTests(unittest.TestCase):
             self.assertEqual(target.read_bytes(), b"concurrent-change")
             self.assertFalse(target.with_name(target.name + ".previous").exists())
 
+    def test_preinstall_restore_failure_is_not_silenced(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            target = root / "app.exe"
+            old = b"known-good"
+            new = b"candidate"
+            target.write_bytes(old)
+
+            original_replace = updater.os.replace
+            original_hash = updater._file_sha256
+            calls = {"replace": 0}
+
+            def replace_then_block_restore(src, dst):
+                calls["replace"] += 1
+                if calls["replace"] == 1:
+                    return original_replace(src, dst)
+                raise OSError("injected restore failure")
+
+            def mismatch_rollback_hash(path):
+                if ".rollback" in Path(path).name:
+                    return "0" * 64
+                return original_hash(path)
+
+            with mock.patch.object(updater.os, "replace", side_effect=replace_then_block_restore), \
+                    mock.patch.object(updater, "_file_sha256", side_effect=mismatch_rollback_hash):
+                with self.assertRaisesRegex(
+                    RuntimeError,
+                    "failed to restore original executable after pre-install failure",
+                ):
+                    updater._apply_verified_artifact(
+                        target,
+                        new,
+                        hashlib.sha256(new).hexdigest(),
+                        validator=lambda _p: (True, {"status": "PASS"}),
+                    )
+
+            self.assertFalse(target.exists())
+            self.assertEqual(len(list(root.glob(".*.rollback"))), 1)
+
     def test_atomic_replace_and_previous_preservation(self):
         with tempfile.TemporaryDirectory() as td:
             target = Path(td) / "app.exe"
