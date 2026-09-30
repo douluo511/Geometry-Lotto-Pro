@@ -504,6 +504,42 @@ class LottoService:
         finally:
             db.close()
 
+    def _current_verified_official_snapshot(self) -> dict[str, Any] | None:
+        """Reuse local official evidence only when strict current integrity PASSes.
+
+        This never turns the packaged seed into a current-source PASS. It only
+        avoids a redundant network fetch when another verified operation has
+        already persisted current raw-byte-bound multi-official evidence.
+        """
+        integrity = self._integrity_check()
+        if not integrity.get("ok"):
+            return None
+        try:
+            evidence = json.loads(Path(self.store.evidence_path).read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            return None
+        receipts = evidence.get("source_receipts")
+        if (
+            evidence.get("game") != "SSQ"
+            or evidence.get("crosscheck_status") != "PASS"
+            or evidence.get("canonical_hash") != self._canonical_hash()
+            or not isinstance(receipts, list)
+            or sum(
+                1 for row in receipts
+                if isinstance(row, dict) and row.get("status") == "PASS"
+            ) < 2
+        ):
+            return None
+        return {
+            "schema": "persisted-current-official-evidence-v1",
+            "source": "persisted-current-official-evidence",
+            "crosscheck_status": "PASS",
+            "canonical_hash": evidence.get("canonical_hash"),
+            "source_receipts": receipts,
+            "persisted_integrity": integrity,
+            "reused_current_evidence": True,
+        }
+
     def audit(self, progress: Callable[[str], None] | None = None) -> dict[str, Any]:
         """Advanced analysis is intentionally non-freezing.
 
@@ -511,12 +547,13 @@ class LottoService:
         research preview, but it never writes a formal prediction/freeze/gate.
         """
         self.ensure_seed()
-        update_result = None
+        update_result = self._current_verified_official_snapshot()
         update_error = None
-        try:
-            update_result = self.update(progress=progress)
-        except Exception as exc:
-            update_error = f"{type(exc).__name__}: {exc}"
+        if update_result is None:
+            try:
+                update_result = self.update(progress=progress)
+            except Exception as exc:
+                update_error = f"{type(exc).__name__}: {exc}"
         draws = self._load_draws()
         canonical_hash = self._canonical_hash()
         before = self._freeze_count()

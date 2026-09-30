@@ -39,6 +39,51 @@ class ServiceGateTests(unittest.TestCase):
         self.assertIn("ConnectionError", result["auto_update_error"])
         self.assertTrue(result["immutable_freeze_preserved"])
 
+    def test_audit_reuses_strict_current_official_evidence(self) -> None:
+        service = LottoService.__new__(LottoService)
+        service.ensure_seed = lambda: None
+        service._current_verified_official_snapshot = lambda: {
+            "source": "persisted-current-official-evidence",
+            "crosscheck_status": "PASS",
+            "reused_current_evidence": True,
+        }
+
+        def must_not_refetch(progress=None):
+            raise AssertionError("current verified official evidence must not be refetched")
+
+        service.update = must_not_refetch
+        service._load_draws = lambda: []
+        service._canonical_hash = lambda: "current-canonical"
+        service._freeze_count = lambda: 0
+        service._court = lambda draws, canonical_hash, progress=None: {
+            "software_verdict": "PASS", "gates": []
+        }
+        service.self_test = lambda fast=False: {"status": "PASS"}
+        recorded = []
+        service._append_experiment = lambda kind, status, input_hash, payload: recorded.append(
+            (kind, status, input_hash, payload)
+        ) or 1
+
+        class _Preview:
+            def to_dict(self):
+                return {"status": "research-only"}
+
+        with (
+            patch("glp.service.make_prediction", return_value=(_Preview(), {})),
+            patch("glp.service.build_ors_record", return_value={"status": "PASS"}),
+        ):
+            result = service.audit()
+
+        self.assertEqual(result["software_verdict"], "PASS")
+        self.assertTrue(result["auto_update"]["reused_current_evidence"])
+        self.assertIsNone(result["auto_update_error"])
+        self.assertEqual(recorded[-1][0:3], ("audit", "PASS", "current-canonical"))
+
+    def test_current_snapshot_rejects_noncurrent_integrity(self) -> None:
+        service = LottoService.__new__(LottoService)
+        service._integrity_check = lambda: {"ok": False}
+        self.assertIsNone(service._current_verified_official_snapshot())
+
 
 if __name__ == "__main__":
     unittest.main()
