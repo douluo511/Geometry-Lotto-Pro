@@ -112,7 +112,7 @@ jobs:
 
       - name: Evidence-derived Final Gate and Same Hash
         run: |
-          python psychology_insight_pro/collect_final_gates.py --exe ".\dist\Psychology_Insight_Pro.exe" --final-exe ".\dist\final\Psychology_Insight_Pro.exe" --physical-gui ".\psychology_insight_pro\physical_gui_click.json" --output ".\dist\mother_gates.json"
+          python psychology_insight_pro/collect_final_gates.py --exe ".\dist\Psychology_Insight_Pro.exe" --final-exe ".\dist\final\Psychology_Insight_Pro.exe" --physical-gui ".\psychology_insight_pro\physical_gui_click.json" --repository-independent FAIL --output ".\dist\mother_gates.json"
           $collectorExit = $LASTEXITCODE
 
           python psychology_insight_pro/release_gate.py --input ".\dist\mother_gates.json" --output ".\dist\final_gate.json"
