@@ -18,8 +18,8 @@ sys.path.insert(0, str(TOOLS))
 sys.path.insert(0, str(TOOLS.parent / "SSQ"))
 from derive_gate_status import (  # noqa: E402
     REQUIRED_BUSINESS_CHECKS, REQUIRED_EXE_CHECKS, REQUIRED_NETCLIENT_CHECKS,
-    _raw_status_allowed, _reparse_manifest, _verify_gui_evidence,
-    _verify_gui_update_source, _verify_reversal_contract,
+    _raw_status_allowed, _reparse_manifest, _verify_checkout_identity,
+    _verify_gui_evidence, _verify_gui_update_source, _verify_reversal_contract,
     _verify_updater_release_network, derive,
 )
 from release_gate_22 import HARD_GATES  # noqa: E402
@@ -492,6 +492,50 @@ class ReleaseGateEvidenceTests(unittest.TestCase):
         self.assertFalse(_raw_status_allowed(403, "PASS"))
         self.assertFalse(_raw_status_allowed(200, "PENDING"))
 
+    def test_checkout_identity_accepts_current_pr_head_parent(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            merge_sha = "1" * 40
+            head_sha = "2" * 40
+            report = {
+                "schema": "ssq-checkout-identity-v1", "status": "PASS",
+                "github_sha": merge_sha, "github_run_id": "12345",
+                "event": "pull_request", "event_head_sha": head_sha,
+                "actual_checkout_sha": merge_sha, "parent_shas": ["3" * 40, head_sha],
+            }
+            (root / "CHECKOUT_IDENTITY_GATE.json").write_text(json.dumps(report), encoding="utf-8")
+            with patch.dict(os.environ, {"GITHUB_SHA": merge_sha, "GITHUB_RUN_ID": "12345"}):
+                proof = _verify_checkout_identity(root)
+            self.assertEqual(proof["event_head_sha"], head_sha)
+
+    def test_checkout_identity_rejects_stale_pr_merge_parent(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            merge_sha = "1" * 40
+            report = {
+                "schema": "ssq-checkout-identity-v1", "status": "PASS",
+                "github_sha": merge_sha, "github_run_id": "12345",
+                "event": "pull_request", "event_head_sha": "2" * 40,
+                "actual_checkout_sha": merge_sha, "parent_shas": ["3" * 40, "4" * 40],
+            }
+            (root / "CHECKOUT_IDENTITY_GATE.json").write_text(json.dumps(report), encoding="utf-8")
+            with patch.dict(os.environ, {"GITHUB_SHA": merge_sha, "GITHUB_RUN_ID": "12345"}):
+                with self.assertRaises(ValueError):
+                    _verify_checkout_identity(root)
+
+    def test_checkout_identity_rejects_push_sha_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            report = {
+                "schema": "ssq-checkout-identity-v1", "status": "PASS",
+                "github_sha": "1" * 40, "github_run_id": "12345",
+                "event": "push", "event_head_sha": "",
+                "actual_checkout_sha": "2" * 40, "parent_shas": ["3" * 40],
+            }
+            (root / "CHECKOUT_IDENTITY_GATE.json").write_text(json.dumps(report), encoding="utf-8")
+            with patch.dict(os.environ, {"GITHUB_SHA": "1" * 40, "GITHUB_RUN_ID": "12345"}):
+                with self.assertRaises(ValueError):
+                    _verify_checkout_identity(root)
     def test_repository_independence_is_machine_derived(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
