@@ -33,6 +33,11 @@ HARD_GATES = [
     "gui_smoke",
     "same_hash",
     "business_content",
+    "updater_process",
+    "updater_exact_exe",
+    "updater_atomic_rollback",
+    "updater_real_network",
+    "updater_same_hash",
     "repository_independence",
 ]
 
