@@ -259,8 +259,8 @@ def main() -> int:
         try:
             args.evidence_dir.mkdir(parents=True, exist_ok=True)
             atomic_json(args.evidence_dir / "UPDATER_REAL_RELEASE_ACCEPTANCE.json", failure)
-        except Exception:
-            pass
+        except Exception as write_exc:
+            failure["evidence_write_error"] = f"{type(write_exc).__name__}: {write_exc}"
         print(json.dumps(failure, ensure_ascii=True), flush=True)
         return 2
 
