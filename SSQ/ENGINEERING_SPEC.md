@@ -36,7 +36,7 @@ Primary lottery history: 中国福利彩票发行管理中心 API.
 Cross-check: 上海市福利彩票发行中心 + 河北省福利彩票发行管理中心 official surfaces.
 All live responses remain fail-closed and source receipts retain status/hash/count/latest issue.
 
-Software release sources are separate from lottery data sources. Only explicit trusted HTTPS GitHub release/raw hosts are accepted by the updater. The release manifest binds app identity, version, artifact URL, exact SHA256 and byte count.
+Software release sources are separate from lottery data sources. The software trust root is pinned to the target independent repository `douluo511/Geometry-Lotto-Pro-SSQ`: manifest requests must identify that repository and artifact requests must use that repository's release/download path. Generic GitHub domains or another repository are not sufficient trust. GitHub object/release-asset hosts are accepted only as HTTPS redirect targets reached from an already verified repository URL. The release manifest binds app identity, version, artifact URL, exact SHA256 and byte count.
 
 ## NetClient
 Lottery sources: HTTPS only; independent connect/read timeout; bounded retries for idempotent GET; 408/429/5xx handling; exponential backoff; redirect downgrade rejection; no retry-as-success fabrication.
