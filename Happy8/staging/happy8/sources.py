@@ -159,7 +159,13 @@ def fetch_shanghai_full_history() -> tuple[list[Draw], SourceReceipt, dict[str, 
                 if year_had_data:
                     break
                 if year < current_year:
-                    raise RuntimeError(f"Shanghai Happy8 historical year unexpectedly empty: {year}")
+                    visible_issues = re.findall(r"20\\d{5}", _plain(response.text))[:12]
+                    raise RuntimeError(
+                        "Shanghai Happy8 historical range parsed empty: "
+                        f"range={start_issue}..{end_issue} bytes={len(raw)} "
+                        f"sha256={hashlib.sha256(raw).hexdigest()} "
+                        f"visible_issue_tokens={visible_issues!r}"
+                    )
                 break
 
             year_had_data = True
