@@ -133,6 +133,132 @@ class IndependentRepoExportTests(unittest.TestCase):
             self.assertEqual(proof["status"], "FAIL")
             self.assertFalse(proof["checks"]["no_unmanifested_files"])
 
+    def test_tampered_sha256s_file_fails_verification(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            base = Path(td)
+            source = base / "source"
+            target = base / "target"
+            source.mkdir()
+            self.make_source(source)
+            self.assertEqual(export_repository(source, target, "9" * 40)["status"], "PASS")
+
+            (target / "MIGRATION_SHA256SUMS.txt").write_text(
+                "0" * 64 + "  SSQ/SSQ/glp/core.py\n", encoding="utf-8"
+            )
+            proof = verify_export(target)
+            self.assertEqual(proof["status"], "FAIL")
+            self.assertFalse(proof["checks"]["sha256sums_match_manifest"])
+
+    def test_duplicate_manifest_path_fails_verification(self) -> None:
+        import json
+        with tempfile.TemporaryDirectory() as td:
+            base = Path(td)
+            source = base / "source"
+            target = base / "target"
+            source.mkdir()
+            self.make_source(source)
+            self.assertEqual(export_repository(source, target, "e" * 40)["status"], "PASS")
+
+            manifest_path = target / "MIGRATION_MANIFEST.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["files"].append(dict(manifest["files"][0]))
+            manifest_path.write_text(
+                json.dumps(manifest, ensure_ascii=False, sort_keys=True, indent=2) + "\n",
+                encoding="utf-8",
+            )
+            proof = verify_export(target)
+            self.assertEqual(proof["status"], "FAIL")
+            self.assertFalse(proof["checks"]["unique_manifest_paths"])
+            self.assertTrue(proof["duplicate_paths"])
+
+    def test_destination_root_symlink_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            base = Path(td)
+            source = base / "source"
+            real_target = base / "real-target"
+            link_target = base / "target-link"
+            source.mkdir()
+            real_target.mkdir()
+            self.make_source(source)
+            try:
+                link_target.symlink_to(real_target, target_is_directory=True)
+            except (OSError, NotImplementedError):
+                self.skipTest("directory symlinks unavailable on this runner")
+            with self.assertRaises(ValueError):
+                export_repository(source, link_target, "1" * 40)
+            proof = verify_export(link_target)
+            self.assertEqual(proof["status"], "FAIL")
+            self.assertFalse(proof["checks"]["no_symlinks"])
+
+    def test_required_path_parent_symlink_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            base = Path(td)
+            source = base / "source"
+            target = base / "target"
+            source.mkdir()
+            self.make_source(source)
+            github = source / ".github"
+            real_github = source / "real-github"
+            github.rename(real_github)
+            try:
+                github.symlink_to(real_github, target_is_directory=True)
+            except (OSError, NotImplementedError):
+                self.skipTest("directory symlinks unavailable on this runner")
+            with self.assertRaises(ValueError):
+                export_repository(source, target, "2" * 40)
+
+    def test_symlink_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            base = Path(td)
+            source = base / "source"
+            target = base / "target"
+            source.mkdir()
+            self.make_source(source)
+            link = source / "SSQ" / "SSQ" / "glp" / "linked.py"
+            try:
+                link.symlink_to(source / "SSQ" / "SSQ" / "glp" / "core.py")
+            except (OSError, NotImplementedError):
+                self.skipTest("symlinks unavailable on this runner")
+            with self.assertRaises(ValueError):
+                export_repository(source, target, "f" * 40)
+
+    def test_manifest_consistent_unknown_top_level_path_is_rejected(self) -> None:
+        import hashlib
+        import json
+        with tempfile.TemporaryDirectory() as td:
+            base = Path(td)
+            source = base / "source"
+            target = base / "target"
+            source.mkdir()
+            self.make_source(source)
+            self.assertEqual(export_repository(source, target, "7" * 40)["status"], "PASS")
+
+            payload = b"unexpected-but-self-consistent"
+            write(target, "unknown_project/payload.bin", payload)
+            manifest_path = target / "MIGRATION_MANIFEST.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["files"].append({
+                "path": "unknown_project/payload.bin",
+                "sha256": hashlib.sha256(payload).hexdigest(),
+                "bytes": len(payload),
+            })
+            manifest["files"] = sorted(manifest["files"], key=lambda row: row["path"])
+            manifest_path.write_text(
+                json.dumps(manifest, ensure_ascii=False, sort_keys=True, indent=2) + "\n",
+                encoding="utf-8",
+            )
+            sums = "".join(
+                f'{row["sha256"]}  {row["path"]}\n' for row in manifest["files"]
+            )
+            (target / "MIGRATION_SHA256SUMS.txt").write_text(sums, encoding="utf-8")
+
+            proof = verify_export(target)
+            self.assertEqual(proof["status"], "FAIL")
+            self.assertTrue(proof["checks"]["no_unmanifested_files"])
+            self.assertTrue(proof["checks"]["sha256sums_match_manifest"])
+            self.assertTrue(proof["checks"]["all_hashes_match"])
+            self.assertFalse(proof["checks"]["allowed_paths_only"])
+
     def test_nonempty_destination_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             base = Path(td)
