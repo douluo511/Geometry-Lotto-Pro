@@ -19,7 +19,8 @@ sys.path.insert(0, str(TOOLS.parent / "SSQ"))
 from derive_gate_status import (  # noqa: E402
     REQUIRED_BUSINESS_CHECKS, REQUIRED_EXE_CHECKS, REQUIRED_NETCLIENT_CHECKS,
     _raw_status_allowed, _reparse_manifest, _verify_gui_evidence,
-    _verify_gui_update_source, _verify_reversal_contract, derive,
+    _verify_gui_update_source, _verify_reversal_contract,
+    _verify_updater_release_network, derive,
 )
 from release_gate_22 import HARD_GATES  # noqa: E402
 from glp.constants import HEBEI_ANNOUNCE_URL, HEBEI_URL, NATIONAL_URL, SHANGHAI_URL  # noqa: E402
@@ -177,6 +178,10 @@ def synthetic_gui_update_bundle(root: Path) -> tuple[dict, dict, dict]:
     observed = {"experiment_id": 1, "display_token": manifest["canonical_hash"]}
     return manifest, canonical, observed
 
+
+def _sha_for_test(value: object) -> str:
+    raw = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 class ReleaseGateEvidenceTests(unittest.TestCase):
     def test_gui_update_contract_reparses_same_directory_synthetic_bytes(self) -> None:
@@ -584,6 +589,86 @@ class ReleaseGateEvidenceTests(unittest.TestCase):
         for gate in ("business_content", "contract_test", "fault_injection"):
             self.assertEqual(report["gates"][gate], "FAIL", gate)
 
+    def test_updater_release_pass_requires_real_current_run_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            updater_hash = "a" * 64
+            report = {
+                "schema": "ssq-independent-updater-v2",
+                "mode": "software-update",
+                "status": "PASS",
+                "github_sha": "a" * 40,
+                "github_run_id": "12345",
+                "updater_exe_sha256": updater_hash,
+                "parent_pid_match": True,
+                "service_result": {},
+                "service_result_sha256": _sha_for_test({}),
+            }
+            (root / "updater-software-release-network.json").write_text(
+                json.dumps(report), encoding="utf-8"
+            )
+            with patch.dict(os.environ, {
+                "GITHUB_SHA": "a" * 40, "GITHUB_RUN_ID": "12345",
+            }):
+                with self.assertRaises(ValueError):
+                    _verify_updater_release_network(root, updater_hash)
+
+    def test_updater_release_network_rejects_shared_repo_urls(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            updater_hash = "a" * 64
+            digest = "b" * 64
+            version = "9.0.0"
+            service = {
+                "status": "PASS",
+                "schema": "ssq-software-update-result-v1",
+                "manifest": {
+                    "schema": "ssq-software-update-manifest-v1",
+                    "app": "Geometry Lotto Pro SSQ",
+                    "version": version,
+                    "artifact_url": "https://github.com/douluo511/Geometry-Lotto-Pro/releases/download/v9/app.exe",
+                    "artifact_sha256": digest,
+                    "artifact_bytes": 123,
+                },
+                "manifest_receipt": {
+                    "status": "PASS", "http_status": 200, "bytes": 99,
+                    "sha256": "c" * 64,
+                    "requested_url": "https://github.com/douluo511/Geometry-Lotto-Pro/releases/download/v9/manifest.json",
+                    "final_url": "https://github.com/douluo511/Geometry-Lotto-Pro/releases/download/v9/manifest.json",
+                },
+                "manifest_raw_sha256": "c" * 64,
+                "artifact_receipt": {
+                    "status": "PASS", "http_status": 200, "bytes": 123,
+                    "sha256": digest,
+                    "requested_url": "https://github.com/douluo511/Geometry-Lotto-Pro/releases/download/v9/app.exe",
+                    "final_url": "https://release-assets.githubusercontent.com/fake",
+                },
+                "replacement": {
+                    "status": "PASS", "expected_sha256": digest,
+                    "staged_sha256": digest, "installed_sha256": digest,
+                    "previous_preserved": True,
+                    "post_replace_validation": {
+                        "status": "PASS", "expected_version": version,
+                        "reported_version": version, "target_sha256": digest,
+                    },
+                },
+                "wait_for_main": {"status": "PASS"},
+            }
+            report = {
+                "schema": "ssq-independent-updater-v2",
+                "mode": "software-update", "status": "PASS",
+                "github_sha": "a" * 40, "github_run_id": "12345",
+                "updater_exe_sha256": updater_hash, "parent_pid_match": True,
+                "service_result": service, "service_result_sha256": _sha_for_test(service),
+            }
+            (root / "updater-software-release-network.json").write_text(
+                json.dumps(report), encoding="utf-8"
+            )
+            with patch.dict(os.environ, {
+                "GITHUB_SHA": "a" * 40, "GITHUB_RUN_ID": "12345",
+            }):
+                with self.assertRaises(ValueError):
+                    _verify_updater_release_network(root, updater_hash)
     def test_updater_mechanics_pass_cannot_replace_real_release_network(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
