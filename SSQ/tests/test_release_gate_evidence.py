@@ -781,6 +781,7 @@ class ReleaseGateEvidenceTests(unittest.TestCase):
             )
             report = derive(root, root / "missing.exe")
         self.assertEqual(report["gates"]["gui_smoke"], "FAIL")
+        self.assertEqual(report["gates"]["physical_gui_click"], "FAIL")
 
     def test_fabricated_acceptance_cannot_replace_exe_bytes(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -826,6 +827,7 @@ class ReleaseGateEvidenceTests(unittest.TestCase):
         self.assertEqual(report["gates"]["same_hash"], "FAIL")
         self.assertEqual(report["gates"]["real_network"], "FAIL")
         self.assertEqual(report["gates"]["gui_smoke"], "FAIL")
+        self.assertEqual(report["gates"]["physical_gui_click"], "FAIL")
         for gate in ("business_content", "contract_test", "fault_injection"):
             self.assertEqual(report["gates"][gate], "FAIL", gate)
 
