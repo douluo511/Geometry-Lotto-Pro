@@ -36,7 +36,7 @@ def event(db: sqlite3.Connection, kind: str, status: str, payload: dict) -> None
 def write_updater_proof(root: Path, mode: str, payload: dict, parent_pid: int = 4242) -> None:
     canonical = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
     report = {
-        "schema": "ssq-independent-updater-v1",
+        "schema": "ssq-independent-updater-v2",
         "status": "PASS",
         "mode": mode,
         "pid": parent_pid + 100,
@@ -124,6 +124,7 @@ class GuiBackendEffectTests(unittest.TestCase):
             proof = inspect_effect(root, "update", parent_pid=4242)
             self.assertEqual(proof["status"], "PASS")
             self.assertEqual(proof["updater_process"]["child_pid"], 4342)
+            self.assertEqual(proof["updater_process"]["updater_exe_sha256"], "a" * 64)
 
     def test_repair_and_audit_require_operation_specific_contract(self) -> None:
         with tempfile.TemporaryDirectory() as td:
