@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'tools/bootstrap_independent_repo.ps1'
+      - 'tools/prepare_ssq_release_manifest.py'
       - '.github/workflows/independent-repo-bootstrap-contract.yml'
   workflow_dispatch:
 
@@ -29,6 +30,9 @@ jobs:
             $errors | Format-List | Out-String | Write-Host
             throw "PowerShell parser reported syntax errors"
           }
+
+      - name: Python syntax gate
+        run: python -m py_compile tools/prepare_ssq_release_manifest.py
 
       - name: Build verified synthetic export fixture
         shell: pwsh
@@ -61,7 +65,7 @@ jobs:
       - name: Plan-only verified export passes
         shell: pwsh
         run: |
-          ./tools/bootstrap_independent_repo.ps1             -ExportDir ./bootstrap-fixture             -TargetRepo douluo511/Geometry-Lotto-Pro-SSQ             -Visibility public             -ExpectedSourceCommit 1111111111111111111111111111111111111111             -PlanOnly             -EvidencePath ./bootstrap-pass.json
+          & pwsh -NoProfile -File ./tools/bootstrap_independent_repo.ps1 -ExportDir ./bootstrap-fixture -TargetRepo douluo511/Geometry-Lotto-Pro-SSQ -Visibility public -ExpectedSourceCommit 1111111111111111111111111111111111111111 -PlanOnly -EvidencePath ./bootstrap-pass.json
           if ($LASTEXITCODE -ne 0) { throw "verified fixture should PASS" }
           $r = Get-Content ./bootstrap-pass.json -Raw | ConvertFrom-Json
           if ($r.status -ne 'PASS') { throw "plan-only status is not PASS" }
@@ -73,8 +77,9 @@ jobs:
         run: |
           Copy-Item ./bootstrap-fixture ./bootstrap-mutated -Recurse
           Add-Content -Path ./bootstrap-mutated/payload.txt -Value 'tamper'
-          ./tools/bootstrap_independent_repo.ps1             -ExportDir ./bootstrap-mutated             -TargetRepo douluo511/Geometry-Lotto-Pro-SSQ             -Visibility public             -ExpectedSourceCommit 1111111111111111111111111111111111111111             -PlanOnly             -EvidencePath ./bootstrap-mutated.json
-          if ($LASTEXITCODE -eq 0) { throw "mutated export must fail" }
+          & pwsh -NoProfile -File ./tools/bootstrap_independent_repo.ps1 -ExportDir ./bootstrap-mutated -TargetRepo douluo511/Geometry-Lotto-Pro-SSQ -Visibility public -ExpectedSourceCommit 1111111111111111111111111111111111111111 -PlanOnly -EvidencePath ./bootstrap-mutated.json
+          $code = $LASTEXITCODE
+          if ($code -eq 0) { throw "mutated export must fail" }
           $r = Get-Content ./bootstrap-mutated.json -Raw | ConvertFrom-Json
           if ($r.status -ne 'FAIL') { throw "mutated export evidence must be FAIL" }
 
@@ -83,15 +88,66 @@ jobs:
         run: |
           Copy-Item ./bootstrap-fixture ./bootstrap-extra -Recurse
           'rogue' | Set-Content -Path ./bootstrap-extra/rogue.txt -Encoding utf8
-          ./tools/bootstrap_independent_repo.ps1             -ExportDir ./bootstrap-extra             -TargetRepo douluo511/Geometry-Lotto-Pro-SSQ             -Visibility public             -ExpectedSourceCommit 1111111111111111111111111111111111111111             -PlanOnly             -EvidencePath ./bootstrap-extra.json
-          if ($LASTEXITCODE -eq 0) { throw "unmanifested file must fail" }
+          & pwsh -NoProfile -File ./tools/bootstrap_independent_repo.ps1 -ExportDir ./bootstrap-extra -TargetRepo douluo511/Geometry-Lotto-Pro-SSQ -Visibility public -ExpectedSourceCommit 1111111111111111111111111111111111111111 -PlanOnly -EvidencePath ./bootstrap-extra.json
+          $code = $LASTEXITCODE
+          if ($code -eq 0) { throw "unmanifested file must fail" }
           $r = Get-Content ./bootstrap-extra.json -Raw | ConvertFrom-Json
           if ($r.status -ne 'FAIL') { throw "unmanifested file evidence must be FAIL" }
 
       - name: Wrong target repository fails closed
         shell: pwsh
         run: |
-          ./tools/bootstrap_independent_repo.ps1             -ExportDir ./bootstrap-fixture             -TargetRepo douluo511/Wrong-Repository             -Visibility public             -ExpectedSourceCommit 1111111111111111111111111111111111111111             -PlanOnly             -EvidencePath ./bootstrap-wrong-target.json
-          if ($LASTEXITCODE -eq 0) { throw "wrong target repository must fail" }
+          & pwsh -NoProfile -File ./tools/bootstrap_independent_repo.ps1 -ExportDir ./bootstrap-fixture -TargetRepo douluo511/Wrong-Repository -Visibility public -ExpectedSourceCommit 1111111111111111111111111111111111111111 -PlanOnly -EvidencePath ./bootstrap-wrong-target.json
+          $code = $LASTEXITCODE
+          if ($code -eq 0) { throw "wrong target repository must fail" }
           $r = Get-Content ./bootstrap-wrong-target.json -Raw | ConvertFrom-Json
           if ($r.status -ne 'FAIL') { throw "wrong-target evidence must be FAIL" }
+
+      - name: Release manifest binds exact bytes and forward version
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path ./release-fixture | Out-Null
+          $exe = './release-fixture/Geometry_Lotto_Pro_SSQ_Windows_Verified.exe'
+          'exact-candidate-bytes' | Set-Content -Path $exe -NoNewline -Encoding utf8
+          $sha = (Get-FileHash -Algorithm SHA256 $exe).Hash.ToLowerInvariant()
+          $self = [ordered]@{
+            status = 'PASS'
+            game = 'SSQ'
+            version = '8.5.1'
+            exe_sha256 = $sha
+          }
+          ($self | ConvertTo-Json) | Set-Content ./release-fixture/self.json -Encoding utf8
+          python tools/prepare_ssq_release_manifest.py --exe $exe --version 8.5.1 --base-version 8.5.0 --tag v8.5.1 --self-test ./release-fixture/self.json --output ./release-fixture/manifest.json --evidence ./release-fixture/evidence.json
+          if ($LASTEXITCODE -ne 0) { throw "valid release manifest should PASS" }
+          $m = Get-Content ./release-fixture/manifest.json -Raw | ConvertFrom-Json
+          if ($m.schema -ne 'ssq-software-update-manifest-v1') { throw "manifest schema mismatch" }
+          if ($m.version -ne '8.5.1') { throw "manifest version mismatch" }
+          if ($m.artifact_sha256 -ne $sha) { throw "manifest hash mismatch" }
+          if ($m.artifact_url -ne 'https://github.com/douluo511/Geometry-Lotto-Pro-SSQ/releases/download/v8.5.1/Geometry_Lotto_Pro_SSQ_Windows_Verified.exe') {
+            throw "manifest trusted release URL mismatch"
+          }
+
+      - name: Equal release version fails closed
+        shell: pwsh
+        run: |
+          python tools/prepare_ssq_release_manifest.py --exe ./release-fixture/Geometry_Lotto_Pro_SSQ_Windows_Verified.exe --version 8.5.0 --base-version 8.5.0 --tag v8.5.0 --self-test ./release-fixture/self.json --output ./release-fixture/equal.json --evidence ./release-fixture/equal-evidence.json
+          $code = $LASTEXITCODE
+          if ($code -eq 0) { throw "equal version must fail" }
+          $r = Get-Content ./release-fixture/equal-evidence.json -Raw | ConvertFrom-Json
+          if ($r.status -ne 'FAIL') { throw "equal-version evidence must be FAIL" }
+
+      - name: Self-test hash tamper fails closed
+        shell: pwsh
+        run: |
+          $self = [ordered]@{
+            status = 'PASS'
+            game = 'SSQ'
+            version = '8.5.1'
+            exe_sha256 = ('0' * 64)
+          }
+          ($self | ConvertTo-Json) | Set-Content ./release-fixture/tampered-self.json -Encoding utf8
+          python tools/prepare_ssq_release_manifest.py --exe ./release-fixture/Geometry_Lotto_Pro_SSQ_Windows_Verified.exe --version 8.5.1 --base-version 8.5.0 --tag v8.5.1 --self-test ./release-fixture/tampered-self.json --output ./release-fixture/tampered.json --evidence ./release-fixture/tampered-evidence.json
+          $code = $LASTEXITCODE
+          if ($code -eq 0) { throw "tampered self-test hash must fail" }
+          $r = Get-Content ./release-fixture/tampered-evidence.json -Raw | ConvertFrom-Json
+          if ($r.status -ne 'FAIL') { throw "tampered-hash evidence must be FAIL" }
