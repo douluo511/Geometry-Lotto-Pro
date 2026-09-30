@@ -481,6 +481,56 @@ def _software_self_test() -> dict[str, Any]:
         }
 
 
+def _software_local_acceptance(
+    target: Path,
+    candidate: Path,
+    *,
+    expect_rollback: bool,
+) -> dict[str, Any]:
+    """Acceptance-only exact-artifact transaction. Never counts as release network."""
+    if os.environ.get("GLP_UPDATER_ACCEPTANCE") != "1":
+        raise RuntimeError("local software acceptance mode is disabled outside acceptance")
+    target = target.resolve()
+    candidate = candidate.resolve()
+    if not target.is_file() or not candidate.is_file():
+        raise FileNotFoundError("local acceptance target/candidate missing")
+    before_hash = _file_sha256(target)
+    artifact = candidate.read_bytes()
+    candidate_hash = hashlib.sha256(artifact).hexdigest()
+    transaction = _apply_verified_artifact(
+        target,
+        artifact,
+        candidate_hash,
+        validator=_exact_main_self_test,
+    )
+    after_hash = _file_sha256(target) if target.is_file() else ""
+    if expect_rollback:
+        ok = (
+            transaction.get("status") == "FAIL"
+            and transaction.get("rolled_back") is True
+            and after_hash == before_hash
+            and transaction.get("restored_sha256") == before_hash
+        )
+    else:
+        ok = (
+            transaction.get("status") == "PASS"
+            and after_hash == candidate_hash
+            and isinstance(transaction.get("post_replace_validation"), dict)
+            and transaction["post_replace_validation"].get("status") == "PASS"
+            and transaction.get("previous_preserved") is True
+        )
+    return {
+        "status": "PASS" if ok else "FAIL",
+        "validation_scope": "LOCAL_EXACT_ARTIFACT_ACCEPTANCE_ONLY",
+        "release_network_status": "PENDING",
+        "expect_rollback": bool(expect_rollback),
+        "before_sha256": before_hash,
+        "candidate_sha256": candidate_hash,
+        "after_sha256": after_hash,
+        "transaction": transaction,
+    }
+
+
 def _offline_failclosed() -> dict[str, Any]:
     import glp.sources as sources
 
@@ -531,6 +581,16 @@ def _run(mode: str, root: Path, *, target_exe: Path | None = None, manifest_url:
             raise ValueError("software-update requires --target-exe and --manifest-url")
         result = _software_update(target_exe, manifest_url, wait_pid=wait_pid)
         return result.get("status", "FAIL"), result
+    if mode in {"software-local-install-acceptance", "software-local-rollback-acceptance"}:
+        candidate_text = os.environ.get("GLP_UPDATER_ACCEPTANCE_CANDIDATE", "")
+        if target_exe is None or not candidate_text:
+            raise ValueError("local software acceptance requires target and acceptance candidate")
+        result = _software_local_acceptance(
+            target_exe,
+            Path(candidate_text),
+            expect_rollback=(mode == "software-local-rollback-acceptance"),
+        )
+        return result.get("status", "FAIL"), result
 
     svc = LottoService(Store(root))
     if mode == "self-test":
@@ -558,7 +618,11 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--mode",
-        choices=["self-test", "update", "repair", "offline-failclosed", "software-self-test", "software-update"],
+        choices=[
+            "self-test", "update", "repair", "offline-failclosed",
+            "software-self-test", "software-update",
+            "software-local-install-acceptance", "software-local-rollback-acceptance",
+        ],
         required=True,
     )
     parser.add_argument("--result-file", type=Path, required=True)
