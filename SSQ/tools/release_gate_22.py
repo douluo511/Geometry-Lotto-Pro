@@ -27,13 +27,12 @@ def main() -> int:
     p.add_argument("--acceptance", required=True)
     p.add_argument("--exe", required=True)
     p.add_argument("--report", required=True)
-    p.add_argument("--repository-independent", choices=["PASS", "FAIL"], required=True)
     a = p.parse_args()
     gate_input = json.loads(Path(a.gate_input).read_text(encoding="utf-8-sig"))
     # Never trust a caller-supplied list of PASS strings. Re-derive the result
     # from current-run artifacts and reject a stale or hand-authored manifest.
     from derive_gate_status import derive
-    expected = derive(Path(a.acceptance).parent, Path(a.exe), a.repository_independent)
+    expected = derive(Path(a.acceptance).parent, Path(a.exe))
     manifest_matches = (
         gate_input.get("schema") == expected["schema"]
         and gate_input.get("gates") == expected["gates"]
