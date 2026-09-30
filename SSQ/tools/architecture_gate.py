@@ -94,6 +94,13 @@ def main() -> int:
         and "self.updater.update" in gui
         and "self.updater.repair" in gui
     )
+    checks["software_update_handoff_contract"] = (
+        "launch_software_update" in updater_client
+        and "HANDOFF_READY" in updater_client
+        and "--wait-pid" in updater_client
+        and "read_software_update_result" in updater_client
+        and "DETACHED_PROCESS" in updater_client
+    )
 
     status = "PASS" if all(checks.values()) and all(v == "PASS" for v in gates.values()) else "FAIL"
     report = {
