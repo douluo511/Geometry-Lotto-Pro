@@ -5,6 +5,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import updater
 
@@ -96,6 +97,51 @@ class SoftwareUpdaterTests(unittest.TestCase):
         payload["version"] = "latest"
         with self.assertRaises(ValueError):
             updater._parse_software_manifest(json.dumps(payload).encode("utf-8"))
+
+    def test_forward_version_policy_blocks_equal_and_downgrade(self):
+        updater._require_forward_version("8.5.0-verification", "8.5.0")
+        updater._require_forward_version("8.5.0", "8.5.1")
+        updater._require_forward_version("8.5.0-verification", "8.5.0-verification.1")
+        with self.assertRaises(ValueError):
+            updater._require_forward_version("8.5.0", "8.5.0")
+        with self.assertRaises(ValueError):
+            updater._require_forward_version("8.5.0", "8.4.9")
+        with self.assertRaises(ValueError):
+            updater._require_forward_version("8.5.0+build.1", "8.5.0+build.2")
+
+    def test_manifest_accepts_semver_build_metadata(self):
+        payload = {
+            "schema": updater.SOFTWARE_MANIFEST_SCHEMA,
+            "app": "Geometry Lotto Pro SSQ",
+            "version": "8.6.0-rc.1+build.7",
+            "artifact_url": "https://github.com/douluo511/Geometry-Lotto-Pro-SSQ/releases/download/v8.6.0/app.exe",
+            "artifact_sha256": "b" * 64,
+            "artifact_bytes": 456,
+        }
+        parsed = updater._parse_software_manifest(json.dumps(payload).encode("utf-8"))
+        self.assertEqual(parsed["version"], "8.6.0-rc.1+build.7")
+
+    def test_target_mutation_during_staging_fails_closed(self):
+        with tempfile.TemporaryDirectory() as td:
+            target = Path(td) / "app.exe"
+            target.write_bytes(b"known-good")
+            candidate = b"candidate"
+            original_stage = updater._stage_bytes
+
+            def mutate_then_stage(path, data):
+                original_stage(path, data)
+                target.write_bytes(b"concurrent-change")
+
+            with mock.patch.object(updater, "_stage_bytes", side_effect=mutate_then_stage):
+                with self.assertRaisesRegex(RuntimeError, "changed during staging"):
+                    updater._apply_verified_artifact(
+                        target,
+                        candidate,
+                        hashlib.sha256(candidate).hexdigest(),
+                        validator=lambda _p: (True, {"status": "PASS"}),
+                    )
+            self.assertEqual(target.read_bytes(), b"concurrent-change")
+            self.assertFalse(target.with_name(target.name + ".previous").exists())
 
     def test_atomic_replace_and_previous_preservation(self):
         with tempfile.TemporaryDirectory() as td:
