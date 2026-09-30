@@ -1396,7 +1396,7 @@ def derive(evidence: Path, exe: Path) -> dict[str, Any]:
         exact_results: dict[str, dict[str, Any]] = {}
         if acceptance_ok and actual_hash:
             for name in (
-                "integrity-tamper", "offline-failclosed", "corrupt-repair",
+                "self", "integrity-tamper", "offline-failclosed", "corrupt-repair",
                 "update", "science", "random-world-101", "random-world-202",
                 "random-world-303", "predict", "audit", "gui",
             ):
@@ -1406,6 +1406,22 @@ def derive(evidence: Path, exe: Path) -> dict[str, Any]:
                     proofs.setdefault("exact_result_errors", {})[name] = (
                         f"{type(exc).__name__}: {exc}"
                     )
+
+        exact_self = exact_results.get("self")
+        exact_version = exact_self.get("version") if isinstance(exact_self, dict) else None
+        stable_version = bool(
+            isinstance(exact_version, str)
+            and re.fullmatch(
+                r"\d+\.\d+\.\d+(?:\+[A-Za-z0-9.-]+)?",
+                exact_version,
+            )
+        )
+        gates["release_version"] = "PASS" if stable_version else "FAIL"
+        proofs["release_version"] = {
+            "version": exact_version,
+            "stable_semver": stable_version,
+            "rule": "Portfolio FINAL requires stable SemVer; prerelease labels such as -verification are forbidden",
+        }
 
         gates["fault_injection"] = (
             "PASS"
