@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import sqlite3
@@ -30,6 +31,26 @@ def event(db: sqlite3.Connection, kind: str, status: str, payload: dict) -> None
         (kind, status, "2026-09-28T00:00:00Z", json.dumps(payload)),
     )
     db.commit()
+
+
+def write_updater_proof(root: Path, mode: str, payload: dict, parent_pid: int = 4242) -> None:
+    canonical = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    report = {
+        "schema": "ssq-independent-updater-v1",
+        "status": "PASS",
+        "mode": mode,
+        "pid": parent_pid + 100,
+        "parent_pid": parent_pid,
+        "expected_parent_pid": parent_pid,
+        "parent_pid_match": True,
+        "data_dir": str(root.resolve()),
+        "updater_exe_sha256": "a" * 64,
+        "service_result": payload,
+        "service_result_sha256": hashlib.sha256(canonical).hexdigest(),
+    }
+    (root / "updater_last_run.json").write_text(
+        json.dumps(report, ensure_ascii=False), encoding="utf-8"
+    )
 
 
 class GuiBackendEffectTests(unittest.TestCase):
@@ -77,7 +98,11 @@ class GuiBackendEffectTests(unittest.TestCase):
                 event(db, "official_update", "PASS", payload)
             self.assertEqual(inspect_effect(root, "update")["status"], "FAIL")
             (root / "source_evidence.json").write_text("{}", encoding="utf-8")
-            self.assertEqual(inspect_effect(root, "update")["status"], "PASS")
+            self.assertEqual(inspect_effect(root, "update", parent_pid=4242)["status"], "FAIL")
+            write_updater_proof(root, "update", payload)
+            proof = inspect_effect(root, "update", parent_pid=4242)
+            self.assertEqual(proof["status"], "PASS")
+            self.assertEqual(proof["updater_process"]["child_pid"], 4342)
 
     def test_repair_and_audit_require_operation_specific_contract(self) -> None:
         with tempfile.TemporaryDirectory() as td:
@@ -85,14 +110,17 @@ class GuiBackendEffectTests(unittest.TestCase):
             with closing(make_db(root)) as db:
                 event(db, "repair", "PASS", {"status": "PASS", "repaired": False})
                 self.assertEqual(inspect_effect(root, "repair")["status"], "FAIL")
-                event(db, "repair", "PASS", {
+                repair_payload = {
                     "status": "PASS", "repaired": False, "integrity": {"ok": True},
                     "detail": "integrity OK; no repair required",
-                })
+                }
+                event(db, "repair", "PASS", repair_payload)
                 event(db, "audit", "FAIL", {
                     "software_verdict": "FAIL", "formal_freeze_written": False,
                 })
-            self.assertEqual(inspect_effect(root, "repair")["status"], "PASS")
+            self.assertEqual(inspect_effect(root, "repair", parent_pid=4242)["status"], "FAIL")
+            write_updater_proof(root, "repair", repair_payload)
+            self.assertEqual(inspect_effect(root, "repair", parent_pid=4242)["status"], "PASS")
             self.assertEqual(inspect_effect(root, "audit")["status"], "FAIL")
 
     def test_audit_pass_requires_court_hash_for_display_binding(self) -> None:
@@ -112,19 +140,24 @@ class GuiBackendEffectTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             (root / "source_evidence.json").write_text("{}", encoding="utf-8")
+            first_payload = {
+                "crosscheck_status": "PASS", "persisted_integrity": {"ok": True},
+                "canonical_hash": "first",
+            }
+            second_payload = {
+                "crosscheck_status": "PASS", "persisted_integrity": {"ok": True},
+                "canonical_hash": "second",
+            }
             with closing(make_db(root)) as db:
-                event(db, "official_update", "PASS", {
-                    "crosscheck_status": "PASS", "persisted_integrity": {"ok": True},
-                    "canonical_hash": "first",
-                })
+                event(db, "official_update", "PASS", first_payload)
                 first_id = db.execute("SELECT MAX(id) FROM experiments").fetchone()[0]
-                event(db, "official_update", "PASS", {
-                    "crosscheck_status": "PASS", "persisted_integrity": {"ok": True},
-                    "canonical_hash": "second",
-                })
-            latest = inspect_effect(root, "update")
-            exact = inspect_effect(root, "update", experiment_id=int(first_id))
+                event(db, "official_update", "PASS", second_payload)
+            write_updater_proof(root, "update", second_payload)
+            latest = inspect_effect(root, "update", parent_pid=4242)
+            self.assertEqual(latest["status"], "PASS")
             self.assertEqual(latest["display_token"], "second")
+            write_updater_proof(root, "update", first_payload)
+            exact = inspect_effect(root, "update", experiment_id=int(first_id), parent_pid=4242)
             self.assertEqual(exact["status"], "PASS")
             self.assertEqual(exact["experiment_id"], first_id)
             self.assertEqual(exact["display_token"], "first")
@@ -140,10 +173,14 @@ class GuiBackendEffectTests(unittest.TestCase):
                     "status": "PASS", "repaired": False, "integrity": {"ok": True},
                     "detail": "integrity OK; no repair required",
                 })
+            write_updater_proof(data, "repair", {
+                "status": "PASS", "repaired": False, "integrity": {"ok": True},
+                "detail": "integrity OK; no repair required",
+            })
             old_cwd = os.getcwd()
             try:
                 os.chdir(root)
-                proof = inspect_effect(Path("data"), "repair")
+                proof = inspect_effect(Path("data"), "repair", parent_pid=4242)
             finally:
                 os.chdir(old_cwd)
             self.assertEqual(proof["status"], "PASS")
