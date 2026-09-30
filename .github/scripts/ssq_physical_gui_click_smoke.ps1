@@ -26,6 +26,7 @@ public static class PhysicalGuiClick {
   [DllImport("user32.dll")] public static extern IntPtr GetParent(IntPtr hWnd);
   [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
   [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetClassNameW(IntPtr hWnd, StringBuilder text, int length);
+  [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetWindowTextW(IntPtr hWnd, StringBuilder text, int length);
   [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hWnd);
   [DllImport("user32.dll")] public static extern bool IsWindowEnabled(IntPtr hWnd);
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
@@ -105,15 +106,18 @@ function Get-Control([IntPtr]$window,[int]$id,[int]$processId,[string]$expectedC
   }
   $element = [System.Windows.Automation.AutomationElement]::FromHandle($handle)
   if($null -eq $element){ throw "Control $id has no UI Automation element" }
-  $expectedType = if($expectedClass -eq "BUTTON"){
-    [System.Windows.Automation.ControlType]::Button
-  } elseif($expectedClass -eq "EDIT"){
-    [System.Windows.Automation.ControlType]::Edit
-  } else {
-    [System.Windows.Automation.ControlType]::Text
+  $nativeText = New-Object System.Text.StringBuilder 512
+  [void][PhysicalGuiClick]::GetWindowTextW($handle,$nativeText,$nativeText.Capacity)
+  if($expectedClass -ne "BUTTON"){
+    $expectedType = if($expectedClass -eq "EDIT"){
+      [System.Windows.Automation.ControlType]::Edit
+    } else {
+      [System.Windows.Automation.ControlType]::Text
+    }
+    if($element.Current.ControlType -ne $expectedType){ throw "Control $id UIA type mismatch" }
   }
-  if($element.Current.ControlType -ne $expectedType){ throw "Control $id UIA type mismatch" }
-  return @{ hwnd=$handle; element=$element; name=[string]$element.Current.Name; class=$className.ToString() }
+  $resolvedName = if($nativeText.Length -gt 0){ $nativeText.ToString() } else { [string]$element.Current.Name }
+  return @{ hwnd=$handle; element=$element; name=$resolvedName; class=$className.ToString(); uia_type=[string]$element.Current.ControlType.ProgrammaticName }
 }
 
 function Get-EditValue($control){
