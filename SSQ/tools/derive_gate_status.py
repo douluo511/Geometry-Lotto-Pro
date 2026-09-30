@@ -74,6 +74,18 @@ def _require_exact_result(evidence: Path, name: str, exe_hash: str) -> dict[str,
     return report
 
 
+def _require_source_result(
+    evidence: Path, filename: str, scope: str
+) -> dict[str, Any]:
+    report = _read(evidence / filename)
+    if (not isinstance(report, dict) or report.get("status") != "PASS"
+            or report.get("scope") != scope
+            or report.get("github_sha") != os.environ.get("GITHUB_SHA")
+            or report.get("github_run_id") != os.environ.get("GITHUB_RUN_ID")):
+        raise ValueError(f"{filename} is not a current-run source PASS for {scope}")
+    return report
+
+
 def _utc_recent(value: Any) -> bool:
     if not isinstance(value, str) or not value.endswith("Z"):
         return False
@@ -776,6 +788,107 @@ def _verify_live_evidence(evidence_dir: Path, exe_hash: str) -> dict[str, Any]:
 def derive(evidence: Path, exe: Path) -> dict[str, Any]:
     gates = {name: "PENDING" for name in HARD_GATES}
     proofs: dict[str, Any] = {}
+
+    architecture_names = (
+        "purpose_model", "five_why", "risk_boundary", "domain_model", "architecture",
+        "function_contract", "interface_contract", "data_source", "netclient",
+        "storage", "engine", "evidence", "service", "ui",
+    )
+    try:
+        architecture = _require_current_report(
+            evidence, "ARCHITECTURE_GATE.json", "ssq-architecture-gate-v2"
+        )
+        arch_gates = architecture.get("gates")
+        if not isinstance(arch_gates, dict):
+            raise ValueError("architecture report has no gate map")
+        for name in architecture_names:
+            gates[name] = "PASS" if arch_gates.get(name) == "PASS" else "FAIL"
+        proofs["architecture"] = {
+            "report": str(evidence / "ARCHITECTURE_GATE.json"),
+            "report_sha256": _hash(evidence / "ARCHITECTURE_GATE.json"),
+        }
+    except Exception as exc:
+        for name in architecture_names:
+            gates[name] = "FAIL"
+        proofs["architecture"] = {"error": f"{type(exc).__name__}: {exc}"}
+
+    try:
+        unit = _require_current_report(evidence, "UNIT_GATE.json", "ssq-unit-gate-v1")
+        if unit.get("exit_code") != 0:
+            raise ValueError("unit gate exit code is nonzero")
+        gates["unit_test"] = "PASS"
+        proofs["unit_test"] = {
+            "report": str(evidence / "UNIT_GATE.json"),
+            "report_sha256": _hash(evidence / "UNIT_GATE.json"),
+        }
+    except Exception as exc:
+        gates["unit_test"] = "FAIL"
+        proofs["unit_test"] = {"error": f"{type(exc).__name__}: {exc}"}
+
+    try:
+        contract = _require_current_report(
+            evidence, "NETCLIENT_CONTRACT_GATE.json", "ssq-netclient-contract-gate-v2"
+        )
+        if int(contract.get("hard_fail_count", -1)) != 0:
+            raise ValueError("NetClient contract hard failures are nonzero")
+        checks = contract.get("checks")
+        if not isinstance(checks, dict) or not checks or any(
+            not isinstance(row, dict) or row.get("status") != "PASS"
+            for row in checks.values()
+        ):
+            raise ValueError("NetClient contract check set is incomplete")
+        gates["contract_test"] = "PASS"
+        gates["netclient"] = "PASS" if gates["netclient"] == "PASS" else "FAIL"
+        proofs["contract_test"] = {
+            "report": str(evidence / "NETCLIENT_CONTRACT_GATE.json"),
+            "report_sha256": _hash(evidence / "NETCLIENT_CONTRACT_GATE.json"),
+        }
+    except Exception as exc:
+        gates["contract_test"] = "FAIL"
+        gates["netclient"] = "FAIL"
+        proofs["contract_test"] = {"error": f"{type(exc).__name__}: {exc}"}
+
+    try:
+        business = _require_current_report(
+            evidence, "BUSINESS_GATE.json", "ssq-business-gate-v1"
+        )
+        checks = business.get("checks")
+        if not isinstance(checks, dict) or not checks or not all(checks.values()):
+            raise ValueError("business content checks are incomplete")
+        gates["business_content"] = "PASS"
+        proofs["business_content"] = {
+            "report": str(evidence / "BUSINESS_GATE.json"),
+            "report_sha256": _hash(evidence / "BUSINESS_GATE.json"),
+        }
+    except Exception as exc:
+        gates["business_content"] = "FAIL"
+        proofs["business_content"] = {"error": f"{type(exc).__name__}: {exc}"}
+
+    source_self_ok = False
+    source_fault_ok = False
+    try:
+        _require_source_result(evidence, "source-self.json", "self")
+        source_self_ok = True
+    except Exception as exc:
+        proofs["source_self"] = {"error": f"{type(exc).__name__}: {exc}"}
+    try:
+        for filename, scope in (
+            ("source-integrity-tamper.json", "integrity-tamper"),
+            ("source-offline-failclosed.json", "offline-failclosed"),
+            ("source-corrupt-repair.json", "corrupt-repair"),
+        ):
+            _require_source_result(evidence, filename, scope)
+        source_fault_ok = True
+        proofs["source_fault_injection"] = {
+            "reports": [
+                "source-integrity-tamper.json",
+                "source-offline-failclosed.json",
+                "source-corrupt-repair.json",
+            ],
+        }
+    except Exception as exc:
+        proofs["source_fault_injection"] = {"error": f"{type(exc).__name__}: {exc}"}
+
     acceptance_path = evidence / "WINDOWS_EXACT_EXE_ACCEPTANCE.json"
     acceptance = _read(acceptance_path)
     acceptance_ok = False
