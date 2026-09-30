@@ -118,6 +118,7 @@ Final acceptance requires bit-for-bit rebuild proof, not merely a hash that stay
 - PyInstaller builds run with frozen `PYTHONHASHSEED=1` and `SOURCE_DATE_EPOCH=946684800`.
 - The independent Updater EXE is clean-built twice; SHA256 must be identical.
 - The main Windows EXE is then clean-built twice with the corresponding byte-identical updater bundle; SHA256 must be identical.
+- Primary and rebuild passes must use physically distinct `--distpath`, `--workpath`, and `--specpath` locations. Shared build/spec/work directories are non-PASS even if the resulting SHA256 happens to match.
 - `REPRODUCIBLE_BUILD.json` is current-run evidence and `reproducible_build` is a first-class Final Gate.
 - Any dependency, action pin, Python version, deterministic-build setting or build script change invalidates prior reproducibility evidence and requires the full chain again.
 
