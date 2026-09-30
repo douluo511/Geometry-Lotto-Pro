@@ -585,6 +585,40 @@ class ReleaseGateEvidenceTests(unittest.TestCase):
                 local_spoof = derive(root, root / "missing.exe")
             self.assertEqual(local_spoof["gates"]["repository_independence"], "FAIL")
 
+    def test_verification_version_cannot_be_portfolio_final(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            exe = root / "candidate.exe"
+            exe.write_bytes(b"candidate-build")
+            digest = hashlib.sha256(exe.read_bytes()).hexdigest()
+            acceptance = {
+                "runner_os": "Windows", "artifact": exe.name, "sha256": digest,
+                "github_sha": "a" * 40, "github_run_id": "12345",
+                "windows_exact_exe_acceptance": "PASS", "final_release_gate": "PENDING",
+                "hard_fail_count": 0, "checks": self.complete_exe_checks(),
+            }
+            (root / "WINDOWS_EXACT_EXE_ACCEPTANCE.json").write_text(
+                json.dumps(acceptance), encoding="utf-8",
+            )
+            self.write_synthetic_corrupt_repair_contract(root, digest)
+            self.write_current_checkout_identity(root)
+            self_result = {
+                "status": "PASS", "scope": "self", "game": "SSQ", "platform": "win32",
+                "github_sha": "a" * 40, "github_run_id": "12345",
+                "exe_sha256": digest, "final_release_gate": "PENDING",
+                "version": "8.5.0-verification",
+            }
+            (root / "self.json").write_text(json.dumps(self_result), encoding="utf-8")
+            with patch.dict(os.environ, {
+                "GITHUB_SHA": "a" * 40, "GITHUB_RUN_ID": "12345",
+            }):
+                report = derive(root, exe)
+            self.assertEqual(report["gates"]["release_version"], "FAIL")
+            self.assertEqual(
+                report["proofs"]["release_version"]["version"],
+                "8.5.0-verification",
+            )
+
     def test_missing_evidence_never_passes(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
