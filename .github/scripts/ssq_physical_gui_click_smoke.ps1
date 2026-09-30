@@ -194,7 +194,10 @@ try {
           throw "Exact EXE GUI exited before backend effect was proved"
         }
         $effect = Read-BackendEffect $dataDir $op.name 0 $guiPid
-        if($effect.status -eq "FAIL"){ throw "Backend $($op.name) FAIL: $($effect.reason)" }
+        if($effect.status -eq "FAIL"){
+          $effectJson = $effect | ConvertTo-Json -Compress -Depth 12
+          throw "Backend $($op.name) FAIL: $($effect.reason); effect=$effectJson"
+        }
         if($effect.status -eq "PASS"){
           $afterText = Get-EditValue $output
           $afterStatus = [string](Get-NativeText $status.hwnd)
