@@ -89,6 +89,37 @@ def _exact_main_identity(path: Path, expected_version: str | None = None) -> dic
     }
 
 
+def _spawn_wait_probe(seconds: float = 20.0) -> subprocess.Popen[Any]:
+    if seconds <= 0:
+        raise ValueError("wait probe duration must be positive")
+    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0
+    return subprocess.Popen(
+        [sys.executable, "-c", f"import time; time.sleep({seconds!r})"],
+        creationflags=flags,
+    )
+
+
+def _require_wait_proof(service: dict[str, Any], expected_pid: int) -> dict[str, Any]:
+    wait = service.get("wait_for_main")
+    elapsed = wait.get("elapsed") if isinstance(wait, dict) else None
+    elapsed_ok = (
+        isinstance(elapsed, (int, float))
+        and not isinstance(elapsed, bool)
+        and elapsed > 0
+    )
+    if (
+        not isinstance(wait, dict)
+        or wait.get("status") != "PASS"
+        or wait.get("waited") is not True
+        or type(wait.get("pid")) is not int
+        or wait.get("pid") != expected_pid
+        or expected_pid <= 0
+        or not elapsed_ok
+    ):
+        raise RuntimeError("exact updater did not prove waiting for a live main-process PID")
+    return wait
+
+
 def run_acceptance(
     updater_exe: Path,
     candidate_exe: Path,
@@ -139,17 +170,33 @@ def run_acceptance(
     env = os.environ.copy()
     env["GLP_DATA_DIR"] = str(data_dir)
     env["GLP_UPDATER_PARENT_PID"] = str(os.getpid())
-    proc = subprocess.run(
-        [
-            str(updater_exe),
-            "--mode", "software-update",
-            "--result-file", str(result_path),
-            "--target-exe", str(target),
-            "--manifest-url", release_manifest_url,
-        ],
-        env=env,
-        timeout=3600,
-    )
+
+    # Prove the production ordering rule with a genuinely live PID. The exact
+    # updater must block on this process and only replace after it exits.
+    wait_probe = _spawn_wait_probe()
+    wait_probe_pid = int(wait_probe.pid)
+    try:
+        proc = subprocess.run(
+            [
+                str(updater_exe),
+                "--mode", "software-update",
+                "--result-file", str(result_path),
+                "--target-exe", str(target),
+                "--manifest-url", release_manifest_url,
+                "--wait-pid", str(wait_probe_pid),
+            ],
+            env=env,
+            timeout=3600,
+        )
+    finally:
+        if wait_probe.poll() is None:
+            wait_probe.terminate()
+            try:
+                wait_probe.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                wait_probe.kill()
+                wait_probe.wait(timeout=5)
+
     report = json.loads(result_path.read_text(encoding="utf-8-sig")) if result_path.is_file() else {}
     if (
         proc.returncode != 0
@@ -173,6 +220,7 @@ def run_acceptance(
     service = report.get("service_result")
     if not isinstance(service, dict) or service.get("status") != "PASS":
         raise RuntimeError("exact updater software-update service result did not PASS")
+    wait_proof = _require_wait_proof(service, wait_probe_pid)
     if service.get("from_version") != base_manifest["version"]:
         raise RuntimeError("exact updater did not report the verified base version")
     if service.get("to_version") != candidate["version"]:
@@ -223,6 +271,8 @@ def run_acceptance(
         "exact_updater_report_sha256": _sha256(result_path),
         "installed_sha256": installed_hash,
         "installed_version": installed["version"],
+        "wait_for_main": wait_proof,
+        "wait_probe_pid": wait_probe_pid,
     }
     atomic_json(evidence_dir / "UPDATER_REAL_RELEASE_ACCEPTANCE.json", summary)
     return summary
