@@ -129,6 +129,15 @@ class GuiBackendEffectTests(unittest.TestCase):
             self.assertEqual(result["status"], "FAIL")
             self.assertEqual(result["updater_process"]["status"], "FAIL")
 
+            # Once a proof file exists, malformed/forged process ancestry is a
+            # hard failure and must never be downgraded to transient PENDING.
+            proof["ancestor_pids"] = [proof["parent_pid"], 4242]
+            proof["service_result_sha256"] = "0" * 64
+            proof_path.write_text(json.dumps(proof), encoding="utf-8")
+            forged = inspect_effect(root, "update", parent_pid=4242)
+            self.assertEqual(forged["status"], "FAIL")
+            self.assertEqual(forged["updater_process"]["status"], "FAIL")
+
     def test_update_requires_persisted_quorum_and_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
@@ -142,7 +151,10 @@ class GuiBackendEffectTests(unittest.TestCase):
             self.assertEqual(missing_evidence["status"], "FAIL")
             self.assertFalse(missing_evidence["contract_checks"]["source_evidence_file"])
             (root / "source_evidence.json").write_text("{}", encoding="utf-8")
-            self.assertEqual(inspect_effect(root, "update", parent_pid=4242)["status"], "FAIL")
+            waiting = inspect_effect(root, "update", parent_pid=4242)
+            self.assertEqual(waiting["status"], "PENDING")
+            self.assertEqual(waiting["updater_process"]["status"], "PENDING")
+            self.assertFalse(waiting["contract_checks"]["updater_process"])
             write_updater_proof(root, "update", payload)
             proof = inspect_effect(root, "update", parent_pid=4242)
             self.assertEqual(proof["status"], "PASS")
@@ -164,7 +176,9 @@ class GuiBackendEffectTests(unittest.TestCase):
                 event(db, "audit", "FAIL", {
                     "software_verdict": "FAIL", "formal_freeze_written": False,
                 })
-            self.assertEqual(inspect_effect(root, "repair", parent_pid=4242)["status"], "FAIL")
+            waiting = inspect_effect(root, "repair", parent_pid=4242)
+            self.assertEqual(waiting["status"], "PENDING")
+            self.assertEqual(waiting["updater_process"]["status"], "PENDING")
             write_updater_proof(root, "repair", repair_payload)
             self.assertEqual(inspect_effect(root, "repair", parent_pid=4242)["status"], "PASS")
             self.assertEqual(inspect_effect(root, "audit")["status"], "FAIL")
