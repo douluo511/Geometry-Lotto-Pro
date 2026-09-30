@@ -1746,20 +1746,29 @@ def derive(evidence: Path, exe: Path) -> dict[str, Any]:
         try:
             gui_proof = _verify_gui_evidence(physical, evidence, exe, acceptance_ok)
             gates["gui_smoke"] = "PASS"
-            proofs["gui_smoke"] = {"report": str(physical_path),
-                                   "report_sha256": _hash(physical_path), **gui_proof}
+            gates["physical_gui_click"] = "PASS"
+            physical_proof = {
+                "report": str(physical_path),
+                "report_sha256": _hash(physical_path),
+                **gui_proof,
+            }
+            proofs["gui_smoke"] = dict(physical_proof)
+            proofs["physical_gui_click"] = dict(physical_proof)
         except (OSError, TypeError, ValueError, KeyError, sqlite3.Error) as exc:
             gates["gui_smoke"] = "FAIL"
-            proofs["gui_smoke"] = {"error": f"{type(exc).__name__}: {exc}"}
+            gates["physical_gui_click"] = "FAIL"
+            error = {"error": f"{type(exc).__name__}: {exc}"}
+            proofs["gui_smoke"] = dict(error)
+            proofs["physical_gui_click"] = dict(error)
             gates["same_hash"] = "FAIL"
-    if (acceptance_ok and gates["gui_smoke"] == "PASS"
+    if (acceptance_ok and gates["physical_gui_click"] == "PASS"
             and gates["real_network"] == "PASS"):
         gates["same_hash"] = "PASS"
     gates["integration_test"] = (
         "PASS"
         if source_self_ok and acceptance_ok
         and gates["real_network"] == "PASS"
-        and gates["gui_smoke"] == "PASS"
+        and gates["physical_gui_click"] == "PASS"
         and "update" in locals().get("exact_results", {})
         else "FAIL"
     )
