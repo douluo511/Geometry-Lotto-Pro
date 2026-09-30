@@ -201,7 +201,16 @@ jobs:
           if-no-files-found: warn
           retention-days: 30
 
-      - name: Upload final EXE only after all hard gates pass
+      - name: Upload final audit evidence before release artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Geometry-Lotto-Pro-SSQ-FINAL-AUDIT-${{ github.sha }}
+          path: SSQ/evidence/SSQ/**
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload final EXE only after all hard gates and audit upload pass
         if: success()
         uses: actions/upload-artifact@v4
         with:
@@ -210,15 +219,6 @@ jobs:
           if-no-files-found: error
           retention-days: 30
           compression-level: 0
-
-      - name: Upload final audit evidence separately
-        if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: Geometry-Lotto-Pro-SSQ-FINAL-AUDIT-${{ github.sha }}
-          path: SSQ/evidence/SSQ/**
-          if-no-files-found: error
-          retention-days: 30
 
 # Hard-gate revalidation trigger: 2026-09-24 master-template
 
