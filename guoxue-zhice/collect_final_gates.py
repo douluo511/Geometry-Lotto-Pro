@@ -16,7 +16,7 @@ def sha256(path:Path)->str|None:
         for b in iter(lambda:f.read(1024*1024),b""): h.update(b)
     return h.hexdigest()
 def main()->int:
-    p=argparse.ArgumentParser(); p.add_argument("--exe",required=True); p.add_argument("--final-exe",required=True); p.add_argument("--physical-gui",required=True); p.add_argument("--output",required=True); a=p.parse_args()
+    p=argparse.ArgumentParser(); p.add_argument("--exe",required=True); p.add_argument("--final-exe",required=True); p.add_argument("--physical-gui",required=True); p.add_argument("--repository-independent",choices=["PASS","FAIL"],required=True); p.add_argument("--output",required=True); a=p.parse_args()
     current=os.environ.get("GITHUB_SHA")
     reports={
       "architecture":read(ROOT/"architecture_gate.json"),"business":read(ROOT/"business_gate.json"),
@@ -48,6 +48,7 @@ def main()->int:
     gates["gui_smoke"]="PASS" if physical_ok and (exact.get("gui_smoke") or {}).get("status")=="PASS" else "FAIL"
     gates["same_hash"]="PASS" if sh and sh==fh==exact.get("exe_sha256") else "FAIL"
     gates["business_content"]="PASS" if bound["business"] and reports["business"].get("status")=="PASS" else "FAIL"
+    gates["repository_independence"]=a.repository_independent
     failures={k:v for k,v in gates.items() if v!="PASS"}
     report={"schema":"guoxue-mother-gate-input-v1","status":"PASS" if not failures else "FAIL","hard_fail_count":len(failures),"github_sha":current,"gates":gates,"failures":failures,"exe_sha256":sh,"final_exe_sha256":fh,"current_run_binding":bound}
     Path(a.output).write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding="utf-8"); print(json.dumps(report,ensure_ascii=False))
