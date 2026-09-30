@@ -449,8 +449,11 @@ def _apply_verified_artifact(
                 try:
                     os.replace(rollback, target)
                     evidence["rolled_back"] = _file_sha256(target) == before_hash
-                except Exception:
-                    pass
+                except Exception as rollback_exc:
+                    raise RuntimeError(
+                        "failed to restore original executable after pre-install failure: "
+                        f"{type(rollback_exc).__name__}: {rollback_exc}"
+                    ) from rollback_exc
             else:
                 rollback.unlink(missing_ok=True)
 
