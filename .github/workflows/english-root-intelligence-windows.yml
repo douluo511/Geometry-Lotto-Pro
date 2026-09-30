@@ -93,7 +93,7 @@ jobs:
       - name: Evidence-derived Final Gate and Same Hash
         shell: pwsh
         run: |
-          python collect_final_gates.py --exe ".\dist\English_Root_Intelligence.exe" --final-exe ".\dist\final\English_Root_Intelligence.exe" --physical-gui ".\physical_gui_click.json" --output ".\mother_gates.json"
+          python collect_final_gates.py --exe ".\dist\English_Root_Intelligence.exe" --final-exe ".\dist\final\English_Root_Intelligence.exe" --physical-gui ".\physical_gui_click.json" --repository-independent FAIL --output ".\mother_gates.json"
           $collectorExit=$LASTEXITCODE
           python release_gate.py --input ".\mother_gates.json" --output ".\final_gate.json"
           $releaseExit=$LASTEXITCODE
