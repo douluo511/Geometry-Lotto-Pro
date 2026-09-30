@@ -668,7 +668,7 @@ class ReleaseGateEvidenceTests(unittest.TestCase):
                 "GITHUB_SHA": "a" * 40, "GITHUB_RUN_ID": "12345",
             }):
                 with self.assertRaises(ValueError):
-                    _verify_updater_release_network(root, updater_hash)
+                    _verify_updater_release_network(root, updater_hash, digest)
     def test_updater_mechanics_pass_cannot_replace_real_release_network(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
