@@ -157,20 +157,30 @@ def _verify_reversal_contract(
     reverse = court.get("reverse_validation")
     ablation = court.get("ablation")
     audit_result = audit.get("result")
+    audit_court = audit_result.get("court") if isinstance(audit_result, dict) else None
+    audit_reverse = audit_court.get("reverse_validation") if isinstance(audit_court, dict) else None
+    audit_ablation = audit_court.get("ablation") if isinstance(audit_court, dict) else None
     if (not isinstance(reverse, dict)
             or not all(reverse.get(key) is True for key in ("remove", "shuffle", "random_replace"))
             or not isinstance(ablation, dict) or ablation.get("executed") is not True
             or not isinstance(audit_result, dict)
             or audit_result.get("software_verdict") != "PASS"
-            or audit_result.get("edge_state") != "NO_EDGE"
-            or audit_result.get("dan_state") != "NULL_DAN"):
+            or not isinstance(audit_court, dict)
+            or audit_court.get("software_verdict") != "PASS"
+            or audit_court.get("edge_state") != "NO_EDGE"
+            or audit_court.get("dan_state") != "NULL_DAN"
+            or audit_court.get("court_hash") != court.get("court_hash")
+            or audit_reverse != reverse
+            or not isinstance(audit_ablation, dict)
+            or audit_ablation.get("executed") is not True):
         raise ValueError("reversal/ablation/audit evidence did not PASS")
     return {
         "remove": True,
         "shuffle": True,
         "random_replace": True,
         "ablation_executed": True,
-        "audit_edge_state": audit_result.get("edge_state"),
+        "audit_edge_state": audit_court.get("edge_state"),
+        "court_hash": audit_court.get("court_hash"),
     }
 
 
@@ -712,7 +722,10 @@ def _verify_gui_evidence(physical: dict[str, Any], evidence_dir: Path, exe: Path
                 or not isinstance(row.get("after_status"), str)
                 or "FAIL" in row["after_status"].upper()):
             raise ValueError(f"physical GUI row {index} has no inspectable operation output")
-        observed = inspect_effect(data_dir, operation, 0)
+        experiment_id = effect.get("experiment_id")
+        if not isinstance(experiment_id, int) or experiment_id <= 0:
+            raise ValueError(f"physical GUI row {index} has no exact ledger event ID")
+        observed = inspect_effect(data_dir, operation, 0, experiment_id=experiment_id)
         fields = ("status", "operation", "after_id", "experiment_id", "kind",
                   "event_status", "payload_sha256", "display_token")
         if (observed.get("status") != "PASS"
