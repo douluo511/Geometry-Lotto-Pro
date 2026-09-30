@@ -169,10 +169,14 @@ def _verify_reversal_contract(
             or audit_court.get("software_verdict") != "PASS"
             or audit_court.get("edge_state") != "NO_EDGE"
             or audit_court.get("dan_state") != "NULL_DAN"
-            or audit_court.get("court_hash") != court.get("court_hash")
+            or audit_court.get("pre_registered_policy") != court.get("pre_registered_policy")
+            or audit_court.get("model_hash") != court.get("model_hash")
+            or audit_court.get("selector_hash") != court.get("selector_hash")
             or audit_reverse != reverse
             or not isinstance(audit_ablation, dict)
-            or audit_ablation.get("executed") is not True):
+            or audit_ablation.get("executed") is not True
+            or not isinstance(audit_court.get("final_validation"), dict)
+            or audit_court["final_validation"].get("status") != "PASS"):
         raise ValueError("reversal/ablation/audit evidence did not PASS")
     return {
         "remove": True,
@@ -180,7 +184,8 @@ def _verify_reversal_contract(
         "random_replace": True,
         "ablation_executed": True,
         "audit_edge_state": audit_court.get("edge_state"),
-        "court_hash": audit_court.get("court_hash"),
+        "science_court_hash": court.get("court_hash"),
+        "audit_court_hash": audit_court.get("court_hash"),
     }
 
 
