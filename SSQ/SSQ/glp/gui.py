@@ -4,11 +4,13 @@ import ctypes
 import json
 import queue
 import threading
+from pathlib import Path
 from ctypes import wintypes
 from typing import Any, Callable
 
 from glp.constants import APP_NAME, APP_VERSION
 from glp.service import LottoService
+from glp.updater_client import UpdaterClient
 
 # Pure Win32 UI: no tkinter/Tcl dependency.  The original app used the same
 # native approach; this module keeps the four-entry interface while binding it
@@ -72,8 +74,9 @@ def _pretty(value: Any) -> str:
 
 
 class NativeApp:
-    def __init__(self, service: LottoService | None = None):
+    def __init__(self, service: LottoService | None = None, updater: UpdaterClient | None = None):
         self.service = service or LottoService()
+        self.updater = updater or UpdaterClient(self.service.store.root)
         self.events: queue.Queue[tuple[str, Any]] = queue.Queue()
         self.busy = False
         self.controls: dict[int, HWND] = {}
@@ -288,10 +291,10 @@ class NativeApp:
                 self._start("预测下一期", self.service.predict, self._render_prediction)
                 return 0
             if cid == BTN_UPDATE:
-                self._start("一键更新", self.service.update, self._render_update)
+                self._start("一键更新", self.updater.update, self._render_update)
                 return 0
             if cid == BTN_REPAIR:
-                self._start("一键修复", self.service.repair, self._render_repair)
+                self._start("一键修复", self.updater.repair, self._render_repair)
                 return 0
             if cid == BTN_AUDIT:
                 self._start("高级分析", self.service.audit, self._render_audit)
@@ -328,29 +331,47 @@ def gui_self_test() -> dict[str, Any]:
     """
     import time
 
-    class _Spy:
+    class _ServiceSpy:
         def __init__(self):
             self.calls = []
+            class _Store:
+                root = Path(".").resolve()
+            self.store = _Store()
         def _hit(self, name, progress=None):
             self.calls.append(name)
             return {"status": "PASS", "final_gate": {"status": "PASS"}, "software_verdict": "PASS"}
         def predict(self, progress=None): return self._hit("predict", progress)
+        def audit(self, progress=None): return self._hit("audit", progress)
+
+    class _UpdaterSpy:
+        def __init__(self):
+            self.calls = []
+        def _hit(self, name, progress=None):
+            self.calls.append(name)
+            if name == "update":
+                return {"status": "PASS", "crosscheck_status": "PASS", "canonical_hash": "gui-self-test", "source_receipts": []}
+            return {"status": "PASS", "repaired": False, "detail": "gui-self-test", "integrity": {"ok": True}}
         def update(self, progress=None): return self._hit("update", progress)
         def repair(self, progress=None): return self._hit("repair", progress)
-        def audit(self, progress=None): return self._hit("audit", progress)
 
     checks = {}
     app = None
     try:
-        spy = _Spy()
-        app = NativeApp(spy)
+        service_spy = _ServiceSpy()
+        updater_spy = _UpdaterSpy()
+        app = NativeApp(service_spy, updater_spy)
         checks["native_window_created"] = bool(app.user32.IsWindow(app.hwnd))
         for cid in (BTN_PREDICT, BTN_UPDATE, BTN_REPAIR, BTN_AUDIT):
             checks[f"control_{cid}"] = bool(app.user32.IsWindow(app.controls[cid]))
         app.user32.SendMessageW.argtypes = [HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
         app.user32.SendMessageW.restype = LRESULT
-        routes = [(BTN_PREDICT, "predict"), (BTN_UPDATE, "update"), (BTN_REPAIR, "repair"), (BTN_AUDIT, "audit")]
-        for cid, expected in routes:
+        routes = [
+            (BTN_PREDICT, "predict", service_spy),
+            (BTN_UPDATE, "update", updater_spy),
+            (BTN_REPAIR, "repair", updater_spy),
+            (BTN_AUDIT, "audit", service_spy),
+        ]
+        for cid, expected, spy in routes:
             before = len(spy.calls)
             app.user32.SendMessageW(app.hwnd, WM_COMMAND, cid, 0)
             deadline = time.time() + 2.0
@@ -360,6 +381,8 @@ def gui_self_test() -> dict[str, Any]:
                     break
                 time.sleep(0.01)
             checks[f"route_{expected}"] = len(spy.calls) > before and spy.calls[-1] == expected
+        checks["update_uses_independent_updater_client"] = updater_spy.calls.count("update") == 1
+        checks["repair_uses_independent_updater_client"] = updater_spy.calls.count("repair") == 1
     except Exception as exc:
         return {"status": "FAIL", "checks": checks, "error": str(exc), "scope": "Win32 window/control/WM_COMMAND routing"}
     finally:
