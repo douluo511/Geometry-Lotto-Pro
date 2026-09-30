@@ -81,5 +81,13 @@ class UpdaterReleaseAcceptanceTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, "waiting for a live main-process PID"):
                     release_acceptance._require_wait_proof({"wait_for_main": wait}, 4321)
 
+    def test_exact_base_main_exit_scheduler_rejects_nonpositive_delay(self) -> None:
+        class Dummy:
+            pid = 4321
+            def poll(self):
+                return None
+        with self.assertRaisesRegex(ValueError, "exit delay"):
+            release_acceptance._schedule_exact_base_main_exit(Dummy(), 0)
+
 if __name__ == "__main__":
     unittest.main()
