@@ -34,6 +34,8 @@ jobs:
         run: python scripts/shanghai_contract_probe.py --output evidence/shanghai_contract_probe.json
       - name: Jiangsu official full-history contract probe
         run: python scripts/jiangsu_history_probe.py --output evidence/jiangsu_history_probe.json
+      - name: Sichuan official history contract probe
+        run: python scripts/sichuan_history_probe.py --output evidence/sichuan_history_probe.json
       - name: Live dual-official-source network gate
         run: python scripts/real_network_check.py --output evidence/live_official_history.json
       - name: Current-history scientific validation gate
