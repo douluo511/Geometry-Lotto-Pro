@@ -28,6 +28,8 @@ def workflow_actions_are_sha_pinned(repo_root: Path) -> tuple[bool, list[str]]:
             continue
         for number, raw in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
             stripped = raw.strip()
+            if stripped.startswith("- "):
+                stripped = stripped[2:].lstrip()
             if not stripped.startswith("uses: "):
                 continue
             value = stripped.removeprefix("uses: ").strip()
