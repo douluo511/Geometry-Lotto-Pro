@@ -10,7 +10,7 @@ HARD_GATES=[
     "real_network","business_validation","oos_validation",
     "counterexample_validation","reversal_validation",
     "windows_build","exact_exe","exact_exe_network","gui_smoke",
-    "physical_gui_click","same_hash","business_content",
+    "physical_gui_click","same_hash","business_content","repository_independence",
 ]
 MARKERS={
     "self_test":"source_self_test.pass",
