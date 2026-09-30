@@ -5,8 +5,12 @@ import hashlib
 import html
 import json
 import re
+import sys
 from pathlib import Path
 from urllib.parse import urlsplit
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
 
 from happy8.net_client import NetClient
 
