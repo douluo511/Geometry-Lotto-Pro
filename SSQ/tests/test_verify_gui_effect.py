@@ -107,5 +107,26 @@ class GuiBackendEffectTests(unittest.TestCase):
             self.assertEqual(proof["display_token"], "court-proof")
 
 
+    def test_exact_experiment_id_replay_ignores_later_same_kind_event(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "source_evidence.json").write_text("{}", encoding="utf-8")
+            with closing(make_db(root)) as db:
+                event(db, "official_update", "PASS", {
+                    "crosscheck_status": "PASS", "persisted_integrity": {"ok": True},
+                    "canonical_hash": "first",
+                })
+                first_id = db.execute("SELECT MAX(id) FROM experiments").fetchone()[0]
+                event(db, "official_update", "PASS", {
+                    "crosscheck_status": "PASS", "persisted_integrity": {"ok": True},
+                    "canonical_hash": "second",
+                })
+            latest = inspect_effect(root, "update")
+            exact = inspect_effect(root, "update", experiment_id=int(first_id))
+            self.assertEqual(latest["display_token"], "second")
+            self.assertEqual(exact["status"], "PASS")
+            self.assertEqual(exact["experiment_id"], first_id)
+            self.assertEqual(exact["display_token"], "first")
+
 if __name__ == "__main__":
     unittest.main()
