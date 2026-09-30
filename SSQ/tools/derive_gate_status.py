@@ -69,6 +69,30 @@ def _repository_independence_proof() -> tuple[str, dict[str, Any]]:
     }
 
 
+def _release_context_proof() -> tuple[str, dict[str, Any]]:
+    event = str(os.environ.get("GITHUB_EVENT_NAME") or "").strip()
+    ref = str(os.environ.get("GITHUB_REF") or "").strip()
+    repository = str(os.environ.get("GITHUB_REPOSITORY") or "").strip()
+    github_actions = str(os.environ.get("GITHUB_ACTIONS") or "").lower() == "true"
+    checks = {
+        "github_actions": github_actions,
+        "independent_repository": repository == EXPECTED_INDEPENDENT_REPOSITORY,
+        "event_is_release_capable": event in {"push", "workflow_dispatch"},
+        "frozen_main_ref": ref == "refs/heads/main",
+    }
+    status = "PASS" if all(checks.values()) else "FAIL"
+    return status, {
+        "status": status,
+        "event": event,
+        "ref": ref,
+        "repository": repository,
+        "required_ref": "refs/heads/main",
+        "allowed_events": ["push", "workflow_dispatch"],
+        "checks": checks,
+        "rule": "Portfolio FINAL may only originate from the independent repository frozen main branch",
+    }
+
+
 def _read(path: Path) -> dict[str, Any] | None:
     if not path.is_file():
         return None
@@ -1231,6 +1255,9 @@ def derive(evidence: Path, exe: Path) -> dict[str, Any]:
     repository_status, repository_proof = _repository_independence_proof()
     gates["repository_independence"] = repository_status
     proofs["repository_independence"] = repository_proof
+    release_context_status, release_context_proof = _release_context_proof()
+    gates["release_context"] = release_context_status
+    proofs["release_context"] = release_context_proof
     checkout_identity_ok = False
     try:
         proofs["checkout_identity"] = _verify_checkout_identity(evidence)
