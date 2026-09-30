@@ -520,9 +520,19 @@ def _software_update(target: Path, manifest_url: str, wait_pid: int = 0) -> dict
     if wait.get("status") != "PASS":
         return {"status": "FAIL", "wait_for_main": wait, "error": "main process did not exit before replacement"}
 
+    target_ok, before_validation = _exact_main_self_test(target)
+    current_version = before_validation.get("reported_version") if isinstance(before_validation, dict) else None
+    if not target_ok or not isinstance(current_version, str) or not current_version:
+        return {
+            "status": "FAIL",
+            "wait_for_main": wait,
+            "before_update_validation": before_validation,
+            "error": "installed target failed exact self-test/version discovery",
+        }
+
     manifest_raw, manifest_receipt = _bounded_get(manifest_url, kind="manifest", max_bytes=MAX_MANIFEST_BYTES)
     manifest = _parse_software_manifest(manifest_raw)
-    _require_forward_version(APP_VERSION, manifest["version"])
+    _require_forward_version(current_version, manifest["version"])
     artifact, artifact_receipt = _bounded_get(
         manifest["artifact_url"], kind="artifact", max_bytes=MAX_ARTIFACT_BYTES
     )
@@ -547,6 +557,9 @@ def _software_update(target: Path, manifest_url: str, wait_pid: int = 0) -> dict
         "artifact_receipt": artifact_receipt,
         "replacement": replacement,
         "wait_for_main": wait,
+        "before_update_validation": before_validation,
+        "from_version": current_version,
+        "to_version": manifest["version"],
     }
 
 
