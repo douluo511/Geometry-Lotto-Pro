@@ -112,10 +112,10 @@ jobs:
           if (-not (Test-Path $reportPath)) { throw "acceptance report missing" }
           if (-not (Test-Path $exePath)) { throw "exact EXE missing" }
 
-          python tools/derive_gate_status.py --evidence-dir evidence\SSQ --exe $exePath --report evidence\SSQ\mother-gates.json --repository-independent FAIL
+          python tools/derive_gate_status.py --evidence-dir evidence\SSQ --exe $exePath --report evidence\SSQ\mother-gates.json
           if ($LASTEXITCODE -ne 0) { throw "gate derivation failed" }
 
-          python tools/release_gate_22.py --gate-input evidence\SSQ\mother-gates.json --acceptance $reportPath --exe $exePath --report evidence\SSQ\FINAL_22_GATE.json --repository-independent FAIL
+          python tools/release_gate_22.py --gate-input evidence\SSQ\mother-gates.json --acceptance $reportPath --exe $exePath --report evidence\SSQ\FINAL_22_GATE.json
           $releaseExit = $LASTEXITCODE
 
           $final = Get-Content evidence\SSQ\FINAL_22_GATE.json -Raw | ConvertFrom-Json
