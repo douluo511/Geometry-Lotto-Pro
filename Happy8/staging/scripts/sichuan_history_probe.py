@@ -111,6 +111,8 @@ def inspect() -> dict:
         },
         "selects": [],
         "detail_links": [],
+        "navigation_links": [],
+        "forms": [],
         "script_srcs": [],
         "inline_hints": [],
         "detail_probes": [],
@@ -138,6 +140,48 @@ def inspect() -> dict:
             seen.add(row["url"])
             dedup.append(row)
     report["detail_links"] = dedup[:300]
+
+    navigation = []
+    for href, body in re.findall(
+        r"(?is)<a\\b[^>]*href\\s*=\\s*['\\\"]([^'\\\"]+)['\\\"][^>]*>(.*?)</a>",
+        markup,
+    ):
+        absolute = urljoin(final_url, html.unescape(href))
+        label = _plain(body)[:240]
+        parsed = urlsplit(absolute)
+        if not _official(absolute):
+            continue
+        haystack = f"{parsed.path}?{parsed.query} {label}".lower()
+        if "/kl8" in parsed.path.lower() or any(
+            token in haystack for token in ("page", "pageno", "history", "previous", "上一", "下一", "首页", "末页")
+        ):
+            row = {"label": label, "url": absolute}
+            if row not in navigation:
+                navigation.append(row)
+    report["navigation_links"] = navigation[:500]
+
+    forms = []
+    for attrs, body in re.findall(r"(?is)<form\\b([^>]*)>(.*?)</form>", markup):
+        action_match = re.search(r"(?i)\\baction\\s*=\\s*['\\\"]([^'\\\"]*)['\\\"]", attrs)
+        method_match = re.search(r"(?i)\\bmethod\\s*=\\s*['\\\"]([^'\\\"]*)['\\\"]", attrs)
+        action = urljoin(final_url, html.unescape(action_match.group(1))) if action_match else final_url
+        if not _official(action):
+            continue
+        inputs = []
+        for tag in re.findall(r"(?is)<(?:input|button)\\b[^>]*>", body):
+            item = {}
+            for key in ("name", "id", "type", "value"):
+                m = re.search(rf"(?i)\\b{key}\\s*=\\s*['\\\"]([^'\\\"]*)['\\\"]", tag)
+                if m:
+                    item[key] = html.unescape(m.group(1))[:200]
+            if item:
+                inputs.append(item)
+        forms.append({
+            "action": action,
+            "method": (method_match.group(1).upper() if method_match else "GET"),
+            "inputs": inputs[:100],
+        })
+    report["forms"] = forms[:100]
 
     report["script_srcs"] = [
         urljoin(final_url, html.unescape(src))
@@ -174,6 +218,14 @@ def inspect() -> dict:
         "detail_links_discovered": bool(dedup),
         "detail_probe_numbers": any(x.get("numbers") for x in report["detail_probes"]),
         "issue_navigation_discovered": bool(option_issues or report["inline_hints"]),
+    }
+    report["history_navigation_candidates"] = {
+        "navigation_link_count": len(report["navigation_links"]),
+        "form_count": len(report["forms"]),
+        "note": (
+            "Diagnostic only. A candidate is not production-qualified until an old issue can be fetched "
+            "through a repeatable official HTTPS contract and complete 2020001-to-current coverage is proven."
+        ),
     }
     report["option_issue_first"] = option_issues[:20]
     report["option_issue_last"] = option_issues[-20:]
