@@ -9,6 +9,30 @@ from pathlib import Path
 import updater
 
 
+class _Response:
+    def __init__(self, status_code: int, url: str, *, location: str = "", content: bytes = b"ok"):
+        self.status_code = status_code
+        self.url = url
+        self.content = content
+        self.headers = {"Content-Type": "application/octet-stream"}
+        if location:
+            self.headers["Location"] = location
+
+
+class _Session:
+    def __init__(self, responses):
+        self.responses = list(responses)
+        self.calls = []
+
+    def get(self, url, **kwargs):
+        self.calls.append({"url": url, **kwargs})
+        if not self.responses:
+            raise AssertionError("unexpected redirect request")
+        return self.responses.pop(0)
+
+
+
+
 class SoftwareUpdaterTests(unittest.TestCase):
     def test_trusted_release_repository_policy(self):
         manifest = "https://raw.githubusercontent.com/douluo511/Geometry-Lotto-Pro-SSQ/main/release/manifest.json"
@@ -19,6 +43,40 @@ class SoftwareUpdaterTests(unittest.TestCase):
         self.assertFalse(updater._trusted_release_request("https://github.com/other/repo/releases/download/v1/app.exe", kind="artifact"))
         self.assertFalse(updater._trusted_release_request("https://release-assets.githubusercontent.com/direct-object", kind="artifact"))
         self.assertFalse(updater._trusted_release_request("https://user:pass@github.com/douluo511/Geometry-Lotto-Pro-SSQ/releases/download/v1/app.exe", kind="artifact"))
+
+    def test_verified_redirect_allows_only_checked_github_asset_hop(self):
+        start = "https://github.com/douluo511/Geometry-Lotto-Pro-SSQ/releases/download/v1/app.exe"
+        asset = "https://release-assets.githubusercontent.com/github-production-release-asset/test"
+        session = _Session([
+            _Response(302, start, location=asset),
+            _Response(200, asset, content=b"artifact"),
+        ])
+        response = updater._get_with_verified_redirects(
+            session, start, headers={}, timeout=(1.0, 2.0)
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([x["url"] for x in session.calls], [start, asset])
+        self.assertEqual(len(response.updater_redirect_chain), 1)
+        self.assertFalse(session.calls[0]["allow_redirects"])
+        self.assertFalse(session.calls[1]["allow_redirects"])
+
+    def test_redirect_downgrade_is_rejected_before_next_request(self):
+        start = "https://github.com/douluo511/Geometry-Lotto-Pro-SSQ/releases/download/v1/app.exe"
+        session = _Session([
+            _Response(302, start, location="http://release-assets.githubusercontent.com/insecure"),
+        ])
+        with self.assertRaises(RuntimeError):
+            updater._get_with_verified_redirects(session, start, headers={}, timeout=(1.0, 2.0))
+        self.assertEqual(len(session.calls), 1)
+
+    def test_cross_host_redirect_is_rejected_before_next_request(self):
+        start = "https://github.com/douluo511/Geometry-Lotto-Pro-SSQ/releases/download/v1/app.exe"
+        session = _Session([
+            _Response(302, start, location="https://example.com/attacker.exe"),
+        ])
+        with self.assertRaises(RuntimeError):
+            updater._get_with_verified_redirects(session, start, headers={}, timeout=(1.0, 2.0))
+        self.assertEqual(len(session.calls), 1)
 
     def test_manifest_contract(self):
         payload = {
