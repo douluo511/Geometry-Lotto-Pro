@@ -986,6 +986,99 @@ def _verify_live_evidence(evidence_dir: Path, exe_hash: str) -> dict[str, Any]:
     }
 
 
+def _trusted_ssq_release_url(value: Any) -> bool:
+    if not isinstance(value, str) or not value:
+        return False
+    parsed = urlsplit(value)
+    if parsed.scheme != "https" or parsed.username is not None or parsed.password is not None:
+        return False
+    if parsed.hostname != "github.com" or parsed.port not in (None, 443):
+        return False
+    prefix = f"/{EXPECTED_INDEPENDENT_REPOSITORY}/releases/download/"
+    return parsed.path.startswith(prefix)
+
+
+def _sha256_json(value: Any) -> str:
+    raw = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def _verify_updater_release_network(evidence: Path, updater_hash: str) -> dict[str, Any]:
+    report = _require_current_report(
+        evidence, "updater-software-release-network.json", "ssq-independent-updater-v2"
+    )
+    if (report.get("mode") != "software-update"
+            or report.get("updater_exe_sha256") != updater_hash
+            or report.get("parent_pid_match") is not True):
+        raise ValueError("software-update report is not bound to the exact updater process")
+    service = report.get("service_result")
+    if (not isinstance(service, dict)
+            or service.get("schema") != "ssq-software-update-result-v1"
+            or service.get("status") != "PASS"
+            or report.get("service_result_sha256") != _sha256_json(service)):
+        raise ValueError("software-update service result is malformed or hash-unbound")
+    manifest = service.get("manifest")
+    manifest_receipt = service.get("manifest_receipt")
+    artifact_receipt = service.get("artifact_receipt")
+    replacement = service.get("replacement")
+    wait = service.get("wait_for_main")
+    if not all(isinstance(x, dict) for x in (manifest, manifest_receipt, artifact_receipt, replacement, wait)):
+        raise ValueError("software-update evidence sections are incomplete")
+    manifest_url = manifest_receipt.get("requested_url")
+    artifact_url = artifact_receipt.get("requested_url")
+    digest = manifest.get("artifact_sha256")
+    size = manifest.get("artifact_bytes")
+    version = manifest.get("version")
+    if (manifest.get("schema") != "ssq-software-update-manifest-v1"
+            or manifest.get("app") != "Geometry Lotto Pro SSQ"
+            or not isinstance(version, str) or not version
+            or not _trusted_ssq_release_url(manifest_url)
+            or not _trusted_ssq_release_url(artifact_url)
+            or manifest.get("artifact_url") != artifact_url
+            or not isinstance(digest, str) or len(digest) != 64
+            or any(ch not in "0123456789abcdef" for ch in digest)
+            or type(size) is not int or size <= 0):
+        raise ValueError("software-update manifest is not a trusted independent-repo release")
+    for label, receipt in (("manifest", manifest_receipt), ("artifact", artifact_receipt)):
+        final_url = receipt.get("final_url")
+        parsed_final = urlsplit(final_url) if isinstance(final_url, str) else None
+        if (receipt.get("status") != "PASS"
+                or receipt.get("http_status") != 200
+                or type(receipt.get("bytes")) is not int or receipt["bytes"] <= 0
+                or not isinstance(receipt.get("sha256"), str) or len(receipt["sha256"]) != 64
+                or parsed_final is None or parsed_final.scheme != "https"
+                or parsed_final.hostname not in {"github.com", "objects.githubusercontent.com", "release-assets.githubusercontent.com"}):
+            raise ValueError(f"{label} release receipt is incomplete or untrusted")
+    if (service.get("manifest_raw_sha256") != manifest_receipt.get("sha256")
+            or artifact_receipt.get("sha256") != digest
+            or artifact_receipt.get("bytes") != size):
+        raise ValueError("software-update release receipt hash/size binding mismatch")
+    post = replacement.get("post_replace_validation")
+    if (replacement.get("status") != "PASS"
+            or replacement.get("expected_sha256") != digest
+            or replacement.get("staged_sha256") != digest
+            or replacement.get("installed_sha256") != digest
+            or replacement.get("previous_preserved") is not True
+            or not isinstance(post, dict)
+            or post.get("status") != "PASS"
+            or post.get("expected_version") != version
+            or post.get("reported_version") != version
+            or post.get("target_sha256") != digest
+            or wait.get("status") != "PASS"):
+        raise ValueError("software-update installed artifact/self-test evidence is incomplete")
+    return {
+        "report": str(evidence / "updater-software-release-network.json"),
+        "report_sha256": _hash(evidence / "updater-software-release-network.json"),
+        "manifest_url": manifest_url,
+        "artifact_url": artifact_url,
+        "version": version,
+        "artifact_sha256": digest,
+        "artifact_bytes": size,
+        "manifest_raw_sha256": service.get("manifest_raw_sha256"),
+        "installed_sha256": replacement.get("installed_sha256"),
+        "post_replace_self_test": "PASS",
+    }
+
 def derive(evidence: Path, exe: Path) -> dict[str, Any]:
     gates = {name: "PENDING" for name in HARD_GATES}
     proofs: dict[str, Any] = {}
@@ -1246,7 +1339,8 @@ def derive(evidence: Path, exe: Path) -> dict[str, Any]:
             or updater.get("github_run_id") != os.environ.get("GITHUB_RUN_ID")
             or updater.get("sha256") != updater_actual_hash
             or updater.get("updater_exact_exe") != "PASS"
-            or int(updater.get("hard_fail_count", -1)) != 0
+            or type(updater.get("hard_fail_count")) is not int
+            or updater.get("hard_fail_count") != 0
         ):
             raise ValueError("updater acceptance is not current-run/hash bound")
 
@@ -1336,7 +1430,9 @@ def derive(evidence: Path, exe: Path) -> dict[str, Any]:
 
         release_state = str(updater.get("software_release_network") or "PENDING")
         release_gate = str(updater.get("updater_release_gate") or "PENDING")
+        release_proof: dict[str, Any] | None = None
         if release_state == "PASS" and release_gate == "PASS":
+            release_proof = _verify_updater_release_network(evidence, updater_actual_hash)
             gates["updater_real_network"] = "PASS"
         elif release_state in {"PENDING", "WARNING", "UNAVAILABLE", "SKIPPED", "UNKNOWN"}:
             gates["updater_real_network"] = "PENDING"
@@ -1355,6 +1451,7 @@ def derive(evidence: Path, exe: Path) -> dict[str, Any]:
             "same_hash": gates["updater_same_hash"],
             "software_release_network": gates["updater_real_network"],
             "software_release_reason": updater.get("software_release_reason"),
+            "software_release_proof": release_proof,
         }
     except Exception as exc:
         for name in (
