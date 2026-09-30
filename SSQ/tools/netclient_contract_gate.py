@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import random
 import sys
 from pathlib import Path
@@ -208,6 +209,8 @@ def _run() -> dict:
     return {
         "schema": "ssq-netclient-contract-gate-v2",
         "status": "PASS" if not failures else "FAIL",
+        "github_sha": os.environ.get("GITHUB_SHA"),
+        "github_run_id": os.environ.get("GITHUB_RUN_ID"),
         "hard_fail_count": len(failures),
         "failures": failures,
         "checks": checks,
