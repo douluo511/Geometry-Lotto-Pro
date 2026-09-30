@@ -6,6 +6,8 @@ import json
 import os
 import subprocess
 import sys
+import threading
+import time
 from pathlib import Path
 from typing import Any
 
@@ -89,14 +91,58 @@ def _exact_main_identity(path: Path, expected_version: str | None = None) -> dic
     }
 
 
-def _spawn_wait_probe(seconds: float = 20.0) -> subprocess.Popen[Any]:
-    if seconds <= 0:
-        raise ValueError("wait probe duration must be positive")
-    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0
-    return subprocess.Popen(
-        [sys.executable, "-c", f"import time; time.sleep({seconds!r})"],
-        creationflags=flags,
-    )
+def _launch_exact_base_main(path: Path, data_dir: Path) -> subprocess.Popen[Any]:
+    """Launch the verified prior-release main EXE and prove it remains alive."""
+    if os.name != "nt":
+        raise RuntimeError("exact base-main handoff acceptance requires Windows")
+    env = os.environ.copy()
+    env["GLP_DATA_DIR"] = str(data_dir.resolve())
+    data_dir.mkdir(parents=True, exist_ok=True)
+    proc = subprocess.Popen([str(path)], env=env)
+    started = time.time()
+    deadline = started + 20.0
+    while time.time() < deadline:
+        if proc.poll() is not None:
+            raise RuntimeError("verified prior-release main EXE exited before updater handoff")
+        if time.time() - started >= 1.0:
+            return proc
+        time.sleep(0.1)
+    raise RuntimeError("verified prior-release main EXE did not remain alive for handoff")
+
+
+def _terminate_process_tree(proc: subprocess.Popen[Any]) -> None:
+    if proc.poll() is not None:
+        return
+    if os.name == "nt":
+        subprocess.run(
+            ["taskkill", "/PID", str(proc.pid), "/T", "/F"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+    else:
+        proc.terminate()
+    try:
+        proc.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait(timeout=10)
+
+
+def _schedule_exact_base_main_exit(
+    proc: subprocess.Popen[Any], delay_seconds: float = 3.0,
+) -> threading.Thread:
+    if delay_seconds <= 0:
+        raise ValueError("base-main exit delay must be positive")
+
+    def close_after_delay() -> None:
+        time.sleep(delay_seconds)
+        _terminate_process_tree(proc)
+
+    thread = threading.Thread(target=close_after_delay, name="ssq-base-main-exit", daemon=True)
+    thread.start()
+    return thread
 
 
 def _require_wait_proof(service: dict[str, Any], expected_pid: int) -> dict[str, Any]:
@@ -171,10 +217,14 @@ def run_acceptance(
     env["GLP_DATA_DIR"] = str(data_dir)
     env["GLP_UPDATER_PARENT_PID"] = str(os.getpid())
 
-    # Prove the production ordering rule with a genuinely live PID. The exact
-    # updater must block on this process and only replace after it exits.
-    wait_probe = _spawn_wait_probe()
-    wait_probe_pid = int(wait_probe.pid)
+    # Prove the real production handoff with the verified prior-release main
+    # EXE itself, not a synthetic sleep process. The exact updater must block
+    # on this exact-base-main PID and replace only after that process exits.
+    wait_main = _launch_exact_base_main(
+        target, evidence_dir / "updater-release-base-main-runtime"
+    )
+    wait_main_pid = int(wait_main.pid)
+    exit_thread = _schedule_exact_base_main_exit(wait_main)
     try:
         proc = subprocess.run(
             [
@@ -183,19 +233,14 @@ def run_acceptance(
                 "--result-file", str(result_path),
                 "--target-exe", str(target),
                 "--manifest-url", release_manifest_url,
-                "--wait-pid", str(wait_probe_pid),
+                "--wait-pid", str(wait_main_pid),
             ],
             env=env,
             timeout=3600,
         )
     finally:
-        if wait_probe.poll() is None:
-            wait_probe.terminate()
-            try:
-                wait_probe.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                wait_probe.kill()
-                wait_probe.wait(timeout=5)
+        _terminate_process_tree(wait_main)
+        exit_thread.join(timeout=15)
 
     report = json.loads(result_path.read_text(encoding="utf-8-sig")) if result_path.is_file() else {}
     if (
@@ -220,7 +265,7 @@ def run_acceptance(
     service = report.get("service_result")
     if not isinstance(service, dict) or service.get("status") != "PASS":
         raise RuntimeError("exact updater software-update service result did not PASS")
-    wait_proof = _require_wait_proof(service, wait_probe_pid)
+    wait_proof = _require_wait_proof(service, wait_main_pid)
     if service.get("from_version") != base_manifest["version"]:
         raise RuntimeError("exact updater did not report the verified base version")
     if service.get("to_version") != candidate["version"]:
@@ -260,6 +305,15 @@ def run_acceptance(
         "candidate_exe_sha256": candidate["sha256"],
         "candidate_version": candidate["version"],
         "base_version": base_manifest["version"],
+        "base_artifact_sha256": base_manifest["artifact_sha256"],
+        "base_artifact_bytes": base_manifest["artifact_bytes"],
+        "wait_target": {
+            "kind": "exact_base_main_exe",
+            "pid": wait_main_pid,
+            "sha256": base_identity["sha256"],
+            "version": base_identity["version"],
+            "artifact": target.name,
+        },
         "base_manifest_url": base_manifest_url,
         "base_manifest_raw_sha256": hashlib.sha256(base_manifest_raw).hexdigest(),
         "base_manifest_receipt": base_manifest_receipt,
@@ -272,7 +326,7 @@ def run_acceptance(
         "installed_sha256": installed_hash,
         "installed_version": installed["version"],
         "wait_for_main": wait_proof,
-        "wait_probe_pid": wait_probe_pid,
+        "wait_main_pid": wait_main_pid,
     }
     atomic_json(evidence_dir / "UPDATER_REAL_RELEASE_ACCEPTANCE.json", summary)
     return summary
