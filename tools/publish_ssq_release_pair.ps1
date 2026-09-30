@@ -78,7 +78,7 @@ function Prepare-Manifest(
   $manifestToolOutput = & python @args
   $manifestToolExit = $LASTEXITCODE
   if ($manifestToolExit -ne 0) {
-    throw "release manifest preparation failed for $Version: $($manifestToolOutput -join [Environment]::NewLine)"
+    throw "release manifest preparation failed for ${Version}: $($manifestToolOutput -join [Environment]::NewLine)"
   }
   $proof = Get-Content -LiteralPath $PrepEvidence -Raw -Encoding utf8 | ConvertFrom-Json
   if ($proof.status -ne "PASS") { throw "manifest preparation evidence is not PASS for $Version" }
