@@ -204,21 +204,81 @@ class UpdaterClient:
         result_path = Path(str(handoff.get("result_file") or "")).resolve()
         if not result_path.is_file():
             return {"status": "PENDING", "reason": "updater result not written yet"}
+
         report = json.loads(result_path.read_text(encoding="utf-8-sig"))
-        expected = str(handoff.get("updater_sha256") or "")
-        if (
-            report.get("schema") != "ssq-independent-updater-v2"
-            or report.get("mode") != "software-update"
-            or report.get("updater_exe_sha256") != expected
-            or int(report.get("expected_parent_pid") or 0) != int(handoff.get("main_pid") or 0)
-        ):
+        expected_updater = str(handoff.get("updater_sha256") or "")
+        main_pid = int(handoff.get("main_pid") or 0)
+        target = Path(str(handoff.get("target_exe") or "")).resolve()
+        target_before = str(handoff.get("target_before_sha256") or "")
+        manifest_url = str(handoff.get("manifest_url") or "")
+        ancestors = report.get("ancestor_pids")
+        ancestor_pids = (
+            [int(value) for value in ancestors]
+            if isinstance(ancestors, list)
+            and all(isinstance(value, int) and value > 0 for value in ancestors)
+            else []
+        )
+        metadata_bound = bool(
+            report.get("schema") == "ssq-independent-updater-v2"
+            and report.get("mode") == "software-update"
+            and report.get("updater_exe_sha256") == expected_updater
+            and report.get("parent_pid_match") is True
+            and main_pid > 0
+            and int(report.get("expected_parent_pid") or 0) == main_pid
+            and main_pid in ancestor_pids
+        )
+        if not metadata_bound:
             raise RuntimeError("software updater result is not bound to the handoff")
+
         service_result = report.get("service_result")
         if not isinstance(service_result, dict):
-            raise RuntimeError("software updater result has no transaction evidence")
+            if report.get("status") == "PASS":
+                raise RuntimeError("software updater PASS has no transaction evidence")
+            return {
+                "status": "FAIL",
+                "updater_exe_sha256": expected_updater,
+                "result_file": str(result_path),
+                "result_sha256": sha256_json(report),
+                "error": report.get("error", "updater failed before transaction evidence"),
+                "network_attempts": report.get("network_attempts", []),
+            }
+
+        if report.get("service_result_sha256") != sha256_json(service_result):
+            raise RuntimeError("software updater service-result hash mismatch")
+
+        wait = service_result.get("wait_for_main")
+        manifest = service_result.get("manifest")
+        manifest_receipt = service_result.get("manifest_receipt")
+        replacement = service_result.get("replacement")
+        transaction_bound = bool(
+            service_result.get("schema") == "ssq-software-update-result-v1"
+            and isinstance(wait, dict) and wait.get("status") == "PASS"
+            and isinstance(manifest, dict)
+            and isinstance(manifest_receipt, dict)
+            and manifest_receipt.get("requested_url") == manifest_url
+            and isinstance(replacement, dict)
+            and Path(str(replacement.get("target") or "")).resolve() == target
+            and replacement.get("before_sha256") == target_before
+            and replacement.get("expected_sha256") == manifest.get("artifact_sha256")
+        )
+        if not transaction_bound:
+            raise RuntimeError("software updater transaction is not bound to the handoff")
+
+        status = str(report.get("status") or "FAIL")
+        if status == "PASS":
+            pass_bound = bool(
+                service_result.get("status") == "PASS"
+                and replacement.get("status") == "PASS"
+                and replacement.get("installed_sha256") == manifest.get("artifact_sha256")
+                and isinstance(replacement.get("post_replace_validation"), dict)
+                and replacement["post_replace_validation"].get("status") == "PASS"
+            )
+            if not pass_bound:
+                raise RuntimeError("software updater PASS is not backed by an exact replacement proof")
+
         return {
-            "status": report.get("status", "FAIL"),
-            "updater_exe_sha256": expected,
+            "status": status,
+            "updater_exe_sha256": expected_updater,
             "result_file": str(result_path),
             "result_sha256": sha256_json(report),
             "transaction": service_result,
