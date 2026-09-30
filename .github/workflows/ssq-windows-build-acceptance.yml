@@ -159,3 +159,4 @@ jobs:
 # physical-gui native Win32 identity rerun trigger: 2026-09-30
 
 # physical-gui fully native Win32 rerun trigger: 2026-09-30
+# hard-gate retrigger: 2026-09-30 current-head full rerun
