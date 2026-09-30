@@ -86,6 +86,94 @@ def _require_source_result(
     return report
 
 
+def _verify_science_contract(report: dict[str, Any]) -> dict[str, Any]:
+    court = report.get("result")
+    if not isinstance(court, dict):
+        raise ValueError("science result has no evidence court")
+    final = court.get("final_validation")
+    walk = court.get("walk_forward")
+    policy = court.get("pre_registered_policy")
+    gates = court.get("gates")
+    five_why = court.get("five_why")
+    reverse = court.get("reverse_validation")
+    if (court.get("software_verdict") != "PASS"
+            or not isinstance(final, dict) or final.get("status") != "PASS"
+            or int(final.get("hard_fail_count", -1)) != 0
+            or not isinstance(walk, dict)
+            or int(walk.get("development_oos_n", 0)) < 1200
+            or int(walk.get("untouched_holdout_n", 0)) < 120
+            or int(walk.get("leakage_violations", -1)) != 0
+            or not isinstance(policy, dict)
+            or float(policy.get("alpha", 1.0)) > 0.01
+            or not isinstance(gates, list) or not gates
+            or any(not isinstance(row, dict) or row.get("status") != "PASS" for row in gates)
+            or not isinstance(five_why, dict) or len(five_why) < 5
+            or not isinstance(reverse, dict)
+            or not all(reverse.get(key) is True for key in ("remove", "shuffle", "random_replace"))):
+        raise ValueError("science evidence court did not satisfy the frozen validation contract")
+    edge_state = court.get("edge_state")
+    dan_state = court.get("dan_state")
+    if edge_state == "NO_EDGE" and dan_state != "NULL_DAN":
+        raise ValueError("NO_EDGE science result attempted to certify dan")
+    if final.get("edge_proven") is False and edge_state != "NO_EDGE":
+        raise ValueError("science edge state contradicts final validation")
+    return {
+        "court_hash": court.get("court_hash"),
+        "edge_state": edge_state,
+        "dan_state": dan_state,
+        "development_oos_n": walk.get("development_oos_n"),
+        "untouched_holdout_n": walk.get("untouched_holdout_n"),
+        "leakage_violations": walk.get("leakage_violations"),
+    }
+
+
+def _verify_counterexample_contract(
+    science: dict[str, Any], random_worlds: list[dict[str, Any]]
+) -> dict[str, Any]:
+    court = science.get("result")
+    null_world = court.get("null_world") if isinstance(court, dict) else None
+    policy = court.get("pre_registered_policy") if isinstance(court, dict) else None
+    if not isinstance(null_world, dict) or not isinstance(policy, dict):
+        raise ValueError("science null-world evidence is missing")
+    worlds = int(null_world.get("worlds", 0))
+    fpr = float(null_world.get("false_positive_rate", 1.0))
+    if (worlds < int(policy.get("null_worlds", 300))
+            or fpr > float(policy.get("max_null_world_fpr", 0.05))
+            or len(random_worlds) != 3):
+        raise ValueError("counterexample/null-world firewall did not satisfy policy")
+    for report in random_worlds:
+        result = report.get("result")
+        if not isinstance(result, dict) or result.get("status") not in {None, "PASS"}:
+            raise ValueError("random-world evidence is malformed")
+    return {"worlds": worlds, "false_positive_rate": fpr, "exact_random_world_checks": 3}
+
+
+def _verify_reversal_contract(
+    science: dict[str, Any], audit: dict[str, Any]
+) -> dict[str, Any]:
+    court = science.get("result")
+    if not isinstance(court, dict):
+        raise ValueError("science court is missing")
+    reverse = court.get("reverse_validation")
+    ablation = court.get("ablation")
+    audit_result = audit.get("result")
+    if (not isinstance(reverse, dict)
+            or not all(reverse.get(key) is True for key in ("remove", "shuffle", "random_replace"))
+            or not isinstance(ablation, dict) or ablation.get("executed") is not True
+            or not isinstance(audit_result, dict)
+            or audit_result.get("software_verdict") != "PASS"
+            or audit_result.get("edge_state") != "NO_EDGE"
+            or audit_result.get("dan_state") != "NULL_DAN"):
+        raise ValueError("reversal/ablation/audit evidence did not PASS")
+    return {
+        "remove": True,
+        "shuffle": True,
+        "random_replace": True,
+        "ablation_executed": True,
+        "audit_edge_state": audit_result.get("edge_state"),
+    }
+
+
 def _utc_recent(value: Any) -> bool:
     if not isinstance(value, str) or not value.endswith("Z"):
         return False
@@ -939,6 +1027,64 @@ def derive(evidence: Path, exe: Path) -> dict[str, Any]:
             and self_check.get("status") == "PASS"
             and self_check.get("exe_hash_matches") is True else "FAIL"
         )
+
+        exact_results: dict[str, dict[str, Any]] = {}
+        if acceptance_ok and actual_hash:
+            for name in (
+                "integrity-tamper", "offline-failclosed", "corrupt-repair",
+                "update", "science", "random-world-101", "random-world-202",
+                "random-world-303", "predict", "audit", "gui",
+            ):
+                try:
+                    exact_results[name] = _require_exact_result(evidence, name, actual_hash)
+                except Exception as exc:
+                    proofs.setdefault("exact_result_errors", {})[name] = (
+                        f"{type(exc).__name__}: {exc}"
+                    )
+
+        gates["fault_injection"] = (
+            "PASS"
+            if source_fault_ok and all(
+                name in exact_results
+                for name in ("integrity-tamper", "offline-failclosed", "corrupt-repair")
+            )
+            else "FAIL"
+        )
+        if gates["fault_injection"] == "PASS":
+            proofs["fault_injection"] = {
+                "source_level": "PASS",
+                "exact_exe_scopes": [
+                    "integrity-tamper", "offline-failclosed", "corrupt-repair"
+                ],
+            }
+
+        try:
+            science = exact_results["science"]
+            science_proof = _verify_science_contract(science)
+            gates["business_validation"] = "PASS"
+            if gates["five_why"] == "PASS":
+                gates["five_why"] = "PASS"
+            proofs["business_validation"] = science_proof
+
+            random_worlds = [
+                exact_results["random-world-101"],
+                exact_results["random-world-202"],
+                exact_results["random-world-303"],
+            ]
+            proofs["counterexample_validation"] = _verify_counterexample_contract(
+                science, random_worlds
+            )
+            gates["counterexample_validation"] = "PASS"
+
+            audit = exact_results["audit"]
+            proofs["reversal_validation"] = _verify_reversal_contract(science, audit)
+            gates["reversal_validation"] = "PASS"
+        except Exception as exc:
+            gates["business_validation"] = "FAIL"
+            gates["counterexample_validation"] = "FAIL"
+            gates["reversal_validation"] = "FAIL"
+            proofs["scientific_dynamic"] = {"error": f"{type(exc).__name__}: {exc}"}
+
         live_check = checks.get("update")
         if not acceptance_ok or not isinstance(live_check, dict) or live_check.get("status") != "PASS":
             gates["real_network"] = "FAIL"
@@ -970,12 +1116,27 @@ def derive(evidence: Path, exe: Path) -> dict[str, Any]:
     if (acceptance_ok and gates["gui_smoke"] == "PASS"
             and gates["real_network"] == "PASS"):
         gates["same_hash"] = "PASS"
+    gates["integration_test"] = (
+        "PASS"
+        if source_self_ok and acceptance_ok
+        and gates["real_network"] == "PASS"
+        and gates["gui_smoke"] == "PASS"
+        and "update" in locals().get("exact_results", {})
+        else "FAIL"
+    )
+    if gates["integration_test"] == "PASS":
+        proofs["integration_test"] = {
+            "source_self": "PASS",
+            "exact_exe_update": "PASS",
+            "real_network": "PASS",
+            "physical_gui": "PASS",
+        }
     return {
         "schema": "ssq-current-run-gate-evidence-v1",
         "commit_sha": os.environ.get("GITHUB_SHA"),
         "gates": gates,
         "proofs": proofs,
-        "rule": "Only a directly verified current-run artifact can set PASS; all other gates remain PENDING",
+        "rule": "Every PASS is re-derived from current-run machine evidence; missing, stale, unbound or contradictory evidence is FAIL/PENDING",
     }
 
 
