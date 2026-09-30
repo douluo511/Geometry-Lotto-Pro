@@ -328,6 +328,22 @@ class ReleaseGateEvidenceTests(unittest.TestCase):
                        "exe_hash_matches": True} for name in REQUIRED_EXE_CHECKS}
 
     @staticmethod
+    def write_current_checkout_identity(root: Path, sha: str = "a" * 40,
+                                        run_id: str = "12345") -> None:
+        # Fixture for tests that intentionally isolate gates *after* checkout
+        # identity. Negative identity tests build their own malformed reports.
+        (root / "CHECKOUT_IDENTITY_GATE.json").write_text(json.dumps({
+            "schema": "ssq-checkout-identity-v1",
+            "status": "PASS",
+            "github_sha": sha,
+            "github_run_id": run_id,
+            "event": "push",
+            "event_head_sha": "",
+            "actual_checkout_sha": sha,
+            "parent_shas": [],
+        }), encoding="utf-8")
+
+    @staticmethod
     def write_synthetic_corrupt_repair_contract(root: Path, exe_hash: str) -> None:
         # Local fixture for the *scope label*, never a real-network claim.
         (root / "corrupt-repair.json").write_text(json.dumps({
@@ -619,6 +635,7 @@ class ReleaseGateEvidenceTests(unittest.TestCase):
                 json.dumps(acceptance), encoding="utf-8",
             )
             self.write_synthetic_corrupt_repair_contract(root, digest)
+            self.write_current_checkout_identity(root)
             (root / "physical_gui_click.json").write_text(json.dumps({
                 "status": "PASS", "exe": exe.name,
                 "buttons": [{"status": "PASS", "visual_changed": True} for _ in range(4)],
@@ -872,6 +889,7 @@ class ReleaseGateEvidenceTests(unittest.TestCase):
                 "checks": self.complete_exe_checks(),
             }), encoding="utf-8")
             self.write_synthetic_corrupt_repair_contract(root, digest)
+            self.write_current_checkout_identity(root)
             with (patch.dict(os.environ, {"GITHUB_SHA": "a" * 40,
                                            "GITHUB_RUN_ID": "12345"}),
                   patch("derive_gate_status._verify_live_evidence",
