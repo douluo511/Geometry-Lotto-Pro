@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import json
 import sys
+import tempfile
 import unittest
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import patch
 
@@ -78,6 +81,78 @@ class ServiceGateTests(unittest.TestCase):
         self.assertTrue(result["auto_update"]["reused_current_evidence"])
         self.assertIsNone(result["auto_update_error"])
         self.assertEqual(recorded[-1][0:3], ("audit", "PASS", "current-canonical"))
+
+    def test_current_snapshot_rejects_stale_network_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            evidence_path = root / "source_evidence.json"
+            now = datetime.now(timezone.utc)
+            stale = (now - timedelta(hours=2)).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+            evidence_path.write_text(json.dumps({
+                "game": "SSQ",
+                "fetched_at": stale,
+                "crosscheck_status": "PASS",
+                "canonical_hash": "canonical",
+                "source_receipts": [
+                    {"source": "official_shanghai_L1", "status": "PASS", "fetched_at": stale},
+                    {"source": "official_hebei_L2", "status": "PASS", "fetched_at": stale},
+                ],
+            }), encoding="utf-8")
+
+            service = LottoService.__new__(LottoService)
+            service.store = type("StoreStub", (), {"evidence_path": evidence_path})()
+            service._integrity_check = lambda: {"ok": True}
+            service._canonical_hash = lambda: "canonical"
+            self.assertIsNone(service._current_verified_official_snapshot())
+
+    def test_current_snapshot_accepts_only_short_lived_network_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            evidence_path = root / "source_evidence.json"
+            fresh = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+            evidence_path.write_text(json.dumps({
+                "game": "SSQ",
+                "fetched_at": fresh,
+                "crosscheck_status": "PASS",
+                "canonical_hash": "canonical",
+                "source_receipts": [
+                    {"source": "official_shanghai_L1", "status": "PASS", "fetched_at": fresh},
+                    {"source": "official_hebei_L2", "status": "PASS", "fetched_at": fresh},
+                ],
+            }), encoding="utf-8")
+
+            service = LottoService.__new__(LottoService)
+            service.store = type("StoreStub", (), {"evidence_path": evidence_path})()
+            service._integrity_check = lambda: {"ok": True}
+            service._canonical_hash = lambda: "canonical"
+            snapshot = service._current_verified_official_snapshot()
+            self.assertIsNotNone(snapshot)
+            self.assertTrue(snapshot["reused_current_evidence"])
+            self.assertLessEqual(snapshot["evidence_age_seconds"], snapshot["max_reuse_age_seconds"])
+
+    def test_current_snapshot_rejects_future_or_malformed_receipt_time(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            evidence_path = root / "source_evidence.json"
+            fresh = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+            future = (datetime.now(timezone.utc) + timedelta(hours=1)).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+            for bad in (future, "not-a-time", None):
+                with self.subTest(bad=bad):
+                    evidence_path.write_text(json.dumps({
+                        "game": "SSQ",
+                        "fetched_at": fresh,
+                        "crosscheck_status": "PASS",
+                        "canonical_hash": "canonical",
+                        "source_receipts": [
+                            {"source": "official_shanghai_L1", "status": "PASS", "fetched_at": fresh},
+                            {"source": "official_hebei_L2", "status": "PASS", "fetched_at": bad},
+                        ],
+                    }), encoding="utf-8")
+                    service = LottoService.__new__(LottoService)
+                    service.store = type("StoreStub", (), {"evidence_path": evidence_path})()
+                    service._integrity_check = lambda: {"ok": True}
+                    service._canonical_hash = lambda: "canonical"
+                    self.assertIsNone(service._current_verified_official_snapshot())
 
     def test_current_snapshot_rejects_noncurrent_integrity(self) -> None:
         service = LottoService.__new__(LottoService)
