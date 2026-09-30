@@ -722,6 +722,8 @@ class ReleaseGateEvidenceTests(unittest.TestCase):
                         },
                     },
                     "wait_for_main": wait,
+                    "from_version": "8.9.0",
+                    "to_version": version,
                 }
                 report = {
                     "schema": "ssq-independent-updater-v2",
@@ -761,9 +763,31 @@ class ReleaseGateEvidenceTests(unittest.TestCase):
                     "base_version": "8.9.0",
                     "base_artifact_sha256": "d" * 64,
                     "base_artifact_bytes": 456,
+                    "base_manifest_url": (
+                        "https://github.com/douluo511/Geometry-Lotto-Pro-SSQ/"
+                        "releases/download/v8.9/base-manifest.json"
+                    ),
+                    "base_manifest_raw_sha256": "e" * 64,
+                    "base_manifest_receipt": {
+                        "status": "PASS", "http_status": 200, "bytes": 99,
+                        "sha256": "e" * 64,
+                        "requested_url": (
+                            "https://github.com/douluo511/Geometry-Lotto-Pro-SSQ/"
+                            "releases/download/v8.9/base-manifest.json"
+                        ),
+                        "final_url": (
+                            "https://github.com/douluo511/Geometry-Lotto-Pro-SSQ/"
+                            "releases/download/v8.9/base-manifest.json"
+                        ),
+                    },
                     "base_artifact_receipt": {
                         "status": "PASS", "http_status": 200, "bytes": 456,
                         "sha256": "d" * 64,
+                        "requested_url": (
+                            "https://github.com/douluo511/Geometry-Lotto-Pro-SSQ/"
+                            "releases/download/v8.9/base.exe"
+                        ),
+                        "final_url": "https://release-assets.githubusercontent.com/base",
                     },
                     "wait_target": {
                         "kind": "exact_base_main_exe",
