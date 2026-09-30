@@ -1120,6 +1120,119 @@ def derive(evidence: Path, exe: Path, repository_independence: str = "FAIL") -> 
             except Exception as exc:
                 gates["real_network"] = "FAIL"
                 proofs["real_network"] = {"error": f"{type(exc).__name__}: {exc}"}
+    # Independent updater proof is a first-class hard-gate family. The exact
+    # updater EXE must be current-run/hash-bound, execute as a separate process,
+    # prove atomic replacement + rollback from its own bytes, and preserve the
+    # same updater hash that was embedded in the accepted main EXE. A real
+    # software release-host transaction is deliberately separate and remains
+    # non-PASS until an independent repository publishes a verifiable manifest
+    # and exact main-EXE artifact.
+    updater_path = evidence / "UPDATER_EXACT_EXE_ACCEPTANCE.json"
+    updater = _read(updater_path)
+    updater_actual_hash = None
+    updater_exe = None
+    try:
+        if not isinstance(updater, dict) or not updater:
+            raise ValueError("updater exact-EXE acceptance report missing")
+        if updater.get("schema") != "ssq-updater-exact-exe-acceptance-v2":
+            raise ValueError("updater acceptance schema mismatch")
+        updater_exe = exe.parent / str(updater.get("artifact") or "")
+        if not updater_exe.is_file():
+            raise ValueError("exact updater EXE missing beside main EXE")
+        updater_actual_hash = _hash(updater_exe)
+        if (
+            updater.get("runner_os") != "Windows"
+            or updater.get("github_sha") != os.environ.get("GITHUB_SHA")
+            or updater.get("github_run_id") != os.environ.get("GITHUB_RUN_ID")
+            or updater.get("sha256") != updater_actual_hash
+            or updater.get("updater_exact_exe") != "PASS"
+            or int(updater.get("hard_fail_count", -1)) != 0
+        ):
+            raise ValueError("updater acceptance is not current-run/hash bound")
+
+        updater_checks = updater.get("checks")
+        required_updater_checks = {
+            "self-test", "software-self-test", "offline-failclosed", "update", "repair"
+        }
+        if not isinstance(updater_checks, dict) or not required_updater_checks.issubset(updater_checks):
+            raise ValueError("updater exact-EXE check set incomplete")
+        process_ok = all(
+            isinstance(updater_checks[name], dict)
+            and updater_checks[name].get("status") == "PASS"
+            and updater_checks[name].get("exit_code") == 0
+            and updater_checks[name].get("hash_matches") is True
+            and updater_checks[name].get("separate_process") is True
+            and updater_checks[name].get("parent_pid_match") is True
+            for name in required_updater_checks
+        )
+        if not process_ok:
+            raise ValueError("updater process-boundary evidence incomplete")
+        gates["updater_process"] = "PASS"
+        gates["updater_exact_exe"] = "PASS"
+
+        software_self = _read(evidence / "updater-software-self-test.json")
+        software_result = software_self.get("service_result") if isinstance(software_self, dict) else None
+        software_checks = software_result.get("checks") if isinstance(software_result, dict) else None
+        rollback_ok = (
+            isinstance(software_self, dict)
+            and software_self.get("schema") == "ssq-independent-updater-v2"
+            and software_self.get("mode") == "software-self-test"
+            and software_self.get("status") == "PASS"
+            and software_self.get("github_sha") == os.environ.get("GITHUB_SHA")
+            and software_self.get("github_run_id") == os.environ.get("GITHUB_RUN_ID")
+            and software_self.get("updater_exe_sha256") == updater_actual_hash
+            and software_self.get("parent_pid_match") is True
+            and isinstance(software_checks, dict)
+            and software_checks
+            and all(value is True for value in software_checks.values())
+        )
+        gates["updater_atomic_rollback"] = "PASS" if rollback_ok else "FAIL"
+
+        embedded = acceptance.get("updater") if isinstance(acceptance, dict) else None
+        main_self = (
+            acceptance.get("checks", {}).get("self")
+            if isinstance(acceptance, dict) and isinstance(acceptance.get("checks"), dict)
+            else None
+        )
+        updater_same_hash_ok = (
+            isinstance(embedded, dict)
+            and embedded.get("sha256") == updater_actual_hash
+            and isinstance(embedded.get("manifest"), dict)
+            and embedded["manifest"].get("sha256") == updater_actual_hash
+            and isinstance(main_self, dict)
+            and main_self.get("updater_bundle_integrity") is True
+            and main_self.get("embedded_updater_sha256") == updater_actual_hash
+        )
+        gates["updater_same_hash"] = "PASS" if updater_same_hash_ok else "FAIL"
+
+        release_state = str(updater.get("software_release_network") or "PENDING")
+        release_gate = str(updater.get("updater_release_gate") or "PENDING")
+        if release_state == "PASS" and release_gate == "PASS":
+            gates["updater_real_network"] = "PASS"
+        elif release_state in {"PENDING", "WARNING", "UNAVAILABLE", "SKIPPED", "UNKNOWN"}:
+            gates["updater_real_network"] = "PENDING"
+        else:
+            gates["updater_real_network"] = "FAIL"
+
+        proofs["updater"] = {
+            "acceptance_report": str(updater_path),
+            "acceptance_sha256": _hash(updater_path),
+            "artifact": str(updater_exe),
+            "artifact_sha256": updater_actual_hash,
+            "process_boundary": gates["updater_process"],
+            "atomic_rollback": gates["updater_atomic_rollback"],
+            "same_hash": gates["updater_same_hash"],
+            "software_release_network": gates["updater_real_network"],
+            "software_release_reason": updater.get("software_release_reason"),
+        }
+    except Exception as exc:
+        for name in (
+            "updater_process", "updater_exact_exe", "updater_atomic_rollback",
+            "updater_real_network", "updater_same_hash",
+        ):
+            gates[name] = "FAIL"
+        proofs["updater"] = {"error": f"{type(exc).__name__}: {exc}"}
+
     physical_path = evidence / "physical_gui_click.json"
     physical = _read(physical_path)
     if physical is not None:
