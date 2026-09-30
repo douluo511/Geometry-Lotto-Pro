@@ -85,6 +85,87 @@ def _contract_hints(text: str) -> dict:
     return {"url_hints": urls, "keyword_lines": lines}
 
 
+
+API_URL = "https://www.zhcw.com/port/client_json.php"
+
+
+def _decode_jsonp(raw: bytes) -> object:
+    text = _decode(raw).strip()
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        match = re.fullmatch(r"(?s)\s*[A-Za-z_$][A-Za-z0-9_$.]*\s*\((.*)\)\s*;?\s*", text)
+        if match is None:
+            raise RuntimeError("designated-media API returned neither JSON nor JSONP")
+        try:
+            return json.loads(match.group(1))
+        except json.JSONDecodeError as exc:
+            raise RuntimeError("designated-media JSONP payload is malformed") from exc
+
+
+def _walk(value: object):
+    yield value
+    if isinstance(value, dict):
+        for child in value.values():
+            yield from _walk(child)
+    elif isinstance(value, list):
+        for child in value:
+            yield from _walk(child)
+
+
+def _api_probe(params: dict[str, str]) -> dict:
+    request_params = dict(params)
+    request_params["callback"] = "happy8Probe"
+    response = NET.get(
+        API_URL,
+        params=request_params,
+        headers=HEADERS,
+        timeout=(10, 30),
+        allow_redirects=True,
+    )
+    raw = bytes(response.content)
+    final_url = str(getattr(response, "url", "") or API_URL)
+    record = _record(API_URL, response, raw, final_url)
+    record["params"] = params
+    if int(response.status_code) != 200 or not _same_host(final_url):
+        record["status"] = "FAIL"
+        return record
+    try:
+        payload = _decode_jsonp(raw)
+        record["payload_type"] = type(payload).__name__
+        if isinstance(payload, dict):
+            record["root_keys"] = sorted(str(k) for k in payload.keys())[:100]
+            record["resCode"] = payload.get("resCode")
+        issues = []
+        number_sequences = []
+        objects = []
+        for node in _walk(payload):
+            if not isinstance(node, dict):
+                continue
+            objects.append(sorted(str(k) for k in node.keys())[:60])
+            for key in ("issue", "lotteryDrawNum", "code", "qishu", "qh"):
+                token = str(node.get(key) or "").strip()
+                if re.fullmatch(r"20\d{5}", token) and token not in issues:
+                    issues.append(token)
+            for key, value in node.items():
+                if not re.search(r"(?i)(?:result|number|code|open|ball|hao|hm)", str(key)):
+                    continue
+                nums = [int(x) for x in re.findall(r"(?<!\d)(?:0?[1-9]|[1-7]\d|80)(?!\d)", str(value))]
+                if len(nums) == 20 and len(set(nums)) == 20 and all(1 <= x <= 80 for x in nums):
+                    if nums not in number_sequences:
+                        number_sequences.append(nums)
+        record["issue_tokens"] = issues[:300]
+        record["number_sequences"] = number_sequences[:50]
+        record["object_key_shapes"] = objects[:80]
+        record["payload_preview"] = json.dumps(payload, ensure_ascii=False)[:6000]
+        record["status"] = "PASS"
+    except Exception as exc:
+        record["status"] = "FAIL"
+        record["parse_error"] = f"{type(exc).__name__}: {exc}"
+        record["raw_preview"] = _decode(raw)[:3000]
+    return record
+
+
 def inspect() -> dict:
     report = {
         "schema": "happy8-zhcw-designated-media-contract-probe-v1",
@@ -93,6 +174,7 @@ def inspect() -> dict:
         "classification_claim": "NOT_EVALUATED_FOR_PRODUCTION",
         "pages": [],
         "scripts": [],
+        "api_probes": [],
         "note": (
             "Diagnostic only. This probe does not classify zhcw.com as an official production source. "
             "Production admission would separately require authority/provenance review, reproducible "
@@ -164,10 +246,49 @@ def inspect() -> dict:
             if len(report["scripts"]) >= 30:
                 break
 
+
+    report["api_probes"] = [
+        _api_probe({
+            "transactionType": "10001001",
+            "lotteryId": "6",
+            "issueCount": "",
+            "startIssue": "2020001",
+            "endIssue": "2020001",
+            "startDate": "",
+            "endDate": "",
+            "type": "0",
+            "pageNum": "1",
+            "pageSize": "30",
+            "tt": "1",
+        }),
+        _api_probe({
+            "transactionType": "10001001",
+            "lotteryId": "6",
+            "issueCount": "1000",
+            "startIssue": "",
+            "endIssue": "",
+            "startDate": "",
+            "endDate": "",
+            "type": "0",
+            "pageNum": "1",
+            "pageSize": "1000",
+            "tt": "1",
+        }),
+        _api_probe({
+            "transactionType": "10001002",
+            "lotteryId": "6",
+            "issue": "2020001",
+            "tt": "1",
+        }),
+    ]
+
     useful = any(
         page.get("issue_tokens") or page.get("number_sequences") or page.get("url_hints")
         for page in report["pages"]
-    ) or any(script.get("url_hints") or script.get("keyword_lines") for script in report["scripts"])
+    ) or any(script.get("url_hints") or script.get("keyword_lines") for script in report["scripts"]) or any(
+        probe.get("issue_tokens") or probe.get("number_sequences")
+        for probe in report["api_probes"]
+    )
     report["contract_discovery"] = "HINTS_FOUND" if useful else "NO_HISTORY_DATA_CONTRACT_FOUND"
     return report
 
