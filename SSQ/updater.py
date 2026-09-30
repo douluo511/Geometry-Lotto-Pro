@@ -273,7 +273,7 @@ def _parse_software_manifest(raw: bytes) -> dict[str, Any]:
     artifact_url = str(value.get("artifact_url") or "").strip()
     digest = str(value.get("artifact_sha256") or "").lower()
     size = value.get("artifact_bytes")
-    if not re.fullmatch(r"[0-9]+\\.[0-9]+\\.[0-9]+(?:[-+][A-Za-z0-9.-]+)?", version):
+    if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:[-+][A-Za-z0-9.-]+)?", version):
         raise ValueError("software manifest version is not a valid release version")
     if not _trusted_release_request(artifact_url, kind="artifact"):
         raise ValueError("software artifact URL violates trusted release repository policy")
