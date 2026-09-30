@@ -177,12 +177,39 @@ def fetch_shanghai_full_history() -> tuple[list[Draw], SourceReceipt, dict[str, 
                         re.sub(r"\\s+", " ", tag)[:300]
                         for tag in re.findall(r"(?is)<form\\b[^>]*>", response.text)[:10]
                     ]
+                    title_match = re.search(r"(?is)<title[^>]*>(.*?)</title>", response.text)
+                    title = _plain(title_match.group(1))[:180] if title_match else ""
+                    script_srcs = [
+                        html.unescape(src)[:220]
+                        for src in re.findall(
+                            r"(?is)<script\\b[^>]*\\bsrc\\s*=\\s*['\\\"]([^'\\\"]+)['\\\"]",
+                            response.text,
+                        )[:20]
+                    ]
+                    inline_hints = []
+                    for body in re.findall(
+                        r"(?is)<script\\b(?![^>]*\\bsrc\\s*=)[^>]*>(.*?)</script>",
+                        response.text,
+                    ):
+                        compact = re.sub(r"\\s+", " ", body)
+                        for match in re.finditer(
+                            r"(?i).{0,90}(?:issue|query|start|end|custom|期号).{0,140}",
+                            compact,
+                        ):
+                            inline_hints.append(match.group(0)[:260])
+                            if len(inline_hints) >= 12:
+                                break
+                        if len(inline_hints) >= 12:
+                            break
+                    sanitized_text = _plain(response.text)[:420]
                     raise RuntimeError(
                         "Shanghai Happy8 historical range parsed empty: "
                         f"range={start_issue}..{end_issue} bytes={len(raw)} "
                         f"sha256={hashlib.sha256(raw).hexdigest()} "
-                        f"visible_issue_tokens={visible_issues!r} "
-                        f"forms={forms!r} inputs={input_contract!r}"
+                        f"title={title!r} text_head={sanitized_text!r} "
+                        f"visible_issue_tokens={visible_issues!r} forms={forms!r} "
+                        f"inputs={input_contract!r} script_srcs={script_srcs!r} "
+                        f"inline_hints={inline_hints!r}"
                     )
                 break
 
