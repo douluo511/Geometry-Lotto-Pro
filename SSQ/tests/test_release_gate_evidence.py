@@ -499,6 +499,100 @@ class ReleaseGateEvidenceTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     _verify_gui_evidence(report, root, exe, True)
 
+    def test_gui_replay_preserves_recorded_parent_pid(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            exe = root / "candidate.exe"
+            exe.write_bytes(b"exact candidate")
+            rows = []
+            expected_pids = []
+            operations = (
+                (101, "predict", "prediction_freeze"),
+                (102, "update", "official_update"),
+                (103, "repair", "repair"),
+                (104, "audit", "audit"),
+            )
+            for index, (control_id, operation, kind) in enumerate(operations, 1):
+                leaf = f"physical-gui-run-{index:032x}"
+                run_dir = root / leaf
+                run_dir.mkdir()
+                before_text = f"before-{operation}"
+                token = f"{operation}-token"
+                after_text = f"Alpha Beta {token}"
+                before_path = run_dir / "gui_before.txt"
+                after_path = run_dir / "gui_after.txt"
+                before_path.write_text(before_text, encoding="utf-8")
+                after_path.write_text(after_text, encoding="utf-8")
+                (run_dir / "ledger.sqlite3").write_bytes(b"ledger")
+                before_hash = hashlib.sha256(before_text.encode("utf-8")).hexdigest()
+                after_hash = hashlib.sha256(after_text.encode("utf-8")).hexdigest()
+                process_id = 4200 + index
+                expected_pids.append(process_id)
+                effect = {
+                    "status": "PASS",
+                    "operation": operation,
+                    "after_id": 0,
+                    "experiment_id": index,
+                    "kind": kind,
+                    "event_status": "PASS",
+                    "payload_sha256": f"{index:064x}",
+                    "display_token": token,
+                }
+                rows.append({
+                    "button_index": index,
+                    "control_id": control_id,
+                    "operation": operation,
+                    "status": "PASS",
+                    "control_class": "BUTTON",
+                    "control_name": operation,
+                    "process_id": process_id,
+                    "control_verified": True,
+                    "physical_click_verified": True,
+                    "output_verified": True,
+                    "backend_effect_verified": True,
+                    "before_output_sha256": before_hash,
+                    "after_output_sha256": after_hash,
+                    "before_output_artifact": f"{leaf}/gui_before.txt",
+                    "after_output_artifact": f"{leaf}/gui_after.txt",
+                    "before_output_artifact_sha256": before_hash,
+                    "after_output_artifact_sha256": after_hash,
+                    "output_markers": ["Alpha", "Beta"],
+                    "after_status": "DONE",
+                    "data_dir": leaf,
+                    "displayed_backend_token": token,
+                    "backend_effect": effect,
+                })
+
+            report = {
+                "schema": "physical-gui-click-smoke-v2",
+                "status": "PASS",
+                "exe": exe.name,
+                "exe_sha256": hashlib.sha256(exe.read_bytes()).hexdigest(),
+                "github_sha": "a" * 40,
+                "github_run_id": "12345",
+                "tested_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "coordinate_fallback": False,
+                "visual_hash_as_proof": False,
+                "buttons": rows,
+            }
+            seen_pids = []
+
+            def fake_inspect(data_dir, operation, after_id=0, experiment_id=None, parent_pid=0):
+                row = next(item for item in rows if item["operation"] == operation)
+                self.assertEqual(after_id, 0)
+                self.assertEqual(experiment_id, row["backend_effect"]["experiment_id"])
+                self.assertEqual(parent_pid, row["process_id"])
+                seen_pids.append(parent_pid)
+                return dict(row["backend_effect"])
+
+            with patch.dict(os.environ, {"GITHUB_SHA": "a" * 40, "GITHUB_RUN_ID": "12345"}):
+                with patch("verify_gui_effect.inspect_effect", side_effect=fake_inspect):
+                    with patch("derive_gate_status._verify_gui_update_source", return_value={"status": "PASS"}):
+                        proof = _verify_gui_evidence(report, root, exe, True)
+
+            self.assertEqual(len(proof["ledgers"]), 4)
+            self.assertEqual(seen_pids, expected_pids)
+
     def test_failed_source_body_is_allowed_only_as_failed_receipt(self) -> None:
         # A CWL 403 body must remain hash-checkable evidence during a valid
         # Shanghai+Hebei fallback, but it can never be a PASS-source page.
