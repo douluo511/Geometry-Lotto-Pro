@@ -121,19 +121,75 @@ def inspect() -> dict:
         "note": "Diagnostic only; production admission requires complete historical coverage and provenance validation.",
     }
 
+    total_match = re.search(r"共\s*(\d+)\s*条记录\s*(\d+)\s*/\s*(\d+)\s*页", plain)
+    if total_match:
+        report["history_index"] = {
+            "total_records": int(total_match.group(1)),
+            "current_page": int(total_match.group(2)),
+            "total_pages": int(total_match.group(3)),
+        }
+    else:
+        report["history_index"] = None
+
+    def inspect_index_page(page_no: int) -> dict:
+        url = PAGE_URL if page_no == 1 else f"https://www.scflcp.com.cn/kl8info_{page_no}.jhtml"
+        page_response, page_raw, page_markup = _fetch(url)
+        page_plain = _plain(page_markup)
+        entries = []
+        for row in re.findall(r"(?is)<tr\b[^>]*>(.*?)</tr>", page_markup):
+            row_plain = _plain(row)
+            issue_match = re.search(r"(?<!\d)(20\d{5})(?!\d)", row_plain)
+            date_match = re.search(r"20\d{2}-\d{2}-\d{2}", row_plain)
+            href_match = re.search(
+                r"(?is)href\s*=\s*['\"]([^'\"]*/kl8info/\d+\.jhtml[^'\"]*)['\"]",
+                row,
+            )
+            if issue_match and date_match and href_match:
+                entries.append({
+                    "issue": issue_match.group(0),
+                    "date": date_match.group(0),
+                    "detail_url": urljoin(str(page_response.url), html.unescape(href_match.group(1))),
+                })
+        return {
+            "page": page_no,
+            "url": str(page_response.url),
+            "http_status": int(page_response.status_code),
+            "bytes": len(page_raw),
+            "sha256": hashlib.sha256(page_raw).hexdigest(),
+            "entries": entries,
+            "issue_tokens": re.findall(r"20\d{5}", page_plain)[:100],
+        }
+
+    total_pages = int(report["history_index"]["total_pages"]) if report["history_index"] else 1
+    page_set = sorted(set([1, max(1, total_pages // 2), total_pages]))
+    report["history_page_probes"] = []
+    for page_no in page_set:
+        try:
+            report["history_page_probes"].append(inspect_index_page(page_no))
+        except Exception as exc:
+            report["history_page_probes"].append({
+                "page": page_no,
+                "error": f"{type(exc).__name__}: {exc}",
+            })
+
     for attrs, body in re.findall(r"(?is)<select\b([^>]*)>(.*?)</select>", markup):
         options = []
         for opt_attrs, opt_body in re.findall(r"(?is)<option\b([^>]*)>(.*?)</option>", body):
             label = _plain(opt_body)[:160]
             vm = re.search(r"(?i)\bvalue\s*=\s*['\"]?([^'\"\s>]+)", opt_attrs)
             options.append({"value": html.unescape(vm.group(1)) if vm else "", "label": label})
-        report["selects"].append({"attrs": re.sub(r"\s+", " ", attrs)[:500], "options": options[:1000]})
+        onchange_match = re.search(r"(?i)\bonChange\s*=\s*['\"]([^'\"]*)['\"]", attrs)
+        report["selects"].append({
+            "attrs": re.sub(r"\s+", " ", attrs)[:1000],
+            "onchange": html.unescape(onchange_match.group(1))[:1200] if onchange_match else "",
+            "options": options[:1000],
+        })
 
     links = []
     for href, body in re.findall(r"(?is)<a\b[^>]*href\s*=\s*['\"]([^'\"]+)['\"][^>]*>(.*?)</a>", markup):
         absolute = urljoin(final_url, html.unescape(href))
         label = _plain(body)[:240]
-        if _official(absolute) and re.search(r"/kl8/(?:\d+\.jhtml|[^?#]+)", urlsplit(absolute).path):
+        if _official(absolute) and re.search(r"/(?:kl8|kl8info)/(?:\d+\.jhtml)$", urlsplit(absolute).path):
             links.append({"label": label, "url": absolute})
     dedup = []
     seen = set()
@@ -215,7 +271,13 @@ def inspect() -> dict:
         if len(report["inline_hints"]) >= 120:
             break
 
-    probe_urls = [row["url"] for row in dedup[:3]]
+    probe_urls = [row["url"] for row in dedup[:2]]
+    for page in report.get("history_page_probes", []):
+        entries = page.get("entries") or []
+        if entries:
+            for candidate in (entries[0]["detail_url"], entries[-1]["detail_url"]):
+                if candidate not in probe_urls:
+                    probe_urls.append(candidate)
     for url in probe_urls:
         try:
             report["detail_probes"].append(inspect_detail(url))
@@ -228,13 +290,35 @@ def inspect() -> dict:
             m = re.search(r"20\d{5}", option["label"] + " " + option["value"])
             if m:
                 option_issues.append(m.group(0))
+    all_history_entries = [
+        entry
+        for page in report.get("history_page_probes", [])
+        for entry in (page.get("entries") or [])
+    ]
+    earliest_issue = min((x["issue"] for x in all_history_entries), default=None)
+    latest_issue = max((x["issue"] for x in all_history_entries), default=None)
+    tail_page = next(
+        (x for x in report.get("history_page_probes", []) if x.get("page") == total_pages),
+        None,
+    )
+    report["history_coverage_probe"] = {
+        "earliest_issue_seen": earliest_issue,
+        "latest_issue_seen": latest_issue,
+        "tail_page_has_entries": bool(tail_page and tail_page.get("entries")),
+        "starts_at_2020001": earliest_issue == "2020001",
+    }
     report["checks"] = {
         "official_https": _official(final_url),
-        "current_numbers_machine_readable": bool(report["page"]["number_candidates"]),
-        "detail_links_discovered": bool(dedup),
+        "history_index_detected": bool(report["history_index"]),
+        "tail_page_fetched": bool(tail_page and tail_page.get("entries")),
+        "detail_links_discovered": bool(dedup or all_history_entries),
         "detail_probe_numbers": any(x.get("numbers") for x in report["detail_probes"]),
         "issue_navigation_discovered": bool(
-            option_issues or report["navigation_links"] or report["pagination_hints"] or report["inline_hints"]
+            report["history_index"]
+            or option_issues
+            or report["navigation_links"]
+            or report["pagination_hints"]
+            or report["inline_hints"]
         ),
     }
     report["history_navigation_candidates"] = {
@@ -250,9 +334,13 @@ def inspect() -> dict:
     report["option_issue_first"] = option_issues[:20]
     report["option_issue_last"] = option_issues[-20:]
     report["contract_discovery"] = (
-        "SICHUAN_HISTORY_CONTRACT_CANDIDATE"
-        if all(report["checks"].values())
-        else "SICHUAN_HISTORY_CONTRACT_INCOMPLETE"
+        "SICHUAN_FULL_HISTORY_CANDIDATE"
+        if all(report["checks"].values()) and report["history_coverage_probe"]["starts_at_2020001"]
+        else (
+            "SICHUAN_PARTIAL_HISTORY_CONTRACT_PASS"
+            if all(report["checks"].values())
+            else "SICHUAN_HISTORY_CONTRACT_INCOMPLETE"
+        )
     )
     return report
 
