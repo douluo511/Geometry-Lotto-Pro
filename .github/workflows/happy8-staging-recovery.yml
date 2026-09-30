@@ -15,8 +15,8 @@ jobs:
   recovered-source-staging:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: '3.11.9'
           architecture: 'x64'
@@ -30,6 +30,8 @@ jobs:
         run: python scripts/storage_gate.py
       - name: Provincial official fallback diagnostic probe
         run: python scripts/official_fallback_probe.py --output evidence/official_fallback_probe.json
+      - name: Shanghai official frontend contract probe
+        run: python scripts/shanghai_contract_probe.py --output evidence/shanghai_contract_probe.json
       - name: Live dual-official-source network gate
         run: python scripts/real_network_check.py --output evidence/live_official_history.json
       - name: Current-history scientific validation gate
@@ -44,7 +46,7 @@ jobs:
 
       - name: Upload staging diagnostic evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: Happy8-Staging-Diagnostic-${{ github.sha }}
           path: Happy8/staging/evidence/**
