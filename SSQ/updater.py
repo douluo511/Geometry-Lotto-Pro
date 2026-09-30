@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import random
+import re
 import subprocess
 import sys
 import tempfile
@@ -272,8 +273,8 @@ def _parse_software_manifest(raw: bytes) -> dict[str, Any]:
     artifact_url = str(value.get("artifact_url") or "").strip()
     digest = str(value.get("artifact_sha256") or "").lower()
     size = value.get("artifact_bytes")
-    if not version:
-        raise ValueError("software manifest version missing")
+    if not re.fullmatch(r"[0-9]+\\.[0-9]+\\.[0-9]+(?:[-+][A-Za-z0-9.-]+)?", version):
+        raise ValueError("software manifest version is not a valid release version")
     if not _trusted_release_request(artifact_url, kind="artifact"):
         raise ValueError("software artifact URL violates trusted release repository policy")
     if len(digest) != 64 or any(ch not in "0123456789abcdef" for ch in digest):
@@ -379,7 +380,7 @@ def _apply_verified_artifact(
                 rollback.unlink(missing_ok=True)
 
 
-def _exact_main_self_test(target: Path) -> tuple[bool, dict[str, Any]]:
+def _exact_main_self_test(target: Path, expected_version: str | None = None) -> tuple[bool, dict[str, Any]]:
     with tempfile.TemporaryDirectory(prefix="ssq-updater-main-self-") as td:
         result = Path(td) / "self.json"
         try:
@@ -394,12 +395,15 @@ def _exact_main_self_test(target: Path) -> tuple[bool, dict[str, Any]]:
                 and payload.get("status") == "PASS"
                 and payload.get("exe_sha256") == _file_sha256(target)
                 and payload.get("game") == "SSQ"
+                and (expected_version is None or payload.get("version") == expected_version)
             )
             return ok, {
                 "status": "PASS" if ok else "FAIL",
                 "exit_code": proc.returncode,
                 "result": payload,
                 "target_sha256": _file_sha256(target),
+                "expected_version": expected_version,
+                "reported_version": payload.get("version"),
             }
         except Exception as exc:
             return False, {"status": "FAIL", "error": f"{type(exc).__name__}: {exc}"}
@@ -453,7 +457,7 @@ def _software_update(target: Path, manifest_url: str, wait_pid: int = 0) -> dict
         target,
         artifact,
         manifest["artifact_sha256"],
-        validator=_exact_main_self_test,
+        validator=lambda path: _exact_main_self_test(path, expected_version=manifest["version"]),
     )
     return {
         "status": replacement.get("status", "FAIL"),
