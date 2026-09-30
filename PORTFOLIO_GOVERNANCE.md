@@ -6,6 +6,8 @@ This repository is a **shared migration / acceptance workspace**, not an accepta
 
 Every final system must have its own repository, code, data, configuration, models/rules/content, updater, Windows build, Exact EXE, Same Hash evidence, Final Gate and final artifact.
 
+The updater requirement is not satisfied by a same-process `update()` or `repair()` method alone. The final system must prove a distinct updater/repair executable or process boundary, signed or hash-bound manifest/artifact verification, bounded network behavior, atomic replacement/rollback, failure evidence, and exact-artifact acceptance.
+
 While a project remains in this shared repository:
 
 - `repository_independence = FAIL`;
@@ -15,7 +17,7 @@ While a project remains in this shared repository:
 
 ## Frozen hard-gate chain
 
-Requirements / purpose → 5 Why → risk boundary → Domain Model → architecture → function/API contracts → sources → NetClient → Storage → Engine → Evidence → Service → UI → Self-Test → Unit/Contract/Integration → Fault Injection → Real Network → Business validation → Counterexample / Reversal → Windows Build → Exact EXE → Physical GUI Click → Same Hash → repository independence → evidence-derived Final Gate → unique artifact.
+Requirements / purpose → 5 Why → risk boundary → Domain Model → architecture → function/API contracts → sources → NetClient → Storage → Engine → Evidence → Service → UI → independent Updater/Repair process → Self-Test → Unit/Contract/Integration → Fault Injection → Real Network → Business validation → Counterexample / Reversal → Windows Build → Exact EXE → Updater Exact EXE → Physical GUI Click → Updater execution/rollback smoke → Same Hash → repository independence → evidence-derived Final Gate → unique artifact.
 
 Only explicit, current-run, machine-verifiable PASS counts. PENDING, WARNING, SKIPPED, UNAVAILABLE, UNKNOWN, stale evidence, inherited PASS, or missing evidence fail closed.
 
