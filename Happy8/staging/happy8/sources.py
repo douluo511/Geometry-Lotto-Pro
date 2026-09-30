@@ -160,11 +160,29 @@ def fetch_shanghai_full_history() -> tuple[list[Draw], SourceReceipt, dict[str, 
                     break
                 if year < current_year:
                     visible_issues = re.findall(r"20\\d{5}", _plain(response.text))[:12]
+                    input_tags = re.findall(r"(?is)<input\\b[^>]*>", response.text)
+                    input_contract = []
+                    for tag in input_tags[:20]:
+                        attrs = {}
+                        for key in ("name", "id", "type", "value", "placeholder"):
+                            match = re.search(
+                                rf"(?is)\\b{key}\\s*=\\s*['\\\"]([^'\\\"]*)['\\\"]",
+                                tag,
+                            )
+                            if match:
+                                attrs[key] = match.group(1)[:120]
+                        if attrs:
+                            input_contract.append(attrs)
+                    forms = [
+                        re.sub(r"\\s+", " ", tag)[:300]
+                        for tag in re.findall(r"(?is)<form\\b[^>]*>", response.text)[:10]
+                    ]
                     raise RuntimeError(
                         "Shanghai Happy8 historical range parsed empty: "
                         f"range={start_issue}..{end_issue} bytes={len(raw)} "
                         f"sha256={hashlib.sha256(raw).hexdigest()} "
-                        f"visible_issue_tokens={visible_issues!r}"
+                        f"visible_issue_tokens={visible_issues!r} "
+                        f"forms={forms!r} inputs={input_contract!r}"
                     )
                 break
 
