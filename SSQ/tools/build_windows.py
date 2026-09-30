@@ -88,7 +88,8 @@ def run_updater(mode: str, data_root: Path, result_path: Path, timeout: int = 18
         and content.get('updater_exe_sha256') == updater_hash
         and content.get('parent_pid_match') is True
         and int(content.get('pid') or 0) != os.getpid()
-        and int(content.get('parent_pid') or 0) == os.getpid()
+        and int(content.get('expected_parent_pid') or 0) == os.getpid()
+        and os.getpid() in [int(x) for x in (content.get('ancestor_pids') or [])]
     )
     updater_acceptance['checks'][mode] = {
         'status': 'PASS' if ok else 'FAIL',
@@ -96,6 +97,8 @@ def run_updater(mode: str, data_root: Path, result_path: Path, timeout: int = 18
         'hash_matches': content.get('updater_exe_sha256') == updater_hash,
         'separate_process': int(content.get('pid') or 0) != os.getpid(),
         'parent_pid_match': content.get('parent_pid_match') is True,
+        'expected_parent_pid': content.get('expected_parent_pid'),
+        'ancestor_pids': content.get('ancestor_pids'),
         'result_file': str(result_path),
     }
     print('UPDATER_EXACT_CHECK=' + mode + ' ' + json.dumps(content, ensure_ascii=True), flush=True)
