@@ -29,7 +29,9 @@ jobs:
       - name: Storage and Evidence atomicity gate
         run: python scripts/storage_gate.py
       - name: Live dual-official-source network gate
-        run: python scripts/real_network_check.py
+        run: python scripts/real_network_check.py --output evidence/live_official_history.json
+      - name: Current-history scientific validation gate
+        run: python scripts/science_gate.py --input evidence/live_official_history.json --output evidence/scientific_validation.json
       - name: Explicit non-final marker
         shell: pwsh
         run: |
