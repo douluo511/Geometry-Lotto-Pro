@@ -5,6 +5,7 @@ import shutil
 import sqlite3
 import sys
 from dataclasses import asdict
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 
@@ -33,6 +34,24 @@ def resource_path(name: str) -> Path:
 
 def _json_dumps(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
+MAX_REUSED_OFFICIAL_EVIDENCE_AGE_SECONDS = 15 * 60
+
+
+def _utc_age_seconds(value: Any) -> float | None:
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return None
+    age = (datetime.now(timezone.utc) - parsed.astimezone(timezone.utc)).total_seconds()
+    if age < 0:
+        return None
+    return age
 
 
 class LottoService:
@@ -519,15 +538,23 @@ class LottoService:
         except (OSError, UnicodeError, json.JSONDecodeError):
             return None
         receipts = evidence.get("source_receipts")
+        evidence_age = _utc_age_seconds(evidence.get("fetched_at"))
+        pass_receipts = [
+            row for row in receipts
+            if isinstance(row, dict) and row.get("status") == "PASS"
+        ] if isinstance(receipts, list) else []
+        receipt_ages = [_utc_age_seconds(row.get("fetched_at")) for row in pass_receipts]
         if (
             evidence.get("game") != "SSQ"
             or evidence.get("crosscheck_status") != "PASS"
             or evidence.get("canonical_hash") != self._canonical_hash()
-            or not isinstance(receipts, list)
-            or sum(
-                1 for row in receipts
-                if isinstance(row, dict) and row.get("status") == "PASS"
-            ) < 2
+            or evidence_age is None
+            or evidence_age > MAX_REUSED_OFFICIAL_EVIDENCE_AGE_SECONDS
+            or len(pass_receipts) < 2
+            or any(
+                age is None or age > MAX_REUSED_OFFICIAL_EVIDENCE_AGE_SECONDS
+                for age in receipt_ages
+            )
         ):
             return None
         return {
@@ -538,6 +565,8 @@ class LottoService:
             "source_receipts": receipts,
             "persisted_integrity": integrity,
             "reused_current_evidence": True,
+            "evidence_age_seconds": evidence_age,
+            "max_reuse_age_seconds": MAX_REUSED_OFFICIAL_EVIDENCE_AGE_SECONDS,
         }
 
     def audit(self, progress: Callable[[str], None] | None = None) -> dict[str, Any]:
