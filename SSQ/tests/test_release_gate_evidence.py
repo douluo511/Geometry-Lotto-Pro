@@ -611,7 +611,7 @@ class ReleaseGateEvidenceTests(unittest.TestCase):
                 "GITHUB_SHA": "a" * 40, "GITHUB_RUN_ID": "12345",
             }):
                 with self.assertRaises(ValueError):
-                    _verify_updater_release_network(root, updater_hash)
+                    _verify_updater_release_network(root, updater_hash, "b" * 64)
 
     def test_updater_release_network_rejects_shared_repo_urls(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
