@@ -35,6 +35,7 @@ def main() -> int:
     p.add_argument("--exe", required=True)
     p.add_argument("--final-exe", required=True)
     p.add_argument("--physical-gui", required=True)
+    p.add_argument("--repository-independent", choices=["PASS", "FAIL"], required=True)
     p.add_argument("--output", required=True)
     a = p.parse_args()
 
@@ -116,6 +117,7 @@ def main() -> int:
     ) else "FAIL"
     gates["same_hash"] = "PASS" if source_hash and source_hash == final_hash == exact_hash else "FAIL"
     gates["business_content"] = "PASS" if current["business"] and passed(business) else "FAIL"
+    gates["repository_independence"] = a.repository_independent
 
     failures = {k: v for k, v in gates.items() if v != "PASS"}
     report = {
