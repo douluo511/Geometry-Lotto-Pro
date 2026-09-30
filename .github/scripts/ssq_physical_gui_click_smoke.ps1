@@ -12,8 +12,6 @@ param(
 $ErrorActionPreference = "Stop"
 if($PreconditionIndex -ne -1){ throw "Unverified precondition clicks are forbidden" }
 if($OperationTimeoutSeconds -lt 1 -or $OperationTimeoutSeconds -gt 1800){ throw "Invalid operation timeout" }
-Add-Type -AssemblyName UIAutomationClient
-Add-Type -AssemblyName UIAutomationTypes
 Add-Type @"
 using System;
 using System.Text;
@@ -27,6 +25,8 @@ public static class PhysicalGuiClick {
   [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
   [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetClassNameW(IntPtr hWnd, StringBuilder text, int length);
   [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetWindowTextW(IntPtr hWnd, StringBuilder text, int length);
+  [DllImport("user32.dll", EntryPoint="SendMessageW")] public static extern IntPtr SendMessageRaw(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
+  [DllImport("user32.dll", EntryPoint="SendMessageW", CharSet=CharSet.Unicode)] public static extern IntPtr SendMessageText(IntPtr hWnd, uint msg, IntPtr wParam, StringBuilder lParam);
   [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hWnd);
   [DllImport("user32.dll")] public static extern bool IsWindowEnabled(IntPtr hWnd);
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
@@ -89,6 +89,16 @@ function Wait-MainWindow([System.Diagnostics.Process]$boot,[int[]]$baselinePids)
   throw "Exact EXE's newly spawned main window was not found"
 }
 
+function Get-NativeText([IntPtr]$handle){
+  $WM_GETTEXT = 0x000D
+  $WM_GETTEXTLENGTH = 0x000E
+  $length = [PhysicalGuiClick]::SendMessageRaw($handle,$WM_GETTEXTLENGTH,[IntPtr]::Zero,[IntPtr]::Zero).ToInt32()
+  if($length -lt 0 -or $length -gt 1048576){ throw "Invalid native control text length: $length" }
+  $buffer = New-Object System.Text.StringBuilder ([Math]::Max(2,$length + 2))
+  [void][PhysicalGuiClick]::SendMessageText($handle,$WM_GETTEXT,[IntPtr]($buffer.Capacity),$buffer)
+  return $buffer.ToString()
+}
+
 function Get-Control([IntPtr]$window,[int]$id,[int]$processId,[string]$expectedClass){
   $handle = [PhysicalGuiClick]::GetDlgItem($window,$id)
   if($handle -eq [IntPtr]::Zero){ throw "Control $id missing from exact EXE window" }
@@ -104,26 +114,12 @@ function Get-Control([IntPtr]$window,[int]$id,[int]$processId,[string]$expectedC
   if($expectedClass -eq "BUTTON" -and -not [PhysicalGuiClick]::IsWindowEnabled($handle)){
     throw "Control $id is disabled"
   }
-  $element = [System.Windows.Automation.AutomationElement]::FromHandle($handle)
-  if($null -eq $element){ throw "Control $id has no UI Automation element" }
-  $nativeText = New-Object System.Text.StringBuilder 512
-  [void][PhysicalGuiClick]::GetWindowTextW($handle,$nativeText,$nativeText.Capacity)
-  if($expectedClass -ne "BUTTON"){
-    $expectedType = if($expectedClass -eq "EDIT"){
-      [System.Windows.Automation.ControlType]::Edit
-    } else {
-      [System.Windows.Automation.ControlType]::Text
-    }
-    if($element.Current.ControlType -ne $expectedType){ throw "Control $id UIA type mismatch" }
-  }
-  $resolvedName = if($nativeText.Length -gt 0){ $nativeText.ToString() } else { [string]$element.Current.Name }
-  return @{ hwnd=$handle; element=$element; name=$resolvedName; class=$className.ToString(); uia_type=[string]$element.Current.ControlType.ProgrammaticName }
+  $nativeText = Get-NativeText $handle
+  return @{ hwnd=$handle; name=$nativeText; class=$className.ToString() }
 }
 
 function Get-EditValue($control){
-  $pattern = $control.element.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)
-  if($null -eq $pattern){ throw "Result EDIT has no ValuePattern" }
-  return [string]$pattern.Current.Value
+  return [string](Get-NativeText $control.hwnd)
 }
 
 function Read-BackendEffect([string]$dataDir,[string]$operation,[int]$afterId){
@@ -182,7 +178,7 @@ try {
       $output = Get-Control $window.hwnd 201 $guiPid "EDIT"
       $status = Get-Control $window.hwnd 202 $guiPid "STATIC"
       $beforeText = Get-EditValue $output
-      $beforeStatus = [string]$status.element.Current.Name
+      $beforeStatus = [string](Get-NativeText $status.hwnd)
       $beforeOutputPath = Join-Path $dataDir "gui_before.txt"
       Write-UiText $beforeOutputPath $beforeText
       $before = Read-BackendEffect $dataDir $op.name 0
@@ -201,7 +197,7 @@ try {
         if($effect.status -eq "FAIL"){ throw "Backend $($op.name) FAIL: $($effect.reason)" }
         if($effect.status -eq "PASS"){
           $afterText = Get-EditValue $output
-          $afterStatus = [string]$status.element.Current.Name
+          $afterStatus = [string](Get-NativeText $status.hwnd)
           if($afterText -ne $beforeText -and
               $afterText.Contains($op.marker1) -and $afterText.Contains($op.marker2) -and
               $afterText.Contains([string]$effect.display_token) -and
