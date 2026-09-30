@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -63,6 +64,8 @@ def main() -> int:
     report = {
         "schema": "ssq-architecture-gate-v2",
         "status": status,
+        "github_sha": os.environ.get("GITHUB_SHA"),
+        "github_run_id": os.environ.get("GITHUB_RUN_ID"),
         "gates": gates,
         "checks": checks,
     }
