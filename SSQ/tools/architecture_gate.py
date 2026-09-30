@@ -82,7 +82,9 @@ def main() -> int:
     )
     checks["updater_exact_artifact_transaction"] = (
         "SOFTWARE_MANIFEST_SCHEMA" in updater
-        and "_trusted_https" in updater
+        and "TRUSTED_RELEASE_REPOSITORY" in updater
+        and "_trusted_release_request" in updater
+        and "_trusted_redirect_target" in updater
         and "_apply_verified_artifact" in updater
         and "os.replace(target, rollback)" in updater
         and "rolled_back" in updater
