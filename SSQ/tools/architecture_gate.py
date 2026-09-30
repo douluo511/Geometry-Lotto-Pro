@@ -2,11 +2,38 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = ROOT.parent
 PKG = ROOT / "SSQ" / "glp"
 SPEC = ROOT / "ENGINEERING_SPEC.md"
+ACTION_SHA_RE = re.compile(
+    r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+@[0-9a-f]{40}(?:\s+#.*)?$"
+)
+
+
+def workflow_actions_are_sha_pinned(repo_root: Path) -> tuple[bool, list[str]]:
+    workflow_paths = (
+        repo_root / ".github" / "workflows" / "ssq-windows-build-acceptance.yml",
+        repo_root / ".github" / "workflows" / "ssq-independent-repo-export.yml",
+    )
+    failures: list[str] = []
+    for path in workflow_paths:
+        if not path.is_file():
+            failures.append(f"missing workflow: {path.relative_to(repo_root)}")
+            continue
+        for number, raw in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            stripped = raw.strip()
+            if not stripped.startswith("uses: "):
+                continue
+            value = stripped.removeprefix("uses: ").strip()
+            if value.startswith("actions/") and ACTION_SHA_RE.fullmatch(value) is None:
+                failures.append(f"{path.relative_to(repo_root)}:{number}: {value}")
+    return not failures, failures
+
+
 REQUIRED = [
     SPEC,
     ROOT / "BUSINESS_SPEC.md",
@@ -69,6 +96,11 @@ def main() -> int:
         "service": "PASS" if "class LottoService" in service else "FAIL",
         "ui": "PASS" if "LottoService" in gui else "FAIL",
     }
+    actions_pinned, action_pin_failures = workflow_actions_are_sha_pinned(REPO_ROOT)
+    checks["workflow_actions_sha_pinned"] = actions_pinned
+    if action_pin_failures:
+        checks["workflow_actions_sha_pin_failures"] = False
+
     checks["sources_use_netclient"] = gates["netclient"] == "PASS"
     checks["ui_uses_service"] = gates["ui"] == "PASS"
     checks["service_uses_engine"] = gates["engine"] == "PASS"
