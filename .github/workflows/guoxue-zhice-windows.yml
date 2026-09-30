@@ -95,14 +95,14 @@ jobs:
       - name: Evidence-derived Final Gate and Same Hash
         shell: pwsh
         run: |
-          python collect_final_gates.py --exe ".\dist\Guoxue_Zhice_Windows_Verified.exe" --final-exe ".\dist\final\Guoxue_Zhice_Windows_Verified.exe" --physical-gui ".\physical_gui_click.json" --output ".\mother_gates.json"
+          python collect_final_gates.py --exe ".\dist\Guoxue_Zhice_Windows_Verified.exe" --final-exe ".\dist\final\Guoxue_Zhice_Windows_Verified.exe" --physical-gui ".\physical_gui_click.json" --repository-independent FAIL --output ".\mother_gates.json"
           $collectorExit=$LASTEXITCODE
           python release_gate.py --input ".\mother_gates.json" --output ".\final_gate.json"
           $releaseExit=$LASTEXITCODE
           $mother=Get-Content ".\mother_gates.json" -Raw | ConvertFrom-Json
           $final=Get-Content ".\final_gate.json" -Raw | ConvertFrom-Json
           if ($collectorExit -ne 0 -or $releaseExit -ne 0 -or $mother.status -ne 'PASS' -or $final.final_gate -ne 'PASS' -or [int]$final.hard_fail_count -ne 0) {
-            throw "Evidence-derived Final Gate failed"
+            throw "Final Gate blocked: independent repository is mandatory"
           }
           Write-Host "GUOXUE_FINAL_SHA256=$($mother.exe_sha256)"
           Write-Host "FINAL_RELEASE_GATE=PASS"
@@ -131,6 +131,7 @@ jobs:
           compression-level: 0
 
       - name: Upload Audit Evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: Guoxue_Zhice_AUDIT_v0.2.0
