@@ -17,6 +17,7 @@ from uuid import uuid4
 
 import requests
 
+from glp.constants import APP_VERSION
 from glp.service import LottoService
 from glp.storage import Store
 from glp.util import app_data_dir, atomic_json, sha256_bytes, sha256_json
@@ -297,6 +298,35 @@ def _bounded_get(url: str, *, kind: str, max_bytes: int) -> tuple[bytes, dict[st
     raise err
 
 
+def _version_precedence(version: str) -> tuple[Any, ...]:
+    """Return a deterministic SemVer-like precedence key; build metadata is ignored."""
+    match = re.fullmatch(
+        r"(\d+)\.(\d+)\.(\d+)(?:-([A-Za-z0-9.-]+))?(?:\+([A-Za-z0-9.-]+))?",
+        str(version).strip(),
+    )
+    if not match:
+        raise ValueError(f"invalid software version: {version!r}")
+    core = tuple(int(match.group(i)) for i in (1, 2, 3))
+    prerelease = match.group(4)
+    if prerelease is None:
+        return (*core, 1, ())
+    identifiers: list[tuple[int, Any]] = []
+    for token in prerelease.split("."):
+        if not token:
+            raise ValueError("empty prerelease identifier")
+        identifiers.append((0, int(token)) if token.isdigit() else (1, token))
+    return (*core, 0, tuple(identifiers))
+
+
+def _require_forward_version(current_version: str, candidate_version: str) -> None:
+    current_key = _version_precedence(current_version)
+    candidate_key = _version_precedence(candidate_version)
+    if candidate_key <= current_key:
+        raise ValueError(
+            f"software update must move forward: current={current_version}, candidate={candidate_version}"
+        )
+
+
 def _parse_software_manifest(raw: bytes) -> dict[str, Any]:
     if len(raw) > MAX_MANIFEST_BYTES:
         raise ValueError("software manifest too large")
@@ -312,8 +342,10 @@ def _parse_software_manifest(raw: bytes) -> dict[str, Any]:
     artifact_url = str(value.get("artifact_url") or "").strip()
     digest = str(value.get("artifact_sha256") or "").lower()
     size = value.get("artifact_bytes")
-    if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:[-+][A-Za-z0-9.-]+)?", version):
-        raise ValueError("software manifest version is not a valid release version")
+    try:
+        _version_precedence(version)
+    except ValueError as exc:
+        raise ValueError("software manifest version is not a valid release version") from exc
     if not _trusted_release_request(artifact_url, kind="artifact"):
         raise ValueError("software artifact URL violates trusted release repository policy")
     if len(digest) != 64 or any(ch not in "0123456789abcdef" for ch in digest):
@@ -374,7 +406,11 @@ def _apply_verified_artifact(
         _stage_bytes(stage, artifact)
         if _file_sha256(stage) != expected_sha256:
             raise RuntimeError("staged artifact failed SHA256 read-back")
+        if _file_sha256(target) != before_hash:
+            raise RuntimeError("target executable changed during staging")
         os.replace(target, rollback)
+        if _file_sha256(rollback) != before_hash:
+            raise RuntimeError("target executable changed before atomic replacement")
         try:
             os.replace(stage, target)
             evidence["replaced"] = True
@@ -483,6 +519,7 @@ def _software_update(target: Path, manifest_url: str, wait_pid: int = 0) -> dict
 
     manifest_raw, manifest_receipt = _bounded_get(manifest_url, kind="manifest", max_bytes=MAX_MANIFEST_BYTES)
     manifest = _parse_software_manifest(manifest_raw)
+    _require_forward_version(APP_VERSION, manifest["version"])
     artifact, artifact_receipt = _bounded_get(
         manifest["artifact_url"], kind="artifact", max_bytes=MAX_ARTIFACT_BYTES
     )
