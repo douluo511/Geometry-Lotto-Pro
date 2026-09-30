@@ -34,7 +34,7 @@ def inspect_effect(
     if (operation not in EVENT_KINDS or after_id < 0
             or (experiment_id is not None and experiment_id <= 0)):
         raise ValueError("unknown operation, negative baseline ID, or invalid experiment ID")
-    db_path = data_dir / "ledger.sqlite3"
+    db_path = (data_dir / "ledger.sqlite3").resolve()
     result: dict[str, Any] = {
         "status": "PENDING", "operation": operation, "after_id": after_id,
         "latest_id": 0, "database": str(db_path),
