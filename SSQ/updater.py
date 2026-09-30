@@ -17,7 +17,6 @@ from uuid import uuid4
 
 import requests
 
-from glp.constants import APP_VERSION
 from glp.service import LottoService
 from glp.storage import Store
 from glp.util import app_data_dir, atomic_json, sha256_bytes, sha256_json
