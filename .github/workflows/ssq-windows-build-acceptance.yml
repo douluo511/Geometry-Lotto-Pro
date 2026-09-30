@@ -27,6 +27,11 @@ jobs:
     steps:
       - name: Checkout exact commit
         uses: actions/checkout@v4
+        with:
+          # The PR merge commit must not be a shallow boundary: the identity
+          # gate below proves that the current candidate HEAD is an actual
+          # parent of the exact merge-ref being accepted.
+          fetch-depth: 2
 
       - name: Exact checkout identity gate
         shell: pwsh
