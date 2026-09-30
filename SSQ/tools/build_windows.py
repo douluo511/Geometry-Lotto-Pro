@@ -108,6 +108,21 @@ run_updater(
     timeout=900,
 )
 
+# Exact updater software-artifact transaction self-test. This proves the updater
+# binary itself can stage, replace, preserve previous bytes and roll back an
+# injected post-replace validation failure. It is not a substitute for a real
+# release-host network update.
+software_self = run_updater(
+    'software-self-test',
+    evidence / 'updater-software-self-data',
+    evidence / 'updater-software-self-test.json',
+    timeout=900,
+)
+software_checks = (software_self.get('service_result') or {}).get('checks') or {}
+if not software_checks or not all(bool(v) for v in software_checks.values()):
+    updater_acceptance['checks']['software-self-test']['status'] = 'FAIL'
+    raise RuntimeError('Updater software atomic/rollback self-test did not fully PASS')
+
 # Failure injection must be fail-closed and preserve canonical bytes.
 offline = run_updater(
     'offline-failclosed',
@@ -162,6 +177,13 @@ updater_hard_fail = [
 updater_acceptance['hard_failures'] = updater_hard_fail
 updater_acceptance['hard_fail_count'] = len(updater_hard_fail)
 updater_acceptance['updater_exact_exe'] = 'PASS' if not updater_hard_fail else 'FAIL'
+# A shared migration repository has no accepted independent release host/artifact.
+# Keep this non-PASS until the updater performs a real HTTPS manifest+artifact
+# transaction against the product's independent repository and binds the exact
+# installed main-EXE hash to that run.
+updater_acceptance['software_release_network'] = 'PENDING'
+updater_acceptance['software_release_reason'] = 'independent release repository/artifact not yet available'
+updater_acceptance['updater_release_gate'] = 'PENDING'
 (evidence / 'UPDATER_EXACT_EXE_ACCEPTANCE.json').write_text(
     json.dumps(updater_acceptance, ensure_ascii=False, indent=2), encoding='utf-8'
 )
@@ -213,6 +235,8 @@ report = {
         'manifest': updater_manifest,
         'acceptance_report': 'UPDATER_EXACT_EXE_ACCEPTANCE.json',
         'status': updater_acceptance['updater_exact_exe'],
+        'software_release_network': updater_acceptance['software_release_network'],
+        'release_gate': updater_acceptance['updater_release_gate'],
     },
     'runner_os': os.environ.get('RUNNER_OS'),
     'runner_name': os.environ.get('RUNNER_NAME'),
