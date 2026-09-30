@@ -413,7 +413,10 @@ class ReleaseGateEvidenceTests(unittest.TestCase):
                     "status": "PASS", "exit_code": 0, "hash_matches": True,
                     "separate_process": True, "parent_pid_match": True,
                 }
-                for name in ("self-test", "software-self-test", "offline-failclosed", "update", "repair")
+                for name in (
+                    "self-test", "software-self-test", "offline-failclosed", "update", "repair",
+                    "software-local-install-acceptance", "software-local-rollback-acceptance",
+                )
             }
             (root / "UPDATER_EXACT_EXE_ACCEPTANCE.json").write_text(json.dumps({
                 "schema": "ssq-updater-exact-exe-acceptance-v2",
@@ -439,6 +442,29 @@ class ReleaseGateEvidenceTests(unittest.TestCase):
                         "forced_validation_failure_rolls_back": True,
                         "rollback_hash_restored": True,
                     },
+                },
+            }), encoding="utf-8")
+            (root / "updater-local-main-install.json").write_text(json.dumps({
+                "schema": "ssq-independent-updater-v2",
+                "mode": "software-local-install-acceptance", "status": "PASS",
+                "github_sha": "a" * 40, "github_run_id": "12345",
+                "updater_exe_sha256": updater_hash, "parent_pid_match": True,
+                "service_result": {
+                    "status": "PASS",
+                    "release_network_status": "PENDING",
+                    "transaction": {"status": "PASS", "installed_sha256": digest},
+                },
+            }), encoding="utf-8")
+            (root / "updater-local-main-rollback.json").write_text(json.dumps({
+                "schema": "ssq-independent-updater-v2",
+                "mode": "software-local-rollback-acceptance", "status": "PASS",
+                "github_sha": "a" * 40, "github_run_id": "12345",
+                "updater_exe_sha256": updater_hash, "parent_pid_match": True,
+                "service_result": {
+                    "status": "PASS",
+                    "release_network_status": "PENDING",
+                    "expect_rollback": True,
+                    "transaction": {"status": "FAIL", "rolled_back": True},
                 },
             }), encoding="utf-8")
             with patch.dict(os.environ, {"GITHUB_SHA": "a" * 40, "GITHUB_RUN_ID": "12345"}):
