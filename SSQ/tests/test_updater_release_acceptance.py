@@ -60,6 +60,26 @@ class UpdaterReleaseAcceptanceTests(unittest.TestCase):
                 "c48dd9523b01ec38f2df720790fcbfa72bdf00c7b6c71611126720bbc6a9b967",
             )
 
+    def test_wait_proof_requires_actual_live_pid_wait(self) -> None:
+        good = {
+            "wait_for_main": {
+                "status": "PASS", "waited": True, "pid": 4321, "elapsed": 1.25,
+            }
+        }
+        proof = release_acceptance._require_wait_proof(good, 4321)
+        self.assertTrue(proof["waited"])
+
+        bad_cases = [
+            {"status": "PASS", "waited": False},
+            {"status": "PASS", "waited": True, "pid": 9999, "elapsed": 1.0},
+            {"status": "PASS", "waited": True, "pid": 4321, "elapsed": 0},
+            {"status": "PASS", "waited": True, "pid": 4321, "elapsed": False},
+            {"status": "FAIL", "waited": True, "pid": 4321, "elapsed": 1.0},
+        ]
+        for wait in bad_cases:
+            with self.subTest(wait=wait):
+                with self.assertRaisesRegex(RuntimeError, "waiting for a live main-process PID"):
+                    release_acceptance._require_wait_proof({"wait_for_main": wait}, 4321)
 
 if __name__ == "__main__":
     unittest.main()
