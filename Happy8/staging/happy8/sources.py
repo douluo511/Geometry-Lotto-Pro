@@ -166,7 +166,7 @@ def fetch_shanghai_full_history() -> tuple[list[Draw], SourceReceipt, dict[str, 
                         attrs = {}
                         for key in ("name", "id", "type", "value", "placeholder"):
                             match = re.search(
-                                rf"(?is)\\b{key}\\s*=\\s*['\\\"]([^'\\\"]*)['\\\"]",
+                                rf"(?is)\b{key}\s*=\s*['\\\"]([^'\\\"]*)['\\\"]",
                                 tag,
                             )
                             if match:
@@ -174,7 +174,7 @@ def fetch_shanghai_full_history() -> tuple[list[Draw], SourceReceipt, dict[str, 
                         if attrs:
                             input_contract.append(attrs)
                     forms = [
-                        re.sub(r"\\s+", " ", tag)[:300]
+                        re.sub(r"\s+", " ", tag)[:300]
                         for tag in re.findall(r"(?is)<form\b[^>]*>", response.text)[:10]
                     ]
                     title_match = re.search(r"(?is)<title[^>]*>(.*?)</title>", response.text)
@@ -182,7 +182,7 @@ def fetch_shanghai_full_history() -> tuple[list[Draw], SourceReceipt, dict[str, 
                     script_srcs = [
                         html.unescape(src)[:220]
                         for src in re.findall(
-                            r"(?is)<script\\b[^>]*\\bsrc\\s*=\\s*['\\\"]([^'\\\"]+)['\\\"]",
+                            r"(?is)<script\b[^>]*\bsrc\s*=\s*['\\\"]([^'\\\"]+)['\\\"]",
                             response.text,
                         )[:20]
                     ]
@@ -191,7 +191,7 @@ def fetch_shanghai_full_history() -> tuple[list[Draw], SourceReceipt, dict[str, 
                         r"(?is)<script\b(?![^>]*\bsrc\s*=)[^>]*>(.*?)</script>",
                         response.text,
                     ):
-                        compact = re.sub(r"\\s+", " ", body)
+                        compact = re.sub(r"\s+", " ", body)
                         for match in re.finditer(
                             r"(?i).{0,90}(?:issue|query|start|end|custom|期号).{0,140}",
                             compact,
