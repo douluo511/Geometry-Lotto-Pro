@@ -45,7 +45,7 @@ function Invoke-Gh {
   $output = & gh @Args 2>&1
   $code = $LASTEXITCODE
   if (-not $AllowFailure -and $code -ne 0) {
-    throw "gh command failed with exit code $code: $($output -join [Environment]::NewLine)"
+    throw "gh command failed with exit code ${code}: $($output -join [Environment]::NewLine)"
   }
   return [pscustomobject]@{ ExitCode = $code; Output = @($output) }
 }
@@ -59,7 +59,7 @@ function Invoke-Git {
   }
   $code = $LASTEXITCODE
   if ($code -ne 0) {
-    throw "git command failed with exit code $code: $($output -join [Environment]::NewLine)"
+    throw "git command failed with exit code ${code}: $($output -join [Environment]::NewLine)"
   }
   return @($output)
 }
