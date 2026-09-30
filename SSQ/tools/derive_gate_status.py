@@ -36,6 +36,31 @@ REQUIRED_BUSINESS_CHECKS = frozenset({
     "business_ablation", "business_leakage_and_confirmation",
     "business_freeze_audit_isolation", "business_no_overclaim",
 })
+REPRO_WORKSPACE_KEYS = (
+    "primary_dist", "rebuild_dist",
+    "primary_workpath", "rebuild_workpath",
+    "primary_specpath", "rebuild_specpath",
+)
+
+
+def _repro_workspace_isolated(check: Any) -> bool:
+    if not isinstance(check, dict) or check.get("workspace_isolated") is not True:
+        return False
+    paths = check.get("workspace_paths")
+    if not isinstance(paths, dict) or any(
+        not isinstance(paths.get(key), str) or not paths.get(key).strip()
+        for key in REPRO_WORKSPACE_KEYS
+    ):
+        return False
+    normalized = {key: paths[key].strip().replace("\\", "/").lower()
+                  for key in REPRO_WORKSPACE_KEYS}
+    return bool(
+        normalized["primary_dist"] != normalized["rebuild_dist"]
+        and normalized["primary_workpath"] != normalized["rebuild_workpath"]
+        and normalized["primary_specpath"] != normalized["rebuild_specpath"]
+    )
+
+
 REQUIRED_NETCLIENT_CHECKS = frozenset({
     "https_only", "timeout_pair_required", "429_retry_then_success",
     "separate_connect_read_timeout", "https_redirect_downgrade_fail_closed",
@@ -1419,6 +1444,7 @@ def derive(evidence: Path, exe: Path) -> dict[str, Any]:
             and isinstance(reproducible_check.get("updater_primary_sha256"), str)
             and reproducible_check.get("updater_primary_sha256")
                 == reproducible_check.get("updater_rebuild_sha256")
+            and _repro_workspace_isolated(reproducible_check)
         )
         gates["reproducible_build"] = "PASS" if reproducible_ok else "FAIL"
         proofs["reproducible_build"] = {
@@ -1441,6 +1467,14 @@ def derive(evidence: Path, exe: Path) -> dict[str, Any]:
             ),
             "updater_rebuild_sha256": (
                 reproducible_check.get("updater_rebuild_sha256")
+                if isinstance(reproducible_check, dict) else None
+            ),
+            "workspace_isolated": (
+                _repro_workspace_isolated(reproducible_check)
+                if isinstance(reproducible_check, dict) else False
+            ),
+            "workspace_paths": (
+                reproducible_check.get("workspace_paths")
                 if isinstance(reproducible_check, dict) else None
             ),
         }
@@ -1593,7 +1627,8 @@ def derive(evidence: Path, exe: Path) -> dict[str, Any]:
                 or updater_repro.get("exit_code") != 0
                 or updater_repro.get("hash_matches") is not True
                 or updater_repro.get("primary_sha256") != updater_actual_hash
-                or updater_repro.get("rebuild_sha256") != updater_actual_hash):
+                or updater_repro.get("rebuild_sha256") != updater_actual_hash
+                or not _repro_workspace_isolated(updater_repro)):
             raise ValueError("updater reproducible-build evidence incomplete")
         process_ok = all(
             isinstance(updater_checks[name], dict)
