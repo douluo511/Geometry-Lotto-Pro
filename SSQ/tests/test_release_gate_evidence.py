@@ -319,6 +319,39 @@ class ReleaseGateEvidenceTests(unittest.TestCase):
         self.assertFalse(_raw_status_allowed(403, "PASS"))
         self.assertFalse(_raw_status_allowed(200, "PENDING"))
 
+    def test_repository_independence_is_machine_derived(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with patch.dict(os.environ, {
+                "GITHUB_ACTIONS": "true",
+                "GITHUB_REPOSITORY": "douluo511/Geometry-Lotto-Pro",
+                "GITHUB_SERVER_URL": "https://github.com",
+            }, clear=False):
+                shared = derive(root, root / "missing.exe")
+            self.assertEqual(shared["gates"]["repository_independence"], "FAIL")
+            self.assertFalse(
+                shared["proofs"]["repository_independence"]["checks"]["repository_exact"]
+            )
+
+            with patch.dict(os.environ, {
+                "GITHUB_ACTIONS": "true",
+                "GITHUB_REPOSITORY": "douluo511/Geometry-Lotto-Pro-SSQ",
+                "GITHUB_SERVER_URL": "https://github.com",
+            }, clear=False):
+                independent = derive(root, root / "missing.exe")
+            self.assertEqual(independent["gates"]["repository_independence"], "PASS")
+            self.assertTrue(all(
+                independent["proofs"]["repository_independence"]["checks"].values()
+            ))
+
+            with patch.dict(os.environ, {
+                "GITHUB_ACTIONS": "false",
+                "GITHUB_REPOSITORY": "douluo511/Geometry-Lotto-Pro-SSQ",
+                "GITHUB_SERVER_URL": "https://github.com",
+            }, clear=False):
+                local_spoof = derive(root, root / "missing.exe")
+            self.assertEqual(local_spoof["gates"]["repository_independence"], "FAIL")
+
     def test_missing_evidence_never_passes(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -568,7 +601,6 @@ class ReleaseGateEvidenceTests(unittest.TestCase):
                 sys.executable, "-B", str(TOOLS / "release_gate_22.py"),
                 "--gate-input", str(gates), "--acceptance", str(acceptance),
                 "--exe", str(exe), "--report", str(report),
-                "--repository-independent", "FAIL",
             ], capture_output=True, text=True)
             final = json.loads(report.read_text(encoding="utf-8"))
         self.assertNotEqual(result.returncode, 0)
