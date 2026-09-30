@@ -2,20 +2,24 @@ from __future__ import annotations
 
 import hashlib
 import html
+import json
 import re
 from dataclasses import asdict, dataclass
 from datetime import date, datetime
 from typing import Any
+from urllib.parse import parse_qsl, urlsplit
 
 from .domain import Draw
 from .net_client import NetClient
 
 
-SHANGHAI_URL = "https://www.swlc.net.cn/lottery/kl8.html?limit=100&view=previous"
+SHANGHAI_HISTORY_URL = "https://www.swlc.net.cn/lottery/kl8.html"
+HAPPY8_HISTORY_START_ISSUE = "2020001"
 JIANGSU_URL = "https://www.jslottery.com/"
 HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Happy8Evidence/0.2",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Happy8Evidence/0.3",
     "Accept": "text/html,application/xhtml+xml",
+    "Referer": "https://www.swlc.net.cn/",
 }
 NET = NetClient(connect_timeout=10, read_timeout=30, max_attempts=3)
 
@@ -40,6 +44,11 @@ def _utc_now() -> str:
     return datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
 
 
+def _sha256_json(value: Any) -> str:
+    raw = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(raw).hexdigest()
+
+
 def _validate_html_response(response) -> bytes:
     status = int(response.status_code)
     if status != 200:
@@ -62,11 +71,10 @@ def _numbers_from_compact(value: str) -> tuple[int, ...]:
     digits = re.sub(r"\s+", "", value)
     if len(digits) != 40 or not digits.isdigit():
         raise ValueError("Happy8 compact result must contain exactly forty digits")
-    nums = tuple(int(digits[i:i+2]) for i in range(0, 40, 2))
-    return nums
+    return tuple(int(digits[i:i + 2]) for i in range(0, 40, 2))
 
 
-def parse_shanghai_history(text: str) -> list[Draw]:
+def parse_shanghai_history(text: str, *, allow_empty: bool = False) -> list[Draw]:
     plain = _plain(text)
     pattern = re.compile(
         r"(20\d{5})\s+(\d{4}-\d{2}-\d{2})(?:\([^)]*\))?\s+((?:\d{2}\s*){20})(?!\d)"
@@ -79,8 +87,8 @@ def parse_shanghai_history(text: str) -> list[Draw]:
             raise RuntimeError(f"Shanghai official source conflict for issue {draw.issue}")
         found[draw.issue] = draw
     draws = sorted(found.values(), key=lambda d: (d.draw_date, d.issue))
-    if len(draws) < 20:
-        raise RuntimeError(f"Shanghai official history parsed only {len(draws)} draws")
+    if not draws and not allow_empty:
+        raise RuntimeError("Shanghai official history contained no parseable draws")
     return draws
 
 
@@ -94,28 +102,123 @@ def parse_jiangsu_latest(text: str) -> Draw:
         raise RuntimeError("Jiangsu official home page did not expose a Happy8 result row")
     issue, spaced = match.groups()
     nums = [int(x) for x in re.findall(r"\d{2}", spaced)]
-    # The current Jiangsu home page does not expose a machine-readable draw date
-    # alongside the row. Use issue identity + numbers only for independent crosscheck.
     return Draw.from_values(issue, date.today().isoformat(), nums)
 
 
-def fetch_shanghai() -> tuple[list[Draw], SourceReceipt, bytes]:
-    response = NET.get(SHANGHAI_URL, headers=HEADERS, timeout=(10, 30), allow_redirects=True)
-    raw = _validate_html_response(response)
-    response.encoding = response.encoding or "utf-8"
-    draws = parse_shanghai_history(response.text)
+def _year_ranges(year: int) -> list[tuple[int, int]]:
+    return [(low, min(low + 98, 396)) for low in range(1, 397, 99)]
+
+
+def fetch_shanghai_full_history() -> tuple[list[Draw], SourceReceipt, dict[str, bytes], list[dict[str, Any]]]:
+    start_year = int(HAPPY8_HISTORY_START_ISSUE[:4])
+    current_year = date.today().year
+    if current_year < start_year:
+        raise RuntimeError("current year precedes Happy8 history start")
+
+    all_draws: list[Draw] = []
+    raw_sources: dict[str, bytes] = {}
+    manifest: list[dict[str, Any]] = []
+    seen: dict[str, Draw] = {}
+
+    for year in range(start_year, current_year + 1):
+        year_had_data = False
+        for low, high in _year_ranges(year):
+            if year == start_year:
+                low = max(low, int(HAPPY8_HISTORY_START_ISSUE[-3:]))
+            if low > high:
+                continue
+            start_issue = f"{year}{low:03d}"
+            end_issue = f"{year}{high:03d}"
+            params = {
+                "view": "previous",
+                "limit": "100",
+                "start_issue": start_issue,
+                "end_issue": end_issue,
+            }
+            response = NET.get(
+                SHANGHAI_HISTORY_URL,
+                params=params,
+                headers=HEADERS,
+                timeout=(10, 30),
+                allow_redirects=True,
+            )
+            raw = _validate_html_response(response)
+            actual = urlsplit(str(getattr(response, "url", "") or ""))
+            expected_host = urlsplit(SHANGHAI_HISTORY_URL).hostname
+            if actual.scheme.lower() != "https" or actual.hostname != expected_host:
+                raise RuntimeError("Shanghai Happy8 history response left official HTTPS host")
+            actual_params = dict(parse_qsl(actual.query, keep_blank_values=True))
+            if actual_params != params:
+                raise RuntimeError(
+                    f"Shanghai Happy8 query changed in transit: expected={params!r} actual={actual_params!r}"
+                )
+
+            response.encoding = response.encoding or "utf-8"
+            chunk = parse_shanghai_history(response.text, allow_empty=True)
+            if not chunk:
+                if year_had_data:
+                    break
+                if year < current_year:
+                    raise RuntimeError(f"Shanghai Happy8 historical year unexpectedly empty: {year}")
+                break
+
+            year_had_data = True
+            for draw in chunk:
+                if not (start_issue <= draw.issue <= end_issue):
+                    raise RuntimeError(
+                        f"Shanghai Happy8 returned issue outside requested range: {draw.issue} "
+                        f"not in {start_issue}..{end_issue}"
+                    )
+                prior = seen.get(draw.issue)
+                if prior and prior != draw:
+                    raise RuntimeError(f"Shanghai Happy8 cross-chunk conflict for issue {draw.issue}")
+                seen[draw.issue] = draw
+
+            filename = f"shanghai_{start_issue}_{end_issue}.html"
+            raw_sources[filename] = raw
+            item = {
+                "sequence": len(manifest) + 1,
+                "start_issue": start_issue,
+                "end_issue": end_issue,
+                "filename": filename,
+                "http_status": int(response.status_code),
+                "sha256": hashlib.sha256(raw).hexdigest(),
+                "bytes": len(raw),
+                "draw_count": len(chunk),
+                "first_issue": chunk[0].issue,
+                "last_issue": chunk[-1].issue,
+                "url": str(response.url),
+            }
+            manifest.append(item)
+            all_draws.extend(chunk)
+
+    ordered = sorted(seen.values(), key=lambda d: (d.draw_date, d.issue))
+    if not ordered or ordered[0].issue != HAPPY8_HISTORY_START_ISSUE:
+        raise RuntimeError(
+            f"Shanghai Happy8 full history does not start at {HAPPY8_HISTORY_START_ISSUE}: "
+            f"{ordered[0].issue if ordered else 'EMPTY'}"
+        )
+
+    by_year: dict[str, list[int]] = {}
+    for draw in ordered:
+        by_year.setdefault(draw.issue[:4], []).append(int(draw.issue[-3:]))
+    for year, suffixes in by_year.items():
+        first = int(HAPPY8_HISTORY_START_ISSUE[-3:]) if year == HAPPY8_HISTORY_START_ISSUE[:4] else 1
+        if suffixes != list(range(first, max(suffixes) + 1)):
+            raise RuntimeError(f"Shanghai Happy8 history has issue gaps/duplicates in {year}")
+
     receipt = SourceReceipt(
         source="shanghai_welfare_lottery",
-        url=SHANGHAI_URL,
-        http_status=int(response.status_code),
+        url=SHANGHAI_HISTORY_URL,
+        http_status=200,
         fetched_at=_utc_now(),
-        raw_sha256=hashlib.sha256(raw).hexdigest(),
-        bytes=len(raw),
-        draw_count=len(draws),
-        latest_issue=draws[-1].issue,
+        raw_sha256=_sha256_json(manifest),
+        bytes=sum(int(x["bytes"]) for x in manifest),
+        draw_count=len(ordered),
+        latest_issue=ordered[-1].issue,
         status="PASS",
     )
-    return draws, receipt, raw
+    return ordered, receipt, raw_sources, manifest
 
 
 def fetch_jiangsu_latest() -> tuple[Draw, SourceReceipt, bytes]:
@@ -138,26 +241,24 @@ def fetch_jiangsu_latest() -> tuple[Draw, SourceReceipt, bytes]:
 
 
 def build_official_snapshot() -> tuple[dict[str, Any], dict[str, bytes]]:
-    shanghai, shanghai_receipt, shanghai_raw = fetch_shanghai()
+    shanghai, shanghai_receipt, raw_sources, manifest = fetch_shanghai_full_history()
     jiangsu, jiangsu_receipt, jiangsu_raw = fetch_jiangsu_latest()
     latest = shanghai[-1]
     if jiangsu.issue != latest.issue:
         raise RuntimeError(
-            f"independent official sources latest issue mismatch: "
-            f"Shanghai={latest.issue} Jiangsu={jiangsu.issue}"
+            f"independent official sources latest issue mismatch: Shanghai={latest.issue} Jiangsu={jiangsu.issue}"
         )
     if jiangsu.numbers != latest.numbers:
         raise RuntimeError(f"independent official sources conflict on {latest.issue}")
+
     age = (date.today() - datetime.strptime(latest.draw_date, "%Y-%m-%d").date()).days
     if age < 0 or age > 7:
         raise RuntimeError(f"official Happy8 latest draw is stale/future: age_days={age}")
-    import json
+
     payload = [d.to_dict() for d in shanghai]
-    canonical_hash = hashlib.sha256(
-        json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
-    ).hexdigest()
+    canonical_hash = _sha256_json(payload)
     report = {
-        "schema": "happy8-staging-official-network-v2",
+        "schema": "happy8-staging-official-network-v3",
         "status": "PASS",
         "latest": latest.to_dict(),
         "history_count": len(shanghai),
@@ -166,12 +267,15 @@ def build_official_snapshot() -> tuple[dict[str, Any], dict[str, bytes]]:
         "crosscheck_count": 1,
         "crosscheck_status": "PASS",
         "source_receipts": [shanghai_receipt.to_dict(), jiangsu_receipt.to_dict()],
-        "note": "staging network gate only; portfolio Final still requires independent repository and full history/science/Windows gates",
+        "shanghai_raw_manifest": manifest,
+        "verification": "SHANGHAI_FULL_HISTORY_PLUS_JIANGSU_CURRENT",
+        "note": (
+            "Staging network gate with raw-verifiable Shanghai full history and Jiangsu current crosscheck; "
+            "portfolio Final still requires scientific/prospective, Windows, same-hash and independent-repository gates."
+        ),
     }
-    return report, {
-        "shanghai_welfare_lottery.html": shanghai_raw,
-        "jiangsu_welfare_lottery.html": jiangsu_raw,
-    }
+    raw_sources["jiangsu_welfare_lottery.html"] = jiangsu_raw
+    return report, raw_sources
 
 
 def real_network_snapshot() -> dict[str, Any]:
