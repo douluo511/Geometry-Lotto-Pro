@@ -74,7 +74,7 @@ Native Windows PyInstaller builds the updater EXE first and accepts its exact by
 BUSINESS_SPEC.md must PASS together with dynamic scientific validation, counterexample validation and reversal validation. Engineering PASS alone is not project completion.
 
 ## Repository Independence
-This shared Geometry-Lotto-Pro repository is migration/acceptance only. Here repository_independence = FAIL by policy. Final promotion requires the SSQ product to live in its own repository, rerun the full chain there, and publish release-host updater evidence from that independent repository.
+This shared Geometry-Lotto-Pro repository is migration/acceptance only. Here repository_independence = FAIL by policy. Final promotion requires the SSQ product to live in its own repository, rerun the full chain there, and publish release-host updater evidence from that independent repository. The gate is machine-derived from GitHub Actions identity: only `GITHUB_ACTIONS=true`, exact `GITHUB_REPOSITORY=douluo511/Geometry-Lotto-Pro-SSQ`, and `GITHUB_SERVER_URL=https://github.com` can produce `repository_independence=PASS`; no CLI/manual PASS override exists.
 
 ## Final Gate
 All hard gates must be exactly PASS:
