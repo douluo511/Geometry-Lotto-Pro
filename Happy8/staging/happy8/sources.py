@@ -159,8 +159,8 @@ def fetch_shanghai_full_history() -> tuple[list[Draw], SourceReceipt, dict[str, 
                 if year_had_data:
                     break
                 if year < current_year:
-                    visible_issues = re.findall(r"20\\d{5}", _plain(response.text))[:12]
-                    input_tags = re.findall(r"(?is)<input\\b[^>]*>", response.text)
+                    visible_issues = re.findall(r"20\d{5}", _plain(response.text))[:12]
+                    input_tags = re.findall(r"(?is)<input\b[^>]*>", response.text)
                     input_contract = []
                     for tag in input_tags[:20]:
                         attrs = {}
@@ -175,7 +175,7 @@ def fetch_shanghai_full_history() -> tuple[list[Draw], SourceReceipt, dict[str, 
                             input_contract.append(attrs)
                     forms = [
                         re.sub(r"\\s+", " ", tag)[:300]
-                        for tag in re.findall(r"(?is)<form\\b[^>]*>", response.text)[:10]
+                        for tag in re.findall(r"(?is)<form\b[^>]*>", response.text)[:10]
                     ]
                     title_match = re.search(r"(?is)<title[^>]*>(.*?)</title>", response.text)
                     title = _plain(title_match.group(1))[:180] if title_match else ""
@@ -188,7 +188,7 @@ def fetch_shanghai_full_history() -> tuple[list[Draw], SourceReceipt, dict[str, 
                     ]
                     inline_hints = []
                     for body in re.findall(
-                        r"(?is)<script\\b(?![^>]*\\bsrc\\s*=)[^>]*>(.*?)</script>",
+                        r"(?is)<script\b(?![^>]*\bsrc\s*=)[^>]*>(.*?)</script>",
                         response.text,
                     ):
                         compact = re.sub(r"\\s+", " ", body)
