@@ -1,0 +1,49 @@
+{
+  "schema_version": "2.1",
+  "project_id": "?�I???? ID",
+  "name": "?�I????????",
+  "baseline": {
+    "id": null,
+    "uri": null,
+    "frozen_at_utc": null,
+    "engineering_total_weight": null,
+    "business_total_weight": null
+  },
+  "candidate": {
+    "id": null,
+    "commit_sha": null,
+    "tree_sha": null,
+    "config_sha256": null,
+    "dependencies_sha256": null,
+    "data_sha256": null,
+    "model_sha256": null,
+    "build_run_url": null,
+    "windows_environment": null,
+    "tested_exe_sha256": null,
+    "release_exe_sha256": null,
+    "release_artifact_uri": null,
+    "release_manifest_sha256": null,
+    "same_hash_verified": false
+  },
+  "scores": {
+    "engineering_accepted_weight": null,
+    "engineering_pct": null,
+    "business_accepted_weight": null,
+    "business_pct": null,
+    "overall_pct": null
+  },
+  "gates": {
+    "no_shell": "BLOCKED",
+    "engineering": "BLOCKED",
+    "business": "BLOCKED",
+    "project_final": "BLOCKED",
+    "release": "NO"
+  },
+  "entry_points": [],
+  "checks": [],
+  "evidence": [],
+  "network_attempts": [],
+  "largest_risk": "??��???????????????????????",
+  "next_action": "?????????????????????????",
+  "updated_at_utc": null
+}

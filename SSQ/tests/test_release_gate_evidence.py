@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -16,8 +17,9 @@ TOOLS = Path(__file__).resolve().parents[1] / "tools"
 sys.path.insert(0, str(TOOLS))
 sys.path.insert(0, str(TOOLS.parent / "SSQ"))
 from derive_gate_status import (  # noqa: E402
-    REQUIRED_EXE_CHECKS, _raw_status_allowed, _reparse_manifest,
-    _verify_gui_evidence, _verify_reversal_contract, derive,
+    REQUIRED_BUSINESS_CHECKS, REQUIRED_EXE_CHECKS, REQUIRED_NETCLIENT_CHECKS,
+    _raw_status_allowed, _reparse_manifest, _verify_gui_evidence,
+    _verify_gui_update_source, _verify_reversal_contract, derive,
 )
 from release_gate_22 import HARD_GATES  # noqa: E402
 from glp.constants import HEBEI_ANNOUNCE_URL, HEBEI_URL, NATIONAL_URL, SHANGHAI_URL  # noqa: E402
@@ -100,12 +102,12 @@ def synthetic_fallback_bundle(root: Path) -> tuple[dict, list[dict]]:
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     issue, day = draw["issue"], draw["draw_date"]
     home_raw = (
-        f'<li class="kj-info-item"><img src="logo_ssq.png"/><p>第 {issue} 期</p>'
+        f'<li class="kj-info-item"><img src="logo_ssq.png"/><p>�� {issue} ��</p>'
         '<div class="cirle-number">'
         + "".join(f"<span>{number:02d}</span>" for number in range(1, 7))
         + '<span class="blue-num">07</span></div></li>'
     ).encode("utf-8")
-    announce_raw = f"开奖日期：{day} 开奖号码：01 02 03 04 05 06 07".encode("utf-8")
+    announce_raw = f"�������ڣ�{day} �������룺01 02 03 04 05 06 07".encode("utf-8")
     records = [dict(next(row for row in baseline["raw_responses"]
                          if row["source"] == "official_shanghai_L1"))]
     hebei_hashes = {}
@@ -148,7 +150,173 @@ def synthetic_fallback_bundle(root: Path) -> tuple[dict, list[dict]]:
     return fallback, draws
 
 
+def synthetic_gui_update_bundle(root: Path) -> tuple[dict, dict, dict]:
+    """Isolated parser/ledger contract fixture, never GUI or live-network proof."""
+    manifest, draws = synthetic_source_bundle(root)
+    canonical = {"schema": 4, "game": "SSQ", "draws": draws,
+                 "canonical_hash": manifest["canonical_hash"]}
+    payload = {
+        "canonical_hash": manifest["canonical_hash"],
+        "source_receipts": manifest["source_receipts"],
+        "draw_count": len(draws), "latest": draws[-1],
+        "latest_issue": draws[-1]["issue"], "crosscheck_status": "PASS",
+        "crosscheck_count": manifest["crosscheck_count"],
+        "verification": manifest["verification"],
+    }
+    (root / "source_evidence.json").write_text(json.dumps(manifest), encoding="utf-8")
+    (root / "canonical_history.json").write_text(json.dumps(canonical), encoding="utf-8")
+    db = sqlite3.connect(root / "ledger.sqlite3")
+    try:
+        db.execute("CREATE TABLE experiments(id INTEGER PRIMARY KEY, kind TEXT, "
+                   "status TEXT, payload_json TEXT)")
+        db.execute("INSERT INTO experiments VALUES(1, 'official_update', 'PASS', ?)",
+                   (json.dumps(payload),))
+        db.commit()
+    finally:
+        db.close()
+    observed = {"experiment_id": 1, "display_token": manifest["canonical_hash"]}
+    return manifest, canonical, observed
+
+
 class ReleaseGateEvidenceTests(unittest.TestCase):
+    def test_gui_update_contract_reparses_same_directory_synthetic_bytes(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest, _, observed = synthetic_gui_update_bundle(root)
+            proof = _verify_gui_update_source(root, observed)
+            self.assertEqual(proof["canonical_hash"], manifest["canonical_hash"])
+            self.assertEqual(proof["canonical_reparse"], "PASS")
+            self.assertEqual(proof["raw_response_count"], 2)
+            self.assertEqual(proof["manifest_sha256"], hashlib.sha256(
+                (root / "source_evidence.json").read_bytes()).hexdigest())
+
+    def test_gui_update_rejects_stale_manifest_receipts_and_each_raw(self) -> None:
+        for component in ("manifest", "receipt", "raw0", "raw1"):
+            with self.subTest(component=component), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                manifest, _, observed = synthetic_gui_update_bundle(root)
+                stale = (datetime.now(timezone.utc) - timedelta(days=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
+                target = manifest if component == "manifest" else (
+                    manifest["source_receipts"][0] if component == "receipt"
+                    else manifest["raw_responses"][int(component[-1])])
+                target["fetched_at"] = stale
+                (root / "source_evidence.json").write_text(json.dumps(manifest), encoding="utf-8")
+                with self.assertRaises(ValueError):
+                    _verify_gui_update_source(root, observed)
+
+    def test_gui_update_rejects_other_click_token_or_canonical_rows(self) -> None:
+        for change in ("token", "hash", "rows", "game", "missing"):
+            with self.subTest(change=change), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                _, canonical, observed = synthetic_gui_update_bundle(root)
+                if change == "token":
+                    observed["display_token"] = "f" * 64
+                elif change == "hash":
+                    canonical["canonical_hash"] = "f" * 64
+                elif change == "rows":
+                    canonical["draws"][0]["back"] = [8]
+                elif change == "game":
+                    canonical["game"] = "DLT"
+                if change == "missing":
+                    (root / "canonical_history.json").unlink()
+                else:
+                    (root / "canonical_history.json").write_text(json.dumps(canonical), encoding="utf-8")
+                with self.assertRaises(ValueError):
+                    _verify_gui_update_source(root, observed)
+
+    def test_gui_update_rejects_ledger_source_mismatch(self) -> None:
+        for field, value in (("source_receipts", []), ("canonical_hash", "f" * 64),
+                             ("latest_issue", "unrelated"), ("crosscheck_status", "FAIL")):
+            with self.subTest(field=field), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                _, _, observed = synthetic_gui_update_bundle(root)
+                db = sqlite3.connect(root / "ledger.sqlite3")
+                try:
+                    payload = json.loads(db.execute("SELECT payload_json FROM experiments WHERE id=1").fetchone()[0])
+                    payload[field] = value
+                    db.execute("UPDATE experiments SET payload_json=? WHERE id=1", (json.dumps(payload),))
+                    db.commit()
+                finally:
+                    db.close()
+                with self.assertRaises(ValueError):
+                    _verify_gui_update_source(root, observed)
+
+    def test_gui_update_rejects_wrong_raw_bytes_or_provenance(self) -> None:
+        for change in ("bytes", "url"):
+            with self.subTest(change=change), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                manifest, _, observed = synthetic_gui_update_bundle(root)
+                record = manifest["raw_responses"][0]
+                if change == "bytes":
+                    (root / record["artifact"]).write_bytes(b"not the recorded official response")
+                else:
+                    record["url"] = "https://example.invalid/data"
+                    (root / "source_evidence.json").write_text(json.dumps(manifest), encoding="utf-8")
+                with self.assertRaises(ValueError):
+                    _verify_gui_update_source(root, observed)
+
+    def _derive_static_report(self, filename: str, report: dict) -> dict:
+        # Report decoder unit test only: no candidate, network or GUI is tested.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            report.update(status="PASS", github_sha="a" * 40, github_run_id="12345")
+            (root / filename).write_text(json.dumps(report), encoding="utf-8")
+            with patch.dict(os.environ, {"GITHUB_SHA": "a" * 40, "GITHUB_RUN_ID": "12345"}):
+                return derive(root, root / "absent.exe")
+
+    def test_business_report_requires_all_named_checks_and_literal_true(self) -> None:
+        for bad in ("FAIL", "WARNING", "PASS", 1, False, None):
+            with self.subTest(bad=bad):
+                checks = dict.fromkeys(REQUIRED_BUSINESS_CHECKS, True)
+                checks["business_model_inventory"] = bad
+                result = self._derive_static_report("BUSINESS_GATE.json", {
+                    "schema": "ssq-business-gate-v1", "checks": checks})
+                self.assertEqual(result["gates"]["business_content"], "FAIL")
+        for missing in REQUIRED_BUSINESS_CHECKS:
+            with self.subTest(missing=missing):
+                checks = dict.fromkeys(REQUIRED_BUSINESS_CHECKS - {missing}, True)
+                result = self._derive_static_report("BUSINESS_GATE.json", {
+                    "schema": "ssq-business-gate-v1", "checks": checks})
+                self.assertEqual(result["gates"]["business_content"], "FAIL")
+
+    def test_netclient_report_requires_all_named_explicit_passes_and_integer_count(self) -> None:
+        complete = {name: {"status": "PASS"} for name in REQUIRED_NETCLIENT_CHECKS}
+        for missing in REQUIRED_NETCLIENT_CHECKS:
+            with self.subTest(missing=missing):
+                result = self._derive_static_report("NETCLIENT_CONTRACT_GATE.json", {
+                    "schema": "ssq-netclient-contract-gate-v2", "hard_fail_count": 0,
+                    "checks": {key: row for key, row in complete.items() if key != missing}})
+                self.assertEqual(result["gates"]["contract_test"], "FAIL")
+        for bad in (False, True, "0", 0.0, None, -1, 1):
+            with self.subTest(count=bad):
+                result = self._derive_static_report("NETCLIENT_CONTRACT_GATE.json", {
+                    "schema": "ssq-netclient-contract-gate-v2", "hard_fail_count": bad,
+                    "checks": complete})
+                self.assertEqual(result["gates"]["contract_test"], "FAIL")
+        for bad in ("FAIL", "WARNING", "SKIPPED", True, {}, {"status": "FAIL"}):
+            with self.subTest(check=bad):
+                checks = dict(complete)
+                checks["https_only"] = bad
+                result = self._derive_static_report("NETCLIENT_CONTRACT_GATE.json", {
+                    "schema": "ssq-netclient-contract-gate-v2", "hard_fail_count": 0,
+                    "checks": checks})
+                self.assertEqual(result["gates"]["contract_test"], "FAIL")
+
+    def test_complete_static_contract_is_accepted_without_claiming_final_pass(self) -> None:
+        for filename, report, gate in (
+            ("BUSINESS_GATE.json", {"schema": "ssq-business-gate-v1",
+                "checks": dict.fromkeys(REQUIRED_BUSINESS_CHECKS, True)}, "business_content"),
+            ("NETCLIENT_CONTRACT_GATE.json", {"schema": "ssq-netclient-contract-gate-v2",
+                "hard_fail_count": 0, "checks": {
+                    name: {"status": "PASS"} for name in REQUIRED_NETCLIENT_CHECKS}}, "contract_test"),
+        ):
+            with self.subTest(filename=filename):
+                result = self._derive_static_report(filename, report)
+                self.assertEqual(result["gates"][gate], "PASS")
+                self.assertNotEqual(result["gates"]["real_network"], "PASS")
+                self.assertNotEqual(result["gates"]["exact_exe"], "PASS")
+                self.assertEqual(result["gates"]["repository_independence"], "FAIL")
+
     @staticmethod
     def complete_exe_checks() -> dict[str, dict[str, object]]:
         return {name: {"status": "PASS", "exit_code": 0,
