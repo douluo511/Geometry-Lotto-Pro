@@ -71,13 +71,25 @@ updater_acceptance = {
 }
 
 
-def run_updater(mode: str, data_root: Path, result_path: Path, timeout: int = 1800) -> dict:
+def run_updater(
+    mode: str,
+    data_root: Path,
+    result_path: Path,
+    timeout: int = 1800,
+    extra_args: list[str] | None = None,
+    extra_env: dict[str, str] | None = None,
+) -> dict:
     env = os.environ.copy()
     env['GLP_DATA_DIR'] = str(data_root.resolve())
     env['GLP_UPDATER_PARENT_PID'] = str(os.getpid())
+    if extra_env:
+        env.update({str(k): str(v) for k, v in extra_env.items()})
     result_path.parent.mkdir(parents=True, exist_ok=True)
+    command = [str(updater_exe), '--mode', mode, '--result-file', str(result_path)]
+    if extra_args:
+        command.extend(str(x) for x in extra_args)
     proc = subprocess.run(
-        [str(updater_exe), '--mode', mode, '--result-file', str(result_path)],
+        command,
         env=env, timeout=timeout,
     )
     content = json.loads(result_path.read_text(encoding='utf-8-sig')) if result_path.exists() else {}
@@ -217,6 +229,87 @@ cmd = [
 subprocess.run(cmd, cwd=root, check=True)
 exe = dist / f'{name}.exe'
 exe_hash = file_sha256(exe)
+
+# 3) Prove software replacement against real built main-EXE bytes using the
+# already frozen exact updater EXE. These are LOCAL artifact transaction gates,
+# not release-network evidence.
+transaction_root = evidence / 'updater-main-artifact-transaction'
+if transaction_root.exists():
+    shutil.rmtree(transaction_root)
+transaction_root.mkdir(parents=True)
+
+install_target = transaction_root / 'installed-main.exe'
+install_target.write_bytes(b'PREVIOUS_MAIN_BYTES_FOR_ACCEPTANCE')
+local_install = run_updater(
+    'software-local-install-acceptance',
+    transaction_root / 'install-data',
+    evidence / 'updater-local-main-install.json',
+    timeout=1200,
+    extra_args=['--target-exe', str(install_target)],
+    extra_env={
+        'GLP_UPDATER_ACCEPTANCE': '1',
+        'GLP_UPDATER_ACCEPTANCE_CANDIDATE': str(exe.resolve()),
+    },
+)
+install_result = local_install.get('service_result') or {}
+install_tx = install_result.get('transaction') or {}
+if not (
+    install_result.get('status') == 'PASS'
+    and install_result.get('release_network_status') == 'PENDING'
+    and install_tx.get('status') == 'PASS'
+    and install_tx.get('installed_sha256') == exe_hash
+    and install_target.is_file()
+    and file_sha256(install_target) == exe_hash
+):
+    updater_acceptance['checks']['software-local-install-acceptance']['status'] = 'FAIL'
+    raise RuntimeError('Exact updater failed real-main local installation acceptance')
+
+rollback_target = transaction_root / 'rollback-main.exe'
+rollback_target.write_bytes(exe.read_bytes())
+rollback_before_hash = file_sha256(rollback_target)
+bad_candidate = transaction_root / 'corrupt-candidate.exe'
+bad_bytes = bytearray(exe.read_bytes())
+if len(bad_bytes) < 64:
+    raise RuntimeError('built main EXE unexpectedly small')
+bad_bytes[0:2] = b'ZZ'
+bad_candidate.write_bytes(bytes(bad_bytes))
+local_rollback = run_updater(
+    'software-local-rollback-acceptance',
+    transaction_root / 'rollback-data',
+    evidence / 'updater-local-main-rollback.json',
+    timeout=1200,
+    extra_args=['--target-exe', str(rollback_target)],
+    extra_env={
+        'GLP_UPDATER_ACCEPTANCE': '1',
+        'GLP_UPDATER_ACCEPTANCE_CANDIDATE': str(bad_candidate.resolve()),
+    },
+)
+rollback_result = local_rollback.get('service_result') or {}
+rollback_tx = rollback_result.get('transaction') or {}
+if not (
+    rollback_result.get('status') == 'PASS'
+    and rollback_result.get('release_network_status') == 'PENDING'
+    and rollback_result.get('expect_rollback') is True
+    and rollback_tx.get('status') == 'FAIL'
+    and rollback_tx.get('rolled_back') is True
+    and file_sha256(rollback_target) == rollback_before_hash == exe_hash
+):
+    updater_acceptance['checks']['software-local-rollback-acceptance']['status'] = 'FAIL'
+    raise RuntimeError('Exact updater failed real-main rollback acceptance')
+
+# Re-freeze updater acceptance after real-main artifact transaction tests.
+updater_hard_fail = [
+    key for key, value in updater_acceptance['checks'].items()
+    if value.get('status') != 'PASS'
+]
+updater_acceptance['hard_failures'] = updater_hard_fail
+updater_acceptance['hard_fail_count'] = len(updater_hard_fail)
+updater_acceptance['updater_exact_exe'] = 'PASS' if not updater_hard_fail else 'FAIL'
+(evidence / 'UPDATER_EXACT_EXE_ACCEPTANCE.json').write_text(
+    json.dumps(updater_acceptance, ensure_ascii=False, indent=2), encoding='utf-8'
+)
+if updater_hard_fail:
+    raise SystemExit('Updater exact-EXE real-main transaction acceptance failed: ' + ', '.join(updater_hard_fail))
 
 checks = [
     'self',
