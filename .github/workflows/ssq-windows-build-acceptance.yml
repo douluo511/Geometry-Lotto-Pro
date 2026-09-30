@@ -27,6 +27,45 @@ jobs:
     steps:
       - name: Checkout exact commit
         uses: actions/checkout@v4
+        with:
+          # The PR merge commit must not be a shallow boundary: the identity
+          # gate below proves that the current candidate HEAD is an actual
+          # parent of the exact merge-ref being accepted.
+          fetch-depth: 2
+
+      - name: Exact checkout identity gate
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path "evidence\SSQ" | Out-Null
+          $eventName = "${{ github.event_name }}"
+          $eventHead = "${{ github.event.pull_request.head.sha }}"
+          $githubSha = "${{ github.sha }}"
+          $actual = (git rev-parse HEAD).Trim()
+          $parentText = (git show -s --format=%P HEAD).Trim()
+          $parents = @()
+          if (-not [string]::IsNullOrWhiteSpace($parentText)) {
+            $parents = @($parentText -split ' ' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+          }
+          if ($eventName -eq "pull_request") {
+            $ok = (-not [string]::IsNullOrWhiteSpace($eventHead)) -and (($actual -eq $eventHead) -or ($parents -contains $eventHead))
+          } else {
+            $ok = $actual -eq $githubSha
+          }
+          $report = [ordered]@{
+            schema = "ssq-checkout-identity-v1"
+            status = $(if ($ok) { "PASS" } else { "FAIL" })
+            github_sha = $env:GITHUB_SHA
+            github_run_id = $env:GITHUB_RUN_ID
+            event = $eventName
+            event_head_sha = $eventHead
+            actual_checkout_sha = $actual
+            parent_shas = $parents
+          }
+          $report | ConvertTo-Json -Depth 6 | Set-Content "evidence\SSQ\CHECKOUT_IDENTITY_GATE.json" -Encoding utf8
+          Write-Host ($report | ConvertTo-Json -Compress -Depth 6)
+          if (-not $ok) {
+            throw "checkout identity is stale or does not contain the current candidate HEAD"
+          }
 
       - name: Setup pinned Python x64
         uses: actions/setup-python@v5
@@ -38,7 +77,7 @@ jobs:
         run: python -m pip install --disable-pip-version-check -r requirements-build.txt
 
       - name: Code completeness compile gate
-        run: python -m compileall -q SSQ launcher.py tools
+        run: python -m compileall -q SSQ launcher.py updater.py tools
 
       - name: Architecture mother-template gate
         run: python tools/architecture_gate.py
@@ -99,12 +138,37 @@ jobs:
       - name: Native Windows build plus exact-EXE acceptance
         run: python tools/build_windows.py
 
+      - name: Independent repository real-release updater acceptance
+        if: ${{ github.repository == 'douluo511/Geometry-Lotto-Pro-SSQ' }}
+        shell: pwsh
+        env:
+          SSQ_UPDATER_BASE_MANIFEST_URL: ${{ vars.SSQ_UPDATER_BASE_MANIFEST_URL }}
+          SSQ_RELEASE_MANIFEST_URL: ${{ vars.SSQ_RELEASE_MANIFEST_URL }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:SSQ_UPDATER_BASE_MANIFEST_URL)) {
+            throw "SSQ_UPDATER_BASE_MANIFEST_URL is required in the independent repository"
+          }
+          if ([string]::IsNullOrWhiteSpace($env:SSQ_RELEASE_MANIFEST_URL)) {
+            throw "SSQ_RELEASE_MANIFEST_URL is required in the independent repository"
+          }
+          python tools/updater_release_acceptance.py `
+            --updater-exe "dist\Geometry_Lotto_Pro_SSQ_Updater.exe" `
+            --candidate-exe "dist\Geometry_Lotto_Pro_SSQ_Windows_Verified.exe" `
+            --base-manifest-url "$env:SSQ_UPDATER_BASE_MANIFEST_URL" `
+            --release-manifest-url "$env:SSQ_RELEASE_MANIFEST_URL" `
+            --evidence-dir "evidence\SSQ"
+          $r = Get-Content "evidence\SSQ\UPDATER_REAL_RELEASE_ACCEPTANCE.json" -Raw | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or $r.status -ne 'PASS') {
+            throw "independent repository real-release updater acceptance failed"
+          }
+
       - name: Physical GUI Click Smoke
         shell: pwsh
         run: |
           ..\.github\scripts\ssq_physical_gui_click_smoke.ps1 -ExePath ".\dist\Geometry_Lotto_Pro_SSQ_Windows_Verified.exe" -EvidencePath ".\evidence\SSQ\physical_gui_click.json"
 
       - name: Final evidence-derived release and same-hash proof
+        id: final_gate
         shell: pwsh
         run: |
           $reportPath = "evidence\SSQ\WINDOWS_EXACT_EXE_ACCEPTANCE.json"
@@ -112,17 +176,28 @@ jobs:
           if (-not (Test-Path $reportPath)) { throw "acceptance report missing" }
           if (-not (Test-Path $exePath)) { throw "exact EXE missing" }
 
-          python tools/derive_gate_status.py --evidence-dir evidence\SSQ --exe $exePath --report evidence\SSQ\mother-gates.json --repository-independent FAIL
+          python tools/derive_gate_status.py --evidence-dir evidence\SSQ --exe $exePath --report evidence\SSQ\mother-gates.json
           if ($LASTEXITCODE -ne 0) { throw "gate derivation failed" }
 
-          python tools/release_gate_22.py --gate-input evidence\SSQ\mother-gates.json --acceptance $reportPath --exe $exePath --report evidence\SSQ\FINAL_22_GATE.json --repository-independent FAIL
+          python tools/release_gate_22.py --gate-input evidence\SSQ\mother-gates.json --acceptance $reportPath --exe $exePath --report evidence\SSQ\FINAL_22_GATE.json
           $releaseExit = $LASTEXITCODE
 
           $final = Get-Content evidence\SSQ\FINAL_22_GATE.json -Raw | ConvertFrom-Json
           if ($releaseExit -ne 0 -or $final.final_gate -ne 'PASS' -or [int]$final.hard_fail_count -ne 0) {
-            throw "Final Gate blocked: independent repository is mandatory"
+            throw "Final Gate blocked: inspect all non-PASS gates"
           }
+
+          $acceptance = Get-Content $reportPath -Raw | ConvertFrom-Json
+          $releaseVersion = [string]$acceptance.checks.self.version
+          $stableVersionPattern = '^\d+\.\d+\.\d+(?:\+[A-Za-z0-9.-]+)?$'
+          if ($releaseVersion -notmatch $stableVersionPattern) {
+            throw "stable release version missing from exact-EXE self evidence: $releaseVersion"
+          }
+
+          "version=$releaseVersion" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "sha256=$($final.exe_sha256)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           Write-Host "SSQ_FINAL_EXE=$(Resolve-Path $exePath)"
+          Write-Host "SSQ_FINAL_VERSION=$releaseVersion"
           Write-Host "SSQ_FINAL_SHA256=$($final.exe_sha256)"
           Write-Host "FINAL_RELEASE_GATE=PASS"
 
@@ -131,32 +206,30 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: SSQ-CANDIDATE-FAIL-EVIDENCE-${{ github.sha }}
-          path: SSQ/evidence/SSQ/**
+          path: |
+            SSQ/evidence/SSQ/**
+            SSQ/dist/Geometry_Lotto_Pro_SSQ_Windows_Verified.exe
+            SSQ/dist/Geometry_Lotto_Pro_SSQ_Updater.exe
           if-no-files-found: warn
           retention-days: 30
 
-      - name: Upload final EXE only after all hard gates pass
+      - name: Upload final audit evidence before release artifact
+        if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: Geometry-Lotto-Pro-SSQ-FINAL-v8.5.0-Windows-x64
-          path: |
-            SSQ/dist/Geometry_Lotto_Pro_SSQ_Windows_Verified.exe
-            SSQ/evidence/SSQ/**
+          name: Geometry-Lotto-Pro-SSQ-RELEASE-GATE-PASS-AUDIT-${{ github.sha }}
+          path: SSQ/evidence/SSQ/**
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload final EXE only after all hard gates and audit upload pass
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Geometry-Lotto-Pro-SSQ-FINAL-${{ steps.final_gate.outputs.version }}-Windows-x64
+          path: SSQ/dist/Geometry_Lotto_Pro_SSQ_Windows_Verified.exe
           if-no-files-found: error
           retention-days: 30
           compression-level: 0
 
-# Hard-gate revalidation trigger: 2026-09-24 master-template
-
-# physical-gui child-process discovery fix: 2026-09-24
-
-# physical-gui UIAutomation + desktop-hash fix: 2026-09-24
-
-# native client-coordinate physical click: 2026-09-24
-
-# SSQ exact native client centers: 2026-09-24
-
-# physical-gui native Win32 identity rerun trigger: 2026-09-30
-
-# physical-gui fully native Win32 rerun trigger: 2026-09-30
-# hard-gate retrigger: 2026-09-30 current-head full rerun
+# Hard-gate revalidation trigger: 2026-09-30 final release chain rebuilt

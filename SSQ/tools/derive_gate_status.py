@@ -12,6 +12,7 @@ import json
 import math
 import os
 import re
+import sqlite3
 import sys
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -26,6 +27,70 @@ REQUIRED_EXE_CHECKS = frozenset({
     "random-world-303", "predict", "audit", "gui",
     "unicode-path-no-python-path", "default-gui-launch",
 })
+
+# A nonempty subset, truthy string (including "FAIL"), or bool-as-int count
+# must not turn a partial/static report into an acceptance PASS.
+REQUIRED_BUSINESS_CHECKS = frozenset({
+    "business_game_contract", "business_official_sources", "business_four_entries",
+    "business_model_inventory", "business_walk_forward", "business_statistics",
+    "business_ablation", "business_leakage_and_confirmation",
+    "business_freeze_audit_isolation", "business_no_overclaim",
+})
+REQUIRED_NETCLIENT_CHECKS = frozenset({
+    "https_only", "timeout_pair_required", "429_retry_then_success",
+    "separate_connect_read_timeout", "https_redirect_downgrade_fail_closed",
+    "retry_cap_exception_fail_closed", "retry_after_hard_cap",
+    "raw_payload_evidence", "wrong_content_type_fail_closed",
+    "empty_payload_fail_closed",
+})
+
+EXPECTED_INDEPENDENT_REPOSITORY = "douluo511/Geometry-Lotto-Pro-SSQ"
+EXPECTED_GITHUB_SERVER_URL = "https://github.com"
+
+
+def _repository_independence_proof() -> tuple[str, dict[str, Any]]:
+    actual_repository = str(os.environ.get("GITHUB_REPOSITORY") or "").strip()
+    actual_server = str(os.environ.get("GITHUB_SERVER_URL") or "").rstrip("/")
+    github_actions = str(os.environ.get("GITHUB_ACTIONS") or "").lower() == "true"
+    checks = {
+        "github_actions": github_actions,
+        "repository_exact": actual_repository == EXPECTED_INDEPENDENT_REPOSITORY,
+        "server_exact": actual_server == EXPECTED_GITHUB_SERVER_URL,
+    }
+    status = "PASS" if all(checks.values()) else "FAIL"
+    return status, {
+        "status": status,
+        "expected_repository": EXPECTED_INDEPENDENT_REPOSITORY,
+        "actual_repository": actual_repository,
+        "expected_server_url": EXPECTED_GITHUB_SERVER_URL,
+        "actual_server_url": actual_server,
+        "checks": checks,
+        "source": "GitHub Actions immutable environment",
+    }
+
+
+def _release_context_proof() -> tuple[str, dict[str, Any]]:
+    event = str(os.environ.get("GITHUB_EVENT_NAME") or "").strip()
+    ref = str(os.environ.get("GITHUB_REF") or "").strip()
+    repository = str(os.environ.get("GITHUB_REPOSITORY") or "").strip()
+    github_actions = str(os.environ.get("GITHUB_ACTIONS") or "").lower() == "true"
+    checks = {
+        "github_actions": github_actions,
+        "independent_repository": repository == EXPECTED_INDEPENDENT_REPOSITORY,
+        "event_is_release_capable": event in {"push", "workflow_dispatch"},
+        "frozen_main_ref": ref == "refs/heads/main",
+    }
+    status = "PASS" if all(checks.values()) else "FAIL"
+    return status, {
+        "status": status,
+        "event": event,
+        "ref": ref,
+        "repository": repository,
+        "required_ref": "refs/heads/main",
+        "allowed_events": ["push", "workflow_dispatch"],
+        "checks": checks,
+        "rule": "Portfolio FINAL may only originate from the independent repository frozen main branch",
+    }
 
 
 def _read(path: Path) -> dict[str, Any] | None:
@@ -667,6 +732,61 @@ def _reparse_manifest(manifest: dict[str, Any], evidence_dir: Path,
                        "verification": verification}
 
 
+def _verify_gui_update_source(data_dir: Path, observed: dict[str, Any]) -> dict[str, Any]:
+    """Reparse the bytes produced by this GUI click, not a separate CLI run."""
+    source_path = data_dir / "source_evidence.json"
+    canonical_path = data_dir / "canonical_history.json"
+    manifest = _read(source_path)
+    canonical = _read(canonical_path)
+    if not manifest or not canonical:
+        raise ValueError("GUI update source manifest/canonical history is missing")
+    # Includes the Store's provenance/hash/freshness checks for every raw byte
+    # record, then independently reconstructs parsing and source agreement.
+    reparsed, reparse_proof = _reparse_manifest(manifest, data_dir)
+    digest = _canonical_hash(reparsed)
+    if (canonical.get("game") != "SSQ"
+            or canonical.get("schema") != 4
+            or canonical.get("draws") != reparsed
+            or canonical.get("canonical_hash") != digest
+            or manifest.get("canonical_hash") != digest
+            or observed.get("display_token") != digest):
+        raise ValueError("GUI update raw/canonical/displayed ledger token mismatch")
+    # Bind the same click's source receipts and data to its exact ledger event.
+    # Merely presenting a different valid manifest next to a PASS ledger fails.
+    event_id = observed.get("experiment_id")
+    if isinstance(event_id, bool) or not isinstance(event_id, int) or event_id <= 0:
+        raise ValueError("GUI update has no exact ledger event ID")
+    db_path = (data_dir / "ledger.sqlite3").resolve()
+    db = sqlite3.connect(db_path.as_uri() + "?mode=ro", uri=True)
+    try:
+        row = db.execute(
+            "SELECT kind,status,payload_json FROM experiments WHERE id=?", (event_id,),
+        ).fetchone()
+    finally:
+        db.close()
+    if row is None or row[0] != "official_update" or row[1] != "PASS":
+        raise ValueError("GUI update ledger event is not an official update PASS")
+    payload = json.loads(row[2])
+    if (not isinstance(payload, dict)
+            or payload.get("canonical_hash") != digest
+            or payload.get("source_receipts") != manifest.get("source_receipts")
+            or payload.get("draw_count") != len(reparsed)
+            or payload.get("latest") != reparsed[-1]
+            or payload.get("latest_issue") != reparsed[-1]["issue"]
+            or payload.get("crosscheck_status") != "PASS"
+            or payload.get("crosscheck_count") != manifest.get("crosscheck_count")
+            or payload.get("verification") != manifest.get("verification")):
+        raise ValueError("GUI update ledger/source evidence binding mismatch")
+    return {
+        "manifest_sha256": _hash(source_path),
+        "canonical_sha256": _hash(canonical_path),
+        "canonical_hash": digest,
+        "raw_response_count": len(manifest["raw_responses"]),
+        "canonical_reparse": "PASS",
+        "reparse": reparse_proof,
+    }
+
+
 def _verify_gui_evidence(physical: dict[str, Any], evidence_dir: Path, exe: Path,
                          acceptance_ok: bool) -> dict[str, Any]:
     if (not acceptance_ok or not exe.is_file()
@@ -730,7 +850,10 @@ def _verify_gui_evidence(physical: dict[str, Any], evidence_dir: Path, exe: Path
         experiment_id = effect.get("experiment_id")
         if not isinstance(experiment_id, int) or experiment_id <= 0:
             raise ValueError(f"physical GUI row {index} has no exact ledger event ID")
-        observed = inspect_effect(data_dir, operation, 0, experiment_id=experiment_id)
+        observed = inspect_effect(
+            data_dir, operation, 0, experiment_id=experiment_id,
+            parent_pid=int(row["process_id"]),
+        )
         fields = ("status", "operation", "after_id", "experiment_id", "kind",
                   "event_status", "payload_sha256", "display_token")
         if (observed.get("status") != "PASS"
@@ -742,14 +865,13 @@ def _verify_gui_evidence(physical: dict[str, Any], evidence_dir: Path, exe: Path
                 or not all(effect.get(field) == observed.get(field) for field in fields)):
             raise ValueError(f"physical GUI row {index} is not backed by a matching ledger event")
         if operation == "update":
-            sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "SSQ"))
-            from glp.storage import Store
-            source_manifest = _read(data_dir / "source_evidence.json")
-            if not source_manifest or Store.validate_raw_evidence(source_manifest, data_dir) < 1:
-                raise ValueError("GUI update did not preserve verified official raw responses")
+            source_proof = _verify_gui_update_source(data_dir, observed)
         ledger_path = data_dir / "ledger.sqlite3"
-        ledgers.append({"operation": operation, "experiment_id": observed["experiment_id"],
-                        "ledger_sha256": _hash(ledger_path)})
+        ledger_proof = {"operation": operation, "experiment_id": observed["experiment_id"],
+                        "ledger_sha256": _hash(ledger_path)}
+        if operation == "update":
+            ledger_proof["source_evidence"] = source_proof
+        ledgers.append(ledger_proof)
     return {"ledgers": ledgers}
 
 
@@ -891,10 +1013,260 @@ def _verify_live_evidence(evidence_dir: Path, exe_hash: str) -> dict[str, Any]:
     }
 
 
-def derive(evidence: Path, exe: Path, repository_independence: str = "FAIL") -> dict[str, Any]:
+def _trusted_ssq_release_url(value: Any) -> bool:
+    if not isinstance(value, str) or not value:
+        return False
+    parsed = urlsplit(value)
+    if parsed.scheme != "https" or parsed.username is not None or parsed.password is not None:
+        return False
+    if parsed.hostname != "github.com" or parsed.port not in (None, 443):
+        return False
+    prefix = f"/{EXPECTED_INDEPENDENT_REPOSITORY}/releases/download/"
+    return parsed.path.startswith(prefix)
+
+
+def _sha256_json(value: Any) -> str:
+    raw = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def _software_version_precedence(version: Any) -> tuple[Any, ...]:
+    match = re.fullmatch(
+        r"(\d+)\.(\d+)\.(\d+)(?:-([A-Za-z0-9.-]+))?(?:\+([A-Za-z0-9.-]+))?",
+        str(version).strip(),
+    )
+    if not match:
+        raise ValueError(f"invalid software version: {version!r}")
+    core = tuple(int(match.group(i)) for i in (1, 2, 3))
+    prerelease = match.group(4)
+    if prerelease is None:
+        return (*core, 1, ())
+    identifiers: list[tuple[int, Any]] = []
+    for token in prerelease.split("."):
+        if not token:
+            raise ValueError("empty prerelease identifier")
+        identifiers.append((0, int(token)) if token.isdigit() else (1, token))
+    return (*core, 0, tuple(identifiers))
+
+
+def _verify_updater_release_network(evidence: Path, updater_hash: str, main_exe_hash: str) -> dict[str, Any]:
+    report = _require_current_report(
+        evidence, "updater-software-release-network.json", "ssq-independent-updater-v2"
+    )
+    if (report.get("mode") != "software-update"
+            or report.get("updater_exe_sha256") != updater_hash
+            or report.get("parent_pid_match") is not True):
+        raise ValueError("software-update report is not bound to the exact updater process")
+    service = report.get("service_result")
+    if (not isinstance(service, dict)
+            or service.get("schema") != "ssq-software-update-result-v1"
+            or service.get("status") != "PASS"
+            or report.get("service_result_sha256") != _sha256_json(service)):
+        raise ValueError("software-update service result is malformed or hash-unbound")
+    manifest = service.get("manifest")
+    manifest_receipt = service.get("manifest_receipt")
+    artifact_receipt = service.get("artifact_receipt")
+    replacement = service.get("replacement")
+    wait = service.get("wait_for_main")
+    if not all(isinstance(x, dict) for x in (manifest, manifest_receipt, artifact_receipt, replacement, wait)):
+        raise ValueError("software-update evidence sections are incomplete")
+    manifest_url = manifest_receipt.get("requested_url")
+    artifact_url = artifact_receipt.get("requested_url")
+    digest = manifest.get("artifact_sha256")
+    size = manifest.get("artifact_bytes")
+    version = manifest.get("version")
+    if (manifest.get("schema") != "ssq-software-update-manifest-v1"
+            or manifest.get("app") != "Geometry Lotto Pro SSQ"
+            or not isinstance(version, str) or not version
+            or not _trusted_ssq_release_url(manifest_url)
+            or not _trusted_ssq_release_url(artifact_url)
+            or manifest.get("artifact_url") != artifact_url
+            or not isinstance(digest, str) or len(digest) != 64
+            or any(ch not in "0123456789abcdef" for ch in digest)
+            or digest != main_exe_hash
+            or type(size) is not int or size <= 0):
+        raise ValueError("software-update manifest is not a trusted independent-repo release")
+    for label, receipt in (("manifest", manifest_receipt), ("artifact", artifact_receipt)):
+        final_url = receipt.get("final_url")
+        parsed_final = urlsplit(final_url) if isinstance(final_url, str) else None
+        if (receipt.get("status") != "PASS"
+                or receipt.get("http_status") != 200
+                or type(receipt.get("bytes")) is not int or receipt["bytes"] <= 0
+                or not isinstance(receipt.get("sha256"), str) or len(receipt["sha256"]) != 64
+                or parsed_final is None or parsed_final.scheme != "https"
+                or parsed_final.hostname not in {"github.com", "objects.githubusercontent.com", "release-assets.githubusercontent.com"}):
+            raise ValueError(f"{label} release receipt is incomplete or untrusted")
+    if (service.get("manifest_raw_sha256") != manifest_receipt.get("sha256")
+            or artifact_receipt.get("sha256") != digest
+            or artifact_receipt.get("bytes") != size):
+        raise ValueError("software-update release receipt hash/size binding mismatch")
+    post = replacement.get("post_replace_validation")
+    wait_elapsed = wait.get("elapsed")
+    wait_elapsed_ok = (
+        isinstance(wait_elapsed, (int, float))
+        and not isinstance(wait_elapsed, bool)
+        and wait_elapsed > 0
+    )
+    if (replacement.get("status") != "PASS"
+            or replacement.get("expected_sha256") != digest
+            or replacement.get("staged_sha256") != digest
+            or replacement.get("installed_sha256") != digest
+            or replacement.get("previous_preserved") is not True
+            or not isinstance(post, dict)
+            or post.get("status") != "PASS"
+            or post.get("expected_version") != version
+            or post.get("reported_version") != version
+            or post.get("target_sha256") != digest
+            or wait.get("status") != "PASS"
+            or wait.get("waited") is not True
+            or type(wait.get("pid")) is not int
+            or wait.get("pid") <= 0
+            or not wait_elapsed_ok):
+        raise ValueError("software-update installed artifact/self-test/wait evidence is incomplete")
+
+    summary = _require_current_report(
+        evidence, "UPDATER_REAL_RELEASE_ACCEPTANCE.json",
+        "ssq-updater-real-release-acceptance-v1",
+    )
+    wait_target = summary.get("wait_target")
+    base_manifest_receipt = summary.get("base_manifest_receipt")
+    base_artifact_receipt = summary.get("base_artifact_receipt")
+    summary_wait = summary.get("wait_for_main")
+    base_version = summary.get("base_version")
+    base_manifest_url = summary.get("base_manifest_url")
+    base_artifact_url = (
+        base_artifact_receipt.get("requested_url")
+        if isinstance(base_artifact_receipt, dict) else None
+    )
+    try:
+        version_forward = (
+            _software_version_precedence(version)
+            > _software_version_precedence(base_version)
+        )
+    except ValueError as exc:
+        raise ValueError(f"real-release version evidence is invalid: {exc}") from exc
+    if (summary.get("repository") != EXPECTED_INDEPENDENT_REPOSITORY
+            or summary.get("updater_exe_sha256") != updater_hash
+            or summary.get("candidate_exe_sha256") != main_exe_hash
+            or summary.get("installed_sha256") != main_exe_hash
+            or summary.get("candidate_version") != version
+            or summary.get("exact_updater_report") != "updater-software-release-network.json"
+            or summary.get("exact_updater_report_sha256") != _hash(
+                evidence / "updater-software-release-network.json"
+            )
+            or not isinstance(wait_target, dict)
+            or wait_target.get("kind") != "exact_base_main_exe"
+            or type(wait_target.get("pid")) is not int
+            or wait_target.get("pid") != wait.get("pid")
+            or wait_target.get("pid") <= 0
+            or wait_target.get("sha256") != summary.get("base_artifact_sha256")
+            or wait_target.get("version") != base_version
+            or service.get("from_version") != base_version
+            or service.get("to_version") != version
+            or not version_forward
+            or not _trusted_ssq_release_url(base_manifest_url)
+            or not _trusted_ssq_release_url(base_artifact_url)
+            or not isinstance(base_manifest_receipt, dict)
+            or base_manifest_receipt.get("requested_url") != base_manifest_url
+            or base_manifest_receipt.get("status") != "PASS"
+            or base_manifest_receipt.get("http_status") != 200
+            or type(base_manifest_receipt.get("bytes")) is not int
+            or base_manifest_receipt.get("bytes") <= 0
+            or base_manifest_receipt.get("sha256") != summary.get("base_manifest_raw_sha256")
+            or not isinstance(base_artifact_receipt, dict)
+            or base_artifact_receipt.get("status") != "PASS"
+            or base_artifact_receipt.get("http_status") != 200
+            or base_artifact_receipt.get("sha256") != wait_target.get("sha256")
+            or base_artifact_receipt.get("sha256") != summary.get("base_artifact_sha256")
+            or base_artifact_receipt.get("bytes") != summary.get("base_artifact_bytes")
+            or summary_wait != wait):
+        raise ValueError("real-release summary is not bound to trusted prior release and exact main handoff")
+    for label, receipt in (
+        ("base_manifest", base_manifest_receipt),
+        ("base_artifact", base_artifact_receipt),
+    ):
+        final_url = receipt.get("final_url")
+        parsed_final = urlsplit(final_url) if isinstance(final_url, str) else None
+        if (parsed_final is None
+                or parsed_final.scheme != "https"
+                or parsed_final.hostname not in {
+                    "github.com", "objects.githubusercontent.com",
+                    "release-assets.githubusercontent.com",
+                }):
+            raise ValueError(f"{label} final URL is not a trusted HTTPS release target")
+    return {
+        "report": str(evidence / "updater-software-release-network.json"),
+        "report_sha256": _hash(evidence / "updater-software-release-network.json"),
+        "manifest_url": manifest_url,
+        "artifact_url": artifact_url,
+        "version": version,
+        "artifact_sha256": digest,
+        "artifact_bytes": size,
+        "manifest_raw_sha256": service.get("manifest_raw_sha256"),
+        "installed_sha256": replacement.get("installed_sha256"),
+        "post_replace_self_test": "PASS",
+        "waited_for_main": True,
+        "wait_pid": wait.get("pid"),
+        "wait_elapsed": wait_elapsed,
+        "wait_target_sha256": wait_target.get("sha256"),
+        "wait_target_version": wait_target.get("version"),
+        "base_manifest_url": base_manifest_url,
+        "base_artifact_url": base_artifact_url,
+        "base_version": base_version,
+        "version_forward": True,
+        "summary_report": str(evidence / "UPDATER_REAL_RELEASE_ACCEPTANCE.json"),
+        "summary_sha256": _hash(evidence / "UPDATER_REAL_RELEASE_ACCEPTANCE.json"),
+    }
+
+def _verify_checkout_identity(evidence: Path) -> dict[str, Any]:
+    report = _require_current_report(
+        evidence, "CHECKOUT_IDENTITY_GATE.json", "ssq-checkout-identity-v1"
+    )
+    event = report.get("event")
+    actual = report.get("actual_checkout_sha")
+    expected_head = report.get("event_head_sha")
+    parents = report.get("parent_shas")
+    sha_re = re.compile(r"[0-9a-f]{40}")
+    if not isinstance(actual, str) or sha_re.fullmatch(actual) is None:
+        raise ValueError("checkout identity has no valid actual SHA")
+    if not isinstance(parents, list) or any(
+        not isinstance(value, str) or sha_re.fullmatch(value) is None for value in parents
+    ):
+        raise ValueError("checkout identity parent list is malformed")
+    if event == "pull_request":
+        if (not isinstance(expected_head, str)
+                or sha_re.fullmatch(expected_head) is None
+                or not (actual == expected_head or expected_head in parents)):
+            raise ValueError("pull-request checkout does not contain the current event HEAD")
+    elif event in {"push", "workflow_dispatch"}:
+        if actual != os.environ.get("GITHUB_SHA"):
+            raise ValueError("push/dispatch checkout does not equal GITHUB_SHA")
+    else:
+        raise ValueError(f"unsupported checkout identity event: {event}")
+    return {
+        "report": str(evidence / "CHECKOUT_IDENTITY_GATE.json"),
+        "report_sha256": _hash(evidence / "CHECKOUT_IDENTITY_GATE.json"),
+        "event": event,
+        "actual_checkout_sha": actual,
+        "event_head_sha": expected_head,
+        "parent_shas": parents,
+    }
+
+def derive(evidence: Path, exe: Path) -> dict[str, Any]:
     gates = {name: "PENDING" for name in HARD_GATES}
-    gates["repository_independence"] = repository_independence
     proofs: dict[str, Any] = {}
+    repository_status, repository_proof = _repository_independence_proof()
+    gates["repository_independence"] = repository_status
+    proofs["repository_independence"] = repository_proof
+    release_context_status, release_context_proof = _release_context_proof()
+    gates["release_context"] = release_context_status
+    proofs["release_context"] = release_context_proof
+    checkout_identity_ok = False
+    try:
+        proofs["checkout_identity"] = _verify_checkout_identity(evidence)
+        checkout_identity_ok = True
+    except Exception as exc:
+        proofs["checkout_identity"] = {"error": f"{type(exc).__name__}: {exc}"}
 
     architecture_names = (
         "purpose_model", "five_why", "risk_boundary", "domain_model", "architecture",
@@ -936,13 +1308,15 @@ def derive(evidence: Path, exe: Path, repository_independence: str = "FAIL") -> 
         contract = _require_current_report(
             evidence, "NETCLIENT_CONTRACT_GATE.json", "ssq-netclient-contract-gate-v2"
         )
-        if int(contract.get("hard_fail_count", -1)) != 0:
+        hard_fail_count = contract.get("hard_fail_count")
+        if type(hard_fail_count) is not int or hard_fail_count != 0:
             raise ValueError("NetClient contract hard failures are nonzero")
         checks = contract.get("checks")
-        if not isinstance(checks, dict) or not checks or any(
+        if (not isinstance(checks, dict) or not REQUIRED_NETCLIENT_CHECKS.issubset(checks)
+                or any(
             not isinstance(row, dict) or row.get("status") != "PASS"
             for row in checks.values()
-        ):
+        )):
             raise ValueError("NetClient contract check set is incomplete")
         gates["contract_test"] = "PASS"
         gates["netclient"] = "PASS" if gates["netclient"] == "PASS" else "FAIL"
@@ -960,7 +1334,8 @@ def derive(evidence: Path, exe: Path, repository_independence: str = "FAIL") -> 
             evidence, "BUSINESS_GATE.json", "ssq-business-gate-v1"
         )
         checks = business.get("checks")
-        if not isinstance(checks, dict) or not checks or not all(checks.values()):
+        if (not isinstance(checks, dict) or not REQUIRED_BUSINESS_CHECKS.issubset(checks)
+                or any(value is not True for value in checks.values())):
             raise ValueError("business content checks are incomplete")
         gates["business_content"] = "PASS"
         proofs["business_content"] = {
@@ -1008,7 +1383,8 @@ def derive(evidence: Path, exe: Path, repository_independence: str = "FAIL") -> 
         current_sha = os.environ.get("GITHUB_SHA")
         current_run = os.environ.get("GITHUB_RUN_ID")
         acceptance_ok = (
-            acceptance.get("runner_os") == "Windows"
+            checkout_identity_ok
+            and acceptance.get("runner_os") == "Windows"
             and isinstance(current_sha, str) and bool(re.fullmatch(r"[0-9a-f]{40}", current_sha))
             and isinstance(current_run, str) and bool(re.fullmatch(r"\d+", current_run))
             and acceptance.get("github_sha") == current_sha
@@ -1050,7 +1426,7 @@ def derive(evidence: Path, exe: Path, repository_independence: str = "FAIL") -> 
         exact_results: dict[str, dict[str, Any]] = {}
         if acceptance_ok and actual_hash:
             for name in (
-                "integrity-tamper", "offline-failclosed", "corrupt-repair",
+                "self", "integrity-tamper", "offline-failclosed", "corrupt-repair",
                 "update", "science", "random-world-101", "random-world-202",
                 "random-world-303", "predict", "audit", "gui",
             ):
@@ -1060,6 +1436,22 @@ def derive(evidence: Path, exe: Path, repository_independence: str = "FAIL") -> 
                     proofs.setdefault("exact_result_errors", {})[name] = (
                         f"{type(exc).__name__}: {exc}"
                     )
+
+        exact_self = exact_results.get("self")
+        exact_version = exact_self.get("version") if isinstance(exact_self, dict) else None
+        stable_version = bool(
+            isinstance(exact_version, str)
+            and re.fullmatch(
+                r"\d+\.\d+\.\d+(?:\+[A-Za-z0-9.-]+)?",
+                exact_version,
+            )
+        )
+        gates["release_version"] = "PASS" if stable_version else "FAIL"
+        proofs["release_version"] = {
+            "version": exact_version,
+            "stable_semver": stable_version,
+            "rule": "Portfolio FINAL requires stable SemVer; prerelease labels such as -verification are forbidden",
+        }
 
         gates["fault_injection"] = (
             "PASS"
@@ -1120,6 +1512,154 @@ def derive(evidence: Path, exe: Path, repository_independence: str = "FAIL") -> 
             except Exception as exc:
                 gates["real_network"] = "FAIL"
                 proofs["real_network"] = {"error": f"{type(exc).__name__}: {exc}"}
+    # Independent updater proof is a first-class hard-gate family. The exact
+    # updater EXE must be current-run/hash-bound, execute as a separate process,
+    # prove atomic replacement + rollback from its own bytes, and preserve the
+    # same updater hash that was embedded in the accepted main EXE. A real
+    # software release-host transaction is deliberately separate and remains
+    # non-PASS until an independent repository publishes a verifiable manifest
+    # and exact main-EXE artifact.
+    updater_path = evidence / "UPDATER_EXACT_EXE_ACCEPTANCE.json"
+    updater = _read(updater_path)
+    updater_actual_hash = None
+    updater_exe = None
+    try:
+        if not isinstance(updater, dict) or not updater:
+            raise ValueError("updater exact-EXE acceptance report missing")
+        if updater.get("schema") != "ssq-updater-exact-exe-acceptance-v2":
+            raise ValueError("updater acceptance schema mismatch")
+        updater_exe = exe.parent / str(updater.get("artifact") or "")
+        if not updater_exe.is_file():
+            raise ValueError("exact updater EXE missing beside main EXE")
+        updater_actual_hash = _hash(updater_exe)
+        if (
+            updater.get("runner_os") != "Windows"
+            or updater.get("github_sha") != os.environ.get("GITHUB_SHA")
+            or updater.get("github_run_id") != os.environ.get("GITHUB_RUN_ID")
+            or updater.get("sha256") != updater_actual_hash
+            or updater.get("updater_exact_exe") != "PASS"
+            or type(updater.get("hard_fail_count")) is not int
+            or updater.get("hard_fail_count") != 0
+        ):
+            raise ValueError("updater acceptance is not current-run/hash bound")
+
+        updater_checks = updater.get("checks")
+        required_updater_checks = {
+            "self-test", "software-self-test", "offline-failclosed", "update", "repair",
+            "software-local-install-acceptance", "software-local-rollback-acceptance",
+        }
+        if not isinstance(updater_checks, dict) or not required_updater_checks.issubset(updater_checks):
+            raise ValueError("updater exact-EXE check set incomplete")
+        process_ok = all(
+            isinstance(updater_checks[name], dict)
+            and updater_checks[name].get("status") == "PASS"
+            and updater_checks[name].get("exit_code") == 0
+            and updater_checks[name].get("hash_matches") is True
+            and updater_checks[name].get("separate_process") is True
+            and updater_checks[name].get("parent_pid_match") is True
+            for name in required_updater_checks
+        )
+        if not process_ok:
+            raise ValueError("updater process-boundary evidence incomplete")
+        gates["updater_process"] = "PASS"
+        gates["updater_exact_exe"] = "PASS"
+
+        software_self = _read(evidence / "updater-software-self-test.json")
+        software_result = software_self.get("service_result") if isinstance(software_self, dict) else None
+        software_checks = software_result.get("checks") if isinstance(software_result, dict) else None
+        rollback_ok = (
+            isinstance(software_self, dict)
+            and software_self.get("schema") == "ssq-independent-updater-v2"
+            and software_self.get("mode") == "software-self-test"
+            and software_self.get("status") == "PASS"
+            and software_self.get("github_sha") == os.environ.get("GITHUB_SHA")
+            and software_self.get("github_run_id") == os.environ.get("GITHUB_RUN_ID")
+            and software_self.get("updater_exe_sha256") == updater_actual_hash
+            and software_self.get("parent_pid_match") is True
+            and isinstance(software_checks, dict)
+            and software_checks
+            and all(value is True for value in software_checks.values())
+        )
+        real_main_install = _read(evidence / "updater-local-main-install.json")
+        real_main_rollback = _read(evidence / "updater-local-main-rollback.json")
+        install_result = real_main_install.get("service_result") if isinstance(real_main_install, dict) else None
+        rollback_result = real_main_rollback.get("service_result") if isinstance(real_main_rollback, dict) else None
+        real_main_ok = (
+            isinstance(real_main_install, dict)
+            and real_main_install.get("schema") == "ssq-independent-updater-v2"
+            and real_main_install.get("mode") == "software-local-install-acceptance"
+            and real_main_install.get("status") == "PASS"
+            and real_main_install.get("updater_exe_sha256") == updater_actual_hash
+            and isinstance(install_result, dict)
+            and install_result.get("status") == "PASS"
+            and install_result.get("release_network_status") == "PENDING"
+            and isinstance(install_result.get("transaction"), dict)
+            and install_result["transaction"].get("status") == "PASS"
+            and isinstance(real_main_rollback, dict)
+            and real_main_rollback.get("schema") == "ssq-independent-updater-v2"
+            and real_main_rollback.get("mode") == "software-local-rollback-acceptance"
+            and real_main_rollback.get("status") == "PASS"
+            and real_main_rollback.get("updater_exe_sha256") == updater_actual_hash
+            and isinstance(rollback_result, dict)
+            and rollback_result.get("status") == "PASS"
+            and rollback_result.get("release_network_status") == "PENDING"
+            and rollback_result.get("expect_rollback") is True
+            and isinstance(rollback_result.get("transaction"), dict)
+            and rollback_result["transaction"].get("status") == "FAIL"
+            and rollback_result["transaction"].get("rolled_back") is True
+        )
+        gates["updater_atomic_rollback"] = "PASS" if rollback_ok and real_main_ok else "FAIL"
+
+        embedded = acceptance.get("updater") if isinstance(acceptance, dict) else None
+        main_self = (
+            acceptance.get("checks", {}).get("self")
+            if isinstance(acceptance, dict) and isinstance(acceptance.get("checks"), dict)
+            else None
+        )
+        updater_same_hash_ok = (
+            isinstance(embedded, dict)
+            and embedded.get("sha256") == updater_actual_hash
+            and isinstance(embedded.get("manifest"), dict)
+            and embedded["manifest"].get("sha256") == updater_actual_hash
+            and isinstance(main_self, dict)
+            and main_self.get("updater_bundle_integrity") is True
+            and main_self.get("embedded_updater_sha256") == updater_actual_hash
+        )
+        gates["updater_same_hash"] = "PASS" if updater_same_hash_ok else "FAIL"
+
+        release_state = str(updater.get("software_release_network") or "PENDING")
+        release_gate = str(updater.get("updater_release_gate") or "PENDING")
+        release_proof: dict[str, Any] | None = None
+        if release_state == "PASS" and release_gate == "PASS":
+            release_proof = _verify_updater_release_network(evidence, updater_actual_hash, actual_hash)
+            gates["updater_real_network"] = "PASS"
+        elif release_state in {"PENDING", "WARNING", "UNAVAILABLE", "SKIPPED", "UNKNOWN"}:
+            gates["updater_real_network"] = "PENDING"
+        else:
+            gates["updater_real_network"] = "FAIL"
+
+        proofs["updater"] = {
+            "acceptance_report": str(updater_path),
+            "acceptance_sha256": _hash(updater_path),
+            "artifact": str(updater_exe),
+            "artifact_sha256": updater_actual_hash,
+            "process_boundary": gates["updater_process"],
+            "atomic_rollback": gates["updater_atomic_rollback"],
+            "real_main_install_report": str(evidence / "updater-local-main-install.json"),
+            "real_main_rollback_report": str(evidence / "updater-local-main-rollback.json"),
+            "same_hash": gates["updater_same_hash"],
+            "software_release_network": gates["updater_real_network"],
+            "software_release_reason": updater.get("software_release_reason"),
+            "software_release_proof": release_proof,
+        }
+    except Exception as exc:
+        for name in (
+            "updater_process", "updater_exact_exe", "updater_atomic_rollback",
+            "updater_real_network", "updater_same_hash",
+        ):
+            gates[name] = "FAIL"
+        proofs["updater"] = {"error": f"{type(exc).__name__}: {exc}"}
+
     physical_path = evidence / "physical_gui_click.json"
     physical = _read(physical_path)
     if physical is not None:
@@ -1128,7 +1668,7 @@ def derive(evidence: Path, exe: Path, repository_independence: str = "FAIL") -> 
             gates["gui_smoke"] = "PASS"
             proofs["gui_smoke"] = {"report": str(physical_path),
                                    "report_sha256": _hash(physical_path), **gui_proof}
-        except (OSError, TypeError, ValueError, KeyError) as exc:
+        except (OSError, TypeError, ValueError, KeyError, sqlite3.Error) as exc:
             gates["gui_smoke"] = "FAIL"
             proofs["gui_smoke"] = {"error": f"{type(exc).__name__}: {exc}"}
             gates["same_hash"] = "FAIL"
@@ -1164,9 +1704,8 @@ def main() -> int:
     parser.add_argument("--evidence-dir", type=Path, required=True)
     parser.add_argument("--exe", type=Path, required=True)
     parser.add_argument("--report", type=Path, required=True)
-    parser.add_argument("--repository-independent", choices=["PASS", "FAIL"], required=True)
     args = parser.parse_args()
-    report = derive(args.evidence_dir, args.exe, args.repository_independent)
+    report = derive(args.evidence_dir, args.exe)
     args.report.parent.mkdir(parents=True, exist_ok=True)
     args.report.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps(report, ensure_ascii=False))

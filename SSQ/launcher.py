@@ -305,7 +305,19 @@ def main() -> int:
 
             if args.check == 'self':
                 r = svc.self_test()
+                if getattr(sys, 'frozen', False):
+                    from glp.updater_client import UpdaterClient
+                    bundle = UpdaterClient(svc.store.root).bundle_integrity()
+                    r['updater_bundle'] = bundle
+                    if bundle.get('status') != 'PASS':
+                        r['status'] = 'FAIL'
                 status = r.get('status', 'FAIL')
+                if getattr(sys, 'frozen', False):
+                    from glp.updater_client import UpdaterClient
+                    updater_bundle = UpdaterClient(root).bundle_integrity()
+                    r['updater_bundle'] = updater_bundle
+                    if updater_bundle.get('status') != 'PASS':
+                        status = 'FAIL'
 
             elif args.check == 'science':
                 from glp.evidence import run_evidence_court
