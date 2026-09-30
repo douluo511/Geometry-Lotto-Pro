@@ -35,12 +35,14 @@ def event(db: sqlite3.Connection, kind: str, status: str, payload: dict) -> None
 
 def write_updater_proof(root: Path, mode: str, payload: dict, parent_pid: int = 4242) -> None:
     canonical = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    bootloader_pid = parent_pid + 50
     report = {
         "schema": "ssq-independent-updater-v2",
         "status": "PASS",
         "mode": mode,
         "pid": parent_pid + 100,
-        "parent_pid": parent_pid,
+        "parent_pid": bootloader_pid,
+        "ancestor_pids": [bootloader_pid, parent_pid],
         "expected_parent_pid": parent_pid,
         "parent_pid_match": True,
         "data_dir": str(root.resolve()),
@@ -107,6 +109,25 @@ class GuiBackendEffectTests(unittest.TestCase):
                 db.execute("INSERT INTO final_gate_decisions VALUES('G','PASS')")
                 db.commit()
             self.assertEqual(inspect_effect(root, "predict")["status"], "PASS")
+
+    def test_updater_process_requires_expected_gui_pid_in_ancestor_chain(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            payload = {
+                "crosscheck_status": "PASS", "persisted_integrity": {"ok": True},
+                "canonical_hash": "canonical",
+            }
+            (root / "source_evidence.json").write_text("{}", encoding="utf-8")
+            with closing(make_db(root)) as db:
+                event(db, "official_update", "PASS", payload)
+            write_updater_proof(root, "update", payload, parent_pid=4242)
+            proof_path = root / "updater_last_run.json"
+            proof = json.loads(proof_path.read_text(encoding="utf-8"))
+            proof["ancestor_pids"] = [proof["parent_pid"], 9999]
+            proof_path.write_text(json.dumps(proof), encoding="utf-8")
+            result = inspect_effect(root, "update", parent_pid=4242)
+            self.assertEqual(result["status"], "FAIL")
+            self.assertEqual(result["updater_process"]["status"], "FAIL")
 
     def test_update_requires_persisted_quorum_and_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as td:
