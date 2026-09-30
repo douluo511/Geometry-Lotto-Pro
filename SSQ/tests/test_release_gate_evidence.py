@@ -1086,6 +1086,15 @@ class ReleaseGateEvidenceTests(unittest.TestCase):
                 "hash_matches": True,
                 "primary_sha256": updater_hash,
                 "rebuild_sha256": updater_hash,
+                "workspace_isolated": True,
+                "workspace_paths": {
+                    "primary_dist": "D:/a/project/dist",
+                    "rebuild_dist": "D:/a/project/repro/dist",
+                    "primary_workpath": "D:/a/project/primary/updater-work",
+                    "rebuild_workpath": "D:/a/project/repro/updater-work",
+                    "primary_specpath": "D:/a/project/primary/updater-spec",
+                    "rebuild_specpath": "D:/a/project/repro/updater-spec",
+                },
             }
             (root / "UPDATER_EXACT_EXE_ACCEPTANCE.json").write_text(json.dumps({
                 "schema": "ssq-updater-exact-exe-acceptance-v2",
