@@ -122,8 +122,8 @@ function Get-EditValue($control){
   return [string](Get-NativeText $control.hwnd)
 }
 
-function Read-BackendEffect([string]$dataDir,[string]$operation,[int]$afterId){
-  $json = & python -B $verifier --data-dir $dataDir --operation $operation --after-id $afterId
+function Read-BackendEffect([string]$dataDir,[string]$operation,[int]$afterId,[int]$parentPid){
+  $json = & python -B $verifier --data-dir $dataDir --operation $operation --after-id $afterId --parent-pid $parentPid
   if($LASTEXITCODE -ne 0 -or -not $json){ throw "Backend verifier failed" }
   return ($json | ConvertFrom-Json)
 }
@@ -181,7 +181,7 @@ try {
       $beforeStatus = [string](Get-NativeText $status.hwnd)
       $beforeOutputPath = Join-Path $dataDir "gui_before.txt"
       Write-UiText $beforeOutputPath $beforeText
-      $before = Read-BackendEffect $dataDir $op.name 0
+      $before = Read-BackendEffect $dataDir $op.name 0 $guiPid
       if($before.latest_id -ne 0){ throw "Backend ledger was not empty before physical click" }
       $click = Click-Control $window.hwnd $button.hwnd
       if($SettleMs -gt 0){ Start-Sleep -Milliseconds $SettleMs }
@@ -193,7 +193,7 @@ try {
         if(-not (Get-Process -Id $guiPid -ErrorAction SilentlyContinue)){
           throw "Exact EXE GUI exited before backend effect was proved"
         }
-        $effect = Read-BackendEffect $dataDir $op.name 0
+        $effect = Read-BackendEffect $dataDir $op.name 0 $guiPid
         if($effect.status -eq "FAIL"){ throw "Backend $($op.name) FAIL: $($effect.reason)" }
         if($effect.status -eq "PASS"){
           $afterText = Get-EditValue $output
