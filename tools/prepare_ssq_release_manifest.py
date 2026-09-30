@@ -14,6 +14,9 @@ REPOSITORY = "douluo511/Geometry-Lotto-Pro-SSQ"
 EXPECTED_EXE = "Geometry_Lotto_Pro_SSQ_Windows_Verified.exe"
 MAX_ARTIFACT_BYTES = 512 * 1024 * 1024
 STABLE_VERSION_RE = re.compile(r"^(\d+)\.(\d+)\.(\d+)(?:\+([A-Za-z0-9.-]+))?$")
+VERSION_RE = re.compile(
+    r"^(\d+)\.(\d+)\.(\d+)(?:-([A-Za-z0-9.-]+))?(?:\+([A-Za-z0-9.-]+))?$"
+)
 
 
 def sha256_file(path: Path) -> str:
@@ -31,8 +34,25 @@ def stable_version_key(version: str) -> tuple[int, int, int]:
     return tuple(int(match.group(i)) for i in (1, 2, 3))
 
 
+def version_precedence(version: str) -> tuple[Any, ...]:
+    match = VERSION_RE.fullmatch(version.strip())
+    if match is None:
+        raise ValueError("version must be valid SemVer MAJOR.MINOR.PATCH[-PRERELEASE][+BUILD]")
+    core = tuple(int(match.group(i)) for i in (1, 2, 3))
+    prerelease = match.group(4)
+    if prerelease is None:
+        return (*core, 1, ())
+    identifiers: list[tuple[int, Any]] = []
+    for token in prerelease.split("."):
+        if not token:
+            raise ValueError("empty prerelease identifier")
+        identifiers.append((0, int(token)) if token.isdigit() else (1, token))
+    return (*core, 0, tuple(identifiers))
+
+
 def require_forward(base_version: str, candidate_version: str) -> None:
-    if stable_version_key(candidate_version) <= stable_version_key(base_version):
+    stable_version_key(candidate_version)
+    if version_precedence(candidate_version) <= version_precedence(base_version):
         raise ValueError(
             f"candidate must move forward: base={base_version}, candidate={candidate_version}"
         )
@@ -63,11 +83,12 @@ def build_manifest(
     if exe.name != EXPECTED_EXE:
         raise ValueError(f"unexpected artifact filename: {exe.name}")
 
-    stable_version_key(version)
     if baseline:
+        version_precedence(version)
         if base_version is not None:
             raise ValueError("--baseline cannot be combined with --base-version")
     else:
+        stable_version_key(version)
         if base_version is None:
             raise ValueError("--base-version is required for a forward candidate manifest")
         require_forward(base_version, version)
@@ -118,7 +139,8 @@ def build_manifest(
         "self_test": str(self_test.resolve()),
         "self_test_sha256": sha256_file(self_test.resolve()),
         "checks": {
-            "stable_candidate_version": True,
+            "baseline_version_valid": True if baseline else "NOT_APPLICABLE_CANDIDATE",
+            "stable_candidate_version": True if not baseline else "NOT_APPLICABLE_BASELINE",
             "strictly_forward_version": True if not baseline else "NOT_APPLICABLE_BASELINE",
             "exact_artifact_filename": True,
             "exact_self_test_pass": True,
