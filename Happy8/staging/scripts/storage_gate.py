@@ -18,16 +18,38 @@ def sample():
         "draw_date": "2026-09-28",
         "numbers": [2,7,16,19,21,25,30,31,33,35,42,45,50,52,53,55,56,60,63,72],
     }]
+    sh_name = "shanghai_2026200_2026297.html"
     raw = {
-        "shanghai_welfare_lottery.html": b"<html>shanghai fixture</html>" * 100,
+        sh_name: b"<html>shanghai fixture</html>" * 100,
         "jiangsu_welfare_lottery.html": b"<html>jiangsu fixture</html>" * 100,
     }
+    manifest = [{
+        "sequence": 1,
+        "start_issue": "2026200",
+        "end_issue": "2026297",
+        "filename": sh_name,
+        "http_status": 200,
+        "sha256": sha256_bytes(raw[sh_name]),
+        "bytes": len(raw[sh_name]),
+        "draw_count": 1,
+        "first_issue": "2026261",
+        "last_issue": "2026261",
+        "url": "https://www.swlc.net.cn/lottery/kl8.html?view=previous&limit=100&start_issue=2026200&end_issue=2026297",
+    }]
     receipts = [
-        {"source":"shanghai_welfare_lottery","raw_sha256":sha256_bytes(raw["shanghai_welfare_lottery.html"])},
-        {"source":"jiangsu_welfare_lottery","raw_sha256":sha256_bytes(raw["jiangsu_welfare_lottery.html"])},
+        {
+            "source":"shanghai_welfare_lottery",
+            "raw_sha256":sha256_json(manifest),
+            "bytes":len(raw[sh_name]),
+        },
+        {
+            "source":"jiangsu_welfare_lottery",
+            "raw_sha256":sha256_bytes(raw["jiangsu_welfare_lottery.html"]),
+            "bytes":len(raw["jiangsu_welfare_lottery.html"]),
+        },
     ]
     report = {
-        "schema":"happy8-staging-official-network-v2",
+        "schema":"happy8-staging-official-network-v3",
         "status":"PASS",
         "latest":draws[-1],
         "history_count":len(draws),
@@ -35,9 +57,11 @@ def sample():
         "canonical_hash":sha256_json(draws),
         "crosscheck_count":1,
         "crosscheck_status":"PASS",
+        "verification":"SHANGHAI_FULL_HISTORY_PLUS_JIANGSU_CURRENT",
         "source_receipts":receipts,
+        "shanghai_raw_manifest":manifest,
     }
-    return report, raw
+    return report, raw, sh_name
 
 
 def main() -> int:
@@ -45,14 +69,14 @@ def main() -> int:
     with tempfile.TemporaryDirectory(prefix="happy8-storage-gate-") as td:
         root = Path(td)
         store = Store(root)
-        report, raw = sample()
+        report, raw, sh_name = sample()
         committed = store.commit_official_snapshot(report, raw)
         checks["commit"] = {"status":"PASS" if committed["status"] == "PASS" else "FAIL"}
         checks["integrity"] = {"status":store.integrity_check()["status"]}
 
         pointer = json.loads(store.current.read_text(encoding="utf-8"))
         generation = store.generations / pointer["generation_id"]
-        target = generation / "RAW" / "shanghai_welfare_lottery.html"
+        target = generation / "RAW" / sh_name
         original = target.read_bytes()
         target.write_bytes(original + b"tamper")
         tampered = store.integrity_check()
@@ -71,8 +95,16 @@ def main() -> int:
             "status":"PASS" if store.current.read_bytes() == before else "FAIL"
         }
 
+        bad_manifest = copy.deepcopy(report)
+        bad_manifest["shanghai_raw_manifest"][0]["sha256"] = "0" * 64
+        try:
+            store.commit_official_snapshot(bad_manifest, raw)
+            checks["manifest_tamper_fail_closed"] = {"status":"FAIL"}
+        except ValueError:
+            checks["manifest_tamper_fail_closed"] = {"status":"PASS"}
+
     status = "PASS" if all(x["status"] == "PASS" for x in checks.values()) else "FAIL"
-    value = {"schema":"happy8-storage-gate-v1","status":status,"checks":checks}
+    value = {"schema":"happy8-storage-gate-v2","status":status,"checks":checks}
     print(json.dumps(value, ensure_ascii=False, indent=2))
     return 0 if status == "PASS" else 2
 
