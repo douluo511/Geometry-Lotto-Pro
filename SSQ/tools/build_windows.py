@@ -60,9 +60,13 @@ updater_manifest = {
 )
 
 updater_acceptance = {
-    'schema': 'ssq-updater-exact-exe-acceptance-v1',
+    'schema': 'ssq-updater-exact-exe-acceptance-v2',
     'artifact': updater_exe.name,
     'sha256': updater_hash,
+    'runner_os': os.environ.get('RUNNER_OS'),
+    'runner_name': os.environ.get('RUNNER_NAME'),
+    'github_sha': os.environ.get('GITHUB_SHA'),
+    'github_run_id': os.environ.get('GITHUB_RUN_ID'),
     'checks': {},
 }
 
