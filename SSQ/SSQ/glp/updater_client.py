@@ -105,7 +105,8 @@ class UpdaterClient:
             and report.get("updater_exe_sha256") == expected_hash
             and report.get("parent_pid_match") is True
             and int(report.get("pid") or 0) != os.getpid()
-            and int(report.get("parent_pid") or 0) == os.getpid()
+            and int(report.get("expected_parent_pid") or 0) == os.getpid()
+            and os.getpid() in [int(x) for x in (report.get("ancestor_pids") or [])]
             and Path(str(report.get("data_dir") or "")).resolve() == self.data_root
         )
         if not valid:
@@ -120,6 +121,8 @@ class UpdaterClient:
             "status": "PASS",
             "pid": report["pid"],
             "parent_pid": report["parent_pid"],
+            "ancestor_pids": report.get("ancestor_pids", []),
+            "expected_parent_pid": report.get("expected_parent_pid"),
             "exe_sha256": expected_hash,
             "mode": mode,
             "result_sha256": report.get("service_result_sha256"),
