@@ -112,7 +112,7 @@ jobs:
 
       - name: Evidence-derived Final Gate and Same Hash
         run: |
-          python psychology_insight_pro/collect_final_gates.py --exe ".\dist\Psychology_Insight_Pro.exe" --final-exe ".\dist\final\Psychology_Insight_Pro.exe" --physical-gui ".\psychology_insight_pro\physical_gui_click.json" --output ".\dist\mother_gates.json"
+          python psychology_insight_pro/collect_final_gates.py --exe ".\dist\Psychology_Insight_Pro.exe" --final-exe ".\dist\final\Psychology_Insight_Pro.exe" --physical-gui ".\psychology_insight_pro\physical_gui_click.json" --repository-independent FAIL --output ".\dist\mother_gates.json"
           $collectorExit = $LASTEXITCODE
 
           python psychology_insight_pro/release_gate.py --input ".\dist\mother_gates.json" --output ".\dist\final_gate.json"
@@ -121,7 +121,7 @@ jobs:
           $mother = Get-Content ".\dist\mother_gates.json" -Raw | ConvertFrom-Json
           $final = Get-Content ".\dist\final_gate.json" -Raw | ConvertFrom-Json
           if ($collectorExit -ne 0 -or $releaseExit -ne 0 -or $mother.status -ne "PASS" -or $final.final_gate -ne "PASS" -or [int]$final.hard_fail_count -ne 0) {
-            throw "Evidence-derived Final Gate failed"
+            throw "Final Gate blocked: independent repository is mandatory"
           }
           Write-Host "PSYCHOLOGY_FINAL_SHA256=$($final.exe_sha256)"
           Write-Host "FINAL_RELEASE_GATE=PASS"
@@ -156,6 +156,7 @@ jobs:
           compression-level: 0
 
       - name: Upload Audit Evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: Psychology_Insight_Pro_AUDIT_v0.4.0

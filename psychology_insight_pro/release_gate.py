@@ -33,6 +33,7 @@ HARD_GATES = [
     "gui_smoke",
     "same_hash",
     "business_content",
+    "repository_independence",
 ]
 
 
