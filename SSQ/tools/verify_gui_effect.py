@@ -27,9 +27,52 @@ def _sha256_json(value: Any) -> str:
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
+def _verify_updater_process(
+    data_dir: Path, operation: str, parent_pid: int, service_payload: dict[str, Any],
+) -> dict[str, Any]:
+    proof_path = data_dir / "updater_last_run.json"
+    result: dict[str, Any] = {"status": "FAIL", "path": str(proof_path)}
+    if operation not in {"update", "repair"} or parent_pid <= 0 or not proof_path.is_file():
+        result["reason"] = "updater process evidence missing or parent PID invalid"
+        return result
+    try:
+        proof = json.loads(proof_path.read_text(encoding="utf-8-sig"))
+        child_pid = int(proof.get("pid") or 0)
+        recorded_parent = int(proof.get("parent_pid") or 0)
+        expected_parent = int(proof.get("expected_parent_pid") or 0)
+        updater_hash = str(proof.get("updater_exe_sha256") or "")
+        payload_hash = str(proof.get("service_result_sha256") or "")
+        data_root = Path(str(proof.get("data_dir") or "")).resolve()
+        valid = bool(
+            proof.get("schema") == "ssq-independent-updater-v1"
+            and proof.get("status") == "PASS"
+            and proof.get("mode") == operation
+            and proof.get("parent_pid_match") is True
+            and child_pid > 0 and child_pid != parent_pid
+            and recorded_parent == parent_pid and expected_parent == parent_pid
+            and len(updater_hash) == 64 and all(ch in "0123456789abcdef" for ch in updater_hash)
+            and data_root == data_dir.resolve()
+            and payload_hash == _sha256_json(service_payload)
+            and proof.get("service_result") == service_payload
+        )
+        result.update(
+            status="PASS" if valid else "FAIL",
+            child_pid=child_pid,
+            parent_pid=recorded_parent,
+            updater_exe_sha256=updater_hash,
+            service_result_sha256=payload_hash,
+        )
+        if not valid:
+            result["reason"] = "updater process evidence does not bind to this GUI/backend effect"
+        return result
+    except (OSError, ValueError, TypeError, json.JSONDecodeError) as exc:
+        result["reason"] = f"invalid updater process evidence: {exc}"
+        return result
+
+
 def inspect_effect(
     data_dir: Path, operation: str, after_id: int = 0,
-    experiment_id: int | None = None,
+    experiment_id: int | None = None, parent_pid: int = 0,
 ) -> dict[str, Any]:
     if (operation not in EVENT_KINDS or after_id < 0
             or (experiment_id is not None and experiment_id <= 0)):
@@ -118,6 +161,10 @@ def inspect_effect(
                     and court.get("court_hash")
                 )
                 result["display_token"] = court.get("court_hash", "") if isinstance(court, dict) else ""
+            if operation in {"update", "repair"}:
+                updater = _verify_updater_process(data_dir, operation, parent_pid, payload)
+                result["updater_process"] = updater
+                valid = valid and updater.get("status") == "PASS"
             if not isinstance(result.get("display_token"), str) or not result["display_token"]:
                 valid = False
             result["status"] = "PASS" if valid else "FAIL"
@@ -141,8 +188,9 @@ def main() -> int:
     parser.add_argument("--data-dir", type=Path, required=True)
     parser.add_argument("--operation", choices=sorted(EVENT_KINDS), required=True)
     parser.add_argument("--after-id", type=int, default=0)
+    parser.add_argument("--parent-pid", type=int, default=0)
     args = parser.parse_args()
-    print(json.dumps(inspect_effect(args.data_dir, args.operation, args.after_id), ensure_ascii=False))
+    print(json.dumps(inspect_effect(args.data_dir, args.operation, args.after_id, parent_pid=args.parent_pid), ensure_ascii=False))
     return 0
 
 
