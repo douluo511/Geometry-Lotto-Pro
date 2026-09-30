@@ -1152,7 +1152,8 @@ def derive(evidence: Path, exe: Path, repository_independence: str = "FAIL") -> 
 
         updater_checks = updater.get("checks")
         required_updater_checks = {
-            "self-test", "software-self-test", "offline-failclosed", "update", "repair"
+            "self-test", "software-self-test", "offline-failclosed", "update", "repair",
+            "software-local-install-acceptance", "software-local-rollback-acceptance",
         }
         if not isinstance(updater_checks, dict) or not required_updater_checks.issubset(updater_checks):
             raise ValueError("updater exact-EXE check set incomplete")
@@ -1186,7 +1187,35 @@ def derive(evidence: Path, exe: Path, repository_independence: str = "FAIL") -> 
             and software_checks
             and all(value is True for value in software_checks.values())
         )
-        gates["updater_atomic_rollback"] = "PASS" if rollback_ok else "FAIL"
+        real_main_install = _read(evidence / "updater-local-main-install.json")
+        real_main_rollback = _read(evidence / "updater-local-main-rollback.json")
+        install_result = real_main_install.get("service_result") if isinstance(real_main_install, dict) else None
+        rollback_result = real_main_rollback.get("service_result") if isinstance(real_main_rollback, dict) else None
+        real_main_ok = (
+            isinstance(real_main_install, dict)
+            and real_main_install.get("schema") == "ssq-independent-updater-v2"
+            and real_main_install.get("mode") == "software-local-install-acceptance"
+            and real_main_install.get("status") == "PASS"
+            and real_main_install.get("updater_exe_sha256") == updater_actual_hash
+            and isinstance(install_result, dict)
+            and install_result.get("status") == "PASS"
+            and install_result.get("release_network_status") == "PENDING"
+            and isinstance(install_result.get("transaction"), dict)
+            and install_result["transaction"].get("status") == "PASS"
+            and isinstance(real_main_rollback, dict)
+            and real_main_rollback.get("schema") == "ssq-independent-updater-v2"
+            and real_main_rollback.get("mode") == "software-local-rollback-acceptance"
+            and real_main_rollback.get("status") == "PASS"
+            and real_main_rollback.get("updater_exe_sha256") == updater_actual_hash
+            and isinstance(rollback_result, dict)
+            and rollback_result.get("status") == "PASS"
+            and rollback_result.get("release_network_status") == "PENDING"
+            and rollback_result.get("expect_rollback") is True
+            and isinstance(rollback_result.get("transaction"), dict)
+            and rollback_result["transaction"].get("status") == "FAIL"
+            and rollback_result["transaction"].get("rolled_back") is True
+        )
+        gates["updater_atomic_rollback"] = "PASS" if rollback_ok and real_main_ok else "FAIL"
 
         embedded = acceptance.get("updater") if isinstance(acceptance, dict) else None
         main_self = (
@@ -1221,6 +1250,8 @@ def derive(evidence: Path, exe: Path, repository_independence: str = "FAIL") -> 
             "artifact_sha256": updater_actual_hash,
             "process_boundary": gates["updater_process"],
             "atomic_rollback": gates["updater_atomic_rollback"],
+            "real_main_install_report": str(evidence / "updater-local-main-install.json"),
+            "real_main_rollback_report": str(evidence / "updater-local-main-rollback.json"),
             "same_hash": gates["updater_same_hash"],
             "software_release_network": gates["updater_real_network"],
             "software_release_reason": updater.get("software_release_reason"),
