@@ -186,6 +186,43 @@ class IndependentRepoExportTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 export_repository(source, target, "f" * 40)
 
+    def test_manifest_consistent_unknown_top_level_path_is_rejected(self) -> None:
+        import hashlib
+        import json
+        with tempfile.TemporaryDirectory() as td:
+            base = Path(td)
+            source = base / "source"
+            target = base / "target"
+            source.mkdir()
+            self.make_source(source)
+            self.assertEqual(export_repository(source, target, "7" * 40)["status"], "PASS")
+
+            payload = b"unexpected-but-self-consistent"
+            write(target, "unknown_project/payload.bin", payload)
+            manifest_path = target / "MIGRATION_MANIFEST.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["files"].append({
+                "path": "unknown_project/payload.bin",
+                "sha256": hashlib.sha256(payload).hexdigest(),
+                "bytes": len(payload),
+            })
+            manifest["files"] = sorted(manifest["files"], key=lambda row: row["path"])
+            manifest_path.write_text(
+                json.dumps(manifest, ensure_ascii=False, sort_keys=True, indent=2) + "\n",
+                encoding="utf-8",
+            )
+            sums = "".join(
+                f'{row["sha256"]}  {row["path"]}\n' for row in manifest["files"]
+            )
+            (target / "MIGRATION_SHA256SUMS.txt").write_text(sums, encoding="utf-8")
+
+            proof = verify_export(target)
+            self.assertEqual(proof["status"], "FAIL")
+            self.assertTrue(proof["checks"]["no_unmanifested_files"])
+            self.assertTrue(proof["checks"]["sha256sums_match_manifest"])
+            self.assertTrue(proof["checks"]["all_hashes_match"])
+            self.assertFalse(proof["checks"]["allowed_paths_only"])
+
     def test_nonempty_destination_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             base = Path(td)
