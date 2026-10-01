@@ -117,11 +117,19 @@ $beforeHistory = Get-Sha256 $history
 $beforeEvidence = Get-Sha256 $sourceEvidenceFile
 $exeHash = Get-Sha256 $exe
 $updaterHash = Get-Sha256 $updater
+$verifiedUpdaterHash = [string]$verifiedUpdate[0].backend_effect.updater_process.updater_exe_sha256
+if($verifiedUpdaterHash -ne $updaterHash){ throw "Verified GUI update used a different updater hash" }
+$materializedUpdaterDir = Join-Path (Join-Path $runDir "updater") $updaterHash
+New-Item -ItemType Directory -Force -Path $materializedUpdaterDir | Out-Null
+$materializedUpdater = Join-Path $materializedUpdaterDir (Split-Path -Leaf $updater)
+Copy-Item -LiteralPath $updater -Destination $materializedUpdater -Force
+if((Get-Sha256 $materializedUpdater) -ne $updaterHash){ throw "Materialized updater precondition hash mismatch" }
 $processName = [System.IO.Path]::GetFileNameWithoutExtension($exe)
 $savedDataDir = $env:GLP_DATA_DIR
 $env:GLP_DATA_DIR = $runDir
 $ruleMain = "GLP-SSQ-main-" + [Guid]::NewGuid().ToString("N")
-$ruleUpdater = "GLP-SSQ-updater-" + [Guid]::NewGuid().ToString("N")
+$ruleUpdaterDist = "GLP-SSQ-updater-dist-" + [Guid]::NewGuid().ToString("N")
+$ruleUpdaterMaterialized = "GLP-SSQ-updater-materialized-" + [Guid]::NewGuid().ToString("N")
 $boot = $null
 $guiPid = 0
 $result = [ordered]@{
@@ -132,6 +140,8 @@ $result = [ordered]@{
   exe_sha256=$exeHash
   updater_exe=(Split-Path -Leaf $updater)
   updater_sha256=$updaterHash
+  materialized_updater=$materializedUpdater
+  materialized_updater_sha256=(Get-Sha256 $materializedUpdater)
   github_sha=$env:GITHUB_SHA
   github_run_id=$env:GITHUB_RUN_ID
   data_dir=(Split-Path -Leaf $runDir)
@@ -142,8 +152,10 @@ $result = [ordered]@{
 
 try {
   New-NetFirewallRule -DisplayName $ruleMain -Direction Outbound -Program $exe -Action Block -Profile Any | Out-Null
-  New-NetFirewallRule -DisplayName $ruleUpdater -Direction Outbound -Program $updater -Action Block -Profile Any | Out-Null
+  New-NetFirewallRule -DisplayName $ruleUpdaterDist -Direction Outbound -Program $updater -Action Block -Profile Any | Out-Null
+  New-NetFirewallRule -DisplayName $ruleUpdaterMaterialized -Direction Outbound -Program $materializedUpdater -Action Block -Profile Any | Out-Null
   $result.firewall_rules_created = $true
+  $result.firewall_programs = @($exe, $updater, $materializedUpdater)
 
   $baselinePids = @(Get-Process -Name $processName -ErrorAction SilentlyContinue | ForEach-Object { $_.Id })
   $boot = Start-Process -FilePath $exe -PassThru
@@ -177,7 +189,8 @@ finally {
   if($guiPid -gt 0){ Stop-Process -Id $guiPid -Force -ErrorAction SilentlyContinue }
   if($null -ne $boot){ Stop-Process -Id $boot.Id -Force -ErrorAction SilentlyContinue }
   Remove-NetFirewallRule -DisplayName $ruleMain -ErrorAction SilentlyContinue
-  Remove-NetFirewallRule -DisplayName $ruleUpdater -ErrorAction SilentlyContinue
+  Remove-NetFirewallRule -DisplayName $ruleUpdaterDist -ErrorAction SilentlyContinue
+  Remove-NetFirewallRule -DisplayName $ruleUpdaterMaterialized -ErrorAction SilentlyContinue
   $env:GLP_DATA_DIR = $savedDataDir
 }
 
