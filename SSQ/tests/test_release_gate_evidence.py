@@ -1336,33 +1336,40 @@ class ReleaseGateEvidenceTests(unittest.TestCase):
     def test_reversal_contract_binds_invariant_science_and_audit_contract(self) -> None:
         reverse = {"remove": True, "shuffle": True, "random_replace": True}
         policy = {"schema": "false-edge-firewall-v8", "alpha": 0.01}
-        science = {"result": {
-            "court_hash": "science-run-hash",
+        science_court = {
             "pre_registered_policy": policy,
             "model_hash": "model-proof",
             "selector_hash": "selector-proof",
             "reverse_validation": reverse,
             "ablation": {"executed": True},
-        }}
-        audit = {"result": {
+        }
+        science_court["court_hash"] = _sha_for_test(science_court)
+        audit_court = {
             "software_verdict": "PASS",
-            "court": {
-                "software_verdict": "PASS",
-                "edge_state": "NO_EDGE",
-                "dan_state": "NULL_DAN",
-                "court_hash": "audit-run-hash",
-                "pre_registered_policy": policy,
-                "model_hash": "model-proof",
-                "selector_hash": "selector-proof",
-                "reverse_validation": reverse,
-                "ablation": {"executed": True},
-                "final_validation": {"status": "PASS"},
-            },
-        }}
+            "edge_state": "NO_EDGE",
+            "dan_state": "NULL_DAN",
+            "pre_registered_policy": policy,
+            "model_hash": "model-proof",
+            "selector_hash": "selector-proof",
+            "reverse_validation": reverse,
+            "ablation": {"executed": True},
+            "final_validation": {"status": "PASS"},
+        }
+        audit_court["court_hash"] = _sha_for_test(audit_court)
+        science = {"result": science_court}
+        audit = {"result": {"software_verdict": "PASS", "court": audit_court}}
         proof = _verify_reversal_contract(science, audit)
-        self.assertEqual(proof["science_court_hash"], "science-run-hash")
-        self.assertEqual(proof["audit_court_hash"], "audit-run-hash")
-        audit["result"]["court"]["selector_hash"] = "mismatch"
+        self.assertEqual(proof["science_court_hash"], science_court["court_hash"])
+        self.assertEqual(proof["audit_court_hash"], audit_court["court_hash"])
+
+        # A field that the semantic comparison does not otherwise inspect must
+        # still invalidate the immutable court hash.
+        audit_court["tampered_unchecked_field"] = "changed"
+        with self.assertRaises(ValueError):
+            _verify_reversal_contract(science, audit)
+        audit_court.pop("tampered_unchecked_field")
+
+        audit_court["selector_hash"] = "mismatch"
         with self.assertRaises(ValueError):
             _verify_reversal_contract(science, audit)
 
