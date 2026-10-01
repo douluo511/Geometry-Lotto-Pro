@@ -134,14 +134,37 @@ def dataset_pair(extra: bool = False):
 
 
 class AcceptanceScriptContractTests(unittest.TestCase):
-    def test_gui_failure_script_never_binds_reserved_powershell_pid(self):
-        script = (
+    @staticmethod
+    def _gui_failure_script() -> str:
+        return (
             ROOT.parent / ".github" / "scripts" / "ssq_physical_gui_failure_smoke.ps1"
         ).read_text(encoding="utf-8")
+
+    def test_gui_failure_script_never_binds_reserved_powershell_pid(self):
+        script = self._gui_failure_script()
         self.assertNotRegex(
             script,
             r"(?i)\$(?:pid)\b",
             "PowerShell $PID is an automatic read-only variable; acceptance scripts must use processId/guiPid instead",
+        )
+
+    def test_gui_failure_script_blocks_the_actual_materialized_updater_path(self):
+        script = self._gui_failure_script()
+        self.assertIn(
+            '$materializedUpdaterDir = Join-Path (Join-Path $runDir "updater") $updaterHash',
+            script,
+        )
+        self.assertIn(
+            '$verifiedUpdaterHash = [string]$verifiedUpdate[0].backend_effect.updater_process.updater_exe_sha256',
+            script,
+        )
+        self.assertIn(
+            'New-NetFirewallRule -DisplayName $ruleUpdaterMaterialized -Direction Outbound -Program $materializedUpdater -Action Block',
+            script,
+        )
+        self.assertIn(
+            'materialized_updater_sha256=(Get-Sha256 $materializedUpdater)',
+            script,
         )
 
 
