@@ -985,7 +985,7 @@ def _verify_gui_failure_evidence(
 
     return {
         "report_schema": report.get("schema"),
-        "exe_sha256": history and report.get("exe_sha256"),
+        "exe_sha256": report.get("exe_sha256"),
         "updater_sha256": report.get("updater_sha256"),
         "data_dir": leaf,
         "source_success_data_dir": source_leaf,
