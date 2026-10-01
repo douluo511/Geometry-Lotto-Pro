@@ -2046,6 +2046,70 @@ def _derive_business_content_gate(
     """
     tasks: dict[str, dict[str, Any]] = {}
 
+    physical_runtime = proofs.get("physical_gui_click")
+    physical_ledgers = (
+        physical_runtime.get("ledgers")
+        if isinstance(physical_runtime, dict) else None
+    )
+    network_runtime = proofs.get("real_network")
+    runtime_evidence_started = bool(
+        exact_results
+        or (isinstance(physical_ledgers, list) and bool(physical_ledgers))
+        or (
+            isinstance(network_runtime, dict)
+            and isinstance(network_runtime.get("canonical_hash"), str)
+        )
+    )
+    structural_ok = bool(
+        isinstance(static_business_proof, dict)
+        and static_business_proof.get("static_contract_status") == "PASS"
+    )
+    if not runtime_evidence_started:
+        if not structural_ok:
+            return "FAIL", {
+                "status": "FAIL",
+                "scope": "SSQ-B01-B07-v1",
+                "scope_frozen_for": "SSQ only",
+                "does_not_apply_to_other_projects": True,
+                "structural_business_gate": static_business_proof,
+                "tasks": {},
+                "passed": 0,
+                "pending": 0,
+                "failed": 1,
+                "total": len(BUSINESS_SCOPE_IDS),
+                "reason": "static business contract is absent or invalid",
+                "release_authorized": False,
+            }
+        pending_tasks = {
+            key: _business_row(
+                "PENDING",
+                purpose,
+                reason="current-run dynamic business evidence has not executed yet",
+            )
+            for key, purpose in {
+                "B01": "更新历史并审计官方来源、最新期、冲突与网络失败",
+                "B02": "生成可追溯研究结果并禁止未合格模型冒充生产优势",
+                "B03": "独立科学与事后审计",
+                "B04": "损坏检测与修复",
+                "B05": "独立 Updater 真实版本 N→N+1",
+                "B06": "所有 GUI 入口实体点击到真实后端",
+                "B07": "长期维护与普通账户/中文路径",
+            }.items()
+        }
+        return "PENDING", {
+            "status": "PENDING",
+            "scope": "SSQ-B01-B07-v1",
+            "scope_frozen_for": "SSQ only",
+            "does_not_apply_to_other_projects": True,
+            "structural_business_gate": static_business_proof,
+            "tasks": pending_tasks,
+            "passed": 0,
+            "pending": len(BUSINESS_SCOPE_IDS),
+            "failed": 0,
+            "total": len(BUSINESS_SCOPE_IDS),
+            "release_authorized": False,
+        }
+
     b01_required = (
         "contract_test", "fault_injection", "real_network",
         "physical_gui_click", "physical_gui_failure",
@@ -2103,7 +2167,8 @@ def _derive_business_content_gate(
     )
 
     physical = proofs.get("physical_gui_click")
-    ledgers = physical.get("ledgers") if isinstance(physical, dict) else []
+    ledgers_raw = physical.get("ledgers") if isinstance(physical, dict) else None
+    ledgers = ledgers_raw if isinstance(ledgers_raw, list) else []
     repair_success = any(
         isinstance(row, dict) and row.get("operation") == "repair"
         and type(row.get("experiment_id")) is int and row["experiment_id"] > 0
@@ -2182,10 +2247,6 @@ def _derive_business_content_gate(
     )
 
     statuses = [tasks[key]["status"] for key in BUSINESS_SCOPE_IDS]
-    structural_ok = bool(
-        isinstance(static_business_proof, dict)
-        and static_business_proof.get("static_contract_status") == "PASS"
-    )
     if not structural_ok:
         overall = "FAIL"
     elif any(status == "FAIL" for status in statuses):
