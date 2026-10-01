@@ -591,9 +591,16 @@ class LottoService:
         detail = f"{type(exc).__name__}: {exc}"
         return any(marker in detail for marker in AUDIT_TRANSIENT_UPDATE_MARKERS)
 
-    def _audit_update_with_retry(
+    def update_with_transient_retry(
         self, progress: Callable[[str], None] | None = None
     ) -> tuple[dict[str, Any] | None, str | None, list[dict[str, Any]]]:
+        """Retry the whole official-quorum transaction once only for transport transients.
+
+        Each failed attempt remains persisted through build_canonical's failure
+        sink. Semantic/schema/freshness/source-conflict failures never retry.
+        The canonical dataset is committed only by an attempt that independently
+        reaches crosscheck_status=PASS and strict persisted integrity.
+        """
         attempts: list[dict[str, Any]] = []
         for attempt in range(1, AUDIT_UPDATE_MAX_ATTEMPTS + 1):
             try:
@@ -623,11 +630,18 @@ class LottoService:
                     return None, detail, attempts
                 if progress:
                     progress(
-                        f"高级分析官方更新瞬态失败：第 {attempt} 次；"
-                        f"{AUDIT_UPDATE_RETRY_DELAY_SECONDS:.1f}s 后进行最后一次重试…"
+                        f"官方更新瞬态失败：第 {attempt} 次；"
+                        f"{AUDIT_UPDATE_RETRY_DELAY_SECONDS:.1f}s 后进行最后一次完整重试…"
                     )
                 time.sleep(AUDIT_UPDATE_RETRY_DELAY_SECONDS)
-        return None, "audit update retry loop exhausted", attempts
+        return None, "official update retry loop exhausted", attempts
+
+    def _audit_update_with_retry(
+        self, progress: Callable[[str], None] | None = None
+    ) -> tuple[dict[str, Any] | None, str | None, list[dict[str, Any]]]:
+        # Compatibility wrapper: audit and Exact-EXE update share the same
+        # fail-closed bounded retry contract.
+        return self.update_with_transient_retry(progress=progress)
 
     def audit(self, progress: Callable[[str], None] | None = None) -> dict[str, Any]:
         """Advanced analysis is intentionally non-freezing.
