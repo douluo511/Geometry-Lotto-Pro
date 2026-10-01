@@ -64,11 +64,11 @@ function Wait-MainWindow([System.Diagnostics.Process]$boot,[string]$processName,
   throw "Exact EXE main window not found"
 }
 
-function Get-Control([IntPtr]$window,[int]$id,[int]$pid){
+function Get-Control([IntPtr]$window,[int]$id,[int]$processId){
   $handle = [PhysicalGuiFailureClick]::GetDlgItem($window,$id)
   if($handle -eq [IntPtr]::Zero -or [PhysicalGuiFailureClick]::GetParent($handle) -ne $window){ throw "Control $id invalid" }
   [uint32]$owner = 0
-  if([PhysicalGuiFailureClick]::GetWindowThreadProcessId($handle,[ref]$owner) -eq 0 -or $owner -ne $pid){ throw "Control $id wrong process" }
+  if([PhysicalGuiFailureClick]::GetWindowThreadProcessId($handle,[ref]$owner) -eq 0 -or $owner -ne $processId){ throw "Control $id wrong process" }
   if(-not [PhysicalGuiFailureClick]::IsWindowVisible($handle)){ throw "Control $id hidden" }
   return $handle
 }
