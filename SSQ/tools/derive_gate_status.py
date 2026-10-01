@@ -24,7 +24,7 @@ from release_gate_22 import HARD_GATES
 REQUIRED_EXE_CHECKS = frozenset({
     "self", "integrity-tamper", "offline-failclosed", "corrupt-repair",
     "update", "science", "random-world-101", "random-world-202",
-    "random-world-303", "predict", "audit", "gui",
+    "random-world-303", "predict", "audit", "gui", "maintenance",
     "unicode-path-no-python-path", "default-gui-launch", "reproducible-build",
 })
 
@@ -2152,7 +2152,7 @@ def derive(evidence: Path, exe: Path) -> dict[str, Any]:
             for name in (
                 "self", "integrity-tamper", "offline-failclosed", "corrupt-repair",
                 "update", "science", "random-world-101", "random-world-202",
-                "random-world-303", "predict", "audit", "gui",
+                "random-world-303", "predict", "audit", "gui", "maintenance",
             ):
                 try:
                     exact_results[name] = _require_exact_result(evidence, name, actual_hash)
