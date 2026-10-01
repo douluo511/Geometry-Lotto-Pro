@@ -2009,6 +2009,43 @@ def _derive_no_shell_gate(
 BUSINESS_SCOPE_IDS = ("B01", "B02", "B03", "B04", "B05", "B06", "B07")
 
 
+def _business_scope_approval(evidence: Path) -> dict[str, Any]:
+    """Require a separate explicit user approval of the complete SSQ denominator."""
+    path = evidence / "BUSINESS_SCOPE_APPROVAL.json"
+    raw = _read(path)
+    if raw is None:
+        return {
+            "status": "PENDING",
+            "required_artifact": str(path),
+            "reason": "complete SSQ business/entry denominator has not been explicitly approved by the user",
+            "release_authorized": False,
+        }
+    expected_entries = ["predict", "update", "repair", "audit"]
+    checks = {
+        "schema": raw.get("schema") == "ssq-business-scope-approval-v1",
+        "project": raw.get("project") == "SSQ",
+        "approval_status": raw.get("status") == "APPROVED",
+        "approved_by_user": raw.get("approved_by") == "user",
+        "scope_ids_exact": raw.get("scope_ids") == list(BUSINESS_SCOPE_IDS),
+        "entry_inventory_exact": raw.get("entry_inventory") == expected_entries,
+        "approval_reference_present": (
+            isinstance(raw.get("approval_reference"), str)
+            and bool(raw["approval_reference"].strip())
+        ),
+    }
+    status = "PASS" if all(checks.values()) else "FAIL"
+    return {
+        "status": status,
+        "report": str(path),
+        "report_sha256": _hash(path),
+        "checks": checks,
+        "scope_ids": raw.get("scope_ids"),
+        "entry_inventory": raw.get("entry_inventory"),
+        "approval_reference": raw.get("approval_reference"),
+        "release_authorized": status == "PASS",
+    }
+
+
 def _business_row(
     status: str, purpose: str, *, evidence_refs: list[str] | None = None,
     reason: str | None = None,
@@ -2037,6 +2074,7 @@ def _derive_business_content_gate(
     proofs: dict[str, Any],
     exact_results: dict[str, dict[str, Any]],
     static_business_proof: dict[str, Any] | None,
+    scope_approval: dict[str, Any] | None = None,
 ) -> tuple[str, dict[str, Any]]:
     """Freeze and execute the SSQ B01-B07 business denominator.
 
@@ -2247,11 +2285,19 @@ def _derive_business_content_gate(
     )
 
     statuses = [tasks[key]["status"] for key in BUSINESS_SCOPE_IDS]
+    approval_state = (
+        scope_approval.get("status")
+        if isinstance(scope_approval, dict) else "PENDING"
+    )
     if not structural_ok:
         overall = "FAIL"
     elif any(status == "FAIL" for status in statuses):
         overall = "FAIL"
     elif any(status == "PENDING" for status in statuses):
+        overall = "PENDING"
+    elif approval_state == "FAIL":
+        overall = "FAIL"
+    elif approval_state != "PASS":
         overall = "PENDING"
     else:
         overall = "PASS"
@@ -2262,11 +2308,16 @@ def _derive_business_content_gate(
         "scope_frozen_for": "SSQ only",
         "does_not_apply_to_other_projects": True,
         "structural_business_gate": static_business_proof,
+        "scope_approval": scope_approval,
         "tasks": tasks,
         "passed": sum(status == "PASS" for status in statuses),
         "pending": sum(status == "PENDING" for status in statuses),
         "failed": sum(status == "FAIL" for status in statuses),
         "total": len(BUSINESS_SCOPE_IDS),
+        "reason": (
+            None if overall == "PASS"
+            else "dynamic B01-B07 evidence does not replace explicit user approval of the complete business/entry denominator"
+        ),
         "release_authorized": overall == "PASS",
     }
 
@@ -2836,11 +2887,14 @@ def derive(evidence: Path, exe: Path) -> dict[str, Any]:
         }
 
     static_business_proof = proofs.get("business_content")
+    scope_approval = _business_scope_approval(evidence)
+    proofs["business_scope_approval"] = scope_approval
     gates["business_content"], proofs["business_content"] = _derive_business_content_gate(
         gates,
         proofs,
         locals().get("exact_results", {}),
         static_business_proof if isinstance(static_business_proof, dict) else None,
+        scope_approval,
     )
     return {
         "schema": "ssq-current-run-gate-evidence-v1",

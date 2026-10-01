@@ -18,7 +18,7 @@ sys.path.insert(0, str(TOOLS))
 sys.path.insert(0, str(TOOLS.parent / "SSQ"))
 from derive_gate_status import (  # noqa: E402
     REQUIRED_BUSINESS_CHECKS, REQUIRED_EXE_CHECKS, REQUIRED_NETCLIENT_CHECKS,
-    _derive_business_content_gate, _derive_no_shell_gate,
+    _business_scope_approval, _derive_business_content_gate, _derive_no_shell_gate,
     _expected_gate_latest_completed_draw_day, _raw_status_allowed,
     _reparse_manifest, _repro_workspace_isolated, _verify_checkout_identity, _verify_gui_evidence,
     _verify_gui_failure_evidence, _verify_gui_update_source, _verify_reversal_contract,
@@ -421,16 +421,61 @@ class ReleaseGateEvidenceTests(unittest.TestCase):
         }
         return gates, proofs, exact
 
-    def test_business_B01_B07_pass_only_with_complete_dynamic_evidence(self) -> None:
+    def test_business_B01_B07_requires_explicit_user_scope_approval(self) -> None:
         gates, proofs, exact = self._complete_business_fixture()
         status, proof = _derive_business_content_gate(
             gates, proofs, exact, {"static_contract_status": "PASS"}
         )
-        self.assertEqual(status, "PASS")
+        self.assertEqual(status, "PENDING")
         self.assertEqual(proof["passed"], 7)
         self.assertEqual(proof["pending"], 0)
         self.assertEqual(proof["failed"], 0)
+        self.assertFalse(proof["release_authorized"])
+
+        approval = {
+            "status": "PASS",
+            "release_authorized": True,
+            "scope_ids": ["B01", "B02", "B03", "B04", "B05", "B06", "B07"],
+            "entry_inventory": ["predict", "update", "repair", "audit"],
+        }
+        status, proof = _derive_business_content_gate(
+            gates, proofs, exact, {"static_contract_status": "PASS"}, approval
+        )
+        self.assertEqual(status, "PASS")
         self.assertTrue(proof["release_authorized"])
+
+    def test_business_scope_approval_is_fail_closed_and_separate_from_execution_authority(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            pending = _business_scope_approval(root)
+            self.assertEqual(pending["status"], "PENDING")
+            self.assertFalse(pending["release_authorized"])
+
+            (root / "BUSINESS_SCOPE_APPROVAL.json").write_text(json.dumps({
+                "schema": "ssq-business-scope-approval-v1",
+                "project": "SSQ",
+                "status": "APPROVED",
+                "approved_by": "delegated execution authority",
+                "scope_ids": ["B01", "B02", "B03", "B04", "B05", "B06", "B07"],
+                "entry_inventory": ["predict", "update", "repair", "audit"],
+                "approval_reference": "not-user-approval",
+            }), encoding="utf-8")
+            invalid = _business_scope_approval(root)
+            self.assertEqual(invalid["status"], "FAIL")
+            self.assertFalse(invalid["release_authorized"])
+
+            (root / "BUSINESS_SCOPE_APPROVAL.json").write_text(json.dumps({
+                "schema": "ssq-business-scope-approval-v1",
+                "project": "SSQ",
+                "status": "APPROVED",
+                "approved_by": "user",
+                "scope_ids": ["B01", "B02", "B03", "B04", "B05", "B06", "B07"],
+                "entry_inventory": ["predict", "update", "repair", "audit"],
+                "approval_reference": "explicit-user-approved-scope-reference",
+            }), encoding="utf-8")
+            approved = _business_scope_approval(root)
+            self.assertEqual(approved["status"], "PASS")
+            self.assertTrue(approved["release_authorized"])
 
     def test_business_B05_stays_pending_until_independent_real_release(self) -> None:
         gates, proofs, exact = self._complete_business_fixture()
