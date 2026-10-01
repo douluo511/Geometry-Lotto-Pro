@@ -71,6 +71,39 @@ REQUIRED_NETCLIENT_CHECKS = frozenset({
 })
 
 EXPECTED_INDEPENDENT_REPOSITORY = "douluo511/Geometry-Lotto-Pro-SSQ"
+
+_GATE_CHINA_TZ = timezone(timedelta(hours=8))
+_GATE_SSQ_DRAW_WEEKDAYS = frozenset({1, 3, 6})
+_GATE_FRESHNESS_POLICY_SOURCES = {
+    "rule": "https://zhs.mof.gov.cn/zhengcefabu/201404/t20140421_1069579.htm",
+    "2025": "https://zhs.mof.gov.cn/zhengcefabu/202412/t20241206_3949123.htm",
+    "2026": "https://www.mof.gov.cn/gp/xxgkml/zhs/202512/t20251225_3980248.htm",
+}
+_GATE_MARKET_CLOSURES = {
+    2025: (
+        (date(2025, 1, 27), date(2025, 2, 5)),
+        (date(2025, 10, 1), date(2025, 10, 4)),
+    ),
+    2026: (
+        (date(2026, 2, 14), date(2026, 2, 23)),
+        (date(2026, 10, 1), date(2026, 10, 4)),
+    ),
+}
+
+
+def _expected_gate_latest_completed_draw_day(today: date) -> date:
+    if today.year not in _GATE_MARKET_CLOSURES:
+        raise ValueError(f"no frozen official freshness calendar for {today.year}")
+    cursor = today - timedelta(days=1)
+    for _ in range(40):
+        ranges = _GATE_MARKET_CLOSURES.get(cursor.year)
+        if ranges is None:
+            raise ValueError(f"no frozen official freshness calendar for {cursor.year}")
+        closed = any(start <= cursor <= end for start, end in ranges)
+        if cursor.weekday() in _GATE_SSQ_DRAW_WEEKDAYS and not closed:
+            return cursor
+        cursor -= timedelta(days=1)
+    raise ValueError("could not independently resolve latest completed SSQ draw day")
 EXPECTED_GITHUB_SERVER_URL = "https://github.com"
 
 
@@ -809,6 +842,13 @@ def _verify_gui_update_source(data_dir: Path, observed: dict[str, Any]) -> dict[
         "canonical_hash": digest,
         "raw_response_count": len(manifest["raw_responses"]),
         "canonical_reparse": "PASS",
+        "freshness": {
+            "status": "PASS",
+            "china_local_date": china_today.isoformat(),
+            "expected_latest_completed_draw_date": expected_latest.isoformat(),
+            "latest_date": latest_day.isoformat(),
+            "policy_sources": expected_policy_sources,
+        },
         "reparse": reparse_proof,
     }
 
@@ -1069,6 +1109,24 @@ def _verify_live_evidence(evidence_dir: Path, exe_hash: str) -> dict[str, Any]:
                                          separators=(",", ":")).encode("utf-8")).hexdigest()
                != canonical.get("canonical_hash")):
         raise ValueError("preserved canonical history is not bound to live evidence")
+    freshness = manifest.get("freshness")
+    china_today = datetime.now(_GATE_CHINA_TZ).date()
+    expected_latest = _expected_gate_latest_completed_draw_day(china_today)
+    latest_day = date.fromisoformat(str(draws[-1].get("draw_date"))) if isinstance(draws, list) and draws else None
+    expected_policy_sources = {
+        "rule": _GATE_FRESHNESS_POLICY_SOURCES["rule"],
+        "closure": _GATE_FRESHNESS_POLICY_SOURCES[str(china_today.year)],
+    }
+    if (not isinstance(freshness, dict)
+            or freshness.get("schema") != "ssq-freshness-calendar-v1"
+            or freshness.get("latest_date") != draws[-1].get("draw_date")
+            or freshness.get("china_local_date") != china_today.isoformat()
+            or freshness.get("expected_latest_completed_draw_date") != expected_latest.isoformat()
+            or freshness.get("policy_year") != china_today.year
+            or freshness.get("policy_sources") != expected_policy_sources
+            or latest_day is None or latest_day > china_today or latest_day < expected_latest):
+        raise ValueError("live canonical freshness is not independently justified by frozen official calendar")
+
     records = manifest.get("raw_responses")
     if (not isinstance(records, list) or not records
             or preservation.get("raw_response_count") != len(records)):
