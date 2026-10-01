@@ -133,6 +133,18 @@ def dataset_pair(extra: bool = False):
     return ds, ev
 
 
+class AcceptanceScriptContractTests(unittest.TestCase):
+    def test_gui_failure_script_never_binds_reserved_powershell_pid(self):
+        script = (
+            ROOT.parent / ".github" / "scripts" / "ssq_physical_gui_failure_smoke.ps1"
+        ).read_text(encoding="utf-8")
+        self.assertNotRegex(
+            script,
+            r"(?i)\$(?:pid)\b",
+            "PowerShell $PID is an automatic read-only variable; acceptance scripts must use processId/guiPid instead",
+        )
+
+
 class DomainContractTests(unittest.TestCase):
     def test_issue_normalizes_five_digits(self):
         self.assertEqual(_issue("26100"), "2026100")
