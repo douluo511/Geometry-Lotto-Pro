@@ -91,7 +91,7 @@ function Click-Control([IntPtr]$window,[IntPtr]$button){
 }
 
 $exe = (Resolve-Path -LiteralPath $ExePath).Path
-$updater = (Resolve-Path -LiteralPath $UpdaterExePath).Path
+$acceptedUpdater = (Resolve-Path -LiteralPath $UpdaterExePath).Path
 $successEvidence = (Resolve-Path -LiteralPath $SuccessEvidencePath).Path
 $evidenceFull = [System.IO.Path]::GetFullPath($EvidencePath)
 $evidenceDir = Split-Path -Parent $evidenceFull
@@ -101,8 +101,24 @@ $success = Get-Content -LiteralPath $successEvidence -Raw | ConvertFrom-Json
 $verifiedUpdate = @($success.buttons | Where-Object { $_.operation -eq "update" -and $_.status -eq "PASS" })
 if($success.status -ne "PASS" -or $verifiedUpdate.Count -ne 1){ throw "Verified GUI success update evidence required" }
 $sourceDir = Join-Path (Split-Path -Parent $successEvidence) ([string]$verifiedUpdate[0].data_dir)
-foreach($required in @("canonical_history.json","source_evidence.json","raw_responses")){
+foreach($required in @("canonical_history.json","source_evidence.json","raw_responses","updater_last_run.json")){
   if(-not (Test-Path -LiteralPath (Join-Path $sourceDir $required))){ throw "Success update evidence missing $required" }
+}
+
+# The main EXE executes a hash-bound materialized copy of the embedded updater,
+# not the build-tree dist path. Derive the exact program path from the already
+# accepted physical-GUI success run, then independently bind its bytes to the
+# accepted updater artifact before installing a path-scoped firewall rule.
+$acceptedUpdaterHash = Get-Sha256 $acceptedUpdater
+$updaterRun = Get-Content -LiteralPath (Join-Path $sourceDir "updater_last_run.json") -Raw | ConvertFrom-Json
+$materializedText = [string]$updaterRun.updater_exe
+if([string]::IsNullOrWhiteSpace($materializedText)){ throw "Success updater evidence has no executed updater path" }
+$materializedUpdater = (Resolve-Path -LiteralPath $materializedText).Path
+$materializedUpdaterHash = Get-Sha256 $materializedUpdater
+if($updaterRun.status -ne "PASS" -or $updaterRun.mode -ne "update" -or
+   $updaterRun.updater_exe_sha256 -ne $acceptedUpdaterHash -or
+   $materializedUpdaterHash -ne $acceptedUpdaterHash){
+  throw "Materialized updater is not hash-bound to the accepted updater artifact"
 }
 
 $runDir = Join-Path $evidenceDir ("physical-gui-failure-" + [Guid]::NewGuid().ToString("N"))
@@ -116,7 +132,7 @@ $sourceEvidenceFile = Join-Path $runDir "source_evidence.json"
 $beforeHistory = Get-Sha256 $history
 $beforeEvidence = Get-Sha256 $sourceEvidenceFile
 $exeHash = Get-Sha256 $exe
-$updaterHash = Get-Sha256 $updater
+$updaterHash = $acceptedUpdaterHash
 $verifiedUpdaterHash = [string]$verifiedUpdate[0].backend_effect.updater_process.updater_exe_sha256
 if($verifiedUpdaterHash -ne $updaterHash){ throw "Verified GUI update used a different updater hash" }
 $materializedUpdaterDir = Join-Path (Join-Path $runDir "updater") $updaterHash
@@ -138,8 +154,10 @@ $result = [ordered]@{
   scenario="controlled Windows outbound block"
   exe=(Split-Path -Leaf $exe)
   exe_sha256=$exeHash
-  updater_exe=(Split-Path -Leaf $updater)
+  updater_exe=(Split-Path -Leaf $acceptedUpdater)
   updater_sha256=$updaterHash
+  materialized_updater_exe=$materializedUpdater
+  materialized_updater_sha256=$materializedUpdaterHash
   materialized_updater=$materializedUpdater
   materialized_updater_sha256=(Get-Sha256 $materializedUpdater)
   github_sha=$env:GITHUB_SHA
