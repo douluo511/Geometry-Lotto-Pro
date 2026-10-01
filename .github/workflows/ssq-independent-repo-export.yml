@@ -8,6 +8,9 @@ on:
       - ".github/workflows/ssq-independent-repo-export.yml"
       - ".github/workflows/ssq-windows-build-acceptance.yml"
       - ".github/scripts/ssq_physical_gui_click_smoke.ps1"
+      - ".github/scripts/ssq_physical_gui_failure_smoke.ps1"
+      - "tools/bootstrap_independent_repo.ps1"
+      - "tools/tests/test_bootstrap_integrity.py"
       - "SSQ/**"
   workflow_dispatch:
 
@@ -41,6 +44,9 @@ jobs:
 
       - name: Exporter adversarial regression
         run: python SSQ/tests/test_independent_repo_export.py
+
+      - name: Bootstrap real-clone integrity regression
+        run: python -m unittest discover -s tools/tests -p 'test_bootstrap_integrity.py' -v
 
       - name: Deterministic SSQ-only export
         shell: bash

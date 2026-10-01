@@ -61,17 +61,33 @@ function Invoke-Git {
   if ($code -ne 0) {
     throw "git command failed with exit code ${code}: $($output -join [Environment]::NewLine)"
   }
-  return @($output)
+  # Preserve an array for one-line output (otherwise [-1] returns one character).
+  return ,@($output)
 }
 
 function Get-RelativeFileList {
-  param([string]$Root)
+  param([string]$Root, [switch]$AllowGitMetadata)
   $rootFull = [System.IO.Path]::GetFullPath($Root).TrimEnd(
     [System.IO.Path]::DirectorySeparatorChar,
     [System.IO.Path]::AltDirectorySeparatorChar
   )
   $rows = @()
-  foreach ($item in Get-ChildItem -LiteralPath $Root -Recurse -Force -File) {
+  $rootItem = Get-Item -LiteralPath $Root -Force
+  if (($rootItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
+    throw "export root must not be a reparse point"
+  }
+  if ($AllowGitMetadata) {
+    $gitDir = Join-Path $rootFull '.git'
+    if (-not (Test-Path -LiteralPath $gitDir -PathType Container)) { throw "clone metadata directory missing" }
+    $top = (Invoke-Git -WorkingDirectory $rootFull -Args @('rev-parse','--show-toplevel'))[-1]
+    if ([System.IO.Path]::GetFullPath([string]$top).TrimEnd('\','/') -ne $rootFull) {
+      throw "clone metadata belongs to a different work tree"
+    }
+  }
+  $pending = [System.Collections.Generic.Stack[string]]::new()
+  $pending.Push($rootFull)
+  while ($pending.Count -gt 0) {
+    foreach ($item in Get-ChildItem -LiteralPath $pending.Pop() -Force) {
     if (($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
       throw "symlink/reparse point forbidden: $($item.FullName)"
     }
@@ -80,15 +96,27 @@ function Get-RelativeFileList {
       throw "file escaped export root: $full"
     }
     $rel = $full.Substring($rootFull.Length + 1).Replace('\','/')
+    if ($item.Name -ieq '.git') {
+      if ($AllowGitMetadata -and $rel -ceq '.git' -and $item.PSIsContainer) { continue }
+      throw "unexpected Git metadata inside export: $rel"
+    }
+    if ($item.PSIsContainer) {
+      $pending.Push($full)
+      continue
+    }
     if ($rel -notin @("MIGRATION_MANIFEST.json","MIGRATION_SHA256SUMS.txt")) {
       $rows += $rel
+    }
     }
   }
   return @($rows | Sort-Object -Unique)
 }
 
 function Assert-ExportIntegrity {
-  param([string]$Root, [string]$Repo, [string]$ExpectedCommit)
+  param([string]$Root, [string]$Repo, [string]$ExpectedCommit, [switch]$AllowGitMetadata)
+
+  # Check directories/reparse points before opening any manifest-controlled path.
+  $actual = @(Get-RelativeFileList -Root $Root -AllowGitMetadata:$AllowGitMetadata)
 
   $manifestPath = Join-Path $Root "MIGRATION_MANIFEST.json"
   if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
@@ -128,7 +156,8 @@ function Assert-ExportIntegrity {
   foreach ($row in $rows) {
     $rel = [string]$row.path
     if (-not $rel -or $expected.ContainsKey($rel)) { throw "invalid/duplicate manifest path: $rel" }
-    if ($rel.StartsWith("/") -or $rel.Contains("..")) { throw "unsafe manifest path: $rel" }
+    if ($rel.StartsWith("/") -or $rel.Contains("..") -or $rel.Contains('\') -or $rel.Contains(':') -or
+        @($rel.Split('/') | Where-Object { $_ -ieq '.git' }).Count -gt 0) { throw "unsafe manifest path: $rel" }
 
     $path = Join-Path $Root ($rel.Replace('/',[System.IO.Path]::DirectorySeparatorChar))
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "missing: $rel" }
@@ -146,7 +175,6 @@ function Assert-ExportIntegrity {
     $expected[$rel] = $true
   }
 
-  $actual = @(Get-RelativeFileList -Root $Root)
   if ($actual.Count -ne $expected.Count) { throw "unmanifested/missing file count mismatch" }
   foreach ($rel in $actual) {
     if (-not $expected.ContainsKey($rel)) { throw "unmanifested file: $rel" }
@@ -248,6 +276,7 @@ try {
     }
 
     Invoke-Git -WorkingDirectory $tmp -Args @("init") | Out-Null
+    Invoke-Git -WorkingDirectory $tmp -Args @("config","core.autocrlf","false") | Out-Null
     Invoke-Git -WorkingDirectory $tmp -Args @("checkout","-b","main") | Out-Null
     Invoke-Git -WorkingDirectory $tmp -Args @("config","user.name","Independent Repo Bootstrap") | Out-Null
     Invoke-Git -WorkingDirectory $tmp -Args @("config","user.email","bootstrap@users.noreply.github.com") | Out-Null
@@ -268,8 +297,8 @@ try {
     }
     if ([string]$repoInfo.defaultBranchRef.name -ne "main") { throw "remote default branch is not main" }
 
-    Invoke-Git -Args @("clone","--depth","1","https://github.com/$TargetRepo.git",$verifyTmp) | Out-Null
-    $remoteProof = Assert-ExportIntegrity -Root $verifyTmp -Repo $TargetRepo -ExpectedCommit $sourceProof.source_commit
+    Invoke-Git -Args @("-c","core.autocrlf=false","clone","--depth","1","https://github.com/$TargetRepo.git",$verifyTmp) | Out-Null
+    $remoteProof = Assert-ExportIntegrity -Root $verifyTmp -Repo $TargetRepo -ExpectedCommit $sourceProof.source_commit -AllowGitMetadata
 
     if ($remoteProof.manifest_sha256 -ne $sourceProof.manifest_sha256) { throw "remote manifest hash mismatch" }
     if ($remoteProof.sums_sha256 -ne $sourceProof.sums_sha256) { throw "remote checksum hash mismatch" }

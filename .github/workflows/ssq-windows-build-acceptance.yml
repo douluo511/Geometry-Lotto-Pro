@@ -199,7 +199,7 @@ jobs:
               throw "existing release manifest differs from current manifest"
             }
           } else {
-            gh release create $tag $exePath $manifestPath --repo $env:GITHUB_REPOSITORY --title "SSQ $version verification prerelease" --notes "Machine-generated prerelease. Not Final until updater real-network, Physical GUI, Same Hash and Final Gate pass." --prerelease
+            gh release create $tag $exePath $manifestPath --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "SSQ $version verification prerelease" --notes "Machine-generated prerelease. Not Final until updater real-network, Physical GUI, Same Hash and Final Gate pass." --prerelease
             if ($LASTEXITCODE -ne 0) { throw "GitHub prerelease creation failed" }
           }
 
@@ -280,18 +280,6 @@ jobs:
           Write-Host "SSQ_FINAL_SHA256=$($final.exe_sha256)"
           Write-Host "FINAL_RELEASE_GATE=PASS"
 
-      - name: Promote independent release only after Final Gate PASS
-        if: ${{ success() && github.repository == 'douluo511/Geometry-Lotto-Pro-SSQ' && github.ref == 'refs/heads/main' }}
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          $version = "${{ steps.final_gate.outputs.version }}"
-          if ([string]::IsNullOrWhiteSpace($version)) { throw "final release version output missing" }
-          gh release edit "v$version" --repo $env:GITHUB_REPOSITORY --prerelease=false --draft=false --title "Geometry Lotto Pro SSQ $version"
-          if ($LASTEXITCODE -ne 0) { throw "Final Gate passed but release promotion failed" }
-          Write-Host "SSQ_FORMAL_RELEASE=v$version"
-
       - name: Upload candidate diagnostic evidence when acceptance fails
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -305,6 +293,7 @@ jobs:
           retention-days: 30
 
       - name: Upload final audit evidence before release artifact
+        id: final_audit_upload
         if: success()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
@@ -314,6 +303,7 @@ jobs:
           retention-days: 30
 
       - name: Upload final EXE only after all hard gates and audit upload pass
+        id: final_exe_upload
         if: success()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
@@ -322,5 +312,19 @@ jobs:
           if-no-files-found: error
           retention-days: 30
           compression-level: 0
+
+      - name: Promote independent release only after Final Gate and evidence uploads PASS
+        if: ${{ success() && steps.final_audit_upload.outcome == 'success' && steps.final_exe_upload.outcome == 'success' && github.repository == 'douluo511/Geometry-Lotto-Pro-SSQ' && github.ref == 'refs/heads/main' }}
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $version = "${{ steps.final_gate.outputs.version }}"
+          if ([string]::IsNullOrWhiteSpace($version)) { throw "final release version output missing" }
+          if ([string]::IsNullOrWhiteSpace("${{ steps.final_audit_upload.outputs.artifact-id }}")) { throw "durable audit artifact missing" }
+          if ([string]::IsNullOrWhiteSpace("${{ steps.final_exe_upload.outputs.artifact-id }}")) { throw "durable EXE artifact missing" }
+          gh release edit "v$version" --repo $env:GITHUB_REPOSITORY --prerelease=false --draft=false --title "Geometry Lotto Pro SSQ $version"
+          if ($LASTEXITCODE -ne 0) { throw "Final Gate passed but release promotion failed" }
+          Write-Host "SSQ_FORMAL_RELEASE=v$version"
 
 # Hard-gate revalidation trigger: 2026-09-30 final release chain rebuilt

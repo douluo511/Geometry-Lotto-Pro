@@ -212,7 +212,7 @@ class NetClientContractTests(unittest.TestCase):
         client = self.make_client(
             session,
             sleeps,
-            clock=clock,
+            monotonic_clock=clock,
             total_timeout=0.6,
             sleeper=sleeper,
         )

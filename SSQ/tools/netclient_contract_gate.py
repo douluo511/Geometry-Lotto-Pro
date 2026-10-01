@@ -267,7 +267,7 @@ def _run() -> dict:
             jitter_source=lambda: 0.5,
             backoff_base=0.5,
             total_timeout=0.6,
-            clock=deadline_clock,
+            monotonic_clock=deadline_clock,
         ).get("https://example.invalid/data")
         record("total_operation_deadline_fail_closed", False, "operation exceeded total budget without failure")
     except requests.Timeout as exc:

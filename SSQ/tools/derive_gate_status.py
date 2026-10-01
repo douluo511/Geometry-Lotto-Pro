@@ -1781,14 +1781,30 @@ def derive(evidence: Path, exe: Path) -> dict[str, Any]:
         if (not isinstance(checks, dict) or not REQUIRED_BUSINESS_CHECKS.issubset(checks)
                 or any(value is not True for value in checks.values())):
             raise ValueError("business content checks are incomplete")
-        gates["business_content"] = "PASS"
+        # This producer reads constants and searches source text. It does not
+        # execute an approved, complete business/entry-point inventory. A
+        # structural PASS must never open the product-completion release gate.
+        gates["business_content"] = "PENDING"
         proofs["business_content"] = {
             "report": str(evidence / "BUSINESS_GATE.json"),
             "report_sha256": _hash(evidence / "BUSINESS_GATE.json"),
+            "static_contract_status": "PASS",
+            "full_business_completion": "UNVERIFIED",
+            "reason": "approved complete business baseline and current entry-specific evidence are absent",
         }
     except Exception as exc:
         gates["business_content"] = "FAIL"
         proofs["business_content"] = {"error": f"{type(exc).__name__}: {exc}"}
+
+    # Missing acceptance functionality is an explicit blocking gate, not a
+    # placeholder product feature and not an invitation to provide PASS strings.
+    # No full user-approved entry inventory currently exists in this candidate.
+    gates["no_shell"] = "PENDING"
+    proofs["no_shell"] = {
+        "status": "UNVERIFIED",
+        "reason": "complete approved button/module/model/updater/network/analysis inventory has not been bound to execution evidence",
+        "release_authorized": False,
+    }
 
     source_self_ok = False
     source_fault_ok = False

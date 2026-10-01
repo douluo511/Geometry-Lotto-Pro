@@ -331,7 +331,8 @@ class ReleaseGateEvidenceTests(unittest.TestCase):
         ):
             with self.subTest(filename=filename):
                 result = self._derive_static_report(filename, report)
-                self.assertEqual(result["gates"][gate], "PASS")
+                self.assertEqual(result["gates"][gate], "PENDING" if gate == "business_content" else "PASS")
+                self.assertEqual(result["gates"]["no_shell"], "PENDING")
                 self.assertNotEqual(result["gates"]["real_network"], "PASS")
                 self.assertNotEqual(result["gates"]["exact_exe"], "PASS")
                 self.assertEqual(result["gates"]["repository_independence"], "FAIL")

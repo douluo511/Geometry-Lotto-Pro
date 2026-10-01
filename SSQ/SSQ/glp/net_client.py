@@ -50,6 +50,7 @@ class NetClient:
         rng: random.Random | None = None,
         total_timeout: float = 120.0,
         max_response_bytes: int = 8 * 1024 * 1024,
+        monotonic_clock=time.monotonic,
     ):
         self.connect_timeout = self._positive_finite(connect_timeout, "connect_timeout")
         self.read_timeout = self._positive_finite(read_timeout, "read_timeout")
@@ -77,6 +78,8 @@ class NetClient:
             jitter_source if jitter_source is not None else random.Random().random
         )
         self.clock = clock
+        # HTTP-date Retry-After needs wall time; elapsed budgets must not.
+        self.monotonic_clock = monotonic_clock
 
     @staticmethod
     def _attach_ledger(target, attempts: list[AttemptRecord]):
@@ -113,16 +116,16 @@ class NetClient:
         return parts
 
     def _remaining(self, deadline: float) -> float:
-        remaining = float(deadline) - float(self.clock())
+        remaining = float(deadline) - float(self.monotonic_clock())
         if not math.isfinite(remaining) or remaining <= 0:
             raise OperationDeadlineExceeded("official HTTPS GET exceeded total operation timeout")
         return remaining
 
     def _bounded_timeout_pair(self, timeout_pair: tuple[float, float], deadline: float) -> tuple[float, float]:
         remaining = self._remaining(deadline)
-        # Requests applies connect and read timeouts independently. Allocate at
-        # most half the remaining end-to-end budget to either blocking phase so
-        # a single attempt cannot consume twice the remaining operation budget.
+        # Bound each blocking phase by the remaining budget. This is a
+        # cooperative deadline: Requests' inactivity timeout is not a hard
+        # process deadline for DNS or a slow-drip body transfer.
         if remaining <= 0.002:
             raise OperationDeadlineExceeded("official HTTPS GET exceeded total operation timeout")
         phase_budget = remaining / 2.0
@@ -139,8 +142,15 @@ class NetClient:
     def _close_response(response) -> None:
         # requests.Response.close() assumes a real raw stream. Deterministic
         # contract-test doubles may intentionally omit it.
-        if getattr(response, "raw", None) is not None:
-            response.close()
+        raw = getattr(response, "raw", None)
+        if raw is not None:
+            try:
+                response.close()
+            finally:
+                # Response.close() skips raw.close() after a fully consumed
+                # stream; also release non-pool file-like transport resources.
+                if callable(getattr(raw, "close", None)):
+                    raw.close()
 
     def _read_response_body(
         self, response, *, deadline: float, attempt: int, ledger: list[AttemptRecord]
@@ -196,8 +206,7 @@ class NetClient:
                     raise self._attach_ledger(error, ledger)
                 chunks.append(bytes(chunk))
         finally:
-            if total > self.max_response_bytes:
-                self._close_response(response)
+            self._close_response(response)
         data = b"".join(chunks)
         response._content = data
         response._content_consumed = True
@@ -221,12 +230,14 @@ class NetClient:
                 stream=True,
             )
             if response.history:
+                self._close_response(response)
                 ledger.append(AttemptRecord(attempt, "REJECTED_HISTORY", None, "ValueError", 0.0, current_url))
                 raise ValueError("transport followed a redirect without authorization")
             actual_url = str(getattr(response, "url", ""))
             try:
                 actual = self._require_https(actual_url)
             except ValueError as exc:
+                self._close_response(response)
                 # Record the observed URL, not merely the requested one. This
                 # catches a non-conforming transport that ignored our explicit
                 # allow_redirects=False without claiming the hop was safe.
@@ -234,6 +245,7 @@ class NetClient:
                                             "RequestException", 0.0, actual_url))
                 raise requests.RequestException(f"official response URL is not HTTPS: {actual_url}") from exc
             if actual.hostname != official_host:
+                self._close_response(response)
                 ledger.append(AttemptRecord(attempt, "REJECTED_RESPONSE_URL", int(response.status_code),
                                             "ValueError", 0.0, actual_url))
                 raise ValueError("official response left its configured HTTPS host")
@@ -242,18 +254,22 @@ class NetClient:
             if status in (301, 302, 303, 307, 308) and allow_redirects:
                 location = response.headers.get("Location")
                 if not location or any(ord(char) < 32 or ord(char) == 127 for char in location):
+                    self._close_response(response)
                     ledger.append(AttemptRecord(attempt, "REJECTED_REDIRECT", status, "MissingLocation", 0.0, current_url))
                     raise requests.HTTPError("official HTTPS redirect has no valid Location", response=response)
                 next_url = urljoin(response.url, location)
                 try:
                     target = self._require_https(next_url)
                 except ValueError:
+                    self._close_response(response)
                     ledger.append(AttemptRecord(attempt, "REJECTED_REDIRECT", status, "ValueError", 0.0, current_url))
                     raise
                 if target.hostname != official_host:
+                    self._close_response(response)
                     ledger.append(AttemptRecord(attempt, "REJECTED_REDIRECT", status, "ValueError", 0.0, current_url))
                     raise ValueError("official redirect left its configured HTTPS host")
                 if redirect_count >= self.max_redirects:
+                    self._close_response(response)
                     ledger.append(AttemptRecord(attempt, "REDIRECT_LIMIT", status, "TooManyRedirects", 0.0, current_url))
                     raise requests.TooManyRedirects("official HTTPS redirect limit exceeded", response=response)
                 ledger.append(AttemptRecord(attempt, "REDIRECT_HTTPS", status, None, 0.0, current_url))
@@ -310,9 +326,10 @@ class NetClient:
         timeout_pair = self._timeout_pair(timeout)
         getter = self.session.get if self.session is not None else requests.get
         ledger: list[AttemptRecord] = []
-        deadline = float(self.clock()) + self.total_timeout
+        deadline = float(self.monotonic_clock()) + self.total_timeout
 
         for attempt in range(1, self.max_attempts + 1):
+            response = None
             try:
                 response = self._request_one_attempt(
                     getter,
@@ -352,9 +369,14 @@ class NetClient:
                     ledger.append(AttemptRecord(attempt, "FINAL_EXCEPTION", None, type(exc).__name__, 0.0, url))
                     self._attach_ledger(exc, ledger)
                     raise
-                delay = self._retry_delay(attempt, None)
-                ledger.append(AttemptRecord(attempt, "RETRY_EXCEPTION", None, type(exc).__name__, delay, url))
-                self._sleep_with_deadline(delay, deadline)
+                try:
+                    delay = self._retry_delay(attempt, None)
+                    ledger.append(AttemptRecord(attempt, "RETRY_EXCEPTION", None, type(exc).__name__, delay, url))
+                    self._sleep_with_deadline(delay, deadline)
+                except Exception as wait_error:
+                    outcome = "OPERATION_DEADLINE" if isinstance(wait_error, OperationDeadlineExceeded) else "FINAL_EXCEPTION"
+                    ledger.append(AttemptRecord(attempt, outcome, None, type(wait_error).__name__, 0.0, url))
+                    raise self._attach_ledger(wait_error, ledger) from exc
             except Exception as exc:
                 if not getattr(exc, "glp_attempts", None):
                     if not ledger or ledger[-1].outcome not in {
@@ -364,5 +386,8 @@ class NetClient:
                         ledger.append(AttemptRecord(attempt, "FINAL_EXCEPTION", None, type(exc).__name__, 0.0, url))
                     self._attach_ledger(exc, ledger)
                 raise
+            finally:
+                if response is not None:
+                    self._close_response(response)
 
         raise RuntimeError("GET failed without response")

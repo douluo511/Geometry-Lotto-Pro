@@ -16,6 +16,7 @@ TARGET_REPOSITORY = "douluo511/Geometry-Lotto-Pro-SSQ"
 COPY_FILES = (
     Path(".github/workflows/ssq-windows-build-acceptance.yml"),
     Path(".github/scripts/ssq_physical_gui_click_smoke.ps1"),
+    Path(".github/scripts/ssq_physical_gui_failure_smoke.ps1"),
     Path(".gitignore"),
     Path("PORTFOLIO_GOVERNANCE.md"),
 )
