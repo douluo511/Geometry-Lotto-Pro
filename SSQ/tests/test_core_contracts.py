@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "SSQ"))
 
 import glp.sources as sources
+import glp.util as util
 from glp.domain import CanonicalDataset, Draw, SourceReceipt
 from glp.net_client import NetClient
 from glp.sources import (
@@ -133,6 +134,30 @@ def dataset_pair(extra: bool = False):
         "_raw_response_payloads": payloads,
     }
     return ds, ev
+
+
+class AppDataIdentityContractTests(unittest.TestCase):
+    def test_native_windows_identity_wins_over_inherited_localappdata(self):
+        with (
+            patch.object(util, "_native_windows_local_appdata",
+                         return_value=Path("C:/Users/standard/AppData/Local")),
+            patch.dict("os.environ", {
+                "LOCALAPPDATA": "C:/Users/runneradmin/AppData/Local",
+            }, clear=False),
+        ):
+            self.assertEqual(
+                util.app_data_dir(),
+                Path("C:/Users/standard/AppData/Local/GeometryLottoPro/SSQ").resolve(),
+            )
+
+    def test_explicit_data_dir_override_remains_authoritative(self):
+        with (
+            tempfile.TemporaryDirectory() as td,
+            patch.object(util, "_native_windows_local_appdata",
+                         return_value=Path("C:/Users/standard/AppData/Local")),
+            patch.dict("os.environ", {"GLP_DATA_DIR": td}, clear=False),
+        ):
+            self.assertEqual(util.app_data_dir(), Path(td).resolve())
 
 
 class AcceptanceScriptContractTests(unittest.TestCase):
