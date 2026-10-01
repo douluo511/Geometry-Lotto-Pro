@@ -11,7 +11,7 @@ HARD_GATES = [
     "fault_injection","real_network","business_validation","counterexample_validation","reversal_validation",
     "windows_build","exact_exe","reproducible_build","release_version","gui_smoke","physical_gui_click","physical_gui_failure","same_hash","business_content",
     "updater_process","updater_exact_exe","updater_atomic_rollback","updater_real_network","updater_same_hash",
-    "repository_independence","release_context","no_shell",
+    "repository_independence","release_context","no_shell","physical_gui_repair_failure",
 ]
 
 def sha256(path: Path) -> str:

@@ -579,7 +579,10 @@ class ReleaseGateEvidenceTests(unittest.TestCase):
                 db.close()
             now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
             report = {
-                "schema": "physical-gui-failure-smoke-v1", "status": "PASS",
+                "schema": "physical-gui-failure-smoke-v2", "status": "PASS",
+                "operation": "update", "control_id": 102, "process_id": 321,
+                "click_x": 100, "click_y": 100, "corruption_injected": False,
+                "original_canonical_sha256": hashlib.sha256(history).hexdigest(),
                 "scenario": "controlled Windows outbound block",
                 "exe": exe.name, "exe_sha256": hashlib.sha256(exe.read_bytes()).hexdigest(),
                 "updater_exe": updater.name,
@@ -600,6 +603,9 @@ class ReleaseGateEvidenceTests(unittest.TestCase):
                 "canonical_unchanged": True, "evidence_unchanged": True,
                 "failure_manifest_count": 1, "official_update_pass_count": 0,
             }
+            ui_text = "\u4e00\u952e\u66f4\u65b0 FAIL\nFail-Closed"
+            (failure_dir / "gui_failure_output.txt").write_bytes(ui_text.encode("utf-8"))
+            report["ui_output_sha256"] = hashlib.sha256(ui_text.encode("utf-8")).hexdigest()
             with patch.dict(os.environ, {
                 "GITHUB_SHA": "a" * 40, "GITHUB_RUN_ID": "12345",
             }):

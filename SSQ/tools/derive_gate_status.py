@@ -1169,11 +1169,20 @@ def _verify_gui_evidence(physical: dict[str, Any], evidence_dir: Path, exe: Path
 
 
 def _verify_gui_failure_evidence(
-    report: dict[str, Any], evidence_dir: Path, exe: Path, acceptance_ok: bool
+    report: dict[str, Any], evidence_dir: Path, exe: Path, acceptance_ok: bool,
+    expected_operation: str = "update",
 ) -> dict[str, Any]:
+    if expected_operation not in {"update", "repair"}:
+        raise ValueError("unsupported physical GUI failure operation")
+    control_id = {"update": 102, "repair": 103}[expected_operation]
+    operation_label = {"update": "\u4e00\u952e\u66f4\u65b0", "repair": "\u4e00\u952e\u4fee\u590d"}[expected_operation]
     updater_exe = exe.parent / "Geometry_Lotto_Pro_SSQ_Updater.exe"
     if (not acceptance_ok or not exe.is_file() or not updater_exe.is_file()
-            or report.get("schema") != "physical-gui-failure-smoke-v1"
+            or report.get("schema") != "physical-gui-failure-smoke-v2"
+            or report.get("operation") != expected_operation
+            or type(report.get("control_id")) is not int or report["control_id"] != control_id
+            or type(report.get("process_id")) is not int or report["process_id"] <= 0
+            or any(type(report.get(key)) is not int or report[key] < 0 for key in ("click_x", "click_y"))
             or report.get("status") != "PASS"
             or report.get("scenario") != "controlled Windows outbound block"
             or report.get("exe") != exe.name
@@ -1185,7 +1194,7 @@ def _verify_gui_failure_evidence(
             or report.get("firewall_rules_created") is not True
             or report.get("ui_fail_closed") is not True
             or not isinstance(report.get("ui_status"), str)
-            or "FAIL" not in report["ui_status"].upper()
+            or report["ui_status"] != operation_label + "\uff1aFAIL"
             or not _utc_recent(report.get("tested_at"))):
         raise ValueError("physical GUI failure report is not bound to the exact current-run EXEs")
 
@@ -1231,19 +1240,32 @@ def _verify_gui_failure_evidence(
     source_history = source_dir / "canonical_history.json"
     source_source_evidence = source_dir / "source_evidence.json"
     ledger = run_dir / "ledger.sqlite3"
-    for required in (history, source_evidence, source_history, source_source_evidence, ledger):
+    ui_output = run_dir / "gui_failure_output.txt"
+    for required in (history, source_evidence, source_history, source_source_evidence, ledger, ui_output):
         if not required.is_file():
             raise ValueError(f"physical GUI failure evidence file missing: {required.name}")
 
     history_hash = _hash(history)
     evidence_hash = _hash(source_evidence)
+    ui_text = ui_output.read_text(encoding="utf-8-sig")
+    if (report.get("ui_output_sha256") != _hash(ui_output)
+            or operation_label + " FAIL" not in ui_text or "Fail-Closed" not in ui_text):
+        raise ValueError("physical GUI failure text is missing, tampered or for the wrong operation")
+    if report.get("original_canonical_sha256") != _hash(source_history):
+        raise ValueError("physical GUI failure original dataset hash mismatch")
+    if expected_operation == "repair":
+        if (report.get("corruption_injected") is not True
+                or history.read_bytes() != b"SSQ_CONTROLLED_CORRUPT_HISTORY_V1\n"
+                or history_hash == _hash(source_history)):
+            raise ValueError("repair failure must exercise the specified corrupt dataset, not a healthy no-op")
+    elif report.get("corruption_injected") is not False or _hash(source_history) != history_hash:
+        raise ValueError("update failure must retain its accepted dataset")
     if (report.get("before_canonical_sha256") != history_hash
             or report.get("after_canonical_sha256") != history_hash
             or report.get("before_evidence_sha256") != evidence_hash
             or report.get("after_evidence_sha256") != evidence_hash
             or report.get("canonical_unchanged") is not True
             or report.get("evidence_unchanged") is not True
-            or _hash(source_history) != history_hash
             or _hash(source_source_evidence) != evidence_hash):
         raise ValueError("controlled GUI network failure mutated the last accepted canonical/source evidence")
 
@@ -1267,18 +1289,42 @@ def _verify_gui_failure_evidence(
         })
 
     db = sqlite3.connect(str(ledger))
+    repair_proof: dict[str, Any] = {}
     try:
         row = db.execute(
             "SELECT COUNT(*) FROM experiments WHERE kind='official_update' AND status='PASS'"
         ).fetchone()
+        if expected_operation == "repair":
+            repair_rows = db.execute("SELECT status,payload_json FROM experiments WHERE kind='repair'").fetchall()
+            failures = [json.loads(payload) for status, payload in repair_rows if status == "FAIL"]
+            if (not failures or any(status != "FAIL" for status, _ in repair_rows)
+                    or type(report.get("repair_fail_count")) is not int
+                    or report["repair_fail_count"] != len(failures)
+                    or type(report.get("repair_pass_count")) is not int or report["repair_pass_count"] != 0):
+                raise ValueError("controlled repair failure lacks its own FAIL ledger or emitted PASS")
+            for payload in failures:
+                if not isinstance(payload, dict):
+                    raise ValueError("repair ledger payload must be an object")
+                attempts = payload.get("repair_attempts")
+                if (payload.get("status") != "FAIL" or payload.get("repaired") is not False
+                        or not isinstance(payload.get("before"), dict) or payload["before"].get("ok") is not False
+                        or not isinstance(attempts, list) or not attempts
+                        or any(not isinstance(a, dict) or a.get("status") != "FAIL" for a in attempts)):
+                    raise ValueError("repair ledger does not prove corrupt-data rebuild failure")
+            repair_proof = {"repair_fail_count": len(failures), "repair_pass_count": 0, "ledger_sha256": _hash(ledger)}
     finally:
         db.close()
     pass_count = int(row[0]) if row else -1
-    if (pass_count != 0 or report.get("official_update_pass_count") != 0):
+    if (pass_count != 0 or type(report.get("official_update_pass_count")) is not int
+            or report["official_update_pass_count"] != 0):
         raise ValueError("controlled GUI network failure produced an official_update PASS")
 
     return {
         "report_schema": report.get("schema"),
+        "operation": expected_operation,
+        "control_id": control_id,
+        "ui_output_sha256": _hash(ui_output),
+        **repair_proof,
         "exe_sha256": report.get("exe_sha256"),
         "updater_sha256": report.get("updater_sha256"),
         "materialized_updater": str(expected_materialized),
@@ -2196,28 +2242,34 @@ def derive(evidence: Path, exe: Path) -> dict[str, Any]:
             proofs["gui_smoke"] = dict(error)
             proofs["physical_gui_click"] = dict(error)
             gates["same_hash"] = "FAIL"
-    failure_path = evidence / "physical_gui_failure.json"
-    physical_failure = _read(failure_path)
-    if physical_failure is not None:
+    for operation, gate_name, filename in (
+        ("update", "physical_gui_failure", "physical_gui_failure.json"),
+        ("repair", "physical_gui_repair_failure", "physical_gui_repair_failure.json"),
+    ):
+        failure_path = evidence / filename
+        physical_failure = _read(failure_path)
+        if physical_failure is None:
+            continue
         try:
             failure_proof = _verify_gui_failure_evidence(
-                physical_failure, evidence, exe, acceptance_ok
+                physical_failure, evidence, exe, acceptance_ok, expected_operation=operation,
             )
-            gates["physical_gui_failure"] = "PASS"
-            proofs["physical_gui_failure"] = {
+            gates[gate_name] = "PASS"
+            proofs[gate_name] = {
                 "report": str(failure_path),
                 "report_sha256": _hash(failure_path),
                 **failure_proof,
             }
         except (OSError, TypeError, ValueError, KeyError, sqlite3.Error) as exc:
-            gates["physical_gui_failure"] = "FAIL"
-            proofs["physical_gui_failure"] = {
+            gates[gate_name] = "FAIL"
+            proofs[gate_name] = {
                 "error": f"{type(exc).__name__}: {exc}"
             }
             gates["same_hash"] = "FAIL"
 
     if (acceptance_ok and gates["physical_gui_click"] == "PASS"
             and gates["physical_gui_failure"] == "PASS"
+            and gates["physical_gui_repair_failure"] == "PASS"
             and gates["real_network"] == "PASS"):
         gates["same_hash"] = "PASS"
     gates["integration_test"] = (
@@ -2226,6 +2278,7 @@ def derive(evidence: Path, exe: Path) -> dict[str, Any]:
         and gates["real_network"] == "PASS"
         and gates["physical_gui_click"] == "PASS"
         and gates["physical_gui_failure"] == "PASS"
+        and gates["physical_gui_repair_failure"] == "PASS"
         and "update" in locals().get("exact_results", {})
         else "FAIL"
     )
@@ -2236,6 +2289,7 @@ def derive(evidence: Path, exe: Path) -> dict[str, Any]:
             "real_network": "PASS",
             "physical_gui": "PASS",
             "physical_gui_failure": "PASS",
+            "physical_gui_repair_failure": "PASS",
         }
     return {
         "schema": "ssq-current-run-gate-evidence-v1",

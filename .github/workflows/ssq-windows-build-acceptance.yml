@@ -87,6 +87,17 @@ jobs:
       - name: Code completeness compile gate
         run: python -m compileall -q SSQ launcher.py updater.py tools
 
+      - name: Physical GUI acceptance script syntax gate
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          foreach ($script in @('..\.github\scripts\ssq_physical_gui_click_smoke.ps1', '..\.github\scripts\ssq_physical_gui_failure_smoke.ps1')) {
+            $tokens = $null
+            $parseErrors = $null
+            $null = [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $script), [ref]$tokens, [ref]$parseErrors)
+            if ($parseErrors.Count -gt 0) { throw ($parseErrors | Out-String) }
+          }
+
       - name: Architecture mother-template gate
         run: python tools/architecture_gate.py
 
@@ -245,6 +256,16 @@ jobs:
             -UpdaterExePath ".\dist\Geometry_Lotto_Pro_SSQ_Updater.exe" `
             -SuccessEvidencePath ".\evidence\SSQ\physical_gui_click.json" `
             -EvidencePath ".\evidence\SSQ\physical_gui_failure.json"
+
+      - name: Physical GUI Repair Fail-Closed Click Smoke
+        shell: pwsh
+        run: |
+          ..\.github\scripts\ssq_physical_gui_failure_smoke.ps1 `
+            -ExePath ".\dist\Geometry_Lotto_Pro_SSQ_Windows_Verified.exe" `
+            -UpdaterExePath ".\dist\Geometry_Lotto_Pro_SSQ_Updater.exe" `
+            -SuccessEvidencePath ".\evidence\SSQ\physical_gui_click.json" `
+            -Operation repair -OperationTimeoutSeconds 900 `
+            -EvidencePath ".\evidence\SSQ\physical_gui_repair_failure.json"
 
       - name: Final evidence-derived release and same-hash proof
         id: final_gate

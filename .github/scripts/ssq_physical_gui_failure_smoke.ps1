@@ -3,6 +3,7 @@ param(
   [Parameter(Mandatory=$true)][string]$UpdaterExePath,
   [Parameter(Mandatory=$true)][string]$SuccessEvidencePath,
   [Parameter(Mandatory=$true)][string]$EvidencePath,
+  [ValidateSet('update','repair')][string]$Operation = 'update',
   [int]$OperationTimeoutSeconds = 240
 )
 
@@ -82,7 +83,7 @@ function Click-Control([IntPtr]$window,[IntPtr]$button){
   [void][PhysicalGuiFailureClick]::SetForegroundWindow($window)
   Start-Sleep -Milliseconds 250
   if([PhysicalGuiFailureClick]::GetForegroundWindow() -ne $window){ throw "Exact EXE did not receive foreground" }
-  if([PhysicalGuiFailureClick]::WindowFromPoint($p) -ne $button){ throw "Update button hit-test failed" }
+  if([PhysicalGuiFailureClick]::WindowFromPoint($p) -ne $button){ throw "Operation button hit-test failed" }
   if(-not [PhysicalGuiFailureClick]::SetCursorPos($p.X,$p.Y)){ throw "Cannot position cursor" }
   [PhysicalGuiFailureClick]::mouse_event(0x0002,0,0,0,[UIntPtr]::Zero)
   Start-Sleep -Milliseconds 80
@@ -114,6 +115,15 @@ Copy-Item -LiteralPath (Join-Path $sourceDir "raw_responses") -Destination $runD
 
 $history = Join-Path $runDir "canonical_history.json"
 $sourceEvidenceFile = Join-Path $runDir "source_evidence.json"
+$originalHistoryHash = Get-Sha256 $history
+$controlId = 102
+$operationLabel = '一键更新'
+if($Operation -eq 'repair'){
+  $controlId = 103
+  $operationLabel = '一键修复'
+  # Controlled fault in the isolated acceptance copy, never the user's data.
+  [IO.File]::WriteAllText($history, "SSQ_CONTROLLED_CORRUPT_HISTORY_V1`n", [Text.UTF8Encoding]::new($false))
+}
 $beforeHistory = Get-Sha256 $history
 $beforeEvidence = Get-Sha256 $sourceEvidenceFile
 $exeHash = Get-Sha256 $exe
@@ -134,9 +144,13 @@ $ruleUpdaterMaterialized = "GLP-SSQ-updater-materialized-" + [Guid]::NewGuid().T
 $boot = $null
 $guiPid = 0
 $result = [ordered]@{
-  schema="physical-gui-failure-smoke-v1"
+  schema="physical-gui-failure-smoke-v2"
   status="FAIL"
   scenario="controlled Windows outbound block"
+  operation=$Operation
+  control_id=$controlId
+  original_canonical_sha256=$originalHistoryHash
+  corruption_injected=($Operation -eq 'repair')
   exe=(Split-Path -Leaf $exe)
   exe_sha256=$exeHash
   updater_exe=(Split-Path -Leaf $acceptedUpdater)
@@ -162,10 +176,10 @@ try {
   $boot = Start-Process -FilePath $exe -PassThru
   $window = Wait-MainWindow $boot $processName $exe $baselinePids
   $guiPid = $window.pid
-  $updateButton = Get-Control $window.hwnd 102 $guiPid
+  $operationButton = Get-Control $window.hwnd $controlId $guiPid
   $output = Get-Control $window.hwnd 201 $guiPid
   $status = Get-Control $window.hwnd 202 $guiPid
-  $click = Click-Control $window.hwnd $updateButton
+  $click = Click-Control $window.hwnd $operationButton
   $result.process_id = $guiPid
   $result.click_x = $click.x
   $result.click_y = $click.y
@@ -177,13 +191,16 @@ try {
     if(-not (Get-Process -Id $guiPid -ErrorAction SilentlyContinue)){ throw "Exact EXE exited during failure scenario" }
     $uiText = Get-NativeText $output
     $statusText = Get-NativeText $status
-    if($statusText -match "FAIL" -and $uiText -match "Fail-Closed" -and $uiText -match "一键更新 FAIL"){ break }
+    if($statusText -match "FAIL" -and $uiText -match "Fail-Closed" -and $uiText.Contains("$operationLabel FAIL")){ break }
     Start-Sleep -Milliseconds 500
   }
-  if($statusText -notmatch "FAIL" -or $uiText -notmatch "Fail-Closed" -or $uiText -notmatch "一键更新 FAIL"){
+  if($statusText -notmatch "FAIL" -or $uiText -notmatch "Fail-Closed" -or -not $uiText.Contains("$operationLabel FAIL")){
     throw "GUI did not expose the controlled network failure as Fail-Closed"
   }
   $result.ui_status = $statusText
+  $uiOutputPath = Join-Path $runDir 'gui_failure_output.txt'
+  [IO.File]::WriteAllText($uiOutputPath, $uiText, [Text.UTF8Encoding]::new($false))
+  $result.ui_output_sha256 = Get-Sha256 $uiOutputPath
   $result.ui_fail_closed = $true
 }
 finally {
@@ -213,16 +230,27 @@ if(-not (Test-Path -LiteralPath $db)){ throw "Failure scenario ledger missing" }
 $pythonLedgerQuery = @'
 import sqlite3
 import sys
+import json
 
 db = sqlite3.connect(sys.argv[1])
 try:
-    print(db.execute("select count(*) from experiments where kind='official_update' and status='PASS'").fetchone()[0])
+    print(json.dumps({
+        "official_update_pass_count": db.execute("select count(*) from experiments where kind='official_update' and status='PASS'").fetchone()[0],
+        "repair_pass_count": db.execute("select count(*) from experiments where kind='repair' and status='PASS'").fetchone()[0],
+        "repair_fail_count": db.execute("select count(*) from experiments where kind='repair' and status='FAIL'").fetchone()[0],
+    }))
 finally:
     db.close()
 '@
-$passCount = & python -c $pythonLedgerQuery $db
+$ledgerText = & python -c $pythonLedgerQuery $db
 if($LASTEXITCODE -ne 0){ throw "Could not inspect failure scenario ledger" }
-$result.official_update_pass_count = [int]$passCount
+$ledgerCounts = $ledgerText | ConvertFrom-Json
+$result.official_update_pass_count = [int]$ledgerCounts.official_update_pass_count
+$result.repair_pass_count = [int]$ledgerCounts.repair_pass_count
+$result.repair_fail_count = [int]$ledgerCounts.repair_fail_count
+if($Operation -eq 'repair' -and ($result.repair_pass_count -ne 0 -or $result.repair_fail_count -lt 1)){
+  throw 'Corrupt-data offline repair did not produce its own FAIL ledger'
+}
 
 if(-not $result.canonical_unchanged -or -not $result.evidence_unchanged -or
    $result.failure_manifest_count -lt 1 -or $result.official_update_pass_count -ne 0 -or

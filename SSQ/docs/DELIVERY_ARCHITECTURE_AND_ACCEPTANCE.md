@@ -110,6 +110,14 @@ OS DNS／單次 slow-drip read 的硬牆鐘期限。不得宣稱已證明任意�
 
 ## 7. 當前交接界線
 
+新增部署驗收批次：把 GUI 更新與 GUI 修復負向證據分開。
+`physical_gui_repair_failure` 是獨立硬門，缺證據不能通過 Final Gate、Same Hash 整鏈或 Integration。
+修復測試在獨立目錄複製已驗證資料，注入明示的損壞 bytes，封鎖主程式及兩個更新器實體路徑，
+實體點擊修復後檢查畫面文字、雜湊、修復 FAIL ledger、失敗重建 attempts，以及原資料不被假修復覆寫。
+此情境是明示 Fault Injection，不當作真實網絡成功；正向 Real Network 仍須分開通過。
+本機 203 項測試通過，其中新增 9 項驗收反例；本機 PowerShell AST 載入受限，語法驗證留待 CI，
+不接受錯誤後印出的 PASS 字串。新批次實體 GUI 執行結果仍待綁定新候選驗證。
+
 PR #76 候選 `08a51bca126ca28ae28b1a5af77255352a149653` 的
 [Windows run 36866872473](https://github.com/douluo511/Geometry-Lotto-Pro/actions/runs/36866872473)
 於 2026-10-01 13:31 UTC 產生驗收結果，實際測試 merge SHA
