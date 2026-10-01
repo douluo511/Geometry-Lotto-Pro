@@ -18,6 +18,21 @@ permissions:
   contents: read
 
 jobs:
+  bootstrap-windows-regression:
+    runs-on: windows-2022
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact source head
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Setup Python 3.11
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.11"
+      - name: Native Windows bootstrap regression (no remote writes)
+        run: python -m unittest discover -s tools/tests -p 'test_bootstrap_integrity.py' -v
+
   export-and-verify:
     runs-on: ubuntu-latest
     steps:

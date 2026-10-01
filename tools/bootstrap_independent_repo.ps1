@@ -41,8 +41,10 @@ function Assert-RepoName {
 }
 
 function Invoke-Gh {
-  param([string[]]$Args, [switch]$AllowFailure)
-  $output = & gh @Args 2>&1
+  # Do not shadow PowerShell's automatic $args variable: it loses bound values.
+  param([string[]]$Arguments, [switch]$AllowFailure)
+  if (-not $Arguments -or $Arguments.Count -eq 0) { throw "gh arguments required" }
+  $output = & gh @Arguments 2>&1
   $code = $LASTEXITCODE
   if (-not $AllowFailure -and $code -ne 0) {
     throw "gh command failed with exit code ${code}: $($output -join [Environment]::NewLine)"
@@ -51,11 +53,12 @@ function Invoke-Gh {
 }
 
 function Invoke-Git {
-  param([string[]]$Args, [string]$WorkingDirectory)
+  param([string[]]$Arguments, [string]$WorkingDirectory)
+  if (-not $Arguments -or $Arguments.Count -eq 0) { throw "git arguments required" }
   if ($WorkingDirectory) {
-    $output = & git -C $WorkingDirectory @Args 2>&1
+    $output = & git -C $WorkingDirectory @Arguments 2>&1
   } else {
-    $output = & git @Args 2>&1
+    $output = & git @Arguments 2>&1
   }
   $code = $LASTEXITCODE
   if ($code -ne 0) {
@@ -79,7 +82,7 @@ function Get-RelativeFileList {
   if ($AllowGitMetadata) {
     $gitDir = Join-Path $rootFull '.git'
     if (-not (Test-Path -LiteralPath $gitDir -PathType Container)) { throw "clone metadata directory missing" }
-    $top = (Invoke-Git -WorkingDirectory $rootFull -Args @('rev-parse','--show-toplevel'))[-1]
+    $top = (Invoke-Git -WorkingDirectory $rootFull -Arguments @('rev-parse','--show-toplevel'))[-1]
     if ([System.IO.Path]::GetFullPath([string]$top).TrimEnd('\','/') -ne $rootFull) {
       throw "clone metadata belongs to a different work tree"
     }
@@ -242,11 +245,11 @@ try {
   if (-not (Get-Command gh -ErrorAction SilentlyContinue)) { throw "GitHub CLI (gh) required" }
   if (-not (Get-Command git -ErrorAction SilentlyContinue)) { throw "git required" }
 
-  $auth = Invoke-Gh -Args @("auth","status") -AllowFailure
+  $auth = Invoke-Gh -Arguments @("auth","status") -AllowFailure
   if ($auth.ExitCode -ne 0) { throw "gh is not authenticated" }
   $evidence["gh_authenticated"] = $true
 
-  $view = Invoke-Gh -Args @("repo","view",$TargetRepo,"--json","nameWithOwner,visibility,defaultBranchRef") -AllowFailure
+  $view = Invoke-Gh -Arguments @("repo","view",$TargetRepo,"--json","nameWithOwner,visibility,defaultBranchRef") -AllowFailure
   $repoExists = ($view.ExitCode -eq 0)
 
   if ($repoExists) {
@@ -254,14 +257,14 @@ try {
     if (-not $UseExistingEmptyRepository) {
       throw "target exists; use -UseExistingEmptyRepository only after confirming it is the intended empty target"
     }
-    $branches = Invoke-Gh -Args @("api","repos/$TargetRepo/branches","--paginate")
+    $branches = Invoke-Gh -Arguments @("api","repos/$TargetRepo/branches","--paginate")
     $branchText = ($branches.Output -join [Environment]::NewLine).Trim()
     if ($branchText) {
       $parsedBranches = $branchText | ConvertFrom-Json
       if (@($parsedBranches).Count -ne 0) { throw "existing target repository is not empty" }
     }
   } else {
-    Invoke-Gh -Args @("repo","create",$TargetRepo,"--$Visibility","--confirm") | Out-Null
+    Invoke-Gh -Arguments @("repo","create",$TargetRepo,"--$Visibility","--confirm") | Out-Null
     $evidence["repository_created"] = $true
   }
 
@@ -275,21 +278,21 @@ try {
       Copy-Item -LiteralPath $_.FullName -Destination $tmp -Recurse -Force
     }
 
-    Invoke-Git -WorkingDirectory $tmp -Args @("init") | Out-Null
-    Invoke-Git -WorkingDirectory $tmp -Args @("config","core.autocrlf","false") | Out-Null
-    Invoke-Git -WorkingDirectory $tmp -Args @("checkout","-b","main") | Out-Null
-    Invoke-Git -WorkingDirectory $tmp -Args @("config","user.name","Independent Repo Bootstrap") | Out-Null
-    Invoke-Git -WorkingDirectory $tmp -Args @("config","user.email","bootstrap@users.noreply.github.com") | Out-Null
-    Invoke-Git -WorkingDirectory $tmp -Args @("add","--all") | Out-Null
-    Invoke-Git -WorkingDirectory $tmp -Args @("commit","-m","Import verified export from $($sourceProof.source_commit)") | Out-Null
+    Invoke-Git -WorkingDirectory $tmp -Arguments @("init") | Out-Null
+    Invoke-Git -WorkingDirectory $tmp -Arguments @("config","core.autocrlf","false") | Out-Null
+    Invoke-Git -WorkingDirectory $tmp -Arguments @("checkout","-b","main") | Out-Null
+    Invoke-Git -WorkingDirectory $tmp -Arguments @("config","user.name","Independent Repo Bootstrap") | Out-Null
+    Invoke-Git -WorkingDirectory $tmp -Arguments @("config","user.email","bootstrap@users.noreply.github.com") | Out-Null
+    Invoke-Git -WorkingDirectory $tmp -Arguments @("add","--all") | Out-Null
+    Invoke-Git -WorkingDirectory $tmp -Arguments @("commit","-m","Import verified export from $($sourceProof.source_commit)") | Out-Null
 
-    $localCommit = (Invoke-Git -WorkingDirectory $tmp -Args @("rev-parse","HEAD"))[-1].Trim()
-    Invoke-Git -WorkingDirectory $tmp -Args @("remote","add","origin","https://github.com/$TargetRepo.git") | Out-Null
-    Invoke-Git -WorkingDirectory $tmp -Args @("push","--set-upstream","origin","main") | Out-Null
+    $localCommit = (Invoke-Git -WorkingDirectory $tmp -Arguments @("rev-parse","HEAD"))[-1].Trim()
+    Invoke-Git -WorkingDirectory $tmp -Arguments @("remote","add","origin","https://github.com/$TargetRepo.git") | Out-Null
+    Invoke-Git -WorkingDirectory $tmp -Arguments @("push","--set-upstream","origin","main") | Out-Null
     $evidence["pushed_main"] = $true
     $evidence["import_commit"] = $localCommit
 
-    $repoInfoRaw = Invoke-Gh -Args @("repo","view",$TargetRepo,"--json","nameWithOwner,visibility,defaultBranchRef")
+    $repoInfoRaw = Invoke-Gh -Arguments @("repo","view",$TargetRepo,"--json","nameWithOwner,visibility,defaultBranchRef")
     $repoInfo = (($repoInfoRaw.Output -join [Environment]::NewLine) | ConvertFrom-Json)
     if ([string]$repoInfo.nameWithOwner -ne $TargetRepo) { throw "remote repository identity mismatch" }
     if (([string]$repoInfo.visibility).ToLowerInvariant() -ne $Visibility.ToLowerInvariant()) {
@@ -297,13 +300,13 @@ try {
     }
     if ([string]$repoInfo.defaultBranchRef.name -ne "main") { throw "remote default branch is not main" }
 
-    Invoke-Git -Args @("-c","core.autocrlf=false","clone","--depth","1","https://github.com/$TargetRepo.git",$verifyTmp) | Out-Null
+    Invoke-Git -Arguments @("-c","core.autocrlf=false","clone","--depth","1","https://github.com/$TargetRepo.git",$verifyTmp) | Out-Null
     $remoteProof = Assert-ExportIntegrity -Root $verifyTmp -Repo $TargetRepo -ExpectedCommit $sourceProof.source_commit -AllowGitMetadata
 
     if ($remoteProof.manifest_sha256 -ne $sourceProof.manifest_sha256) { throw "remote manifest hash mismatch" }
     if ($remoteProof.sums_sha256 -ne $sourceProof.sums_sha256) { throw "remote checksum hash mismatch" }
 
-    $remoteCommit = (Invoke-Git -WorkingDirectory $verifyTmp -Args @("rev-parse","HEAD"))[-1].Trim()
+    $remoteCommit = (Invoke-Git -WorkingDirectory $verifyTmp -Arguments @("rev-parse","HEAD"))[-1].Trim()
     if ($remoteCommit -ne $localCommit) { throw "remote main commit mismatch" }
 
     $evidence["remote_verification"] = "PASS"

@@ -101,15 +101,25 @@ OS DNS／單次 slow-drip read 的硬牆鐘期限。不得宣稱已證明任意�
 - Git 單行輸出保留為陣列，避免 commit SHA 被當作最後一個字元。
 - 匯出必須包含正向和負向 GUI 腳本；否則獨立倉庫即使完整上傳仍無法驗收。
 - `gh release create --target` 綁定實測 commit；審計／EXE artifact 保存成功後才能提升 Release。
-- 本機 PowerShell 受限語言模式會阻止 bootstrap 測試載入。這是 UNAVAILABLE，不是測試 PASS；
-  用 GitHub CI 的真實 Git 克隆反例執行，沒有關閉本機安全限制。
+- 匯出 CI 的真實克隆測試發現命令封裝使用 PowerShell 自動變數 `$Args`，造成 Git 參數丟失。
+  Git 與 GitHub CLI 封裝改用 `Arguments`，空參數直接失敗；新增含空格參數、原生失敗上拋、
+  單行輸出陣列、真實克隆測試，並在 Linux 與 Windows 分別執行。
+- 2026-10-01 本輪獲得限定目錄寫入權限後，本機 9 項 bootstrap 測試和 6 項 exporter 測試通過。
+  先前受限語言模式下的執行仍只記為 UNAVAILABLE；沒有更改或關閉 PowerShell 安全策略。
+  GitHub CLI 控制替身僅證明參數／失敗契約，不能證明遠端授權或實際建庫成功。
 
 ## 7. 當前交接界線
 
-既有 PR #76 基線 `984a7f...` 的 run `36831958527` 已於 2026-10-01 08:00 UTC 結束，
-Windows、Exact EXE、正負 GUI、Same Hash 的當次機器證據通過；Final Gate 仍 FAIL。
-其 EXE SHA-256 是 `6750075bb0f5d1c4e3c57e64ed410c7d97fdada91a572d1e615212523368f2a3`。
-這只是修復前候選，不能充當本次修改後版本的驗收。
+PR #76 候選 `08a51bca126ca28ae28b1a5af77255352a149653` 的
+[Windows run 36866872473](https://github.com/douluo511/Geometry-Lotto-Pro/actions/runs/36866872473)
+於 2026-10-01 13:31 UTC 產生驗收結果，實際測試 merge SHA
+`730898508b3e9de9145272c729d7a60cde70b2ce`。
+Windows、Exact EXE、正負 GUI、Same Hash 的當次機器證據通過；Final Gate 為 FAIL，5 項非 PASS：
+`business_content=PENDING`、`no_shell=PENDING`、`updater_real_network=PENDING`、
+`repository_independence=FAIL`、`release_context=FAIL`。
+其 EXE SHA-256 是 `94479307f5ba27772ed766a88c4638d1072a04e7edc0ee9eda3d375b984aea39`。
+資料源聯網保存 31 份原始響應；上海歷史加河北當期交叉核對。科學判定仍是 `NO_EDGE/NULL_DAN`，
+不是已證明的彩票預測優勢。此紀錄只屬於該候選；本次部署修復後的最終驗收不得沿用。
 
 外部阻斷：`douluo511/Geometry-Lotto-Pro-SSQ` 尚需使用者建立並授權；404 不能區分未建立或無權。
 使用者已選擇自行建立，不以此授權重新建立其他倉庫、覆蓋已有 main、公開私有內容或合併 PR。
