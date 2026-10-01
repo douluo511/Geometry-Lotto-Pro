@@ -11,13 +11,34 @@ import updater
 
 
 class _Response:
-    def __init__(self, status_code: int, url: str, *, location: str = "", content: bytes = b"ok"):
+    def __init__(
+        self,
+        status_code: int,
+        url: str,
+        *,
+        location: str = "",
+        content: bytes = b"ok",
+        content_length: int | None = None,
+    ):
         self.status_code = status_code
         self.url = url
         self.content = content
         self.headers = {"Content-Type": "application/octet-stream"}
+        if content_length is not None:
+            self.headers["Content-Length"] = str(content_length)
         if location:
             self.headers["Location"] = location
+        self.closed = False
+        self.iterated_bytes = 0
+
+    def iter_content(self, chunk_size=1):
+        for offset in range(0, len(self.content), chunk_size):
+            chunk = self.content[offset:offset + chunk_size]
+            self.iterated_bytes += len(chunk)
+            yield chunk
+
+    def close(self):
+        self.closed = True
 
 
 class _Session:
@@ -35,6 +56,30 @@ class _Session:
 
 
 class SoftwareUpdaterTests(unittest.TestCase):
+    def test_bounded_get_rejects_advertised_oversize_before_body_read(self):
+        url = "https://github.com/douluo511/Geometry-Lotto-Pro-SSQ/releases/download/v1/app.exe"
+        response = _Response(200, url, content=b"x" * 64, content_length=1024)
+        session = _Session([response])
+        with mock.patch.object(updater.requests, "Session", return_value=session):
+            with self.assertRaisesRegex(RuntimeError, "DownloadSizeLimitExceeded"):
+                updater._bounded_get(url, kind="artifact", max_bytes=32)
+        self.assertEqual(response.iterated_bytes, 0)
+        self.assertTrue(response.closed)
+
+    def test_bounded_get_streaming_limit_stops_without_buffering_full_body(self):
+        url = "https://github.com/douluo511/Geometry-Lotto-Pro-SSQ/releases/download/v1/app.exe"
+        response = _Response(200, url, content=b"x" * (updater.DOWNLOAD_CHUNK_BYTES * 4))
+        session = _Session([response])
+        with mock.patch.object(updater.requests, "Session", return_value=session):
+            with self.assertRaisesRegex(RuntimeError, "DownloadSizeLimitExceeded"):
+                updater._bounded_get(
+                    url,
+                    kind="artifact",
+                    max_bytes=updater.DOWNLOAD_CHUNK_BYTES + 1,
+                )
+        self.assertLess(response.iterated_bytes, len(response.content))
+        self.assertTrue(response.closed)
+
     def test_trusted_release_repository_policy(self):
         manifest = "https://raw.githubusercontent.com/douluo511/Geometry-Lotto-Pro-SSQ/main/release/manifest.json"
         artifact = "https://github.com/douluo511/Geometry-Lotto-Pro-SSQ/releases/download/v1/app.exe"

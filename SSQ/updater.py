@@ -34,6 +34,55 @@ TRUSTED_UPDATE_HOSTS = {
 }
 MAX_MANIFEST_BYTES = 1024 * 1024
 MAX_ARTIFACT_BYTES = 512 * 1024 * 1024
+DOWNLOAD_CHUNK_BYTES = 64 * 1024
+
+
+class DownloadSizeLimitExceeded(RuntimeError):
+    pass
+
+
+def _close_response(response) -> None:
+    close = getattr(response, "close", None)
+    if callable(close):
+        close()
+
+
+def _read_bounded_response(response, max_bytes: int) -> bytes:
+    """Read a streamed HTTP body without ever buffering beyond the hard limit."""
+    if isinstance(max_bytes, bool) or not isinstance(max_bytes, int) or max_bytes <= 0:
+        raise ValueError("max_bytes must be a positive integer")
+
+    advertised = str(response.headers.get("Content-Length", "")).strip()
+    if advertised:
+        try:
+            advertised_bytes = int(advertised)
+        except ValueError:
+            advertised_bytes = -1
+        if advertised_bytes > max_bytes:
+            raise DownloadSizeLimitExceeded(
+                f"advertised response size {advertised_bytes} exceeds hard limit {max_bytes}"
+            )
+
+    iterator = getattr(response, "iter_content", None)
+    if not callable(iterator):
+        raw = bytes(response.content)
+        if len(raw) > max_bytes:
+            raise DownloadSizeLimitExceeded(
+                f"response size exceeds hard limit {max_bytes}"
+            )
+        return raw
+
+    body = bytearray()
+    for chunk in iterator(chunk_size=DOWNLOAD_CHUNK_BYTES):
+        if not chunk:
+            continue
+        chunk = bytes(chunk)
+        if len(body) + len(chunk) > max_bytes:
+            raise DownloadSizeLimitExceeded(
+                f"response size exceeds hard limit {max_bytes}"
+            )
+        body.extend(chunk)
+    return bytes(body)
 
 
 def _file_sha256(path: Path) -> str:
@@ -188,6 +237,7 @@ def _get_with_verified_redirects(
             timeout=timeout,
             allow_redirects=False,
             headers=headers,
+            stream=True,
         )
         status = int(response.status_code)
         if status not in {301, 302, 303, 307, 308}:
@@ -195,10 +245,13 @@ def _get_with_verified_redirects(
             return response
         location = str(response.headers.get("Location", "")).strip()
         if not location:
+            _close_response(response)
             raise RuntimeError(f"redirect HTTP {status} has no Location header")
         next_url = urljoin(current, location)
         if not _trusted_redirect_target(next_url):
+            _close_response(response)
             raise RuntimeError(f"redirect target violates trusted HTTPS policy before request: {next_url}")
+        _close_response(response)
         chain.append({
             "hop": hop + 1,
             "status_code": status,
@@ -231,13 +284,17 @@ def _bounded_get(url: str, *, kind: str, max_bytes: int) -> tuple[bytes, dict[st
             if not _trusted_redirect_target(final_url):
                 raise RuntimeError(f"{kind} redirect left trusted GitHub HTTPS hosts: {final_url}")
             status = int(response.status_code)
-            raw = bytes(response.content)
+            content_type = str(response.headers.get("Content-Type", ""))
+            try:
+                raw = _read_bounded_response(response, max_bytes)
+            finally:
+                _close_response(response)
             receipt = {
                 "attempt": attempt,
                 "status_code": status,
                 "requested_url": url,
                 "final_url": final_url,
-                "content_type": str(response.headers.get("Content-Type", "")),
+                "content_type": content_type,
                 "bytes": len(raw),
                 "sha256": hashlib.sha256(raw).hexdigest(),
                 "redirect_chain": list(getattr(response, "updater_redirect_chain", ())),
@@ -259,10 +316,10 @@ def _bounded_get(url: str, *, kind: str, max_bytes: int) -> tuple[bytes, dict[st
                 receipt["outcome"] = "FINAL_HTTP"
                 attempts.append(receipt)
                 raise RuntimeError(f"{kind} HTTP {status}")
-            if not raw or len(raw) > max_bytes:
+            if not raw:
                 receipt["outcome"] = "INVALID_SIZE"
                 attempts.append(receipt)
-                raise RuntimeError(f"{kind} invalid response size: {len(raw)}")
+                raise RuntimeError(f"{kind} invalid response size: 0")
             receipt["outcome"] = "HTTP_RESPONSE"
             attempts.append(receipt)
             return raw, {
@@ -275,6 +332,17 @@ def _bounded_get(url: str, *, kind: str, max_bytes: int) -> tuple[bytes, dict[st
                 "bytes": len(raw),
                 "sha256": receipt["sha256"],
             }
+        except DownloadSizeLimitExceeded as exc:
+            last_error = exc
+            attempts.append({
+                "attempt": attempt,
+                "outcome": "INVALID_SIZE",
+                "error_type": type(exc).__name__,
+                "error": str(exc),
+                "retry_delay": 0.0,
+                "requested_url": url,
+            })
+            break
         except Exception as exc:
             last_error = exc
             if attempts and attempts[-1].get("attempt") == attempt and attempts[-1].get("outcome") in {"FINAL_HTTP", "INVALID_SIZE"}:
