@@ -27,6 +27,43 @@ def _sha256_json(value: Any) -> str:
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
+def _service_payload_matches_ledger(
+    operation: str, service_payload: dict[str, Any], ledger_payload: dict[str, Any],
+) -> tuple[bool, dict[str, Any]]:
+    """Bind updater result to the immutable backend ledger without conflating wrapper metadata.
+
+    For update, updater.py adds only transport-wrapper fields after LottoService.update()
+    has already committed the exact business payload to the ledger.  Those explicitly
+    allowed wrapper fields may differ from the immutable ledger payload; every business
+    field must remain byte-for-byte JSON equivalent after canonical serialization.
+    """
+    if operation == "update":
+        allowed_wrapper_fields = {"status", "update_attempts"}
+    else:
+        allowed_wrapper_fields: set[str] = set()
+
+    service_keys = set(service_payload)
+    ledger_keys = set(ledger_payload)
+    unexpected = sorted(service_keys - ledger_keys - allowed_wrapper_fields)
+    missing = sorted(ledger_keys - service_keys)
+    service_core = {
+        key: value for key, value in service_payload.items()
+        if key not in allowed_wrapper_fields
+    }
+    core_equal = service_core == ledger_payload
+    return (
+        not unexpected and not missing and core_equal,
+        {
+            "allowed_wrapper_fields": sorted(allowed_wrapper_fields),
+            "unexpected_service_fields": unexpected,
+            "missing_ledger_fields": missing,
+            "ledger_payload_sha256": _sha256_json(ledger_payload),
+            "service_core_sha256": _sha256_json(service_core),
+            "core_equal": core_equal,
+        },
+    )
+
+
 def _verify_updater_process(
     data_dir: Path, operation: str, parent_pid: int, service_payload: dict[str, Any],
 ) -> dict[str, Any]:
@@ -69,6 +106,16 @@ def _verify_updater_process(
             and parent_pid in ancestor_pids
             and child_pid not in ancestor_pids
         )
+        proof_service_result = proof.get("service_result")
+        payload_bound = False
+        payload_binding: dict[str, Any] = {
+            "core_equal": False,
+            "reason": "updater service_result is not an object",
+        }
+        if isinstance(proof_service_result, dict):
+            payload_bound, payload_binding = _service_payload_matches_ledger(
+                operation, proof_service_result, service_payload,
+            )
         valid = bool(
             proof.get("schema") == "ssq-independent-updater-v2"
             and proof.get("status") == "PASS"
@@ -77,8 +124,9 @@ def _verify_updater_process(
             and process_chain_ok
             and len(updater_hash) == 64 and all(ch in "0123456789abcdef" for ch in updater_hash)
             and data_root == data_dir.resolve()
-            and payload_hash == _sha256_json(service_payload)
-            and proof.get("service_result") == service_payload
+            and isinstance(proof_service_result, dict)
+            and payload_hash == _sha256_json(proof_service_result)
+            and payload_bound
         )
         result.update(
             status="PASS" if valid else "FAIL",
@@ -88,6 +136,7 @@ def _verify_updater_process(
             ancestor_pids=ancestor_pids,
             updater_exe_sha256=updater_hash,
             service_result_sha256=payload_hash,
+            payload_binding=payload_binding,
         )
         if not valid:
             result["reason"] = "updater process evidence does not bind to this GUI/backend effect"
