@@ -35,9 +35,31 @@ HEADERS = {
 }
 TIMEOUT = (20, 30)
 NET = NetClient(connect_timeout=20, read_timeout=30, max_attempts=3)
-MAX_LATEST_AGE_DAYS = 7
 MAX_RESPONSE_BYTES = 8 * 1024 * 1024
 PARSER_VERSION = "ssq-source-parser-v8.6-fail-closed+raw-v1"
+
+# Freshness is based on the frozen public draw calendar, not an arbitrary age.
+# Ministry of Finance-approved SSQ rules: draws every Tuesday/Thursday/Sunday.
+# 2025/2026 national lottery-market closures are also Ministry of Finance
+# announcements. Unknown calendar years fail closed until an updater ships the
+# next official closure calendar.
+SSQ_DRAW_WEEKDAYS = frozenset({1, 3, 6})  # Monday=0
+CHINA_TZ = timezone(timedelta(hours=8))
+FRESHNESS_POLICY_SOURCES = {
+    "rule": "https://zhs.mof.gov.cn/zhengcefabu/201404/t20140421_1069579.htm",
+    "2025": "https://zhs.mof.gov.cn/zhengcefabu/202412/t20241206_3949123.htm",
+    "2026": "https://www.mof.gov.cn/gp/xxgkml/zhs/202512/t20251225_3980248.htm",
+}
+OFFICIAL_MARKET_CLOSURES = {
+    2025: (
+        (date(2025, 1, 27), date(2025, 2, 5)),
+        (date(2025, 10, 1), date(2025, 10, 4)),
+    ),
+    2026: (
+        (date(2026, 2, 14), date(2026, 2, 23)),
+        (date(2026, 10, 1), date(2026, 10, 4)),
+    ),
+}
 RawRecorder = Callable[[dict, bytes], None]
 
 
@@ -130,7 +152,42 @@ def _validate_http_payload(response, raw: bytes, *, expected: str) -> dict:
     }
 
 
-def _validate_history(draws: list[Draw], source: str, *, fresh: bool = True) -> None:
+def _is_market_closed(day: date) -> bool:
+    ranges = OFFICIAL_MARKET_CLOSURES.get(day.year)
+    if ranges is None:
+        raise SourceError(
+            f"freshness calendar for {day.year} is not frozen from an official closure notice"
+        )
+    return any(start <= day <= end for start, end in ranges)
+
+
+def _is_regular_ssq_draw_day(day: date) -> bool:
+    return day.weekday() in SSQ_DRAW_WEEKDAYS and not _is_market_closed(day)
+
+
+def _expected_latest_completed_draw_day(today: date) -> date:
+    if today.year not in OFFICIAL_MARKET_CLOSURES:
+        raise SourceError(
+            f"freshness calendar for {today.year} is unavailable; updater required"
+        )
+    # Use strictly earlier calendar days. On a scheduled draw date the official
+    # result may not have been published yet, so the prior completed draw remains
+    # acceptable until the following China-local date.
+    cursor = today - timedelta(days=1)
+    for _ in range(40):
+        if cursor.year not in OFFICIAL_MARKET_CLOSURES:
+            raise SourceError(
+                f"freshness calendar for {cursor.year} is unavailable across year boundary"
+            )
+        if _is_regular_ssq_draw_day(cursor):
+            return cursor
+        cursor -= timedelta(days=1)
+    raise SourceError("could not resolve a completed SSQ draw date from the frozen calendar")
+
+
+def _validate_history(
+    draws: list[Draw], source: str, *, fresh: bool = True, today: date | None = None
+) -> None:
     if not draws:
         raise SourceError(f"{source}: empty draw history")
     for draw in draws:
@@ -142,16 +199,37 @@ def _validate_history(draws: list[Draw], source: str, *, fresh: bool = True) -> 
         raise SourceError(f"{source}: duplicate, conflicting or nonmonotonic draw history")
     if fresh:
         latest = date.fromisoformat(draws[-1].draw_date)
-        today = datetime.now(timezone.utc).date()
-        if not today - timedelta(days=MAX_LATEST_AGE_DAYS) <= latest <= today + timedelta(days=1):
-            raise SourceError(f"{source}: stale or future latest draw {latest.isoformat()}")
+        local_today = today or datetime.now(CHINA_TZ).date()
+        if latest > local_today:
+            raise SourceError(f"{source}: future latest draw {latest.isoformat()}")
+        expected = _expected_latest_completed_draw_day(local_today)
+        if latest < expected:
+            raise SourceError(
+                f"{source}: stale latest draw {latest.isoformat()}; "
+                f"expected at least {expected.isoformat()} from frozen draw calendar"
+            )
 
 
-def _validate_freshness(draws: list[Draw], source: str) -> dict:
-    _validate_history(draws, source)
+def _validate_freshness(
+    draws: list[Draw], source: str, *, today: date | None = None
+) -> dict:
+    local_today = today or datetime.now(CHINA_TZ).date()
+    _validate_history(draws, source, today=local_today)
     latest = date.fromisoformat(draws[-1].draw_date)
-    age = (datetime.now(timezone.utc).date() - latest).days
-    return {"latest_date": draws[-1].draw_date, "age_days": age, "max_age_days": MAX_LATEST_AGE_DAYS}
+    expected = _expected_latest_completed_draw_day(local_today)
+    return {
+        "schema": "ssq-freshness-calendar-v1",
+        "latest_date": draws[-1].draw_date,
+        "china_local_date": local_today.isoformat(),
+        "expected_latest_completed_draw_date": expected.isoformat(),
+        "age_days": (local_today - latest).days,
+        "draw_weekdays": ["Tuesday", "Thursday", "Sunday"],
+        "policy_year": local_today.year,
+        "policy_sources": {
+            "rule": FRESHNESS_POLICY_SOURCES["rule"],
+            "closure": FRESHNESS_POLICY_SOURCES[str(local_today.year)],
+        },
+    }
 
 
 def _issue(value: object) -> str:
@@ -900,6 +978,7 @@ def _build_canonical_impl(
             raise SourceError("Canonical Dataset 日期非严格递增")
 
     _validate_history(canonical_draws, "canonical")
+    freshness = _validate_freshness(canonical_draws, "canonical")
     draw_dicts = [d.to_dict() for d in canonical_draws]
     canonical_hash = sha256_json(draw_dicts)
     dataset = CanonicalDataset(
@@ -914,6 +993,7 @@ def _build_canonical_impl(
         "parser_version": PARSER_VERSION,
         "game": "SSQ",
         "fetched_at": utc_now(),
+        "freshness": freshness,
         "canonical_hash": canonical_hash,
         "draw_count": len(canonical_draws),
         "latest": canonical_draws[-1].to_dict(),
