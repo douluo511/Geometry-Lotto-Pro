@@ -1,0 +1,103 @@
+{
+  "schema": "ssq-business-acceptance-baseline-v1",
+  "project": "SSQ",
+  "frozen_by": "delegated execution authority",
+  "frozen_at_utc": "2026-10-01T20:00:00Z",
+  "rule": "All seven tasks are mandatory; any non-PASS task blocks business_content. This baseline adds to, and never deletes, frozen architecture/source/scientific/release requirements.",
+  "entries": [
+    {
+      "id": "B01",
+      "task": "更新历史、查看来源及最新期",
+      "required_gates": [
+        "real_network",
+        "physical_gui_click",
+        "physical_gui_failure"
+      ],
+      "positive": "official multi-source update/crosscheck/freshness/lineage",
+      "negative": [
+        "source conflict",
+        "empty/stale data",
+        "429/5xx",
+        "offline"
+      ]
+    },
+    {
+      "id": "B02",
+      "task": "生成有追溯信息的研究结果",
+      "required_gates": [
+        "physical_gui_click",
+        "business_validation"
+      ],
+      "positive": "prediction input/model/baseline/freeze lineage is reconstructable",
+      "negative": [
+        "unqualified model cannot be promoted",
+        "NO_EDGE/NULL_DAN must remain valid"
+      ]
+    },
+    {
+      "id": "B03",
+      "task": "独立科学与事后审计",
+      "required_gates": [
+        "business_validation",
+        "counterexample_validation",
+        "reversal_validation"
+      ],
+      "positive": "OOS/holdout/ablation/multiple-testing/leakage evidence is current-run bound",
+      "negative": [
+        "counterexample and reversal must reject false edge"
+      ]
+    },
+    {
+      "id": "B04",
+      "task": "损坏检测与修复",
+      "required_gates": [
+        "fault_injection",
+        "physical_gui_repair_failure",
+        "updater_atomic_rollback"
+      ],
+      "positive": "repair/rollback preserve integrity and exact prior bytes",
+      "negative": [
+        "corrupt+offline repair must fail closed with evidence"
+      ]
+    },
+    {
+      "id": "B05",
+      "task": "独立更新器真实版本更新",
+      "required_gates": [
+        "updater_process",
+        "updater_exact_exe",
+        "updater_atomic_rollback",
+        "updater_real_network",
+        "updater_same_hash"
+      ],
+      "positive": "real N→N+1 manifest/artifact HTTPS update with hash/process identity",
+      "negative": [
+        "bad replacement restores previous exact bytes"
+      ]
+    },
+    {
+      "id": "B06",
+      "task": "所有 GUI 入口",
+      "required_gates": [
+        "no_shell"
+      ],
+      "positive": "four physical controls reach real backend and ledger evidence",
+      "negative": [
+        "button/backend failure is displayed as FAIL"
+      ]
+    },
+    {
+      "id": "B07",
+      "task": "长期维护",
+      "required_gates": [
+        "unit_test",
+        "real_network",
+        "exact_exe"
+      ],
+      "positive": "backup/restore/migration/evidence export/source-health works on current official data including Unicode paths",
+      "negative": [
+        "tampered backup and unsafe restore target are rejected"
+      ]
+    }
+  ]
+}
