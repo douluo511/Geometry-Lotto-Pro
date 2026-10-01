@@ -1199,6 +1199,33 @@ def _verify_gui_failure_evidence(
 
     run_dir = evidence_dir / leaf
     source_dir = evidence_dir / source_leaf
+    updater_hash = _hash(updater_exe)
+    expected_materialized = (
+        run_dir / "updater" / updater_hash / updater_exe.name
+    ).resolve()
+    materialized_value = report.get("materialized_updater")
+    materialized_hash = report.get("materialized_updater_sha256")
+    firewall_programs = report.get("firewall_programs")
+    try:
+        materialized_path = Path(str(materialized_value)).resolve()
+        firewall_paths = {
+            Path(str(value)).resolve()
+            for value in firewall_programs
+        } if isinstance(firewall_programs, list) else set()
+    except (OSError, RuntimeError, ValueError, TypeError) as exc:
+        raise ValueError("physical GUI failure firewall path evidence is malformed") from exc
+    required_firewall_paths = {
+        exe.resolve(), updater_exe.resolve(), expected_materialized,
+    }
+    if (materialized_path != expected_materialized
+            or not expected_materialized.is_file()
+            or materialized_hash != updater_hash
+            or _hash(expected_materialized) != updater_hash
+            or not required_firewall_paths.issubset(firewall_paths)):
+        raise ValueError(
+            "physical GUI failure did not bind firewall rules to the exact materialized updater"
+        )
+
     history = run_dir / "canonical_history.json"
     source_evidence = run_dir / "source_evidence.json"
     source_history = source_dir / "canonical_history.json"
@@ -1254,6 +1281,9 @@ def _verify_gui_failure_evidence(
         "report_schema": report.get("schema"),
         "exe_sha256": report.get("exe_sha256"),
         "updater_sha256": report.get("updater_sha256"),
+        "materialized_updater": str(expected_materialized),
+        "materialized_updater_sha256": updater_hash,
+        "firewall_programs": sorted(str(path) for path in required_firewall_paths),
         "data_dir": leaf,
         "source_success_data_dir": source_leaf,
         "canonical_sha256": history_hash,
