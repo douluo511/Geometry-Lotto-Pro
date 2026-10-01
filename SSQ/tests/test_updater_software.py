@@ -80,6 +80,58 @@ class SoftwareUpdaterTests(unittest.TestCase):
         self.assertLess(response.iterated_bytes, len(response.content))
         self.assertTrue(response.closed)
 
+
+    def test_data_update_uses_bounded_service_retry(self):
+        success = {
+            "crosscheck_status": "PASS",
+            "persisted_integrity": {"ok": True},
+            "canonical_hash": "a" * 64,
+        }
+        attempts = [
+            {"attempt": 1, "status": "FAIL", "retryable": True},
+            {"attempt": 2, "status": "PASS", "retryable": False},
+        ]
+        fake_service = mock.Mock()
+        fake_service.update_with_transient_retry.return_value = (success, None, attempts)
+        with tempfile.TemporaryDirectory() as directory:
+            with mock.patch("updater.LottoService", return_value=fake_service):
+                status, result = updater._run("update", Path(directory))
+        self.assertEqual(status, "PASS")
+        self.assertEqual(result["status"], "PASS")
+        self.assertEqual(result["update_attempts"], attempts)
+        fake_service.update_with_transient_retry.assert_called_once_with()
+
+    def test_data_update_second_transient_failure_remains_fail_closed(self):
+        attempts = [
+            {
+                "attempt": 1,
+                "status": "FAIL",
+                "retryable": True,
+                "failure_evidence_path": "failed/one/failure_evidence.json",
+            },
+            {
+                "attempt": 2,
+                "status": "FAIL",
+                "retryable": True,
+                "failure_evidence_path": "failed/two/failure_evidence.json",
+            },
+        ]
+        fake_service = mock.Mock()
+        fake_service.update_with_transient_retry.return_value = (
+            None,
+            "OperationDeadlineExceeded: official HTTPS GET exceeded total operation timeout",
+            attempts,
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            with mock.patch("updater.LottoService", return_value=fake_service):
+                status, result = updater._run("update", Path(directory))
+        self.assertEqual(status, "FAIL")
+        self.assertEqual(result["status"], "FAIL")
+        self.assertEqual(result["crosscheck_status"], "FAIL")
+        self.assertIn("OperationDeadlineExceeded", result["error"])
+        self.assertEqual(result["update_attempts"], attempts)
+        fake_service.update_with_transient_retry.assert_called_once_with()
+
     def test_trusted_release_repository_policy(self):
         manifest = "https://raw.githubusercontent.com/douluo511/Geometry-Lotto-Pro-SSQ/main/release/manifest.json"
         artifact = "https://github.com/douluo511/Geometry-Lotto-Pro-SSQ/releases/download/v1/app.exe"
