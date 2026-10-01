@@ -61,7 +61,7 @@ def main() -> int:
         "gate_input_integrity": "PASS" if manifest_matches else "FAIL",
     }
     Path(a.report).write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(json.dumps(report, ensure_ascii=False))
+    print(json.dumps(report, ensure_ascii=True))
     return 0 if not failures else 2
 
 if __name__ == "__main__":
