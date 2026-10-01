@@ -53,8 +53,10 @@ def _safe_relative(value: str) -> Path:
 def _sqlite_snapshot(source: Path, destination: Path) -> None:
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.unlink(missing_ok=True)
-    source_db = sqlite3.connect(f"file:{source.as_posix()}?mode=ro", uri=True)
-    target_db = sqlite3.connect(destination)
+    # Use native filesystem paths rather than SQLite URI strings so Windows
+    # drive letters, spaces and non-ASCII user paths are not URI-reinterpreted.
+    source_db = sqlite3.connect(str(source))
+    target_db = sqlite3.connect(str(destination))
     try:
         source_db.backup(target_db)
         target_db.commit()
@@ -64,7 +66,7 @@ def _sqlite_snapshot(source: Path, destination: Path) -> None:
 
 
 def _sqlite_inventory(path: Path) -> dict[str, Any]:
-    db = sqlite3.connect(f"file:{path.as_posix()}?mode=ro", uri=True)
+    db = sqlite3.connect(str(path))
     try:
         integrity = db.execute("PRAGMA integrity_check").fetchone()
         objects = db.execute(
@@ -122,10 +124,15 @@ def _state_identity(root: Path) -> dict[str, Any]:
         raise ValueError("backup source evidence is not bound to canonical history")
 
     raw_rows = evidence.get("raw_responses")
+    baseline = evidence.get("baseline_lineage")
+    baseline_rows = baseline.get("raw_responses", []) if isinstance(baseline, dict) else []
     if not isinstance(raw_rows, list) or not raw_rows:
         raise ValueError("backup source evidence has no raw response manifest")
+    if not isinstance(baseline_rows, list):
+        raise ValueError("backup baseline raw response manifest is malformed")
     raw_hashes: list[str] = []
-    for row in raw_rows:
+    seen_raw: dict[str, int] = {}
+    for row in [*raw_rows, *baseline_rows]:
         if not isinstance(row, dict):
             raise ValueError("backup raw manifest row is malformed")
         digest = str(row.get("sha256") or "")
@@ -139,7 +146,12 @@ def _state_identity(root: Path) -> dict[str, Any]:
             raise FileNotFoundError(f"backup raw response missing: {digest}")
         if raw_path.stat().st_size != byte_count or _sha256_file(raw_path) != digest:
             raise ValueError("backup raw response does not match manifest")
-        raw_hashes.append(digest)
+        prior_bytes = seen_raw.get(digest)
+        if prior_bytes is not None and prior_bytes != byte_count:
+            raise ValueError("duplicate backup raw digest has conflicting byte counts")
+        seen_raw[digest] = byte_count
+        if prior_bytes is None:
+            raw_hashes.append(digest)
 
     sqlite_inventory = _validate_sqlite(ledger_path)
     return {
@@ -225,11 +237,25 @@ def _export_state(store: Store, destination: Path, schema: str) -> dict[str, Any
 
     evidence = json.loads(store.evidence_path.read_text(encoding="utf-8"))
     records = evidence.get("raw_responses") or []
-    for row in records:
-        digest = str(row["sha256"])
+    baseline = evidence.get("baseline_lineage")
+    baseline_records = baseline.get("raw_responses", []) if isinstance(baseline, dict) else []
+    if not isinstance(records, list) or not isinstance(baseline_records, list):
+        raise ValueError("maintenance raw response manifests are malformed")
+    copied_digests: set[str] = set()
+    for row in [*records, *baseline_records]:
+        if not isinstance(row, dict):
+            raise ValueError("maintenance raw response row is malformed")
+        digest = str(row.get("sha256") or "")
+        if digest in copied_digests:
+            continue
+        if not re.fullmatch(r"[0-9a-f]{64}", digest):
+            raise ValueError("maintenance raw response digest is malformed")
         source = store.raw_root / f"{digest}.bin"
+        if not source.is_file():
+            raise FileNotFoundError(f"maintenance raw response missing: {digest}")
         target = destination / "raw_responses" / f"{digest}.bin"
         atomic_write(target, source.read_bytes())
+        copied_digests.add(digest)
 
     failure_file_count = _copy_failure_evidence(store.root, destination)
     _sqlite_snapshot(store.db_path, destination / "ledger.sqlite3")
