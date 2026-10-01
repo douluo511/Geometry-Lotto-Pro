@@ -66,7 +66,8 @@ REQUIRED_NETCLIENT_CHECKS = frozenset({
     "separate_connect_read_timeout", "https_redirect_downgrade_fail_closed",
     "retry_cap_exception_fail_closed", "retry_after_hard_cap",
     "raw_payload_evidence", "wrong_content_type_fail_closed",
-    "empty_payload_fail_closed",
+    "empty_payload_fail_closed", "streaming_body_limit_fail_closed",
+    "total_operation_deadline_fail_closed",
 })
 
 EXPECTED_INDEPENDENT_REPOSITORY = "douluo511/Geometry-Lotto-Pro-SSQ"
