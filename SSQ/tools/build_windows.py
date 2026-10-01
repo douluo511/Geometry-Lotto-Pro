@@ -313,7 +313,7 @@ cmd = [
     '--add-data', str(bundle) + ';updater_bundle',
     '--collect-all', 'certifi',
     '--hidden-import', 'glp.gui', '--hidden-import', 'glp.service', '--hidden-import', 'glp.evidence',
-    '--hidden-import', 'glp.updater_client',
+    '--hidden-import', 'glp.updater_client', '--hidden-import', 'glp.maintenance',
     '--distpath', str(dist),
     '--workpath', str(primary_main_work),
     '--specpath', str(primary_main_spec),
@@ -497,6 +497,7 @@ checks = [
     'predict',
     'audit',
     'gui',
+    'maintenance',
 ]
 report = {
     'schema': 'ssq-windows-exact-exe-acceptance-v3',
@@ -540,7 +541,7 @@ report['checks']['reproducible-build'] = {
 
 for check in checks:
     result_path = evidence / f'{check}.json'
-    timeout = 2400 if check in {'science','random-world-101','random-world-202','random-world-303','predict','audit'} else 900
+    timeout = 2400 if check in {'science','random-world-101','random-world-202','random-world-303','predict','audit','maintenance'} else 900
     try:
         proc = subprocess.run([str(exe), '--check', check, '--result-file', str(result_path)], timeout=timeout)
         content = json.loads(result_path.read_text(encoding='utf-8')) if result_path.exists() else {}
