@@ -4,6 +4,7 @@ import json
 import shutil
 import sqlite3
 import sys
+import time
 from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -37,6 +38,16 @@ def _json_dumps(value: Any) -> str:
 
 
 MAX_REUSED_OFFICIAL_EVIDENCE_AGE_SECONDS = 15 * 60
+AUDIT_UPDATE_MAX_ATTEMPTS = 2
+AUDIT_UPDATE_RETRY_DELAY_SECONDS = 1.0
+AUDIT_TRANSIENT_UPDATE_MARKERS = (
+    "OperationDeadlineExceeded",
+    "ReadTimeout",
+    "ConnectTimeout",
+    "ConnectionError",
+    "ChunkedEncodingError",
+)
+
 
 
 def _utc_age_seconds(value: Any) -> float | None:
@@ -569,6 +580,55 @@ class LottoService:
             "max_reuse_age_seconds": MAX_REUSED_OFFICIAL_EVIDENCE_AGE_SECONDS,
         }
 
+    @staticmethod
+    def _audit_update_retryable(exc: Exception) -> bool:
+        """Retry only explicit transient transport/deadline failures.
+
+        Source/schema/content/freshness/conflict failures remain fail-closed on
+        the first attempt. A wrapped SourceError is retryable only when its
+        diagnostic contains one of the frozen transport exception markers.
+        """
+        detail = f"{type(exc).__name__}: {exc}"
+        return any(marker in detail for marker in AUDIT_TRANSIENT_UPDATE_MARKERS)
+
+    def _audit_update_with_retry(
+        self, progress: Callable[[str], None] | None = None
+    ) -> tuple[dict[str, Any] | None, str | None, list[dict[str, Any]]]:
+        attempts: list[dict[str, Any]] = []
+        for attempt in range(1, AUDIT_UPDATE_MAX_ATTEMPTS + 1):
+            try:
+                result = self.update(progress=progress)
+                crosscheck = result.get("crosscheck_status") if isinstance(result, dict) else None
+                attempts.append({
+                    "attempt": attempt,
+                    "status": "PASS" if crosscheck == "PASS" else "FAIL",
+                    "crosscheck_status": crosscheck,
+                    "retryable": False,
+                    "failure_evidence_path": None,
+                })
+                if crosscheck != "PASS":
+                    return None, "official update returned non-PASS crosscheck", attempts
+                return result, None, attempts
+            except Exception as exc:
+                retryable = self._audit_update_retryable(exc)
+                detail = f"{type(exc).__name__}: {exc}"
+                attempts.append({
+                    "attempt": attempt,
+                    "status": "FAIL",
+                    "error": detail,
+                    "retryable": retryable,
+                    "failure_evidence_path": getattr(exc, "failure_evidence_path", None),
+                })
+                if not retryable or attempt >= AUDIT_UPDATE_MAX_ATTEMPTS:
+                    return None, detail, attempts
+                if progress:
+                    progress(
+                        f"高级分析官方更新瞬态失败：第 {attempt} 次；"
+                        f"{AUDIT_UPDATE_RETRY_DELAY_SECONDS:.1f}s 后进行最后一次重试…"
+                    )
+                time.sleep(AUDIT_UPDATE_RETRY_DELAY_SECONDS)
+        return None, "audit update retry loop exhausted", attempts
+
     def audit(self, progress: Callable[[str], None] | None = None) -> dict[str, Any]:
         """Advanced analysis is intentionally non-freezing.
 
@@ -578,11 +638,20 @@ class LottoService:
         self.ensure_seed()
         update_result = self._current_verified_official_snapshot()
         update_error = None
+        update_attempts: list[dict[str, Any]] = []
         if update_result is None:
-            try:
-                update_result = self.update(progress=progress)
-            except Exception as exc:
-                update_error = f"{type(exc).__name__}: {exc}"
+            update_result, update_error, update_attempts = self._audit_update_with_retry(
+                progress=progress
+            )
+        else:
+            update_attempts.append({
+                "attempt": 0,
+                "status": "PASS",
+                "crosscheck_status": update_result.get("crosscheck_status"),
+                "retryable": False,
+                "reused_current_evidence": True,
+                "failure_evidence_path": None,
+            })
         draws = self._load_draws()
         canonical_hash = self._canonical_hash()
         before = self._freeze_count()
@@ -616,6 +685,7 @@ class LottoService:
             "formal_freeze_written": False,
             "auto_update": update_result,
             "auto_update_error": update_error,
+            "auto_update_attempts": update_attempts,
             "self_test": self_test,
             "release_contract": self.release_contract(),
         }
