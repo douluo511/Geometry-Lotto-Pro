@@ -1742,6 +1742,98 @@ def _verify_checkout_identity(evidence: Path) -> dict[str, Any]:
         "parent_shas": parents,
     }
 
+def _verify_standard_user_evidence(
+    evidence: Path, exe: Path, acceptance_ok: bool,
+) -> dict[str, Any]:
+    report_path = evidence / "STANDARD_USER_ACCEPTANCE.json"
+    report = _read(report_path)
+    exe_hash = _hash(exe) if exe.is_file() else None
+    if (not acceptance_ok or not exe_hash or not isinstance(report, dict)
+            or report.get("schema") != "ssq-standard-user-acceptance-v1"
+            or report.get("status") != "PASS"
+            or report.get("github_sha") != os.environ.get("GITHUB_SHA")
+            or report.get("github_run_id") != os.environ.get("GITHUB_RUN_ID")
+            or report.get("exe") != exe.name
+            or report.get("exe_sha256") != exe_hash
+            or report.get("administrators_member") is not False
+            or report.get("medium_integrity") is not True
+            or report.get("self_status") != "PASS"
+            or report.get("gui_default_launch") != "PASS"
+            or report.get("localappdata_ledger_created") is not True
+            or not _utc_recent(report.get("tested_at"))):
+        raise ValueError("standard-user report is not a current-run/hash-bound PASS")
+
+    username = report.get("disposable_user")
+    sid = report.get("user_sid")
+    if (not isinstance(username, str) or not re.fullmatch(r"glpssq[0-9a-f]{8}", username)
+            or not isinstance(sid, str) or not re.fullmatch(r"S-1-5-21(?:-\d+){4}", sid)):
+        raise ValueError("standard-user identity is malformed")
+
+    filenames = {
+        "self": (report.get("self_result"), report.get("self_result_sha256")),
+        "whoami": (report.get("whoami_evidence"), report.get("whoami_evidence_sha256")),
+        "groups": (report.get("groups_evidence"), report.get("groups_evidence_sha256")),
+    }
+    resolved: dict[str, Path] = {}
+    for label, (filename, expected_hash) in filenames.items():
+        if (not isinstance(filename, str)
+                or filename != Path(filename).name
+                or not isinstance(expected_hash, str)
+                or not re.fullmatch(r"[0-9a-f]{64}", expected_hash)):
+            raise ValueError(f"standard-user {label} evidence path/hash is malformed")
+        evidence_path = evidence / filename
+        if not evidence_path.is_file() or _hash(evidence_path) != expected_hash:
+            raise ValueError(f"standard-user {label} evidence bytes do not match report")
+        resolved[label] = evidence_path
+
+    self_report = _read(resolved["self"])
+    if (not isinstance(self_report, dict)
+            or self_report.get("status") != "PASS"
+            or self_report.get("scope") != "self"
+            or self_report.get("platform") != "win32"
+            or self_report.get("game") != "SSQ"
+            or self_report.get("github_sha") != os.environ.get("GITHUB_SHA")
+            or self_report.get("github_run_id") != os.environ.get("GITHUB_RUN_ID")
+            or self_report.get("exe_sha256") != exe_hash
+            or self_report.get("final_release_gate") != "PENDING"):
+        raise ValueError("standard-user exact-EXE self evidence is not current/hash bound")
+
+    whoami = resolved["whoami"].read_text(encoding="utf-8-sig", errors="strict").strip().lower()
+    expected_identity = f"{str(os.environ.get('COMPUTERNAME') or '').lower()}\\{username.lower()}"
+    if not expected_identity.strip("\\") or whoami != expected_identity:
+        raise ValueError("standard-user whoami evidence does not match disposable identity")
+    if str(report.get("whoami") or "").strip().lower() != whoami:
+        raise ValueError("standard-user whoami report contradicts raw evidence")
+
+    groups = resolved["groups"].read_text(encoding="utf-8-sig", errors="strict")
+    if "S-1-5-32-544" in groups:
+        raise ValueError("standard-user token contains local Administrators SID")
+    if "S-1-16-8192" not in groups or "S-1-16-12288" in groups:
+        raise ValueError("standard-user raw token is not Medium integrity")
+
+    appdata = str(report.get("default_appdata_root") or "").replace("\\", "/").lower()
+    expected_fragment = f"/users/{username.lower()}/appdata/local/geometrylottopro/ssq"
+    if expected_fragment not in appdata:
+        raise ValueError("standard-user default AppData path is not user-local")
+
+    return {
+        "status": "PASS",
+        "report": str(report_path),
+        "report_sha256": _hash(report_path),
+        "exe_sha256": exe_hash,
+        "user_sid": sid,
+        "whoami": whoami,
+        "self_result_sha256": _hash(resolved["self"]),
+        "whoami_sha256": _hash(resolved["whoami"]),
+        "groups_sha256": _hash(resolved["groups"]),
+        "medium_integrity": True,
+        "administrators_member": False,
+        "gui_default_launch": "PASS",
+        "default_appdata_root": report.get("default_appdata_root"),
+        "localappdata_ledger_created": True,
+    }
+
+
 NO_SHELL_ENTRY_OPERATIONS = ("predict", "update", "repair", "audit")
 NO_SHELL_PREREQUISITE_GATES = (
     "integration_test",
@@ -1911,6 +2003,178 @@ def _derive_no_shell_gate(
         },
         "full_business_completion_claimed": False,
         "release_authorized": True,
+    }
+
+
+BUSINESS_SCOPE_IDS = ("B01", "B02", "B03", "B04", "B05", "B06", "B07")
+
+
+def _business_row(
+    status: str, purpose: str, *, evidence_refs: list[str] | None = None,
+    reason: str | None = None,
+) -> dict[str, Any]:
+    if status not in {"PASS", "FAIL", "PENDING"}:
+        raise ValueError("invalid business task status")
+    return {
+        "status": status,
+        "purpose": purpose,
+        "evidence": evidence_refs or [],
+        "reason": reason,
+    }
+
+
+def _derive_business_content_gate(
+    gates: dict[str, str],
+    proofs: dict[str, Any],
+    exact_results: dict[str, dict[str, Any]],
+    static_business_proof: dict[str, Any] | None,
+) -> tuple[str, dict[str, Any]]:
+    """Freeze and execute the SSQ B01-B07 business denominator.
+
+    These seven tasks apply to SSQ only. They do not define completion for any
+    other portfolio project. Static BUSINESS_GATE evidence is structural input,
+    never sufficient by itself.
+    """
+    tasks: dict[str, dict[str, Any]] = {}
+
+    b01_ok = all(gates.get(name) == "PASS" for name in (
+        "contract_test", "fault_injection", "real_network",
+        "physical_gui_click", "physical_gui_failure",
+    ))
+    tasks["B01"] = _business_row(
+        "PASS" if b01_ok else "FAIL",
+        "更新历史并审计官方来源、最新期、冲突与网络失败",
+        evidence_refs=["real_network", "fault_injection", "physical_gui_click", "physical_gui_failure"],
+        reason=None if b01_ok else "real-network/update positive+negative evidence is incomplete",
+    )
+
+    predict = exact_results.get("predict")
+    predict_result = predict.get("result") if isinstance(predict, dict) else None
+    contract = (
+        predict_result.get("acceptance_autonomous_contract")
+        if isinstance(predict_result, dict) else None
+    )
+    prediction = predict_result.get("prediction") if isinstance(predict_result, dict) else None
+    lineage_fields = ("prediction_id", "freeze_hash", "score_hash", "model_hash", "selector_hash")
+    b02_ok = bool(
+        isinstance(contract, dict) and contract
+        and all(value is True for value in contract.values())
+        and isinstance(prediction, dict)
+        and all(isinstance(prediction.get(key), str) and prediction.get(key) for key in lineage_fields)
+        and gates.get("business_validation") == "PASS"
+    )
+    tasks["B02"] = _business_row(
+        "PASS" if b02_ok else "FAIL",
+        "生成可追溯研究结果并禁止未合格模型冒充生产优势",
+        evidence_refs=["exact_exe:predict", "business_validation"],
+        reason=None if b02_ok else "prediction lineage/model qualification evidence is incomplete",
+    )
+
+    b03_ok = all(gates.get(name) == "PASS" for name in (
+        "business_validation", "counterexample_validation", "reversal_validation",
+    )) and "audit" in exact_results
+    tasks["B03"] = _business_row(
+        "PASS" if b03_ok else "FAIL",
+        "独立科学与事后审计：OOS/holdout/ablation/多重比较/反例/无泄漏",
+        evidence_refs=["business_validation", "counterexample_validation", "reversal_validation", "exact_exe:audit"],
+        reason=None if b03_ok else "scientific/audit evidence is incomplete",
+    )
+
+    physical = proofs.get("physical_gui_click")
+    ledgers = physical.get("ledgers") if isinstance(physical, dict) else []
+    repair_success = any(
+        isinstance(row, dict) and row.get("operation") == "repair"
+        and type(row.get("experiment_id")) is int and row["experiment_id"] > 0
+        for row in ledgers
+    )
+    b04_ok = bool(
+        repair_success
+        and gates.get("fault_injection") == "PASS"
+        and gates.get("physical_gui_repair_failure") == "PASS"
+        and gates.get("updater_atomic_rollback") == "PASS"
+    )
+    tasks["B04"] = _business_row(
+        "PASS" if b04_ok else "FAIL",
+        "损坏检测与修复：真实成功路径、失败证据、原子性与回滚",
+        evidence_refs=["physical_gui_click:repair", "physical_gui_repair_failure", "fault_injection", "updater_atomic_rollback"],
+        reason=None if b04_ok else "repair success/failure/rollback evidence is incomplete",
+    )
+
+    b05_required = (
+        "updater_process", "updater_exact_exe", "updater_atomic_rollback",
+        "updater_same_hash", "updater_real_network",
+        "repository_independence", "release_context",
+    )
+    b05_states = {name: gates.get(name, "PENDING") for name in b05_required}
+    b05_ok = all(value == "PASS" for value in b05_states.values())
+    b05_status = "PASS" if b05_ok else "PENDING"
+    tasks["B05"] = _business_row(
+        b05_status,
+        "独立 Updater 真实版本 N→N+1：release、hash、进程身份、健康检查与失败回滚",
+        evidence_refs=list(b05_required),
+        reason=None if b05_ok else f"independent release/update prerequisites not closed: {b05_states}",
+    )
+
+    b06_ok = all(gates.get(name) == "PASS" for name in (
+        "no_shell", "physical_gui_click", "physical_gui_failure",
+        "physical_gui_repair_failure",
+    ))
+    tasks["B06"] = _business_row(
+        "PASS" if b06_ok else "FAIL",
+        "所有 GUI 入口实体点击到真实后端、显示和 ledger；失败不得显示 PASS",
+        evidence_refs=["no_shell", "physical_gui_click", "physical_gui_failure", "physical_gui_repair_failure"],
+        reason=None if b06_ok else "GUI runtime/no-shell evidence is incomplete",
+    )
+
+    maintenance = exact_results.get("maintenance")
+    maintenance_result = maintenance.get("result") if isinstance(maintenance, dict) else None
+    maintenance_checks = (
+        maintenance_result.get("checks") if isinstance(maintenance_result, dict) else None
+    )
+    standard = proofs.get("standard_user")
+    b07_ok = bool(
+        isinstance(maintenance_result, dict)
+        and maintenance_result.get("status") == "PASS"
+        and maintenance_result.get("real_network_status") == "PASS"
+        and isinstance(maintenance_checks, dict) and maintenance_checks
+        and all(value is True for value in maintenance_checks.values())
+        and isinstance(standard, dict) and standard.get("status") == "PASS"
+        and gates.get("exact_exe") == "PASS"
+    )
+    b07_status = "PASS" if b07_ok else "FAIL"
+    tasks["B07"] = _business_row(
+        b07_status,
+        "长期维护：备份恢复、数据迁移、Evidence 导出、来源失败告警、普通账户与中文路径",
+        evidence_refs=["exact_exe:maintenance", "standard_user", "unicode-path-no-python-path"],
+        reason=None if b07_ok else "maintenance/standard-user/Unicode evidence is incomplete",
+    )
+
+    statuses = [tasks[key]["status"] for key in BUSINESS_SCOPE_IDS]
+    structural_ok = bool(
+        isinstance(static_business_proof, dict)
+        and static_business_proof.get("static_contract_status") == "PASS"
+    )
+    if not structural_ok:
+        overall = "FAIL"
+    elif any(status == "FAIL" for status in statuses):
+        overall = "FAIL"
+    elif any(status == "PENDING" for status in statuses):
+        overall = "PENDING"
+    else:
+        overall = "PASS"
+
+    return overall, {
+        "status": overall,
+        "scope": "SSQ-B01-B07-v1",
+        "scope_frozen_for": "SSQ only",
+        "does_not_apply_to_other_projects": True,
+        "structural_business_gate": static_business_proof,
+        "tasks": tasks,
+        "passed": sum(status == "PASS" for status in statuses),
+        "pending": sum(status == "PENDING" for status in statuses),
+        "failed": sum(status == "FAIL" for status in statuses),
+        "total": len(BUSINESS_SCOPE_IDS),
+        "release_authorized": overall == "PASS",
     }
 
 
@@ -2467,6 +2731,24 @@ def derive(evidence: Path, exe: Path) -> dict[str, Any]:
     # Re-derive no-shell only after all runtime evidence has been independently
     # verified above. Static source strings can never make this gate PASS.
     gates["no_shell"], proofs["no_shell"] = _derive_no_shell_gate(gates, proofs)
+
+    try:
+        proofs["standard_user"] = _verify_standard_user_evidence(
+            evidence, exe, acceptance_ok
+        )
+    except Exception as exc:
+        proofs["standard_user"] = {
+            "status": "FAIL",
+            "error": f"{type(exc).__name__}: {exc}",
+        }
+
+    static_business_proof = proofs.get("business_content")
+    gates["business_content"], proofs["business_content"] = _derive_business_content_gate(
+        gates,
+        proofs,
+        locals().get("exact_results", {}),
+        static_business_proof if isinstance(static_business_proof, dict) else None,
+    )
     return {
         "schema": "ssq-current-run-gate-evidence-v1",
         "commit_sha": os.environ.get("GITHUB_SHA"),
