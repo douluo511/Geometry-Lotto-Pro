@@ -138,6 +138,51 @@ class GuiBackendEffectTests(unittest.TestCase):
             self.assertEqual(forged["status"], "FAIL")
             self.assertEqual(forged["updater_process"]["status"], "FAIL")
 
+    def test_update_allows_only_explicit_updater_wrapper_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            payload = {
+                "crosscheck_status": "PASS",
+                "persisted_integrity": {"ok": True},
+                "canonical_hash": "canonical",
+            }
+            (root / "source_evidence.json").write_text("{}", encoding="utf-8")
+            with closing(make_db(root)) as db:
+                event(db, "official_update", "PASS", payload)
+
+            wrapped = dict(payload)
+            wrapped["status"] = "PASS"
+            wrapped["update_attempts"] = [{
+                "attempt": 1,
+                "status": "PASS",
+                "crosscheck_status": "PASS",
+                "retryable": False,
+            }]
+            write_updater_proof(root, "update", wrapped)
+            ok = inspect_effect(root, "update", parent_pid=4242)
+            self.assertEqual(ok["status"], "PASS")
+            self.assertTrue(ok["updater_process"]["payload_binding"]["core_equal"])
+            self.assertEqual(
+                ok["updater_process"]["payload_binding"]["unexpected_service_fields"], []
+            )
+
+            forged = dict(wrapped)
+            forged["canonical_hash"] = "tampered"
+            write_updater_proof(root, "update", forged)
+            bad_core = inspect_effect(root, "update", parent_pid=4242)
+            self.assertEqual(bad_core["status"], "FAIL")
+            self.assertFalse(bad_core["updater_process"]["payload_binding"]["core_equal"])
+
+            extra = dict(wrapped)
+            extra["unapproved_wrapper_field"] = "forged"
+            write_updater_proof(root, "update", extra)
+            bad_extra = inspect_effect(root, "update", parent_pid=4242)
+            self.assertEqual(bad_extra["status"], "FAIL")
+            self.assertEqual(
+                bad_extra["updater_process"]["payload_binding"]["unexpected_service_fields"],
+                ["unapproved_wrapper_field"],
+            )
+
     def test_update_requires_persisted_quorum_and_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
