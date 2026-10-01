@@ -794,13 +794,22 @@ def _run(mode: str, root: Path, *, target_exe: Path | None = None, manifest_url:
         result = svc.self_test()
         return ("PASS" if result.get("status") == "PASS" else "FAIL"), result
     if mode == "update":
-        result = svc.update()
+        result, update_error, update_attempts = svc.update_with_transient_retry()
+        if result is None:
+            return "FAIL", {
+                "status": "FAIL",
+                "crosscheck_status": "FAIL",
+                "error": update_error or "official update failed",
+                "update_attempts": update_attempts,
+            }
+        result["update_attempts"] = update_attempts
         ok = (
             result.get("crosscheck_status") == "PASS"
             and isinstance(result.get("persisted_integrity"), dict)
             and result["persisted_integrity"].get("ok") is True
             and bool(result.get("canonical_hash"))
         )
+        result["status"] = "PASS" if ok else "FAIL"
         return ("PASS" if ok else "FAIL"), result
     if mode == "repair":
         result = svc.repair()
