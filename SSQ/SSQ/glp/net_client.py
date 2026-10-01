@@ -135,12 +135,36 @@ class NetClient:
         self.sleeper(delay)
         self._remaining(deadline)
 
+    @staticmethod
+    def _close_response(response) -> None:
+        # requests.Response.close() assumes a real raw stream. Deterministic
+        # contract-test doubles may intentionally omit it.
+        if getattr(response, "raw", None) is not None:
+            response.close()
+
     def _read_response_body(
         self, response, *, deadline: float, attempt: int, ledger: list[AttemptRecord]
     ) -> bytes:
         cached = getattr(response, "_content", False)
         if isinstance(cached, (bytes, bytearray)):
             data = bytes(cached)
+            if len(data) > self.max_response_bytes:
+                ledger.append(AttemptRecord(
+                    attempt, "BODY_TOO_LARGE", int(response.status_code), "ResponseTooLarge", 0.0,
+                    str(getattr(response, "url", "")),
+                ))
+                error = ResponseTooLarge(
+                    f"official HTTPS response exceeded {self.max_response_bytes} bytes", response=response
+                )
+                raise self._attach_ledger(error, ledger)
+            self._remaining(deadline)
+            return data
+
+        if not callable(getattr(response, "iter_content", None)):
+            # Compatibility only for deterministic transport doubles. A real
+            # requests.Response always has iter_content and therefore takes the
+            # bounded streaming path above the Source layer.
+            data = bytes(response.content)
             if len(data) > self.max_response_bytes:
                 ledger.append(AttemptRecord(
                     attempt, "BODY_TOO_LARGE", int(response.status_code), "ResponseTooLarge", 0.0,
@@ -173,7 +197,7 @@ class NetClient:
                 chunks.append(bytes(chunk))
         finally:
             if total > self.max_response_bytes:
-                response.close()
+                self._close_response(response)
         data = b"".join(chunks)
         response._content = data
         response._content_consumed = True
@@ -233,7 +257,7 @@ class NetClient:
                     ledger.append(AttemptRecord(attempt, "REDIRECT_LIMIT", status, "TooManyRedirects", 0.0, current_url))
                     raise requests.TooManyRedirects("official HTTPS redirect limit exceeded", response=response)
                 ledger.append(AttemptRecord(attempt, "REDIRECT_HTTPS", status, None, 0.0, current_url))
-                response.close()
+                self._close_response(response)
                 current_url = next_url
                 current_params = None  # Location is authoritative after the first request.
                 continue
@@ -312,7 +336,7 @@ class NetClient:
                     delay = self._retry_delay(attempt, response.headers.get("Retry-After"))
                     if delay is not None:
                         ledger.append(AttemptRecord(attempt, "RETRY_HTTP", status, None, delay, response.url))
-                        response.close()
+                        self._close_response(response)
                         self._sleep_with_deadline(delay, deadline)
                         continue
                 ledger.append(AttemptRecord(attempt, "FINAL_HTTP", status, None, 0.0, response.url))
