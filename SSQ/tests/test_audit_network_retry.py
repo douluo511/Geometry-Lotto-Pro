@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from glp.service import LottoService
-from glp.storage import Store
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "SSQ"))
+from glp.service import LottoService  # noqa: E402
+from glp.storage import Store  # noqa: E402
 
 
 class AuditUpdateRetryTests(unittest.TestCase):
