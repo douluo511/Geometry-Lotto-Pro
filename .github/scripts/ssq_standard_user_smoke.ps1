@@ -87,6 +87,12 @@ echo %ERRORLEVEL% > "$exitPath"
 
   Copy-Item -LiteralPath $selfResult -Destination $copiedSelf -Force
   $selfHash = Get-Sha256 $copiedSelf
+  $copiedWhoami = Join-Path $evidenceDir "standard_user_whoami.txt"
+  $copiedGroups = Join-Path $evidenceDir "standard_user_groups.txt"
+  Copy-Item -LiteralPath $whoamiPath -Destination $copiedWhoami -Force
+  Copy-Item -LiteralPath $groupsPath -Destination $copiedGroups -Force
+  $whoamiHash = Get-Sha256 $copiedWhoami
+  $groupsHash = Get-Sha256 $copiedGroups
 
   $guiProc = Start-Process -FilePath $userExe -Credential $cred -LoadUserProfile -PassThru
   Start-Sleep -Seconds 8
@@ -117,6 +123,10 @@ echo %ERRORLEVEL% > "$exitPath"
     self_result = (Split-Path -Leaf $copiedSelf)
     self_result_sha256 = $selfHash
     self_status = [string]$self.status
+    whoami_evidence = (Split-Path -Leaf $copiedWhoami)
+    whoami_evidence_sha256 = $whoamiHash
+    groups_evidence = (Split-Path -Leaf $copiedGroups)
+    groups_evidence_sha256 = $groupsHash
     gui_default_launch = "PASS"
     default_appdata_root = $appDataRoot
     localappdata_ledger_created = $true
