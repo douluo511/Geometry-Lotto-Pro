@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sys
 import tempfile
+from types import SimpleNamespace
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -55,6 +56,72 @@ class AuditUpdateRetryTests(unittest.TestCase):
             sleep.assert_not_called()
             self.assertEqual(len(attempts), 1)
             self.assertFalse(attempts[0]["retryable"])
+
+    def test_repair_rebuild_transient_deadline_retries_once_then_passes(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            svc = self._service(directory)
+            transient = RuntimeError(
+                'SourceError: diagnostic={"shanghai": '
+                '"OperationDeadlineExceeded: official HTTPS GET exceeded total operation timeout"}'
+            )
+            dataset = SimpleNamespace(crosscheck_status="PASS")
+            evidence = {"verification": "official-quorum"}
+            with patch(
+                "glp.service.build_canonical",
+                side_effect=[transient, (dataset, evidence)],
+            ) as build:
+                with patch("glp.service.time.sleep") as sleep:
+                    got_dataset, got_evidence, error, attempts = (
+                        svc._repair_build_with_transient_retry([])
+                    )
+            self.assertIs(got_dataset, dataset)
+            self.assertEqual(got_evidence, evidence)
+            self.assertIsNone(error)
+            self.assertEqual(build.call_count, 2)
+            sleep.assert_called_once()
+            self.assertEqual([row["status"] for row in attempts], ["FAIL", "PASS"])
+            self.assertTrue(attempts[0]["retryable"])
+
+    def test_repair_rebuild_semantic_failure_never_retries(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            svc = self._service(directory)
+            semantic = RuntimeError(
+                "SourceError: 官方来源最新期冲突，拒绝更新: Shanghai=2026113 Hebei=2026112"
+            )
+            with patch("glp.service.build_canonical", side_effect=semantic) as build:
+                with patch("glp.service.time.sleep") as sleep:
+                    dataset, evidence, error, attempts = (
+                        svc._repair_build_with_transient_retry([])
+                    )
+            self.assertIsNone(dataset)
+            self.assertIsNone(evidence)
+            self.assertIn("官方来源最新期冲突", error or "")
+            self.assertEqual(build.call_count, 1)
+            sleep.assert_not_called()
+            self.assertEqual(len(attempts), 1)
+            self.assertFalse(attempts[0]["retryable"])
+
+    def test_repair_rebuild_second_transient_failure_stays_fail_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            svc = self._service(directory)
+            failures = [
+                RuntimeError("ConnectionError: temporary reset"),
+                RuntimeError(
+                    "OperationDeadlineExceeded: official HTTPS GET exceeded total operation timeout"
+                ),
+            ]
+            with patch("glp.service.build_canonical", side_effect=failures) as build:
+                with patch("glp.service.time.sleep") as sleep:
+                    dataset, evidence, error, attempts = (
+                        svc._repair_build_with_transient_retry([])
+                    )
+            self.assertIsNone(dataset)
+            self.assertIsNone(evidence)
+            self.assertIn("OperationDeadlineExceeded", error or "")
+            self.assertEqual(build.call_count, 2)
+            sleep.assert_called_once()
+            self.assertEqual(len(attempts), 2)
+            self.assertTrue(all(row["status"] == "FAIL" for row in attempts))
 
     def test_second_transient_failure_remains_fail_closed(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
