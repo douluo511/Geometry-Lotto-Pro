@@ -43,6 +43,13 @@ REQUIRED_NETCLIENT_CHECKS = frozenset({
     "raw_payload_evidence", "wrong_content_type_fail_closed",
     "empty_payload_fail_closed",
 })
+REQUIRED_SCIENCE_CHECKS = frozenset({
+    "Walk-forward OOS", "Random Baseline", "Bootstrap",
+    "Permutation + Holm Reality Check", "Temporal LOEO",
+    "Ablation Remove/Shuffle/Random", "Leakage Sentinel", "Null-world FPR",
+    "Untouched Holdout", "Dual Final Confirmation",
+    "Wilson/Coverage/Rank Support", "Prospective Replay",
+})
 
 
 def _read(path: Path) -> dict[str, Any] | None:
@@ -103,37 +110,93 @@ def _require_source_result(
     return report
 
 
+def _strict_count(value: Any, minimum: int = 0) -> bool:
+    return type(value) is int and value >= minimum
+
+
+def _finite_number(value: Any) -> bool:
+    return type(value) in (int, float) and math.isfinite(value)
+
+
+def _frozen_science_policy(policy: Any) -> dict[str, Any]:
+    # Compare the complete current policy, not a caller-selected alpha/FPR.
+    # Canonical JSON also rejects NaN/Infinity and bool-as-number substitutions.
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "SSQ"))
+    from glp.constants import PROMOTION_POLICY
+    if (not isinstance(policy, dict)
+            or json.dumps(policy, sort_keys=True, allow_nan=False)
+            != json.dumps(PROMOTION_POLICY, sort_keys=True, allow_nan=False)):
+        raise ValueError("science policy differs from the frozen current policy")
+    return PROMOTION_POLICY
+
+
 def _verify_science_contract(report: dict[str, Any]) -> dict[str, Any]:
     court = report.get("result")
     if not isinstance(court, dict):
         raise ValueError("science result has no evidence court")
     final = court.get("final_validation")
     walk = court.get("walk_forward")
-    policy = court.get("pre_registered_policy")
+    policy = _frozen_science_policy(court.get("pre_registered_policy"))
     gates = court.get("gates")
     five_why = court.get("five_why")
     reverse = court.get("reverse_validation")
-    if (court.get("software_verdict") != "PASS"
+    unsigned = dict(court)
+    court_hash = unsigned.pop("court_hash", None)
+    calculated_hash = hashlib.sha256(json.dumps(
+        unsigned, ensure_ascii=False, sort_keys=True, separators=(",", ":"),
+        allow_nan=False,
+    ).encode("utf-8")).hexdigest()
+    from glp.engine import model_identity
+    identity = model_identity()
+    if (court.get("schema") != "evidence-court-v8"
+            or court_hash != calculated_hash
+            or not _utc_recent(court.get("created_at"))
+            or court.get("model_hash") != identity["model_hash"]
+            or court.get("selector_hash") != identity["selector_hash"]
+            or court.get("software_verdict") != "PASS"
             or not isinstance(final, dict) or final.get("status") != "PASS"
-            or int(final.get("hard_fail_count", -1)) != 0
+            or type(final.get("hard_fail_count")) is not int or final["hard_fail_count"] != 0
             or not isinstance(walk, dict)
-            or int(walk.get("development_oos_n", 0)) < 1200
-            or int(walk.get("untouched_holdout_n", 0)) < 120
-            or int(walk.get("leakage_violations", -1)) != 0
-            or not isinstance(policy, dict)
-            or float(policy.get("alpha", 1.0)) > 0.01
-            or not isinstance(gates, list) or not gates
+            or not _strict_count(walk.get("development_oos_n"), policy["min_walk_forward"])
+            or not _strict_count(walk.get("untouched_holdout_n"), policy["min_confirmation_n"])
+            or not _strict_count(walk.get("total_oos_n"))
+            or walk["total_oos_n"] != walk["development_oos_n"] + walk["untouched_holdout_n"]
+            or type(walk.get("leakage_violations")) is not int or walk["leakage_violations"] != 0
+            or type(court.get("leakage_violations")) is not int or court["leakage_violations"] != 0
+            or not isinstance(gates, list) or len(gates) != len(REQUIRED_SCIENCE_CHECKS)
             or any(not isinstance(row, dict) or row.get("status") != "PASS" for row in gates)
-            or not isinstance(five_why, dict) or len(five_why) < 5
+            or {row.get("name") for row in gates} != REQUIRED_SCIENCE_CHECKS
+            or not isinstance(five_why, dict)
+            or any(not isinstance(five_why.get(f"why{i}"), str) or not five_why[f"why{i}"].strip()
+                   for i in range(1, 6))
             or not isinstance(reverse, dict)
             or not all(reverse.get(key) is True for key in ("remove", "shuffle", "random_replace"))):
         raise ValueError("science evidence court did not satisfy the frozen validation contract")
     edge_state = court.get("edge_state")
     dan_state = court.get("dan_state")
-    if edge_state == "NO_EDGE" and dan_state != "NULL_DAN":
-        raise ValueError("NO_EDGE science result attempted to certify dan")
-    if final.get("edge_proven") is False and edge_state != "NO_EDGE":
-        raise ValueError("science edge state contradicts final validation")
+    if (edge_state not in {"NO_EDGE", "EDGE_PROVEN"}
+            or dan_state not in {"NULL_DAN", "CERTIFIED_DAN"}
+            or type(final.get("edge_proven")) is not bool
+            or type(final.get("dan_certified")) is not bool
+            or final["edge_proven"] != (edge_state == "EDGE_PROVEN")
+            or final["dan_certified"] != (dan_state == "CERTIFIED_DAN")
+            or (final["dan_certified"] and not final["edge_proven"])
+            or court.get("decision") != ("ACCEPT_EDGE" if final["edge_proven"] else "REJECT_EDGE")):
+        raise ValueError("science edge/dan states contradict final validation")
+    # Matching self-reported booleans and a recomputed hash cannot prove an
+    # edge. Positive promotion remains blocked until an independent verifier
+    # re-derives every frozen statistical prerequisite from retained inputs.
+    # Honest NO_EDGE execution is supported, never rebranded as predictive gain.
+    if edge_state != "NO_EDGE" or dan_state != "NULL_DAN":
+        raise ValueError("positive model promotion lacks independent statistical proof")
+    weights = court.get("production_weights")
+    if (not isinstance(weights, dict)
+            or set(weights) != {"uniform_baseline", "research_ensemble"}
+            or not all(_finite_number(value) for value in weights.values())
+            or weights["uniform_baseline"] != 1 or weights["research_ensemble"] != 0
+            or court.get("lifecycle") != {"Champion": "uniform_baseline",
+                "Challenger": "research_ensemble", "Shadow": "research_ensemble"}):
+        raise ValueError("unqualified research model entered production")
     return {
         "court_hash": court.get("court_hash"),
         "edge_state": edge_state,
@@ -149,18 +212,30 @@ def _verify_counterexample_contract(
 ) -> dict[str, Any]:
     court = science.get("result")
     null_world = court.get("null_world") if isinstance(court, dict) else None
-    policy = court.get("pre_registered_policy") if isinstance(court, dict) else None
-    if not isinstance(null_world, dict) or not isinstance(policy, dict):
+    policy = _frozen_science_policy(court.get("pre_registered_policy") if isinstance(court, dict) else None)
+    if not isinstance(null_world, dict):
         raise ValueError("science null-world evidence is missing")
-    worlds = int(null_world.get("worlds", 0))
-    fpr = float(null_world.get("false_positive_rate", 1.0))
-    if (worlds < int(policy.get("null_worlds", 300))
-            or fpr > float(policy.get("max_null_world_fpr", 0.05))
-            or len(random_worlds) != 3):
+    worlds = null_world.get("worlds")
+    promotions = null_world.get("false_promotions")
+    fpr = null_world.get("false_positive_rate")
+    percentile = null_world.get("observed_percentile")
+    if (not _strict_count(worlds, policy["null_worlds"])
+            or not _strict_count(promotions) or promotions > worlds
+            or not _finite_number(fpr) or not 0 <= fpr <= policy["max_null_world_fpr"]
+            or not math.isclose(fpr, promotions / worlds, rel_tol=0.0, abs_tol=1e-12)
+            or not _finite_number(percentile) or not 0 <= percentile <= 1
+            or not isinstance(random_worlds, list) or len(random_worlds) != 3):
         raise ValueError("counterexample/null-world firewall did not satisfy policy")
-    for report in random_worlds:
-        result = report.get("result")
-        if not isinstance(result, dict) or result.get("status") not in {None, "PASS"}:
+    for report, seed in zip(random_worlds, (101, 202, 303)):
+        result = report.get("result") if isinstance(report, dict) else None
+        if (not isinstance(result, dict) or result.get("status") not in {None, "PASS"}
+                or report.get("status") != "PASS" or report.get("scope") != f"random-world-{seed}"
+                or type(result.get("seed")) is not int or result["seed"] != seed
+                or result.get("edge_state") != "NO_EDGE" or result.get("dan_state") != "NULL_DAN"
+                or result.get("software_verdict") != "PASS"
+                or type(result.get("leakage_violations")) is not int or result["leakage_violations"] != 0
+                or not isinstance(result.get("court_hash"), str)
+                or not re.fullmatch(r"[0-9a-f]{64}", result["court_hash"])):
             raise ValueError("random-world evidence is malformed")
     return {"worlds": worlds, "false_positive_rate": fpr, "exact_random_world_checks": 3}
 

@@ -2,6 +2,12 @@
 
 Start with [the mother template](PROJECT_MOTHER_TEMPLATE_V2.md) and [the 18-project execution directory](EXECUTION_CONTROL.md).
 
+For actual SSQ interfaces, the proposed cross-project boundary contracts, known
+limitations, and the live-network/Exact-EXE acceptance matrix, see
+[Architecture, interfaces, and network acceptance](ARCHITECTURE_INTERFACES_NETWORK.md).
+That document distinguishes existing implementation from design targets; it is
+not a completion certificate.
+
 This is a **report consistency preflight**, not a release certifier. It always emits `final_gate: NOT_CERTIFIED` and `release_authorized: false`, even on success. No existing SSQ release gate or repository-independence block is removed. It does not claim that all 18 projects are integrated.
 
 ## Run
