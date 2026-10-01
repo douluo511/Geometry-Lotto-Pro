@@ -60,6 +60,7 @@ class NetClientContractTests(unittest.TestCase):
         self.assertEqual(result.content, b"draws")
         self.assertEqual(session.calls[0][1]["timeout"], (2.0, 7.0))
         self.assertIs(session.calls[0][1]["allow_redirects"], False)
+        self.assertIs(session.calls[0][1]["stream"], True)
         self.assertEqual(len(session.calls), 1)
         self.assertEqual(sleeps, [])
         self.assertEqual([entry["outcome"] for entry in result.glp_attempts], ["HTTP_RESPONSE"])
@@ -82,6 +83,9 @@ class NetClientContractTests(unittest.TestCase):
             {"max_attempts": 0}, {"max_attempts": 5},
             {"max_attempts": True}, {"backoff_base": 6},
             {"max_redirects": -1}, {"max_redirects": 6}, {"max_redirects": True},
+            {"total_timeout": 0}, {"total_timeout": float("inf")},
+            {"max_response_bytes": 0}, {"max_response_bytes": True},
+            {"max_response_bytes": 64 * 1024 * 1024 + 1},
         ):
             with self.subTest(values=values), self.assertRaises(ValueError):
                 self.make_client(FakeSession(), [], **values)
@@ -185,6 +189,38 @@ class NetClientContractTests(unittest.TestCase):
         self.assertEqual(result.status_code, 200)
         self.assertEqual(len(session.calls), 2)
         self.assertEqual(sleeps, [0.75])
+
+    def test_oversized_response_is_rejected_before_source_parsing(self):
+        session = FakeSession(response(content=b"12345"))
+        with self.assertRaises(requests.RequestException) as raised:
+            self.make_client(session, [], max_response_bytes=4).get(URL)
+        self.assertEqual(len(session.calls), 1)
+        self.assertEqual(raised.exception.glp_attempts[-1]["outcome"], "BODY_TOO_LARGE")
+
+    def test_retry_delay_cannot_exceed_total_operation_budget(self):
+        now = [1000.0]
+        sleeps = []
+
+        def clock():
+            return now[0]
+
+        def sleeper(delay):
+            sleeps.append(delay)
+            now[0] += delay
+
+        session = FakeSession(response(503), response())
+        client = self.make_client(
+            session,
+            sleeps,
+            clock=clock,
+            total_timeout=0.6,
+            sleeper=sleeper,
+        )
+        with self.assertRaises(requests.Timeout) as raised:
+            client.get(URL)
+        self.assertEqual(len(session.calls), 1)
+        self.assertEqual(sleeps, [])
+        self.assertEqual(raised.exception.glp_attempts[-1]["outcome"], "OPERATION_DEADLINE")
 
     def test_one_attempt_never_retries_or_sleeps(self):
         session = FakeSession(response(429))
