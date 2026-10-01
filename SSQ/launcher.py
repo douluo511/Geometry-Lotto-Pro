@@ -266,7 +266,7 @@ def _run_corrupt_repair_fault_injection(svc) -> dict:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument('--check', choices=[
-        'self', 'science', 'update', 'predict', 'audit', 'gui',
+        'self', 'science', 'update', 'predict', 'audit', 'gui', 'maintenance',
         'integrity-tamper', 'offline-failclosed', 'corrupt-repair',
         'random-world-101', 'random-world-202', 'random-world-303',
     ])
@@ -388,6 +388,31 @@ def main() -> int:
                     raise RuntimeError('Windows required')
                 from glp.gui import gui_self_test
                 r = gui_self_test()
+                status = r.get('status', 'FAIL')
+
+            elif args.check == 'maintenance':
+                from glp.maintenance import maintenance_acceptance
+                live, update_error, update_attempts = svc.update_with_transient_retry()
+                out['update_attempts'] = update_attempts
+                if live is None:
+                    out['failed_network_evidence'] = _preserve_failed_network_evidence(
+                        svc.store, args.result_file
+                    )
+                    raise RuntimeError(update_error or 'official update failed before maintenance acceptance')
+                if live.get('crosscheck_status') != 'PASS':
+                    raise RuntimeError('maintenance acceptance requires a current official-source PASS')
+                preserved = _preserve_live_evidence(svc.store, args.result_file)
+                workspace = root / '长期维护验收'
+                r = maintenance_acceptance(svc.store, workspace)
+                r['real_network_status'] = 'PASS'
+                r['live_update'] = {
+                    'latest_issue': live.get('latest_issue'),
+                    'draw_count': live.get('draw_count'),
+                    'canonical_hash': live.get('canonical_hash'),
+                    'crosscheck_status': live.get('crosscheck_status'),
+                    'verification': live.get('verification'),
+                }
+                r['preserved_live_evidence'] = preserved
                 status = r.get('status', 'FAIL')
 
             elif args.check == 'integrity-tamper':
