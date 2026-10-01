@@ -842,13 +842,6 @@ def _verify_gui_update_source(data_dir: Path, observed: dict[str, Any]) -> dict[
         "canonical_hash": digest,
         "raw_response_count": len(manifest["raw_responses"]),
         "canonical_reparse": "PASS",
-        "freshness": {
-            "status": "PASS",
-            "china_local_date": china_today.isoformat(),
-            "expected_latest_completed_draw_date": expected_latest.isoformat(),
-            "latest_date": latest_day.isoformat(),
-            "policy_sources": expected_policy_sources,
-        },
         "reparse": reparse_proof,
     }
 
@@ -1185,6 +1178,13 @@ def _verify_live_evidence(evidence_dir: Path, exe_hash: str) -> dict[str, Any]:
         "raw_response_count": len(records),
         "canonical_hash": result["canonical_hash"],
         "canonical_reparse": "PASS",
+        "freshness": {
+            "status": "PASS",
+            "china_local_date": china_today.isoformat(),
+            "expected_latest_completed_draw_date": expected_latest.isoformat(),
+            "latest_date": latest_day.isoformat(),
+            "policy_sources": expected_policy_sources,
+        },
         "reparse": reparse_proof,
         # This proof was reconstructed from the exact current-run raw bytes,
         # independently of the producer parser, including current Shanghai and
