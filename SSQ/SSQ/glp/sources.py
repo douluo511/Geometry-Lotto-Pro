@@ -36,7 +36,7 @@ HEADERS = {
 TIMEOUT = (20, 30)
 NET = NetClient(connect_timeout=20, read_timeout=30, max_attempts=3)
 MAX_RESPONSE_BYTES = 8 * 1024 * 1024
-PARSER_VERSION = "ssq-source-parser-v8.6-fail-closed+raw-v1"
+PARSER_VERSION = "ssq-source-parser-v8.7-fail-closed+raw+calendar-v1"
 
 # Freshness is based on the frozen public draw calendar, not an arbitrary age.
 # Ministry of Finance-approved SSQ rules: draws every Tuesday/Thursday/Sunday.
