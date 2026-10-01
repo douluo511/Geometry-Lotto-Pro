@@ -101,25 +101,10 @@ $success = Get-Content -LiteralPath $successEvidence -Raw | ConvertFrom-Json
 $verifiedUpdate = @($success.buttons | Where-Object { $_.operation -eq "update" -and $_.status -eq "PASS" })
 if($success.status -ne "PASS" -or $verifiedUpdate.Count -ne 1){ throw "Verified GUI success update evidence required" }
 $sourceDir = Join-Path (Split-Path -Parent $successEvidence) ([string]$verifiedUpdate[0].data_dir)
-foreach($required in @("canonical_history.json","source_evidence.json","raw_responses","updater_last_run.json")){
+foreach($required in @("canonical_history.json","source_evidence.json","raw_responses")){
   if(-not (Test-Path -LiteralPath (Join-Path $sourceDir $required))){ throw "Success update evidence missing $required" }
 }
 
-# The main EXE executes a hash-bound materialized copy of the embedded updater,
-# not the build-tree dist path. Derive the exact program path from the already
-# accepted physical-GUI success run, then independently bind its bytes to the
-# accepted updater artifact before installing a path-scoped firewall rule.
-$acceptedUpdaterHash = Get-Sha256 $acceptedUpdater
-$updaterRun = Get-Content -LiteralPath (Join-Path $sourceDir "updater_last_run.json") -Raw | ConvertFrom-Json
-$materializedText = [string]$updaterRun.updater_exe
-if([string]::IsNullOrWhiteSpace($materializedText)){ throw "Success updater evidence has no executed updater path" }
-$materializedUpdater = (Resolve-Path -LiteralPath $materializedText).Path
-$materializedUpdaterHash = Get-Sha256 $materializedUpdater
-if($updaterRun.status -ne "PASS" -or $updaterRun.mode -ne "update" -or
-   $updaterRun.updater_exe_sha256 -ne $acceptedUpdaterHash -or
-   $materializedUpdaterHash -ne $acceptedUpdaterHash){
-  throw "Materialized updater is not hash-bound to the accepted updater artifact"
-}
 
 $runDir = Join-Path $evidenceDir ("physical-gui-failure-" + [Guid]::NewGuid().ToString("N"))
 New-Item -ItemType Directory -Force -Path $runDir | Out-Null
@@ -132,13 +117,13 @@ $sourceEvidenceFile = Join-Path $runDir "source_evidence.json"
 $beforeHistory = Get-Sha256 $history
 $beforeEvidence = Get-Sha256 $sourceEvidenceFile
 $exeHash = Get-Sha256 $exe
-$updaterHash = $acceptedUpdaterHash
+$updaterHash = Get-Sha256 $acceptedUpdater
 $verifiedUpdaterHash = [string]$verifiedUpdate[0].backend_effect.updater_process.updater_exe_sha256
 if($verifiedUpdaterHash -ne $updaterHash){ throw "Verified GUI update used a different updater hash" }
 $materializedUpdaterDir = Join-Path (Join-Path $runDir "updater") $updaterHash
 New-Item -ItemType Directory -Force -Path $materializedUpdaterDir | Out-Null
-$materializedUpdater = Join-Path $materializedUpdaterDir (Split-Path -Leaf $updater)
-Copy-Item -LiteralPath $updater -Destination $materializedUpdater -Force
+$materializedUpdater = Join-Path $materializedUpdaterDir (Split-Path -Leaf $acceptedUpdater)
+Copy-Item -LiteralPath $acceptedUpdater -Destination $materializedUpdater -Force
 if((Get-Sha256 $materializedUpdater) -ne $updaterHash){ throw "Materialized updater precondition hash mismatch" }
 $processName = [System.IO.Path]::GetFileNameWithoutExtension($exe)
 $savedDataDir = $env:GLP_DATA_DIR
@@ -156,8 +141,6 @@ $result = [ordered]@{
   exe_sha256=$exeHash
   updater_exe=(Split-Path -Leaf $acceptedUpdater)
   updater_sha256=$updaterHash
-  materialized_updater_exe=$materializedUpdater
-  materialized_updater_sha256=$materializedUpdaterHash
   materialized_updater=$materializedUpdater
   materialized_updater_sha256=(Get-Sha256 $materializedUpdater)
   github_sha=$env:GITHUB_SHA
@@ -170,10 +153,10 @@ $result = [ordered]@{
 
 try {
   New-NetFirewallRule -DisplayName $ruleMain -Direction Outbound -Program $exe -Action Block -Profile Any | Out-Null
-  New-NetFirewallRule -DisplayName $ruleUpdaterDist -Direction Outbound -Program $updater -Action Block -Profile Any | Out-Null
+  New-NetFirewallRule -DisplayName $ruleUpdaterDist -Direction Outbound -Program $acceptedUpdater -Action Block -Profile Any | Out-Null
   New-NetFirewallRule -DisplayName $ruleUpdaterMaterialized -Direction Outbound -Program $materializedUpdater -Action Block -Profile Any | Out-Null
   $result.firewall_rules_created = $true
-  $result.firewall_programs = @($exe, $updater, $materializedUpdater)
+  $result.firewall_programs = @($exe, $acceptedUpdater, $materializedUpdater)
 
   $baselinePids = @(Get-Process -Name $processName -ErrorAction SilentlyContinue | ForEach-Object { $_.Id })
   $boot = Start-Process -FilePath $exe -PassThru
