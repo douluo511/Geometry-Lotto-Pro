@@ -29,7 +29,9 @@ from glp.sources import (
     parse_shanghai_history,
 )
 from glp.storage import Store
-from glp.constants import HEBEI_ANNOUNCE_URL, HEBEI_URL, NATIONAL_URL, SHANGHAI_URL
+from glp.constants import (
+    HEBEI_ANNOUNCE_URL, HEBEI_URL, NATIONAL_URL, SHANGHAI_HISTORY_URL, SHANGHAI_URL,
+)
 from glp.util import sha256_bytes, sha256_json, utc_now
 
 
@@ -286,6 +288,70 @@ class NetClientUnitTests(unittest.TestCase):
         self.assertTrue(meta["parser_version"])
         self.assertTrue(meta["fetched_at"].endswith("Z"))
         self.assertEqual(meta["final_url"], "https://example.invalid/data")
+
+
+class ShanghaiHistoryTransportRetryTests(unittest.TestCase):
+    @staticmethod
+    def _one_chunk_spec():
+        return [{
+            "sequence": "1", "view": "previous", "limit": "100",
+            "start_issue": "2026113", "end_issue": "2026999",
+        }]
+
+    @staticmethod
+    def _valid_response():
+        params = "view=previous&limit=100&start_issue=2026113&end_issue=2026999"
+        response = FakeResponse(
+            200,
+            b"2026113 2026-09-29 030420242930 11",
+            {"Content-Type": "text/html"},
+            url=f"{SHANGHAI_HISTORY_URL}?{params}",
+        )
+        response.glp_attempts = ({"attempt": 1, "outcome": "HTTP_RESPONSE"},)
+        return response
+
+    def test_full_history_retries_one_transient_transport_failure_and_records_it(self):
+        transient = requests.Timeout("deadline")
+        transient.glp_attempts = (
+            {"attempt": 1, "outcome": "OPERATION_DEADLINE"},
+        )
+        with (
+            patch.object(sources, "_shanghai_full_chunk_specs",
+                         return_value=self._one_chunk_spec()),
+            patch.object(sources, "_get_official",
+                         side_effect=[transient, self._valid_response()]) as get,
+            patch.object(sources, "_validate_history"),
+        ):
+            draws, receipt, manifest = sources.fetch_shanghai_full_history("2026113")
+        self.assertEqual(get.call_count, 2)
+        self.assertEqual(draws[-1].issue, "2026113")
+        self.assertEqual(receipt.status, "PASS")
+        attempts = manifest[0]["source_operation_attempts"]
+        self.assertEqual([row["status"] for row in attempts], ["FAIL", "PASS"])
+        self.assertEqual(attempts[0]["error_type"], "Timeout")
+        self.assertIn("source_retries=1", receipt.detail)
+
+    def test_full_history_does_not_retry_http_or_parser_failures(self):
+        with (
+            patch.object(sources, "_shanghai_full_chunk_specs",
+                         return_value=self._one_chunk_spec()),
+            patch.object(sources, "_get_official",
+                         side_effect=requests.HTTPError("HTTP 403")) as get,
+        ):
+            with self.assertRaises(requests.HTTPError):
+                sources.fetch_shanghai_full_history("2026113")
+            self.assertEqual(get.call_count, 1)
+
+        malformed = self._valid_response()
+        malformed.content = b"<html><tbody>schema drift</tbody></html>"
+        with (
+            patch.object(sources, "_shanghai_full_chunk_specs",
+                         return_value=self._one_chunk_spec()),
+            patch.object(sources, "_get_official", return_value=malformed) as get,
+        ):
+            with self.assertRaises(SourceError):
+                sources.fetch_shanghai_full_history("2026113")
+            self.assertEqual(get.call_count, 1)
 
 
 class SourceFailoverTests(unittest.TestCase):
