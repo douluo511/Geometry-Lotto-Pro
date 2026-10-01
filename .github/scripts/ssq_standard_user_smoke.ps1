@@ -36,8 +36,29 @@ $guiProc = $null
 $userCreated = $false
 
 try {
-  & net.exe user $user $password /add /expires:never /passwordchg:no | Out-Null
-  if($LASTEXITCODE -ne 0) { throw "Could not create disposable local standard user" }
+  # Use the supported LocalAccounts API rather than net.exe. The hosted
+  # Windows runner can reject net.exe user creation before the product is ever
+  # exercised; that is a harness failure, not standard-user product evidence.
+  $secure = ConvertTo-SecureString $password -AsPlainText -Force
+  try {
+    $local = New-LocalUser -Name $user -Password $secure -AccountNeverExpires -PasswordNeverExpires -UserMayNotChangePassword -Description "Disposable SSQ standard-user acceptance account" -ErrorAction Stop
+  }
+  catch {
+    $provisionFailure = [ordered]@{
+      schema = "ssq-standard-user-acceptance-v1"
+      status = "FAIL"
+      stage = "create-standard-user"
+      github_sha = $env:GITHUB_SHA
+      github_run_id = $env:GITHUB_RUN_ID
+      exe = (Split-Path -Leaf $exe)
+      exe_sha256 = $exeHash
+      provisioning_method = "New-LocalUser"
+      error = "$($_.Exception.GetType().FullName): $($_.Exception.Message)"
+      tested_at = [DateTime]::UtcNow.ToString("o")
+    }
+    $provisionFailure | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $evidenceFull -Encoding utf8
+    throw "Could not create disposable local standard user via New-LocalUser: $($_.Exception.Message)"
+  }
   $userCreated = $true
 
   $local = Get-LocalUser -Name $user -ErrorAction Stop
@@ -62,7 +83,6 @@ echo %ERRORLEVEL% > "$exitPath"
 "@
   Set-Content -LiteralPath $cmdPath -Value $cmd -Encoding ascii
 
-  $secure = ConvertTo-SecureString $password -AsPlainText -Force
   $cred = New-Object Management.Automation.PSCredential("$($env:COMPUTERNAME)\$user", $secure)
   $cmdProc = Start-Process -FilePath "$env:SystemRoot\System32\cmd.exe" -ArgumentList @("/d","/c",('"' + $cmdPath + '"')) -Credential $cred -LoadUserProfile -Wait -PassThru -WindowStyle Hidden
 
@@ -140,7 +160,7 @@ finally {
     & taskkill.exe /PID $guiProc.Id /T /F | Out-Null
   }
   if($userCreated) {
-    & net.exe user $user /delete | Out-Null
+    Remove-LocalUser -Name $user -ErrorAction SilentlyContinue
   }
   Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue
 }
