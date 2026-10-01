@@ -575,10 +575,46 @@ def fetch_shanghai_full_history(
             "start_issue": spec["start_issue"],
             "end_issue": spec["end_issue"],
         }
-        response = _get_official(
-            "official_shanghai_L1", SHANGHAI_HISTORY_URL, record_raw,
-            params=params, headers=headers,
-        )
+        source_operation_attempts: list[dict] = []
+        response = None
+        for source_attempt in range(1, 3):
+            try:
+                response = _get_official(
+                    "official_shanghai_L1", SHANGHAI_HISTORY_URL, record_raw,
+                    params=params, headers=headers,
+                )
+                source_operation_attempts.append({
+                    "attempt": source_attempt,
+                    "status": "PASS",
+                    "error_type": None,
+                    "transport_attempts": [
+                        dict(item) for item in getattr(response, "glp_attempts", ())
+                    ],
+                })
+                break
+            except (
+                requests.Timeout,
+                requests.ConnectionError,
+                requests.exceptions.ChunkedEncodingError,
+            ) as exc:
+                source_operation_attempts.append({
+                    "attempt": source_attempt,
+                    "status": "FAIL",
+                    "error_type": type(exc).__name__,
+                    "error": str(exc),
+                    "transport_attempts": [
+                        dict(item) for item in getattr(exc, "glp_attempts", ())
+                    ],
+                })
+                if source_attempt >= 2:
+                    raise
+                if progress:
+                    progress(
+                        "上海福彩全历史分块瞬态网络失败；"
+                        f"{spec['start_issue']}..{spec['end_issue']} 进行一次有界重试"
+                    )
+        if response is None:
+            raise RuntimeError("Shanghai bounded source retry produced no response")
         response.raise_for_status()
         raw = bytes(response.content)
         _record_response(
@@ -633,6 +669,7 @@ def fetch_shanghai_full_history(
             "draw_count": len(chunk_draws),
             "first_issue": chunk_draws[0].issue if chunk_draws else None,
             "last_issue": chunk_draws[-1].issue if chunk_draws else None,
+            "source_operation_attempts": source_operation_attempts,
         })
         if progress:
             progress(f"上海福彩全历史：{len(manifest)}/{len(specs)} 分块")
@@ -661,7 +698,10 @@ def fetch_shanghai_full_history(
         draw_count=len(ordered),
         latest_issue=ordered[-1].issue,
         status="PASS",
-        detail=f"上海市福利彩票发行中心 HTTPS 按期号全历史；chunks={len(manifest)}",
+        detail=(
+            f"上海市福利彩票发行中心 HTTPS 按期号全历史；chunks={len(manifest)}；"
+            f"source_retries={sum(max(0, len(row.get('source_operation_attempts', [])) - 1) for row in manifest)}"
+        ),
     )
     return ordered, receipt, manifest
 
