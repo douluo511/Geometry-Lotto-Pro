@@ -6,6 +6,9 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "SSQ"))
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "SSQ"))
 from glp.service import LottoService  # noqa: E402
 from glp.storage import Store  # noqa: E402
