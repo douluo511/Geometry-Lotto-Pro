@@ -21,6 +21,7 @@ from derive_gate_status import (  # noqa: E402
     _expected_gate_latest_completed_draw_day, _raw_status_allowed, _reparse_manifest,
     _repro_workspace_isolated, _verify_checkout_identity, _verify_gui_evidence,
     _verify_gui_failure_evidence, _verify_gui_update_source, _verify_reversal_contract,
+    _verify_science_contract,
     _verify_updater_release_network, derive,
 )
 from release_gate_22 import HARD_GATES  # noqa: E402
@@ -1332,6 +1333,102 @@ class ReleaseGateEvidenceTests(unittest.TestCase):
         self.assertEqual(final["gate_input_integrity"], "FAIL")
         self.assertIn("gate_input_integrity", final["failures"])
 
+
+    def test_science_positive_promotion_is_independently_rederived(self) -> None:
+        policy = {
+            "schema": "false-edge-firewall-v8",
+            "min_walk_forward": 1200, "min_prospective": 120,
+            "min_era_count": 3, "alpha": 0.01,
+            "min_front_recall_gain": 0.04, "min_back_recall_gain": 0.03,
+            "min_bootstrap_lower": 0.0, "min_null_percentile": 0.95,
+            "max_null_world_fpr": 0.05, "min_wilson_lower": 0.50,
+            "min_model_coverage": 0.60, "min_rank_support": 0.60,
+            "min_confirmation_n": 120,
+            "windows": [30, 60, 120, 240],
+            "seeds": [17, 43, 97, 193, 389],
+            "ablation_modes": ["remove", "shuffle", "random_replace"],
+            "bootstrap_rounds": 1999, "permutation_rounds": 2000,
+            "null_worlds": 300,
+        }
+        decisions = [
+            ("Walk-forward OOS", "ACCEPT_EDGE"),
+            ("Random Baseline", "ABOVE_BASELINE"),
+            ("Bootstrap", "ACCEPT_EDGE"),
+            ("Permutation + Holm Reality Check", "ACCEPT_EDGE"),
+            ("Temporal LOEO", "SUPPORT_EDGE"),
+            ("Ablation Remove/Shuffle/Random", "ACCEPT_EDGE"),
+            ("Leakage Sentinel", "ACCEPT"),
+            ("Null-world FPR", "ACCEPT_EDGE"),
+            ("Untouched Holdout", "ACCEPT_EDGE"),
+            ("Dual Final Confirmation", "ACCEPT_EDGE"),
+            ("Wilson/Coverage/Rank Support", "ACCEPT_DAN"),
+            ("Prospective Replay", "ACCEPT_DAN"),
+        ]
+        court = {
+            "schema": "evidence-court-v8",
+            "created_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "pre_registered_policy": policy,
+            "model_hash": "model-proof",
+            "selector_hash": "selector-proof",
+            "walk_forward": {
+                "total_oos_n": 1440, "development_oos_n": 1200,
+                "untouched_holdout_n": 240, "leakage_violations": 0,
+            },
+            "model_tests": {"research_ensemble": {
+                "n": 1200, "front_recall_gain": 0.05, "back_recall_gain": 0.04,
+                "combined_gain": 0.09, "bootstrap": {"lower95": 0.01},
+                "permutation_p": 0.001,
+            }},
+            "reality_check": {"research_ensemble": {"reject_null": True}},
+            "loeo": {"passed": True},
+            "ablation": {"passed": True, "executed": True},
+            "null_world": {"worlds": 300, "false_positive_rate": 0.0,
+                           "observed_percentile": 0.99},
+            "untouched_holdout": {
+                "n": 240, "bootstrap": {"lower95": 0.01}, "permutation_p": 0.001,
+            },
+            "dual_final_confirmation": {"passed": True},
+            "support_gate": {"passed": True},
+            "prospective_n": 120,
+            "prospective_selector_consistent": True,
+            "leakage_violations": 0,
+            "software_verdict": "PASS",
+            "edge_state": "EDGE_PROVEN",
+            "dan_state": "CERTIFIED_DAN",
+            "decision": "ACCEPT_EDGE",
+            "outcome": "synthetic positive contract fixture",
+            "production_weights": {"uniform_baseline": 0.0, "research_ensemble": 1.0},
+            "lifecycle": {
+                "Champion": "research_ensemble",
+                "Challenger": "research_ensemble",
+                "Shadow": "research_ensemble",
+            },
+            "gates": [
+                {"name": name, "status": "PASS", "decision": decision, "outcome": "fixture"}
+                for name, decision in decisions
+            ],
+            "five_why": {f"why{i}": "fixture" for i in range(1, 6)},
+            "reverse_validation": {
+                "remove": True, "shuffle": True, "random_replace": True,
+                "reverse_time_control": "fixture",
+            },
+            "final_validation": {
+                "status": "PASS", "hard_fail_count": 0,
+                "edge_proven": True, "dan_certified": True,
+            },
+        }
+        court["court_hash"] = _sha_for_test(court)
+        proof = _verify_science_contract({"result": court})
+        self.assertTrue(proof["independent_promotion"]["edge_proven"])
+        self.assertTrue(proof["independent_promotion"]["dan_certified"])
+
+        # Rehashing a producer-modified statistic must not preserve a false
+        # positive promotion when the independent gate recomputes the decision.
+        court["model_tests"]["research_ensemble"]["front_recall_gain"] = 0.0
+        court.pop("court_hash")
+        court["court_hash"] = _sha_for_test(court)
+        with self.assertRaises(ValueError):
+            _verify_science_contract({"result": court})
 
     def test_reversal_contract_binds_invariant_science_and_audit_contract(self) -> None:
         reverse = {"remove": True, "shuffle": True, "random_replace": True}
