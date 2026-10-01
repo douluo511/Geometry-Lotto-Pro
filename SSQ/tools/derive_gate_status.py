@@ -210,10 +210,25 @@ def _require_source_result(
     return report
 
 
+def _rederive_court_hash(court: dict[str, Any]) -> str:
+    declared = court.get("court_hash")
+    if not isinstance(declared, str) or not re.fullmatch(r"[0-9a-f]{64}", declared):
+        raise ValueError("evidence court hash is missing or malformed")
+    payload = dict(court)
+    payload.pop("court_hash", None)
+    computed = hashlib.sha256(json.dumps(
+        payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")).hexdigest()
+    if computed != declared:
+        raise ValueError("evidence court hash does not match independently canonicalized court")
+    return computed
+
+
 def _verify_science_contract(report: dict[str, Any]) -> dict[str, Any]:
     court = report.get("result")
     if not isinstance(court, dict):
         raise ValueError("science result has no evidence court")
+    court_hash = _rederive_court_hash(court)
     final = court.get("final_validation")
     walk = court.get("walk_forward")
     policy = court.get("pre_registered_policy")
@@ -242,7 +257,7 @@ def _verify_science_contract(report: dict[str, Any]) -> dict[str, Any]:
     if final.get("edge_proven") is False and edge_state != "NO_EDGE":
         raise ValueError("science edge state contradicts final validation")
     return {
-        "court_hash": court.get("court_hash"),
+        "court_hash": court_hash,
         "edge_state": edge_state,
         "dan_state": dan_state,
         "development_oos_n": walk.get("development_oos_n"),
@@ -278,11 +293,15 @@ def _verify_reversal_contract(
     court = science.get("result")
     if not isinstance(court, dict):
         raise ValueError("science court is missing")
+    science_court_hash = _rederive_court_hash(court)
     reverse = court.get("reverse_validation")
     ablation = court.get("ablation")
     audit_result = audit.get("result")
     audit_court = audit_result.get("court") if isinstance(audit_result, dict) else None
-    audit_reverse = audit_court.get("reverse_validation") if isinstance(audit_court, dict) else None
+    if not isinstance(audit_court, dict):
+        raise ValueError("audit court is missing")
+    audit_court_hash = _rederive_court_hash(audit_court)
+    audit_reverse = audit_court.get("reverse_validation")
     audit_ablation = audit_court.get("ablation") if isinstance(audit_court, dict) else None
     if (not isinstance(reverse, dict)
             or not all(reverse.get(key) is True for key in ("remove", "shuffle", "random_replace"))
@@ -308,8 +327,8 @@ def _verify_reversal_contract(
         "random_replace": True,
         "ablation_executed": True,
         "audit_edge_state": audit_court.get("edge_state"),
-        "science_court_hash": court.get("court_hash"),
-        "audit_court_hash": audit_court.get("court_hash"),
+        "science_court_hash": science_court_hash,
+        "audit_court_hash": audit_court_hash,
     }
 
 
@@ -383,9 +402,13 @@ def _ordered_draws(draws: list[dict[str, Any]], source: str, *, require_fresh: b
         raise ValueError(f"{source} raw history has duplicate/conflicting/nonmonotonic rows")
     if require_fresh:
         newest = date.fromisoformat(ordered[-1]["draw_date"])
-        today = datetime.now(timezone.utc).date()
-        if not today - timedelta(days=7) <= newest <= today + timedelta(days=1):
-            raise ValueError(f"{source} raw latest draw is stale or future dated")
+        today = datetime.now(_GATE_CHINA_TZ).date()
+        expected = _expected_gate_latest_completed_draw_day(today)
+        if newest > today or newest < expected:
+            raise ValueError(
+                f"{source} raw latest draw is stale/future under frozen draw calendar: "
+                f"latest={newest.isoformat()} expected>={expected.isoformat()}"
+            )
     return ordered
 
 
