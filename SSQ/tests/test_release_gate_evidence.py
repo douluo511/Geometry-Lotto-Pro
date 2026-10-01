@@ -18,8 +18,8 @@ sys.path.insert(0, str(TOOLS))
 sys.path.insert(0, str(TOOLS.parent / "SSQ"))
 from derive_gate_status import (  # noqa: E402
     REQUIRED_BUSINESS_CHECKS, REQUIRED_EXE_CHECKS, REQUIRED_NETCLIENT_CHECKS,
-    _expected_gate_latest_completed_draw_day, _raw_status_allowed, _reparse_manifest,
-    _repro_workspace_isolated, _verify_checkout_identity, _verify_gui_evidence,
+    _derive_no_shell_gate, _expected_gate_latest_completed_draw_day, _raw_status_allowed,
+    _reparse_manifest, _repro_workspace_isolated, _verify_checkout_identity, _verify_gui_evidence,
     _verify_gui_failure_evidence, _verify_gui_update_source, _verify_reversal_contract,
     _verify_science_contract,
     _verify_updater_release_network, derive,
@@ -297,6 +297,77 @@ class ReleaseGateEvidenceTests(unittest.TestCase):
                 result = self._derive_static_report("BUSINESS_GATE.json", {
                     "schema": "ssq-business-gate-v1", "checks": checks})
                 self.assertEqual(result["gates"]["business_content"], "FAIL")
+
+    @staticmethod
+    def _complete_no_shell_fixture():
+        prerequisites = (
+            "integration_test", "real_network", "business_validation",
+            "counterexample_validation", "reversal_validation",
+            "physical_gui_click", "physical_gui_failure",
+            "physical_gui_repair_failure", "updater_process",
+            "updater_exact_exe", "updater_atomic_rollback", "updater_same_hash",
+        )
+        gates = {name: "PASS" for name in prerequisites}
+        digest = "a" * 64
+        canonical = "b" * 64
+        proofs = {
+            "physical_gui_click": {"ledgers": [
+                {"operation": "predict", "experiment_id": 1, "ledger_sha256": digest},
+                {"operation": "update", "experiment_id": 2, "ledger_sha256": digest,
+                 "source_evidence": {"canonical_reparse": "PASS", "raw_response_count": 31,
+                                     "canonical_hash": canonical}},
+                {"operation": "repair", "experiment_id": 3, "ledger_sha256": digest},
+                {"operation": "audit", "experiment_id": 4, "ledger_sha256": digest},
+            ]},
+            "physical_gui_failure": {"operation": "update"},
+            "physical_gui_repair_failure": {
+                "operation": "repair", "repair_fail_count": 1, "repair_pass_count": 0,
+            },
+            "updater": {
+                "process_boundary": "PASS", "atomic_rollback": "PASS",
+                "same_hash": "PASS", "artifact_sha256": digest,
+            },
+            "real_network": {
+                "canonical_reparse": "PASS", "raw_response_count": 31,
+                "canonical_hash": canonical,
+            },
+            "business_validation": {
+                "court_hash": digest, "development_oos_n": 1200,
+                "untouched_holdout_n": 240, "leakage_violations": 0,
+            },
+        }
+        return gates, proofs
+
+    def test_no_shell_requires_all_four_physical_entries_and_runtime_evidence(self) -> None:
+        gates, proofs = self._complete_no_shell_fixture()
+        status, proof = _derive_no_shell_gate(gates, proofs)
+        self.assertEqual(status, "PASS")
+        self.assertEqual(set(proof["observed_operations"]), {"predict", "update", "repair", "audit"})
+        self.assertFalse(proof["full_business_completion_claimed"])
+
+        proofs["physical_gui_click"]["ledgers"] = proofs["physical_gui_click"]["ledgers"][:-1]
+        status, proof = _derive_no_shell_gate(gates, proofs)
+        self.assertEqual(status, "FAIL")
+        self.assertFalse(proof["release_authorized"])
+
+    def test_no_shell_never_treats_missing_prerequisite_as_pass(self) -> None:
+        gates, proofs = self._complete_no_shell_fixture()
+        gates["physical_gui_repair_failure"] = "PENDING"
+        status, proof = _derive_no_shell_gate(gates, proofs)
+        self.assertEqual(status, "PENDING")
+        self.assertEqual(proof["missing_prerequisites"]["physical_gui_repair_failure"], "PENDING")
+        self.assertFalse(proof["release_authorized"])
+
+    def test_no_shell_rejects_fake_update_source_and_false_repair_success(self) -> None:
+        gates, proofs = self._complete_no_shell_fixture()
+        proofs["physical_gui_click"]["ledgers"][1]["source_evidence"]["canonical_reparse"] = "FAIL"
+        status, _ = _derive_no_shell_gate(gates, proofs)
+        self.assertEqual(status, "FAIL")
+
+        gates, proofs = self._complete_no_shell_fixture()
+        proofs["physical_gui_repair_failure"]["repair_pass_count"] = 1
+        status, _ = _derive_no_shell_gate(gates, proofs)
+        self.assertEqual(status, "FAIL")
 
     def test_netclient_report_requires_all_named_explicit_passes_and_integer_count(self) -> None:
         complete = {name: {"status": "PASS"} for name in REQUIRED_NETCLIENT_CHECKS}

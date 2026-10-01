@@ -1742,6 +1742,178 @@ def _verify_checkout_identity(evidence: Path) -> dict[str, Any]:
         "parent_shas": parents,
     }
 
+NO_SHELL_ENTRY_OPERATIONS = ("predict", "update", "repair", "audit")
+NO_SHELL_PREREQUISITE_GATES = (
+    "integration_test",
+    "real_network",
+    "business_validation",
+    "counterexample_validation",
+    "reversal_validation",
+    "physical_gui_click",
+    "physical_gui_failure",
+    "physical_gui_repair_failure",
+    "updater_process",
+    "updater_exact_exe",
+    "updater_atomic_rollback",
+    "updater_same_hash",
+)
+
+
+def _derive_no_shell_gate(
+    gates: dict[str, str], proofs: dict[str, Any],
+) -> tuple[str, dict[str, Any]]:
+    """Prove the declared four-entry desktop product is not a UI/static shell.
+
+    This gate intentionally does *not* claim full business completion.  It only
+    binds the currently declared entry inventory to current-run physical GUI,
+    backend ledger, updater, network and scientific evidence.
+    """
+    missing = {
+        name: gates.get(name, "PENDING")
+        for name in NO_SHELL_PREREQUISITE_GATES
+        if gates.get(name) != "PASS"
+    }
+    if missing:
+        return "PENDING", {
+            "status": "UNVERIFIED",
+            "scope": "declared-four-entry-runtime-binding",
+            "required_operations": list(NO_SHELL_ENTRY_OPERATIONS),
+            "missing_prerequisites": missing,
+            "release_authorized": False,
+        }
+
+    physical = proofs.get("physical_gui_click")
+    ledgers = physical.get("ledgers") if isinstance(physical, dict) else None
+    if not isinstance(ledgers, list) or len(ledgers) != len(NO_SHELL_ENTRY_OPERATIONS):
+        return "FAIL", {
+            "status": "FAIL",
+            "reason": "physical GUI proof does not contain exactly one ledger for every declared entry",
+            "release_authorized": False,
+        }
+    operations = []
+    ledger_hashes: dict[str, str] = {}
+    update_source: dict[str, Any] | None = None
+    for row in ledgers:
+        if not isinstance(row, dict):
+            return "FAIL", {
+                "status": "FAIL", "reason": "GUI ledger proof row is not an object",
+                "release_authorized": False,
+            }
+        operation = row.get("operation")
+        experiment_id = row.get("experiment_id")
+        ledger_sha = row.get("ledger_sha256")
+        if (operation not in NO_SHELL_ENTRY_OPERATIONS
+                or type(experiment_id) is not int or experiment_id <= 0
+                or not isinstance(ledger_sha, str)
+                or not re.fullmatch(r"[0-9a-f]{64}", ledger_sha)):
+            return "FAIL", {
+                "status": "FAIL", "reason": "GUI ledger proof is incomplete or malformed",
+                "release_authorized": False,
+            }
+        operations.append(operation)
+        ledger_hashes[operation] = ledger_sha
+        if operation == "update":
+            update_source = row.get("source_evidence")
+
+    if (set(operations) != set(NO_SHELL_ENTRY_OPERATIONS)
+            or len(set(operations)) != len(NO_SHELL_ENTRY_OPERATIONS)):
+        return "FAIL", {
+            "status": "FAIL",
+            "reason": "declared GUI entry inventory is missing, duplicated or substituted",
+            "observed_operations": operations,
+            "release_authorized": False,
+        }
+
+    if (not isinstance(update_source, dict)
+            or update_source.get("canonical_reparse") != "PASS"
+            or type(update_source.get("raw_response_count")) is not int
+            or update_source["raw_response_count"] <= 0
+            or not isinstance(update_source.get("canonical_hash"), str)
+            or not re.fullmatch(r"[0-9a-f]{64}", update_source["canonical_hash"])):
+        return "FAIL", {
+            "status": "FAIL",
+            "reason": "GUI update entry is not bound to current official-source evidence",
+            "release_authorized": False,
+        }
+
+    update_failure = proofs.get("physical_gui_failure")
+    repair_failure = proofs.get("physical_gui_repair_failure")
+    if (not isinstance(update_failure, dict) or update_failure.get("operation") != "update"
+            or not isinstance(repair_failure, dict) or repair_failure.get("operation") != "repair"
+            or type(repair_failure.get("repair_fail_count")) is not int
+            or repair_failure["repair_fail_count"] < 1
+            or repair_failure.get("repair_pass_count") != 0):
+        return "FAIL", {
+            "status": "FAIL",
+            "reason": "GUI fail-closed evidence is missing or not operation-specific",
+            "release_authorized": False,
+        }
+
+    updater = proofs.get("updater")
+    if (not isinstance(updater, dict)
+            or updater.get("process_boundary") != "PASS"
+            or updater.get("atomic_rollback") != "PASS"
+            or updater.get("same_hash") != "PASS"
+            or not isinstance(updater.get("artifact_sha256"), str)
+            or not re.fullmatch(r"[0-9a-f]{64}", updater["artifact_sha256"])):
+        return "FAIL", {
+            "status": "FAIL",
+            "reason": "independent updater runtime identity/rollback/hash evidence is incomplete",
+            "release_authorized": False,
+        }
+
+    network = proofs.get("real_network")
+    if (not isinstance(network, dict)
+            or network.get("canonical_reparse") != "PASS"
+            or type(network.get("raw_response_count")) is not int
+            or network["raw_response_count"] <= 0
+            or not isinstance(network.get("canonical_hash"), str)
+            or not re.fullmatch(r"[0-9a-f]{64}", network["canonical_hash"])):
+        return "FAIL", {
+            "status": "FAIL",
+            "reason": "current real-network evidence is incomplete",
+            "release_authorized": False,
+        }
+
+    science = proofs.get("business_validation")
+    if (not isinstance(science, dict)
+            or not isinstance(science.get("court_hash"), str)
+            or not re.fullmatch(r"[0-9a-f]{64}", science["court_hash"])
+            or type(science.get("development_oos_n")) is not int
+            or science["development_oos_n"] < 1200
+            or type(science.get("untouched_holdout_n")) is not int
+            or science["untouched_holdout_n"] < 240
+            or science.get("leakage_violations") != 0):
+        return "FAIL", {
+            "status": "FAIL",
+            "reason": "advanced-analysis entry is not bound to the current scientific evidence court",
+            "release_authorized": False,
+        }
+
+    return "PASS", {
+        "status": "PASS",
+        "scope": "declared-four-entry-runtime-binding",
+        "declared_entries": [
+            {"control_id": 101, "label": "预测下一期", "operation": "predict"},
+            {"control_id": 102, "label": "一键更新", "operation": "update"},
+            {"control_id": 103, "label": "一键修复", "operation": "repair"},
+            {"control_id": 104, "label": "高级分析", "operation": "audit"},
+        ],
+        "observed_operations": operations,
+        "ledger_sha256": ledger_hashes,
+        "update_canonical_hash": update_source["canonical_hash"],
+        "real_network_canonical_hash": network["canonical_hash"],
+        "science_court_hash": science["court_hash"],
+        "updater_sha256": updater["artifact_sha256"],
+        "negative_paths": {
+            "update_fail_closed": "PASS",
+            "repair_corrupt_offline_fail_closed": "PASS",
+        },
+        "full_business_completion_claimed": False,
+        "release_authorized": True,
+    }
+
+
 def derive(evidence: Path, exe: Path) -> dict[str, Any]:
     gates = {name: "PENDING" for name in HARD_GATES}
     proofs: dict[str, Any] = {}
@@ -2291,6 +2463,10 @@ def derive(evidence: Path, exe: Path) -> dict[str, Any]:
             "physical_gui_failure": "PASS",
             "physical_gui_repair_failure": "PASS",
         }
+
+    # Re-derive no-shell only after all runtime evidence has been independently
+    # verified above. Static source strings can never make this gate PASS.
+    gates["no_shell"], proofs["no_shell"] = _derive_no_shell_gate(gates, proofs)
     return {
         "schema": "ssq-current-run-gate-evidence-v1",
         "commit_sha": os.environ.get("GITHUB_SHA"),
