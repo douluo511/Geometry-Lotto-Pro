@@ -548,12 +548,16 @@ class ReleaseGateEvidenceTests(unittest.TestCase):
             updater = root / "Geometry_Lotto_Pro_SSQ_Updater.exe"
             exe.write_bytes(b"main-exe")
             updater.write_bytes(b"updater-exe")
+            updater_hash = hashlib.sha256(updater.read_bytes()).hexdigest()
             source_leaf = "physical-gui-run-" + "1" * 32
             failure_leaf = "physical-gui-failure-" + "2" * 32
             source_dir = root / source_leaf
             failure_dir = root / failure_leaf
             source_dir.mkdir()
             failure_dir.mkdir()
+            materialized = failure_dir / "updater" / updater_hash / updater.name
+            materialized.parent.mkdir(parents=True)
+            materialized.write_bytes(updater.read_bytes())
             history = b'{"game":"SSQ","draws":[]}'
             evidence = b'{"schema":"official-source-evidence-v8.5","status":"PASS"}'
             for target in (source_dir, failure_dir):
@@ -578,7 +582,12 @@ class ReleaseGateEvidenceTests(unittest.TestCase):
                 "scenario": "controlled Windows outbound block",
                 "exe": exe.name, "exe_sha256": hashlib.sha256(exe.read_bytes()).hexdigest(),
                 "updater_exe": updater.name,
-                "updater_sha256": hashlib.sha256(updater.read_bytes()).hexdigest(),
+                "updater_sha256": updater_hash,
+                "materialized_updater": str(materialized.resolve()),
+                "materialized_updater_sha256": updater_hash,
+                "firewall_programs": [
+                    str(exe.resolve()), str(updater.resolve()), str(materialized.resolve()),
+                ],
                 "github_sha": "a" * 40, "github_run_id": "12345",
                 "tested_at": now, "firewall_rules_created": True,
                 "ui_fail_closed": True, "ui_status": "一键更新：FAIL",
@@ -595,6 +604,19 @@ class ReleaseGateEvidenceTests(unittest.TestCase):
             }):
                 proof = _verify_gui_failure_evidence(report, root, exe, True)
                 self.assertEqual(proof["official_update_pass_count"], 0)
+                self.assertEqual(proof["materialized_updater_sha256"], updater_hash)
+
+                original_firewall = list(report["firewall_programs"])
+                report["firewall_programs"] = [str(exe.resolve()), str(updater.resolve())]
+                with self.assertRaises(ValueError):
+                    _verify_gui_failure_evidence(report, root, exe, True)
+                report["firewall_programs"] = original_firewall
+
+                materialized.write_bytes(b"tampered")
+                with self.assertRaises(ValueError):
+                    _verify_gui_failure_evidence(report, root, exe, True)
+                materialized.write_bytes(updater.read_bytes())
+
                 db = sqlite3.connect(failure_dir / "ledger.sqlite3")
                 try:
                     db.execute("INSERT INTO experiments(kind,status) VALUES('official_update','PASS')")
