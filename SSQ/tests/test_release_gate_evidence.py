@@ -19,7 +19,7 @@ sys.path.insert(0, str(TOOLS.parent / "SSQ"))
 from derive_gate_status import (  # noqa: E402
     REQUIRED_BUSINESS_CHECKS, REQUIRED_EXE_CHECKS, REQUIRED_NETCLIENT_CHECKS,
     _raw_status_allowed, _reparse_manifest, _repro_workspace_isolated, _verify_checkout_identity,
-    _verify_gui_evidence, _verify_gui_update_source, _verify_reversal_contract,
+    _verify_gui_evidence, _verify_gui_failure_evidence, _verify_gui_update_source, _verify_reversal_contract,
     _verify_updater_release_network, derive,
 )
 from release_gate_22 import HARD_GATES  # noqa: E402
@@ -526,6 +526,69 @@ class ReleaseGateEvidenceTests(unittest.TestCase):
             with patch.dict(os.environ, {"GITHUB_SHA": "a" * 40, "GITHUB_RUN_ID": "12345"}):
                 with self.assertRaises(ValueError):
                     _verify_gui_evidence(report, root, exe, True)
+
+    def test_physical_gui_failure_gate_rederives_immutable_data_and_fail_ledger(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            exe = root / "Geometry_Lotto_Pro_SSQ_Windows_Verified.exe"
+            updater = root / "Geometry_Lotto_Pro_SSQ_Updater.exe"
+            exe.write_bytes(b"main-exe")
+            updater.write_bytes(b"updater-exe")
+            source_leaf = "physical-gui-run-" + "1" * 32
+            failure_leaf = "physical-gui-failure-" + "2" * 32
+            source_dir = root / source_leaf
+            failure_dir = root / failure_leaf
+            source_dir.mkdir()
+            failure_dir.mkdir()
+            history = b'{"game":"SSQ","draws":[]}'
+            evidence = b'{"schema":"official-source-evidence-v8.5","status":"PASS"}'
+            for target in (source_dir, failure_dir):
+                (target / "canonical_history.json").write_bytes(history)
+                (target / "source_evidence.json").write_bytes(evidence)
+            failed = failure_dir / "failed" / ("3" * 24)
+            failed.mkdir(parents=True)
+            (failed / "failure_evidence.json").write_text(json.dumps({
+                "status": "FAIL", "crosscheck_status": "FAIL",
+                "raw_response_status": "UNAVAILABLE",
+            }), encoding="utf-8")
+            db = sqlite3.connect(failure_dir / "ledger.sqlite3")
+            try:
+                db.execute("CREATE TABLE experiments(id INTEGER PRIMARY KEY, kind TEXT, status TEXT)")
+                db.execute("INSERT INTO experiments(kind,status) VALUES('repair','FAIL')")
+                db.commit()
+            finally:
+                db.close()
+            now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            report = {
+                "schema": "physical-gui-failure-smoke-v1", "status": "PASS",
+                "scenario": "controlled Windows outbound block",
+                "exe": exe.name, "exe_sha256": hashlib.sha256(exe.read_bytes()).hexdigest(),
+                "updater_exe": updater.name,
+                "updater_sha256": hashlib.sha256(updater.read_bytes()).hexdigest(),
+                "github_sha": "a" * 40, "github_run_id": "12345",
+                "tested_at": now, "firewall_rules_created": True,
+                "ui_fail_closed": True, "ui_status": "一键更新：FAIL",
+                "data_dir": failure_leaf, "source_success_data_dir": source_leaf,
+                "before_canonical_sha256": hashlib.sha256(history).hexdigest(),
+                "after_canonical_sha256": hashlib.sha256(history).hexdigest(),
+                "before_evidence_sha256": hashlib.sha256(evidence).hexdigest(),
+                "after_evidence_sha256": hashlib.sha256(evidence).hexdigest(),
+                "canonical_unchanged": True, "evidence_unchanged": True,
+                "failure_manifest_count": 1, "official_update_pass_count": 0,
+            }
+            with patch.dict(os.environ, {
+                "GITHUB_SHA": "a" * 40, "GITHUB_RUN_ID": "12345",
+            }):
+                proof = _verify_gui_failure_evidence(report, root, exe, True)
+                self.assertEqual(proof["official_update_pass_count"], 0)
+                db = sqlite3.connect(failure_dir / "ledger.sqlite3")
+                try:
+                    db.execute("INSERT INTO experiments(kind,status) VALUES('official_update','PASS')")
+                    db.commit()
+                finally:
+                    db.close()
+                with self.assertRaises(ValueError):
+                    _verify_gui_failure_evidence(report, root, exe, True)
 
     def test_gui_replay_preserves_recorded_parent_pid(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
