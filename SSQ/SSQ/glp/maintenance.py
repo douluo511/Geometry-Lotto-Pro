@@ -42,7 +42,7 @@ def _sha256_file(path: Path) -> str:
 
 
 def _safe_relative(value: str) -> Path:
-    if not isinstance(value, str) or not value or "\" in value:
+    if not isinstance(value, str) or not value or "\\" in value:
         raise ValueError("manifest path must be a nonempty POSIX relative path")
     pure = PurePosixPath(value)
     if pure.is_absolute() or any(part in {"", ".", ".."} for part in pure.parts):
