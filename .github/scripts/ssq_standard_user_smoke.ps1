@@ -48,7 +48,7 @@ try {
   Copy-Item -LiteralPath $exe -Destination $userExe -Force
   if((Get-Sha256 $userExe) -ne $exeHash) { throw "Standard-user EXE copy differs from accepted bytes" }
 
-  & icacls.exe $work /grant:r "$($env:COMPUTERNAME)\$user:(OI)(CI)M" /T /C | Out-Null
+  & icacls.exe $work /grant:r "$($env:COMPUTERNAME)\${user}:(OI)(CI)M" /T /C | Out-Null
   if($LASTEXITCODE -ne 0) { throw "Could not grant disposable user access to acceptance workspace" }
 
   $cmd = @"

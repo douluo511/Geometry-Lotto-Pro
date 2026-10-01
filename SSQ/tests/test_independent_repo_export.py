@@ -68,6 +68,7 @@ class WorkflowSupplyChainTests(unittest.TestCase):
 class IndependentRepoExportTests(unittest.TestCase):
     def make_source(self, root: Path) -> None:
         write(root, ".github/scripts/ssq_physical_gui_failure_smoke.ps1", b"# negative GUI acceptance\n")
+        write(root, ".github/scripts/ssq_standard_user_smoke.ps1", b"# standard-user acceptance\n")
         write(root, "SSQ/README_GITHUB.md", b"# SSQ\n")
         write(root, "SSQ/SSQ/glp/core.py", b"VALUE = 1\n")
         write(root, "SSQ/tests/test_core.py", b"def test_ok(): assert True\n")
@@ -97,6 +98,7 @@ class IndependentRepoExportTests(unittest.TestCase):
             self.assertTrue((target / ".github/workflows/ssq-windows-build-acceptance.yml").is_file())
             self.assertTrue((target / ".github/scripts/ssq_physical_gui_click_smoke.ps1").is_file())
             self.assertTrue((target / ".github/scripts/ssq_physical_gui_failure_smoke.ps1").is_file())
+            self.assertTrue((target / ".github/scripts/ssq_standard_user_smoke.ps1").is_file())
             self.assertTrue((target / "README.md").is_file())
             self.assertFalse((target / "DLT").exists())
             self.assertFalse((target / "investment_finance_pro").exists())
