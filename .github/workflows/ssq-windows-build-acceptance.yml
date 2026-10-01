@@ -14,11 +14,13 @@ on:
       - 'SSQ/**'
       - '.github/workflows/ssq-windows-build-acceptance.yml'
       - '.github/scripts/ssq_physical_gui_click_smoke.ps1'
+      - '.github/scripts/ssq_physical_gui_failure_smoke.ps1'
   pull_request:
     paths:
       - 'SSQ/**'
       - '.github/workflows/ssq-windows-build-acceptance.yml'
       - '.github/scripts/ssq_physical_gui_click_smoke.ps1'
+      - '.github/scripts/ssq_physical_gui_failure_smoke.ps1'
 
 defaults:
   run:
@@ -234,6 +236,15 @@ jobs:
         shell: pwsh
         run: |
           ..\.github\scripts\ssq_physical_gui_click_smoke.ps1 -ExePath ".\dist\Geometry_Lotto_Pro_SSQ_Windows_Verified.exe" -EvidencePath ".\evidence\SSQ\physical_gui_click.json"
+
+      - name: Physical GUI Fail-Closed Click Smoke
+        shell: pwsh
+        run: |
+          ..\.github\scripts\ssq_physical_gui_failure_smoke.ps1 `
+            -ExePath ".\dist\Geometry_Lotto_Pro_SSQ_Windows_Verified.exe" `
+            -UpdaterExePath ".\dist\Geometry_Lotto_Pro_SSQ_Updater.exe" `
+            -SuccessEvidencePath ".\evidence\SSQ\physical_gui_click.json" `
+            -EvidencePath ".\evidence\SSQ\physical_gui_failure.json"
 
       - name: Final evidence-derived release and same-hash proof
         id: final_gate
