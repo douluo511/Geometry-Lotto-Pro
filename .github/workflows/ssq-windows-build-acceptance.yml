@@ -15,12 +15,14 @@ on:
       - '.github/workflows/ssq-windows-build-acceptance.yml'
       - '.github/scripts/ssq_physical_gui_click_smoke.ps1'
       - '.github/scripts/ssq_physical_gui_failure_smoke.ps1'
+      - '.github/scripts/ssq_standard_user_smoke.ps1'
   pull_request:
     paths:
       - 'SSQ/**'
       - '.github/workflows/ssq-windows-build-acceptance.yml'
       - '.github/scripts/ssq_physical_gui_click_smoke.ps1'
       - '.github/scripts/ssq_physical_gui_failure_smoke.ps1'
+      - '.github/scripts/ssq_standard_user_smoke.ps1'
 
 defaults:
   run:
@@ -91,7 +93,7 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          foreach ($script in @('..\.github\scripts\ssq_physical_gui_click_smoke.ps1', '..\.github\scripts\ssq_physical_gui_failure_smoke.ps1')) {
+          foreach ($script in @('..\.github\scripts\ssq_physical_gui_click_smoke.ps1', '..\.github\scripts\ssq_physical_gui_failure_smoke.ps1', '..\.github\scripts\ssq_standard_user_smoke.ps1')) {
             $tokens = $null
             $parseErrors = $null
             $null = [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $script), [ref]$tokens, [ref]$parseErrors)
@@ -156,6 +158,13 @@ jobs:
 
       - name: Native Windows build plus exact-EXE acceptance
         run: python tools/build_windows.py
+
+      - name: Standard User Exact-EXE Acceptance
+        shell: pwsh
+        run: |
+          ..\.github\scripts\ssq_standard_user_smoke.ps1 `
+            -ExePath ".\dist\Geometry_Lotto_Pro_SSQ_Windows_Verified.exe" `
+            -EvidencePath ".\evidence\SSQ\STANDARD_USER_ACCEPTANCE.json"
 
       - name: Publish hash-bound prerelease assets on independent main
         id: publish_release
