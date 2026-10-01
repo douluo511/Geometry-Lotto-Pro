@@ -713,6 +713,61 @@ class LottoService:
         finally:
             db.close()
 
+    def _repair_build_with_transient_retry(
+        self,
+        trusted_seed: list[Draw],
+        progress: Callable[[str], None] | None = None,
+    ) -> tuple[Any | None, dict[str, Any] | None, str | None, list[dict[str, Any]]]:
+        """Rebuild from official sources with one bounded retry for transport transients only.
+
+        A retry reruns the whole source quorum. Schema/semantic/freshness/conflict
+        failures are terminal on the first attempt. Storage commit, replay and
+        post-commit integrity are intentionally outside this retry boundary.
+        """
+        attempts: list[dict[str, Any]] = []
+        for attempt in range(1, AUDIT_UPDATE_MAX_ATTEMPTS + 1):
+            try:
+                dataset, evidences = build_canonical(
+                    progress=progress,
+                    baseline_draws=trusted_seed,
+                    failure_sink=self.store.save_failure_evidence,
+                )
+                crosscheck = getattr(dataset, "crosscheck_status", None)
+                attempts.append({
+                    "attempt": attempt,
+                    "status": "PASS" if crosscheck == "PASS" else "FAIL",
+                    "crosscheck_status": crosscheck,
+                    "retryable": False,
+                    "failure_evidence_path": None,
+                })
+                if crosscheck != "PASS":
+                    return (
+                        None,
+                        None,
+                        "official repair rebuild returned non-PASS crosscheck",
+                        attempts,
+                    )
+                return dataset, evidences, None, attempts
+            except Exception as exc:
+                retryable = self._audit_update_retryable(exc)
+                detail = f"{type(exc).__name__}: {exc}"
+                attempts.append({
+                    "attempt": attempt,
+                    "status": "FAIL",
+                    "error": detail,
+                    "retryable": retryable,
+                    "failure_evidence_path": getattr(exc, "failure_evidence_path", None),
+                })
+                if not retryable or attempt >= AUDIT_UPDATE_MAX_ATTEMPTS:
+                    return None, None, detail, attempts
+                if progress:
+                    progress(
+                        f"修复官方源瞬态失败：第 {attempt} 次；"
+                        f"{AUDIT_UPDATE_RETRY_DELAY_SECONDS:.1f}s 后进行最后一次完整重建…"
+                    )
+                time.sleep(AUDIT_UPDATE_RETRY_DELAY_SECONDS)
+        return None, None, "official repair rebuild retry loop exhausted", attempts
+
     def repair(self, progress: Callable[[str], None] | None = None) -> dict[str, Any]:
         # Repair must remain usable when the local dataset itself is corrupt.
         # Therefore it only materializes missing files first; it does NOT call
@@ -725,15 +780,15 @@ class LottoService:
             return payload
         if progress:
             progress("Integrity FAIL：从多官方源重建 Canonical Dataset…")
+        repair_attempts: list[dict[str, Any]] = []
         try:
             seed_payload = json.loads(resource_path("official_seed.json").read_text(encoding="utf-8"))
             trusted_seed = [Draw.from_dict(x) for x in seed_payload.get("draws", [])]
-            dataset, evidences = build_canonical(
-                progress=progress, baseline_draws=trusted_seed,
-                failure_sink=self.store.save_failure_evidence,
+            dataset, evidences, rebuild_error, repair_attempts = (
+                self._repair_build_with_transient_retry(trusted_seed, progress=progress)
             )
-            if getattr(dataset, "crosscheck_status", None) != "PASS":
-                raise RuntimeError("official source crosscheck did not PASS")
+            if dataset is None or evidences is None:
+                raise RuntimeError(rebuild_error or "official repair rebuild failed")
             self.store.save_dataset(dataset, evidences)
             replay_result = self.replay_all(progress=progress)
             after = self._integrity_check()
@@ -744,11 +799,18 @@ class LottoService:
                 "canonical_hash": getattr(dataset, "canonical_hash", None),
                 "crosscheck_status": getattr(dataset, "crosscheck_status", None),
                 "replayed": replay_result.get("replayed", 0),
+                "repair_attempts": repair_attempts,
             }
             self._append_experiment("repair", status, self._canonical_hash(), payload)
             return payload
         except Exception as exc:
-            payload = {"status": "FAIL", "repaired": False, "before": before, "detail": f"{type(exc).__name__}: {exc}"}
+            payload = {
+                "status": "FAIL",
+                "repaired": False,
+                "before": before,
+                "detail": f"{type(exc).__name__}: {exc}",
+                "repair_attempts": repair_attempts,
+            }
             # A corrupt history may not have a usable canonical hash; keep the
             # failure auditable without pretending the data itself validated.
             try:
