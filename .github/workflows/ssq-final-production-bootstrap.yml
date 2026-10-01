@@ -1,9 +1,6 @@
 name: SSQ Final Production Bootstrap
 
 on:
-  push:
-    branches:
-      - finalization/ssq-admin-bootstrap-20260930
   workflow_dispatch:
     inputs:
       visibility:
