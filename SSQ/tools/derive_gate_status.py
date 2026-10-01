@@ -2040,17 +2040,24 @@ def _derive_business_content_gate(
 ) -> tuple[str, dict[str, Any]]:
     """Freeze and execute the SSQ B01-B07 business denominator.
 
-    These seven tasks apply to SSQ only. They do not define completion for any
-    other portfolio project. Static BUSINESS_GATE evidence is structural input,
-    never sufficient by itself.
+    Missing current-run evidence is PENDING; explicit failed, contradictory or
+    malformed evidence is FAIL.  This distinction prevents both false PASS and
+    false FAIL while a Windows acceptance run is still incomplete.
     """
     tasks: dict[str, dict[str, Any]] = {}
 
-    b01_required = (
+    def gate_state(*names: str) -> str:
+        states = [gates.get(name, "PENDING") for name in names]
+        if any(value == "FAIL" for value in states):
+            return "FAIL"
+        if all(value == "PASS" for value in states):
+            return "PASS"
+        return "PENDING"
+
+    b01_status = gate_state(
         "contract_test", "fault_injection", "real_network",
         "physical_gui_click", "physical_gui_failure",
     )
-    b01_status = _business_gate_state(gates, b01_required)
     tasks["B01"] = _business_row(
         b01_status,
         "更新历史并审计官方来源、最新期、冲突与网络失败",
@@ -2058,7 +2065,8 @@ def _derive_business_content_gate(
         reason=None if b01_status == "PASS" else "real-network/update positive+negative evidence is incomplete",
     )
 
-    predict = exact_results.get("predict")
+    b02_prereq = gate_state("exact_exe", "business_validation")
+    predict = exact_results.get("predict") if isinstance(exact_results, dict) else None
     predict_result = predict.get("result") if isinstance(predict, dict) else None
     contract = (
         predict_result.get("acceptance_autonomous_contract")
@@ -2066,20 +2074,16 @@ def _derive_business_content_gate(
     )
     prediction = predict_result.get("prediction") if isinstance(predict_result, dict) else None
     lineage_fields = ("prediction_id", "freeze_hash", "score_hash", "model_hash", "selector_hash")
-    b02_dynamic_present = isinstance(predict_result, dict)
-    b02_ok = bool(
-        isinstance(contract, dict) and contract
-        and all(value is True for value in contract.values())
-        and isinstance(prediction, dict)
-        and all(isinstance(prediction.get(key), str) and prediction.get(key) for key in lineage_fields)
-        and gates.get("business_validation") == "PASS"
-    )
-    if b02_ok:
-        b02_status = "PASS"
-    elif gates.get("business_validation") == "FAIL" or b02_dynamic_present:
-        b02_status = "FAIL"
+    if b02_prereq == "PASS":
+        b02_ok = bool(
+            isinstance(contract, dict) and contract
+            and all(value is True for value in contract.values())
+            and isinstance(prediction, dict)
+            and all(isinstance(prediction.get(key), str) and prediction.get(key) for key in lineage_fields)
+        )
+        b02_status = "PASS" if b02_ok else "FAIL"
     else:
-        b02_status = "PENDING"
+        b02_status = b02_prereq
     tasks["B02"] = _business_row(
         b02_status,
         "生成可追溯研究结果并禁止未合格模型冒充生产优势",
@@ -2087,14 +2091,15 @@ def _derive_business_content_gate(
         reason=None if b02_status == "PASS" else "prediction lineage/model qualification evidence is incomplete",
     )
 
-    b03_required = (
-        "business_validation", "counterexample_validation", "reversal_validation",
+    b03_prereq = gate_state(
+        "exact_exe", "business_validation",
+        "counterexample_validation", "reversal_validation",
     )
-    b03_gate_status = _business_gate_state(gates, b03_required)
-    if b03_gate_status == "PASS":
-        b03_status = "PASS" if "audit" in exact_results else "FAIL"
+    audit = exact_results.get("audit") if isinstance(exact_results, dict) else None
+    if b03_prereq == "PASS":
+        b03_status = "PASS" if isinstance(audit, dict) else "FAIL"
     else:
-        b03_status = b03_gate_status
+        b03_status = b03_prereq
     tasks["B03"] = _business_row(
         b03_status,
         "独立科学与事后审计：OOS/holdout/ablation/多重比较/反例/无泄漏",
@@ -2102,21 +2107,23 @@ def _derive_business_content_gate(
         reason=None if b03_status == "PASS" else "scientific/audit evidence is incomplete",
     )
 
+    b04_prereq = gate_state(
+        "physical_gui_click", "fault_injection",
+        "physical_gui_repair_failure", "updater_atomic_rollback",
+    )
     physical = proofs.get("physical_gui_click")
     ledgers = physical.get("ledgers") if isinstance(physical, dict) else []
+    if not isinstance(ledgers, list):
+        ledgers = []
     repair_success = any(
         isinstance(row, dict) and row.get("operation") == "repair"
         and type(row.get("experiment_id")) is int and row["experiment_id"] > 0
         for row in ledgers
     )
-    b04_required = (
-        "fault_injection", "physical_gui_repair_failure", "updater_atomic_rollback",
-    )
-    b04_gate_status = _business_gate_state(gates, b04_required)
-    if b04_gate_status == "PASS":
+    if b04_prereq == "PASS":
         b04_status = "PASS" if repair_success else "FAIL"
     else:
-        b04_status = b04_gate_status
+        b04_status = b04_prereq
     tasks["B04"] = _business_row(
         b04_status,
         "损坏检测与修复：真实成功路径、失败证据、原子性与回滚",
@@ -2139,11 +2146,10 @@ def _derive_business_content_gate(
         reason=None if b05_ok else f"independent release/update prerequisites not closed: {b05_states}",
     )
 
-    b06_required = (
-        "no_shell", "physical_gui_click", "physical_gui_failure",
-        "physical_gui_repair_failure",
+    b06_status = gate_state(
+        "no_shell", "physical_gui_click",
+        "physical_gui_failure", "physical_gui_repair_failure",
     )
-    b06_status = _business_gate_state(gates, b06_required)
     tasks["B06"] = _business_row(
         b06_status,
         "所有 GUI 入口实体点击到真实后端、显示和 ledger；失败不得显示 PASS",
@@ -2151,34 +2157,30 @@ def _derive_business_content_gate(
         reason=None if b06_status == "PASS" else "GUI runtime/no-shell evidence is incomplete",
     )
 
-    maintenance = exact_results.get("maintenance")
+    b07_prereq = gate_state("exact_exe")
+    maintenance = exact_results.get("maintenance") if isinstance(exact_results, dict) else None
     maintenance_result = maintenance.get("result") if isinstance(maintenance, dict) else None
     maintenance_checks = (
         maintenance_result.get("checks") if isinstance(maintenance_result, dict) else None
     )
     standard = proofs.get("standard_user")
-    b07_ok = bool(
-        isinstance(maintenance_result, dict)
-        and maintenance_result.get("status") == "PASS"
-        and maintenance_result.get("real_network_status") == "PASS"
-        and isinstance(maintenance_checks, dict) and maintenance_checks
-        and all(value is True for value in maintenance_checks.values())
-        and isinstance(standard, dict) and standard.get("status") == "PASS"
-        and gates.get("exact_exe") == "PASS"
-    )
-    if b07_ok:
-        b07_status = "PASS"
-    elif gates.get("exact_exe") == "PASS":
-        b07_status = "FAIL"
-    elif gates.get("exact_exe") == "FAIL":
-        b07_status = "FAIL"
+    if b07_prereq == "PASS":
+        b07_ok = bool(
+            isinstance(maintenance_result, dict)
+            and maintenance_result.get("status") == "PASS"
+            and maintenance_result.get("real_network_status") == "PASS"
+            and isinstance(maintenance_checks, dict) and maintenance_checks
+            and all(value is True for value in maintenance_checks.values())
+            and isinstance(standard, dict) and standard.get("status") == "PASS"
+        )
+        b07_status = "PASS" if b07_ok else "FAIL"
     else:
-        b07_status = "PENDING"
+        b07_status = b07_prereq
     tasks["B07"] = _business_row(
         b07_status,
         "长期维护：备份恢复、数据迁移、Evidence 导出、来源失败告警、普通账户与中文路径",
         evidence_refs=["exact_exe:maintenance", "standard_user", "unicode-path-no-python-path"],
-        reason=None if b07_ok else "maintenance/standard-user/Unicode evidence is incomplete",
+        reason=None if b07_status == "PASS" else "maintenance/standard-user/Unicode evidence is incomplete",
     )
 
     statuses = [tasks[key]["status"] for key in BUSINESS_SCOPE_IDS]
