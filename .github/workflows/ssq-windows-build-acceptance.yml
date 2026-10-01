@@ -153,91 +153,7 @@ jobs:
         run: |
           $acceptance = Get-Content "evidence\SSQ\WINDOWS_EXACT_EXE_ACCEPTANCE.json" -Raw | ConvertFrom-Json
           $version = [string]$acceptance.checks.self.version
-          if ($version -notmatch '^\d+\.\d+\.\d+(?:\+[A-Za-z0-9.-]+)?
-      - name: Physical GUI Click Smoke
-        shell: pwsh
-        run: |
-          ..\.github\scripts\ssq_physical_gui_click_smoke.ps1 -ExePath ".\dist\Geometry_Lotto_Pro_SSQ_Windows_Verified.exe" -EvidencePath ".\evidence\SSQ\physical_gui_click.json"
-
-      - name: Final evidence-derived release and same-hash proof
-        id: final_gate
-        shell: pwsh
-        run: |
-          $reportPath = "evidence\SSQ\WINDOWS_EXACT_EXE_ACCEPTANCE.json"
-          $exePath = "dist\Geometry_Lotto_Pro_SSQ_Windows_Verified.exe"
-          if (-not (Test-Path $reportPath)) { throw "acceptance report missing" }
-          if (-not (Test-Path $exePath)) { throw "exact EXE missing" }
-
-          python tools/derive_gate_status.py --evidence-dir evidence\SSQ --exe $exePath --report evidence\SSQ\mother-gates.json
-          if ($LASTEXITCODE -ne 0) { throw "gate derivation failed" }
-
-          python tools/release_gate_22.py --gate-input evidence\SSQ\mother-gates.json --acceptance $reportPath --exe $exePath --report evidence\SSQ\FINAL_22_GATE.json
-          $releaseExit = $LASTEXITCODE
-
-          $final = Get-Content evidence\SSQ\FINAL_22_GATE.json -Raw | ConvertFrom-Json
-          if ($releaseExit -ne 0 -or $final.final_gate -ne 'PASS' -or [int]$final.hard_fail_count -ne 0) {
-            throw "Final Gate blocked: inspect all non-PASS gates"
-          }
-
-          $acceptance = Get-Content $reportPath -Raw | ConvertFrom-Json
-          $releaseVersion = [string]$acceptance.checks.self.version
-          $stableVersionPattern = '^\d+\.\d+\.\d+(?:\+[A-Za-z0-9.-]+)?$'
-          if ($releaseVersion -notmatch $stableVersionPattern) {
-            throw "stable release version missing from exact-EXE self evidence: $releaseVersion"
-          }
-
-          "version=$releaseVersion" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-          "sha256=$($final.exe_sha256)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-          Write-Host "SSQ_FINAL_EXE=$(Resolve-Path $exePath)"
-          Write-Host "SSQ_FINAL_VERSION=$releaseVersion"
-          Write-Host "SSQ_FINAL_SHA256=$($final.exe_sha256)"
-          Write-Host "FINAL_RELEASE_GATE=PASS"
-
-      - name: Promote independent release only after Final Gate PASS
-        if: ${{ success() && github.repository == 'douluo511/Geometry-Lotto-Pro-SSQ' && github.ref == 'refs/heads/main' }}
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          $version = "${{ steps.final_gate.outputs.version }}"
-          if ([string]::IsNullOrWhiteSpace($version)) { throw "final release version output missing" }
-          gh release edit "v$version" --repo $env:GITHUB_REPOSITORY --prerelease=false --draft=false --title "Geometry Lotto Pro SSQ $version"
-          if ($LASTEXITCODE -ne 0) { throw "Final Gate passed but release promotion failed" }
-          Write-Host "SSQ_FORMAL_RELEASE=v$version"
-
-      - name: Upload candidate diagnostic evidence when acceptance fails
-        if: failure()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: SSQ-CANDIDATE-FAIL-EVIDENCE-${{ github.sha }}
-          path: |
-            SSQ/evidence/SSQ/**
-            SSQ/dist/Geometry_Lotto_Pro_SSQ_Windows_Verified.exe
-            SSQ/dist/Geometry_Lotto_Pro_SSQ_Updater.exe
-          if-no-files-found: warn
-          retention-days: 30
-
-      - name: Upload final audit evidence before release artifact
-        if: success()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: Geometry-Lotto-Pro-SSQ-RELEASE-GATE-PASS-AUDIT-${{ github.sha }}
-          path: SSQ/evidence/SSQ/**
-          if-no-files-found: error
-          retention-days: 30
-
-      - name: Upload final EXE only after all hard gates and audit upload pass
-        if: success()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: Geometry-Lotto-Pro-SSQ-FINAL-${{ steps.final_gate.outputs.version }}-Windows-x64
-          path: SSQ/dist/Geometry_Lotto_Pro_SSQ_Windows_Verified.exe
-          if-no-files-found: error
-          retention-days: 30
-          compression-level: 0
-
-# Hard-gate revalidation trigger: 2026-09-30 final release chain rebuilt
-) {
+          if ($version -notmatch '^\d+\.\d+\.\d+(?:\+[A-Za-z0-9.-]+)?$') {
             throw "exact EXE did not report a stable SemVer: $version"
           }
           $exePath = "dist\Geometry_Lotto_Pro_SSQ_Windows_Verified.exe"
@@ -352,6 +268,18 @@ jobs:
           Write-Host "SSQ_FINAL_VERSION=$releaseVersion"
           Write-Host "SSQ_FINAL_SHA256=$($final.exe_sha256)"
           Write-Host "FINAL_RELEASE_GATE=PASS"
+
+      - name: Promote independent release only after Final Gate PASS
+        if: ${{ success() && github.repository == 'douluo511/Geometry-Lotto-Pro-SSQ' && github.ref == 'refs/heads/main' }}
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $version = "${{ steps.final_gate.outputs.version }}"
+          if ([string]::IsNullOrWhiteSpace($version)) { throw "final release version output missing" }
+          gh release edit "v$version" --repo $env:GITHUB_REPOSITORY --prerelease=false --draft=false --title "Geometry Lotto Pro SSQ $version"
+          if ($LASTEXITCODE -ne 0) { throw "Final Gate passed but release promotion failed" }
+          Write-Host "SSQ_FORMAL_RELEASE=v$version"
 
       - name: Upload candidate diagnostic evidence when acceptance fails
         if: failure()
