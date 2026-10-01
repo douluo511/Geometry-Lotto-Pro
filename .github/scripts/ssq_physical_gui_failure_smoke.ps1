@@ -210,7 +210,17 @@ $result.failure_manifests = @($failureManifests | ForEach-Object {
 
 $db = Join-Path $runDir "ledger.sqlite3"
 if(-not (Test-Path -LiteralPath $db)){ throw "Failure scenario ledger missing" }
-$passCount = & python -c "import sqlite3,sys; db=sqlite3.connect(sys.argv[1]); print(db.execute(\"select count(*) from experiments where kind='official_update' and status='PASS'\").fetchone()[0]); db.close()" $db
+$pythonLedgerQuery = @'
+import sqlite3
+import sys
+
+db = sqlite3.connect(sys.argv[1])
+try:
+    print(db.execute("select count(*) from experiments where kind='official_update' and status='PASS'").fetchone()[0])
+finally:
+    db.close()
+'@
+$passCount = & python -c $pythonLedgerQuery $db
 if($LASTEXITCODE -ne 0){ throw "Could not inspect failure scenario ledger" }
 $result.official_update_pass_count = [int]$passCount
 
