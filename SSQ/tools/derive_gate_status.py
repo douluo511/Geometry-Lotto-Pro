@@ -900,6 +900,102 @@ def _verify_gui_evidence(physical: dict[str, Any], evidence_dir: Path, exe: Path
     return {"ledgers": ledgers}
 
 
+def _verify_gui_failure_evidence(
+    report: dict[str, Any], evidence_dir: Path, exe: Path, acceptance_ok: bool
+) -> dict[str, Any]:
+    updater_exe = exe.parent / "Geometry_Lotto_Pro_SSQ_Updater.exe"
+    if (not acceptance_ok or not exe.is_file() or not updater_exe.is_file()
+            or report.get("schema") != "physical-gui-failure-smoke-v1"
+            or report.get("status") != "PASS"
+            or report.get("scenario") != "controlled Windows outbound block"
+            or report.get("exe") != exe.name
+            or report.get("exe_sha256") != _hash(exe)
+            or report.get("updater_exe") != updater_exe.name
+            or report.get("updater_sha256") != _hash(updater_exe)
+            or report.get("github_sha") != os.environ.get("GITHUB_SHA")
+            or report.get("github_run_id") != os.environ.get("GITHUB_RUN_ID")
+            or report.get("firewall_rules_created") is not True
+            or report.get("ui_fail_closed") is not True
+            or not isinstance(report.get("ui_status"), str)
+            or "FAIL" not in report["ui_status"].upper()
+            or not _utc_recent(report.get("tested_at"))):
+        raise ValueError("physical GUI failure report is not bound to the exact current-run EXEs")
+
+    leaf = report.get("data_dir")
+    source_leaf = report.get("source_success_data_dir")
+    if (not isinstance(leaf, str)
+            or not re.fullmatch(r"physical-gui-failure-[0-9a-f]{32}", leaf)
+            or not isinstance(source_leaf, str)
+            or not re.fullmatch(r"physical-gui-run-[0-9a-f]{32}", source_leaf)):
+        raise ValueError("physical GUI failure data lineage is malformed")
+
+    run_dir = evidence_dir / leaf
+    source_dir = evidence_dir / source_leaf
+    history = run_dir / "canonical_history.json"
+    source_evidence = run_dir / "source_evidence.json"
+    source_history = source_dir / "canonical_history.json"
+    source_source_evidence = source_dir / "source_evidence.json"
+    ledger = run_dir / "ledger.sqlite3"
+    for required in (history, source_evidence, source_history, source_source_evidence, ledger):
+        if not required.is_file():
+            raise ValueError(f"physical GUI failure evidence file missing: {required.name}")
+
+    history_hash = _hash(history)
+    evidence_hash = _hash(source_evidence)
+    if (report.get("before_canonical_sha256") != history_hash
+            or report.get("after_canonical_sha256") != history_hash
+            or report.get("before_evidence_sha256") != evidence_hash
+            or report.get("after_evidence_sha256") != evidence_hash
+            or report.get("canonical_unchanged") is not True
+            or report.get("evidence_unchanged") is not True
+            or _hash(source_history) != history_hash
+            or _hash(source_source_evidence) != evidence_hash):
+        raise ValueError("controlled GUI network failure mutated the last accepted canonical/source evidence")
+
+    manifests = sorted((run_dir / "failed").glob("*/failure_evidence.json"))
+    declared_count = report.get("failure_manifest_count")
+    if (type(declared_count) is not int or declared_count < 1
+            or len(manifests) != declared_count):
+        raise ValueError("physical GUI failure evidence manifest count is invalid")
+    manifest_proofs: list[dict[str, Any]] = []
+    for manifest_path in manifests:
+        failure = _read(manifest_path)
+        if (not isinstance(failure, dict)
+                or failure.get("status") != "FAIL"
+                or failure.get("crosscheck_status") != "FAIL"
+                or failure.get("raw_response_status") not in {"FAIL", "UNAVAILABLE"}):
+            raise ValueError("physical GUI failure manifest attempted to claim success")
+        manifest_proofs.append({
+            "relative_path": str(manifest_path.relative_to(evidence_dir)).replace("\\", "/"),
+            "sha256": _hash(manifest_path),
+            "raw_response_status": failure.get("raw_response_status"),
+        })
+
+    db = sqlite3.connect(str(ledger))
+    try:
+        row = db.execute(
+            "SELECT COUNT(*) FROM experiments WHERE kind='official_update' AND status='PASS'"
+        ).fetchone()
+    finally:
+        db.close()
+    pass_count = int(row[0]) if row else -1
+    if (pass_count != 0 or report.get("official_update_pass_count") != 0):
+        raise ValueError("controlled GUI network failure produced an official_update PASS")
+
+    return {
+        "report_schema": report.get("schema"),
+        "exe_sha256": history and report.get("exe_sha256"),
+        "updater_sha256": report.get("updater_sha256"),
+        "data_dir": leaf,
+        "source_success_data_dir": source_leaf,
+        "canonical_sha256": history_hash,
+        "source_evidence_sha256": evidence_hash,
+        "failure_manifests": manifest_proofs,
+        "official_update_pass_count": pass_count,
+        "ui_status": report.get("ui_status"),
+    }
+
+
 def _corrupt_repair_is_fault_injection(evidence_dir: Path, exe_hash: str) -> bool:
     report = _read(evidence_dir / "corrupt-repair.json")
     if not isinstance(report, dict):
@@ -1761,7 +1857,28 @@ def derive(evidence: Path, exe: Path) -> dict[str, Any]:
             proofs["gui_smoke"] = dict(error)
             proofs["physical_gui_click"] = dict(error)
             gates["same_hash"] = "FAIL"
+    failure_path = evidence / "physical_gui_failure.json"
+    physical_failure = _read(failure_path)
+    if physical_failure is not None:
+        try:
+            failure_proof = _verify_gui_failure_evidence(
+                physical_failure, evidence, exe, acceptance_ok
+            )
+            gates["physical_gui_failure"] = "PASS"
+            proofs["physical_gui_failure"] = {
+                "report": str(failure_path),
+                "report_sha256": _hash(failure_path),
+                **failure_proof,
+            }
+        except (OSError, TypeError, ValueError, KeyError, sqlite3.Error) as exc:
+            gates["physical_gui_failure"] = "FAIL"
+            proofs["physical_gui_failure"] = {
+                "error": f"{type(exc).__name__}: {exc}"
+            }
+            gates["same_hash"] = "FAIL"
+
     if (acceptance_ok and gates["physical_gui_click"] == "PASS"
+            and gates["physical_gui_failure"] == "PASS"
             and gates["real_network"] == "PASS"):
         gates["same_hash"] = "PASS"
     gates["integration_test"] = (
@@ -1769,6 +1886,7 @@ def derive(evidence: Path, exe: Path) -> dict[str, Any]:
         if source_self_ok and acceptance_ok
         and gates["real_network"] == "PASS"
         and gates["physical_gui_click"] == "PASS"
+        and gates["physical_gui_failure"] == "PASS"
         and "update" in locals().get("exact_results", {})
         else "FAIL"
     )
@@ -1778,6 +1896,7 @@ def derive(evidence: Path, exe: Path) -> dict[str, Any]:
             "exact_exe_update": "PASS",
             "real_network": "PASS",
             "physical_gui": "PASS",
+            "physical_gui_failure": "PASS",
         }
     return {
         "schema": "ssq-current-run-gate-evidence-v1",
