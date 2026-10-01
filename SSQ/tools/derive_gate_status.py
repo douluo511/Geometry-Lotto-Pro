@@ -72,6 +72,43 @@ REQUIRED_NETCLIENT_CHECKS = frozenset({
 
 EXPECTED_INDEPENDENT_REPOSITORY = "douluo511/Geometry-Lotto-Pro-SSQ"
 
+_GATE_PROMOTION_POLICY = {
+    "schema": "false-edge-firewall-v8",
+    "min_walk_forward": 1200,
+    "min_prospective": 120,
+    "min_era_count": 3,
+    "alpha": 0.01,
+    "min_front_recall_gain": 0.04,
+    "min_back_recall_gain": 0.03,
+    "min_bootstrap_lower": 0.0,
+    "min_null_percentile": 0.95,
+    "max_null_world_fpr": 0.05,
+    "min_wilson_lower": 0.50,
+    "min_model_coverage": 0.60,
+    "min_rank_support": 0.60,
+    "min_confirmation_n": 120,
+    "windows": [30, 60, 120, 240],
+    "seeds": [17, 43, 97, 193, 389],
+    "ablation_modes": ["remove", "shuffle", "random_replace"],
+    "bootstrap_rounds": 1999,
+    "permutation_rounds": 2000,
+    "null_worlds": 300,
+}
+_GATE_SCIENCE_NAMES = (
+    "Walk-forward OOS",
+    "Random Baseline",
+    "Bootstrap",
+    "Permutation + Holm Reality Check",
+    "Temporal LOEO",
+    "Ablation Remove/Shuffle/Random",
+    "Leakage Sentinel",
+    "Null-world FPR",
+    "Untouched Holdout",
+    "Dual Final Confirmation",
+    "Wilson/Coverage/Rank Support",
+    "Prospective Replay",
+)
+
 _GATE_CHINA_TZ = timezone(timedelta(hours=8))
 _GATE_SSQ_DRAW_WEEKDAYS = frozenset({1, 3, 6})
 _GATE_FRESHNESS_POLICY_SOURCES = {
@@ -224,11 +261,184 @@ def _rederive_court_hash(court: dict[str, Any]) -> str:
     return computed
 
 
+def _finite_number(value: Any, label: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"{label} is not a real number")
+    number = float(value)
+    if not math.isfinite(number):
+        raise ValueError(f"{label} is non-finite")
+    return number
+
+
+def _exact_nonnegative_int(value: Any, label: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ValueError(f"{label} is not a nonnegative integer")
+    return value
+
+
+def _rederive_promotion_decision(court: dict[str, Any]) -> dict[str, Any]:
+    policy = court.get("pre_registered_policy")
+    if policy != _GATE_PROMOTION_POLICY:
+        raise ValueError("science promotion policy differs from the frozen gate policy")
+
+    tests = court.get("model_tests")
+    reality = court.get("reality_check")
+    loeo = court.get("loeo")
+    ablation = court.get("ablation")
+    null_world = court.get("null_world")
+    holdout = court.get("untouched_holdout")
+    dual = court.get("dual_final_confirmation")
+    support = court.get("support_gate")
+    walk = court.get("walk_forward")
+    if not all(isinstance(x, dict) for x in (
+        tests, reality, loeo, ablation, null_world, holdout, dual, support, walk
+    )):
+        raise ValueError("science promotion evidence sections are incomplete")
+
+    primary = tests.get("research_ensemble")
+    reality_primary = reality.get("research_ensemble")
+    primary_boot = primary.get("bootstrap") if isinstance(primary, dict) else None
+    holdout_boot = holdout.get("bootstrap")
+    if not all(isinstance(x, dict) for x in (primary, reality_primary, primary_boot, holdout_boot)):
+        raise ValueError("science promotion primary/bootstrap evidence is incomplete")
+
+    n = _exact_nonnegative_int(primary.get("n"), "research ensemble OOS n")
+    front_gain = _finite_number(primary.get("front_recall_gain"), "front recall gain")
+    back_gain = _finite_number(primary.get("back_recall_gain"), "back recall gain")
+    combined_gain = _finite_number(primary.get("combined_gain"), "combined gain")
+    primary_lower = _finite_number(primary_boot.get("lower95"), "development bootstrap lower95")
+    holdout_lower = _finite_number(holdout_boot.get("lower95"), "holdout bootstrap lower95")
+    holdout_p = _finite_number(holdout.get("permutation_p"), "holdout permutation p")
+    false_positive_rate = _finite_number(null_world.get("false_positive_rate"), "null-world FPR")
+    observed_percentile = _finite_number(null_world.get("observed_percentile"), "null-world percentile")
+    leakage = _exact_nonnegative_int(walk.get("leakage_violations"), "walk-forward leakage violations")
+    top_leakage = _exact_nonnegative_int(court.get("leakage_violations"), "court leakage violations")
+    if leakage != top_leakage:
+        raise ValueError("science leakage counters disagree")
+
+    prospective_n = _exact_nonnegative_int(court.get("prospective_n"), "prospective count")
+    prospective_selector_consistent = court.get("prospective_selector_consistent")
+    if not isinstance(prospective_selector_consistent, bool):
+        raise ValueError("prospective selector consistency is not boolean")
+
+    predictive_pass = (
+        n >= _GATE_PROMOTION_POLICY["min_walk_forward"]
+        and front_gain > _GATE_PROMOTION_POLICY["min_front_recall_gain"]
+        and back_gain > _GATE_PROMOTION_POLICY["min_back_recall_gain"]
+        and primary_lower > _GATE_PROMOTION_POLICY["min_bootstrap_lower"]
+        and reality_primary.get("reject_null") is True
+    )
+    loeo_pass = loeo.get("passed") is True
+    holdout_pass = (
+        holdout_lower > 0
+        and 0 <= holdout_p <= _GATE_PROMOTION_POLICY["alpha"]
+    )
+    leakage_pass = leakage == 0
+    null_pass = (
+        0 <= false_positive_rate <= _GATE_PROMOTION_POLICY["max_null_world_fpr"]
+        and observed_percentile >= _GATE_PROMOTION_POLICY["min_null_percentile"]
+    )
+    dual_pass = dual.get("passed") is True
+    ablation_pass = ablation.get("passed") is True
+    edge_proven = all((
+        predictive_pass, loeo_pass, holdout_pass, dual_pass,
+        ablation_pass, leakage_pass, null_pass,
+    ))
+    support_pass = support.get("passed") is True
+    certified_dan = (
+        edge_proven
+        and support_pass
+        and prospective_n >= _GATE_PROMOTION_POLICY["min_prospective"]
+        and prospective_selector_consistent
+    )
+
+    expected_decisions = {
+        "Walk-forward OOS": "ACCEPT_EDGE" if predictive_pass else "REJECT_EDGE",
+        "Random Baseline": "ABOVE_BASELINE" if combined_gain > 0 else "NOT_ABOVE_BASELINE",
+        "Bootstrap": "ACCEPT_EDGE" if primary_lower > 0 else "REJECT_EDGE",
+        "Permutation + Holm Reality Check": (
+            "ACCEPT_EDGE" if reality_primary.get("reject_null") is True else "REJECT_EDGE"
+        ),
+        "Temporal LOEO": "SUPPORT_EDGE" if loeo_pass else "REJECT_EDGE",
+        "Ablation Remove/Shuffle/Random": "ACCEPT_EDGE" if ablation_pass else "REJECT_EDGE",
+        "Leakage Sentinel": "ACCEPT" if leakage_pass else "REJECT_EDGE",
+        "Null-world FPR": "ACCEPT_EDGE" if null_pass else "REJECT_EDGE",
+        "Untouched Holdout": "ACCEPT_EDGE" if holdout_pass else "REJECT_EDGE",
+        "Dual Final Confirmation": "ACCEPT_EDGE" if dual_pass else "REJECT_EDGE",
+        "Wilson/Coverage/Rank Support": "ACCEPT_DAN" if support_pass else "REJECT_DAN",
+        "Prospective Replay": (
+            "ACCEPT_DAN"
+            if prospective_n >= _GATE_PROMOTION_POLICY["min_prospective"]
+            else "REJECT_DAN"
+        ),
+    }
+    rows = court.get("gates")
+    if not isinstance(rows, list) or len(rows) != len(_GATE_SCIENCE_NAMES):
+        raise ValueError("science court does not contain the exact 12 named checks")
+    by_name: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        if not isinstance(row, dict) or row.get("name") not in _GATE_SCIENCE_NAMES:
+            raise ValueError("science court contains an unknown or malformed named check")
+        name = row["name"]
+        if name in by_name:
+            raise ValueError("science court contains a duplicate named check")
+        by_name[name] = row
+    if tuple(row.get("name") for row in rows) != _GATE_SCIENCE_NAMES:
+        raise ValueError("science court named-check order differs from the frozen contract")
+    for name, expected in expected_decisions.items():
+        row = by_name[name]
+        expected_status = "PASS" if name != "Leakage Sentinel" or leakage_pass else "FAIL"
+        if row.get("status") != expected_status or row.get("decision") != expected:
+            raise ValueError(f"science named check {name} contradicts independent statistics")
+
+    expected_software = "PASS" if all(row.get("status") == "PASS" for row in rows) else "FAIL"
+    expected_edge_state = "EDGE_PROVEN" if edge_proven else "NO_EDGE"
+    expected_dan_state = "CERTIFIED_DAN" if certified_dan else "NULL_DAN"
+    expected_weights = {
+        "uniform_baseline": 0.0 if certified_dan else 1.0,
+        "research_ensemble": 1.0 if certified_dan else 0.0,
+    }
+    lifecycle = court.get("lifecycle")
+    final = court.get("final_validation")
+    if (court.get("software_verdict") != expected_software
+            or court.get("edge_state") != expected_edge_state
+            or court.get("dan_state") != expected_dan_state
+            or court.get("decision") != ("ACCEPT_EDGE" if edge_proven else "REJECT_EDGE")
+            or court.get("production_weights") != expected_weights
+            or not isinstance(lifecycle, dict)
+            or lifecycle.get("Champion") != (
+                "research_ensemble" if certified_dan else "uniform_baseline"
+            )
+            or not isinstance(final, dict)
+            or final.get("status") != expected_software
+            or final.get("hard_fail_count") != sum(
+                1 for row in rows if row.get("status") == "FAIL"
+            )
+            or final.get("edge_proven") is not edge_proven
+            or final.get("dan_certified") is not certified_dan):
+        raise ValueError("science promotion result contradicts independently re-derived decision")
+
+    return {
+        "edge_proven": edge_proven,
+        "dan_certified": certified_dan,
+        "predictive_pass": predictive_pass,
+        "loeo_pass": loeo_pass,
+        "holdout_pass": holdout_pass,
+        "dual_pass": dual_pass,
+        "ablation_pass": ablation_pass,
+        "leakage_pass": leakage_pass,
+        "null_pass": null_pass,
+        "support_pass": support_pass,
+        "prospective_n": prospective_n,
+    }
+
+
 def _verify_science_contract(report: dict[str, Any]) -> dict[str, Any]:
     court = report.get("result")
     if not isinstance(court, dict):
         raise ValueError("science result has no evidence court")
     court_hash = _rederive_court_hash(court)
+    promotion = _rederive_promotion_decision(court)
     final = court.get("final_validation")
     walk = court.get("walk_forward")
     policy = court.get("pre_registered_policy")
@@ -263,6 +473,7 @@ def _verify_science_contract(report: dict[str, Any]) -> dict[str, Any]:
         "development_oos_n": walk.get("development_oos_n"),
         "untouched_holdout_n": walk.get("untouched_holdout_n"),
         "leakage_violations": walk.get("leakage_violations"),
+        "independent_promotion": promotion,
     }
 
 
