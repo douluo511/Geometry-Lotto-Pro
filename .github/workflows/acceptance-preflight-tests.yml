@@ -1,0 +1,39 @@
+name: Acceptance preflight regression (not release acceptance)
+
+on:
+  pull_request:
+    paths:
+      - 'acceptance/**'
+      - 'SSQ/**'
+      - '.github/workflows/acceptance-preflight-tests.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'acceptance/**'
+      - 'SSQ/**'
+      - '.github/workflows/acceptance-preflight-tests.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  regression:
+    name: Contract regression (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install pinned test dependencies
+        run: python -m pip install --disable-pip-version-check -r acceptance/requirements-test.txt
+      - name: Preflight adversarial regression (synthetic fixtures only)
+        run: python -B -m unittest discover -s acceptance/tests -v
+      - name: SSQ regression (not real network or EXE acceptance)
+        working-directory: SSQ
+        run: python -B -m unittest discover -s tests -v
