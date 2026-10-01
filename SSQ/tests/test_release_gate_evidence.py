@@ -18,8 +18,9 @@ sys.path.insert(0, str(TOOLS))
 sys.path.insert(0, str(TOOLS.parent / "SSQ"))
 from derive_gate_status import (  # noqa: E402
     REQUIRED_BUSINESS_CHECKS, REQUIRED_EXE_CHECKS, REQUIRED_NETCLIENT_CHECKS,
-    _raw_status_allowed, _reparse_manifest, _repro_workspace_isolated, _verify_checkout_identity,
-    _verify_gui_evidence, _verify_gui_failure_evidence, _verify_gui_update_source, _verify_reversal_contract,
+    _expected_gate_latest_completed_draw_day, _raw_status_allowed, _reparse_manifest,
+    _repro_workspace_isolated, _verify_checkout_identity, _verify_gui_evidence,
+    _verify_gui_failure_evidence, _verify_gui_update_source, _verify_reversal_contract,
     _verify_updater_release_network, derive,
 )
 from release_gate_22 import HARD_GATES  # noqa: E402
@@ -184,6 +185,18 @@ def _sha_for_test(value: object) -> str:
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 class ReleaseGateEvidenceTests(unittest.TestCase):
+    def test_gate_calendar_excludes_2026_official_national_day_closure(self) -> None:
+        self.assertEqual(
+            _expected_gate_latest_completed_draw_day(date(2026, 10, 1)),
+            date(2026, 9, 29),
+        )
+        self.assertEqual(
+            _expected_gate_latest_completed_draw_day(date(2026, 10, 5)),
+            date(2026, 9, 29),
+        )
+        with self.assertRaises(ValueError):
+            _expected_gate_latest_completed_draw_day(date(2027, 1, 2))
+
     def test_gui_update_contract_reparses_same_directory_synthetic_bytes(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
