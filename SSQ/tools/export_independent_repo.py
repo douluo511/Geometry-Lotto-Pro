@@ -17,6 +17,7 @@ COPY_FILES = (
     Path(".github/workflows/ssq-windows-build-acceptance.yml"),
     Path(".github/scripts/ssq_physical_gui_click_smoke.ps1"),
     Path(".github/scripts/ssq_physical_gui_failure_smoke.ps1"),
+    Path(".github/scripts/ssq_standard_user_smoke.ps1"),
     Path(".gitignore"),
     Path("PORTFOLIO_GOVERNANCE.md"),
 )
@@ -189,6 +190,8 @@ def verify_export(destination: Path) -> dict:
     )
     checks["required_workflow"] = ".github/workflows/ssq-windows-build-acceptance.yml" in actual_paths
     checks["required_gui_script"] = ".github/scripts/ssq_physical_gui_click_smoke.ps1" in actual_paths
+    checks["required_gui_failure_script"] = ".github/scripts/ssq_physical_gui_failure_smoke.ps1" in actual_paths
+    checks["required_standard_user_script"] = ".github/scripts/ssq_standard_user_smoke.ps1" in actual_paths
     checks["ssq_project"] = any(rel.startswith("SSQ/") for rel in actual_paths)
 
     mismatches = []
