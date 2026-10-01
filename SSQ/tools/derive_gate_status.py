@@ -2023,6 +2023,15 @@ def _business_row(
     }
 
 
+def _business_gate_state(gates: dict[str, str], names: tuple[str, ...]) -> str:
+    states = [gates.get(name, "PENDING") for name in names]
+    if all(state == "PASS" for state in states):
+        return "PASS"
+    if any(state == "FAIL" for state in states):
+        return "FAIL"
+    return "PENDING"
+
+
 def _derive_business_content_gate(
     gates: dict[str, str],
     proofs: dict[str, Any],
@@ -2037,15 +2046,16 @@ def _derive_business_content_gate(
     """
     tasks: dict[str, dict[str, Any]] = {}
 
-    b01_ok = all(gates.get(name) == "PASS" for name in (
+    b01_required = (
         "contract_test", "fault_injection", "real_network",
         "physical_gui_click", "physical_gui_failure",
-    ))
+    )
+    b01_status = _business_gate_state(gates, b01_required)
     tasks["B01"] = _business_row(
-        "PASS" if b01_ok else "FAIL",
+        b01_status,
         "更新历史并审计官方来源、最新期、冲突与网络失败",
         evidence_refs=["real_network", "fault_injection", "physical_gui_click", "physical_gui_failure"],
-        reason=None if b01_ok else "real-network/update positive+negative evidence is incomplete",
+        reason=None if b01_status == "PASS" else "real-network/update positive+negative evidence is incomplete",
     )
 
     predict = exact_results.get("predict")
@@ -2056,6 +2066,7 @@ def _derive_business_content_gate(
     )
     prediction = predict_result.get("prediction") if isinstance(predict_result, dict) else None
     lineage_fields = ("prediction_id", "freeze_hash", "score_hash", "model_hash", "selector_hash")
+    b02_dynamic_present = isinstance(predict_result, dict)
     b02_ok = bool(
         isinstance(contract, dict) and contract
         and all(value is True for value in contract.values())
@@ -2063,21 +2074,32 @@ def _derive_business_content_gate(
         and all(isinstance(prediction.get(key), str) and prediction.get(key) for key in lineage_fields)
         and gates.get("business_validation") == "PASS"
     )
+    if b02_ok:
+        b02_status = "PASS"
+    elif gates.get("business_validation") == "FAIL" or b02_dynamic_present:
+        b02_status = "FAIL"
+    else:
+        b02_status = "PENDING"
     tasks["B02"] = _business_row(
-        "PASS" if b02_ok else "FAIL",
+        b02_status,
         "生成可追溯研究结果并禁止未合格模型冒充生产优势",
         evidence_refs=["exact_exe:predict", "business_validation"],
-        reason=None if b02_ok else "prediction lineage/model qualification evidence is incomplete",
+        reason=None if b02_status == "PASS" else "prediction lineage/model qualification evidence is incomplete",
     )
 
-    b03_ok = all(gates.get(name) == "PASS" for name in (
+    b03_required = (
         "business_validation", "counterexample_validation", "reversal_validation",
-    )) and "audit" in exact_results
+    )
+    b03_gate_status = _business_gate_state(gates, b03_required)
+    if b03_gate_status == "PASS":
+        b03_status = "PASS" if "audit" in exact_results else "FAIL"
+    else:
+        b03_status = b03_gate_status
     tasks["B03"] = _business_row(
-        "PASS" if b03_ok else "FAIL",
+        b03_status,
         "独立科学与事后审计：OOS/holdout/ablation/多重比较/反例/无泄漏",
         evidence_refs=["business_validation", "counterexample_validation", "reversal_validation", "exact_exe:audit"],
-        reason=None if b03_ok else "scientific/audit evidence is incomplete",
+        reason=None if b03_status == "PASS" else "scientific/audit evidence is incomplete",
     )
 
     physical = proofs.get("physical_gui_click")
@@ -2087,17 +2109,19 @@ def _derive_business_content_gate(
         and type(row.get("experiment_id")) is int and row["experiment_id"] > 0
         for row in ledgers
     )
-    b04_ok = bool(
-        repair_success
-        and gates.get("fault_injection") == "PASS"
-        and gates.get("physical_gui_repair_failure") == "PASS"
-        and gates.get("updater_atomic_rollback") == "PASS"
+    b04_required = (
+        "fault_injection", "physical_gui_repair_failure", "updater_atomic_rollback",
     )
+    b04_gate_status = _business_gate_state(gates, b04_required)
+    if b04_gate_status == "PASS":
+        b04_status = "PASS" if repair_success else "FAIL"
+    else:
+        b04_status = b04_gate_status
     tasks["B04"] = _business_row(
-        "PASS" if b04_ok else "FAIL",
+        b04_status,
         "损坏检测与修复：真实成功路径、失败证据、原子性与回滚",
         evidence_refs=["physical_gui_click:repair", "physical_gui_repair_failure", "fault_injection", "updater_atomic_rollback"],
-        reason=None if b04_ok else "repair success/failure/rollback evidence is incomplete",
+        reason=None if b04_status == "PASS" else "repair success/failure/rollback evidence is incomplete",
     )
 
     b05_required = (
@@ -2115,15 +2139,16 @@ def _derive_business_content_gate(
         reason=None if b05_ok else f"independent release/update prerequisites not closed: {b05_states}",
     )
 
-    b06_ok = all(gates.get(name) == "PASS" for name in (
+    b06_required = (
         "no_shell", "physical_gui_click", "physical_gui_failure",
         "physical_gui_repair_failure",
-    ))
+    )
+    b06_status = _business_gate_state(gates, b06_required)
     tasks["B06"] = _business_row(
-        "PASS" if b06_ok else "FAIL",
+        b06_status,
         "所有 GUI 入口实体点击到真实后端、显示和 ledger；失败不得显示 PASS",
         evidence_refs=["no_shell", "physical_gui_click", "physical_gui_failure", "physical_gui_repair_failure"],
-        reason=None if b06_ok else "GUI runtime/no-shell evidence is incomplete",
+        reason=None if b06_status == "PASS" else "GUI runtime/no-shell evidence is incomplete",
     )
 
     maintenance = exact_results.get("maintenance")
@@ -2141,7 +2166,14 @@ def _derive_business_content_gate(
         and isinstance(standard, dict) and standard.get("status") == "PASS"
         and gates.get("exact_exe") == "PASS"
     )
-    b07_status = "PASS" if b07_ok else "FAIL"
+    if b07_ok:
+        b07_status = "PASS"
+    elif gates.get("exact_exe") == "PASS":
+        b07_status = "FAIL"
+    elif gates.get("exact_exe") == "FAIL":
+        b07_status = "FAIL"
+    else:
+        b07_status = "PENDING"
     tasks["B07"] = _business_row(
         b07_status,
         "长期维护：备份恢复、数据迁移、Evidence 导出、来源失败告警、普通账户与中文路径",

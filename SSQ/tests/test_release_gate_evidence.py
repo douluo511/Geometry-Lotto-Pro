@@ -18,10 +18,11 @@ sys.path.insert(0, str(TOOLS))
 sys.path.insert(0, str(TOOLS.parent / "SSQ"))
 from derive_gate_status import (  # noqa: E402
     REQUIRED_BUSINESS_CHECKS, REQUIRED_EXE_CHECKS, REQUIRED_NETCLIENT_CHECKS,
-    _derive_no_shell_gate, _expected_gate_latest_completed_draw_day, _raw_status_allowed,
+    _derive_business_content_gate, _derive_no_shell_gate,
+    _expected_gate_latest_completed_draw_day, _raw_status_allowed,
     _reparse_manifest, _repro_workspace_isolated, _verify_checkout_identity, _verify_gui_evidence,
     _verify_gui_failure_evidence, _verify_gui_update_source, _verify_reversal_contract,
-    _verify_science_contract,
+    _verify_science_contract, _verify_standard_user_evidence,
     _verify_updater_release_network, derive,
 )
 from release_gate_22 import HARD_GATES  # noqa: E402
@@ -368,6 +369,157 @@ class ReleaseGateEvidenceTests(unittest.TestCase):
         proofs["physical_gui_repair_failure"]["repair_pass_count"] = 1
         status, _ = _derive_no_shell_gate(gates, proofs)
         self.assertEqual(status, "FAIL")
+
+    @staticmethod
+    def _complete_business_fixture() -> tuple[dict, dict, dict]:
+        gates = {
+            name: "PASS" for name in (
+                "contract_test", "fault_injection", "real_network",
+                "physical_gui_click", "physical_gui_failure",
+                "business_validation", "counterexample_validation", "reversal_validation",
+                "physical_gui_repair_failure", "updater_atomic_rollback",
+                "updater_process", "updater_exact_exe", "updater_same_hash",
+                "updater_real_network", "repository_independence", "release_context",
+                "no_shell", "exact_exe",
+            )
+        }
+        proofs = {
+            "physical_gui_click": {
+                "ledgers": [
+                    {"operation": "predict", "experiment_id": 1},
+                    {"operation": "update", "experiment_id": 2},
+                    {"operation": "repair", "experiment_id": 3},
+                    {"operation": "audit", "experiment_id": 4},
+                ],
+            },
+            "standard_user": {"status": "PASS"},
+        }
+        exact = {
+            "predict": {"result": {
+                "acceptance_autonomous_contract": {
+                    "hashes_present": True, "prediction_payload_matches_recompute": True,
+                },
+                "prediction": {
+                    "prediction_id": "p", "freeze_hash": "f", "score_hash": "s",
+                    "model_hash": "m", "selector_hash": "q",
+                },
+            }},
+            "audit": {"result": {"status": "PASS"}},
+            "maintenance": {"result": {
+                "status": "PASS", "real_network_status": "PASS",
+                "checks": {
+                    "backup_verified": True,
+                    "evidence_export_verified": True,
+                    "migration_verified": True,
+                    "canonical_identity_preserved": True,
+                    "ledger_inventory_preserved": True,
+                    "source_health_reported": True,
+                    "tampered_backup_rejected": True,
+                    "unicode_target_supported": True,
+                },
+            }},
+        }
+        return gates, proofs, exact
+
+    def test_business_B01_B07_pass_only_with_complete_dynamic_evidence(self) -> None:
+        gates, proofs, exact = self._complete_business_fixture()
+        status, proof = _derive_business_content_gate(
+            gates, proofs, exact, {"static_contract_status": "PASS"}
+        )
+        self.assertEqual(status, "PASS")
+        self.assertEqual(proof["passed"], 7)
+        self.assertEqual(proof["pending"], 0)
+        self.assertEqual(proof["failed"], 0)
+        self.assertTrue(proof["release_authorized"])
+
+    def test_business_B05_stays_pending_until_independent_real_release(self) -> None:
+        gates, proofs, exact = self._complete_business_fixture()
+        gates["updater_real_network"] = "PENDING"
+        gates["repository_independence"] = "FAIL"
+        gates["release_context"] = "FAIL"
+        status, proof = _derive_business_content_gate(
+            gates, proofs, exact, {"static_contract_status": "PASS"}
+        )
+        self.assertEqual(status, "PENDING")
+        self.assertEqual(proof["tasks"]["B05"]["status"], "PENDING")
+        self.assertFalse(proof["release_authorized"])
+        for task in ("B01", "B02", "B03", "B04", "B06", "B07"):
+            self.assertEqual(proof["tasks"][task]["status"], "PASS")
+
+    def test_business_rejects_false_maintenance_and_static_only_claims(self) -> None:
+        gates, proofs, exact = self._complete_business_fixture()
+        exact["maintenance"]["result"]["checks"]["tampered_backup_rejected"] = False
+        status, proof = _derive_business_content_gate(
+            gates, proofs, exact, {"static_contract_status": "PASS"}
+        )
+        self.assertEqual(status, "FAIL")
+        self.assertEqual(proof["tasks"]["B07"]["status"], "FAIL")
+
+        gates, proofs, exact = self._complete_business_fixture()
+        status, proof = _derive_business_content_gate(gates, proofs, exact, None)
+        self.assertEqual(status, "FAIL")
+        self.assertFalse(proof["release_authorized"])
+
+    def test_standard_user_gate_rederives_raw_identity_and_token_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            exe = root / "Geometry_Lotto_Pro_SSQ_Windows_Verified.exe"
+            exe.write_bytes(b"exact-main")
+            exe_hash = hashlib.sha256(exe.read_bytes()).hexdigest()
+            self_report = {
+                "status": "PASS", "scope": "self", "platform": "win32",
+                "game": "SSQ", "github_sha": "a" * 40, "github_run_id": "12345",
+                "exe_sha256": exe_hash, "final_release_gate": "PENDING",
+            }
+            self_path = root / "standard_user_self.json"
+            self_path.write_text(json.dumps(self_report), encoding="utf-8")
+            whoami = root / "standard_user_whoami.txt"
+            whoami.write_text("RUNNER\\glpssq1234abcd\n", encoding="utf-8")
+            groups = root / "standard_user_groups.txt"
+            groups.write_text(
+                "BUILTIN\\Users S-1-5-32-545\nMandatory Label\\Medium Mandatory Level S-1-16-8192\n",
+                encoding="utf-8",
+            )
+            report = {
+                "schema": "ssq-standard-user-acceptance-v1", "status": "PASS",
+                "github_sha": "a" * 40, "github_run_id": "12345",
+                "exe": exe.name, "exe_sha256": exe_hash,
+                "disposable_user": "glpssq1234abcd",
+                "user_sid": "S-1-5-21-1-2-3-1001",
+                "administrators_member": False, "medium_integrity": True,
+                "whoami": "runner\\glpssq1234abcd",
+                "self_result": self_path.name,
+                "self_result_sha256": hashlib.sha256(self_path.read_bytes()).hexdigest(),
+                "self_status": "PASS",
+                "whoami_evidence": whoami.name,
+                "whoami_evidence_sha256": hashlib.sha256(whoami.read_bytes()).hexdigest(),
+                "groups_evidence": groups.name,
+                "groups_evidence_sha256": hashlib.sha256(groups.read_bytes()).hexdigest(),
+                "gui_default_launch": "PASS",
+                "default_appdata_root": "C:\\Users\\glpssq1234abcd\\AppData\\Local\\GeometryLottoPro\\SSQ",
+                "localappdata_ledger_created": True,
+                "tested_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            }
+            (root / "STANDARD_USER_ACCEPTANCE.json").write_text(
+                json.dumps(report), encoding="utf-8"
+            )
+            with patch.dict(os.environ, {
+                "GITHUB_SHA": "a" * 40, "GITHUB_RUN_ID": "12345",
+                "COMPUTERNAME": "RUNNER",
+            }):
+                proof = _verify_standard_user_evidence(root, exe, True)
+                self.assertEqual(proof["status"], "PASS")
+                groups.write_text(
+                    "BUILTIN\\Administrators S-1-5-32-544\n"
+                    "Mandatory Label\\High Mandatory Level S-1-16-12288\n",
+                    encoding="utf-8",
+                )
+                report["groups_evidence_sha256"] = hashlib.sha256(groups.read_bytes()).hexdigest()
+                (root / "STANDARD_USER_ACCEPTANCE.json").write_text(
+                    json.dumps(report), encoding="utf-8"
+                )
+                with self.assertRaises(ValueError):
+                    _verify_standard_user_evidence(root, exe, True)
 
     def test_netclient_report_requires_all_named_explicit_passes_and_integer_count(self) -> None:
         complete = {name: {"status": "PASS"} for name in REQUIRED_NETCLIENT_CHECKS}
