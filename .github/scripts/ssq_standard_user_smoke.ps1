@@ -114,15 +114,25 @@ echo %ERRORLEVEL% > "$exitPath"
   $whoamiHash = Get-Sha256 $copiedWhoami
   $groupsHash = Get-Sha256 $copiedGroups
 
-  $guiProc = Start-Process -FilePath $userExe -Credential $cred -LoadUserProfile -PassThru
-  Start-Sleep -Seconds 8
-  if($guiProc.HasExited) { throw "Exact EXE did not remain alive as GUI under standard user" }
-
   $profile = Get-CimInstance Win32_UserProfile | Where-Object { [string]$_.SID -eq $sid } | Select-Object -First 1
   if($null -eq $profile -or [string]::IsNullOrWhiteSpace([string]$profile.LocalPath)) {
     throw "Could not resolve disposable user's profile"
   }
-  $appDataRoot = Join-Path ([string]$profile.LocalPath) "AppData\Local\GeometryLottoPro\SSQ"
+  $profileRoot = [string]$profile.LocalPath
+  $targetLocalAppData = Join-Path $profileRoot "AppData\Local"
+  $appDataRoot = Join-Path $targetLocalAppData "GeometryLottoPro\SSQ"
+
+  # Start-Process inherits the caller environment by default even with alternate
+  # credentials. Bind the GUI process to the disposable standard user's real
+  # profile paths so the product default LOCALAPPDATA contract is exercised.
+  $guiEnvironment = @{
+    LOCALAPPDATA = $targetLocalAppData
+    USERPROFILE = $profileRoot
+  }
+  $guiProc = Start-Process -FilePath $userExe -Credential $cred -LoadUserProfile -Environment $guiEnvironment -PassThru
+  Start-Sleep -Seconds 8
+  if($guiProc.HasExited) { throw "Exact EXE did not remain alive as GUI under standard user" }
+
   $ledger = Join-Path $appDataRoot "ledger.sqlite3"
   if(-not (Test-Path -LiteralPath $ledger)) {
     throw "Standard-user default LOCALAPPDATA store was not created"
@@ -148,6 +158,8 @@ echo %ERRORLEVEL% > "$exitPath"
     groups_evidence = (Split-Path -Leaf $copiedGroups)
     groups_evidence_sha256 = $groupsHash
     gui_default_launch = "PASS"
+    user_profile_root = $profileRoot
+    process_localappdata = $targetLocalAppData
     default_appdata_root = $appDataRoot
     localappdata_ledger_created = $true
     tested_at = [DateTime]::UtcNow.ToString("yyyy-MM-ddTHH:mm:ss'Z'")
