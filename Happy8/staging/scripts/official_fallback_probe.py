@@ -262,11 +262,15 @@ def inspect_hebei_contract() -> dict:
                 try:
                     payload = json.loads(_decode(body))
                     if isinstance(payload, list):
-                        for item in payload[:20]:
-                            if isinstance(item, dict) and "value" in item:
-                                token = str(item["value"]).strip()
-                                if re.fullmatch(r"0?[1-9]|[1-7]\d|80", token):
-                                    values.append(int(token))
+                        for item in payload:
+                            if not isinstance(item, dict):
+                                continue
+                            key = str(item.get("key", "")).strip()
+                            value = str(item.get("value", "")).strip()
+                            if key == "announceTime":
+                                probe["announce_time"] = value
+                            if len(values) < 20 and re.fullmatch(r"0?[1-9]|[1-7]\d|80", value):
+                                values.append(int(value))
                 except Exception as exc:
                     probe["json_error"] = f"{type(exc).__name__}: {exc}"
                 probe["first_20_values"] = values
@@ -286,6 +290,15 @@ def inspect_hebei_contract() -> dict:
             if current.get("issue"):
                 post_probes.append(post_number_probe("current_issue_literal", current["issue"]))
         post_probes.append(post_number_probe("early_issue_literal_2021001", "2021001"))
+
+        # Low-load bounded diagnostics only. Current option IDs show that the
+        # internal lotteryId is not the public issue number. Probe a handful
+        # of widely spaced historical IDs around the slope-estimated 2021
+        # region; never brute-force the endpoint.
+        for historical_id in ("1200", "1400", "1500", "1600", "1800"):
+            post_probes.append(
+                post_number_probe(f"historical_id_sample_{historical_id}", historical_id)
+            )
         record["number_endpoint_probes"] = post_probes
         record["diagnostic"] = (
             "HEBEI_CONTRACT_DISCOVERED"
