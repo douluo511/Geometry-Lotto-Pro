@@ -128,19 +128,17 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $ErrorActionPreference='Stop'
           $env:PYTHONPATH="$PWD\src"
           $version=(python -c "from glp.constants import APP_VERSION; print(APP_VERSION)").Trim()
-          $parts=$version.Split('.')
-          if($parts.Count -ne 3){ throw 'APP_VERSION must be x.y.z' }
-          [void][int]$parts[0]; [void][int]$parts[1]; [void][int]$parts[2]
+          if($version -notmatch '^\d+\.\d+\.\d+$'){ throw 'APP_VERSION is not stable semver' }
           $tag="v$version"
-          $exe=(Resolve-Path '.\dist\Geometry_Lotto_Pro_DLT.exe').Path
-          $updater=(Resolve-Path '.\dist\Geometry_Lotto_Pro_DLT_Updater.exe').Path
+          $exe=(Resolve-Path ".\dist\Geometry_Lotto_Pro_DLT.exe").Path
+          $updater=(Resolve-Path ".\dist\Geometry_Lotto_Pro_DLT_Updater.exe").Path
           $sha=(Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant()
           $bytes=(Get-Item $exe).Length
+          New-Item -ItemType Directory -Force ".\artifacts" | Out-Null
           $manifestName="dlt-$version-manifest.json"
-          $manifestPath=Join-Path (Resolve-Path '.\artifacts').Path $manifestName
+          $manifestPath=(Resolve-Path ".\artifacts").Path + "\$manifestName"
           $artifactUrl="https://github.com/douluo511/Geometry-Lotto-Pro-DLT/releases/download/$tag/Geometry_Lotto_Pro_DLT.exe"
           $manifest=[ordered]@{
             schema='dlt-software-update-manifest-v1'
@@ -155,16 +153,12 @@ jobs:
           $manifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $manifestPath -Encoding utf8
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
           if($LASTEXITCODE -ne 0){
-            gh release create $tag --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --prerelease --title "DLT $version acceptance prerelease" --notes 'Hash-bound acceptance prerelease. Not Final until every hard gate passes.'
-            if($LASTEXITCODE -ne 0){ throw 'failed to create DLT acceptance prerelease' }
-          } else {
-            git fetch --force --tags origin
-            if($LASTEXITCODE -ne 0){ throw 'failed to fetch release tag' }
-            $tagSha=(git rev-list -n 1 $tag).Trim()
-            if($tagSha -ne $env:GITHUB_SHA){ throw "existing release tag $tag does not point to current exact commit" }
+            gh release create $tag --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --prerelease --title "DLT $version acceptance prerelease" --notes "Hash-bound prerelease for real N-to-N+1 updater acceptance. Not Final until Final Gate PASS."
+            if($LASTEXITCODE -ne 0){ throw 'failed to create acceptance prerelease' }
           }
           gh release upload $tag $exe $updater $manifestPath --repo $env:GITHUB_REPOSITORY --clobber
-          if($LASTEXITCODE -ne 0){ throw 'failed to upload DLT prerelease assets' }
+          if($LASTEXITCODE -ne 0){ throw 'failed to upload hash-bound prerelease assets' }
+
       - name: Independent Updater exact-process / rollback / data-network acceptance
         shell: pwsh
         run: |
@@ -180,16 +174,19 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $ErrorActionPreference='Stop'
           $env:PYTHONPATH="$PWD\src"
           $current=(python -c "from glp.constants import APP_VERSION; print(APP_VERSION)").Trim()
           $parts=$current.Split('.')
-          if($parts.Count -ne 3){ throw 'current APP_VERSION must be x.y.z' }
-          $major=[int]$parts[0]; $minor=[int]$parts[1]; $patch=[int]$parts[2]
-          if($patch -le 0){ throw 'current APP_VERSION cannot derive previous patch release' }
-          $previous="$major.$minor.$($patch-1)"
-          & .\scripts\release_update_acceptance.ps1 -UpdaterExe '.\dist\Geometry_Lotto_Pro_DLT_Updater.exe' -CurrentMainExe '.\dist\Geometry_Lotto_Pro_DLT.exe' -UpdaterEvidencePath '.\artifacts\updater_acceptance.json' -EvidencePath '.\artifacts\real_release_update.json' -CurrentVersion $current -PreviousVersion $previous
-          if($LASTEXITCODE -ne 0){ throw 'real Release N-to-N+1 updater acceptance failed' }
+          if($parts.Count -ne 3 -or [int]$parts[2] -le 0){ throw 'current APP_VERSION cannot derive previous patch release' }
+          $previous="$($parts[0]).$($parts[1]).$([int]$parts[2]-1)"
+          .\scripts\release_update_acceptance.ps1 `
+            -UpdaterExe ".\dist\Geometry_Lotto_Pro_DLT_Updater.exe" `
+            -CurrentMainExe ".\dist\Geometry_Lotto_Pro_DLT.exe" `
+            -UpdaterEvidencePath ".\artifacts\updater_acceptance.json" `
+            -EvidencePath ".\artifacts\real_release_update.json" `
+            -CurrentVersion $current `
+            -PreviousVersion $previous
+
       - name: Exact EXE GUI construction gate
         shell: pwsh
         run: |
@@ -241,21 +238,21 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-
-      - name: Promote current release only after Final Gate and Final artifact upload PASS
+      - name: Promote current release only after Final Gate and final artifact upload PASS
         if: success() && github.repository == 'douluo511/Geometry-Lotto-Pro-DLT' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $ErrorActionPreference='Stop'
           $env:PYTHONPATH="$PWD\src"
           $version=(python -c "from glp.constants import APP_VERSION; print(APP_VERSION)").Trim()
           $tag="v$version"
-          $final=Get-Content '.\artifacts\final_gate.json' -Raw | ConvertFrom-Json
+          $final=Get-Content ".\artifacts\final_gate.json" -Raw | ConvertFrom-Json
           if($final.final_gate -ne 'PASS' -or [int]$final.hard_fail_count -ne 0){ throw 'cannot promote non-PASS Final Gate' }
           gh release edit $tag --repo $env:GITHUB_REPOSITORY --prerelease=false --draft=false --title "Geometry Lotto Pro DLT $version FINAL"
           if($LASTEXITCODE -ne 0){ throw 'failed to promote DLT Final release' }
+
+
       - name: Upload DLT diagnostic candidate and evidence - NOT FINAL
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
