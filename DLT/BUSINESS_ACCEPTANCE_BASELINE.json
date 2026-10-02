@@ -1,0 +1,22 @@
+{
+  "schema": "dlt-business-acceptance-baseline-v1",
+  "project": "DLT",
+  "approval_artifact": "BUSINESS_SCOPE_APPROVAL.json",
+  "scope_reduction_forbidden": true,
+  "entry_inventory": [
+    "predict",
+    "update",
+    "repair",
+    "audit"
+  ],
+  "tasks": {
+    "B01": "Official-data update: source identity, freshness, raw provenance, cross-source conflict/fail-closed and canonical integrity.",
+    "B02": "Traceable current-data prediction: physical GUI to real backend, immutable Freeze, full ranking/score identity, honest NO_EDGE/CERTIFIED states, and target strictly after the verified latest draw.",
+    "B03": "Scientific/audit evidence: walk-forward OOS, random baseline, bootstrap/permutation/Holm, LOEO, ablation remove/shuffle/random reversal checks, null worlds, leakage sentinel, untouched holdout, prospective firewall, and no audit side-effect Freeze.",
+    "B04": "Corruption detection and repair: real repair backend, post-repair integrity, fault injection, atomic rollback and failure evidence.",
+    "B05": "Independent Updater real software Release N→N+1: independent process, exact Updater hash, HTTPS manifest/artifact, atomic install, health check, rollback, Same Hash, independent repository and release context.",
+    "B06": "All four GUI entries physically click to real backend with exact EXE binding and no-shell runtime evidence; non-PASS paths must never render success.",
+    "B07": "Long-term maintenance: verified backup/restore, evidence export/reverification/tamper rejection, source-health/failure visibility, self-test user-data isolation, and auditable evidence."
+  },
+  "rule": "All seven tasks and every original DLT requirement are mandatory. Static source/interface checks never replace runtime evidence. B05 remains PENDING until the independent production Release N→N+1 proof is real."
+}
