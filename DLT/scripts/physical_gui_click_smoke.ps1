@@ -275,8 +275,31 @@ for($i=0;$i -lt 4;$i++){
         $pre=$parsed[$PreconditionIndex]
         [void](Click-Normalized $hwnd $pre[0] $pre[1])
       }
-      Start-Sleep -Milliseconds $SettleMs
       if(-not [PhysicalGuiClick]::IsWindow($hwnd)){ throw "GUI window disappeared during precondition click" }
+      if($backendRoot){
+        $preOperationId=1001+$PreconditionIndex
+        $preEvidence=Join-Path $runDir ("operation-"+$preOperationId+".json")
+        $preDeadline=(Get-Date).AddSeconds($BackendTimeoutSeconds)
+        while((Get-Date) -lt $preDeadline -and -not (Test-Path $preEvidence)){
+          Start-Sleep -Milliseconds 500
+        }
+        if(-not (Test-Path $preEvidence)){
+          throw "Physical precondition click did not produce backend evidence for operation $preOperationId within timeout"
+        }
+        $preBackend=Get-Content $preEvidence -Raw | ConvertFrom-Json
+        if($preBackend.schema -ne 'dlt-physical-gui-backend-v1' -or $preBackend.status -ne 'PASS' -or [int]$preBackend.operation_id -ne $preOperationId){
+          throw "Precondition backend evidence is not a bound PASS for operation $preOperationId"
+        }
+        if($preOperationId -eq 1002){
+          if($preBackend.result.network_gate -ne 'PASS' -or $preBackend.result.crosscheck_status -ne 'PASS' -or $preBackend.result.freshness_gate -ne 'PASS'){
+            throw 'Predict precondition Update did not prove current official network/crosscheck/freshness PASS'
+          }
+          if($preBackend.result._updater.parent_pid_match -ne $true -or [string]::IsNullOrWhiteSpace([string]$preBackend.result._updater.updater_exe_sha256)){
+            throw 'Predict precondition Update did not prove independent exact Updater process'
+          }
+        }
+      }
+      Start-Sleep -Milliseconds $SettleMs
     }
     $before=Get-WindowHash $hwnd
     if($buttonNames.Count -eq 4){
