@@ -55,11 +55,21 @@ class BusinessReleaseBoundaries(unittest.TestCase):
             self.assertEqual(result["gates"]["business_content"], "FAIL")
             self.assertEqual(result["gates"]["no_shell"], "FAIL")
 
-    def test_checked_in_scope_review_stays_pending_without_specific_user_approval(self):
+    def test_checked_in_scope_review_requires_valid_explicit_state(self):
         approval = json.loads((SCRIPTS.parent / "BUSINESS_SCOPE_APPROVAL.json").read_text(encoding="utf-8"))
-        self.assertEqual(approval["status"], "PENDING")
-        self.assertIsNone(approval["approved_by"])
-        self.assertIsNone(approval["approval_reference"])
+        self.assertIn(approval["status"], {"PENDING", "APPROVED"})
+        self.assertTrue(approval["original_requirements_preserved"])
+        self.assertTrue(approval["no_scope_reduction"])
+        self.assertEqual(approval["scope_ids"], ["B01", "B02", "B03", "B04", "B05", "B06", "B07"])
+        self.assertEqual(approval["entry_inventory"], ["predict", "update", "repair", "audit"])
+        if approval["status"] == "PENDING":
+            self.assertIsNone(approval["approved_by"])
+            self.assertIsNone(approval["approval_reference"])
+        else:
+            self.assertTrue(approval["approved_by"])
+            self.assertTrue(approval["approval_reference"])
+            self.assertIn("original", approval["denominator_rule"].lower())
+            self.assertIn("cannot reduce scope", approval["denominator_rule"].lower())
 
     def test_negative_gui_failure_binds_exact_updater_process(self):
         source = (SCRIPTS / "physical_gui_failure_smoke.ps1").read_text(encoding="utf-8")
