@@ -2021,6 +2021,14 @@ def _business_scope_approval(evidence: Path) -> dict[str, Any]:
             "reason": "complete SSQ business/entry denominator has not been explicitly approved by the user",
             "release_authorized": False,
         }
+    if raw.get("status") == "PENDING":
+        return {
+            "status": "PENDING",
+            "report": str(path),
+            "report_sha256": _hash(path),
+            "reason": "the proposed complete business/entry inventory awaits explicit user review",
+            "release_authorized": False,
+        }
     expected_entries = ["predict", "update", "repair", "audit"]
     checks = {
         "schema": raw.get("schema") == "ssq-business-scope-approval-v1",
