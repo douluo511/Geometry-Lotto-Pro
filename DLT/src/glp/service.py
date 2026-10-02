@@ -4,6 +4,7 @@ import gc
 import json
 import shutil
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any, Callable
 
@@ -193,10 +194,16 @@ class LottoService:
         selector_hash = model_identity()["selector_hash"]
         prospective = self.store.prospective_replays(selector_hash)
         court = run_evidence_court(draws, prospective, progress)
-        prediction = self.predict(progress)
-        trace = prediction.get("effect_trace", {})
+        # Audit must not create or reuse a formal prediction through predict().
+        # Compute an in-memory trace against THIS court; never call Store.freeze.
+        freeze_before = len(self.store.freezes())
+        _, trace = make_prediction(draws, canonical_hash, court)
         ors = build_ors_record(court, trace)
-        payload = {"court": court, "ors": ors}
+        freeze_after = len(self.store.freezes())
+        if freeze_before != freeze_after:
+            raise RuntimeError("audit changed the formal prediction archive")
+        payload = {"court": court, "ors": ors, "formal_freeze_written": False,
+                   "freeze_before": freeze_before, "freeze_after": freeze_after}
         self.store.append_experiment("evidence_court", court["software_verdict"], canonical_hash, court["model_hash"], payload)
         return payload
 
@@ -225,6 +232,21 @@ class LottoService:
         return court
 
     def repair(self, progress: Callable[[str], None] | None = None) -> dict[str, Any]:
+        try:
+            return self._repair_impl(progress)
+        except Exception as exc:
+            failure = {"status": "FAIL", "failed_at": utc_now(),
+                       "error_type": type(exc).__name__, "error": str(exc)}
+            try:
+                self.store.append_experiment("repair", "FAIL", sha256_json(failure), APP_VERSION, failure)
+            except Exception as evidence_error:
+                raise RuntimeError(
+                    f"repair failed ({type(exc).__name__}: {exc}); "
+                    f"failure evidence write also failed ({type(evidence_error).__name__}: {evidence_error})"
+                ) from exc
+            raise
+
+    def _repair_impl(self, progress: Callable[[str], None] | None = None) -> dict[str, Any]:
         before = self.store.integrity_check()
         actions: list[str] = []
         by_name = {c.get("name"): c.get("status") for c in before.get("checks", [])}
@@ -248,12 +270,26 @@ class LottoService:
         replayed = self.replay_all()
         after = self.store.integrity_check()
         status = "PASS" if after["status"] == "PASS" else "FAIL"
+        if status != "PASS":
+            raise ValueError("repair did not restore dataset/evidence integrity")
         payload = {"before": before, "action": actions or ["无需修复"], "replayed": replayed, "after": after}
         self.store.append_experiment("repair", status, sha256_json(before), APP_VERSION, payload)
         return payload
 
 
 def self_test(root: Path | None = None) -> dict[str, Any]:
+    # Synthetic freeze/tamper scenarios must never reach the user's Store.
+    # Even an explicit root is only a parent of a fresh disposable child.
+    if root is not None:
+        root.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="dlt-self-test-", dir=root) as directory:
+        result = _self_test_in_isolated_store(Path(directory))
+    return {**result, "validation_scope": "DETERMINISTIC_TEST_ONLY",
+            "test_data_classification": "TEST_ONLY_SYNTHETIC",
+            "real_network_status": "PENDING", "production_store_modified": False}
+
+
+def _self_test_in_isolated_store(root: Path) -> dict[str, Any]:
     checks: list[dict[str, str]] = []
     def check(name: str, fn):
         try:

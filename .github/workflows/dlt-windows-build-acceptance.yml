@@ -18,11 +18,11 @@ defaults:
 
 jobs:
   build-and-accept:
-    runs-on: windows-latest
+    runs-on: windows-2022
     timeout-minutes: 120
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: '3.11.9'
           architecture: 'x64'
@@ -30,6 +30,8 @@ jobs:
         run: python -m pip install --disable-pip-version-check -r requirements.txt
       - name: Source compile check
         run: python -m compileall -q src
+      - name: Service isolation and false-PASS regression tests
+        run: python -m unittest discover -s tests -p "test_*.py" -v
       - name: Source self-test
         shell: pwsh
         run: |
@@ -56,7 +58,7 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force ".\\artifacts" | Out-Null
           $out = (Resolve-Path ".\\artifacts").Path + "\\gui_self_test.json"
-          $p = Start-Process -FilePath ".\\dist\\Geometry_Lotto_Pro_DLT.exe" -ArgumentList @("--gui-self-test","--result-file",$out) -PassThru -Wait
+          $p = Start-Process -FilePath ".\\dist\\Geometry_Lotto_Pro_DLT.exe" -ArgumentList @("--gui-self-test","--result-file",$out) -PassThru -Wait -WindowStyle Hidden
           if ($p.ExitCode -ne 0) { throw "Exact EXE GUI construction self-test failed with exit code $($p.ExitCode)" }
           if (-not (Test-Path $out)) { throw "Exact EXE GUI construction evidence missing" }
           $r = Get-Content $out -Raw | ConvertFrom-Json
@@ -83,6 +85,11 @@ jobs:
           $exe = Resolve-Path dist\Geometry_Lotto_Pro_DLT.exe
           $hash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLower()
           $repositoryIndependence = 'FAIL'
+          # Screenshot changes alone do not prove backend/network effects.
+          # Full business and entry inventories remain explicit release blockers.
+          $businessContent = 'PENDING'
+          $noShell = 'PENDING'
+          $physicalGuiBackend = 'PENDING'
           $updaterProcess = 'FAIL'
           $updaterExactExe = 'FAIL'
           $updaterAtomicRollback = 'FAIL'
@@ -110,6 +117,9 @@ jobs:
 
           $ok = (
             $repositoryIndependence -eq 'PASS' -and
+            $businessContent -eq 'PASS' -and
+            $noShell -eq 'PASS' -and
+            $physicalGuiBackend -eq 'PASS' -and
             $updaterProcess -eq 'PASS' -and
             $updaterExactExe -eq 'PASS' -and
             $updaterAtomicRollback -eq 'PASS' -and
@@ -118,7 +128,10 @@ jobs:
             $contract.status -eq 'PASS' -and
             $fault.status -eq 'PASS' -and
             $live.status -eq 'PASS' -and
-            $accept.final_release_gate -eq 'PASS' -and
+            $accept.exact_acceptance_gate -eq 'PASS' -and
+            $accept.final_release_gate -eq 'PENDING' -and
+            $accept.github_sha -eq $env:GITHUB_SHA -and
+            $accept.github_run_id -eq $env:GITHUB_RUN_ID -and
             $accept.exe_sha256 -eq $hash -and
             $gui.status -eq 'PASS'
           )
@@ -129,8 +142,11 @@ jobs:
             contract_gate = $contract.status
             fault_injection_gate = $fault.status
             real_network_gate = $live.status
-            exact_exe_gate = $accept.final_release_gate
-            physical_gui_click_gate = $gui.status
+            exact_exe_gate = $accept.exact_acceptance_gate
+            physical_gui_visual_gate = $gui.status
+            physical_gui_backend_gate = $physicalGuiBackend
+            business_content = $businessContent
+            no_shell = $noShell
             updater_process = $updaterProcess
             updater_exact_exe = $updaterExactExe
             updater_atomic_rollback = $updaterAtomicRollback
@@ -144,7 +160,7 @@ jobs:
 
       - name: Upload exact EXE and evidence only after all hard gates pass
         if: success()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: Geometry-Lotto-Pro-DLT-Windows-Acceptance
           # upload-artifact is an action (not a run step), so defaults.run.working-directory
@@ -156,12 +172,13 @@ jobs:
           retention-days: 30
 
 
-      - name: Upload DLT audit evidence
+      - name: Upload DLT diagnostic candidate and evidence - NOT FINAL
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: Geometry-Lotto-Pro-DLT-AUDIT-repository-independence
+          name: Geometry-Lotto-Pro-DLT-CANDIDATE-NOT-FINAL
           path: |
+            DLT/dist/Geometry_Lotto_Pro_DLT.exe
             DLT/artifacts/**
           if-no-files-found: warn
           retention-days: 90

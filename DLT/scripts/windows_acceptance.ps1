@@ -8,7 +8,7 @@ $hash | Set-Content -Encoding ascii artifacts\exe.sha256.txt
 
 function Invoke-BoundedExe([string[]]$ArgumentList, [int]$TimeoutSeconds, [string]$EvidencePath, [string]$Label) {
   Write-Host "START_PHASE=$Label"
-  $p = Start-Process -FilePath $exe -ArgumentList $ArgumentList -PassThru
+  $p = Start-Process -FilePath $exe -ArgumentList $ArgumentList -PassThru -WindowStyle Hidden
   $finished = $p.WaitForExit($TimeoutSeconds * 1000)
   if (-not $finished) {
     try { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue } catch {}
@@ -35,7 +35,7 @@ Invoke-BoundedExe @('--self-test','--result-file','artifacts\self_test.json') 60
 Invoke-BoundedExe @('--acceptance','--result-file','artifacts\acceptance.json') 6300 'artifacts\acceptance.json' 'full-acceptance'
 
 $report = Get-Content artifacts\acceptance.json -Raw | ConvertFrom-Json
-if ($report.final_release_gate -ne 'PASS') { throw "final_release_gate=$($report.final_release_gate)" }
+if ($report.exact_acceptance_gate -ne 'PASS' -or $report.final_release_gate -ne 'PENDING') { throw 'Exact service acceptance failed or claimed premature Final PASS' }
 if ($report.exe_sha256 -ne $hash) { throw "acceptance hash does not match built EXE hash" }
 
 # 3. GUI process smoke: default launch must stay alive long enough to create the real main window.

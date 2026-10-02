@@ -34,6 +34,8 @@ def _format_prediction(value: dict) -> str:
 
 
 def _format_update(value: dict) -> str:
+    if value.get("network_gate") != "PASS" or value.get("crosscheck_status") != "PASS":
+        raise ValueError("official network/cross-source validation is not PASS")
     latest = value["latest"]
     receipts = value.get("source_receipts", [])
     rows = "\r\n".join(f"• {x.get('source')}: {x.get('status')} / {x.get('draw_count')} 条 / {x.get('raw_sha256')}" for x in receipts)
@@ -197,19 +199,48 @@ class NativeApp:
             except Exception as exc:
                 self.events.put(("error",str(exc)))
         threading.Thread(target=worker,daemon=True).start()
+    def _show_failure(self, detail):
+        self._set("output", "执行失败（Fail-Closed）\r\n\r\n" + str(detail)
+                  + "\r\n\r\n本次操作未通过；请检查证据记录，勿将已有缓存当作成功。")
+        self._set("status", "失败 — 未报告 PASS")
+
     def _drain(self):
         while True:
-            try: kind,payload=self.events.get_nowait()
-            except queue.Empty: break
-            if kind=="progress": self._set("status",payload)
-            elif kind=="done":
-                result,renderer=payload; text=renderer(result); self._set("output",text)
-                p=result.get("prediction") if isinstance(result,dict) else None; c=result.get("court") if isinstance(result,dict) else None
-                state=p or c
-                if state: self.user32.SetWindowTextW(self.controls["badge"],f"{state.get('edge_state','NO_EDGE')} · {state.get('dan_state','NULL_DAN')}")
-                self._set("status","完成 · 结果已写入实验账本"); self.busy=False; self._enable(True)
-            elif kind=="error":
-                self._set("output","执行失败（Fail-Closed）\r\n\r\n"+payload+"\r\n\r\n未写入未经验证的数据，也未改变既有 Freeze。"); self._set("status","失败 · 状态未伪装为 PASS"); self.busy=False; self._enable(True)
+            try:
+                kind, payload = self.events.get_nowait()
+            except queue.Empty:
+                break
+            if kind == "progress":
+                self._set("status", payload)
+            elif kind == "done":
+                try:
+                    result, renderer = payload
+                    if not isinstance(result, dict):
+                        raise ValueError("backend result is not an object")
+                    if "status" in result and result["status"] != "PASS":
+                        raise ValueError("backend returned a non-PASS result")
+                    if "court" in result and result["court"].get("software_verdict") != "PASS":
+                        raise ValueError("scientific execution did not pass")
+                    if "after" in result and result["after"].get("status") != "PASS":
+                        raise ValueError("repair integrity is not PASS")
+                    self._set("output", renderer(result))
+                    state = result.get("prediction") or result.get("court")
+                    if state:
+                        self.user32.SetWindowTextW(
+                            self.controls["badge"],
+                            f"{state.get('edge_state','NO_EDGE')} · {state.get('dan_state','NULL_DAN')}")
+                    self._set("status", "完成 · 操作记录已写入；不代表最终版本验收")
+                except Exception as exc:
+                    self._show_failure(f"{type(exc).__name__}: {exc}")
+                finally:
+                    self.busy = False
+                    self._enable(True)
+            elif kind == "error":
+                try:
+                    self._show_failure(payload)
+                finally:
+                    self.busy = False
+                    self._enable(True)
     def _wndproc(self,hwnd,msg,wparam,lparam):
         if msg==self.WM_COMMAND:
             self._start(int(wparam)&0xFFFF); return 0
@@ -233,10 +264,15 @@ def run_gui():
 def gui_self_test() -> dict[str, Any]:
     if os.name != "nt":
         return {"status":"FAIL","checks":[{"name":"Native Win32 window","status":"FAIL","detail":"not Windows"}]}
-    class StubService:
-        def _ok(self,name): return lambda progress=None: {"entry":name}
-        predict=property(lambda self:self._ok("预测下一期")); update=property(lambda self:self._ok("一键更新")); repair=property(lambda self:self._ok("一键修复")); audit=property(lambda self:self._ok("高级分析"))
-    app=NativeApp(StubService())
+    import tempfile
+    from pathlib import Path
+    from .storage import Store
+    with tempfile.TemporaryDirectory(prefix="dlt-gui-surface-") as directory:
+        return _gui_surface_check(LottoService(Store(Path(directory))))
+
+
+def _gui_surface_check(service: LottoService) -> dict[str, Any]:
+    app=NativeApp(service)
     checks=[]
     expected={BTN_PREDICT:"预测下一期",BTN_UPDATE:"一键更新",BTN_REPAIR:"一键修复",BTN_AUDIT:"高级分析"}
     for cid,label in expected.items():
@@ -266,4 +302,6 @@ def gui_self_test() -> dict[str, Any]:
                 time.sleep(0.01)
         cleanup_ok = not bool(app.user32.IsWindow(app.hwnd))
     checks.append({"name":"Native Win32 cleanup","status":"PASS" if cleanup_ok else "FAIL"})
-    return {"status":"PASS" if all(c["status"]=="PASS" for c in checks) else "FAIL","checks":checks}
+    return {"status":"PASS" if all(c["status"]=="PASS" for c in checks) else "FAIL", "checks":checks,
+            "validation_scope":"NATIVE_SURFACE_ONLY", "real_network_tested":False,
+            "physical_click_status":"PENDING", "full_no_shell_status":"PENDING"}
