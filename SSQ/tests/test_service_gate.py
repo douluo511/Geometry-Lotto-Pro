@@ -22,10 +22,14 @@ class ServiceGateTests(unittest.TestCase):
         service = LottoService.__new__(LottoService)
         service.ensure_seed = lambda: None
 
-        def offline(progress=None):
-            raise ConnectionError("official sources unavailable")
-
-        service.update = offline
+        service.update_with_transient_retry = lambda progress=None: (
+            None,
+            "ConnectionError: official sources unavailable",
+            [
+                {"attempt": 1, "status": "FAIL", "retryable": True},
+                {"attempt": 2, "status": "FAIL", "retryable": True},
+            ],
+        )
         service._load_draws = lambda: []
         service._canonical_hash = lambda: "canonical-hash"
         service._court = lambda draws, canonical_hash, progress=None: {}
@@ -40,6 +44,40 @@ class ServiceGateTests(unittest.TestCase):
         self.assertFalse(result["final_gate"]["checks"]["current_version_revalidation"])
         self.assertGreater(result["final_gate"]["hard_fail_count"], 0)
         self.assertIn("ConnectionError", result["auto_update_error"])
+        self.assertTrue(result["immutable_freeze_preserved"])
+
+    def test_predict_uses_bounded_transient_retry_contract(self) -> None:
+        service = LottoService.__new__(LottoService)
+        service.ensure_seed = lambda: None
+        calls = []
+
+        def bounded_retry(progress=None):
+            calls.append("retry")
+            return (
+                {"crosscheck_status": "PASS", "source": "official-source-quorum"},
+                None,
+                [
+                    {"attempt": 1, "status": "FAIL", "retryable": True},
+                    {"attempt": 2, "status": "PASS", "retryable": False},
+                ],
+            )
+
+        service.update_with_transient_retry = bounded_retry
+        service._load_draws = lambda: []
+        service._canonical_hash = lambda: "canonical-hash"
+        service._court = lambda draws, canonical_hash, progress=None: {}
+        service._existing_freeze = lambda target: {"target_issue": target, "freeze_hash": "old-freeze"}
+        service._existing_gate = lambda target: {"status": "PASS", "gate_hash": "old-gate"}
+
+        with patch("glp.service.make_prediction", return_value=(_Prediction(), {})):
+            result = service.predict()
+
+        self.assertEqual(calls, ["retry"])
+        self.assertEqual(result["auto_update"]["crosscheck_status"], "PASS")
+        self.assertIsNone(result["auto_update_error"])
+        self.assertEqual([row["status"] for row in result["auto_update_attempts"]], ["FAIL", "PASS"])
+        # Historical immutable PASS still cannot be reused as current-version PASS.
+        self.assertEqual(result["final_gate"]["status"], "FAIL")
         self.assertTrue(result["immutable_freeze_preserved"])
 
     def test_audit_reuses_strict_current_official_evidence(self) -> None:
