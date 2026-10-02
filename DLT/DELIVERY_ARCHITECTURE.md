@@ -97,3 +97,8 @@ Exact source SHA
 `.github/workflows/dlt-final-production-bootstrap.yml` 负责从经过 manifest/hash 验证的 DLT-only 导出创建或填充独立仓库，先建立 `v2.1.2` 基线 prerelease，再只提升软件版本到 `v2.1.3`，要求该新 SHA 自己完成完整 Windows / Real Network / GUI / Same Hash / N→N+1 / Final Gate 链后才验证正式 Release 和 Final Artifact。
 
 该流程没有删除、跳过或放宽任何原有硬门。独立仓库本身及其账户级写权限仍属于外部发布前置条件；缺失时状态必须保持非 Final。
+
+
+## Finalization trigger audit
+
+2026-10-02: user explicitly re-authorized continued execution toward the unique Final artifact. This documentation-only commit intentionally retriggers the branch-bound DLT Final Production Bootstrap and Windows acceptance. It does not waive, inherit, or relax any gate and is not evidence by itself.
