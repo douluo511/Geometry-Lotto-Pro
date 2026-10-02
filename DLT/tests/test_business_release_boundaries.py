@@ -15,6 +15,12 @@ spec.loader.exec_module(gate)
 
 
 class BusinessReleaseBoundaries(unittest.TestCase):
+    def test_chinese_contract_literals_survive_publication(self):
+        source = (SCRIPTS / "business_no_shell_gate.py").read_text(encoding="utf-8")
+        self.assertNotIn("\ufffd", source)
+        for literal in ("\u9884\u6d4b\u4e0b\u4e00\u671f", "\u4e0d\u4ee3\u8868\u66f4\u9ad8\u4e2d\u5956\u6982\u7387"):
+            self.assertIn(literal, source)
+
     def test_static_pass_never_means_business_pass(self):
         report = static_report([{"name": "interface", "status": "PASS"}], "test")
         self.assertEqual(report["status"], "PASS")

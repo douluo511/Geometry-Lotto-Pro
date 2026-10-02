@@ -99,7 +99,7 @@ def main() -> int:
     gui_source = inspect.getsource(gui)
     checks.append(check(
         "No prediction advantage overclaim",
-        "随机产生结果" in gui_source
+        "不代表更高中奖概率" in gui_source
         and "未成年人不得购彩" in gui_source
         and "NO_EDGE" in gui_source,
         "GUI contains explicit no-edge/no-guarantee boundary",
