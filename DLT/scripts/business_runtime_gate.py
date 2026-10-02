@@ -319,6 +319,9 @@ def derive(evidence_dir: Path, exe: Path) -> dict[str, Any]:
             and str(value.get("github_run_id")) == str(github_run_id)
             and value.get("backend_status") == "FAIL"
             and value.get("ui_fail_closed") is True
+            and value.get("updater_failure_exact_hash") is True
+            and value.get("updater_failure_parent_bound") is True
+            and int(value.get("updater_failure_count") or 0) >= 1
             and value.get("canonical_unchanged") is True
             and value.get("evidence_unchanged") is True
             and int(value.get("official_update_pass_increment", -1)) == 0

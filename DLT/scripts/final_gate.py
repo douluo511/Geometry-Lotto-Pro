@@ -130,6 +130,9 @@ def derive(evidence_dir: str | Path, exact_exe: str | Path) -> dict[str, Any]:
             and str(gui_failure.get("github_run_id")) == str(github_run_id)
             and gui_failure.get("backend_status") == "FAIL"
             and gui_failure.get("ui_fail_closed") is True
+            and gui_failure.get("updater_failure_exact_hash") is True
+            and gui_failure.get("updater_failure_parent_bound") is True
+            and int(gui_failure.get("updater_failure_count") or 0) >= 1
             and gui_failure.get("canonical_unchanged") is True
             and gui_failure.get("evidence_unchanged") is True
             and int(gui_failure.get("official_update_pass_increment", -1)) == 0
@@ -145,6 +148,9 @@ def derive(evidence_dir: str | Path, exact_exe: str | Path) -> dict[str, Any]:
             and str(gui_repair_failure.get("github_run_id")) == str(github_run_id)
             and gui_repair_failure.get("backend_status") == "FAIL"
             and gui_repair_failure.get("ui_fail_closed") is True
+            and gui_repair_failure.get("updater_failure_exact_hash") is True
+            and gui_repair_failure.get("updater_failure_parent_bound") is True
+            and int(gui_repair_failure.get("updater_failure_count") or 0) >= 1
             and gui_repair_failure.get("corruption_injected") is True
             and gui_repair_failure.get("canonical_unchanged") is True
             and gui_repair_failure.get("evidence_unchanged") is True

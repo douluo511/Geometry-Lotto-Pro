@@ -128,6 +128,7 @@ finally:
 
 $exe=(Resolve-Path -LiteralPath $ExePath).Path
 $updater=(Resolve-Path -LiteralPath $UpdaterExePath).Path
+$exactUpdaterHash=Sha256 $updater
 $success=(Resolve-Path -LiteralPath $SuccessBackendPath).Path
 $evidenceFull=[IO.Path]::GetFullPath($EvidencePath)
 $evidenceDir=Split-Path -Parent $evidenceFull
@@ -221,8 +222,14 @@ $failedUpdater=@()
 foreach($path in $newUpdaterFiles){
   try {
     $u=Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
-    if($u.schema -eq 'dlt-independent-updater-v1' -and $u.mode -eq $expectedMode -and $u.status -eq 'FAIL'){
-      $failedUpdater += [ordered]@{path=$path;sha256=(Sha256 $path);error_type=$u.error_type}
+    if($u.schema -eq 'dlt-independent-updater-v1' -and $u.mode -eq $expectedMode -and $u.status -eq 'FAIL' -and $u.updater_exe_sha256 -eq $exactUpdaterHash -and $u.parent_pid_match -eq $true){
+      $failedUpdater += [ordered]@{
+        path=$path
+        sha256=(Sha256 $path)
+        error_type=$u.error_type
+        updater_exe_sha256=$u.updater_exe_sha256
+        parent_pid_match=[bool]$u.parent_pid_match
+      }
     }
   } catch {}
 }
@@ -256,6 +263,8 @@ $report=[ordered]@{
   repair_pass_increment=([int]$afterCounts.repair_pass-[int]$beforeCounts.repair_pass)
   repair_fail_increment=([int]$afterCounts.repair_fail-[int]$beforeCounts.repair_fail)
   updater_failure_count=$failedUpdater.Count
+  updater_failure_exact_hash=$true
+  updater_failure_parent_bound=$true
   updater_failures=$failedUpdater
   tested_at=[DateTime]::UtcNow.ToString("yyyy-MM-ddTHH:mm:ss'Z'")
 }
