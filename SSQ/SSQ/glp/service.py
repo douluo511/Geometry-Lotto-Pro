@@ -331,14 +331,17 @@ class LottoService:
 
     def predict(self, progress: Callable[[str], None] | None = None) -> dict[str, Any]:
         self.ensure_seed()
-        update_result = None
-        update_error = None
-        try:
-            update_result = self.update(progress=progress)
-        except Exception as exc:
-            update_error = f"{type(exc).__name__}: {exc}"
-            if progress:
-                progress("官方更新不可用；Fail-Closed：可计算研究结果，但禁止正式 Freeze/PASS")
+        # Prediction is an autonomous production entry and therefore uses the
+        # same bounded whole-quorum retry contract as audit/repair. Only
+        # explicitly classified transient transport/deadline failures may retry;
+        # semantic/schema/freshness/conflict failures remain single-attempt and
+        # fail closed. A failed retry chain may still compute a research-only
+        # result, but source_freshness/final_gate can never PASS.
+        update_result, update_error, update_attempts = self.update_with_transient_retry(
+            progress=progress
+        )
+        if update_result is None and progress:
+            progress("官方更新不可用；Fail-Closed：可计算研究结果，但禁止正式 Freeze/PASS")
 
         draws = self._load_draws()
         canonical_hash = self._canonical_hash()
@@ -373,6 +376,7 @@ class LottoService:
                 "historical_gate": existing_gate,
                 "auto_update": update_result,
                 "auto_update_error": update_error,
+                "auto_update_attempts": update_attempts,
                 "immutable_freeze_preserved": True,
             }
 
@@ -427,6 +431,7 @@ class LottoService:
             "canonical_context_hash": context_hash,
             "auto_update": update_result,
             "auto_update_error": update_error,
+            "auto_update_attempts": update_attempts,
             "immutable_freeze_preserved": False,
         }
 
