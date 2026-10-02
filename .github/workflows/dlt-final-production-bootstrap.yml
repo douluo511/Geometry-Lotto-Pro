@@ -49,6 +49,26 @@ jobs:
         with:
           python-version: '3.11.9'
 
+      - name: Record repository-admin prerequisite audit
+        shell: pwsh
+        run: |
+          $present = -not [string]::IsNullOrWhiteSpace($env:GH_TOKEN)
+          $audit = [ordered]@{
+            schema = "dlt-repository-admin-prerequisite-v1"
+            project = "DLT"
+            target_repository = "$env:TARGET_REPO"
+            github_repository = "$env:GITHUB_REPOSITORY"
+            github_sha = "$env:GITHUB_SHA"
+            github_run_id = "$env:GITHUB_RUN_ID"
+            admin_secret_name = "DLT_REPO_ADMIN_TOKEN"
+            admin_secret_present = $present
+            secret_value_recorded = $false
+            status = $(if($present){"PASS"}else{"BLOCKED"})
+            completed_at_utc = [DateTime]::UtcNow.ToString("o")
+          }
+          $audit | ConvertTo-Json -Depth 6 | Set-Content "$env:GITHUB_WORKSPACE/DLT_REPOSITORY_ADMIN_PREREQUISITE.json" -Encoding utf8
+          Write-Host ("DLT_REPOSITORY_ADMIN_PREREQUISITE=" + $(if($present){"PASS"}else{"BLOCKED"}))
+
       - name: Fail closed without repository-admin token
         shell: pwsh
         run: |
@@ -210,6 +230,15 @@ jobs:
           }
           $summary | ConvertTo-Json -Depth 6 | Set-Content "$env:GITHUB_WORKSPACE/DLT_FINAL_PRODUCTION_BOOTSTRAP.json" -Encoding utf8
           Write-Host ($summary | ConvertTo-Json -Compress -Depth 6)
+
+      - name: Upload repository-admin prerequisite audit
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: DLT-REPOSITORY-ADMIN-PREREQUISITE-${{ github.sha }}
+          path: DLT_REPOSITORY_ADMIN_PREREQUISITE.json
+          if-no-files-found: error
+          retention-days: 30
 
       - name: Upload bootstrap audit
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
