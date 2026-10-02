@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from .constants import APP_NAME, APP_VERSION
+from .delivery import UpdaterClient
 from .service import LottoService
 from .util import atomic_json, utc_now
 
@@ -65,7 +66,7 @@ def _format_audit(value: dict) -> str:
 
 
 class NativeApp:
-    def __init__(self, service: Any | None = None):
+    def __init__(self, service: Any | None = None, updater: Any | None = None):
         if os.name != "nt":
             raise RuntimeError("Native Win32 GUI requires Windows")
         import ctypes
@@ -136,6 +137,7 @@ class NativeApp:
 
         self.gdi32.CreateFontW.restype = ctypes.c_void_p
         self.service = service or LottoService()
+        self.updater = updater or UpdaterClient(data_dir=self.service.store.root)
         self.events: queue.Queue = queue.Queue()
         self.busy = False
         self.active_cid: int | None = None
@@ -143,8 +145,8 @@ class NativeApp:
         self.buttons: list[int] = []
         self.renderers = {
             BTN_PREDICT: ("预测下一期", self.service.predict, _format_prediction),
-            BTN_UPDATE: ("一键更新", self.service.update, _format_update),
-            BTN_REPAIR: ("一键修复", self.service.repair, lambda v: json.dumps(v, ensure_ascii=False, indent=2)),
+            BTN_UPDATE: ("一键更新", self.updater.update, _format_update),
+            BTN_REPAIR: ("一键修复", self.updater.repair, lambda v: json.dumps(v, ensure_ascii=False, indent=2)),
             BTN_AUDIT: ("高级分析 · ORS + Evidence Court", self.service.audit, _format_audit),
         }
         self.WM_COMMAND = 0x0111; self.WM_TIMER = 0x0113; self.WM_DESTROY = 0x0002; self.WM_CLOSE = 0x0010
