@@ -5,10 +5,11 @@ import json
 import shutil
 import sys
 import tempfile
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Callable
 
-from .constants import APP_VERSION
+from .constants import APP_VERSION, DATA_FRESHNESS_MAX_DAYS
 from .domain import CanonicalDataset, Draw, Prediction
 from .engine import make_prediction, model_identity, replay_prediction
 from .evidence import run_evidence_court, strict_gate_verdict, leakage_guard
@@ -93,6 +94,25 @@ class LottoService:
             self.replay_all()
         self._import_legacy_freezes()
 
+    @staticmethod
+    def _require_current_history(draws: list[Draw]) -> None:
+        """Fail closed when prediction/audit would run on stale lottery history."""
+        if not draws:
+            raise ValueError("本地历史为空，请先运行“一键更新”")
+        latest_text = str(draws[-1].draw_date)[:10]
+        try:
+            latest = datetime.strptime(latest_text, "%Y-%m-%d").date()
+        except ValueError as exc:
+            raise ValueError(f"本地最新开奖日期非法: {latest_text}") from exc
+        age_days = (date.today() - latest).days
+        if age_days < 0:
+            raise ValueError(f"本地最新开奖日期来自未来: {latest_text}")
+        if age_days > DATA_FRESHNESS_MAX_DAYS:
+            raise ValueError(
+                f"本地开奖数据已过期: latest={latest_text}, age_days={age_days} > "
+                f"{DATA_FRESHNESS_MAX_DAYS}；请先运行“一键更新”，更新失败时运行“一键修复”"
+            )
+
     def _import_legacy_freezes(self) -> None:
         path = resource_path("legacy_freezes.json")
         if not path.exists():
@@ -159,6 +179,7 @@ class LottoService:
         if integrity["status"] != "PASS":
             raise ValueError("本地数据/证据链不完整，请先运行“一键修复”")
         draws, canonical_hash = self.store.load_draws()
+        self._require_current_history(draws)
         if progress:
             progress("完整组合空间评分中：前区 324,632 / 后区 66")
         court = self.latest_court(canonical_hash)
@@ -198,6 +219,7 @@ class LottoService:
         if integrity["status"] != "PASS":
             raise ValueError("Evidence Court 拒绝运行：本地数据/证据链不完整")
         draws, canonical_hash = self.store.load_draws()
+        self._require_current_history(draws)
         selector_hash = model_identity()["selector_hash"]
         prospective = self.store.prospective_replays(selector_hash)
         court = run_evidence_court(draws, prospective, progress)
