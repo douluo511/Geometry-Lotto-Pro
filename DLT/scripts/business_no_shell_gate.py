@@ -75,7 +75,7 @@ def main() -> int:
 
     checks.append(check(
         "Four production entries",
-        tuple(FOUR_ENTRIES) == ("Ԥ����һ��", "һ������", "һ���޸�", "�߼�����")
+        tuple(FOUR_ENTRIES) == ("预测下一期", "一键更新", "一键修复", "高级分析")
         and all(callable(getattr(LottoService, n, None)) for n in ("predict", "update", "repair", "audit")),
         json.dumps(list(FOUR_ENTRIES), ensure_ascii=False),
     ))
