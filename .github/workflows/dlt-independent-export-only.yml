@@ -1,0 +1,59 @@
+name: DLT Independent Repository Export Only
+
+on:
+  push:
+    branches:
+      - ops/dlt-independent-export-64cae78
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  export-current-finalization:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact verified finalization source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: 64cae78faa819b6d784ed17cf3eed8bba63ec60e
+          fetch-depth: 1
+
+      - name: Setup pinned Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.11.9'
+
+      - name: Export exact independent DLT repository package
+        shell: pwsh
+        run: |
+          $dest = Join-Path $env:RUNNER_TEMP "dlt-independent-export"
+          python tools/export_independent_project_repo.py --project dlt --destination $dest --source-commit 64cae78faa819b6d784ed17cf3eed8bba63ec60e
+          if ($LASTEXITCODE -ne 0) { throw "DLT independent export failed" }
+          python tools/export_independent_project_repo.py --destination $dest --verify-only
+          if ($LASTEXITCODE -ne 0) { throw "DLT independent export verify failed" }
+          $manifest = Get-Content (Join-Path $dest "MIGRATION_MANIFEST.json") -Raw | ConvertFrom-Json
+          if ($manifest.source_commit -ne "64cae78faa819b6d784ed17cf3eed8bba63ec60e") { throw "source commit mismatch" }
+          if ($manifest.target_repository -ne "douluo511/Geometry-Lotto-Pro-DLT") { throw "target repository mismatch" }
+          $manifestHash = (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $dest "MIGRATION_MANIFEST.json")).Hash.ToLowerInvariant()
+          $sumsHash = (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $dest "MIGRATION_SHA256SUMS.txt")).Hash.ToLowerInvariant()
+          @{
+            schema = "dlt-independent-export-only-audit-v1"
+            status = "PASS"
+            source_commit = $manifest.source_commit
+            target_repository = $manifest.target_repository
+            file_count = @($manifest.files).Count
+            manifest_sha256 = $manifestHash
+            sums_sha256 = $sumsHash
+            github_run_id = $env:GITHUB_RUN_ID
+          } | ConvertTo-Json -Depth 8 | Set-Content (Join-Path $dest "EXPORT_AUDIT.json") -Encoding utf8
+
+      - name: Upload exact independent DLT seed package
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: Geometry-Lotto-Pro-DLT-INDEPENDENT-SEED-64cae78
+          path: ${{ runner.temp }}/dlt-independent-export
+          if-no-files-found: error
+          retention-days: 30
