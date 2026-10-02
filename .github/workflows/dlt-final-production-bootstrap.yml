@@ -1,6 +1,14 @@
 name: DLT Final Production Bootstrap
 
 on:
+  push:
+    branches:
+      - fix/dlt-delivery-boundaries-20261001
+    paths:
+      - '.github/workflows/dlt-final-production-bootstrap.yml'
+      - 'DLT/**'
+      - 'tools/export_independent_project_repo.py'
+      - 'tools/bootstrap_independent_repo.ps1'
   workflow_dispatch:
     inputs:
       visibility:
@@ -28,6 +36,8 @@ jobs:
     env:
       TARGET_REPO: douluo511/Geometry-Lotto-Pro-DLT
       GH_TOKEN: ${{ secrets.DLT_REPO_ADMIN_TOKEN }}
+      BOOTSTRAP_VISIBILITY: ${{ inputs.visibility || 'private' }}
+      BOOTSTRAP_USE_EXISTING: ${{ inputs.use_existing_empty_repository || 'true' }}
     steps:
       - name: Checkout exact source commit
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -68,11 +78,11 @@ jobs:
           $args = @(
             "-ExportDir", "${{ steps.export.outputs.path }}",
             "-TargetRepo", $env:TARGET_REPO,
-            "-Visibility", "${{ inputs.visibility }}",
+            "-Visibility", $env:BOOTSTRAP_VISIBILITY,
             "-ExpectedSourceCommit", $env:GITHUB_SHA,
             "-EvidencePath", $evidence
           )
-          if ("${{ inputs.use_existing_empty_repository }}" -eq "true") {
+          if ($env:BOOTSTRAP_USE_EXISTING -eq "true") {
             $args += "-UseExistingEmptyRepository"
           }
           & ./tools/bootstrap_independent_repo.ps1 @args
