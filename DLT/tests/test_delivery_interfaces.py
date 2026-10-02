@@ -60,6 +60,30 @@ class FrozenInterfaceTests(unittest.TestCase):
             ["self", "url", "params", "headers", "timeout", "allow_redirects"],
         )
 
+    def test_draw_domain_rejects_implicit_type_coercion(self):
+        valid = {
+            "issue": "26001",
+            "draw_date": "2026-01-03",
+            "front": [1, 2, 3, 4, 5],
+            "back": [1, 2],
+        }
+        self.assertEqual(Draw.from_dict(valid).front, (1, 2, 3, 4, 5))
+        invalid_rows = [
+            {**valid, "issue": 26001},
+            {**valid, "issue": "２６００１"},
+            {**valid, "draw_date": 20260103},
+            {**valid, "draw_date": "2026-02-30"},
+            {**valid, "front": ["1", 2, 3, 4, 5]},
+            {**valid, "front": [True, 2, 3, 4, 5]},
+            {**valid, "back": [1.0, 2]},
+        ]
+        for row in invalid_rows:
+            with self.subTest(row=row):
+                with self.assertRaises(ValueError):
+                    Draw.from_dict(row)
+        with self.assertRaises(ValueError):
+            Draw("26001", "2026-01-03", (True, 2, 3, 4, 5), (1, 2)).validate()
+
     def test_required_interfaces_are_real_callables(self):
         self.assertTrue(callable(Draw.from_dict))
         self.assertTrue(callable(Draw.validate))
