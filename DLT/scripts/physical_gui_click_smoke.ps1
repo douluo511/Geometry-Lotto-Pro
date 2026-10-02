@@ -256,9 +256,12 @@ for($i=0;$i -lt 4;$i++){
     $runDir=Join-Path $backendRoot ("op-"+$operationId)
     New-Item -ItemType Directory -Force $runDir | Out-Null
     $env:GLP_GUI_ACCEPTANCE_DIR=$runDir
+    $env:GLP_DATA_DIR=Join-Path $runDir "data"
+    New-Item -ItemType Directory -Force $env:GLP_DATA_DIR | Out-Null
     $operationEvidence=Join-Path $runDir ("operation-"+$operationId+".json")
   } else {
     Remove-Item Env:GLP_GUI_ACCEPTANCE_DIR -ErrorAction SilentlyContinue
+  Remove-Item Env:GLP_DATA_DIR -ErrorAction SilentlyContinue
   }
   $p=Start-Process -FilePath $exeResolved -PassThru
   try {
@@ -320,9 +323,15 @@ for($i=0;$i -lt 4;$i++){
         }
         1002 {
           if($backend.result.network_gate -ne 'PASS' -or $backend.result.crosscheck_status -ne 'PASS'){ throw 'Update backend did not prove real official network/crosscheck PASS' }
+          if($backend.result._updater.parent_pid_match -ne $true -or [string]::IsNullOrWhiteSpace([string]$backend.result._updater.updater_exe_sha256)){
+            throw 'Update GUI path did not prove independent exact Updater process'
+          }
         }
         1003 {
           if($backend.result.after.status -ne 'PASS'){ throw 'Repair backend integrity is not PASS' }
+          if($backend.result._updater.parent_pid_match -ne $true -or [string]::IsNullOrWhiteSpace([string]$backend.result._updater.updater_exe_sha256)){
+            throw 'Repair GUI path did not prove independent exact Updater process'
+          }
         }
         1004 {
           if($backend.result.court.software_verdict -ne 'PASS' -or $backend.result.formal_freeze_written -ne $false -or [int]$backend.result.freeze_before -ne [int]$backend.result.freeze_after){
