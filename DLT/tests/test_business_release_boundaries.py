@@ -54,6 +54,33 @@ class BusinessReleaseBoundaries(unittest.TestCase):
             self.assertEqual(result["gates"]["business_content"], "PENDING")
             self.assertEqual(result["gates"]["no_shell"], "PENDING")
 
+    def test_runtime_four_entry_evidence_closes_no_shell_not_business(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            exe = root / "fixture.exe"
+            exe.write_bytes(b"TEST_ONLY_NOT_A_PRODUCTION_EXE")
+            exe_hash = gate._sha256(exe)
+            report = static_report([{"name": "interface", "status": "PASS"}], "test")
+            (root / "business_no_shell_gate.json").write_text(json.dumps(report), encoding="utf-8")
+            (root / "physical_gui_click.json").write_text(json.dumps({
+                "status": "PASS",
+                "buttons": [1001, 1002, 1003, 1004],
+            }), encoding="utf-8")
+            (root / "physical_gui_backend.json").write_text(json.dumps({
+                "status": "PASS",
+                "exe_sha256": exe_hash,
+                "operations": [
+                    {"operation_id": 1001, "status": "PASS"},
+                    {"operation_id": 1002, "status": "PASS"},
+                    {"operation_id": 1003, "status": "PASS"},
+                    {"operation_id": 1004, "status": "PASS"},
+                ],
+            }), encoding="utf-8")
+            result = gate.derive(root, exe)
+            self.assertEqual(result["gates"]["no_shell"], "PASS")
+            self.assertEqual(result["gates"]["business_content"], "PENDING")
+            self.assertEqual(result["final_gate"], "FAIL")
+
 
 if __name__ == "__main__":
     unittest.main()
