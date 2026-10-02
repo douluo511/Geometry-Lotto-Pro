@@ -1,9 +1,9 @@
 {
   "schema": "ssq-business-acceptance-baseline-v1",
   "project": "SSQ",
-  "frozen_by": "candidate denominator proposal; explicit user scope approval required",
+  "frozen_by": "user full-scope authorization recorded in BUSINESS_SCOPE_APPROVAL.json; B01-B07 remain the minimum SSQ denominator and do not narrow original requirements",
   "frozen_at_utc": "2026-10-01T20:00:00Z",
-  "rule": "All seven tasks are mandatory, but dynamic B01-B07 PASS and delegated execution authority do not equal user approval of the complete business/entry denominator. business_content remains PENDING until a separate explicit user-scope approval artifact verifies the exact B01-B07 scope and four-entry inventory; any non-PASS task still blocks business_content.",
+  "rule": "All seven tasks are mandatory and all original SSQ requirements remain binding. B01-B07 plus the four-entry inventory are the minimum frozen acceptance denominator; dynamic task PASS does not override missing engineering/release gates. The separate user approval artifact must validate, and any non-PASS task still blocks business_content.",
   "entries": [
     {
       "id": "B01",
@@ -100,6 +100,8 @@
       ]
     }
   ],
-  "approval_state": "PROPOSED_NOT_USER_APPROVED",
-  "approval_artifact": "evidence/SSQ/BUSINESS_SCOPE_APPROVAL.json"
+  "approval_state": "APPROVED_USER_FULL_SCOPE_NON_REDUCTIVE",
+  "approval_artifact": "evidence/SSQ/BUSINESS_SCOPE_APPROVAL.json",
+  "source_approval_artifact": "SSQ/BUSINESS_SCOPE_APPROVAL.json",
+  "scope_reduction_forbidden": true
 }
