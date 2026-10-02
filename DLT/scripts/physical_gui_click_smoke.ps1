@@ -236,8 +236,13 @@ $backendResults=@()
 $backendRoot=$null
 if($BackendEvidencePath){
   $backendParent=Split-Path -Parent $BackendEvidencePath
-  if($backendParent){ New-Item -ItemType Directory -Force $backendParent | Out-Null }
-  $backendRoot=(Join-Path (Resolve-Path $(if($backendParent){$backendParent}else{"."})).Path ("physical-gui-backend-runs-"+[Guid]::NewGuid().ToString("N")))
+  if($backendParent){
+    New-Item -ItemType Directory -Force $backendParent | Out-Null
+    $backendBase=(Resolve-Path $backendParent).Path
+  } else {
+    $backendBase=(Resolve-Path ".").Path
+  }
+  $backendRoot=Join-Path $backendBase ("physical-gui-backend-runs-"+[Guid]::NewGuid().ToString("N"))
   New-Item -ItemType Directory -Force $backendRoot | Out-Null
 }
 $exeResolved = Resolve-Path $ExePath
