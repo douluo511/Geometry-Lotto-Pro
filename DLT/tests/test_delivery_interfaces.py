@@ -13,6 +13,7 @@ from glp.delivery import (
 )
 from glp.domain import CanonicalDataset, Draw
 from glp.net_client import NetClient
+from glp.service import LottoService
 from glp.storage import Store
 from glp.util import sha256_bytes, sha256_json
 import updater as updater_module
@@ -67,6 +68,8 @@ class FrozenInterfaceTests(unittest.TestCase):
             "baseline_integrity_check", "validate_raw_evidence",
         ):
             self.assertTrue(callable(getattr(Store, name)))
+        for name in ("update", "predict", "audit", "repair", "self_test"):
+            self.assertTrue(callable(getattr(LottoService, name)))
         for name in ("update", "repair"):
             self.assertTrue(callable(getattr(UpdaterClient, name)))
         for fn in (
@@ -105,6 +108,23 @@ class FrozenInterfaceTests(unittest.TestCase):
         self.assertNotIn("body_b64", line)
         self.assertIn('"network_gate": "PASS"', line)
         self.assertIn('"latest_issue": "26112"', line)
+
+    def test_service_self_test_never_modifies_user_store(self):
+        with tempfile.TemporaryDirectory(prefix="dlt-service-selftest-contract-") as td:
+            root = Path(td) / "user-data"
+            store = Store(root)
+            before = {
+                p.relative_to(root).as_posix(): p.read_bytes()
+                for p in root.rglob("*") if p.is_file()
+            }
+            result = LottoService(store).self_test()
+            after = {
+                p.relative_to(root).as_posix(): p.read_bytes()
+                for p in root.rglob("*") if p.is_file()
+            }
+            self.assertEqual(result["status"], "PASS")
+            self.assertFalse(result["production_store_modified"])
+            self.assertEqual(before, after)
 
     def test_raw_evidence_reloads_bytes_and_fails_on_tamper(self):
         with tempfile.TemporaryDirectory(prefix="dlt-raw-contract-") as td:
