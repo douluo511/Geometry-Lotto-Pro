@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import gc
 import json
 import shutil
@@ -11,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from .domain import CanonicalDataset, Draw, Prediction
-from .util import app_data_dir, atomic_json, atomic_write, sha256_json, utc_now
+from .util import app_data_dir, atomic_json, atomic_write, sha256_bytes, sha256_json, utc_now
 
 
 class Store:
@@ -310,6 +311,88 @@ class Store:
         with self._connection() as db:
             rows = db.execute(query, params).fetchall()
         return [json.loads(r["payload_json"]) for r in rows]
+
+    def baseline_integrity_check(self) -> dict[str, Any]:
+        """Structural baseline integrity without pretending a new network fetch occurred."""
+        value = self.integrity_check()
+        return {
+            **value,
+            "scope": "LOCAL_BASELINE_STRUCTURAL",
+            "real_network_tested": False,
+        }
+
+    def validate_raw_evidence(self, evidence: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Verify preserved official raw response bytes and provenance fail-closed."""
+        if evidence is None:
+            if not self.evidence_path.exists():
+                return {
+                    "status": "FAIL",
+                    "raw_response_count": 0,
+                    "checks": [{"status": "FAIL", "detail": "source_evidence.json missing"}],
+                }
+            try:
+                evidence = json.loads(self.evidence_path.read_text(encoding="utf-8"))
+            except Exception as exc:
+                return {
+                    "status": "FAIL",
+                    "raw_response_count": 0,
+                    "checks": [{"status": "FAIL", "detail": f"{type(exc).__name__}: {exc}"}],
+                }
+        if not isinstance(evidence, dict):
+            return {
+                "status": "FAIL",
+                "raw_response_count": 0,
+                "checks": [{"status": "FAIL", "detail": "evidence must be an object"}],
+            }
+
+        checks: list[dict[str, Any]] = []
+        count = 0
+
+        def visit(value: Any, location: str) -> None:
+            nonlocal count
+            if isinstance(value, dict):
+                if "body_b64" in value:
+                    count += 1
+                    try:
+                        raw = base64.b64decode(str(value["body_b64"]), validate=True)
+                        digest = sha256_bytes(raw)
+                        status = int(value.get("http_status", 0) or 0)
+                        ok = (
+                            bool(raw)
+                            and digest == str(value.get("sha256", "")).lower()
+                            and type(value.get("bytes")) is int
+                            and len(raw) == int(value["bytes"])
+                            and 200 <= status < 300
+                            and str(value.get("final_url", "")).startswith("https://")
+                            and bool(value.get("fetched_at"))
+                            and bool(value.get("parser_version"))
+                            and value.get("validation_result") == "PASS"
+                        )
+                        checks.append({
+                            "location": location,
+                            "status": "PASS" if ok else "FAIL",
+                            "sha256": digest,
+                            "bytes": len(raw),
+                            "http_status": status,
+                        })
+                    except Exception as exc:
+                        checks.append({
+                            "location": location,
+                            "status": "FAIL",
+                            "detail": f"{type(exc).__name__}: {exc}",
+                        })
+                for key, child in value.items():
+                    if key != "body_b64":
+                        visit(child, location + "/" + str(key))
+            elif isinstance(value, list):
+                for index, child in enumerate(value):
+                    visit(child, location + "/" + str(index))
+
+        visit(evidence, "source_evidence")
+        if count == 0:
+            checks.append({"location": "source_evidence", "status": "FAIL", "detail": "no raw response bodies"})
+        status = "PASS" if count > 0 and all(x.get("status") == "PASS" for x in checks) else "FAIL"
+        return {"status": status, "raw_response_count": count, "checks": checks}
 
     def integrity_check(self) -> dict[str, Any]:
         checks: list[dict[str, str]] = []

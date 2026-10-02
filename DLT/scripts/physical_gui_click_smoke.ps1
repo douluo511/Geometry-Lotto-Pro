@@ -4,7 +4,9 @@ param(
   [Parameter(Mandatory=$true)][string]$EvidencePath,
   [string]$ButtonTexts = "",
   [int]$PreconditionIndex = -1,
-  [int]$SettleMs = 900
+  [int]$SettleMs = 900,
+  [string]$BackendEvidencePath = "",
+  [int]$BackendTimeoutSeconds = 1800
 )
 
 $ErrorActionPreference = "Stop"
@@ -230,16 +232,46 @@ $buttonNames=@()
 if($ButtonTexts){ $buttonNames=@($ButtonTexts.Split(';')) }
 if($buttonNames.Count -gt 0 -and $buttonNames.Count -ne 4){ throw "ButtonTexts must contain exactly four names" }
 $results=@()
+$backendResults=@()
+$backendRoot=$null
+if($BackendEvidencePath){
+  $backendParent=Split-Path -Parent $BackendEvidencePath
+  if($backendParent){
+    New-Item -ItemType Directory -Force $backendParent | Out-Null
+    $backendBase=(Resolve-Path $backendParent).Path
+  } else {
+    $backendBase=(Resolve-Path ".").Path
+  }
+  $backendRoot=Join-Path $backendBase ("physical-gui-backend-runs-"+[Guid]::NewGuid().ToString("N"))
+  New-Item -ItemType Directory -Force $backendRoot | Out-Null
+}
 $exeResolved = Resolve-Path $ExePath
 $processName = [System.IO.Path]::GetFileNameWithoutExtension($exeResolved)
 for($i=0;$i -lt 4;$i++){
   $baselinePids = @(Get-Process -Name $processName -ErrorAction SilentlyContinue | ForEach-Object { $_.Id })
   $window=$null
+  $operationId=1001+$i
+  $operationEvidence=$null
+  if($backendRoot){
+    $runDir=Join-Path $backendRoot ("op-"+$operationId)
+    New-Item -ItemType Directory -Force $runDir | Out-Null
+    $env:GLP_GUI_ACCEPTANCE_DIR=$runDir
+    $env:GLP_DATA_DIR=Join-Path $runDir "data"
+    New-Item -ItemType Directory -Force $env:GLP_DATA_DIR | Out-Null
+    $operationEvidence=Join-Path $runDir ("operation-"+$operationId+".json")
+  } else {
+    Remove-Item Env:GLP_GUI_ACCEPTANCE_DIR -ErrorAction SilentlyContinue
+  Remove-Item Env:GLP_DATA_DIR -ErrorAction SilentlyContinue
+  }
   $p=Start-Process -FilePath $exeResolved -PassThru
   try {
     $window=Wait-MainWindow $p $processName $baselinePids
     $hwnd=$window.hwnd
-    if($i -eq 0 -and $PreconditionIndex -ge 0){
+    # Predict and Audit both require current official history. Each GUI operation
+    # uses its own isolated data directory, so bind an Update precondition inside
+    # the same run directory before either current-history consumer.
+    $needsFreshHistory = ($operationId -eq 1001 -or $operationId -eq 1004)
+    if($needsFreshHistory -and $PreconditionIndex -ge 0){
       if($buttonNames.Count -eq 4){
         $prePoint=Find-ButtonPoint $hwnd $buttonNames[$PreconditionIndex]
         [void](Click-ScreenPoint $hwnd $prePoint.x $prePoint.y)
@@ -247,8 +279,31 @@ for($i=0;$i -lt 4;$i++){
         $pre=$parsed[$PreconditionIndex]
         [void](Click-Normalized $hwnd $pre[0] $pre[1])
       }
-      Start-Sleep -Milliseconds $SettleMs
       if(-not [PhysicalGuiClick]::IsWindow($hwnd)){ throw "GUI window disappeared during precondition click" }
+      if($backendRoot){
+        $preOperationId=1001+$PreconditionIndex
+        $preEvidence=Join-Path $runDir ("operation-"+$preOperationId+".json")
+        $preDeadline=(Get-Date).AddSeconds($BackendTimeoutSeconds)
+        while((Get-Date) -lt $preDeadline -and -not (Test-Path $preEvidence)){
+          Start-Sleep -Milliseconds 500
+        }
+        if(-not (Test-Path $preEvidence)){
+          throw "Physical precondition click did not produce backend evidence for operation $preOperationId within timeout"
+        }
+        $preBackend=Get-Content $preEvidence -Raw | ConvertFrom-Json
+        if($preBackend.schema -ne 'dlt-physical-gui-backend-v1' -or $preBackend.status -ne 'PASS' -or [int]$preBackend.operation_id -ne $preOperationId){
+          throw "Precondition backend evidence is not a bound PASS for operation $preOperationId"
+        }
+        if($preOperationId -eq 1002){
+          if($preBackend.result.network_gate -ne 'PASS' -or $preBackend.result.crosscheck_status -ne 'PASS' -or $preBackend.result.freshness_gate -ne 'PASS'){
+            throw 'Predict precondition Update did not prove current official network/crosscheck/freshness PASS'
+          }
+          if($preBackend.result._updater.parent_pid_match -ne $true -or [string]::IsNullOrWhiteSpace([string]$preBackend.result._updater.updater_exe_sha256)){
+            throw 'Predict precondition Update did not prove independent exact Updater process'
+          }
+        }
+      }
+      Start-Sleep -Milliseconds $SettleMs
     }
     $before=Get-WindowHash $hwnd
     if($buttonNames.Count -eq 4){
@@ -275,6 +330,48 @@ for($i=0;$i -lt 4;$i++){
       $pt=$parsed[$i]
       $click=Click-Normalized $hwnd $pt[0] $pt[1]
       $locator="FrozenNormalizedCoordinate"
+    }
+    if($backendRoot){
+      $deadline=(Get-Date).AddSeconds($BackendTimeoutSeconds)
+      while((Get-Date) -lt $deadline -and -not (Test-Path $operationEvidence)){
+        Start-Sleep -Milliseconds 500
+      }
+      if(-not (Test-Path $operationEvidence)){
+        throw "Physical click did not produce backend evidence for operation $operationId within timeout"
+      }
+      $backend=Get-Content $operationEvidence -Raw | ConvertFrom-Json
+      if($backend.schema -ne 'dlt-physical-gui-backend-v1' -or $backend.status -ne 'PASS' -or [int]$backend.operation_id -ne $operationId){
+        throw "Backend evidence is not a bound PASS for operation $operationId"
+      }
+      switch($operationId){
+        1001 {
+          if([string]::IsNullOrWhiteSpace([string]$backend.result.prediction.freeze_hash)){ throw 'Predict backend did not persist a formal Freeze' }
+          if([string]::IsNullOrWhiteSpace([string]$backend.result.prediction.target_issue)){ throw 'Predict backend target issue missing' }
+        }
+        1002 {
+          if($backend.result.network_gate -ne 'PASS' -or $backend.result.crosscheck_status -ne 'PASS'){ throw 'Update backend did not prove real official network/crosscheck PASS' }
+          if($backend.result._updater.parent_pid_match -ne $true -or [string]::IsNullOrWhiteSpace([string]$backend.result._updater.updater_exe_sha256)){
+            throw 'Update GUI path did not prove independent exact Updater process'
+          }
+        }
+        1003 {
+          if($backend.result.after.status -ne 'PASS'){ throw 'Repair backend integrity is not PASS' }
+          if($backend.result._updater.parent_pid_match -ne $true -or [string]::IsNullOrWhiteSpace([string]$backend.result._updater.updater_exe_sha256)){
+            throw 'Repair GUI path did not prove independent exact Updater process'
+          }
+        }
+        1004 {
+          if($backend.result.court.software_verdict -ne 'PASS' -or $backend.result.formal_freeze_written -ne $false -or [int]$backend.result.freeze_before -ne [int]$backend.result.freeze_after){
+            throw 'Audit backend did not prove scientific PASS with zero formal Freeze side effect'
+          }
+        }
+      }
+      $backendResults += [pscustomobject]@{
+        operation_id=$operationId
+        operation=$backend.operation
+        status='PASS'
+        evidence_path=$operationEvidence
+      }
     }
     Start-Sleep -Milliseconds $SettleMs
     if(-not [PhysicalGuiClick]::IsWindow($hwnd)){
@@ -306,3 +403,18 @@ $report=[ordered]@{
 }
 $report | ConvertTo-Json -Depth 6 | Set-Content $EvidencePath -Encoding utf8
 Get-Content $EvidencePath
+if($BackendEvidencePath){
+  Remove-Item Env:GLP_GUI_ACCEPTANCE_DIR -ErrorAction SilentlyContinue
+  $backendReport=[ordered]@{
+    schema='dlt-physical-gui-backend-summary-v1'
+    status=$(if($backendResults.Count -eq 4 -and @($backendResults | Where-Object {$_.status -ne 'PASS'}).Count -eq 0){'PASS'}else{'FAIL'})
+    exe=(Split-Path -Leaf $ExePath)
+    exe_sha256=(Get-FileHash $exeResolved -Algorithm SHA256).Hash.ToLower()
+    tested_at=(Get-Date).ToUniversalTime().ToString('o')
+    physical_activation='foreground cursor + mouse_event LEFTDOWN/LEFTUP'
+    operations=$backendResults
+  }
+  $backendReport | ConvertTo-Json -Depth 8 | Set-Content $BackendEvidencePath -Encoding utf8
+  Get-Content $BackendEvidencePath
+  if($backendReport.status -ne 'PASS'){ throw 'Physical GUI backend acceptance is not PASS' }
+}
