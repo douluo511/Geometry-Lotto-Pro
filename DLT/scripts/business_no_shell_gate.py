@@ -130,7 +130,7 @@ def main() -> int:
         and callable(getattr(Store, "baseline_integrity_check", None))
         and callable(getattr(Store, "validate_raw_evidence", None))
         and callable(self_test)
-        and all(callable(getattr(LottoService, x, None)) for x in ("update", "predict", "audit", "repair"))
+        and all(callable(getattr(LottoService, x, None)) for x in ("update", "predict", "audit", "repair", "self_test"))
         and all(callable(getattr(UpdaterClient, x, None)) for x in ("update", "repair"))
         and all(callable(x) for x in (
             launch_software_update, read_software_update_result,
