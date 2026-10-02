@@ -30,7 +30,7 @@ jobs:
     env:
       TARGET_REPO: douluo511/Geometry-Lotto-Pro-SSQ
       GH_TOKEN: ${{ secrets.SSQ_REPO_ADMIN_TOKEN }}
-      BOOTSTRAP_VISIBILITY: ${{ inputs.visibility || 'private' }}
+      BOOTSTRAP_VISIBILITY: ${{ inputs.visibility || 'public' }}
     steps:
       - name: Checkout exact source commit
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
