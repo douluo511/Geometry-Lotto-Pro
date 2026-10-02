@@ -8,6 +8,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 from typing import Any, Callable
 from urllib.parse import urljoin, urlsplit
@@ -383,6 +384,44 @@ def run_software_update(manifest_url: str, target_exe: str, current_version: str
     }
 
 
+
+def _wait_for_parent_exit(pid: int, timeout_seconds: int = 90) -> dict[str, Any]:
+    if pid <= 0:
+        return {"status": "SKIPPED", "pid": pid}
+    started = time.monotonic()
+    if os.name == "nt":
+        import ctypes
+        from ctypes import wintypes
+        SYNCHRONIZE = 0x00100000
+        WAIT_OBJECT_0 = 0x00000000
+        WAIT_TIMEOUT = 0x00000102
+        kernel32 = ctypes.windll.kernel32
+        kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+        kernel32.OpenProcess.restype = wintypes.HANDLE
+        kernel32.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+        kernel32.WaitForSingleObject.restype = wintypes.DWORD
+        kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+        handle = kernel32.OpenProcess(SYNCHRONIZE, False, int(pid))
+        if not handle:
+            return {"status": "PASS", "pid": pid, "detail": "parent already exited/unavailable"}
+        try:
+            rc = kernel32.WaitForSingleObject(handle, int(timeout_seconds * 1000))
+        finally:
+            kernel32.CloseHandle(handle)
+        if rc == WAIT_OBJECT_0:
+            return {"status": "PASS", "pid": pid, "wait_seconds": round(time.monotonic() - started, 3)}
+        if rc == WAIT_TIMEOUT:
+            raise TimeoutError(f"parent process {pid} did not exit within {timeout_seconds}s")
+        raise RuntimeError(f"WaitForSingleObject failed: code={rc}")
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        try:
+            os.kill(pid, 0)
+        except OSError:
+            return {"status": "PASS", "pid": pid, "wait_seconds": round(time.monotonic() - started, 3)}
+        time.sleep(0.2)
+    raise TimeoutError(f"parent process {pid} did not exit within {timeout_seconds}s")
+
 def _write(path: str | None, value: dict[str, Any]) -> None:
     if not path:
         return
@@ -401,6 +440,7 @@ def main() -> int:
     p.add_argument("--manifest-url")
     p.add_argument("--target-exe")
     p.add_argument("--current-version", default=APP_VERSION)
+    p.add_argument("--wait-parent-pid", type=int, default=0)
     args = p.parse_args()
 
     mode = (
@@ -414,8 +454,6 @@ def main() -> int:
     try:
         if args.self_test:
             with tempfile.TemporaryDirectory(prefix="dlt-updater-self-") as td:
-                result = LottoService(Store(Path(td))).self_test() if hasattr(LottoService, "self_test") else {"status": "PASS"}
-                # Service self-test is a module function, not a production method.
                 from glp.service import self_test as service_self_test
                 result = service_self_test(Path(td))
             out.update(status="PASS" if result.get("status") == "PASS" else "FAIL", service_result=result)
@@ -431,8 +469,9 @@ def main() -> int:
         else:
             if not args.manifest_url or not args.target_exe:
                 raise ValueError("--manifest-url and --target-exe are required for software update")
+            parent_wait = _wait_for_parent_exit(args.wait_parent_pid) if args.wait_parent_pid else {"status": "SKIPPED"}
             result = run_software_update(args.manifest_url, args.target_exe, args.current_version)
-            out.update(status=result["status"], service_result=result)
+            out.update(status=result["status"], parent_wait=parent_wait, service_result=result)
     except Exception as exc:
         out.update(status="FAIL", error_type=type(exc).__name__, error=str(exc), failed_at=utc_now())
     _write(args.result_file, out)
