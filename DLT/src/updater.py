@@ -428,6 +428,48 @@ def _write(path: str | None, value: dict[str, Any]) -> None:
     atomic_json(Path(path), value)
 
 
+def _console_summary(value: dict[str, Any]) -> dict[str, Any]:
+    """Return a bounded ASCII-serializable console view.
+
+    Full evidence, including raw official-source bytes, is written to
+    --result-file.  Console output is intentionally compact so Windows hosted
+    runners cannot fail after a successful operation merely because their
+    active code page cannot encode Chinese text.
+    """
+    result = {
+        "schema": value.get("schema"),
+        "status": value.get("status"),
+        "mode": value.get("mode"),
+        "pid": value.get("pid"),
+        "parent_pid": value.get("parent_pid"),
+        "parent_pid_match": value.get("parent_pid_match"),
+        "updater_exe_sha256": value.get("updater_exe_sha256"),
+        "github_sha": value.get("github_sha"),
+        "github_run_id": value.get("github_run_id"),
+        "version": value.get("version"),
+    }
+    if value.get("error_type") is not None:
+        result["error_type"] = value.get("error_type")
+    if value.get("error") is not None:
+        result["error"] = str(value.get("error"))[:2000]
+    service_result = value.get("service_result")
+    if isinstance(service_result, dict):
+        result["service_status"] = service_result.get("status")
+        result["network_gate"] = service_result.get("network_gate")
+        result["crosscheck_status"] = service_result.get("crosscheck_status")
+        latest = service_result.get("latest")
+        if isinstance(latest, dict):
+            result["latest_issue"] = latest.get("issue")
+        if service_result.get("draw_count") is not None:
+            result["draw_count"] = service_result.get("draw_count")
+    return result
+
+
+def _console_line(value: dict[str, Any]) -> str:
+    # ensure_ascii=True makes this safe even on legacy Windows cp1252 consoles.
+    return json.dumps(_console_summary(value), ensure_ascii=True, sort_keys=True)
+
+
 def main() -> int:
     p = argparse.ArgumentParser(prog="GeometryLottoProDLTUpdater")
     modes = p.add_mutually_exclusive_group(required=True)
@@ -475,7 +517,7 @@ def main() -> int:
     except Exception as exc:
         out.update(status="FAIL", error_type=type(exc).__name__, error=str(exc), failed_at=utc_now())
     _write(args.result_file, out)
-    print(json.dumps(out, ensure_ascii=False, indent=2, sort_keys=True))
+    print(_console_line(out))
     return 0 if out.get("status") == "PASS" else 2
 
 
