@@ -61,6 +61,16 @@ class BusinessReleaseBoundaries(unittest.TestCase):
         self.assertIsNone(approval["approved_by"])
         self.assertIsNone(approval["approval_reference"])
 
+    def test_negative_gui_failure_binds_exact_updater_process(self):
+        source = (SCRIPTS / "physical_gui_failure_smoke.ps1").read_text(encoding="utf-8")
+        for literal in ("updater_exe_sha256", "parent_pid_match", "updater_failure_exact_hash", "updater_failure_parent_bound"):
+            self.assertIn(literal, source)
+        final_source = (SCRIPTS / "final_gate.py").read_text(encoding="utf-8")
+        runtime_source = (SCRIPTS / "business_runtime_gate.py").read_text(encoding="utf-8")
+        for literal in ("physical_hit_test_verified", "updater_failure_exact_hash", "updater_failure_parent_bound"):
+            self.assertIn(literal, final_source)
+            self.assertIn(literal, runtime_source)
+
     def test_missing_negative_gui_evidence_is_a_hard_final_blocker(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -88,6 +98,8 @@ class BusinessReleaseBoundaries(unittest.TestCase):
                 "backend_status": "FAIL",
                 "ui_fail_closed": True,
                 "physical_hit_test_verified": True,
+                "updater_failure_exact_hash": True,
+                "updater_failure_parent_bound": True,
                 "canonical_unchanged": True,
                 "evidence_unchanged": True,
                 "updater_failure_count": 1,
@@ -126,6 +138,8 @@ class BusinessReleaseBoundaries(unittest.TestCase):
                 "backend_status": "FAIL",
                 "ui_fail_closed": True,
                 "physical_hit_test_verified": True,
+                "updater_failure_exact_hash": True,
+                "updater_failure_parent_bound": True,
                 "corruption_injected": True,
                 "canonical_unchanged": True,
                 "evidence_unchanged": True,

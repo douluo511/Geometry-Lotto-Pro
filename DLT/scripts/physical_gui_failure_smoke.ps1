@@ -24,6 +24,9 @@ public static class DltFailureGui {
   [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hWnd);
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
   [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+  [DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr hWnd);
+  [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr hWnd, IntPtr insertAfter, int X, int Y, int cx, int cy, uint flags);
   [DllImport("user32.dll")] public static extern IntPtr WindowFromPoint(POINT p);
   [DllImport("user32.dll")] public static extern bool SetCursorPos(int X, int Y);
   [DllImport("user32.dll")] public static extern void mouse_event(uint flags, uint dx, uint dy, uint data, UIntPtr extraInfo);
@@ -93,27 +96,37 @@ function Click-Button([IntPtr]$Window,[IntPtr]$Button){
   $p=New-Object DltFailureGui+POINT
   $p.X=[int][Math]::Floor(($r.Left+$r.Right)/2)
   $p.Y=[int][Math]::Floor(($r.Top+$r.Bottom)/2)
-
-  # Hosted Windows runners can reject a single SetForegroundWindow request even
-  # when the exact child button is topmost and physically clickable.  Retry the
-  # focus request, but make the hard safety proof the actual screen hit-test plus
-  # operation-bound backend evidence after mouse_event.
-  $foregroundVerified=$false
-  for($focusAttempt=0;$focusAttempt -lt 8;$focusAttempt++){
+  $hit=$false
+  $HWND_TOPMOST=[IntPtr](-1)
+  $HWND_NOTOPMOST=[IntPtr](-2)
+  $SW_RESTORE=9
+  $SWP_NOMOVE=0x0002
+  $SWP_NOSIZE=0x0001
+  $SWP_SHOWWINDOW=0x0040
+  for($attempt=0;$attempt -lt 8;$attempt++){
+    [void][DltFailureGui]::ShowWindow($Window,$SW_RESTORE)
+    [void][DltFailureGui]::SetWindowPos($Window,$HWND_TOPMOST,0,0,0,0,$SWP_NOMOVE -bor $SWP_NOSIZE -bor $SWP_SHOWWINDOW)
+    [void][DltFailureGui]::BringWindowToTop($Window)
     [void][DltFailureGui]::SetForegroundWindow($Window)
-    Start-Sleep -Milliseconds 125
-    if([DltFailureGui]::GetForegroundWindow() -eq $Window){
-      $foregroundVerified=$true
+    Start-Sleep -Milliseconds 180
+    if([DltFailureGui]::WindowFromPoint($p) -eq $Button){
+      $hit=$true
       break
     }
   }
-  if([DltFailureGui]::WindowFromPoint($p) -ne $Button){ throw 'button hit-test failed' }
+  [void][DltFailureGui]::SetWindowPos($Window,$HWND_NOTOPMOST,0,0,0,0,$SWP_NOMOVE -bor $SWP_NOSIZE -bor $SWP_SHOWWINDOW)
+  if(-not $hit){ throw 'Physical button hit-test failed after restore/topmost/foreground attempts' }
   if(-not [DltFailureGui]::SetCursorPos($p.X,$p.Y)){ throw 'SetCursorPos failed' }
-  if([DltFailureGui]::WindowFromPoint($p) -ne $Button){ throw 'button became occluded before physical click' }
+  if([DltFailureGui]::WindowFromPoint($p) -ne $Button){ throw 'Physical button hit-test changed before click' }
   [DltFailureGui]::mouse_event(0x0002,0,0,0,[UIntPtr]::Zero)
   Start-Sleep -Milliseconds 80
   [DltFailureGui]::mouse_event(0x0004,0,0,0,[UIntPtr]::Zero)
-  return @{x=$p.X;y=$p.Y;foreground_verified=$foregroundVerified;hit_test_verified=$true}
+  return @{
+    x=$p.X
+    y=$p.Y
+    hit_test_verified=$true
+    foreground_verified=([DltFailureGui]::GetForegroundWindow() -eq $Window)
+  }
 }
 
 function Ledger-Counts([string]$Db){
@@ -140,6 +153,7 @@ finally:
 
 $exe=(Resolve-Path -LiteralPath $ExePath).Path
 $updater=(Resolve-Path -LiteralPath $UpdaterExePath).Path
+$exactUpdaterHash=Sha256 $updater
 $success=(Resolve-Path -LiteralPath $SuccessBackendPath).Path
 $evidenceFull=[IO.Path]::GetFullPath($EvidencePath)
 $evidenceDir=Split-Path -Parent $evidenceFull
@@ -233,8 +247,14 @@ $failedUpdater=@()
 foreach($path in $newUpdaterFiles){
   try {
     $u=Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
-    if($u.schema -eq 'dlt-independent-updater-v1' -and $u.mode -eq $expectedMode -and $u.status -eq 'FAIL'){
-      $failedUpdater += [ordered]@{path=$path;sha256=(Sha256 $path);error_type=$u.error_type}
+    if($u.schema -eq 'dlt-independent-updater-v1' -and $u.mode -eq $expectedMode -and $u.status -eq 'FAIL' -and $u.updater_exe_sha256 -eq $exactUpdaterHash -and $u.parent_pid_match -eq $true){
+      $failedUpdater += [ordered]@{
+        path=$path
+        sha256=(Sha256 $path)
+        error_type=$u.error_type
+        updater_exe_sha256=$u.updater_exe_sha256
+        parent_pid_match=[bool]$u.parent_pid_match
+      }
     }
   } catch {}
 }
@@ -270,6 +290,8 @@ $report=[ordered]@{
   repair_pass_increment=([int]$afterCounts.repair_pass-[int]$beforeCounts.repair_pass)
   repair_fail_increment=([int]$afterCounts.repair_fail-[int]$beforeCounts.repair_fail)
   updater_failure_count=$failedUpdater.Count
+  updater_failure_exact_hash=$true
+  updater_failure_parent_bound=$true
   updater_failures=$failedUpdater
   tested_at=[DateTime]::UtcNow.ToString("yyyy-MM-ddTHH:mm:ss'Z'")
 }
