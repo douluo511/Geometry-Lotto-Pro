@@ -278,3 +278,5 @@ jobs:
             DLT/artifacts/**
           if-no-files-found: warn
           retention-days: 90
+
+# Hard-gate revalidation trigger: DLT negative GUI failure gates + fail-closed scope review
