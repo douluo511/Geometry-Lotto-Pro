@@ -49,6 +49,7 @@ class ServiceBoundaryTests(unittest.TestCase):
             with patch.object(svc, "ensure_seed"), \
                  patch.object(store, "integrity_check", return_value={"status": "PASS"}), \
                  patch.object(store, "load_draws", return_value=(["TEST_ONLY_DRAW"], "dataset")), \
+                 patch.object(svc, "_require_current_history"), \
                  patch.object(store, "prospective_replays", return_value=[]), \
                  patch.object(service, "run_evidence_court", return_value=court), \
                  patch.object(service, "make_prediction", return_value=(object(), {"current": True})) as preview, \
@@ -62,6 +63,32 @@ class ServiceBoundaryTests(unittest.TestCase):
                 kinds = [r[0] for r in db.execute("SELECT kind FROM experiments")]
             self.assertEqual(kinds, ["evidence_court"])
             self.assertEqual(store.freezes(), [])
+
+    def test_predict_rejects_stale_history_before_model_execution(self):
+        stale = SimpleNamespace(draw_date="2000-01-01")
+        store = SimpleNamespace(
+            integrity_check=Mock(return_value={"status": "PASS"}),
+            load_draws=Mock(return_value=([stale], "stale-dataset")),
+        )
+        svc = service.LottoService(store)
+        with patch.object(svc, "ensure_seed"), \
+             patch.object(service, "make_prediction") as model:
+            with self.assertRaisesRegex(ValueError, "数据已过期"):
+                svc.predict()
+        model.assert_not_called()
+
+    def test_audit_rejects_stale_history_before_scientific_court(self):
+        stale = SimpleNamespace(draw_date="2000-01-01")
+        store = SimpleNamespace(
+            integrity_check=Mock(return_value={"status": "PASS"}),
+            load_draws=Mock(return_value=([stale], "stale-dataset")),
+        )
+        svc = service.LottoService(store)
+        with patch.object(svc, "ensure_seed"), \
+             patch.object(service, "run_evidence_court") as court:
+            with self.assertRaisesRegex(ValueError, "数据已过期"):
+                svc.audit()
+        court.assert_not_called()
 
     def test_repair_failure_is_raised_and_recorded_without_pass(self):
         with tempfile.TemporaryDirectory() as directory:
