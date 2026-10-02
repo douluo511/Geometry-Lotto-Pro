@@ -122,8 +122,10 @@ def _get_official(
 
 def _response_body(response, source: str, *, json_expected: bool, raw: bytes | None = None) -> bytes:
     raw = bytes(response.content) if raw is None else raw
-    if not raw or len(raw) > MAX_RESPONSE_BYTES:
-        raise SourceError(f"{source}: empty or oversized HTTP response")
+    if not raw:
+        raise SourceError(f"{source}: empty HTTP response")
+    if len(raw) > MAX_RESPONSE_BYTES:
+        raise SourceError(f"{source}: oversized HTTP response")
     media_type = str(response.headers.get("Content-Type", "")).split(";", 1)[0].strip().lower()
     allowed = {"application/json", "text/json"} if json_expected else {"text/html", "application/xhtml+xml"}
     if media_type not in allowed:
