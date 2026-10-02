@@ -93,15 +93,27 @@ function Click-Button([IntPtr]$Window,[IntPtr]$Button){
   $p=New-Object DltFailureGui+POINT
   $p.X=[int][Math]::Floor(($r.Left+$r.Right)/2)
   $p.Y=[int][Math]::Floor(($r.Top+$r.Bottom)/2)
-  [void][DltFailureGui]::SetForegroundWindow($Window)
-  Start-Sleep -Milliseconds 250
-  if([DltFailureGui]::GetForegroundWindow() -ne $Window){ throw 'DLT window did not receive foreground' }
+
+  # Hosted Windows runners can reject a single SetForegroundWindow request even
+  # when the exact child button is topmost and physically clickable.  Retry the
+  # focus request, but make the hard safety proof the actual screen hit-test plus
+  # operation-bound backend evidence after mouse_event.
+  $foregroundVerified=$false
+  for($focusAttempt=0;$focusAttempt -lt 8;$focusAttempt++){
+    [void][DltFailureGui]::SetForegroundWindow($Window)
+    Start-Sleep -Milliseconds 125
+    if([DltFailureGui]::GetForegroundWindow() -eq $Window){
+      $foregroundVerified=$true
+      break
+    }
+  }
   if([DltFailureGui]::WindowFromPoint($p) -ne $Button){ throw 'button hit-test failed' }
   if(-not [DltFailureGui]::SetCursorPos($p.X,$p.Y)){ throw 'SetCursorPos failed' }
+  if([DltFailureGui]::WindowFromPoint($p) -ne $Button){ throw 'button became occluded before physical click' }
   [DltFailureGui]::mouse_event(0x0002,0,0,0,[UIntPtr]::Zero)
   Start-Sleep -Milliseconds 80
   [DltFailureGui]::mouse_event(0x0004,0,0,0,[UIntPtr]::Zero)
-  return @{x=$p.X;y=$p.Y}
+  return @{x=$p.X;y=$p.Y;foreground_verified=$foregroundVerified;hit_test_verified=$true}
 }
 
 function Ledger-Counts([string]$Db){
@@ -250,6 +262,8 @@ $report=[ordered]@{
   evidence_unchanged=($beforeEvidence -eq $afterEvidence)
   backend_status='FAIL'
   ui_fail_closed=$true
+  physical_hit_test_verified=$click.hit_test_verified
+  foreground_verified=$click.foreground_verified
   ui_output_sha256=(Sha256 $tmp)
   official_update_pass_increment=([int]$afterCounts.official_update_pass-[int]$beforeCounts.official_update_pass)
   official_update_fail_increment=([int]$afterCounts.official_update_fail-[int]$beforeCounts.official_update_fail)
