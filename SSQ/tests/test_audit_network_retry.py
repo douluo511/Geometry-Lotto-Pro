@@ -57,6 +57,14 @@ class AuditUpdateRetryTests(unittest.TestCase):
             self.assertEqual(len(attempts), 1)
             self.assertFalse(attempts[0]["retryable"])
 
+    def test_predict_uses_bounded_transient_retry_contract(self) -> None:
+        import inspect
+
+        source = inspect.getsource(LottoService.predict)
+        self.assertIn("update_with_transient_retry", source)
+        self.assertIn("auto_update_attempts", source)
+        self.assertNotIn("update_result = self.update(progress=progress)", source)
+
     def test_repair_rebuild_transient_deadline_retries_once_then_passes(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             svc = self._service(directory)
