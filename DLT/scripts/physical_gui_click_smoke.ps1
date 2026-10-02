@@ -267,7 +267,11 @@ for($i=0;$i -lt 4;$i++){
   try {
     $window=Wait-MainWindow $p $processName $baselinePids
     $hwnd=$window.hwnd
-    if($i -eq 0 -and $PreconditionIndex -ge 0){
+    # Predict and Audit both require current official history. Each GUI operation
+    # uses its own isolated data directory, so bind an Update precondition inside
+    # the same run directory before either current-history consumer.
+    $needsFreshHistory = ($operationId -eq 1001 -or $operationId -eq 1004)
+    if($needsFreshHistory -and $PreconditionIndex -ge 0){
       if($buttonNames.Count -eq 4){
         $prePoint=Find-ButtonPoint $hwnd $buttonNames[$PreconditionIndex]
         [void](Click-ScreenPoint $hwnd $prePoint.x $prePoint.y)
