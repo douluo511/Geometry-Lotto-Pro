@@ -214,6 +214,7 @@ jobs:
       - name: Runtime B01-B07 business and no-shell evidence gate
         shell: pwsh
         run: |
+          $env:PYTHONPATH="$PWD\src"
           python scripts/business_runtime_gate.py `
             --evidence-dir ".\artifacts" `
             --exe ".\dist\Geometry_Lotto_Pro_DLT.exe" `
