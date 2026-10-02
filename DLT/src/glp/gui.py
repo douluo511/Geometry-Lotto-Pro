@@ -5,10 +5,12 @@ import os
 import queue
 import threading
 import time
+from pathlib import Path
 from typing import Any
 
 from .constants import APP_NAME, APP_VERSION
 from .service import LottoService
+from .util import atomic_json, utc_now
 
 BTN_PREDICT = 1001
 BTN_UPDATE = 1002
@@ -136,6 +138,7 @@ class NativeApp:
         self.service = service or LottoService()
         self.events: queue.Queue = queue.Queue()
         self.busy = False
+        self.active_cid: int | None = None
         self.controls: dict[str, int] = {}
         self.buttons: list[int] = []
         self.renderers = {
@@ -191,7 +194,7 @@ class NativeApp:
         for h in self.buttons: self.user32.EnableWindow(h,bool(enabled))
     def _start(self,cid):
         if self.busy or cid not in self.renderers: return
-        title,fn,renderer=self.renderers[cid]; self.busy=True; self._enable(False); self._set("heading",title); self._set("status","正在执行…")
+        title,fn,renderer=self.renderers[cid]; self.busy=True; self.active_cid=cid; self._enable(False); self._set("heading",title); self._set("status","正在执行…")
         def worker():
             try:
                 result=fn(lambda msg:self.events.put(("progress",msg)))
@@ -199,6 +202,30 @@ class NativeApp:
             except Exception as exc:
                 self.events.put(("error",str(exc)))
         threading.Thread(target=worker,daemon=True).start()
+    def _write_acceptance_result(self, status, result=None, error=None):
+        root = os.environ.get("GLP_GUI_ACCEPTANCE_DIR")
+        if not root:
+            return
+        cid = self.active_cid
+        if cid not in self.renderers:
+            raise RuntimeError("GUI acceptance operation identity missing")
+        title = self.renderers[cid][0]
+        payload = {
+            "schema": "dlt-physical-gui-backend-v1",
+            "status": status,
+            "operation_id": int(cid),
+            "operation": title,
+            "completed_at": utc_now(),
+            "pid": os.getpid(),
+        }
+        if result is not None:
+            payload["result"] = result
+        if error is not None:
+            payload["error"] = str(error)
+        path = Path(root).resolve() / f"operation-{cid}.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        atomic_json(path, payload)
+
     def _show_failure(self, detail):
         self._set("output", "执行失败（Fail-Closed）\r\n\r\n" + str(detail)
                   + "\r\n\r\n本次操作未通过；请检查证据记录，勿将已有缓存当作成功。")
@@ -223,6 +250,7 @@ class NativeApp:
                         raise ValueError("scientific execution did not pass")
                     if "after" in result and result["after"].get("status") != "PASS":
                         raise ValueError("repair integrity is not PASS")
+                    self._write_acceptance_result("PASS", result=result)
                     self._set("output", renderer(result))
                     state = result.get("prediction") or result.get("court")
                     if state:
@@ -231,15 +259,21 @@ class NativeApp:
                             f"{state.get('edge_state','NO_EDGE')} · {state.get('dan_state','NULL_DAN')}")
                     self._set("status", "完成 · 操作记录已写入；不代表最终版本验收")
                 except Exception as exc:
-                    self._show_failure(f"{type(exc).__name__}: {exc}")
+                    try:
+                        self._write_acceptance_result("FAIL", error=f"{type(exc).__name__}: {exc}")
+                    finally:
+                        self._show_failure(f"{type(exc).__name__}: {exc}")
                 finally:
                     self.busy = False
+                    self.active_cid = None
                     self._enable(True)
             elif kind == "error":
                 try:
+                    self._write_acceptance_result("FAIL", error=payload)
                     self._show_failure(payload)
                 finally:
                     self.busy = False
+                    self.active_cid = None
                     self._enable(True)
     def _wndproc(self,hwnd,msg,wparam,lparam):
         if msg==self.WM_COMMAND:
