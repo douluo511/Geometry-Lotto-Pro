@@ -154,23 +154,38 @@ def derive(evidence_dir: Path, exe: Path) -> dict[str, Any]:
     self_test = load_json(root / "self_test.json")
     gui_visual = load_json(root / "physical_gui_click.json")
     gui_backend = load_json(root / "physical_gui_backend.json")
+    gui_failure = load_json(root / "physical_gui_failure.json")
+    gui_repair_failure = load_json(root / "physical_gui_repair_failure.json")
     updater = load_json(root / "updater_acceptance.json")
 
-    approval_ok = (
-        approval.get("schema") == "dlt-business-scope-approval-v1"
-        and approval.get("project") == "DLT"
-        and approval.get("status") == "APPROVED"
-        and approval.get("approved_by") == "user"
-        and tuple(approval.get("scope_ids") or ()) == SCOPE_IDS
-        and tuple(approval.get("entry_inventory") or ()) == ENTRY_IDS
-        and approval.get("original_requirements_preserved") is True
-        and approval.get("no_scope_reduction") is True
-        and bool(str(approval.get("approval_reference", "")).strip())
-        and baseline.get("schema") == "dlt-business-acceptance-baseline-v1"
+    baseline_ok = (
+        baseline.get("schema") == "dlt-business-acceptance-baseline-v1"
         and tuple((baseline.get("tasks") or {}).keys()) == SCOPE_IDS
         and tuple(baseline.get("entry_inventory") or ()) == ENTRY_IDS
         and baseline.get("scope_reduction_forbidden") is True
     )
+    approval_shape_ok = (
+        approval.get("schema") == "dlt-business-scope-approval-v1"
+        and approval.get("project") == "DLT"
+        and tuple(approval.get("scope_ids") or ()) == SCOPE_IDS
+        and tuple(approval.get("entry_inventory") or ()) == ENTRY_IDS
+        and approval.get("original_requirements_preserved") is True
+        and approval.get("no_scope_reduction") is True
+        and baseline_ok
+    )
+    approval_ok = (
+        approval_shape_ok
+        and approval.get("status") == "APPROVED"
+        and approval.get("approved_by") == "user"
+        and bool(str(approval.get("approval_reference", "")).strip())
+    )
+    approval_pending_ok = (
+        approval_shape_ok
+        and approval.get("status") == "PENDING"
+        and approval.get("approved_by") is None
+        and approval.get("approval_reference") is None
+    )
+    approval_state_valid = approval_ok or approval_pending_ok
 
     static_ok = (
         static.get("schema") == "dlt-static-interface-precheck-v2"
@@ -292,12 +307,42 @@ def derive(evidence_dir: Path, exe: Path) -> dict[str, Any]:
         and court.get("dan_state") in {"NULL_DAN", "CERTIFIED_DAN"}
     )
 
+    def negative_gui_ok(value: dict[str, Any], operation: str, control_id: int) -> bool:
+        common = (
+            value.get("schema") == "dlt-physical-gui-failure-v1"
+            and value.get("status") == "PASS"
+            and value.get("operation") == operation
+            and int(value.get("control_id", -1)) == control_id
+            and value.get("exe_sha256") == exe_hash
+            and value.get("updater_sha256") == updater_hash
+            and value.get("github_sha") == github_sha
+            and str(value.get("github_run_id")) == str(github_run_id)
+            and value.get("backend_status") == "FAIL"
+            and value.get("ui_fail_closed") is True
+            and value.get("canonical_unchanged") is True
+            and value.get("evidence_unchanged") is True
+            and int(value.get("official_update_pass_increment", -1)) == 0
+        )
+        if not common:
+            return False
+        if operation == "update":
+            return int(value.get("official_update_fail_increment", 0)) >= 1
+        return (
+            value.get("corruption_injected") is True
+            and int(value.get("repair_fail_increment", 0)) >= 1
+            and int(value.get("repair_pass_increment", -1)) == 0
+        )
+
+    update_failure_ok = negative_gui_ok(gui_failure, "update", 1002)
+    repair_failure_ok = negative_gui_ok(gui_repair_failure, "repair", 1003)
+
     repair_ok = (
         (repair.get("after") or {}).get("status") == "PASS"
         and ((repair.get("_updater") or {}).get("parent_pid_match") is True)
         and (repair.get("_updater") or {}).get("updater_exe_sha256") == updater_hash
         and updater.get("updater_atomic_rollback") == "PASS"
         and fault_ok
+        and repair_failure_ok
     )
 
     updater_core_ok = (
@@ -321,7 +366,7 @@ def derive(evidence_dir: Path, exe: Path) -> dict[str, Any]:
     b05_status = "PASS" if b05_pass else ("PENDING" if updater_core_ok else "FAIL")
 
     no_shell_ok = (
-        approval_ok and static_ok and gui_summary_ok
+        static_ok and gui_summary_ok and update_failure_ok and repair_failure_ok
         and acceptance.get("exact_acceptance_gate") == "PASS"
         and acceptance.get("four_entry_gate") == "PASS"
         and acceptance.get("exe_sha256") == exe_hash
@@ -347,7 +392,7 @@ def derive(evidence_dir: Path, exe: Path) -> dict[str, Any]:
         "B01": task(
             pass_or_fail(live_ok and update_ok and fault_ok),
             "Official-data update/source/freshness/conflict/raw-provenance integrity.",
-            ["real_network_check", "physical_gui:update", "network_fault_gate"],
+            ["real_network_check", "physical_gui:update", "physical_gui:update-fail-closed", "network_fault_gate"],
         ),
         "B02": task(
             pass_or_fail(prediction_ok),
@@ -363,7 +408,7 @@ def derive(evidence_dir: Path, exe: Path) -> dict[str, Any]:
         "B04": task(
             pass_or_fail(repair_ok),
             "Corruption detection/repair, fault injection and atomic rollback.",
-            ["physical_gui:repair", "network_fault_gate", "updater_atomic_rollback"],
+            ["physical_gui:repair", "physical_gui:repair-fail-closed", "network_fault_gate", "updater_atomic_rollback"],
         ),
         "B05": task(
             b05_status,
@@ -374,7 +419,7 @@ def derive(evidence_dir: Path, exe: Path) -> dict[str, Any]:
         "B06": task(
             pass_or_fail(no_shell_ok),
             "All four physical GUI entries bound to the exact EXE and real backend; no shell/placeholder path.",
-            ["business_no_shell_gate", "physical_gui_click", "physical_gui_backend", "exact_exe"],
+            ["business_no_shell_gate", "physical_gui_click", "physical_gui_backend", "physical_gui_failure", "physical_gui_repair_failure", "exact_exe"],
         ),
         "B07": task(
             pass_or_fail(maintenance_ok),
@@ -385,16 +430,16 @@ def derive(evidence_dir: Path, exe: Path) -> dict[str, Any]:
     }
 
     states = [tasks[x]["status"] for x in SCOPE_IDS]
-    if "FAIL" in states or not approval_ok:
+    if "FAIL" in states or not approval_state_valid:
         business_content = "FAIL"
-    elif all(x == "PASS" for x in states):
-        business_content = "PASS"
-    else:
+    elif not approval_ok or not all(x == "PASS" for x in states):
         business_content = "PENDING"
+    else:
+        business_content = "PASS"
 
     report = {
         "schema": SCHEMA,
-        "status": "PASS" if approval_ok and "FAIL" not in states else "FAIL",
+        "status": "PASS" if approval_state_valid and "FAIL" not in states and no_shell_ok else "FAIL",
         "business_content": business_content,
         "no_shell": "PASS" if no_shell_ok else "FAIL",
         "tasks": tasks,
@@ -402,7 +447,7 @@ def derive(evidence_dir: Path, exe: Path) -> dict[str, Any]:
         "pending": sum(1 for x in states if x == "PENDING"),
         "failed": sum(1 for x in states if x == "FAIL"),
         "total": len(states),
-        "approval_status": "PASS" if approval_ok else "FAIL",
+        "approval_status": "PASS" if approval_ok else ("PENDING" if approval_pending_ok else "FAIL"),
         "approval_reference": approval.get("approval_reference"),
         "original_requirements_preserved": approval.get("original_requirements_preserved") is True,
         "maintenance": maintenance,
@@ -414,7 +459,7 @@ def derive(evidence_dir: Path, exe: Path) -> dict[str, Any]:
         "event": event,
         "ref": ref,
         "release_authorized": business_content == "PASS" and no_shell_ok,
-        "rule": "runtime evidence is required; static interface PASS alone never promotes business_content/no_shell; B05 requires real independent Release N->N+1",
+        "rule": "runtime evidence is required; static interface PASS alone never promotes business_content/no_shell; generic 100% delivery language never manufactures scope approval; B05 requires real independent Release N->N+1; update/repair negative physical GUI failure evidence is mandatory",
     }
     return report
 

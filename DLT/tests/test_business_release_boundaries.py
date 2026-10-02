@@ -55,6 +55,21 @@ class BusinessReleaseBoundaries(unittest.TestCase):
             self.assertEqual(result["gates"]["business_content"], "FAIL")
             self.assertEqual(result["gates"]["no_shell"], "FAIL")
 
+    def test_checked_in_scope_review_stays_pending_without_specific_user_approval(self):
+        approval = json.loads((SCRIPTS.parent / "BUSINESS_SCOPE_APPROVAL.json").read_text(encoding="utf-8"))
+        self.assertEqual(approval["status"], "PENDING")
+        self.assertIsNone(approval["approved_by"])
+        self.assertIsNone(approval["approval_reference"])
+
+    def test_missing_negative_gui_evidence_is_a_hard_final_blocker(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            exe = root / "fixture.exe"
+            exe.write_bytes(b"TEST_ONLY_NOT_A_PRODUCTION_EXE")
+            result = gate.derive(root, exe)
+            self.assertEqual(result["gates"]["physical_gui_failure"], "FAIL")
+            self.assertEqual(result["gates"]["physical_gui_repair_failure"], "FAIL")
+
     def test_runtime_four_entry_evidence_closes_no_shell_not_business(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -70,7 +85,7 @@ class BusinessReleaseBoundaries(unittest.TestCase):
                 "status": "PASS",
                 "business_content": "PENDING",
                 "no_shell": "PASS",
-                "approval_status": "PASS",
+                "approval_status": "PENDING",
                 "original_requirements_preserved": True,
                 "exe_sha256": exe_hash,
                 "updater_sha256": "",

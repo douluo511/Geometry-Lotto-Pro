@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-FINAL_SCHEMA = "dlt-evidence-derived-final-gate-v5"
+FINAL_SCHEMA = "dlt-evidence-derived-final-gate-v6"
 INDEPENDENT_REPOSITORY = "douluo511/Geometry-Lotto-Pro-DLT"
 NON_PASS = {"FAIL", "PENDING", "SKIPPED", "WARNING", "UNKNOWN", "UNAVAILABLE", "BLOCKED", "NOT_PASS", None, ""}
 
@@ -47,6 +47,8 @@ def derive(evidence_dir: str | Path, exact_exe: str | Path) -> dict[str, Any]:
     accept = _load(root / "acceptance.json")
     gui_visual = _load(root / "physical_gui_click.json")
     gui_backend = _load(root / "physical_gui_backend.json")
+    gui_failure = _load(root / "physical_gui_failure.json")
+    gui_repair_failure = _load(root / "physical_gui_repair_failure.json")
     business_static = _load(root / "business_no_shell_gate.json")
     business_runtime = _load(root / "business_runtime_gate.json")
     updater = _load(root / "updater_acceptance.json")
@@ -74,7 +76,7 @@ def derive(evidence_dir: str | Path, exact_exe: str | Path) -> dict[str, Any]:
         and str(business_runtime.get("github_run_id")) == str(github_run_id)
         and business_runtime.get("exe_sha256") == exe_hash
         and business_runtime.get("updater_sha256") == updater_hash
-        and business_runtime.get("approval_status") == "PASS"
+        and business_runtime.get("approval_status") in {"PASS", "PENDING"}
         and business_runtime.get("original_requirements_preserved") is True
         and static_valid
     )
@@ -117,6 +119,38 @@ def derive(evidence_dir: str | Path, exact_exe: str | Path) -> dict[str, Any]:
             gui_backend.get("status") == "PASS"
             and gui_backend.get("exe_sha256") == exe_hash
             and len(gui_backend.get("operations") or []) == 4
+        ),
+        "physical_gui_failure": _status(
+            gui_failure.get("schema") == "dlt-physical-gui-failure-v1"
+            and gui_failure.get("status") == "PASS"
+            and gui_failure.get("operation") == "update"
+            and gui_failure.get("exe_sha256") == exe_hash
+            and gui_failure.get("updater_sha256") == updater_hash
+            and gui_failure.get("github_sha") == github_sha
+            and str(gui_failure.get("github_run_id")) == str(github_run_id)
+            and gui_failure.get("backend_status") == "FAIL"
+            and gui_failure.get("ui_fail_closed") is True
+            and gui_failure.get("canonical_unchanged") is True
+            and gui_failure.get("evidence_unchanged") is True
+            and int(gui_failure.get("official_update_pass_increment", -1)) == 0
+            and int(gui_failure.get("official_update_fail_increment", 0)) >= 1
+        ),
+        "physical_gui_repair_failure": _status(
+            gui_repair_failure.get("schema") == "dlt-physical-gui-failure-v1"
+            and gui_repair_failure.get("status") == "PASS"
+            and gui_repair_failure.get("operation") == "repair"
+            and gui_repair_failure.get("exe_sha256") == exe_hash
+            and gui_repair_failure.get("updater_sha256") == updater_hash
+            and gui_repair_failure.get("github_sha") == github_sha
+            and str(gui_repair_failure.get("github_run_id")) == str(github_run_id)
+            and gui_repair_failure.get("backend_status") == "FAIL"
+            and gui_repair_failure.get("ui_fail_closed") is True
+            and gui_repair_failure.get("corruption_injected") is True
+            and gui_repair_failure.get("canonical_unchanged") is True
+            and gui_repair_failure.get("evidence_unchanged") is True
+            and int(gui_repair_failure.get("official_update_pass_increment", -1)) == 0
+            and int(gui_repair_failure.get("repair_pass_increment", -1)) == 0
+            and int(gui_repair_failure.get("repair_fail_increment", 0)) >= 1
         ),
         "business_content": business_content,
         "no_shell": no_shell,

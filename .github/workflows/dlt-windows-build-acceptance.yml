@@ -42,7 +42,8 @@ jobs:
             '.\scripts\windows_acceptance.ps1',
             '.\scripts\updater_acceptance.ps1',
             '.\scripts\release_update_acceptance.ps1',
-            '.\scripts\physical_gui_click_smoke.ps1'
+            '.\scripts\physical_gui_click_smoke.ps1',
+            '.\scripts\physical_gui_failure_smoke.ps1'
           )){
             $tokens=$null
             $errors=$null
@@ -211,8 +212,9 @@ jobs:
             -BackendEvidencePath ".\artifacts\physical_gui_backend.json" `
             -BackendTimeoutSeconds 1800
 
-      - name: Runtime B01-B07 business and no-shell evidence gate
+      - name: Physical GUI Update Fail-Closed Click
         shell: pwsh
+        run: |\n          .\\scripts\\physical_gui_failure_smoke.ps1 -ExePath ".\\dist\\Geometry_Lotto_Pro_DLT.exe" -UpdaterExePath ".\\dist\\Geometry_Lotto_Pro_DLT_Updater.exe" -SuccessBackendPath ".\\artifacts\\physical_gui_backend.json" -Operation update -EvidencePath ".\\artifacts\\physical_gui_failure.json"\n\n      - name: Physical GUI Repair Fail-Closed Click\n        shell: pwsh\n        run: |\n          .\\scripts\\physical_gui_failure_smoke.ps1 -ExePath ".\\dist\\Geometry_Lotto_Pro_DLT.exe" -UpdaterExePath ".\\dist\\Geometry_Lotto_Pro_DLT_Updater.exe" -SuccessBackendPath ".\\artifacts\\physical_gui_backend.json" -Operation repair -OperationTimeoutSeconds 900 -EvidencePath ".\\artifacts\\physical_gui_repair_failure.json"\n\n      - name: Runtime B01-B07 business and no-shell evidence gate\n        shell: pwsh
         run: |
           $env:PYTHONPATH="$PWD\src"
           python scripts/business_runtime_gate.py `
