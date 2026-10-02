@@ -70,8 +70,16 @@ try {
   $assetName='Geometry_Lotto_Pro_DLT.exe'
   $manifestName="dlt-$CurrentVersion-manifest.json"
 
-  $previousRelease=gh release view $previousTag --repo $targetRepo --json tagName,isPrerelease,assets,url 2>$null | ConvertFrom-Json
-  if($LASTEXITCODE -ne 0){ throw "previous release $previousTag is unavailable" }
+  $previousRaw=gh release view $previousTag --repo $targetRepo --json tagName,isPrerelease,assets,url 2>$null
+  if($LASTEXITCODE -ne 0){
+    $report.status='SKIPPED'
+    $report.updater_real_network='PENDING'
+    $report.reason="previous release $previousTag is not yet available; baseline run must remain non-Final"
+    Write-Json $report $EvidencePath
+    Write-Host ($report | ConvertTo-Json -Compress -Depth 14)
+    exit 0
+  }
+  $previousRelease=$previousRaw | ConvertFrom-Json
   if([string]$previousRelease.tagName -ne $previousTag){ throw 'previous release tag mismatch' }
   $previousNames=@($previousRelease.assets | ForEach-Object { $_.name })
   if($previousNames -notcontains $assetName){ throw 'previous release exact EXE asset missing' }
