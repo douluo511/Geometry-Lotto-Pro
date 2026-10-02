@@ -206,6 +206,7 @@ jobs:
             -ExePath ".\dist\Geometry_Lotto_Pro_DLT.exe" `
             -Points "0.14,0.15;0.38,0.15;0.14,0.24;0.38,0.24" `
             -ButtonTexts "预测下一期;一键更新;一键修复;高级分析" `
+            -PreconditionIndex 1 `
             -EvidencePath ".\artifacts\physical_gui_click.json" `
             -BackendEvidencePath ".\artifacts\physical_gui_backend.json" `
             -BackendTimeoutSeconds 1800
