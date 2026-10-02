@@ -87,3 +87,10 @@ Exact source SHA
 `.github/workflows/dlt-final-production-bootstrap.yml` 负责从经过 manifest/hash 验证的 DLT-only 导出创建或填充独立仓库，先建立 `v2.1.2` 基线 prerelease，再只提升软件版本到 `v2.1.3`，要求该新 SHA 自己完成完整 Windows / Real Network / GUI / Same Hash / N→N+1 / Final Gate 链后才验证正式 Release 和 Final Artifact。
 
 该流程没有删除、跳过或放宽任何原有硬门。独立仓库本身及其账户级写权限仍属于外部发布前置条件；缺失时状态必须保持非 Final。
+
+## Finalization automation invariant
+
+- The currently hardened DLT finalization branch must itself be eligible to trigger the source-repository production bootstrap; otherwise granting repository-admin authority would not start the independent-repository chain for the accepted source.
+- A bootstrap/release-workflow change changes the candidate identity. Previous Windows/GUI/Same-Hash evidence is diagnostic only until the new exact SHA completes the full Windows acceptance again.
+- Missing `DLT_REPO_ADMIN_TOKEN`, missing independent repository visibility, or a non-empty/unverified target repository must fail closed. None may be converted into repository-independence, release-context, B05, or Final PASS.
+- The independent repository must re-run its own `main -> baseline prerelease -> N+1 -> HTTPS Updater -> Physical GUI -> Same Hash -> Final Gate` chain; monorepo evidence cannot substitute for that production release proof.

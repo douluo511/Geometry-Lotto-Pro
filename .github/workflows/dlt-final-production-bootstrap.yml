@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - fix/dlt-delivery-boundaries-20261001
+      - validation/dlt-negative-gui-20261002
     paths:
       - '.github/workflows/dlt-final-production-bootstrap.yml'
       - 'DLT/**'
