@@ -1,9 +1,9 @@
 {
   "schema": "ssq-business-acceptance-baseline-v1",
   "project": "SSQ",
-  "frozen_by": "user full-scope authorization recorded in BUSINESS_SCOPE_APPROVAL.json",
-  "frozen_at_utc": "2026-10-02",
-  "rule": "B01-B07 are mandatory minimum checks and all original SSQ requirements remain binding. Static checks never replace current-run runtime evidence; B05 remains non-PASS until real independent Release N→N+1 closes.",
+  "frozen_by": null,
+  "frozen_at_utc": null,
+  "rule": "B01-B07 are mandatory proposed minimum checks, not a complete approved denominator. All original requirements remain binding. Static checks or generic instructions to complete the product cannot authorize business completion.",
   "entries": [
     {
       "id": "B01",
@@ -100,7 +100,7 @@
       ]
     }
   ],
-  "approval_state": "APPROVED_USER_FULL_SCOPE_NON_REDUCTIVE",
+  "approval_state": "PENDING_EXPLICIT_COMPLETE_SCOPE_REVIEW",
   "approval_artifact": "evidence/SSQ/BUSINESS_SCOPE_APPROVAL.json",
   "source_approval_artifact": "SSQ/BUSINESS_SCOPE_APPROVAL.json",
   "scope_reduction_forbidden": true

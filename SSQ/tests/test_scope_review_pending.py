@@ -13,30 +13,16 @@ spec.loader.exec_module(gate)
 
 
 class ScopeReviewPending(unittest.TestCase):
-    def test_checked_in_explicit_user_approval_is_machine_validated(self):
-        approval = json.loads((ROOT / "BUSINESS_SCOPE_APPROVAL.json").read_text(encoding="utf-8"))
-        self.assertEqual(approval["status"], "APPROVED")
-        self.assertEqual(approval["approved_by"], "user")
-        self.assertTrue(str(approval["approval_reference"]).strip())
-        self.assertTrue(approval["original_requirements_preserved"])
-        self.assertTrue(approval["no_scope_reduction"])
+    def test_checked_in_proposal_does_not_invent_user_approval(self):
+        proposal = json.loads((ROOT / "BUSINESS_SCOPE_APPROVAL.json").read_text(encoding="utf-8"))
+        self.assertEqual(proposal["status"], "PENDING")
+        self.assertIsNone(proposal["approved_by"])
+        self.assertIsNone(proposal["approval_reference"])
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp)
-            (path / "BUSINESS_SCOPE_APPROVAL.json").write_text(json.dumps(approval), encoding="utf-8")
+            (path / "BUSINESS_SCOPE_APPROVAL.json").write_text(json.dumps(proposal))
             result = gate._business_scope_approval(path)
-            self.assertEqual(result["status"], "PASS")
-            self.assertTrue(result["release_authorized"])
-
-    def test_proposal_without_explicit_user_approval_cannot_promote(self):
-        approval = json.loads((ROOT / "BUSINESS_SCOPE_APPROVAL.json").read_text(encoding="utf-8"))
-        approval["status"] = "PENDING"
-        approval["approved_by"] = None
-        approval["approval_reference"] = None
-        with tempfile.TemporaryDirectory() as tmp:
-            path = Path(tmp)
-            (path / "BUSINESS_SCOPE_APPROVAL.json").write_text(json.dumps(approval), encoding="utf-8")
-            result = gate._business_scope_approval(path)
-            self.assertNotEqual(result["status"], "PASS")
+            self.assertEqual(result["status"], "PENDING")
             self.assertFalse(result["release_authorized"])
 
     def test_absent_approval_blocks_release(self):
