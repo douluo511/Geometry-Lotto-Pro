@@ -36,7 +36,7 @@ jobs:
     env:
       TARGET_REPO: douluo511/Geometry-Lotto-Pro-DLT
       GH_TOKEN: ${{ secrets.DLT_REPO_ADMIN_TOKEN }}
-      BOOTSTRAP_VISIBILITY: ${{ inputs.visibility || 'private' }}
+      BOOTSTRAP_VISIBILITY: ${{ inputs.visibility || 'public' }}
       BOOTSTRAP_USE_EXISTING: ${{ inputs.use_existing_empty_repository || 'true' }}
     steps:
       - name: Checkout exact source commit
