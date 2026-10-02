@@ -227,6 +227,40 @@ jobs:
           $summary | ConvertTo-Json -Depth 6 | Set-Content "$env:GITHUB_WORKSPACE/SSQ_FINAL_PRODUCTION_BOOTSTRAP.json" -Encoding utf8
           Write-Host ($summary | ConvertTo-Json -Compress -Depth 6)
 
+      - name: Mirror verified Final delivery back to source workflow
+        shell: pwsh
+        run: |
+          $runId = "${{ steps.final_run.outputs.run_id }}"
+          if ([string]::IsNullOrWhiteSpace($runId)) { throw "Final run id missing" }
+          $out = Join-Path $env:GITHUB_WORKSPACE "final-delivery"
+          if (Test-Path $out) { Remove-Item -LiteralPath $out -Recurse -Force }
+          New-Item -ItemType Directory -Force -Path $out | Out-Null
+          $artifacts = gh api "repos/$($env:TARGET_REPO)/actions/runs/$runId/artifacts" | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) { throw "cannot list independent Final artifacts" }
+          $final = @($artifacts.artifacts | Where-Object { $_.name -eq "Geometry-Lotto-Pro-SSQ-FINAL-8.5.1-Windows-x64" })
+          $audit = @($artifacts.artifacts | Where-Object { $_.name -like "Geometry-Lotto-Pro-SSQ-RELEASE-GATE-PASS-AUDIT-*" })
+          if ($final.Count -ne 1 -or $audit.Count -ne 1) { throw "verified Final artifact set is not unique" }
+          gh run download $runId --repo $env:TARGET_REPO --name $final[0].name --dir (Join-Path $out "final")
+          if ($LASTEXITCODE -ne 0) { throw "Final EXE artifact download failed" }
+          gh run download $runId --repo $env:TARGET_REPO --name $audit[0].name --dir (Join-Path $out "audit")
+          if ($LASTEXITCODE -ne 0) { throw "Final Gate audit artifact download failed" }
+          $rows = @()
+          Get-ChildItem -LiteralPath $out -File -Recurse | Sort-Object FullName | ForEach-Object {
+            $rel = [IO.Path]::GetRelativePath($out, $_.FullName).Replace('\\','/')
+            $hash = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            $rows += "$hash  $rel"
+          }
+          if ($rows.Count -eq 0) { throw "mirrored Final delivery is empty" }
+          $rows | Set-Content -LiteralPath (Join-Path $out "FINAL_DELIVERY_SHA256SUMS.txt") -Encoding utf8
+          Write-Host "FINAL_DELIVERY_MIRROR=PASS"
+
+      - name: Upload mirrored Final delivery
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: Geometry-Lotto-Pro-SSQ-FINAL-DELIVERY-${{ steps.candidate_commit.outputs.sha }}
+          path: final-delivery
+          if-no-files-found: error
+          retention-days: 90
       - name: Upload repository-admin prerequisite audit
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
