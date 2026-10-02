@@ -1,5 +1,6 @@
 import importlib.util
 import json
+import os
 from pathlib import Path
 import sys
 import tempfile
@@ -61,8 +62,8 @@ class BusinessReleaseBoundaries(unittest.TestCase):
             exe.write_bytes(b"TEST_ONLY_NOT_A_PRODUCTION_EXE")
             exe_hash = gate._sha256(exe)
             static = static_report([{"name": "interface", "status": "PASS"}], "test")
-            static["github_sha"] = None
-            static["github_run_id"] = None
+            static["github_sha"] = os.environ.get("GITHUB_SHA")
+            static["github_run_id"] = os.environ.get("GITHUB_RUN_ID")
             (root / "business_no_shell_gate.json").write_text(json.dumps(static), encoding="utf-8")
             (root / "business_runtime_gate.json").write_text(json.dumps({
                 "schema": "dlt-business-runtime-gate-v1",
@@ -73,8 +74,8 @@ class BusinessReleaseBoundaries(unittest.TestCase):
                 "original_requirements_preserved": True,
                 "exe_sha256": exe_hash,
                 "updater_sha256": "",
-                "github_sha": None,
-                "github_run_id": None,
+                "github_sha": os.environ.get("GITHUB_SHA"),
+                "github_run_id": os.environ.get("GITHUB_RUN_ID"),
                 "tasks": {"B05": {"status": "PENDING"}},
             }), encoding="utf-8")
             result = gate.derive(root, exe)
