@@ -13,13 +13,15 @@ spec.loader.exec_module(gate)
 
 
 class ScopeReviewPending(unittest.TestCase):
-    def test_checked_in_scope_review_requires_valid_explicit_state(self):
+    def test_checked_in_scope_review_must_remain_pending_without_explicit_denominator_approval(self):
         approval = json.loads((ROOT / "BUSINESS_SCOPE_APPROVAL.json").read_text(encoding="utf-8"))
         self.assertEqual(approval["scope_ids"], ["B01", "B02", "B03", "B04", "B05", "B06", "B07"])
         self.assertEqual(approval["entry_inventory"], ["predict", "update", "repair", "audit"])
         self.assertTrue(approval["original_requirements_preserved"])
         self.assertTrue(approval["no_scope_reduction"])
-        self.assertIn(approval["status"], {"PENDING", "APPROVED"})
+        self.assertEqual(approval["status"], "PENDING")
+        self.assertIsNone(approval["approved_by"])
+        self.assertIsNone(approval["approval_reference"])
 
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp)
@@ -28,17 +30,8 @@ class ScopeReviewPending(unittest.TestCase):
             )
             result = gate._business_scope_approval(path)
 
-        if approval["status"] == "PENDING":
-            self.assertIsNone(approval["approved_by"])
-            self.assertIsNone(approval["approval_reference"])
-            self.assertEqual(result["status"], "PENDING")
-            self.assertFalse(result["release_authorized"])
-        else:
-            self.assertEqual(approval["approved_by"], "user")
-            self.assertIsInstance(approval["approval_reference"], str)
-            self.assertTrue(approval["approval_reference"].strip())
-            self.assertEqual(result["status"], "PASS")
-            self.assertTrue(result["release_authorized"])
+        self.assertEqual(result["status"], "PENDING")
+        self.assertFalse(result["release_authorized"])
 
     def test_absent_approval_blocks_release(self):
         with tempfile.TemporaryDirectory() as tmp:
