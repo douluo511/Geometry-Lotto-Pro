@@ -110,6 +110,15 @@ class UpdaterClient:
         value = result.get("service_result")
         if not isinstance(value, dict) or value.get("network_gate") != "PASS" or value.get("crosscheck_status") != "PASS":
             raise RuntimeError("Updater update 未返回真实官方联网 PASS")
+        value = dict(value)
+        value["_updater"] = {
+            "schema": result.get("schema"),
+            "pid": result.get("pid"),
+            "parent_pid_match": result.get("parent_pid_match"),
+            "updater_exe_sha256": result.get("updater_exe_sha256"),
+            "github_sha": result.get("github_sha"),
+            "github_run_id": result.get("github_run_id"),
+        }
         return value
 
     def repair(self, progress: Callable[[str], None] | None = None) -> dict[str, Any]:
@@ -117,6 +126,15 @@ class UpdaterClient:
         value = result.get("service_result")
         if not isinstance(value, dict) or value.get("after", {}).get("status") != "PASS":
             raise RuntimeError("Updater repair 未恢复完整性")
+        value = dict(value)
+        value["_updater"] = {
+            "schema": result.get("schema"),
+            "pid": result.get("pid"),
+            "parent_pid_match": result.get("parent_pid_match"),
+            "updater_exe_sha256": result.get("updater_exe_sha256"),
+            "github_sha": result.get("github_sha"),
+            "github_run_id": result.get("github_run_id"),
+        }
         return value
 
     def software_update(
