@@ -47,6 +47,16 @@ Win32 四入口 GUI
 5. 種子資料只供冷啟動；預測／審计最新性、來源完整溯源和 Evidence 寫失敗路徑仍需加固。
 6. 模型的 NO_EDGE／NULL_DAN 不等於預測優勢；不得承諾中獎率提升。
 
+## 負向 GUI 證據消費加固（2026-10-02）
+
+更新／修復的 Fail-Closed 實體點擊不只由執行腳本自報 PASS。當前 `business_runtime_gate.py` 與
+`final_gate.py` 會再次要求同一候選、同一 run、同一 Exact EXE／Updater hash，並驗證：
+`physical_hit_test_verified=true`、`updater_failure_count>=1`、UI Fail-Closed、
+canonical/evidence 不變，以及對應 FAIL ledger 增量；缺少任何一項均不得通過。
+Hosted Windows 的單次 `SetForegroundWindow` 拒絕不是產品後端成功／失敗證據，
+所以前景切換只做有界重試與記錄；真正的物理點擊硬證據仍是 topmost child-button
+`WindowFromPoint` 命中、`mouse_event`、UI 失敗狀態與 operation-bound backend ledger。
+
 ## 不變交付判據
 
 真實聯網 → Windows 原生構建 → 同一 Exact EXE → GUI 實際效果 → Same Hash
