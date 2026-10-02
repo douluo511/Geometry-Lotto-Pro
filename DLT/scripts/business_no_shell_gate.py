@@ -21,6 +21,7 @@ import glp.gui as gui
 import glp.service as service
 import glp.sources as sources
 from final_gate import derive
+from completion_boundary import static_report
 
 
 def check(name: str, ok: bool, detail: str) -> dict:
@@ -74,7 +75,7 @@ def main() -> int:
 
     checks.append(check(
         "Four production entries",
-        tuple(FOUR_ENTRIES) == ("预测下一期", "一键更新", "一键修复", "高级分析")
+        tuple(FOUR_ENTRIES) == ("Ԥ����һ��", "һ������", "һ���޸�", "�߼�����")
         and all(callable(getattr(LottoService, n, None)) for n in ("predict", "update", "repair", "audit")),
         json.dumps(list(FOUR_ENTRIES), ensure_ascii=False),
     ))
@@ -98,8 +99,8 @@ def main() -> int:
     gui_source = inspect.getsource(gui)
     checks.append(check(
         "No prediction advantage overclaim",
-        "不代表更高中奖概率" in gui_source
-        and "未成年人不得购彩" in gui_source
+        "�����������н�����" in gui_source
+        and "δ�����˲��ù���" in gui_source
         and "NO_EDGE" in gui_source,
         "GUI contains explicit no-edge/no-guarantee boundary",
     ))
@@ -144,35 +145,12 @@ def main() -> int:
         f"interfaces_ok={interfaces_ok}; banned_hits={shell_hits}",
     ))
 
-    business_names = {
-        "DLT domain contract", "Independent official source paths",
-        "Frozen scientific protocol inventory",
-        "Candidate model pool and conservative production fallback",
-        "Four production entries", "Audit/prediction isolation",
-        "Self-test/user-data isolation", "No prediction advantage overclaim",
-    }
-    business_ok = all(x["status"] == "PASS" for x in checks if x["name"] in business_names)
-    no_shell_ok = next(x for x in checks if x["name"] == "No-shell production interfaces")["status"] == "PASS"
-    status = "PASS" if business_ok and no_shell_ok else "FAIL"
-
-    report = {
-        "schema": "dlt-business-no-shell-gate-v1",
-        "status": status,
-        "business_content": "PASS" if business_ok else "FAIL",
-        "no_shell": "PASS" if no_shell_ok else "FAIL",
-        "app_version": APP_VERSION,
-        "checks": checks,
-        "scope": (
-            "Static/domain/business completeness gate. Final release additionally requires "
-            "same-candidate real network, Exact EXE, physical GUI backend effects, updater release network, "
-            "repository independence and evidence-derived Final Gate."
-        ),
-    }
+    report = static_report(checks, APP_VERSION)
     out = Path("artifacts/business_no_shell_gate.json")
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(json.dumps(report, ensure_ascii=True, indent=2, sort_keys=True))
-    return 0 if status == "PASS" else 2
+    return 0 if report["status"] == "PASS" else 2
 
 
 if __name__ == "__main__":

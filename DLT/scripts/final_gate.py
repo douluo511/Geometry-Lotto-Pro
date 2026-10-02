@@ -6,8 +6,9 @@ import json
 import os
 from pathlib import Path
 from typing import Any
+from completion_boundary import completion_states
 
-FINAL_SCHEMA = "dlt-evidence-derived-final-gate-v3"
+FINAL_SCHEMA = "dlt-evidence-derived-final-gate-v4"
 INDEPENDENT_REPOSITORY = "douluo511/Geometry-Lotto-Pro-DLT"
 NON_PASS = {"FAIL", "PENDING", "SKIPPED", "WARNING", "UNKNOWN", "UNAVAILABLE", "BLOCKED", "NOT_PASS", None, ""}
 
@@ -50,6 +51,7 @@ def derive(evidence_dir: str | Path, exact_exe: str | Path) -> dict[str, Any]:
     business = _load(root / "business_no_shell_gate.json")
     updater = _load(root / "updater_acceptance.json")
     repro = _load(root / "reproducible_main_build.json")
+    completion = completion_states(business)
 
     github_sha = os.environ.get("GITHUB_SHA")
     github_run_id = os.environ.get("GITHUB_RUN_ID")
@@ -89,14 +91,8 @@ def derive(evidence_dir: str | Path, exact_exe: str | Path) -> dict[str, Any]:
             and gui_backend.get("exe_sha256") == exe_hash
             and len(gui_backend.get("operations") or []) == 4
         ),
-        "business_content": _status(
-            business.get("status") == "PASS"
-            and business.get("business_content") == "PASS"
-        ),
-        "no_shell": _status(
-            business.get("status") == "PASS"
-            and business.get("no_shell") == "PASS"
-        ),
+        "business_content": completion["business_content"],
+        "no_shell": completion["no_shell"],
         "updater_process": _status(
             updater.get("schema") == "dlt-updater-exact-acceptance-v1"
             and updater.get("github_sha") == github_sha
