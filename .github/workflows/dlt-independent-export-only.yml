@@ -18,7 +18,7 @@ jobs:
       - name: Checkout exact verified finalization source
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          ref: 64cae78faa819b6d784ed17cf3eed8bba63ec60e
+          ref: 51b27dfee388ec9e2285823b953b3830c5f3e426
           fetch-depth: 1
 
       - name: Setup pinned Python
@@ -30,12 +30,12 @@ jobs:
         shell: pwsh
         run: |
           $dest = Join-Path $env:RUNNER_TEMP "dlt-independent-export"
-          python tools/export_independent_project_repo.py --project dlt --destination $dest --source-commit 64cae78faa819b6d784ed17cf3eed8bba63ec60e
+          python tools/export_independent_project_repo.py --project dlt --destination $dest --source-commit 51b27dfee388ec9e2285823b953b3830c5f3e426
           if ($LASTEXITCODE -ne 0) { throw "DLT independent export failed" }
           python tools/export_independent_project_repo.py --destination $dest --verify-only
           if ($LASTEXITCODE -ne 0) { throw "DLT independent export verify failed" }
           $manifest = Get-Content (Join-Path $dest "MIGRATION_MANIFEST.json") -Raw | ConvertFrom-Json
-          if ($manifest.source_commit -ne "64cae78faa819b6d784ed17cf3eed8bba63ec60e") { throw "source commit mismatch" }
+          if ($manifest.source_commit -ne "51b27dfee388ec9e2285823b953b3830c5f3e426") { throw "source commit mismatch" }
           if ($manifest.target_repository -ne "douluo511/Geometry-Lotto-Pro-DLT") { throw "target repository mismatch" }
           $manifestHash = (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $dest "MIGRATION_MANIFEST.json")).Hash.ToLowerInvariant()
           $sumsHash = (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $dest "MIGRATION_SHA256SUMS.txt")).Hash.ToLowerInvariant()
@@ -53,7 +53,7 @@ jobs:
       - name: Upload exact independent DLT seed package
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: Geometry-Lotto-Pro-DLT-INDEPENDENT-SEED-64cae78
+          name: Geometry-Lotto-Pro-DLT-INDEPENDENT-SEED-51b27df
           path: ${{ runner.temp }}/dlt-independent-export
           if-no-files-found: error
           retention-days: 30
