@@ -47,11 +47,63 @@ jobs:
       - name: Live official-network evidence gate
         run: python scripts/real_network_check.py
 
-      - name: Native Windows PyInstaller build
-        run: pyinstaller --noconfirm --clean GeometryLottoPro.spec
+      - name: Native Windows main build + reproducible Same Hash
+        shell: pwsh
+        run: |
+          $env:PYTHONHASHSEED='1'
+          $env:SOURCE_DATE_EPOCH='946684800'
+          pyinstaller --noconfirm --clean GeometryLottoPro.spec
+          if ($LASTEXITCODE -ne 0) { throw 'primary main build failed' }
+          $primary=(Get-FileHash .\dist\Geometry_Lotto_Pro_DLT.exe -Algorithm SHA256).Hash.ToLower()
+
+          New-Item -ItemType Directory -Force .\reproducible_build\main-dist | Out-Null
+          pyinstaller --noconfirm --clean --distpath .\reproducible_build\main-dist --workpath .\reproducible_build\main-work GeometryLottoPro.spec
+          if ($LASTEXITCODE -ne 0) { throw 'reproducible main build failed' }
+          $rebuilt=(Get-FileHash .\reproducible_build\main-dist\Geometry_Lotto_Pro_DLT.exe -Algorithm SHA256).Hash.ToLower()
+          $same=($primary -eq $rebuilt)
+          New-Item -ItemType Directory -Force .\artifacts | Out-Null
+          $r=[ordered]@{
+            schema='dlt-reproducible-main-build-v1'
+            status=$(if($same){'PASS'}else{'FAIL'})
+            github_sha=$env:GITHUB_SHA
+            github_run_id=$env:GITHUB_RUN_ID
+            primary_sha256=$primary
+            rebuild_sha256=$rebuilt
+            same_hash=$same
+            pythonhashseed=$env:PYTHONHASHSEED
+            source_date_epoch=$env:SOURCE_DATE_EPOCH
+          }
+          $r | ConvertTo-Json -Depth 5 | Set-Content .\artifacts\reproducible_main_build.json -Encoding utf8
+          Get-Content .\artifacts\reproducible_main_build.json
+          if(-not $same){ throw 'main EXE reproducible Same Hash failed' }
+
+      - name: Native Windows independent Updater build + reproducible Same Hash
+        shell: pwsh
+        run: |
+          $env:PYTHONHASHSEED='1'
+          $env:SOURCE_DATE_EPOCH='946684800'
+          pyinstaller --noconfirm --clean --distpath .\dist --workpath .\updater_primary_work GeometryLottoProUpdater.spec
+          if ($LASTEXITCODE -ne 0) { throw 'primary updater build failed' }
+          $primary=(Get-FileHash .\dist\Geometry_Lotto_Pro_DLT_Updater.exe -Algorithm SHA256).Hash.ToLower()
+
+          New-Item -ItemType Directory -Force .\reproducible_build\updater-dist | Out-Null
+          pyinstaller --noconfirm --clean --distpath .\reproducible_build\updater-dist --workpath .\reproducible_build\updater-work GeometryLottoProUpdater.spec
+          if ($LASTEXITCODE -ne 0) { throw 'reproducible updater build failed' }
+          $rebuilt=(Get-FileHash .\reproducible_build\updater-dist\Geometry_Lotto_Pro_DLT_Updater.exe -Algorithm SHA256).Hash.ToLower()
+          if($primary -ne $rebuilt){ throw 'Updater reproducible Same Hash failed' }
+
       - name: Exact-package Windows acceptance
         shell: pwsh
         run: ./scripts/windows_acceptance.ps1
+
+      - name: Independent Updater exact-process / rollback / data-network acceptance
+        shell: pwsh
+        run: |
+          .\scripts\updater_acceptance.ps1 `
+            -UpdaterExe ".\dist\Geometry_Lotto_Pro_DLT_Updater.exe" `
+            -MainExe ".\dist\Geometry_Lotto_Pro_DLT.exe" `
+            -RebuiltUpdaterExe ".\reproducible_build\updater-dist\Geometry_Lotto_Pro_DLT_Updater.exe" `
+            -EvidencePath ".\artifacts\updater_acceptance.json"
 
       - name: Exact EXE GUI construction gate
         shell: pwsh
@@ -82,9 +134,11 @@ jobs:
           $live = Get-Content artifacts\real_network_check.json -Raw | ConvertFrom-Json
           $accept = Get-Content artifacts\acceptance.json -Raw | ConvertFrom-Json
           $gui = Get-Content artifacts\physical_gui_click.json -Raw | ConvertFrom-Json
+          $repro = Get-Content artifacts\reproducible_main_build.json -Raw | ConvertFrom-Json
           $exe = Resolve-Path dist\Geometry_Lotto_Pro_DLT.exe
           $hash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLower()
           $repositoryIndependence = 'FAIL'
+          $releaseContext = 'FAIL'
           # Screenshot changes alone do not prove backend/network effects.
           # Full business and entry inventories remain explicit release blockers.
           $businessContent = 'PENDING'
@@ -117,6 +171,10 @@ jobs:
 
           $ok = (
             $repositoryIndependence -eq 'PASS' -and
+            $releaseContext -eq 'PASS' -and
+            $repro.status -eq 'PASS' -and
+            $repro.same_hash -eq $true -and
+            $repro.primary_sha256 -eq $hash -and
             $businessContent -eq 'PASS' -and
             $noShell -eq 'PASS' -and
             $physicalGuiBackend -eq 'PASS' -and
@@ -152,7 +210,9 @@ jobs:
             updater_atomic_rollback = $updaterAtomicRollback
             updater_real_network = $updaterRealNetwork
             updater_same_hash = $updaterSameHash
+            same_hash = $(if($repro.status -eq 'PASS' -and $repro.same_hash -eq $true -and $repro.primary_sha256 -eq $hash){'PASS'}else{'FAIL'})
             repository_independence = $repositoryIndependence
+            release_context = $releaseContext
           }
           $final | ConvertTo-Json -Depth 6 | Set-Content artifacts\final_gate.json -Encoding utf8
           Get-Content artifacts\final_gate.json
@@ -167,6 +227,7 @@ jobs:
           # does not apply. Paths must be repository-root relative.
           path: |
             DLT/dist/Geometry_Lotto_Pro_DLT.exe
+            DLT/dist/Geometry_Lotto_Pro_DLT_Updater.exe
             DLT/artifacts/**
           if-no-files-found: error
           retention-days: 30
