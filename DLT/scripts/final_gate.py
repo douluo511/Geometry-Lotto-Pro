@@ -6,9 +6,8 @@ import json
 import os
 from pathlib import Path
 from typing import Any
-from completion_boundary import completion_states
 
-FINAL_SCHEMA = "dlt-evidence-derived-final-gate-v4"
+FINAL_SCHEMA = "dlt-evidence-derived-final-gate-v5"
 INDEPENDENT_REPOSITORY = "douluo511/Geometry-Lotto-Pro-DLT"
 NON_PASS = {"FAIL", "PENDING", "SKIPPED", "WARNING", "UNKNOWN", "UNAVAILABLE", "BLOCKED", "NOT_PASS", None, ""}
 
@@ -48,10 +47,10 @@ def derive(evidence_dir: str | Path, exact_exe: str | Path) -> dict[str, Any]:
     accept = _load(root / "acceptance.json")
     gui_visual = _load(root / "physical_gui_click.json")
     gui_backend = _load(root / "physical_gui_backend.json")
-    business = _load(root / "business_no_shell_gate.json")
+    business_static = _load(root / "business_no_shell_gate.json")
+    business_runtime = _load(root / "business_runtime_gate.json")
     updater = _load(root / "updater_acceptance.json")
     repro = _load(root / "reproducible_main_build.json")
-    completion = completion_states(business)
 
     github_sha = os.environ.get("GITHUB_SHA")
     github_run_id = os.environ.get("GITHUB_RUN_ID")
@@ -62,49 +61,32 @@ def derive(evidence_dir: str | Path, exact_exe: str | Path) -> dict[str, Any]:
     updater_exe = exe.with_name("Geometry_Lotto_Pro_DLT_Updater.exe")
     updater_hash = _sha256(updater_exe) if updater_exe.is_file() else ""
 
-    # Static source inspection is only a prerequisite.  no_shell may become PASS
-    # only when this exact EXE has 4/4 physical GUI activations bound to 4/4
-    # backend operation evidence.  This closes the runtime-binding gap without
-    # allowing static symbols/strings to claim a complete product.
-    backend_ops = gui_backend.get("operations") if isinstance(gui_backend.get("operations"), list) else []
-    expected_ids = {1001, 1002, 1003, 1004}
-    observed_ids = {
-        row.get("operation_id") for row in backend_ops
-        if isinstance(row, dict) and row.get("status") == "PASS"
-    }
-    runtime_no_shell_ok = (
-        completion.get("no_shell") == "PENDING"
-        and gui_visual.get("status") == "PASS"
-        and len(gui_visual.get("buttons") or []) == 4
-        and gui_backend.get("status") == "PASS"
-        and gui_backend.get("exe_sha256") == exe_hash
-        and len(backend_ops) == 4
-        and observed_ids == expected_ids
+    static_valid = (
+        business_static.get("schema") == "dlt-static-interface-precheck-v2"
+        and business_static.get("scope") == "STATIC_INTERFACE_PRECHECK_ONLY"
+        and business_static.get("status") == "PASS"
+        and business_static.get("github_sha") == github_sha
+        and str(business_static.get("github_run_id")) == str(github_run_id)
     )
-    no_shell_state = "PASS" if runtime_no_shell_ok else completion.get("no_shell", "FAIL")
-
-    repository_ok = repository == INDEPENDENT_REPOSITORY
-    release_context_ok = (
-        repository_ok
-        and ref == "refs/heads/main"
-        and event in {"push", "workflow_dispatch"}
+    runtime_valid = (
+        business_runtime.get("schema") == "dlt-business-runtime-gate-v1"
+        and business_runtime.get("github_sha") == github_sha
+        and str(business_runtime.get("github_run_id")) == str(github_run_id)
+        and business_runtime.get("exe_sha256") == exe_hash
+        and business_runtime.get("updater_sha256") == updater_hash
+        and business_runtime.get("approval_status") == "PASS"
+        and business_runtime.get("original_requirements_preserved") is True
+        and static_valid
     )
-    # Business completion is broader than static inventory.  It requires the
-    # runtime-bound four entries, real official data, the independent updater
-    # data-network path, and the real Release N->N+1 software-update proof from
-    # the independent production main.  Until then it remains PENDING.
-    business_runtime_ok = (
-        completion.get("business_content") == "PENDING"
-        and runtime_no_shell_ok
-        and live.get("status") == "PASS"
-        and updater.get("updater_data_real_network") == "PASS"
-        and updater.get("updater_real_network") == "PASS"
-        and repository_ok
-        and release_context_ok
+    business_content = (
+        str(business_runtime.get("business_content"))
+        if runtime_valid and business_runtime.get("business_content") in {"PASS", "PENDING", "FAIL"}
+        else "FAIL"
     )
-    business_content_state = (
-        "PASS" if business_runtime_ok
-        else completion.get("business_content", "FAIL")
+    no_shell = (
+        "PASS"
+        if runtime_valid and business_runtime.get("no_shell") == "PASS"
+        else "FAIL"
     )
 
     gates: dict[str, str] = {
@@ -136,8 +118,8 @@ def derive(evidence_dir: str | Path, exact_exe: str | Path) -> dict[str, Any]:
             and gui_backend.get("exe_sha256") == exe_hash
             and len(gui_backend.get("operations") or []) == 4
         ),
-        "business_content": business_content_state,
-        "no_shell": no_shell_state,
+        "business_content": business_content,
+        "no_shell": no_shell,
         "updater_process": _status(
             updater.get("schema") == "dlt-updater-exact-acceptance-v1"
             and updater.get("github_sha") == github_sha
@@ -152,11 +134,13 @@ def derive(evidence_dir: str | Path, exact_exe: str | Path) -> dict[str, Any]:
         "updater_atomic_rollback": _status(updater.get("updater_atomic_rollback") == "PASS"),
         "updater_data_real_network": _status(updater.get("updater_data_real_network") == "PASS"),
         "updater_same_hash": _status(updater.get("updater_same_hash") == "PASS"),
-        # This specifically means real software Release N -> N+1 over HTTPS,
-        # not the official lottery-data network exercised above.
         "updater_real_network": "PASS" if updater.get("updater_real_network") == "PASS" else "PENDING",
-        "repository_independence": _status(repository_ok),
-        "release_context": _status(release_context_ok),
+        "repository_independence": _status(repository == INDEPENDENT_REPOSITORY),
+        "release_context": _status(
+            repository == INDEPENDENT_REPOSITORY
+            and ref == "refs/heads/main"
+            and event in {"push", "workflow_dispatch"}
+        ),
     }
 
     hard_fail = [name for name, status in gates.items() if status != "PASS"]
@@ -166,6 +150,10 @@ def derive(evidence_dir: str | Path, exact_exe: str | Path) -> dict[str, Any]:
         "hard_fail_count": len(hard_fail),
         "non_pass_gates": hard_fail,
         "gates": gates,
+        "business_runtime_schema": business_runtime.get("schema"),
+        "business_runtime_status": business_runtime.get("status"),
+        "business_tasks": business_runtime.get("tasks"),
+        "business_runtime_valid": runtime_valid,
         "exe_sha256": exe_hash,
         "updater_sha256": updater_hash,
         "github_sha": github_sha,
@@ -174,7 +162,7 @@ def derive(evidence_dir: str | Path, exact_exe: str | Path) -> dict[str, Any]:
         "event": event,
         "ref": ref,
         "evidence_dir": str(root),
-        "rule": "all hard gates must be explicit PASS; PENDING/SKIPPED/WARNING/UNKNOWN/FAIL never count as PASS",
+        "rule": "all hard gates must be explicit PASS; PENDING/SKIPPED/WARNING/UNKNOWN/FAIL never count as PASS; business/no-shell require current-run runtime evidence, never static source inspection alone",
     }
     return final
 
