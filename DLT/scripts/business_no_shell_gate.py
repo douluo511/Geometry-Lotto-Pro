@@ -20,7 +20,7 @@ from glp.storage import Store
 import glp.gui as gui
 import glp.service as service
 import glp.sources as sources
-from scripts.final_gate import derive
+from final_gate import derive
 
 
 def check(name: str, ok: bool, detail: str) -> dict:
