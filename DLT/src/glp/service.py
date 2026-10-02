@@ -117,6 +117,13 @@ class LottoService:
                 {"count": imported, "note": "published combination only; excluded from full-ranking evidence"},
             )
 
+    def self_test(self) -> dict[str, Any]:
+        """Run deterministic self-test in a disposable store, never in user data."""
+        # The module-level self_test intentionally allocates its own temporary
+        # directory. Do not pass self.store.root: acceptance requires that the
+        # production/user Store remain byte-for-byte untouched by self-test.
+        return self_test()
+
     def update(self, progress: Callable[[str], None] | None = None) -> dict[str, Any]:
         attempt_id = sha256_json({"kind": "official_update", "at": utc_now(), "version": APP_VERSION})
         try:
