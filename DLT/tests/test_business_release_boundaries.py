@@ -70,6 +70,83 @@ class BusinessReleaseBoundaries(unittest.TestCase):
             self.assertEqual(result["gates"]["physical_gui_failure"], "FAIL")
             self.assertEqual(result["gates"]["physical_gui_repair_failure"], "FAIL")
 
+    def test_negative_gui_final_gate_requires_physical_hit_and_updater_failure(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            exe = root / "fixture.exe"
+            updater = root / "Geometry_Lotto_Pro_DLT_Updater.exe"
+            exe.write_bytes(b"TEST_ONLY_MAIN")
+            updater.write_bytes(b"TEST_ONLY_UPDATER")
+            base = {
+                "schema": "dlt-physical-gui-failure-v1",
+                "status": "PASS",
+                "operation": "update",
+                "exe_sha256": gate._sha256(exe),
+                "updater_sha256": gate._sha256(updater),
+                "github_sha": os.environ.get("GITHUB_SHA"),
+                "github_run_id": os.environ.get("GITHUB_RUN_ID"),
+                "backend_status": "FAIL",
+                "ui_fail_closed": True,
+                "physical_hit_test_verified": True,
+                "canonical_unchanged": True,
+                "evidence_unchanged": True,
+                "updater_failure_count": 1,
+                "official_update_pass_increment": 0,
+                "official_update_fail_increment": 1,
+            }
+            path = root / "physical_gui_failure.json"
+            path.write_text(json.dumps(base), encoding="utf-8")
+            self.assertEqual(gate.derive(root, exe)["gates"]["physical_gui_failure"], "PASS")
+
+            missing_hit = dict(base)
+            missing_hit.pop("physical_hit_test_verified")
+            path.write_text(json.dumps(missing_hit), encoding="utf-8")
+            self.assertEqual(gate.derive(root, exe)["gates"]["physical_gui_failure"], "FAIL")
+
+            no_updater_failure = dict(base)
+            no_updater_failure["updater_failure_count"] = 0
+            path.write_text(json.dumps(no_updater_failure), encoding="utf-8")
+            self.assertEqual(gate.derive(root, exe)["gates"]["physical_gui_failure"], "FAIL")
+
+    def test_negative_repair_final_gate_requires_physical_hit_and_updater_failure(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            exe = root / "fixture.exe"
+            updater = root / "Geometry_Lotto_Pro_DLT_Updater.exe"
+            exe.write_bytes(b"TEST_ONLY_MAIN")
+            updater.write_bytes(b"TEST_ONLY_UPDATER")
+            base = {
+                "schema": "dlt-physical-gui-failure-v1",
+                "status": "PASS",
+                "operation": "repair",
+                "exe_sha256": gate._sha256(exe),
+                "updater_sha256": gate._sha256(updater),
+                "github_sha": os.environ.get("GITHUB_SHA"),
+                "github_run_id": os.environ.get("GITHUB_RUN_ID"),
+                "backend_status": "FAIL",
+                "ui_fail_closed": True,
+                "physical_hit_test_verified": True,
+                "corruption_injected": True,
+                "canonical_unchanged": True,
+                "evidence_unchanged": True,
+                "updater_failure_count": 1,
+                "official_update_pass_increment": 0,
+                "repair_pass_increment": 0,
+                "repair_fail_increment": 1,
+            }
+            path = root / "physical_gui_repair_failure.json"
+            path.write_text(json.dumps(base), encoding="utf-8")
+            self.assertEqual(gate.derive(root, exe)["gates"]["physical_gui_repair_failure"], "PASS")
+
+            base["physical_hit_test_verified"] = False
+            path.write_text(json.dumps(base), encoding="utf-8")
+            self.assertEqual(gate.derive(root, exe)["gates"]["physical_gui_repair_failure"], "FAIL")
+
+            base["physical_hit_test_verified"] = True
+            base["updater_failure_count"] = 0
+            path.write_text(json.dumps(base), encoding="utf-8")
+            self.assertEqual(gate.derive(root, exe)["gates"]["physical_gui_repair_failure"], "FAIL")
+
     def test_runtime_four_entry_evidence_closes_no_shell_not_business(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
