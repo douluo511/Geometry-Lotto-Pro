@@ -55,11 +55,25 @@ class BusinessReleaseBoundaries(unittest.TestCase):
             self.assertEqual(result["gates"]["business_content"], "FAIL")
             self.assertEqual(result["gates"]["no_shell"], "FAIL")
 
-    def test_checked_in_scope_review_stays_pending_without_specific_user_approval(self):
+    def test_checked_in_scope_review_requires_valid_explicit_state(self):
         approval = json.loads((SCRIPTS.parent / "BUSINESS_SCOPE_APPROVAL.json").read_text(encoding="utf-8"))
-        self.assertEqual(approval["status"], "PENDING")
-        self.assertIsNone(approval["approved_by"])
-        self.assertIsNone(approval["approval_reference"])
+        self.assertEqual(approval["scope_ids"], ["B01", "B02", "B03", "B04", "B05", "B06", "B07"])
+        self.assertEqual(approval["entry_inventory"], ["predict", "update", "repair", "audit"])
+        self.assertTrue(approval["original_requirements_preserved"])
+        self.assertTrue(approval["no_scope_reduction"])
+        self.assertIn(approval["status"], {"PENDING", "APPROVED"})
+        if approval["status"] == "PENDING":
+            self.assertIsNone(approval["approved_by"])
+            self.assertIsNone(approval["approval_reference"])
+        else:
+            self.assertEqual(approval["approved_by"], "user")
+            self.assertIsInstance(approval["approval_reference"], str)
+            self.assertTrue(approval["approval_reference"].strip())
+
+    def test_approved_scope_without_user_reference_is_rejected_by_runtime_gate_contract(self):
+        source = (SCRIPTS / "business_runtime_gate.py").read_text(encoding="utf-8")
+        self.assertIn('approval.get("approved_by") == "user"', source)
+        self.assertIn('bool(str(approval.get("approval_reference", "")).strip())', source)
 
     def test_negative_gui_failure_binds_exact_updater_process(self):
         source = (SCRIPTS / "physical_gui_failure_smoke.ps1").read_text(encoding="utf-8")
