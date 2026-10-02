@@ -51,8 +51,8 @@ class BusinessReleaseBoundaries(unittest.TestCase):
             (root / "business_no_shell_gate.json").write_text(json.dumps(report))
             result = gate.derive(root, exe)
             self.assertEqual(result["final_gate"], "FAIL")
-            self.assertEqual(result["gates"]["business_content"], "PENDING")
-            self.assertEqual(result["gates"]["no_shell"], "PENDING")
+            self.assertEqual(result["gates"]["business_content"], "FAIL")
+            self.assertEqual(result["gates"]["no_shell"], "FAIL")
 
     def test_runtime_four_entry_evidence_closes_no_shell_not_business(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -60,21 +60,22 @@ class BusinessReleaseBoundaries(unittest.TestCase):
             exe = root / "fixture.exe"
             exe.write_bytes(b"TEST_ONLY_NOT_A_PRODUCTION_EXE")
             exe_hash = gate._sha256(exe)
-            report = static_report([{"name": "interface", "status": "PASS"}], "test")
-            (root / "business_no_shell_gate.json").write_text(json.dumps(report), encoding="utf-8")
-            (root / "physical_gui_click.json").write_text(json.dumps({
+            static = static_report([{"name": "interface", "status": "PASS"}], "test")
+            static["github_sha"] = None
+            static["github_run_id"] = None
+            (root / "business_no_shell_gate.json").write_text(json.dumps(static), encoding="utf-8")
+            (root / "business_runtime_gate.json").write_text(json.dumps({
+                "schema": "dlt-business-runtime-gate-v1",
                 "status": "PASS",
-                "buttons": [1001, 1002, 1003, 1004],
-            }), encoding="utf-8")
-            (root / "physical_gui_backend.json").write_text(json.dumps({
-                "status": "PASS",
+                "business_content": "PENDING",
+                "no_shell": "PASS",
+                "approval_status": "PASS",
+                "original_requirements_preserved": True,
                 "exe_sha256": exe_hash,
-                "operations": [
-                    {"operation_id": 1001, "status": "PASS"},
-                    {"operation_id": 1002, "status": "PASS"},
-                    {"operation_id": 1003, "status": "PASS"},
-                    {"operation_id": 1004, "status": "PASS"},
-                ],
+                "updater_sha256": "",
+                "github_sha": None,
+                "github_run_id": None,
+                "tasks": {"B05": {"status": "PENDING"}},
             }), encoding="utf-8")
             result = gate.derive(root, exe)
             self.assertEqual(result["gates"]["no_shell"], "PASS")
