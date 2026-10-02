@@ -38,6 +38,11 @@ jobs:
           $env:PYTHONPATH = "$PWD\src"
           python -c "from glp.service import self_test; import json; x=self_test(); print(json.dumps(x,ensure_ascii=False,indent=2)); raise SystemExit(0 if x['status']=='PASS' else 2)"
 
+      - name: Business content + no-shell gate
+        run: |
+          $env:PYTHONPATH = "$PWD\src"
+          python scripts/business_no_shell_gate.py
+
       - name: Network Contract Gate
         run: python scripts/network_contract_gate.py
 
@@ -124,7 +129,9 @@ jobs:
             -ExePath ".\dist\Geometry_Lotto_Pro_DLT.exe" `
             -Points "0.14,0.15;0.38,0.15;0.14,0.24;0.38,0.24" `
             -ButtonTexts "预测下一期;一键更新;一键修复;高级分析" `
-            -EvidencePath ".\artifacts\physical_gui_click.json"
+            -EvidencePath ".\artifacts\physical_gui_click.json" `
+            -BackendEvidencePath ".\artifacts\physical_gui_backend.json" `
+            -BackendTimeoutSeconds 1800
 
       - name: Evidence-derived Final Gate
         shell: pwsh
@@ -134,21 +141,21 @@ jobs:
           $live = Get-Content artifacts\real_network_check.json -Raw | ConvertFrom-Json
           $accept = Get-Content artifacts\acceptance.json -Raw | ConvertFrom-Json
           $gui = Get-Content artifacts\physical_gui_click.json -Raw | ConvertFrom-Json
+          $guiBackend = Get-Content artifacts\physical_gui_backend.json -Raw | ConvertFrom-Json
+          $business = Get-Content artifacts\business_no_shell_gate.json -Raw | ConvertFrom-Json
           $repro = Get-Content artifacts\reproducible_main_build.json -Raw | ConvertFrom-Json
           $exe = Resolve-Path dist\Geometry_Lotto_Pro_DLT.exe
           $hash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLower()
           $repositoryIndependence = 'FAIL'
           $releaseContext = 'FAIL'
-          # Screenshot changes alone do not prove backend/network effects.
-          # Full business and entry inventories remain explicit release blockers.
-          $businessContent = 'PENDING'
-          $noShell = 'PENDING'
-          $physicalGuiBackend = 'PENDING'
-          $updaterProcess = 'FAIL'
-          $updaterExactExe = 'FAIL'
-          $updaterAtomicRollback = 'FAIL'
-          $updaterRealNetwork = 'FAIL'
-          $updaterSameHash = 'FAIL'
+          $businessContent = [string]$business.business_content
+          $noShell = [string]$business.no_shell
+          $physicalGuiBackend = [string]$guiBackend.status
+          $updaterProcess = 'PENDING'
+          $updaterExactExe = 'PENDING'
+          $updaterAtomicRollback = 'PENDING'
+          $updaterRealNetwork = 'PENDING'
+          $updaterSameHash = 'PENDING'
           $updaterReportPath = 'artifacts\updater_acceptance.json'
           $updaterExePath = 'dist\Geometry_Lotto_Pro_DLT_Updater.exe'
           if ((Test-Path $updaterReportPath) -and (Test-Path $updaterExePath)) {
@@ -191,7 +198,9 @@ jobs:
             $accept.github_sha -eq $env:GITHUB_SHA -and
             $accept.github_run_id -eq $env:GITHUB_RUN_ID -and
             $accept.exe_sha256 -eq $hash -and
-            $gui.status -eq 'PASS'
+            $gui.status -eq 'PASS' -and
+            $guiBackend.status -eq 'PASS' -and
+            $business.status -eq 'PASS'
           )
           $final = [ordered]@{
             schema = 'dlt-evidence-derived-final-gate-v2'
@@ -240,6 +249,7 @@ jobs:
           name: Geometry-Lotto-Pro-DLT-CANDIDATE-NOT-FINAL
           path: |
             DLT/dist/Geometry_Lotto_Pro_DLT.exe
+            DLT/dist/Geometry_Lotto_Pro_DLT_Updater.exe
             DLT/artifacts/**
           if-no-files-found: warn
           retention-days: 90
