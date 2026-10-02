@@ -155,7 +155,7 @@ def main() -> int:
     out = Path("artifacts/business_no_shell_gate.json")
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    print(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True))
+    print(json.dumps(report, ensure_ascii=True, indent=2, sort_keys=True))
     return 0 if status == "PASS" else 2
 
 
