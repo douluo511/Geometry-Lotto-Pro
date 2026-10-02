@@ -93,11 +93,18 @@ function Click-Button([IntPtr]$Window,[IntPtr]$Button){
   $p=New-Object DltFailureGui+POINT
   $p.X=[int][Math]::Floor(($r.Left+$r.Right)/2)
   $p.Y=[int][Math]::Floor(($r.Top+$r.Bottom)/2)
-  [void][DltFailureGui]::SetForegroundWindow($Window)
-  Start-Sleep -Milliseconds 250
-  if([DltFailureGui]::GetForegroundWindow() -ne $Window){ throw 'DLT window did not receive foreground' }
-  if([DltFailureGui]::WindowFromPoint($p) -ne $Button){ throw 'button hit-test failed' }
+  $hit=$false
+  for($attempt=0;$attempt -lt 8;$attempt++){
+    [void][DltFailureGui]::SetForegroundWindow($Window)
+    Start-Sleep -Milliseconds 150
+    if([DltFailureGui]::WindowFromPoint($p) -eq $Button){
+      $hit=$true
+      break
+    }
+  }
+  if(-not $hit){ throw 'Physical button hit-test failed after foreground attempts' }
   if(-not [DltFailureGui]::SetCursorPos($p.X,$p.Y)){ throw 'SetCursorPos failed' }
+  if([DltFailureGui]::WindowFromPoint($p) -ne $Button){ throw 'Physical button hit-test changed before click' }
   [DltFailureGui]::mouse_event(0x0002,0,0,0,[UIntPtr]::Zero)
   Start-Sleep -Milliseconds 80
   [DltFailureGui]::mouse_event(0x0004,0,0,0,[UIntPtr]::Zero)
