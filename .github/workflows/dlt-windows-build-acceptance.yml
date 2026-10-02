@@ -29,7 +29,7 @@ jobs:
       - name: Install pinned dependencies
         run: python -m pip install --disable-pip-version-check -r requirements.txt
       - name: Source compile check
-        run: python -m compileall -q src
+        run: python -m compileall -q src scripts
       - name: PowerShell acceptance script syntax gate
         shell: pwsh
         run: |
@@ -152,96 +152,16 @@ jobs:
       - name: Evidence-derived Final Gate
         shell: pwsh
         run: |
-          $contract = Get-Content artifacts\network_contract_gate.json -Raw | ConvertFrom-Json
-          $fault = Get-Content artifacts\network_fault_gate.json -Raw | ConvertFrom-Json
-          $live = Get-Content artifacts\real_network_check.json -Raw | ConvertFrom-Json
-          $accept = Get-Content artifacts\acceptance.json -Raw | ConvertFrom-Json
-          $gui = Get-Content artifacts\physical_gui_click.json -Raw | ConvertFrom-Json
-          $guiBackend = Get-Content artifacts\physical_gui_backend.json -Raw | ConvertFrom-Json
-          $business = Get-Content artifacts\business_no_shell_gate.json -Raw | ConvertFrom-Json
-          $repro = Get-Content artifacts\reproducible_main_build.json -Raw | ConvertFrom-Json
-          $exe = Resolve-Path dist\Geometry_Lotto_Pro_DLT.exe
-          $hash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLower()
-          $repositoryIndependence = 'FAIL'
-          $releaseContext = 'FAIL'
-          $businessContent = [string]$business.business_content
-          $noShell = [string]$business.no_shell
-          $physicalGuiBackend = [string]$guiBackend.status
-          $updaterProcess = 'PENDING'
-          $updaterExactExe = 'PENDING'
-          $updaterAtomicRollback = 'PENDING'
-          $updaterRealNetwork = 'PENDING'
-          $updaterSameHash = 'PENDING'
-          $updaterReportPath = 'artifacts\updater_acceptance.json'
-          $updaterExePath = 'dist\Geometry_Lotto_Pro_DLT_Updater.exe'
-          if ((Test-Path $updaterReportPath) -and (Test-Path $updaterExePath)) {
-            $updater = Get-Content $updaterReportPath -Raw | ConvertFrom-Json
-            $updaterHash = (Get-FileHash $updaterExePath -Algorithm SHA256).Hash.ToLower()
-            $updaterBound = (
-              $updater.schema -eq 'dlt-updater-exact-acceptance-v1' -and
-              $updater.github_sha -eq $env:GITHUB_SHA -and
-              $updater.github_run_id -eq $env:GITHUB_RUN_ID -and
-              $updater.updater_sha256 -eq $updaterHash
-            )
-            if ($updaterBound) {
-              $updaterProcess = [string]$updater.updater_process
-              $updaterExactExe = [string]$updater.updater_exact_exe
-              $updaterAtomicRollback = [string]$updater.updater_atomic_rollback
-              $updaterRealNetwork = [string]$updater.updater_real_network
-              $updaterSameHash = [string]$updater.updater_same_hash
-            }
+          python scripts/final_gate.py `
+            --evidence-dir ".\artifacts" `
+            --exe ".\dist\Geometry_Lotto_Pro_DLT.exe" `
+            --report ".\artifacts\final_gate.json"
+          $exit=$LASTEXITCODE
+          $final=Get-Content ".\artifacts\final_gate.json" -Raw | ConvertFrom-Json
+          Get-Content ".\artifacts\final_gate.json"
+          if($exit -ne 0 -or $final.final_gate -ne 'PASS' -or [int]$final.hard_fail_count -ne 0){
+            throw "DLT Final Gate blocked: $($final.non_pass_gates -join ', ')"
           }
-
-          $ok = (
-            $repositoryIndependence -eq 'PASS' -and
-            $releaseContext -eq 'PASS' -and
-            $repro.status -eq 'PASS' -and
-            $repro.same_hash -eq $true -and
-            $repro.primary_sha256 -eq $hash -and
-            $businessContent -eq 'PASS' -and
-            $noShell -eq 'PASS' -and
-            $physicalGuiBackend -eq 'PASS' -and
-            $updaterProcess -eq 'PASS' -and
-            $updaterExactExe -eq 'PASS' -and
-            $updaterAtomicRollback -eq 'PASS' -and
-            $updaterRealNetwork -eq 'PASS' -and
-            $updaterSameHash -eq 'PASS' -and
-            $contract.status -eq 'PASS' -and
-            $fault.status -eq 'PASS' -and
-            $live.status -eq 'PASS' -and
-            $accept.exact_acceptance_gate -eq 'PASS' -and
-            $accept.final_release_gate -eq 'PENDING' -and
-            $accept.github_sha -eq $env:GITHUB_SHA -and
-            $accept.github_run_id -eq $env:GITHUB_RUN_ID -and
-            $accept.exe_sha256 -eq $hash -and
-            $gui.status -eq 'PASS' -and
-            $guiBackend.status -eq 'PASS' -and
-            $business.status -eq 'PASS'
-          )
-          $final = [ordered]@{
-            schema = 'dlt-evidence-derived-final-gate-v2'
-            final_gate = $(if ($ok) { 'PASS' } else { 'FAIL' })
-            exe_sha256 = $hash
-            contract_gate = $contract.status
-            fault_injection_gate = $fault.status
-            real_network_gate = $live.status
-            exact_exe_gate = $accept.exact_acceptance_gate
-            physical_gui_visual_gate = $gui.status
-            physical_gui_backend_gate = $physicalGuiBackend
-            business_content = $businessContent
-            no_shell = $noShell
-            updater_process = $updaterProcess
-            updater_exact_exe = $updaterExactExe
-            updater_atomic_rollback = $updaterAtomicRollback
-            updater_real_network = $updaterRealNetwork
-            updater_same_hash = $updaterSameHash
-            same_hash = $(if($repro.status -eq 'PASS' -and $repro.same_hash -eq $true -and $repro.primary_sha256 -eq $hash){'PASS'}else{'FAIL'})
-            repository_independence = $repositoryIndependence
-            release_context = $releaseContext
-          }
-          $final | ConvertTo-Json -Depth 6 | Set-Content artifacts\final_gate.json -Encoding utf8
-          Get-Content artifacts\final_gate.json
-          if (-not $ok) { throw 'DLT Final Gate blocked: inspect repository independence and updater hard gates' }
 
       - name: Upload exact EXE and evidence only after all hard gates pass
         if: success()
