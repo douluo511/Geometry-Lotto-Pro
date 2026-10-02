@@ -46,6 +46,7 @@ AUDIT_TRANSIENT_UPDATE_MARKERS = (
     "ConnectTimeout",
     "ConnectionError",
     "ChunkedEncodingError",
+    "empty HTTP response",
 )
 
 
@@ -591,7 +592,8 @@ class LottoService:
 
         Source/schema/content/freshness/conflict failures remain fail-closed on
         the first attempt. A wrapped SourceError is retryable only when its
-        diagnostic contains one of the frozen transport exception markers.
+        diagnostic contains one of the frozen transport exception markers or a
+        literal empty HTTP response. A size-limit violation remains terminal.
         """
         detail = f"{type(exc).__name__}: {exc}"
         return any(marker in detail for marker in AUDIT_TRANSIENT_UPDATE_MARKERS)
@@ -599,10 +601,11 @@ class LottoService:
     def update_with_transient_retry(
         self, progress: Callable[[str], None] | None = None
     ) -> tuple[dict[str, Any] | None, str | None, list[dict[str, Any]]]:
-        """Retry the whole official-quorum transaction once only for transport transients.
+        """Retry the whole official-quorum transaction once only for bounded source transients.
 
-        Each failed attempt remains persisted through build_canonical's failure
-        sink. Semantic/schema/freshness/source-conflict failures never retry.
+        Transport/deadline failures and a literal empty HTTP 200 response may
+        retry once. Each failed attempt remains persisted through build_canonical's
+        failure sink. Oversized/schema/freshness/source-conflict failures never retry.
         The canonical dataset is committed only by an attempt that independently
         reaches crosscheck_status=PASS and strict persisted integrity.
         """
@@ -723,10 +726,11 @@ class LottoService:
         trusted_seed: list[Draw],
         progress: Callable[[str], None] | None = None,
     ) -> tuple[Any | None, dict[str, Any] | None, str | None, list[dict[str, Any]]]:
-        """Rebuild from official sources with one bounded retry for transport transients only.
+        """Rebuild from official sources with one bounded retry for source transients only.
 
-        A retry reruns the whole source quorum. Schema/semantic/freshness/conflict
-        failures are terminal on the first attempt. Storage commit, replay and
+        A retry reruns the whole source quorum. Transport/deadline failures and a
+        literal empty HTTP response may retry once; oversized/schema/freshness/
+        conflict failures are terminal on the first attempt. Storage commit, replay and
         post-commit integrity are intentionally outside this retry boundary.
         """
         attempts: list[dict[str, Any]] = []
