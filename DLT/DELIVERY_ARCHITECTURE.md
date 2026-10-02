@@ -52,3 +52,38 @@ Win32 四入口 GUI
 真實聯網 → Windows 原生構建 → 同一 Exact EXE → GUI 實際效果 → Same Hash
 → 完整 Evidence → 工程與業務各 100% → Final Gate PASS → 唯一成品。
 任一缺失：Final Gate 非 PASS。受控測試資料、截圖、EXE 檔案存在均不得替代上述證據。
+
+
+## 真实软件版本更新闭环（当前实现）
+
+独立生产仓库固定为 `douluo511/Geometry-Lotto-Pro-DLT`。共享仓库只能产生候选诊断证据，不能令 `repository_independence`、`release_context` 或 `updater_real_network` 变为 PASS。
+
+独立仓库 `main` 的 Windows 工作流现在按以下顺序执行：
+
+```text
+Exact source SHA
+  → Live official-data network
+  → Native Windows main EXE + reproducible Same Hash
+  → Independent Updater EXE + reproducible Same Hash
+  → Exact-package acceptance
+  → publish hash-bound vN prerelease (EXE + Updater + manifest)
+  → updater process / rollback / data-network acceptance
+  → release_update_acceptance.ps1:
+       download previous vN-1 Exact EXE from GitHub Release over HTTPS
+       invoke the current Exact Updater EXE as a separate process
+       download current manifest + vN Exact EXE over HTTPS
+       verify bytes + SHA-256 + version + process identity
+       atomically replace the previous EXE and run installed self-test
+       require installed hash == current exact-build hash
+       rewrite updater_real_network from PENDING to PASS only on this proof
+  → Physical GUI four-entry backend evidence
+  → Evidence-derived Final Gate
+  → upload Final Actions artifact
+  → promote current prerelease to non-prerelease FINAL release
+```
+
+`DLT/scripts/release_update_acceptance.ps1` 在非独立仓库／非 `main`／非 `push|workflow_dispatch` 上不得授予软件更新网络 PASS；因此共享仓库的候选仍会 fail closed。
+
+`.github/workflows/dlt-final-production-bootstrap.yml` 负责从经过 manifest/hash 验证的 DLT-only 导出创建或填充独立仓库，先建立 `v2.1.2` 基线 prerelease，再只提升软件版本到 `v2.1.3`，要求该新 SHA 自己完成完整 Windows / Real Network / GUI / Same Hash / N→N+1 / Final Gate 链后才验证正式 Release 和 Final Artifact。
+
+该流程没有删除、跳过或放宽任何原有硬门。独立仓库本身及其账户级写权限仍属于外部发布前置条件；缺失时状态必须保持非 Final。
