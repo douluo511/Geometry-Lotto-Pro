@@ -294,9 +294,12 @@ def fetch_shanghai_full_history() -> tuple[list[Draw], SourceReceipt, dict[str, 
                 continue
             start_issue = f"{year}{low:03d}"
             end_issue = f"{year}{high:03d}"
+            # Match the official Shanghai custom-range form exactly.
+            # The form submits view + start_issue + end_issue. The recent-N
+            # shortcut's limit parameter is a different query mode and must
+            # not be mixed into a custom issue range.
             params = {
                 "view": "previous",
-                "limit": "100",
                 "start_issue": start_issue,
                 "end_issue": end_issue,
             }

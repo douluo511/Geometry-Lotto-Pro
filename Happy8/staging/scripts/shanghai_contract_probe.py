@@ -218,7 +218,6 @@ def inspect() -> dict:
                 "response": _fetch(
                     {
                         "view": "previous",
-                        "limit": "100",
                         "start_issue": issue,
                         "end_issue": issue,
                     }
@@ -229,7 +228,6 @@ def inspect() -> dict:
     range_probe = _fetch(
         {
             "view": "previous",
-            "limit": "100",
             "start_issue": "2021001",
             "end_issue": "2021099",
         }
