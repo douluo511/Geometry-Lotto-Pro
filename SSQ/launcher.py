@@ -387,7 +387,7 @@ def main() -> int:
                 if os.name != 'nt':
                     raise RuntimeError('Windows required')
                 from glp.gui import gui_self_test
-                r = gui_self_test()
+                r = gui_self_test(svc)
                 status = r.get('status', 'FAIL')
 
             elif args.check == 'maintenance':

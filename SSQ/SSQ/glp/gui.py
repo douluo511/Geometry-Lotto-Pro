@@ -4,7 +4,6 @@ import ctypes
 import json
 import queue
 import threading
-from pathlib import Path
 from ctypes import wintypes
 from typing import Any, Callable
 
@@ -323,75 +322,38 @@ def run_gui() -> int:
     return NativeApp().run()
 
 
-def gui_self_test() -> dict[str, Any]:
-    """Windows-native smoke test including WM_COMMAND -> backend routing.
+def gui_self_test(service: LottoService) -> dict[str, Any]:
+    """Inspect the native surface using an isolated real service, not a double.
 
-    The backend is a spy, so this verifies the real Win32 message path without
-    touching network/data or creating a formal prediction Freeze.
+    This check deliberately does not invoke business actions. Routing unit
+    doubles live in tests only. Real actions and network effects require the
+    separate physical-click evidence from this exact executable.
     """
-    import time
-
-    class _ServiceSpy:
-        def __init__(self):
-            self.calls = []
-            class _Store:
-                root = Path(".").resolve()
-            self.store = _Store()
-        def _hit(self, name, progress=None):
-            self.calls.append(name)
-            return {"status": "PASS", "final_gate": {"status": "PASS"}, "software_verdict": "PASS"}
-        def predict(self, progress=None): return self._hit("predict", progress)
-        def audit(self, progress=None): return self._hit("audit", progress)
-
-    class _UpdaterSpy:
-        def __init__(self):
-            self.calls = []
-        def _hit(self, name, progress=None):
-            self.calls.append(name)
-            if name == "update":
-                return {"status": "PASS", "crosscheck_status": "PASS", "canonical_hash": "gui-self-test", "source_receipts": []}
-            return {"status": "PASS", "repaired": False, "detail": "gui-self-test", "integrity": {"ok": True}}
-        def update(self, progress=None): return self._hit("update", progress)
-        def repair(self, progress=None): return self._hit("repair", progress)
-
     checks = {}
     app = None
+    result = {
+        "status": "FAIL",
+        "scope": "NATIVE_SURFACE_ONLY",
+        "business_actions_executed": False,
+        "real_network_tested": False,
+        "physical_click_status": "PENDING",
+        "full_no_shell_status": "PENDING",
+        "checks": checks,
+    }
     try:
-        service_spy = _ServiceSpy()
-        updater_spy = _UpdaterSpy()
-        app = NativeApp(service_spy, updater_spy)
+        if type(service) is not LottoService:
+            raise TypeError("GUI surface check requires the real LottoService")
+        app = NativeApp(service)
         checks["native_window_created"] = bool(app.user32.IsWindow(app.hwnd))
         for cid in (BTN_PREDICT, BTN_UPDATE, BTN_REPAIR, BTN_AUDIT):
             checks[f"control_{cid}"] = bool(app.user32.IsWindow(app.controls[cid]))
-        app.user32.SendMessageW.argtypes = [HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
-        app.user32.SendMessageW.restype = LRESULT
-        routes = [
-            (BTN_PREDICT, "predict", service_spy),
-            (BTN_UPDATE, "update", updater_spy),
-            (BTN_REPAIR, "repair", updater_spy),
-            (BTN_AUDIT, "audit", service_spy),
-        ]
-        for cid, expected, spy in routes:
-            before = len(spy.calls)
-            app.user32.SendMessageW(app.hwnd, WM_COMMAND, cid, 0)
-            deadline = time.time() + 2.0
-            while time.time() < deadline:
-                app._drain()
-                if len(spy.calls) > before and not app.busy:
-                    break
-                time.sleep(0.01)
-            checks[f"route_{expected}"] = len(spy.calls) > before and spy.calls[-1] == expected
-        checks["update_uses_independent_updater_client"] = updater_spy.calls.count("update") == 1
-        checks["repair_uses_independent_updater_client"] = updater_spy.calls.count("repair") == 1
+        checks["real_service_bound"] = app.service is service
+        checks["real_updater_bound"] = type(app.updater) is UpdaterClient
+        result["status"] = "PASS" if checks and all(checks.values()) else "FAIL"
     except Exception as exc:
-        return {"status": "FAIL", "checks": checks, "error": str(exc), "scope": "Win32 window/control/WM_COMMAND routing"}
+        result["error"] = f"{type(exc).__name__}: {exc}"
     finally:
         if app is not None and app.hwnd and app.user32.IsWindow(app.hwnd):
             app.user32.DestroyWindow(app.hwnd)
-    return {
-        "status": "PASS" if checks and all(checks.values()) else "FAIL",
-        "checks": checks,
-        "scope": "native window + four controls + WM_COMMAND backend routing",
-        "physical_human_click": "UNAVAILABLE_IN_AUTOMATION",
-    }
+    return result
 

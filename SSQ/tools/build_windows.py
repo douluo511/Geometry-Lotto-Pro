@@ -539,6 +539,21 @@ report['checks']['reproducible-build'] = {
     'workspace_paths': dict(repro_report['workspace_paths']),
 }
 
+try:
+    from verify_gui_payload import inspect_exe
+    payload_proof = inspect_exe(exe)
+    report['checks']['production-gui-payload'] = {
+        'exit_code': 0, 'status': 'PASS',
+        'exe_hash_matches': payload_proof['exe_sha256'] == exe_hash,
+        'proof': payload_proof,
+    }
+except Exception as exc:
+    report['checks']['production-gui-payload'] = {
+        'exit_code': 1, 'status': 'FAIL', 'exe_hash_matches': False,
+        'error': f'{type(exc).__name__}: {exc}',
+    }
+print('PRODUCTION_GUI_PAYLOAD=' + json.dumps(report['checks']['production-gui-payload'], ensure_ascii=True), flush=True)
+
 for check in checks:
     result_path = evidence / f'{check}.json'
     timeout = 2400 if check in {'science','random-world-101','random-world-202','random-world-303','predict','audit','maintenance'} else 900

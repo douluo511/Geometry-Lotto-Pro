@@ -26,6 +26,7 @@ REQUIRED_EXE_CHECKS = frozenset({
     "update", "science", "random-world-101", "random-world-202",
     "random-world-303", "predict", "audit", "gui", "maintenance",
     "unicode-path-no-python-path", "default-gui-launch", "reproducible-build",
+    "production-gui-payload",
 })
 
 # A nonempty subset, truthy string (including "FAIL"), or bool-as-int count
@@ -2431,6 +2432,16 @@ def derive(evidence: Path, exe: Path) -> dict[str, Any]:
         "reason": "complete approved button/module/model/updater/network/analysis inventory has not been bound to execution evidence",
         "release_authorized": False,
     }
+
+    # Independently inspect the actual candidate bytes, not a producer's PASS.
+    # This does not satisfy the complete no-shell inventory above.
+    try:
+        from verify_gui_payload import inspect_exe
+        proofs["production_gui_payload"] = inspect_exe(exe)
+        gates["production_gui_payload"] = "PASS"
+    except Exception as exc:
+        gates["production_gui_payload"] = "FAIL"
+        proofs["production_gui_payload"] = {"error": f"{type(exc).__name__}: {exc}"}
 
     source_self_ok = False
     source_fault_ok = False
