@@ -41,6 +41,45 @@ class AuditUpdateRetryTests(unittest.TestCase):
             self.assertEqual([row["status"] for row in attempts], ["FAIL", "PASS"])
             self.assertTrue(attempts[0]["retryable"])
 
+    def test_literal_empty_http_response_retries_once_then_passes(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            svc = self._service(directory)
+            success = {
+                "crosscheck_status": "PASS",
+                "source": "official-source-quorum",
+                "canonical_hash": "b" * 64,
+            }
+            transient = RuntimeError(
+                'SourceError: diagnostic={"shanghai": '
+                '"SourceError: Shanghai full history: empty HTTP response"}'
+            )
+            with patch.object(svc, "update", side_effect=[transient, success]) as update:
+                with patch("glp.service.time.sleep") as sleep:
+                    result, error, attempts = svc._audit_update_with_retry()
+            self.assertEqual(result, success)
+            self.assertIsNone(error)
+            self.assertEqual(update.call_count, 2)
+            sleep.assert_called_once()
+            self.assertEqual([row["status"] for row in attempts], ["FAIL", "PASS"])
+            self.assertTrue(attempts[0]["retryable"])
+
+    def test_oversized_http_response_never_retries(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            svc = self._service(directory)
+            terminal = RuntimeError(
+                'SourceError: diagnostic={"shanghai": '
+                '"SourceError: Shanghai full history: oversized HTTP response"}'
+            )
+            with patch.object(svc, "update", side_effect=terminal) as update:
+                with patch("glp.service.time.sleep") as sleep:
+                    result, error, attempts = svc._audit_update_with_retry()
+            self.assertIsNone(result)
+            self.assertIn("oversized HTTP response", error or "")
+            self.assertEqual(update.call_count, 1)
+            sleep.assert_not_called()
+            self.assertEqual(len(attempts), 1)
+            self.assertFalse(attempts[0]["retryable"])
+
     def test_semantic_or_schema_failure_never_retries(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             svc = self._service(directory)
@@ -71,6 +110,31 @@ class AuditUpdateRetryTests(unittest.TestCase):
             transient = RuntimeError(
                 'SourceError: diagnostic={"shanghai": '
                 '"OperationDeadlineExceeded: official HTTPS GET exceeded total operation timeout"}'
+            )
+            dataset = SimpleNamespace(crosscheck_status="PASS")
+            evidence = {"verification": "official-quorum"}
+            with patch(
+                "glp.service.build_canonical",
+                side_effect=[transient, (dataset, evidence)],
+            ) as build:
+                with patch("glp.service.time.sleep") as sleep:
+                    got_dataset, got_evidence, error, attempts = (
+                        svc._repair_build_with_transient_retry([])
+                    )
+            self.assertIs(got_dataset, dataset)
+            self.assertEqual(got_evidence, evidence)
+            self.assertIsNone(error)
+            self.assertEqual(build.call_count, 2)
+            sleep.assert_called_once()
+            self.assertEqual([row["status"] for row in attempts], ["FAIL", "PASS"])
+            self.assertTrue(attempts[0]["retryable"])
+
+    def test_repair_rebuild_empty_http_response_retries_once_then_passes(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            svc = self._service(directory)
+            transient = RuntimeError(
+                'SourceError: diagnostic={"shanghai": '
+                '"SourceError: Shanghai full history: empty HTTP response"}'
             )
             dataset = SimpleNamespace(crosscheck_status="PASS")
             evidence = {"verification": "official-quorum"}
