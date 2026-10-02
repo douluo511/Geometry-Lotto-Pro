@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import inspect
 import json
+import os
 from pathlib import Path
 
 from glp.constants import (
@@ -146,6 +147,8 @@ def main() -> int:
     ))
 
     report = static_report(checks, APP_VERSION)
+    report["github_sha"] = os.environ.get("GITHUB_SHA")
+    report["github_run_id"] = os.environ.get("GITHUB_RUN_ID")
     out = Path("artifacts/business_no_shell_gate.json")
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
