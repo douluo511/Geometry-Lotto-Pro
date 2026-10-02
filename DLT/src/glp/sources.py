@@ -60,7 +60,9 @@ def _attempts(response) -> list[dict]:
 
 def _validate_response(response, raw: bytes, *, expected: str) -> dict:
     status = int(getattr(response, "status_code", 0) or 0)
-    if status < 200 or status >= 300:
+    # These official GET contracts require a complete representation. A 206
+    # body can be valid JSON while omitting history, and 202 is not completion.
+    if status != 200:
         raise SourceError(f"HTTP status not acceptable: {status}")
     final_url = str(getattr(response, "url", "") or "")
     if final_url and not final_url.startswith("https://"):

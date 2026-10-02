@@ -264,6 +264,15 @@ class NetworkSecurityTests(unittest.TestCase):
             with self.assertRaises(SourceError):
                 _validate_response(result, result.content, expected="json")
 
+    def test_unexpected_success_status_is_not_a_complete_official_response(self):
+        # 206 may contain valid JSON but only part of the requested history.
+        # GET endpoints are contracted to return a complete HTTP 200 body.
+        for status in (201, 202, 204, 206, 299):
+            with self.subTest(status=status):
+                result = NetClient(session=Transport(response(status))).get(URL)
+                with self.assertRaises(SourceError):
+                    _validate_response(result, result.content, expected="json")
+
 
 if __name__ == "__main__":
     unittest.main()

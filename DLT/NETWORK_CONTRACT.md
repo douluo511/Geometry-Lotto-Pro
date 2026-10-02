@@ -43,6 +43,8 @@ as a demonstrated hard wall-clock cancellation guarantee.
 GUI -> Service/Updater -> Source -> NetClient -> Source validation ->
 canonical cross-check -> atomic Store -> Evidence -> result/GUI.
 An HTTP 200 is only transport receipt, never a dataset acceptance result.
+The complete official GET contract rejects every other status, including
+201/202/204/206: partial or pending content cannot become canonical history.
 Fallback is explicitly selected by Source, not an unapproved cross-host redirect.
 Raw terminal bytes, UTC time, source/parser identity and SHA-256 are retained by
 the existing Source/Evidence path. Oversized or unavailable bodies remain failures,
