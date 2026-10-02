@@ -15,6 +15,7 @@ from glp.domain import CanonicalDataset, Draw
 from glp.net_client import NetClient
 from glp.storage import Store
 from glp.util import sha256_bytes, sha256_json
+import updater as updater_module
 
 
 def seeded_store(root: Path) -> Store:
@@ -74,6 +75,36 @@ class FrozenInterfaceTests(unittest.TestCase):
             source_health,
         ):
             self.assertTrue(callable(fn))
+
+    def test_updater_console_summary_is_cp1252_safe_and_excludes_raw_payload(self):
+        huge = "中文原始证据" * 10000
+        value = {
+            "schema": "dlt-independent-updater-v1",
+            "status": "PASS",
+            "mode": "data-update",
+            "pid": 123,
+            "parent_pid": 45,
+            "parent_pid_match": True,
+            "updater_exe_sha256": "a" * 64,
+            "github_sha": "b" * 40,
+            "github_run_id": "999",
+            "version": "2.1.2",
+            "service_result": {
+                "status": "PASS",
+                "network_gate": "PASS",
+                "crosscheck_status": "PASS",
+                "latest": {"issue": "26112"},
+                "draw_count": 2926,
+                "raw_responses": [{"body_b64": huge}],
+            },
+        }
+        line = updater_module._console_line(value)
+        line.encode("cp1252")
+        self.assertLess(len(line), 5000)
+        self.assertNotIn("raw_responses", line)
+        self.assertNotIn("body_b64", line)
+        self.assertIn('"network_gate": "PASS"', line)
+        self.assertIn('"latest_issue": "26112"', line)
 
     def test_raw_evidence_reloads_bytes_and_fails_on_tamper(self):
         with tempfile.TemporaryDirectory(prefix="dlt-raw-contract-") as td:
