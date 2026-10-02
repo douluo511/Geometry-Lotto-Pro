@@ -9,6 +9,10 @@ from glp.constants import (
     GAME, PROMOTION_POLICY,
 )
 from glp.domain import Draw
+from glp.delivery import (
+    UpdaterClient, create_backup, export_evidence, launch_software_update,
+    read_software_update_result, restore_backup, source_health, verify_export,
+)
 from glp.engine import BASE_MODELS, model_identity
 from glp.net_client import NetClient
 from glp.service import LottoService, self_test
@@ -16,6 +20,7 @@ from glp.storage import Store
 import glp.gui as gui
 import glp.service as service
 import glp.sources as sources
+from scripts.final_gate import derive
 
 
 def check(name: str, ok: bool, detail: str) -> dict:
@@ -105,6 +110,7 @@ def main() -> int:
         Path(gui.__file__).resolve(),
         Path(inspect.getfile(Store)).resolve(),
         Path(inspect.getfile(NetClient)).resolve(),
+        Path(inspect.getfile(UpdaterClient)).resolve(),
     ]
     banned = ("StubService", "unittest.mock", "Mock(", "NotImplementedError", "TODO: production", "pass  # production")
     shell_hits: list[str] = []
@@ -116,11 +122,21 @@ def main() -> int:
 
     interfaces_ok = (
         callable(getattr(NetClient, "get", None))
+        and callable(getattr(Draw, "from_dict", None))
+        and callable(getattr(Draw, "validate", None))
         and callable(getattr(Store, "save_dataset", None))
         and callable(getattr(Store, "load_draws", None))
         and callable(getattr(Store, "integrity_check", None))
+        and callable(getattr(Store, "baseline_integrity_check", None))
+        and callable(getattr(Store, "validate_raw_evidence", None))
         and callable(self_test)
         and all(callable(getattr(LottoService, x, None)) for x in ("update", "predict", "audit", "repair"))
+        and all(callable(getattr(UpdaterClient, x, None)) for x in ("update", "repair"))
+        and all(callable(x) for x in (
+            launch_software_update, read_software_update_result,
+            create_backup, restore_backup, export_evidence, verify_export,
+            source_health, derive,
+        ))
     )
     checks.append(check(
         "No-shell production interfaces",
