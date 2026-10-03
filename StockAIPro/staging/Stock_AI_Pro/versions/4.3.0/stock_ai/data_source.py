@@ -110,8 +110,48 @@ def fetch_delisted_universe(cfg: dict, logger=None) -> pd.DataFrame:
     out.to_csv(ROOT / "cache" / "delisted_master.csv", index=False, encoding="utf-8-sig")
     return out.reset_index(drop=True)
 
+def _current_universe_from_spot(ak, cfg: dict, logger=None) -> pd.DataFrame:
+    errors = []
+    providers = [
+        ("eastmoney_spot", ak.stock_zh_a_spot_em),
+        ("sina_spot", ak.stock_zh_a_spot),
+    ]
+    for provider, getter in providers:
+        try:
+            df = getter()
+            cols = list(df.columns)
+            code_col = next(
+                (x for x in cols if str(x).lower() in {"code","证券代码","股票代码","代码"}),
+                None,
+            )
+            name_col = next(
+                (x for x in cols if str(x).lower() in {"name","证券简称","股票简称","名称"}),
+                None,
+            )
+            if code_col is None or name_col is None:
+                raise RuntimeError(f"{provider} 缺少 code/name 字段")
+            current = df[[code_col, name_col]].rename(
+                columns={code_col:"code", name_col:"name"}
+            )
+            current["code"] = current["code"].map(_clean_code)
+            current = _filter_universe(current, cfg, allow_st=True)
+            if current.empty:
+                raise RuntimeError(f"{provider} 当前股票清单为空")
+            current["list_date"] = pd.NaT
+            current["delist_date"] = pd.NaT
+            current["status"] = "current"
+            current["universe_provider"] = provider
+            return current.reset_index(drop=True)
+        except Exception as exc:
+            errors.append(f"{provider}: {exc}")
+            if logger:
+                logger.warning("当前股票清单备用源 %s 失败: %s", provider, exc)
+    raise RuntimeError("实时股票清单主备源均失败: " + " | ".join(errors))
+
+
 def fetch_full_universe(cfg: dict, logger=None) -> pd.DataFrame:
     ak = _ak()
+    primary_error = None
     try:
         df = ak.stock_info_a_code_name()
         cols = list(df.columns)
@@ -131,15 +171,28 @@ def fetch_full_universe(cfg: dict, logger=None) -> pd.DataFrame:
         current["list_date"] = pd.NaT
         current["delist_date"] = pd.NaT
         current["status"] = "current"
+        current["universe_provider"] = "exchange_list_aggregate"
     except Exception as e:
-        cached = ROOT / "cache" / "universe_master.csv"
-        if cached.exists():
-            if logger:
-                logger.warning("当前股票清单获取失败，使用缓存: %s", e)
-            return pd.read_csv(
-                cached, dtype={"code":str}, parse_dates=["list_date","delist_date"]
-            )
-        raise RuntimeError(f"无法取得A股股票清单: {e}") from e
+        primary_error = e
+        if logger:
+            logger.warning("交易所股票清单聚合失败，尝试实时全量行情源: %s", e)
+        try:
+            current = _current_universe_from_spot(ak, cfg, logger)
+        except Exception as fallback_error:
+            cached = ROOT / "cache" / "universe_master.csv"
+            if cached.exists():
+                if logger:
+                    logger.warning(
+                        "当前股票清单实时主备源均失败，使用已验证缓存: primary=%s fallback=%s",
+                        primary_error,
+                        fallback_error,
+                    )
+                return pd.read_csv(
+                    cached, dtype={"code":str}, parse_dates=["list_date","delist_date"]
+                )
+            raise RuntimeError(
+                f"无法取得A股股票清单: primary={primary_error} | fallback={fallback_error}"
+            ) from fallback_error
 
     delisted = fetch_delisted_universe(cfg, logger)
     out = pd.concat([current, delisted], ignore_index=True, sort=False)
