@@ -1,0 +1,4 @@
+requests==2.34.2
+pyinstaller==6.11.1
+pywinauto==0.6.9
+pillow==11.3.0
