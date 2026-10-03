@@ -136,6 +136,33 @@ jobs:
             final_gate = 'FAIL'
           } | ConvertTo-Json -Depth 6 | Set-Content -Encoding utf8 evidence/windows_exact_exe.json
 
+      - name: Physical GUI mouse-click acceptance on Exact EXE
+        id: physical_gui
+        if: steps.windows_build.outcome == 'success'
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          ./scripts/physical_gui_click_smoke.ps1 -ExePath dist1/Geometry_Lotto_Pro_Happy8.exe -EvidencePath evidence/physical_gui_click.json
+
+      - name: Same Hash after physical GUI
+        id: post_gui_same_hash
+        if: steps.physical_gui.outcome == 'success'
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $build = Get-Content evidence/windows_exact_exe.json -Raw | ConvertFrom-Json
+          $gui = Get-Content evidence/physical_gui_click.json -Raw | ConvertFrom-Json
+          $actual = (Get-FileHash dist1/Geometry_Lotto_Pro_Happy8.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($gui.status -ne 'PASS' -or $gui.same_hash -ne $true) { throw 'physical GUI evidence is not PASS' }
+          if ($actual -ne $build.exe_sha256 -or $actual -ne $gui.exe_sha256_after) { throw 'post-GUI Same Hash mismatch' }
+          @{
+            schema = 'happy8-post-gui-same-hash-v1'
+            status = 'PASS'
+            exe_sha256 = $actual
+            build_sha256 = $build.exe_sha256
+            physical_gui_sha256 = $gui.exe_sha256_after
+          } | ConvertTo-Json | Set-Content -Encoding utf8 evidence/post_gui_same_hash.json
+
       # Root-cause diagnostics run only after the mandatory live gate fails.
       - name: Provincial official fallback diagnostic probe
         if: always() && steps.live_gate.outcome != 'success'
@@ -230,7 +257,10 @@ jobs:
         run: |
           Write-Host "RECOVERED_PROTOTYPE_SOURCE=PASS"
           Write-Host "WINDOWS_EXACT_EXE=${{ steps.windows_build.outcome }}"
-          Write-Host "PHYSICAL_GUI_CLICK=NOT_VERIFIED"
+          Write-Host "PHYSICAL_GUI_CLICK=${{ steps.physical_gui.outcome }}"
+          Write-Host "POST_GUI_SAME_HASH=${{ steps.post_gui_same_hash.outcome }}"
+          Write-Host "PHYSICAL_GUI_CLICK=${{ steps.physical_gui.outcome }}"
+          Write-Host "POST_GUI_SAME_HASH=${{ steps.post_gui_same_hash.outcome }}"
           Write-Host "REPOSITORY_INDEPENDENCE=FAIL"
           Write-Host "FINAL_RELEASE_GATE=NOT_PASS"
 
@@ -254,6 +284,8 @@ jobs:
           if ('${{ steps.live_gate.outcome }}' -ne 'success') { $failures += 'live_official_network' }
           if ('${{ steps.live_gate.outcome }}' -eq 'success' -and '${{ steps.science_gate.outcome }}' -ne 'success') { $failures += 'science_gate' }
           if ('${{ steps.live_gate.outcome }}' -eq 'success' -and '${{ steps.science_gate.outcome }}' -eq 'success' -and '${{ steps.windows_build.outcome }}' -ne 'success') { $failures += 'windows_exact_exe' }
+          if ('${{ steps.windows_build.outcome }}' -eq 'success' -and '${{ steps.physical_gui.outcome }}' -ne 'success') { $failures += 'physical_gui' }
+          if ('${{ steps.physical_gui.outcome }}' -eq 'success' -and '${{ steps.post_gui_same_hash.outcome }}' -ne 'success') { $failures += 'post_gui_same_hash' }
 
           Write-Host "COMPILE_GATE=${{ steps.compile_gate.outcome }}"
           Write-Host "DOMAIN_NETCLIENT_CONTRACT=${{ steps.contract_gate.outcome }}"
