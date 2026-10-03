@@ -3,6 +3,11 @@ from __future__ import annotations
 import argparse
 import json
 import threading
+from pathlib import Path
+import hashlib
+import sys
+import os
+from datetime import datetime, timezone
 import tkinter as tk
 from tkinter import messagebox, ttk
 
@@ -86,15 +91,32 @@ class HeadIntelligenceApp(tk.Tk):
         scrollbar.pack(side="right", fill="y")
 
     def one_click_update(self):
+        try:
+            handoff = self.service.software_update()
+        except Exception as exc:
+            self.status_var.set("状态：软件更新 BLOCKED，发布配置未通过")
+            self._set_text(f"软件更新：BLOCKED\n\n{type(exc).__name__}: {exc}")
+            self._audit_gui("software_update", {"status":"BLOCKED", "error":f"{type(exc).__name__}: {exc}"})
+            return
+        self.status_var.set("状态：独立 Updater 已启动，正在退出主程序")
+        self._set_text(json.dumps(handoff, ensure_ascii=False, indent=2))
+        self._audit_gui("software_update", handoff)
+        self.after(150, self.destroy)
+
+    def refresh_information(self):
         self.status_var.set("状态：正在执行真实网络更新、验证、去重、排序与快照冻结...")
         self._set_text("正在更新。\n\n旧快照继续可用，只有新更新通过后才会原子替换。")
         threading.Thread(target=self._update_worker, daemon=True).start()
 
     def _update_worker(self):
-        report = self.service.update()
+        try:
+            report = self.service.update()
+        except Exception as exc:
+            report = {"status": "FAIL", "errors": [f"{type(exc).__name__}: {exc}"]}
         self.after(0, lambda: self._finish_update(report))
 
     def _finish_update(self, report: dict):
+        self._audit_gui("information_judgment", report)
         if report.get("status") == "PASS":
             self.status_var.set(
                 f"状态：更新成功｜原始 {report.get('raw_count', 0)}｜去重后 {report.get('deduped_count', 0)}"
@@ -109,15 +131,20 @@ class HeadIntelligenceApp(tk.Tk):
         result = self.service.repair()
         lines = ["一键修复 / 自检", "", f"总体状态：{result['status']}", f"数据目录：{result['data_dir']}", ""]
         for key, value in result["checks"].items():
-            lines.append(f"{key}: {'PASS' if value else 'FAIL'}")
+            lines.append(f"{key}: {value.get('status', 'FAIL') if isinstance(value, dict) else ('PASS' if value else 'FAIL')}")
         if result["status"] == "PASS":
             lines.append("\n当前没有发现需要自动修复的本地结构问题。")
         else:
             lines.append("\n检测到问题。系统不会用损坏快照覆盖有效数据。")
         self._set_text("\n".join(lines))
+        self._audit_gui("repair", result)
 
     def show_judgment(self):
+        if self.service.current_judgment() is None:
+            self.refresh_information()
+            return
         self._render_snapshot(self.service.current_judgment())
+        self._audit_gui("information_judgment", {"status":"PASS", "snapshot":self.service.current_judgment()})
 
     def show_advanced(self):
         payload = self.service.advanced_analysis()
@@ -130,7 +157,7 @@ class HeadIntelligenceApp(tk.Tk):
             f"数据目录：{health['data_dir']}",
         ]
         if not snapshot:
-            lines += ["", "尚无有效快照。请先执行“一键更新”。"]
+            lines += ["", "尚无有效快照。请先执行“信息判断”。"]
         else:
             lines += [
                 f"快照 ID：{snapshot.get('snapshot_id')}",
@@ -151,12 +178,22 @@ class HeadIntelligenceApp(tk.Tk):
                 "当前判断分数是信息价值排序，不等同于真实性概率。",
             ]
         self._set_text("\n".join(lines))
+        self._audit_gui("advanced_analysis", {"status":health["status"], **payload})
+
+    def _audit_gui(self, operation: str, result: dict):
+        storage = self.service.engine.storage
+        value = storage.read_json("physical_gui_operations.json") or {"schema":"head-intelligence-gui-operations-v1", "operations":{}}
+        exe = Path(sys.executable)
+        value["main_exe_sha256"] = hashlib.sha256(exe.read_bytes()).hexdigest() if getattr(sys, "frozen", False) else None
+        value["gui_run_id"] = os.environ.get("HEAD_GUI_RUN_ID")
+        value["operations"][operation] = {**result, "process_id":os.getpid(), "gui_run_id":os.environ.get("HEAD_GUI_RUN_ID"), "completed_at":datetime.now(timezone.utc).isoformat()}
+        storage.save_json_atomic("physical_gui_operations.json", value)
 
     def _render_snapshot(self, snapshot: dict | None):
         if not snapshot:
             self._set_text(
                 "欢迎使用 Head Intelligence System。\n\n"
-                "当前还没有有效快照。点击“一键更新”，系统会从已配置的官方信息源获取真实信息，"
+                "当前还没有有效快照。点击“信息判断”，系统会从已配置的官方信息源获取真实信息，"
                 "保存原始证据并重新计算排序。"
             )
             return
@@ -203,7 +240,7 @@ def gui_smoke_test() -> bool:
         assert app.title() == "Head Intelligence System"
         assert len(app.buttons) == 4
         assert [b.cget("text") for b in app.buttons] == ["信息判断", "一键更新", "一键修复", "高级分析"]
-        app.show_judgment()
+        app._render_snapshot(app.service.current_judgment())
         app.one_click_repair()
         app.show_advanced()
         app.update_idletasks()
@@ -217,17 +254,25 @@ def cli() -> int:
     parser.add_argument("--self-test", action="store_true")
     parser.add_argument("--network-smoke-test", action="store_true")
     parser.add_argument("--gui-smoke", action="store_true")
+    parser.add_argument("--result-file")
     args = parser.parse_args()
 
     service = InformationService()
 
     if args.self_test:
         result = service.self_test()
+        if args.result_file:
+            service.engine.storage._atomic_write_bytes(Path(args.result_file), json.dumps(result, ensure_ascii=False, indent=2).encode("utf-8"))
         return 0 if result["status"] == "PASS" else 1
 
     if args.network_smoke_test:
         report = service.network_smoke_test()
-        print(json.dumps(report, ensure_ascii=False, indent=2))
+        if args.result_file:
+            report["schema"]="head-intelligence-exact-network-v1"
+            report["main_exe_sha256"]=hashlib.sha256(Path(sys.executable).read_bytes()).hexdigest() if getattr(sys,"frozen",False) else None
+            service.engine.storage._atomic_write_bytes(Path(args.result_file), json.dumps(report, ensure_ascii=False, indent=2).encode("utf-8"))
+        if sys.stdout is not None:
+            print(json.dumps(report, ensure_ascii=False, indent=2))
         return 0 if report["status"] == "PASS" and report["deduped_count"] > 0 else 2
 
     if args.gui_smoke:

@@ -65,9 +65,10 @@ class InformationEngine:
     ):
         if storage is None:
             if data_dir is None:
+                configured = os.environ.get("HEAD_INTELLIGENCE_DATA_DIR")
                 local = os.environ.get("LOCALAPPDATA")
                 base = Path(local) if local else Path.home()
-                data_dir = base / APP_NAME
+                data_dir = Path(configured) if configured else base / APP_NAME
             storage = AtomicStorage(Path(data_dir))
         self.storage = storage
         self.data_dir = storage.data_dir
@@ -132,6 +133,8 @@ class InformationEngine:
 
         # Hard rule: a failed update never overwrites the last known-good snapshot.
         if status == "PASS":
+            from head_intelligence.repair import preserve_snapshot
+            preserve_snapshot(self.storage, report.to_dict())
             self.storage.save_json_atomic(SNAPSHOT_FILE, report.to_dict())
         return report
 
@@ -186,6 +189,9 @@ class InformationEngine:
             "health": health["status"] == "PASS",
         }
         result = {
+            "schema": "head-intelligence-main-self-test-v1",
+            "application": APP_NAME,
+            "version": APP_VERSION,
             "status": "PASS" if all(checks.values()) else "FAIL",
             "checks": checks,
             "health": health,
