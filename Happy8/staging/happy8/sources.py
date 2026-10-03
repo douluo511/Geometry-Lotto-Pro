@@ -4,6 +4,7 @@ import hashlib
 import html
 import json
 import re
+import requests
 from dataclasses import asdict, dataclass
 from datetime import date, datetime
 from typing import Any
@@ -14,6 +15,7 @@ from .net_client import NetClient
 
 
 NATIONAL_URL = "https://www.cwl.gov.cn/cwl_admin/front/cwlkj/search/kjxx/findDrawNotice"
+NATIONAL_LANDING_URL = "https://www.cwl.gov.cn/ygkj/wqkjgg/kl8/"
 SHANGHAI_HISTORY_URL = "https://www.swlc.net.cn/lottery/kl8.html"
 HAPPY8_HISTORY_START_ISSUE = "2020001"
 JIANGSU_URL = "https://www.jslottery.com/"
@@ -162,12 +164,65 @@ def fetch_national_full_history() -> tuple[list[Draw], SourceReceipt, dict[str, 
     all_draws: list[Draw] = []
     raw_sources: dict[str, bytes] = {}
     manifest: list[dict[str, Any]] = []
-    headers = dict(HEADERS)
-    headers["Referer"] = "https://www.cwl.gov.cn/"
+
+    # CWL currently protects the JSON endpoint with same-site session state.
+    # Acquire that state from the official Happy8 history page first, using
+    # the same requests.Session for every API page. All network traffic still
+    # goes through NetClient, so timeout/retry/HTTPS/attempt-ledger rules stay
+    # centralized and auditable.
+    session = requests.Session()
+    national_net = NetClient(
+        connect_timeout=10,
+        read_timeout=30,
+        max_attempts=3,
+        session=session,
+    )
+    landing_headers = {
+        "User-Agent": HEADERS["User-Agent"],
+        "Accept": "text/html,application/xhtml+xml;q=0.9,*/*;q=0.5",
+        "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.5",
+        "Referer": "https://www.cwl.gov.cn/",
+    }
+    bootstrap = national_net.get(
+        NATIONAL_LANDING_URL,
+        headers=landing_headers,
+        timeout=(10, 30),
+        allow_redirects=True,
+    )
+    bootstrap_raw = _validate_html_response(bootstrap)
+    bootstrap_url = urlsplit(str(getattr(bootstrap, "url", "") or NATIONAL_LANDING_URL))
+    if (
+        bootstrap_url.scheme.lower() != "https"
+        or bootstrap_url.hostname != urlsplit(NATIONAL_LANDING_URL).hostname
+    ):
+        raise RuntimeError("CWL Happy8 session bootstrap left official HTTPS host")
+    bootstrap_record = {
+        "url": str(getattr(bootstrap, "url", "") or NATIONAL_LANDING_URL),
+        "http_status": int(bootstrap.status_code),
+        "sha256": hashlib.sha256(bootstrap_raw).hexdigest(),
+        "bytes": len(bootstrap_raw),
+        "attempts": list(getattr(bootstrap, "happy8_attempts", ())),
+        "cookie_names": sorted(session.cookies.keys()),
+    }
+    raw_sources["national_session_bootstrap.html"] = bootstrap_raw
+
+    headers = {
+        "User-Agent": HEADERS["User-Agent"],
+        "Accept": "application/json, text/javascript, */*; q=0.01",
+        "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.5",
+        "Referer": NATIONAL_LANDING_URL,
+        "X-Requested-With": "XMLHttpRequest",
+    }
 
     while True:
         params = _national_params(page, page_size)
-        response = NET.get(NATIONAL_URL, params=params, headers=headers, timeout=(10, 30), allow_redirects=True)
+        response = national_net.get(
+            NATIONAL_URL,
+            params=params,
+            headers=headers,
+            timeout=(10, 30),
+            allow_redirects=True,
+        )
         actual = urlsplit(str(getattr(response, "url", "") or NATIONAL_URL))
         if actual.scheme.lower() != "https" or actual.hostname != urlsplit(NATIONAL_URL).hostname:
             raise RuntimeError("CWL Happy8 response left official HTTPS host")
@@ -187,6 +242,7 @@ def fetch_national_full_history() -> tuple[list[Draw], SourceReceipt, dict[str, 
         raw_sources[filename] = raw
         manifest.append({
             "sequence": page,
+            **({"session_bootstrap": bootstrap_record} if page == 1 else {}),
             "page": page,
             "filename": filename,
             "http_status": int(response.status_code),
@@ -230,8 +286,8 @@ def fetch_national_full_history() -> tuple[list[Draw], SourceReceipt, dict[str, 
         url=NATIONAL_URL,
         http_status=200,
         fetched_at=_utc_now(),
-        raw_sha256=_sha256_json(manifest),
-        bytes=sum(int(x["bytes"]) for x in manifest),
+        raw_sha256=_sha256_json({"session_bootstrap": bootstrap_record, "pages": manifest}),
+        bytes=len(bootstrap_raw) + sum(int(x["bytes"]) for x in manifest),
         draw_count=len(ordered),
         latest_issue=ordered[-1].issue,
         status="PASS",
