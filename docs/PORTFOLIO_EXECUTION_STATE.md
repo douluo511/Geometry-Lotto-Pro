@@ -271,3 +271,16 @@ Do not label any project Final until Engineering=100%, Business=100%, hard_fail_
 - Updater verification hardening: commit `c85aaedf27029b41f9fe64a3b757e5800382cf38` introduces a single transaction `_replace_path` seam for target replacement/rollback; commit `a83593739fb8692ad8d38adf9a171a3bc6079ae5` injects the rollback failure at that exact seam, preserving production behavior while making the negative path deterministic and auditable.
 - Current exact Happy8 head is `a83593739fb8692ad8d38adf9a171a3bc6079ae5`. All behavior-affected Updater → GUI → post-GUI Same Hash → business/engineering/final evidence from `5d40870...` is invalidated. Fresh current-head execution is **NOT VERIFIED** until Actions starts and completes.
 - Independent repository and real independent production Release N→N+1 remain externally BLOCKED because the active GitHub connection still exposes only the shared repository and no repository-creation action.
+
+
+## 2026-10-03 Happy8 exact-head 37115046359 result and updater injection fix
+
+- Exact candidate head `a83593739fb8692ad8d38adf9a171a3bc6079ae5`, run `37115046359`, job `111180135949` completed overall **FAIL**, but current-run hard evidence closed the main technical chain through Real Network, Science, reproducible Windows Exact EXE, Physical GUI and post-GUI Same Hash.
+- Exact EXE / physical GUI evidence: main EXE SHA-256 before and after physical GUI was `1fa4f92b5757a8e94539909fecce0f9628bbff538e7ede0a3a701ae00d0aa761`; all four frozen GUI entries were physically activated and produced visible desktop changes; physical GUI status PASS; post-GUI Same Hash PASS.
+- Business acceptance for this exact head derived `7/8 = 87.5%`: B01/B02/B03/B04/B05/B06/B08 PASS; B07 BLOCKED only because real independent production Release N→N+1 evidence is missing.
+- Engineering acceptance for this exact head derived `15/19 = 78.9474%`: E01-E07 PASS, E08 FAIL, E09-E16 PASS, E17/E18/E19 BLOCKED.
+- E08 remained a real FAIL. Raw `happy8-updater-gate-v2` still showed `rollback_failure_retains_recovery_state=FAIL`, `restart_recovery_restores_previous_exe=FAIL`, `rollback_injection_count=0`. The Actions step summary could appear success because the workflow uses continue-on-error; raw evidence controls acceptance.
+- Root cause of the remaining E08 failure was the test injector's Windows absolute-path string equality, not the production rollback path: the failed update reported action `ROLLED_BACK`, proving rollback occurred, while the injector never matched the backup->target replacement.
+- Fix commit `64dfe1b9274abecd972edaa52c928f10cb2b6b23` changes rollback-failure injection to the transaction semantic boundary `_replace_path(<*.backup>, <target exe>)` and records every observed replace call. Product updater behavior is unchanged.
+- Fresh exact-head run `37116813770` has started for `64dfe1b9274abecd972edaa52c928f10cb2b6b23`; all current-head gates remain NOT VERIFIED until this run executes them.
+- External blockers remain unchanged: E17 dedicated independent Happy8 repository BLOCKED; E18 real independent Release N→N+1 BLOCKED; therefore E19 unique final artifact BLOCKED and Final Gate FAIL.
