@@ -20,7 +20,7 @@ No completion percentage is recorded here unless the frozen engineering/business
 | 2 | DLT | PR #79 head `2307de52d652f09b069b21f3ed47e0cf9e5b0d0e`; run `37033563762` previously recorded Final Gate hard_fail_count=4 | independent repo + real N→N+1 updater/release B05 | FAIL / BLOCKED |
 | 3 | Psychology Insight Pro | migration/export verified by PR #70 run `36717644465` | independent target repository / full post-migration release chain | BLOCKED |
 | 4 | Human Nature System | migration/export verified by PR #68 run `36717622699` | independent target repository / full post-migration release chain | BLOCKED |
-| 5 | Investment Finance Pro | migration/export verified by PR #70 run `36717644465` | independent target repository / full post-migration release chain | BLOCKED |
+| 5 | Investment Finance Pro | PR #2 head `6e4b9a39817a94175775e2b51c5d27b5d4308b96`; run `36534071430` PASS incl. business/OOS/Real Network/Exact EXE/4-button GUI/Same Hash/Final Gate; exact EXE SHA `4f5cfde6a85601ff9c63e370a63be08b87af8d87e312bc829f32f624c99fa2c2`; migration export PR #70 run `36717644465` | independent target repository + real independent N→N+1 updater/formal release; old technical chain remains valid until migrated/changed | BLOCKED |
 | 6 | English Root Intelligence | migration/export verified by PR #70 run `36717644465` | independent target repository / full post-migration release chain | BLOCKED |
 | 7 | Guoxue Zhice | migration/export verified by PR #70 run `36717644465` | independent target repository / full post-migration release chain | BLOCKED |
 | 8 | Head Intelligence | migration/export verified by PR #70 run `36717644465` | independent target repository / full post-migration release chain | BLOCKED |
