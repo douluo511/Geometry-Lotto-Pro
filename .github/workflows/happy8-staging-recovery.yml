@@ -44,6 +44,11 @@ jobs:
         with:
           python-version: '3.11.9'
           architecture: 'x64'
+      - name: Governance and architecture gate
+        id: governance_gate
+        continue-on-error: true
+        run: python scripts/governance_architecture_gate.py
+
       - name: Install pinned dependencies
         run: python -m pip install --disable-pip-version-check -r requirements.txt
       - name: Application source self-test
@@ -356,6 +361,7 @@ jobs:
         run: |
           $failures = @()
           if ('${{ steps.checkout_identity.outcome }}' -ne 'success') { $failures += 'checkout_identity' }
+          if ('${{ steps.governance_gate.outcome }}' -ne 'success') { $failures += 'governance_architecture' }
           if ('${{ steps.compile_gate.outcome }}' -ne 'success') { $failures += 'compile' }
           if ('${{ steps.unit_gate.outcome }}' -ne 'success') { $failures += 'unit' }
           if ('${{ steps.fault_injection_gate.outcome }}' -ne 'success') { $failures += 'fault_injection' }
@@ -378,6 +384,7 @@ jobs:
           if ('${{ steps.live_gate.outcome }}' -eq 'success' -and '${{ steps.science_gate.outcome }}' -eq 'success' -and '${{ steps.business_final.outcome }}' -ne 'success') { $failures += 'business_final' }
 
           Write-Host "CHECKOUT_IDENTITY=${{ steps.checkout_identity.outcome }}"
+          Write-Host "GOVERNANCE_ARCHITECTURE=${{ steps.governance_gate.outcome }}"
           Write-Host "COMPILE_GATE=${{ steps.compile_gate.outcome }}"
           Write-Host "UNIT_GATE=${{ steps.unit_gate.outcome }}"
           Write-Host "FAULT_INJECTION_GATE=${{ steps.fault_injection_gate.outcome }}"
