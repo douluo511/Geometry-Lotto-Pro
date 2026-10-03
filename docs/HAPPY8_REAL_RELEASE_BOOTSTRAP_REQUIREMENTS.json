@@ -63,5 +63,33 @@
       "real Release N and newer Release N+1"
     ],
     "note": "No URL, hostname, version, signature/hash, or release evidence is invented in this document."
+  },
+  "current_acceptance_head": "f59eba6c3bfdce0f83bb34f925fda529f9137be7",
+  "real_release_identity_requirements": {
+    "release_n_id": "REAL_UNIQUE_RELEASE_N_ID_REQUIRED",
+    "release_n1_id": "REAL_UNIQUE_RELEASE_N1_ID_REQUIRED",
+    "rule": "Release N and N+1 identities must be non-empty, distinct, and carried through current-run real release evidence."
+  },
+  "executable_acceptance": {
+    "real_n_to_n1": "Happy8/staging/scripts/real_release_update_acceptance.ps1",
+    "repository_independence": "Happy8/staging/scripts/repository_independence_gate.py",
+    "real_release_validator": "Happy8/staging/scripts/real_release_evidence.py",
+    "final_freeze_producer": "Happy8/staging/scripts/final_artifact_freeze.py",
+    "final_artifact_validator": "Happy8/staging/scripts/final_artifact_evidence.py",
+    "final_gui_modes": {
+      "blocked_release": "physical_gui_click_smoke.ps1 default mode; one-click update must fail closed and Repair surfaces external blocker",
+      "configured_release": "physical_gui_click_smoke.ps1 ConfiguredRelease; physical update must hand off to independent Updater and finish UP_TO_DATE on the frozen final EXE; Repair must PASS"
+    }
+  },
+  "current_run_binding": {
+    "required": true,
+    "real_release_producer": "happy8-real-release-acceptance-v1",
+    "final_artifact_producer": "happy8-final-artifact-freeze-v1",
+    "fields": [
+      "github_run_id",
+      "github_run_attempt",
+      "head_sha"
+    ],
+    "raw_evidence_must_be_git_untracked": true
   }
 }
