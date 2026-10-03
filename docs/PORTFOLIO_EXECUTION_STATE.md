@@ -253,3 +253,10 @@ Do not label any project Final until Engineering=100%, Business=100%, hard_fail_
 - Validation-only PR #88 was closed as superseded after exact-head PR #87 began triggering normally.
 - Current exact PR #87 head: `1da746d576ca1a999ee528c1ff86086ed8059f0e`. Current run: `37104068802`, **PENDING / NOT VERIFIED** at this record point. No pre-change Windows/EXE/GUI/Hash evidence is inherited.
 - Independent Happy8 repository creation and real production Release N→N+1 remain externally BLOCKED because the connected GitHub installation still exposes only `douluo511/Geometry-Lotto-Pro` and no repository-creation action. Final Gate remains FAIL.
+
+
+### Happy8 scope-reversal correction — independent repository name
+
+- A strict reverse-scope review caught an invented implementation constraint: the engineering derivation temporarily hard-coded a future repository name `douluo511/Geometry-Lotto-Pro-Happy8`. The frozen user requirement is only **a dedicated independent Happy8 repository**; no exact repository name was specified.
+- Commit `a19da81ccbe58ad1a77a5bf0030391d4f9edd7f1` removes that invented name requirement. Current monorepo `douluo511/Geometry-Lotto-Pro` remains explicitly BLOCKED for E17; a future non-monorepo checkout remains NOT VERIFIED until dedicated-project inventory/release evidence proves independence.
+- Exact current validation target is `a19da81ccbe58ad1a77a5bf0030391d4f9edd7f1`, run `37104387080`. At record time the run is PENDING / NOT VERIFIED. No earlier EXE/GUI/hash evidence is promoted across this workflow/source identity.
