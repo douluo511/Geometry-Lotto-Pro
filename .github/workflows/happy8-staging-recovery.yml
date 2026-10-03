@@ -40,6 +40,17 @@ jobs:
             expected_sha = $expected
             event_sha = '${{ github.sha }}'
           } | ConvertTo-Json | Set-Content -Encoding utf8 evidence/checkout_identity.json
+      - name: Repository independence evidence gate
+        id: repository_independence
+        if: always()
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          python scripts/repository_independence_gate.py `
+            --repository '${{ github.repository }}' `
+            --repo-root '../..' `
+            --output evidence/repository_independence.json
+
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: '3.11.9'
@@ -227,6 +238,23 @@ jobs:
             physical_gui_sha256 = $gui.exe_sha256_after
           } | ConvertTo-Json | Set-Content -Encoding utf8 evidence/post_gui_same_hash.json
 
+      - name: Real independent Release evidence validation
+        id: real_release_validation
+        if: always()
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $args = @(
+            'scripts/real_release_evidence.py',
+            '--repository','${{ github.repository }}',
+            '--source-sha','${{ github.event.pull_request.head.sha || github.sha }}',
+            '--output','evidence/real_release_validation.json'
+          )
+          if (Test-Path 'evidence/real_release_update.json') {
+            $args += @('--input','evidence/real_release_update.json')
+          }
+          python @args
+
       - name: Final business acceptance derivation
         id: business_final
         if: always() && steps.live_gate.outcome == 'success' && steps.science_gate.outcome == 'success'
@@ -247,8 +275,8 @@ jobs:
           if (Test-Path 'evidence/physical_gui_click.json') {
             $args += @('--physical-gui','evidence/physical_gui_click.json')
           }
-          if (Test-Path 'evidence/real_release_update.json') {
-            $args += @('--real-release','evidence/real_release_update.json')
+          if (Test-Path 'evidence/real_release_validation.json') {
+            $args += @('--real-release','evidence/real_release_validation.json')
           }
           python @args
 
@@ -289,18 +317,28 @@ jobs:
           $items.E15 = @{ status = S '${{ steps.physical_gui.outcome }}' }
           $items.E16 = @{ status = S '${{ steps.post_gui_same_hash.outcome }}' }
 
-          $sharedRepo = 'douluo511/Geometry-Lotto-Pro'
-          if ('${{ github.repository }}' -eq $sharedRepo) {
-            $items.E17 = @{ status = 'BLOCKED'; detail = 'current checkout is still the shared portfolio repository; a dedicated Happy8 repository is required but its name is not frozen' }
+          if (Test-Path 'evidence/repository_independence.json') {
+            $repoEvidence = Get-Content 'evidence/repository_independence.json' -Raw | ConvertFrom-Json
+            $repoStatus = [string]$repoEvidence.status
+            if (@('PASS','FAIL','BLOCKED','NOT VERIFIED') -notcontains $repoStatus) { $repoStatus = 'FAIL' }
+            $items.E17 = @{
+              status = $repoStatus
+              detail = $(if ($repoStatus -eq 'PASS') {'dedicated repository and project-only inventory verified'} elseif ($repoStatus -eq 'BLOCKED') {'dedicated Happy8 repository is not available on this checkout'} else {'repository independence evidence did not validate'})
+            }
           } else {
-            $items.E17 = @{ status = 'NOT VERIFIED'; detail = 'repository is no longer the shared monorepo, but dedicated-project inventory/release evidence must independently prove repository independence' }
+            $items.E17 = @{ status = 'NOT VERIFIED'; detail = 'repository independence evidence file missing' }
           }
 
-          if (Test-Path 'evidence/real_release_update.json') {
-            $rr = Get-Content 'evidence/real_release_update.json' -Raw | ConvertFrom-Json
-            $items.E18 = @{ status = $(if ($rr.status -eq 'PASS') {'PASS'} else {'FAIL'}); detail = 'real Release N→N+1 evidence file present' }
+          if (Test-Path 'evidence/real_release_validation.json') {
+            $rr = Get-Content 'evidence/real_release_validation.json' -Raw | ConvertFrom-Json
+            $rrStatus = [string]$rr.status
+            if (@('PASS','FAIL','BLOCKED','NOT VERIFIED') -notcontains $rrStatus) { $rrStatus = 'FAIL' }
+            $items.E18 = @{
+              status = $rrStatus
+              detail = $(if ($rrStatus -eq 'PASS') {'real independent Release N→N+1 evidence structurally and cryptographically cross-validated'} elseif ($rrStatus -eq 'BLOCKED') {'real independent Release N→N+1 evidence unavailable'} else {'real release evidence validation failed'})
+            }
           } else {
-            $items.E18 = @{ status = 'BLOCKED'; detail = 'real independent Release N→N+1 evidence unavailable' }
+            $items.E18 = @{ status = 'NOT VERIFIED'; detail = 'real release validation evidence file missing' }
           }
 
           $prior = @('E01','E02','E03','E04','E05','E06','E07','E08','E09','E10','E11','E12','E13','E14','E15','E16','E17','E18')
