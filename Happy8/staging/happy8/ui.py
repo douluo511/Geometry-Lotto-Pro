@@ -19,6 +19,11 @@ UI_SERVICE_BINDINGS = {
     "advanced": ("高级分析", "advanced_analysis"),
 }
 
+TRUTH_BOUNDARY = (
+    "仅供数学实验与娱乐，不构成投注建议或收益承诺。"
+    "快乐8每个号码理论边际概率为25%，固定选十理论平均命中2.5个。"
+)
+
 
 def source_ui_contract() -> dict[str, Any]:
     checks = {}
@@ -94,6 +99,15 @@ class Happy8Window(tk.Tk):
         scrollbar = ttk.Scrollbar(body, command=self.output.yview)
         scrollbar.grid(row=1, column=1, sticky="ns")
         self.output.configure(yscrollcommand=scrollbar.set)
+
+        self.truth_label = ttk.Label(
+            self,
+            text=TRUTH_BOUNDARY,
+            justify="left",
+            wraplength=860,
+            padding=(18, 0, 18, 12),
+        )
+        self.truth_label.grid(row=3, column=0, sticky="ew")
         self.after(100, self.refresh_status)
 
     def _set_busy(self, busy: bool) -> None:
@@ -195,4 +209,6 @@ def ui_contract(window: Happy8Window) -> dict[str, Any]:
         "buttons": actual,
         "commands_bound": commands_bound,
         "title": window.title(),
+        "truth_boundary": window.truth_label.cget("text"),
+        "truth_boundary_match": window.truth_label.cget("text") == TRUTH_BOUNDARY,
     }
