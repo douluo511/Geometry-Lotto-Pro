@@ -77,3 +77,18 @@ Any PENDING / WARNING / SKIPPED / UNKNOWN / UNAVAILABLE / FAIL remains non-PASS.
 - Real network current-version acceptance: **NOT PASS**
 - Repository independence: **FAIL / target repo not yet established**
 - Final Gate: **FAIL**
+
+
+## 2026-10-03 strict re-execution evidence
+
+The exact saved `Stock_AI_Pro_DELIVERABLE_FINAL.zip` bytes were recovered again from the user's persistent file library and materialized for direct inspection.
+
+- exact ZIP SHA-256 re-computed: `fedbc5378ed5916e487b9cdc70051d5d00f790e4689ba8ff96dc8f2396ac7e10` — matches the frozen recovered identity;
+- archive contains 187 entries, including active 4.3.0 source, rollback 4.2.0 source, Updater runtime, security/rollback tests, manifests and Windows acceptance entrypoints;
+- Python compile of the extracted source: PASS;
+- root component gates re-executed: distribution layout PASS, data separation PASS, updater transaction/security/rollback PASS, launcher UI-failure rollback PASS, schema rollback compatibility PASS, install fail-fast PASS, deterministic build PASS, distribution manifest bidirectional check PASS;
+- active 4.3 component gates re-executed: app contract, audit/5 Why/reversal, backtest, config migration, cost/valuation/decision, entrypoint self-heal, freshness fail-closed, model modes, three-model ensemble, network config, active manifest, prediction hash chain, provider normalization, R&D champion/challenger, self-test, storage, universe parser and healthcheck all PASS;
+- `integration_pipeline_test.py` isolated rerun: PASS in 5.98s;
+- bundled aggregate `run_full_check.py --offline`: NOT VERIFIED as an aggregate because two attempts reached `integration_pipeline_test.py` and hit the runner's finite child timeout before returning an aggregate verdict. This must not be promoted to full-suite PASS merely from the isolated component PASS.
+
+This recovery removes the stale statement that the exact delivery archive is unavailable. It does **not** satisfy the current product gates: exact source is not yet migrated into the current architecture/repository, the product is still ZIP/BAT/Streamlit rather than the frozen Windows desktop Exact EXE delivery, current Real Network is not verified, independent Updater release transaction is not verified, Windows Native Build/GUI Physical Click/Same Hash are not verified, repository independence remains FAIL, and Final Gate remains FAIL.
