@@ -49,7 +49,7 @@ def main() -> int:
     p.add_argument("--output", required=True)
     args = p.parse_args()
 
-    current = os.environ.get("GITHUB_SHA")
+    current = (os.environ.get("GUOXUE_SOURCE_SHA") or os.environ.get("GITHUB_SHA"))
     reports = {
         "architecture": read(ROOT / "architecture_gate.json"),
         "business": read(ROOT / "business_gate.json"),
