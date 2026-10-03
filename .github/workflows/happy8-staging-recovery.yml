@@ -39,6 +39,10 @@ jobs:
         id: storage_gate
         continue-on-error: true
         run: python scripts/storage_gate.py
+      - name: Scientific protocol contract gate
+        id: science_protocol_contract
+        continue-on-error: true
+        run: python scripts/science_protocol_contract.py
       - name: Application Service contract gate
         id: service_gate
         continue-on-error: true
@@ -234,6 +238,7 @@ jobs:
           if ('${{ steps.compile_gate.outcome }}' -ne 'success') { $failures += 'compile' }
           if ('${{ steps.contract_gate.outcome }}' -ne 'success') { $failures += 'domain_netclient_contract' }
           if ('${{ steps.storage_gate.outcome }}' -ne 'success') { $failures += 'storage_evidence' }
+          if ('${{ steps.science_protocol_contract.outcome }}' -ne 'success') { $failures += 'science_protocol_contract' }
           if ('${{ steps.service_gate.outcome }}' -ne 'success') { $failures += 'application_service' }
           if ('${{ steps.updater_gate.outcome }}' -ne 'success') { $failures += 'updater_contract_rollback' }
           if ('${{ steps.app_selftest.outcome }}' -ne 'success') { $failures += 'application_selftest' }
@@ -248,6 +253,7 @@ jobs:
           Write-Host "COMPILE_GATE=${{ steps.compile_gate.outcome }}"
           Write-Host "DOMAIN_NETCLIENT_CONTRACT=${{ steps.contract_gate.outcome }}"
           Write-Host "STORAGE_EVIDENCE_GATE=${{ steps.storage_gate.outcome }}"
+          Write-Host "SCIENCE_PROTOCOL_CONTRACT=${{ steps.science_protocol_contract.outcome }}"
           Write-Host "APPLICATION_SERVICE=${{ steps.service_gate.outcome }}"
           Write-Host "UPDATER_CONTRACT_ROLLBACK=${{ steps.updater_gate.outcome }}"
           Write-Host "APPLICATION_SELFTEST=${{ steps.app_selftest.outcome }}"
