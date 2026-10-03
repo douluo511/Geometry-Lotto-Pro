@@ -119,7 +119,8 @@ def main() -> int:
         checks["prediction_no_false_edge"] = {
             "status": "PASS"
             if (
-                prediction.get("edge_state") == "NO_EDGE"
+                prediction.get("status") == "PASS"
+                and prediction.get("edge_state") == "NO_EDGE"
                 and prediction.get("dan_state") == "NULL_DAN"
                 and not prediction.get("formal_dan")
                 and prediction.get("label") == "STRUCTURED_CANDIDATE_ONLY"
