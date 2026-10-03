@@ -36,7 +36,7 @@ def main() -> int:
         report = {
             "schema": "guoxue-real-software-release-validation-v1",
             "status": "BLOCKED",
-            "github_sha": os.environ.get("GITHUB_SHA"),
+            "github_sha": (os.environ.get("GUOXUE_SOURCE_SHA") or os.environ.get("GITHUB_SHA")),
             "repository": args.repository,
             "source_sha": args.source_sha,
             "detail": "real independent production Release N→N+1 evidence is unavailable",
@@ -133,7 +133,7 @@ def main() -> int:
         report = {
             "schema": "guoxue-real-software-release-validation-v1",
             "status": status,
-            "github_sha": os.environ.get("GITHUB_SHA"),
+            "github_sha": (os.environ.get("GUOXUE_SOURCE_SHA") or os.environ.get("GITHUB_SHA")),
             "repository": args.repository,
             "source_sha": args.source_sha,
             "checks": checks,
@@ -142,7 +142,7 @@ def main() -> int:
         report = {
             "schema": "guoxue-real-software-release-validation-v1",
             "status": "FAIL",
-            "github_sha": os.environ.get("GITHUB_SHA"),
+            "github_sha": (os.environ.get("GUOXUE_SOURCE_SHA") or os.environ.get("GITHUB_SHA")),
             "repository": args.repository,
             "source_sha": args.source_sha,
             "error": f"{type(exc).__name__}: {exc}",
