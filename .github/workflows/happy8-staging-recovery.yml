@@ -287,8 +287,8 @@ jobs:
             Write-Host 'FINAL_ARTIFACT_FREEZE=BLOCKED_UPSTREAM'
             exit 0
           }
-          $releaseId = [string]$releaseEvidence.checks.monotonic_versions.to_version
-          if ([string]::IsNullOrWhiteSpace($releaseId)) { throw 'validated release version is unavailable for formal release id' }
+          $releaseId = [string]$releaseEvidence.checks.release_ids.release_n1_id
+          if ([string]::IsNullOrWhiteSpace($releaseId)) { throw 'validated N+1 release identity is unavailable for final freeze' }
           python scripts/final_artifact_freeze.py `
             --repository '${{ github.repository }}' `
             --source-sha '${{ github.event.pull_request.head.sha || github.sha }}' `
