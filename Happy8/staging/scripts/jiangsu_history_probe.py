@@ -145,6 +145,32 @@ def inspect_page(page: int, periods: str = "") -> dict:
                 "date": f"{date_match.group(1)}-{date_match.group(2)}-{date_match.group(3)}",
                 "article_url": absolute,
             })
+    # The Jiangsu official index visibly renders rows in the form
+    # "第2020001期开奖公告 2020-10-30".  Do not depend solely on the
+    # linked CWL article URL for the date because some historical rows have
+    # incomplete/different link metadata.  Bind issue+date only when they
+    # appear together in the official page text, and let the reconciliation
+    # layer reject any conflict.
+    visible_pairs = []
+    for match in re.finditer(
+        r"(?:第\s*)?(20\d{5})\s*期[^0-9]{0,80}(20\d{2}-\d{2}-\d{2})",
+        plain,
+    ):
+        pair = {
+            "issue": match.group(1),
+            "date": match.group(2),
+            "article_url": None,
+            "evidence": "jiangsu_visible_index_text",
+        }
+        if pair not in visible_pairs:
+            visible_pairs.append(pair)
+    for pair in visible_pairs:
+        if not any(
+            hint.get("issue") == pair["issue"] and hint.get("date") == pair["date"]
+            for hint in issue_date_hints
+        ):
+            issue_date_hints.append(pair)
+
     pagination = []
     for href in re.findall(r"(?is)href\s*=\s*['\"]([^'\"]+)['\"]", markup):
         absolute = urljoin(final_url, html.unescape(href))
