@@ -255,6 +255,25 @@ jobs:
           }
           python @args
 
+      - name: Unique final artifact evidence validation
+        id: final_artifact_validation
+        if: always()
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $args = @(
+            'scripts/final_artifact_evidence.py',
+            '--repository','${{ github.repository }}',
+            '--source-sha','${{ github.event.pull_request.head.sha || github.sha }}',
+            '--output','evidence/final_artifact_validation.json'
+          )
+          if (Test-Path 'evidence/FINAL_ARTIFACT.json') { $args += @('--input','evidence/FINAL_ARTIFACT.json') }
+          if (Test-Path 'evidence/windows_exact_exe.json') { $args += @('--windows','evidence/windows_exact_exe.json') }
+          if (Test-Path 'evidence/physical_gui_click.json') { $args += @('--physical-gui','evidence/physical_gui_click.json') }
+          if (Test-Path 'evidence/post_gui_same_hash.json') { $args += @('--same-hash','evidence/post_gui_same_hash.json') }
+          if (Test-Path 'evidence/real_release_validation.json') { $args += @('--real-release','evidence/real_release_validation.json') }
+          python @args
+
       - name: Final business acceptance derivation
         id: business_final
         if: always() && steps.live_gate.outcome == 'success' && steps.science_gate.outcome == 'success'
@@ -343,13 +362,18 @@ jobs:
 
           $prior = @('E01','E02','E03','E04','E05','E06','E07','E08','E09','E10','E11','E12','E13','E14','E15','E16','E17','E18')
           $allPriorPass = @($prior | Where-Object { $items[$_].status -ne 'PASS' }).Count -eq 0
-          if ($allPriorPass -and (Test-Path 'evidence/FINAL_ARTIFACT.json')) {
-            $fa = Get-Content 'evidence/FINAL_ARTIFACT.json' -Raw | ConvertFrom-Json
-            $items.E19 = @{ status = $(if ($fa.status -eq 'PASS') {'PASS'} else {'FAIL'}); detail = 'unique final artifact manifest' }
-          } elseif (-not $allPriorPass) {
+          if (-not $allPriorPass) {
             $items.E19 = @{ status = 'BLOCKED'; detail = 'upstream engineering/release gates are not all PASS' }
+          } elseif (Test-Path 'evidence/final_artifact_validation.json') {
+            $fa = Get-Content 'evidence/final_artifact_validation.json' -Raw | ConvertFrom-Json
+            $faStatus = [string]$fa.status
+            if (@('PASS','FAIL','BLOCKED','NOT VERIFIED') -notcontains $faStatus) { $faStatus = 'FAIL' }
+            $items.E19 = @{
+              status = $faStatus
+              detail = $(if ($faStatus -eq 'PASS') {'unique formal release artifact cross-validated against current EXE/Updater/GUI/Hash/release evidence'} elseif ($faStatus -eq 'NOT VERIFIED') {'unique final artifact manifest not generated'} else {'unique final artifact evidence validation did not pass'})
+            }
           } else {
-            $items.E19 = @{ status = 'NOT VERIFIED'; detail = 'unique final artifact not generated' }
+            $items.E19 = @{ status = 'NOT VERIFIED'; detail = 'final artifact validation evidence file missing' }
           }
 
           $weights = @{}
@@ -385,7 +409,7 @@ jobs:
           $same = if (Test-Path 'evidence/post_gui_same_hash.json') { Get-Content 'evidence/post_gui_same_hash.json' -Raw | ConvertFrom-Json } else { $null }
           $gui = if (Test-Path 'evidence/physical_gui_click.json') { Get-Content 'evidence/physical_gui_click.json' -Raw | ConvertFrom-Json } else { $null }
           $win = if (Test-Path 'evidence/windows_exact_exe.json') { Get-Content 'evidence/windows_exact_exe.json' -Raw | ConvertFrom-Json } else { $null }
-          $finalArtifact = if (Test-Path 'evidence/FINAL_ARTIFACT.json') { Get-Content 'evidence/FINAL_ARTIFACT.json' -Raw | ConvertFrom-Json } else { $null }
+          $finalArtifact = if (Test-Path 'evidence/final_artifact_validation.json') { Get-Content 'evidence/final_artifact_validation.json' -Raw | ConvertFrom-Json } else { $null }
           $pass = (
             $null -ne $eng -and $eng.status -eq 'PASS' -and [double]$eng.completion_percent -eq 100.0 -and
             $null -ne $biz -and $biz.status -eq 'PASS' -and [double]$biz.completion_percent -eq 100.0 -and
