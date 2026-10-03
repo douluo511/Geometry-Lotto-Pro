@@ -22,7 +22,8 @@ HEADERS = {
     "Accept": "text/html,application/xhtml+xml,application/javascript,text/javascript,*/*;q=0.5",
     "Referer": "https://www.zhcw.com/",
 }
-NET = NetClient(connect_timeout=5, read_timeout=12, max_attempts=1)\nMAX_SCRIPT_FETCHES = 8
+NET = NetClient(connect_timeout=5, read_timeout=12, max_attempts=1)
+MAX_SCRIPT_FETCHES = 8
 
 
 def _decode(raw: bytes) -> str:
