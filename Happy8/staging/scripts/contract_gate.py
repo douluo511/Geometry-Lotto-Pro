@@ -12,7 +12,12 @@ sys.path.insert(0, str(ROOT))
 
 from happy8.domain import Draw
 from happy8.net_client import NetClient
-from happy8.sources import _official_host, _parse_fuzhou_number_rows, _parse_jiangsu_issue_dates
+from happy8.sources import (
+    _market_calendar_date_for_issue,
+    _official_host,
+    _parse_fuzhou_number_rows,
+    _parse_jiangsu_issue_dates,
+)
 
 
 class FakeResponse:
@@ -82,6 +87,42 @@ def main() -> int:
         raise AssertionError("HTTPS downgrade accepted")
     except requests.RequestException:
         checks["redirect_downgrade_fail_closed"] = {"status": "PASS"}
+
+    calendar_anchors = {
+        "2020001": "2020-10-28",
+        "2021016": "2021-01-16",
+        "2021039": "2021-02-08",
+        "2021040": "2021-02-19",
+        "2021157": "2021-06-16",
+        "2021160": "2021-06-19",
+        "2021161": "2021-06-20",
+        "2021162": "2021-06-21",
+        "2021263": "2021-09-30",
+        "2021264": "2021-10-05",
+        "2026263": "2026-09-30",
+    }
+    actual_calendar = {
+        issue: _market_calendar_date_for_issue(issue)
+        for issue in calendar_anchors
+    }
+    if actual_calendar != calendar_anchors:
+        raise AssertionError(
+            f"MOF market-calendar derivation drifted: {actual_calendar!r}"
+        )
+    checks["mof_market_calendar_anchor_contract"] = {
+        "status": "PASS",
+        "anchors": actual_calendar,
+    }
+
+    for invalid_issue in ("2021000", "2021360", "2019999", "bad"):
+        try:
+            _market_calendar_date_for_issue(invalid_issue)
+            raise AssertionError(
+                f"invalid/out-of-range market-calendar issue accepted: {invalid_issue}"
+            )
+        except RuntimeError:
+            pass
+    checks["mof_market_calendar_invalid_issue_fail_closed"] = {"status": "PASS"}
 
     jiangsu_html = """
     <html><body>
