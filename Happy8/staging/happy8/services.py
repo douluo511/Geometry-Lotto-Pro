@@ -184,14 +184,16 @@ class Happy8Service:
         repaired = None
         if before.get("status") == "PASS":
             snapshot = self.store.read_current_snapshot()
-            components["data_store"] = {
+            components["database"] = {
                 "status": "PASS",
-                "action": "NO_CHANGE_REQUIRED",
+                "action": "GENERATION_STORE_VERIFIED",
+                "implementation": "generation_file_store",
                 "generation_id": snapshot["generation_id"],
             }
-            components["index_pointer"] = {
+            components["index"] = {
                 "status": "PASS",
                 "action": "CURRENT_POINTER_VERIFIED",
+                "implementation": "CURRENT.json",
             }
             components["missing_files"] = {
                 "status": "PASS",
@@ -200,28 +202,32 @@ class Happy8Service:
         else:
             repaired = self.store.repair_current_pointer()
             if repaired.get("status") == "PASS":
-                components["data_store"] = {
+                components["database"] = {
                     "status": "PASS",
                     "action": "RESTORED_VERIFIED_GENERATION",
+                    "implementation": "generation_file_store",
                     "generation_id": repaired["generation_id"],
                 }
-                components["index_pointer"] = {
+                components["index"] = {
                     "status": "PASS",
                     "action": "REBUILT_FROM_VERIFIED_GENERATION",
+                    "implementation": "CURRENT.json",
                 }
                 components["missing_files"] = {
                     "status": "PASS",
                     "action": "RECOVERED_BY_VERIFIED_GENERATION_SWITCH",
                 }
             else:
-                components["data_store"] = {
+                components["database"] = {
                     "status": "FAIL",
                     "action": "NO_VALID_GENERATION",
+                    "implementation": "generation_file_store",
                     "detail": repaired,
                 }
-                components["index_pointer"] = {
+                components["index"] = {
                     "status": "FAIL",
                     "action": "NO_SAFE_POINTER_TARGET",
+                    "implementation": "CURRENT.json",
                 }
                 components["missing_files"] = {
                     "status": "FAIL",
@@ -293,7 +299,7 @@ class Happy8Service:
             env_checks.get("network_config")
             or {"status": environment.get("status", "FAIL"), "detail": "network config check missing"}
         )
-        components["version_contract"] = dict(
+        components["version"] = dict(
             env_checks.get("version_contract")
             or {"status": environment.get("status", "FAIL"), "detail": "version contract check missing"}
         )
