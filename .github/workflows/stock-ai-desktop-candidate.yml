@@ -84,6 +84,53 @@ jobs:
           if ($before -ne $after) { throw "EXE changed after repair worker: $before != $after" }
           Write-Host "FROZEN_REPAIR_WORKER=PASS; EXE_SHA256=$after"
 
+      - name: Frozen EXE real-network core function
+        shell: pwsh
+        run: |
+          $exe = Resolve-Path ./dist/StockAIPro/StockAIPro.exe
+          $root = Resolve-Path ./dist/StockAIPro/_internal/Stock_AI_Pro
+          $data = Join-Path $env:RUNNER_TEMP "stock-ai-frozen-business"
+          $env:STOCK_AI_DATA_ROOT = $data
+          $before = (Get-FileHash -Algorithm SHA256 $exe).Hash.ToLowerInvariant()
+          & $exe --worker core --package-root $root
+          if ($LASTEXITCODE -ne 0) { throw "frozen core worker failed rc=$LASTEXITCODE" }
+          $lastRun = Join-Path $data "state/last_run.json"
+          if (!(Test-Path $lastRun)) { throw "frozen core produced no last_run.json" }
+          $last = Get-Content -Raw $lastRun | ConvertFrom-Json
+          if ($last.status -eq "FAIL") { throw "frozen core last_run status FAIL: $($last.error)" }
+          $latest = Join-Path $data "predictions/latest/summary.json"
+          if (!(Test-Path $latest)) { throw "frozen core produced no frozen prediction summary" }
+          $after = (Get-FileHash -Algorithm SHA256 $exe).Hash.ToLowerInvariant()
+          if ($before -ne $after) { throw "EXE changed after frozen core: $before != $after" }
+          [ordered]@{
+            status = "PASS"
+            action = "core"
+            exe_sha256_before = $before
+            exe_sha256_after = $after
+            last_run_status = $last.status
+            prediction_summary = $latest
+          } | ConvertTo-Json -Depth 5 | Set-Content -Encoding UTF8 ./desktop_frozen_core_evidence.json
+
+      - name: Frozen EXE advanced analysis
+        shell: pwsh
+        run: |
+          $exe = Resolve-Path ./dist/StockAIPro/StockAIPro.exe
+          $root = Resolve-Path ./dist/StockAIPro/_internal/Stock_AI_Pro
+          $env:STOCK_AI_DATA_ROOT = Join-Path $env:RUNNER_TEMP "stock-ai-frozen-business"
+          $before = (Get-FileHash -Algorithm SHA256 $exe).Hash.ToLowerInvariant()
+          & $exe --worker advanced --package-root $root
+          if ($LASTEXITCODE -ne 0) { throw "frozen advanced worker failed rc=$LASTEXITCODE" }
+          if (!(Test-Path (Join-Path $env:STOCK_AI_DATA_ROOT "reports/audit_report.json"))) { throw "audit report missing" }
+          if (!(Test-Path (Join-Path $env:STOCK_AI_DATA_ROOT "reports/backtest_summary.json"))) { throw "backtest summary missing" }
+          $after = (Get-FileHash -Algorithm SHA256 $exe).Hash.ToLowerInvariant()
+          if ($before -ne $after) { throw "EXE changed after advanced analysis: $before != $after" }
+          [ordered]@{
+            status = "PASS"
+            action = "advanced_analysis"
+            exe_sha256_before = $before
+            exe_sha256_after = $after
+          } | ConvertTo-Json -Depth 5 | Set-Content -Encoding UTF8 ./desktop_frozen_advanced_evidence.json
+
       - name: Independent updater exposes missing production release as BLOCKED
         shell: pwsh
         run: |
@@ -103,6 +150,8 @@ jobs:
             StockAIPro/desktop_native_contract_evidence.json
             StockAIPro/desktop_windows_build_evidence.json
             StockAIPro/desktop_exact_exe_evidence.json
+            StockAIPro/desktop_frozen_core_evidence.json
+            StockAIPro/desktop_frozen_advanced_evidence.json
           if-no-files-found: warn
 
       - name: Explicit Final boundary
