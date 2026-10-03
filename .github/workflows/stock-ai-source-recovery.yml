@@ -3,7 +3,13 @@ on:
   workflow_dispatch:
   pull_request:
     paths:
-      - 'StockAIPro/**'
+      - 'StockAIPro/recovered_exact/**'
+      - 'StockAIPro/staging/**'
+      - 'StockAIPro/verify_recovery.py'
+      - 'StockAIPro/requirements-offline-ci.txt'
+      - 'StockAIPro/hardening_tests/netclient_contract_test.py'
+      - 'StockAIPro/hardening_tests/universe_fallback_test.py'
+      - 'StockAIPro/hardening_tests/real_network_gate.py'
       - '.github/workflows/stock-ai-source-recovery.yml'
 concurrency:
   group: stock-ai-source-recovery-${{ github.event.pull_request.number || github.ref }}

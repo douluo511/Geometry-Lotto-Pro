@@ -3,7 +3,8 @@ on:
   workflow_dispatch:
   pull_request:
     paths:
-      - 'StockAIPro/**'
+      - 'StockAIPro/staging/**'
+      - 'StockAIPro/hardening_tests/full_daily_business_gate.py'
       - '.github/workflows/stock-ai-business-real-network.yml'
 concurrency:
   group: stock-ai-business-${{ github.event.pull_request.number || github.ref }}
