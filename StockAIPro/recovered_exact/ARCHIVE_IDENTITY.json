@@ -1,0 +1,11 @@
+{
+  "schema": "stock-ai-pro-exact-archive-import-v1",
+  "original_file": "Stock_AI_Pro_DELIVERABLE_FINAL.zip",
+  "original_size_bytes": 225815,
+  "original_sha256": "fedbc5378ed5916e487b9cdc70051d5d00f790e4689ba8ff96dc8f2396ac7e10",
+  "archive_entries": 187,
+  "active_version": "4.3.0",
+  "rollback_version": "4.2.0",
+  "import_note": "Exact archive bytes were re-materialized and SHA-256 reverified before extracting UTF-8 source files. This Git import does not claim that the ZIP container bytes themselves are stored in Git.",
+  "final_gate": "FAIL"
+}
