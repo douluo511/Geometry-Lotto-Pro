@@ -19,6 +19,9 @@ NATIONAL_LANDING_URL = "https://www.cwl.gov.cn/ygkj/wqkjgg/kl8/"
 SHANGHAI_HISTORY_URL = "https://www.swlc.net.cn/lottery/kl8.html"
 HAPPY8_HISTORY_START_ISSUE = "2020001"
 JIANGSU_URL = "https://www.jslottery.com/"
+JIANGSU_HISTORY_URL = "https://www.jslottery.com/winning_history_a"
+FUZHOU_HISTORY_URL = "https://www.jxfzfc.cn/lottery.php"
+FUZHOU_AUTHORITY_MARKER = "抚州市慈善和福利彩票事业发展中心"
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Happy8Evidence/0.3",
     "Accept": "application/json,text/html;q=0.9,application/xhtml+xml;q=0.8,*/*;q=0.5",
@@ -496,6 +499,279 @@ def fetch_shanghai_full_history() -> tuple[list[Draw], SourceReceipt, dict[str, 
     return ordered, receipt, raw_sources, manifest
 
 
+
+def _decode_html(raw: bytes) -> str:
+    for encoding in ("utf-8-sig", "utf-8", "gb18030"):
+        try:
+            return raw.decode(encoding)
+        except UnicodeDecodeError:
+            pass
+    return raw.decode("utf-8", errors="replace")
+
+
+def _official_host(url: str, allowed: set[str]) -> bool:
+    parsed = urlsplit(url)
+    return parsed.scheme.lower() == "https" and parsed.hostname in allowed
+
+
+def _pagination_from_links(markup: str, *, source: str) -> list[int]:
+    pages: list[int] = []
+    for href in re.findall(r"(?is)href\s*=\s*['\"]([^'\"]+)['\"]", markup):
+        query = dict(parse_qsl(urlsplit(html.unescape(href)).query, keep_blank_values=True))
+        if source == "fuzhou":
+            if query.get("play") != "kl8" or "page" not in query:
+                continue
+        elif source == "jiangsu":
+            if query.get("lottery_type_id") != "17" or "page" not in query:
+                continue
+        else:
+            raise ValueError(f"unknown pagination source: {source}")
+        try:
+            pages.append(int(query["page"]))
+        except Exception:
+            continue
+    return sorted(set(pages))
+
+
+def _parse_fuzhou_number_rows(markup: str) -> dict[str, tuple[int, ...]]:
+    rows: dict[str, tuple[int, ...]] = {}
+    for body in re.findall(r"(?is)<tr\b[^>]*>(.*?)</tr>", markup):
+        cells = [_plain(cell) for cell in re.findall(r"(?is)<t[dh]\b[^>]*>(.*?)</t[dh]>", body)]
+        joined = " ".join(cells)
+        issue_match = re.search(r"(?<!\d)(20\d{5})(?!\d)", joined)
+        if not issue_match:
+            continue
+        numbers: list[int] = []
+        for cell in cells:
+            token = cell.strip()
+            if re.fullmatch(r"0?[1-9]|[1-7]\d|80", token):
+                numbers.append(int(token))
+        if len(numbers) != 20 or len(set(numbers)) != 20 or not all(1 <= n <= 80 for n in numbers):
+            continue
+        issue = issue_match.group(1)
+        value = tuple(numbers)
+        previous = rows.get(issue)
+        if previous is not None and previous != value:
+            raise RuntimeError(f"Fuzhou official source conflict for issue {issue}")
+        rows[issue] = value
+    return rows
+
+
+def _parse_jiangsu_issue_dates(markup: str) -> dict[str, str]:
+    plain = _plain(markup)
+    pairs: dict[str, str] = {}
+
+    # Primary contract: visible official index text binds issue and ISO date.
+    for match in re.finditer(
+        r"(?:第\s*)?(20\d{5})\s*期[^0-9]{0,80}(20\d{2}-\d{2}-\d{2})",
+        plain,
+    ):
+        issue, day = match.group(1), match.group(2)
+        previous = pairs.get(issue)
+        if previous is not None and previous != day:
+            raise RuntimeError(f"Jiangsu official date conflict for issue {issue}")
+        pairs[issue] = day
+
+    # Secondary contract: some rows expose the draw date in the linked CWL
+    # article path. This is only used to fill a missing visible-text pair and
+    # any disagreement fails closed.
+    for href, body in re.findall(
+        r"(?is)<a\b[^>]*href\s*=\s*['\"]([^'\"]+)['\"][^>]*>(.*?)</a>",
+        markup,
+    ):
+        label = _plain(body)
+        issue_match = re.search(r"(?<!\d)(20\d{5})(?!\d)", label)
+        date_match = re.search(r"/c/(20\d{2})/(\d{2})/(\d{2})/", html.unescape(href))
+        if not issue_match or not date_match:
+            continue
+        issue = issue_match.group(1)
+        day = f"{date_match.group(1)}-{date_match.group(2)}-{date_match.group(3)}"
+        previous = pairs.get(issue)
+        if previous is not None and previous != day:
+            raise RuntimeError(f"Jiangsu official visible/link date conflict for issue {issue}")
+        pairs[issue] = day
+    return pairs
+
+
+def fetch_provincial_composite_full_history() -> tuple[
+    list[Draw], SourceReceipt, dict[str, bytes], list[dict[str, Any]]
+]:
+    fuzhou_headers = {
+        "User-Agent": HEADERS["User-Agent"],
+        "Accept": "text/html,application/xhtml+xml,*/*;q=0.5",
+        "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.7",
+        "Referer": "https://www.jxfzfc.cn/",
+    }
+    jiangsu_headers = {
+        "User-Agent": HEADERS["User-Agent"],
+        "Accept": "text/html,application/xhtml+xml,*/*;q=0.5",
+        "Referer": JIANGSU_URL,
+    }
+
+    raw_sources: dict[str, bytes] = {}
+    manifest: list[dict[str, Any]] = []
+    number_map: dict[str, tuple[int, ...]] = {}
+    date_map: dict[str, str] = {}
+
+    first_fuzhou = NET.get(
+        FUZHOU_HISTORY_URL,
+        params={"play": "kl8", "sid": "new", "page": "1"},
+        headers=fuzhou_headers,
+        timeout=(10, 30),
+        allow_redirects=True,
+    )
+    first_fuzhou_raw = _validate_html_response(first_fuzhou)
+    if not _official_host(str(first_fuzhou.url), {"www.jxfzfc.cn", "jxfzfc.cn"}):
+        raise RuntimeError("Fuzhou Happy8 history response left official HTTPS host")
+    first_fuzhou_text = _decode_html(first_fuzhou_raw)
+    if FUZHOU_AUTHORITY_MARKER not in _plain(first_fuzhou_text):
+        raise RuntimeError("Fuzhou official authority marker missing")
+    fuzhou_pages = _pagination_from_links(first_fuzhou_text, source="fuzhou")
+    fuzhou_max = max(fuzhou_pages, default=1)
+    if fuzhou_max < 21 or fuzhou_max > 30:
+        raise RuntimeError(f"Fuzhou Happy8 pagination outside frozen bounds: {fuzhou_max}")
+
+    for page_no in range(1, fuzhou_max + 1):
+        if page_no == 1:
+            response, raw, markup = first_fuzhou, first_fuzhou_raw, first_fuzhou_text
+        else:
+            response = NET.get(
+                FUZHOU_HISTORY_URL,
+                params={"play": "kl8", "sid": "new", "page": str(page_no)},
+                headers=fuzhou_headers,
+                timeout=(10, 30),
+                allow_redirects=True,
+            )
+            raw = _validate_html_response(response)
+            if not _official_host(str(response.url), {"www.jxfzfc.cn", "jxfzfc.cn"}):
+                raise RuntimeError("Fuzhou Happy8 history response left official HTTPS host")
+            markup = _decode_html(raw)
+            if FUZHOU_AUTHORITY_MARKER not in _plain(markup):
+                raise RuntimeError(f"Fuzhou authority marker missing on page {page_no}")
+
+        rows = _parse_fuzhou_number_rows(markup)
+        if not rows:
+            raise RuntimeError(f"Fuzhou Happy8 page {page_no} contained no valid rows")
+        for issue, numbers in rows.items():
+            previous = number_map.get(issue)
+            if previous is not None and previous != numbers:
+                raise RuntimeError(f"Fuzhou cross-page conflict for issue {issue}")
+            number_map[issue] = numbers
+        filename = f"fuzhou_page_{page_no:03d}.html"
+        raw_sources[filename] = raw
+        manifest.append({
+            "source": "jiangxi_fuzhou_welfare_lottery",
+            "page": page_no,
+            "filename": filename,
+            "url": str(response.url),
+            "http_status": int(response.status_code),
+            "sha256": hashlib.sha256(raw).hexdigest(),
+            "bytes": len(raw),
+            "row_count": len(rows),
+            "first_issue": min(rows),
+            "last_issue": max(rows),
+        })
+
+    first_jiangsu = NET.get(
+        JIANGSU_HISTORY_URL,
+        params={"locale": "zh-CN", "lottery_type_id": "17", "page": "1", "periods": ""},
+        headers=jiangsu_headers,
+        timeout=(10, 30),
+        allow_redirects=True,
+    )
+    first_jiangsu_raw = _validate_html_response(first_jiangsu)
+    if not _official_host(str(first_jiangsu.url), {"www.jslottery.com"}):
+        raise RuntimeError("Jiangsu Happy8 history response left official HTTPS host")
+    first_jiangsu_text = _decode_html(first_jiangsu_raw)
+    jiangsu_pages = _pagination_from_links(first_jiangsu_text, source="jiangsu")
+    jiangsu_max = max(jiangsu_pages, default=1)
+    if jiangsu_max < 100 or jiangsu_max > 150:
+        raise RuntimeError(f"Jiangsu Happy8 pagination outside frozen bounds: {jiangsu_max}")
+
+    for page_no in range(1, jiangsu_max + 1):
+        if page_no == 1:
+            response, raw, markup = first_jiangsu, first_jiangsu_raw, first_jiangsu_text
+        else:
+            response = NET.get(
+                JIANGSU_HISTORY_URL,
+                params={
+                    "locale": "zh-CN",
+                    "lottery_type_id": "17",
+                    "page": str(page_no),
+                    "periods": "",
+                },
+                headers=jiangsu_headers,
+                timeout=(10, 30),
+                allow_redirects=True,
+            )
+            raw = _validate_html_response(response)
+            if not _official_host(str(response.url), {"www.jslottery.com"}):
+                raise RuntimeError("Jiangsu Happy8 history response left official HTTPS host")
+            markup = _decode_html(raw)
+
+        rows = _parse_jiangsu_issue_dates(markup)
+        if not rows:
+            raise RuntimeError(f"Jiangsu Happy8 page {page_no} contained no issue-date rows")
+        for issue, day in rows.items():
+            previous = date_map.get(issue)
+            if previous is not None and previous != day:
+                raise RuntimeError(f"Jiangsu cross-page date conflict for issue {issue}")
+            date_map[issue] = day
+        filename = f"jiangsu_history_page_{page_no:03d}.html"
+        raw_sources[filename] = raw
+        manifest.append({
+            "source": "jiangsu_welfare_lottery",
+            "page": page_no,
+            "filename": filename,
+            "url": str(response.url),
+            "http_status": int(response.status_code),
+            "sha256": hashlib.sha256(raw).hexdigest(),
+            "bytes": len(raw),
+            "row_count": len(rows),
+            "first_issue": min(rows),
+            "last_issue": max(rows),
+        })
+
+    number_issues = set(number_map)
+    date_issues = set(date_map)
+    if number_issues != date_issues:
+        missing_dates = sorted(number_issues - date_issues)
+        missing_numbers = sorted(date_issues - number_issues)
+        raise RuntimeError(
+            "provincial official history set mismatch: "
+            f"numbers={len(number_issues)} dates={len(date_issues)} "
+            f"missing_dates={missing_dates[:20]} missing_numbers={missing_numbers[:20]}"
+        )
+    if not number_issues or min(number_issues) != HAPPY8_HISTORY_START_ISSUE:
+        raise RuntimeError(
+            f"provincial official history does not start at {HAPPY8_HISTORY_START_ISSUE}"
+        )
+    if len(number_issues) < 2000:
+        raise RuntimeError(f"provincial official history too short: {len(number_issues)}")
+
+    ordered: list[Draw] = []
+    for issue in sorted(number_issues):
+        ordered.append(Draw.from_values(issue, date_map[issue], number_map[issue]))
+
+    latest_day = datetime.strptime(ordered[-1].draw_date, "%Y-%m-%d").date()
+    age = (date.today() - latest_day).days
+    if age < 0 or age > 7:
+        raise RuntimeError(f"provincial official latest draw is stale/future: age_days={age}")
+
+    receipt = SourceReceipt(
+        source="jiangxi_fuzhou_plus_jiangsu_official",
+        url=f"{FUZHOU_HISTORY_URL} + {JIANGSU_HISTORY_URL}",
+        http_status=200,
+        fetched_at=_utc_now(),
+        raw_sha256=_sha256_json(manifest),
+        bytes=sum(int(item["bytes"]) for item in manifest),
+        draw_count=len(ordered),
+        latest_issue=ordered[-1].issue,
+        status="PASS",
+    )
+    return ordered, receipt, raw_sources, manifest
+
+
 def fetch_jiangsu_latest() -> tuple[Draw, SourceReceipt, bytes]:
     response = NET.get(JIANGSU_URL, headers=HEADERS, timeout=(10, 30), allow_redirects=True)
     raw = _validate_html_response(response)
@@ -528,10 +804,17 @@ def build_official_snapshot() -> tuple[dict[str, Any], dict[str, bytes]]:
             history_source = "shanghai_welfare_lottery"
             verification = "SHANGHAI_FULL_HISTORY_PLUS_JIANGSU_CURRENT"
         except Exception as shanghai_exc:
-            raise RuntimeError(
-                "Happy8 full-history official sources unavailable; "
-                f"CWL={history_error}; Shanghai={type(shanghai_exc).__name__}: {shanghai_exc}"
-            ) from shanghai_exc
+            shanghai_error = f"{type(shanghai_exc).__name__}: {shanghai_exc}"
+            try:
+                history, history_receipt, raw_sources, manifest = fetch_provincial_composite_full_history()
+                history_source = "jiangxi_fuzhou_plus_jiangsu_official"
+                verification = "FUZHOU_NUMBERS_PLUS_JIANGSU_DATES_AND_CURRENT_NUMBERS"
+            except Exception as composite_exc:
+                raise RuntimeError(
+                    "Happy8 full-history official sources unavailable; "
+                    f"CWL={history_error}; Shanghai={shanghai_error}; "
+                    f"ProvincialComposite={type(composite_exc).__name__}: {composite_exc}"
+                ) from composite_exc
 
     jiangsu, jiangsu_receipt, jiangsu_raw = fetch_jiangsu_latest()
     latest = history[-1]
@@ -561,10 +844,23 @@ def build_official_snapshot() -> tuple[dict[str, Any], dict[str, bytes]]:
         "history_raw_manifest": manifest,
         "source_receipts": [history_receipt.to_dict(), jiangsu_receipt.to_dict()],
         "verification": verification,
-        "source_errors": {"national_welfare_lottery": history_error} if history_error else {},
+        "source_errors": (
+            {"national_welfare_lottery": history_error}
+            if history_source == "shanghai_welfare_lottery" and history_error
+            else (
+                {
+                    "national_welfare_lottery": history_error,
+                    "shanghai_welfare_lottery": locals().get("shanghai_error"),
+                }
+                if history_source == "jiangxi_fuzhou_plus_jiangsu_official"
+                else {}
+            )
+        ),
         "note": (
             "Fail-closed official network gate: CWL kl8 is primary full-history source; "
-            "Shanghai official full history is fallback only; Jiangsu independently crosschecks current draw. "
+            "Shanghai is first official fallback; a strict Jiangxi-Fuzhou numbers + Jiangsu dates "
+            "composite is the second fallback only when the complete issue sets reconcile exactly. "
+            "Jiangsu current numbers crosscheck the accepted history source. "
             "Portfolio Final still requires Windows/Exact EXE/GUI/Same Hash and repository independence."
         ),
     }
