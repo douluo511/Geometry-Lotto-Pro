@@ -28,6 +28,8 @@ jobs:
         run: python scripts/contract_gate.py
       - name: Storage and Evidence atomicity gate
         run: python scripts/storage_gate.py
+      - name: Application Service contract gate
+        run: python scripts/service_gate.py
 
       # Independent source probes are diagnostic evidence. A timeout/HTTP failure on
       # one official source must not prevent the other independent probes from running.
