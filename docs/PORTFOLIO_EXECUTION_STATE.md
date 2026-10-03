@@ -356,3 +356,17 @@ Do not label any project Final until Engineering=100%, Business=100%, hard_fail_
 - Unit counterexamples now cover status-only evidence rejection, wrong-run rejection, hash mismatch rejection, shared-repo BLOCKED semantics, mixed-project dedicated-repo rejection, valid full fixtures and final-artifact cross-hash mismatch rejection.
 - Current fresh validation: run `37120044111`, job `111194252723`. Checkout, repository evidence execution, Governance, Self-Test, Compile, Unit, Contract, UI, Storage/Evidence, Service, Updater handoff, Updater rollback/recovery and Fault Injection have executed successfully. Live dual-official-source network is in progress.
 - Because acceptance logic changed, prior completion derivations are historical only. Current-head engineering/business percentages are NOT VERIFIED until run `37120044111` reaches the evidence-derived derivation steps.
+
+
+## 2026-10-03 Happy8 acceptance-hardened seed v2
+
+- Frozen product head: `f59eba6c3bfdce0f83bb34f925fda529f9137be7`; product fresh run `37121044242`, job `111197099904`.
+- Current acceptance hardening includes executable E17/E18/E19 evidence gates, current-run/untracked evidence binding, dual-mode physical GUI update acceptance, physical Release N→N+1 acceptance, final artifact freeze producer, and direct physical EXE/Updater hash+byte verification.
+- Acceptance-hardened Happy8 tree SHA: `4efd880066c508a6205f2258d239cc315f61d455`.
+- Current workflow blob SHA: `98d9cfc7dbc22c11a659c9fe12d2c4c983160c88`.
+- Isolated seed v2 root tree SHA: `f9c5c78e48b48be6de59212bea49e4cd0e558701`.
+- Isolated seed v2 commit: `2a6c287845de351220be207d390ffffc8d6793b6`.
+- Seed branch: `migration/happy8-independent-seed-v2-20261003`.
+- Root inventory verification: exactly `.github` and `Happy8`; no other portfolio project directory.
+- Seed validation-only PR #90, head `6273faba2a8c3828a82dd4f3386f34622feca7cd`, run `37121287818`, job `111197748541`; status VALIDATION_IN_PROGRESS.
+- This seed is NOT yet promoted to the migration manifest until both current product fresh validation and seed-v2 self-containment validation close without internal failures.
