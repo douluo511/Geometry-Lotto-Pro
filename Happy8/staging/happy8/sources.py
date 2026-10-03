@@ -717,6 +717,57 @@ def fetch_provincial_composite_full_history() -> tuple[
         })
 
     number_issues = set(number_map)
+    missing_date_issues = sorted(number_issues - set(date_map))
+    if len(missing_date_issues) > 20:
+        raise RuntimeError(
+            f"Jiangsu exact-date fallback safety bound exceeded: {len(missing_date_issues)}"
+        )
+    for issue in missing_date_issues:
+        params = {
+            "locale": "zh-CN",
+            "lottery_type_id": "17",
+            "page": "1",
+            "periods": issue,
+        }
+        response = NET.get(
+            JIANGSU_HISTORY_URL,
+            params=params,
+            headers=jiangsu_headers,
+            timeout=(10, 30),
+            allow_redirects=True,
+        )
+        raw = _validate_html_response(response)
+        if not _official_host(str(response.url), {"www.jslottery.com"}):
+            raise RuntimeError("Jiangsu exact issue search left official HTTPS host")
+        actual = dict(parse_qsl(urlsplit(str(response.url)).query, keep_blank_values=True))
+        if actual != params:
+            raise RuntimeError(
+                f"Jiangsu exact issue query changed in transit: expected={params!r} actual={actual!r}"
+            )
+        markup = _decode_html(raw)
+        rows = _parse_jiangsu_issue_dates(markup)
+        if set(rows) != {issue}:
+            raise RuntimeError(
+                f"Jiangsu exact issue search did not return exactly requested issue: "
+                f"issue={issue} parsed={sorted(rows)!r}"
+            )
+        date_map[issue] = rows[issue]
+        filename = f"jiangsu_issue_{issue}.html"
+        raw_sources[filename] = raw
+        manifest.append({
+            "source": "jiangsu_welfare_lottery",
+            "query": "exact_issue",
+            "issue": issue,
+            "filename": filename,
+            "url": str(response.url),
+            "http_status": int(response.status_code),
+            "sha256": hashlib.sha256(raw).hexdigest(),
+            "bytes": len(raw),
+            "row_count": 1,
+            "first_issue": issue,
+            "last_issue": issue,
+        })
+
     date_issues = set(date_map)
     if number_issues != date_issues:
         missing_dates = sorted(number_issues - date_issues)
