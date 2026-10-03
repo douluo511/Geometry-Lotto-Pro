@@ -23,6 +23,11 @@ HEADERS = {
 }
 NET = NetClient(connect_timeout=10, read_timeout=30, max_attempts=3)
 
+CONFLICT_ANCHOR_ISSUES = (
+    "2025350", "2025158", "2024328", "2024014", "2023148", "2021252",
+    "2021171", "2021160", "2021159", "2020015", "2020007", "2020001",
+)
+
 
 def _decode(raw: bytes) -> str:
     for enc in ("utf-8-sig", "utf-8", "gb18030"):
@@ -151,6 +156,7 @@ def inspect_page(page: int, periods: str = "") -> dict:
     # incomplete/different link metadata.  Bind issue+date only when they
     # appear together in the official page text, and let the reconciliation
     # layer reject any conflict.
+    link_date_hints = list(issue_date_hints)
     visible_pairs = []
     for match in re.finditer(
         r"(?:第\s*)?(20\d{5})\s*期[^0-9]{0,80}(20\d{2}-\d{2}-\d{2})",
@@ -228,6 +234,8 @@ def inspect_page(page: int, periods: str = "") -> dict:
         "visible_20_number_candidates": _numbers(plain),
         "anchors": anchors[:100],
         "issue_date_hints": issue_date_hints[:100],
+        "link_date_hints": link_date_hints[:100],
+        "visible_issue_date_pairs": visible_pairs[:100],
         "pagination_pages": sorted(set(pagination))[:500],
         "issue_contexts": issue_contexts,
         "attribute_candidates": attribute_candidates[:200],
@@ -259,7 +267,7 @@ def main() -> int:
     args = parser.parse_args()
 
     report = {
-        "schema": "happy8-jiangsu-history-contract-probe-v1",
+        "schema": "happy8-jiangsu-history-contract-probe-v2",
         "status": "DIAGNOSTIC_ONLY",
         "production_accepted": False,
         "pages": [],
@@ -273,6 +281,9 @@ def main() -> int:
         report["period_searches"] = [
             inspect_page(1, "2020001"),
             inspect_page(1, "2021001"),
+        ]
+        report["conflict_issue_searches"] = [
+            inspect_page(1, issue) for issue in CONFLICT_ANCHOR_ISSUES
         ]
         cwl_candidates = []
         for source_page in [report["pages"][0], *report["period_searches"]]:
