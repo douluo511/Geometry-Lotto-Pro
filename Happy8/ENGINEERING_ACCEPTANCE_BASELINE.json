@@ -1,7 +1,7 @@
 {
   "schema": "happy8-engineering-acceptance-baseline-v1",
   "project": "Geometry Lotto Pro · Happy8",
-  "weighting": "equal mandatory item weight; all items are required for Final",
+  "weighting": "equal mandatory engineering item weight because no differential engineering weight was previously defined; all 19 items are required for Final and the denominator is frozen before any percentage is calculated",
   "items": [
     {
       "id": "E01",
@@ -66,40 +66,35 @@
     {
       "id": "E13",
       "weight": 1,
-      "name": "business_validation_evidence"
+      "name": "windows_native_reproducible_build"
     },
     {
       "id": "E14",
       "weight": 1,
-      "name": "windows_native_reproducible_build"
+      "name": "exact_exe"
     },
     {
       "id": "E15",
       "weight": 1,
-      "name": "exact_exe"
+      "name": "physical_gui_click"
     },
     {
       "id": "E16",
       "weight": 1,
-      "name": "physical_gui_click"
+      "name": "post_gui_same_hash"
     },
     {
       "id": "E17",
       "weight": 1,
-      "name": "post_gui_same_hash"
+      "name": "independent_repository"
     },
     {
       "id": "E18",
       "weight": 1,
-      "name": "independent_repository"
-    },
-    {
-      "id": "E19",
-      "weight": 1,
       "name": "real_release_n_to_n_plus_1_update"
     },
     {
-      "id": "E20",
+      "id": "E19",
       "weight": 1,
       "name": "release_evidence_and_unique_final_artifact"
     }
