@@ -248,6 +248,9 @@ jobs:
             'scripts/real_release_evidence.py',
             '--repository','${{ github.repository }}',
             '--source-sha','${{ github.event.pull_request.head.sha || github.sha }}',
+            '--run-id','${{ github.run_id }}',
+            '--run-attempt','${{ github.run_attempt }}',
+            '--repo-root','../..',
             '--output','evidence/real_release_validation.json'
           )
           if (Test-Path 'evidence/real_release_update.json') {
@@ -265,6 +268,9 @@ jobs:
             'scripts/final_artifact_evidence.py',
             '--repository','${{ github.repository }}',
             '--source-sha','${{ github.event.pull_request.head.sha || github.sha }}',
+            '--run-id','${{ github.run_id }}',
+            '--run-attempt','${{ github.run_attempt }}',
+            '--repo-root','../..',
             '--output','evidence/final_artifact_validation.json'
           )
           if (Test-Path 'evidence/FINAL_ARTIFACT.json') { $args += @('--input','evidence/FINAL_ARTIFACT.json') }
