@@ -67,11 +67,29 @@ def fixture_snapshot():
     return report, raw
 
 
+def fixture_science_validator(draws, *, canonical_hash: str):
+    if not draws or not canonical_hash:
+        raise RuntimeError("fixture science validator requires verified inputs")
+    return {
+        "status": "PASS",
+        "software_verdict": "PASS",
+        "edge_state": "NO_EDGE",
+        "dan_state": "NULL_DAN",
+        "formal_dan": [],
+        "production_model": "uniform_baseline",
+        "test_fixture": True,
+    }
+
+
 def main() -> int:
     checks = {}
     with tempfile.TemporaryDirectory(prefix="happy8-service-gate-") as td:
         root = Path(td)
-        service = Happy8Service(root, snapshot_builder=fixture_snapshot)
+        service = Happy8Service(
+            root,
+            snapshot_builder=fixture_snapshot,
+            science_validator=fixture_science_validator,
+        )
 
         update = service.update_data()
         checks["update_commit"] = {"status": update.get("status")}
@@ -130,7 +148,11 @@ def main() -> int:
         def failing_builder():
             raise RuntimeError("simulated upstream failure")
 
-        failed_service = Happy8Service(root, snapshot_builder=failing_builder)
+        failed_service = Happy8Service(
+            root,
+            snapshot_builder=failing_builder,
+            science_validator=fixture_science_validator,
+        )
         try:
             failed_service.update_data()
             checks["failed_update_fail_closed"] = {"status": "FAIL"}
@@ -140,6 +162,24 @@ def main() -> int:
                 if failed_service.status().get("canonical_hash") == stable_hash
                 else "FAIL"
             }
+
+        def failing_science_validator(draws, *, canonical_hash: str):
+            raise RuntimeError("simulated science failure")
+
+        failed_science = Happy8Service(
+            root,
+            snapshot_builder=fixture_snapshot,
+            science_validator=failing_science_validator,
+        )
+        for operation_name, operation in (
+            ("prediction_science_failure_fail_closed", failed_science.predict_next),
+            ("advanced_science_failure_fail_closed", failed_science.advanced_analysis),
+        ):
+            try:
+                operation()
+                checks[operation_name] = {"status": "FAIL"}
+            except RuntimeError:
+                checks[operation_name] = {"status": "PASS"}
 
     status = "PASS" if checks and all(x.get("status") == "PASS" for x in checks.values()) else "FAIL"
     report = {"schema": "happy8-service-gate-v1", "status": status, "checks": checks}

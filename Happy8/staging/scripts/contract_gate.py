@@ -17,6 +17,7 @@ from happy8.sources import (
     _official_host,
     _parse_fuzhou_number_rows,
     _parse_jiangsu_issue_dates,
+    _validate_jiangsu_publication_lag,
 )
 
 
@@ -99,6 +100,7 @@ def main() -> int:
         "2021162": "2021-06-21",
         "2021263": "2021-09-30",
         "2021264": "2021-10-05",
+        "2023322": "2023-12-02",
         "2026263": "2026-09-30",
     }
     actual_calendar = {
@@ -127,38 +129,75 @@ def main() -> int:
     jiangsu_html = """
     <html><body>
       <li>
-        <a href="http://www.cwl.gov.cn/c/2021/01/01/123.shtml">
-          中国福利彩票"快乐8"第2021001期开奖公告
+        <a href="http://www.cwl.gov.cn/c/2023/12/03/561230.shtml">
+          中国福利彩票"快乐8"第2023322期开奖公告
         </a>
-        <span class="articleDate">2021-01-03</span>
+        <span class="articleDate">2023-12-03</span>
       </li>
     </body></html>
     """
     parsed_dates = _parse_jiangsu_issue_dates(jiangsu_html)
-    if parsed_dates != {"2021001": "2021-01-01"}:
-        raise AssertionError(f"Jiangsu CWL announcement-date parser drifted: {parsed_dates!r}")
-    checks["jiangsu_cwl_announcement_date_contract"] = {"status": "PASS"}
+    if parsed_dates != {"2023322": "2023-12-03"}:
+        raise AssertionError(
+            f"Jiangsu issue-bound publication parser drifted: {parsed_dates!r}"
+        )
+    lag = _validate_jiangsu_publication_lag(
+        "2023322",
+        _market_calendar_date_for_issue("2023322"),
+        parsed_dates["2023322"],
+    )
+    if lag != 1:
+        raise AssertionError(f"2023322 publication lag must be +1 day, got {lag}")
+    checks["jiangsu_2023322_publish_after_draw_contract"] = {
+        "status": "PASS",
+        "draw_date": "2023-12-02",
+        "publication_date": "2023-12-03",
+        "lag_days": lag,
+    }
 
     visible_only_jiangsu = """
-    <div>中国福利彩票快乐8第2021001期开奖公告 2021-01-03</div>
+    <div>中国福利彩票快乐8第2023322期开奖公告 2023-12-03</div>
     """
     if _parse_jiangsu_issue_dates(visible_only_jiangsu):
-        raise AssertionError("Jiangsu local articleDate was incorrectly accepted as canonical draw date")
-    checks["jiangsu_local_article_date_rejected"] = {"status": "PASS"}
+        raise AssertionError(
+            "Jiangsu visible publication date was accepted without an issue-bound CWL link"
+        )
+    checks["jiangsu_publication_requires_cwl_provenance"] = {"status": "PASS"}
 
-    conflicting_jiangsu = """
-    <a href="http://www.cwl.gov.cn/c/2021/01/01/123.shtml">
-      中国福利彩票"快乐8"第2021001期开奖公告
-    </a>
-    <a href="http://www.cwl.gov.cn/c/2021/01/02/124.shtml">
-      中国福利彩票"快乐8"第2021001期开奖公告
+    cwl_only_jiangsu = """
+    <a href="http://www.cwl.gov.cn/c/2023/12/03/561230.shtml">
+      中国福利彩票"快乐8"第2023322期开奖公告
     </a>
     """
-    try:
-        _parse_jiangsu_issue_dates(conflicting_jiangsu)
-        raise AssertionError("Jiangsu CWL announcement-date conflict accepted")
-    except RuntimeError:
-        checks["jiangsu_date_conflict_fail_closed"] = {"status": "PASS"}
+    if _parse_jiangsu_issue_dates(cwl_only_jiangsu):
+        raise AssertionError(
+            "CWL URL publication metadata was incorrectly promoted without Jiangsu visible date"
+        )
+    checks["cwl_path_date_not_promoted_to_draw_date"] = {"status": "PASS"}
+
+    for publication_day in ("2023-12-01", "2023-12-05"):
+        try:
+            _validate_jiangsu_publication_lag("2023322", "2023-12-02", publication_day)
+            raise AssertionError(
+                f"out-of-bound publication lag accepted: {publication_day}"
+            )
+        except RuntimeError:
+            pass
+    checks["jiangsu_publication_lag_fail_closed"] = {"status": "PASS"}
+
+    for publication_day, expected_lag in (
+        ("2023-12-02", 0),
+        ("2023-12-03", 1),
+        ("2023-12-04", 2),
+    ):
+        actual_lag = _validate_jiangsu_publication_lag(
+            "2023322", "2023-12-02", publication_day
+        )
+        if actual_lag != expected_lag:
+            raise AssertionError(
+                f"valid publication lag rejected/drifted: {publication_day} -> {actual_lag}"
+            )
+    checks["jiangsu_publication_lag_0_to_2_contract"] = {"status": "PASS"}
 
     cells_a = "".join(f"<td>{n:02d}</td>" for n in range(1, 21))
     cells_b = "".join(f"<td>{n:02d}</td>" for n in range(2, 22))
@@ -183,6 +222,22 @@ def main() -> int:
     if _official_host("http://www.jslottery.com/path", {"www.jslottery.com"}):
         raise AssertionError("official host accepted HTTP downgrade")
     checks["provincial_official_https_host_contract"] = {"status": "PASS"}
+
+    # Reverse-check the exact Windows console failure mode observed in live CI.
+    # Persisted evidence remains UTF-8; console diagnostics must stay safe even
+    # when stdout uses a legacy cp1252-compatible encoding.
+    console_probe = json.dumps(
+        {"source": "江西抚州福利彩票", "label": "开奖结果查询"},
+        ensure_ascii=True,
+        indent=2,
+    )
+    try:
+        console_probe.encode("cp1252")
+    except UnicodeEncodeError as exc:
+        raise AssertionError("ASCII-safe live console JSON regressed") from exc
+    if "\\u" not in console_probe:
+        raise AssertionError("non-ASCII console probe was not escaped")
+    checks["windows_cp1252_console_json_contract"] = {"status": "PASS"}
 
     report = {
         "schema": "happy8-staging-contract-v1",

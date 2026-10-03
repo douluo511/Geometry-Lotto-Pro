@@ -37,9 +37,26 @@ def main() -> int:
     # Method/software acceptance may pass while edge_state honestly remains NO_EDGE.
     # The release workflow separately remains NOT FINAL until prospective, Windows,
     # same-hash, repository-independence and final release gates are satisfied.
+    required_protocol = {
+        "candidate_pool_independent_validation",
+        "multi_window_perturbation",
+        "multi_seed_perturbation",
+        "reality_check_executed",
+        "holm_correction_executed",
+        "leave_one_period_out_executed",
+        "leakage_challenge",
+        "canonical_hash_bound",
+    }
+    protocol = report.get("protocol_gates", {})
+    protocol_ok = (
+        set(protocol) == required_protocol
+        and all(value == "PASS" for value in protocol.values())
+    )
     ok = (
         report.get("status") == "PASS"
         and report.get("software_verdict") == "PASS"
+        and protocol_ok
+        and report.get("canonical_hash") == source.get("canonical_hash")
         and report.get("gates", {}).get("data_integrity") == "PASS"
         and report.get("gates", {}).get("sample_size") == "PASS"
         and report.get("gates", {}).get("oos_size") == "PASS"
@@ -47,6 +64,7 @@ def main() -> int:
             report.get("edge_state") == "NO_EDGE"
             and report.get("dan_state") == "NULL_DAN"
             and not report.get("formal_dan")
+            and report.get("production_model") == "uniform_baseline"
         ))
     )
     return 0 if ok else 2
