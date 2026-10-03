@@ -136,38 +136,36 @@ class StockAIService:
                 stderr=repr(exc),
             )
 
-    def core_function(self) -> ActionResult:
-        """Real source -> pipeline -> frozen prediction path."""
-        return self._run(
-            "core_function",
-            [sys.executable, str(self.version_root / "run_daily.py")],
-            self.version_root,
-        )
-
-    def repair(self) -> ActionResult:
-        return self._run(
-            "repair",
-            [
+    def _worker_argv(self, action: str) -> list[str]:
+        if getattr(sys, "frozen", False):
+            return [
                 sys.executable,
-                str(Path(__file__).resolve().parent / "repair_entry.py"),
+                "--worker",
+                action,
                 "--package-root",
                 str(self.package_root),
-            ],
-            Path(__file__).resolve().parent,
-        )
+            ]
+        return [
+            sys.executable,
+            str(Path(__file__).resolve().parent / "worker.py"),
+            "--worker",
+            action,
+            "--package-root",
+            str(self.package_root),
+        ]
+
+    def core_function(self) -> ActionResult:
+        """Real source -> pipeline -> frozen prediction path."""
+        return self._run("core_function", self._worker_argv("core"), self.package_root)
+
+    def repair(self) -> ActionResult:
+        return self._run("repair", self._worker_argv("repair"), self.package_root)
 
     def advanced_analysis(self) -> ActionResult:
-        audit = self._run(
-            "advanced_analysis.audit",
-            [sys.executable, str(self.version_root / "run_audit.py")],
-            self.version_root,
-        )
-        if not audit.ok:
-            return audit
         return self._run(
-            "advanced_analysis.backtest",
-            [sys.executable, str(self.version_root / "run_backtest.py")],
-            self.version_root,
+            "advanced_analysis",
+            self._worker_argv("advanced"),
+            self.package_root,
         )
 
     def update(self) -> ActionResult:
