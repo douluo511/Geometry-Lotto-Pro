@@ -284,3 +284,12 @@ Do not label any project Final until Engineering=100%, Business=100%, hard_fail_
 - Fix commit `64dfe1b9274abecd972edaa52c928f10cb2b6b23` changes rollback-failure injection to the transaction semantic boundary `_replace_path(<*.backup>, <target exe>)` and records every observed replace call. Product updater behavior is unchanged.
 - Fresh exact-head run `37116813770` has started for `64dfe1b9274abecd972edaa52c928f10cb2b6b23`; all current-head gates remain NOT VERIFIED until this run executes them.
 - External blockers remain unchanged: E17 dedicated independent Happy8 repository BLOCKED; E18 real independent Release N→N+1 BLOCKED; therefore E19 unique final artifact BLOCKED and Final Gate FAIL.
+
+
+## 2026-10-03 Happy8 independent-repository migration boundary
+
+- Current Happy8 exact source identity remains `64dfe1b9274abecd972edaa52c928f10cb2b6b23`; current validation run is `37116813770`.
+- Dedicated-repository migration is still externally BLOCKED, but the exact migration boundary is now frozen in `docs/HAPPY8_INDEPENDENT_REPO_MIGRATION_MANIFEST.json` (control commit `91338706e7505258140c86b271bb9891cea30f3b`).
+- The first independent-repository seed must preserve byte/path identity for: `Happy8/ARCHITECTURE_SCOPE.json`, `BUSINESS_ACCEPTANCE_BASELINE.json`, `ENGINEERING_ACCEPTANCE_BASELINE.json`, `RECOVERY_STATUS.md`, `Happy8/recovered/**`, `Happy8/staging/**`, and `.github/workflows/happy8-staging-recovery.yml`.
+- Frozen current staging tree SHA: `08ee1d09fc7c61dec882ebf6eedc18f5409bb5ac`; recovered tree SHA: `8d31d70996e737a992fe0a9c8167832e43f546e0`; workflow blob SHA: `2599e0d4e584bca70e37efa9c13c2a6ee79f1845`.
+- This preparation does NOT satisfy E17. E17 remains BLOCKED until a dedicated repository actually exists, is visible to the GitHub installation, contains no other project code, and the manifest identities are independently verified there.
