@@ -8,6 +8,10 @@ on:
       - 'StockAIPro/hardening_tests/desktop_native_contract_test.py'
       - '.github/workflows/stock-ai-desktop-candidate.yml'
 
+concurrency:
+  group: stock-ai-desktop-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
