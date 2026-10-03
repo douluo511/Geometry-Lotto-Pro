@@ -55,7 +55,7 @@ jobs:
       - name: Desktop UI-Service contract gate
         id: ui_contract
         continue-on-error: true
-        run: python -m happy8.app --ui-contract
+        run: python -m happy8.app --ui-contract --result-file evidence/ui_contract.json
 
       - name: Storage and Evidence integration gate
         id: storage_gate
@@ -65,7 +65,11 @@ jobs:
       - name: Application Service integration gate
         id: service_gate
         continue-on-error: true
-        run: python scripts/service_gate.py
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force evidence | Out-Null
+          python scripts/service_gate.py | Tee-Object -FilePath evidence/service_gate.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Software Updater handoff contract gate
         id: updater_handoff_gate
@@ -99,6 +103,18 @@ jobs:
         if: steps.live_gate.outcome == 'success'
         continue-on-error: true
         run: python scripts/science_gate.py --input evidence/live_official_history.json --output evidence/scientific_validation.json
+
+      - name: Business validation evidence before Windows build
+        id: business_pre
+        if: steps.live_gate.outcome == 'success' && steps.science_gate.outcome == 'success'
+        continue-on-error: true
+        run: >
+          python scripts/business_acceptance_gate.py
+          --network evidence/live_official_history.json
+          --science evidence/scientific_validation.json
+          --service evidence/service_gate.json
+          --ui evidence/ui_contract.json
+          --output evidence/business_acceptance_pre_windows.json
 
       - name: Native Windows reproducible Exact EXE build
         id: windows_build
@@ -185,6 +201,31 @@ jobs:
             build_sha256 = $build.exe_sha256
             physical_gui_sha256 = $gui.exe_sha256_after
           } | ConvertTo-Json | Set-Content -Encoding utf8 evidence/post_gui_same_hash.json
+
+      - name: Final business acceptance derivation
+        id: business_final
+        if: always() && steps.live_gate.outcome == 'success' && steps.science_gate.outcome == 'success'
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $args = @(
+            'scripts/business_acceptance_gate.py',
+            '--network','evidence/live_official_history.json',
+            '--science','evidence/scientific_validation.json',
+            '--service','evidence/service_gate.json',
+            '--ui','evidence/ui_contract.json',
+            '--output','evidence/business_acceptance.json'
+          )
+          if (Test-Path 'evidence/windows_exact_exe.json') {
+            $args += @('--windows','evidence/windows_exact_exe.json')
+          }
+          if (Test-Path 'evidence/physical_gui_click.json') {
+            $args += @('--physical-gui','evidence/physical_gui_click.json')
+          }
+          if (Test-Path 'evidence/real_release_update.json') {
+            $args += @('--real-release','evidence/real_release_update.json')
+          }
+          python @args
 
       # Root-cause diagnostics run only after the mandatory live gate fails.
       - name: Provincial official fallback diagnostic probe
@@ -282,6 +323,8 @@ jobs:
           Write-Host "WINDOWS_EXACT_EXE=${{ steps.windows_build.outcome }}"
           Write-Host "PHYSICAL_GUI_CLICK=${{ steps.physical_gui.outcome }}"
           Write-Host "POST_GUI_SAME_HASH=${{ steps.post_gui_same_hash.outcome }}"
+          Write-Host "BUSINESS_PRE=${{ steps.business_pre.outcome }}"
+          Write-Host "BUSINESS_FINAL=${{ steps.business_final.outcome }}"
           Write-Host "PHYSICAL_GUI_CLICK=${{ steps.physical_gui.outcome }}"
           Write-Host "POST_GUI_SAME_HASH=${{ steps.post_gui_same_hash.outcome }}"
           Write-Host "REPOSITORY_INDEPENDENCE=FAIL"
@@ -311,6 +354,7 @@ jobs:
           if ('${{ steps.live_gate.outcome }}' -eq 'success' -and '${{ steps.science_gate.outcome }}' -eq 'success' -and '${{ steps.windows_build.outcome }}' -ne 'success') { $failures += 'windows_exact_exe' }
           if ('${{ steps.windows_build.outcome }}' -eq 'success' -and '${{ steps.physical_gui.outcome }}' -ne 'success') { $failures += 'physical_gui' }
           if ('${{ steps.physical_gui.outcome }}' -eq 'success' -and '${{ steps.post_gui_same_hash.outcome }}' -ne 'success') { $failures += 'post_gui_same_hash' }
+          if ('${{ steps.live_gate.outcome }}' -eq 'success' -and '${{ steps.science_gate.outcome }}' -eq 'success' -and '${{ steps.business_final.outcome }}' -ne 'success') { $failures += 'business_final' }
 
           Write-Host "COMPILE_GATE=${{ steps.compile_gate.outcome }}"
           Write-Host "UNIT_GATE=${{ steps.unit_gate.outcome }}"
