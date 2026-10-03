@@ -30,6 +30,8 @@ jobs:
         run: python scripts/storage_gate.py
       - name: Application Service contract gate
         run: python scripts/service_gate.py
+      - name: Independent Updater contract and rollback gate
+        run: python scripts/updater_gate.py
       - name: Application source self-test
         run: python -m happy8.app --self-test
       - name: Desktop UI construction contract
@@ -145,16 +147,28 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "first PyInstaller build failed" }
           python -m PyInstaller --noconfirm --clean --onefile --windowed --name Geometry_Lotto_Pro_Happy8 --distpath dist2 --workpath build2 --specpath spec2 --paths . scripts/happy8_desktop.py
           if ($LASTEXITCODE -ne 0) { throw "second PyInstaller build failed" }
+          python -m PyInstaller --noconfirm --clean --onefile --console --name Geometry_Lotto_Pro_Happy8_Updater --distpath dist1 --workpath build1_updater --specpath spec1 --paths . scripts/happy8_updater.py
+          if ($LASTEXITCODE -ne 0) { throw "first Updater build failed" }
+          python -m PyInstaller --noconfirm --clean --onefile --console --name Geometry_Lotto_Pro_Happy8_Updater --distpath dist2 --workpath build2_updater --specpath spec2 --paths . scripts/happy8_updater.py
+          if ($LASTEXITCODE -ne 0) { throw "second Updater build failed" }
           $exe1 = (Resolve-Path 'dist1/Geometry_Lotto_Pro_Happy8.exe').Path
           $exe2 = (Resolve-Path 'dist2/Geometry_Lotto_Pro_Happy8.exe').Path
+          $updater1 = (Resolve-Path 'dist1/Geometry_Lotto_Pro_Happy8_Updater.exe').Path
+          $updater2 = (Resolve-Path 'dist2/Geometry_Lotto_Pro_Happy8_Updater.exe').Path
           $hash1 = (Get-FileHash $exe1 -Algorithm SHA256).Hash.ToLowerInvariant()
           $hash2 = (Get-FileHash $exe2 -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($hash1 -ne $hash2) { throw "reproducible Same Hash failed: $hash1 != $hash2" }
+          $updaterHash1 = (Get-FileHash $updater1 -Algorithm SHA256).Hash.ToLowerInvariant()
+          $updaterHash2 = (Get-FileHash $updater2 -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($hash1 -ne $hash2) { throw "main reproducible Same Hash failed: $hash1 != $hash2" }
+          if ($updaterHash1 -ne $updaterHash2) { throw "updater reproducible Same Hash failed: $updaterHash1 != $updaterHash2" }
           $self = Start-Process -FilePath $exe1 -ArgumentList @('--self-test','--result-file',(Join-Path $PWD 'evidence/exact_exe_self_test.json')) -Wait -PassThru
           if ($self.ExitCode -ne 0) { throw "Exact EXE self-test failed: $($self.ExitCode)" }
           $ui = Start-Process -FilePath $exe1 -ArgumentList @('--ui-self-test','--result-file',(Join-Path $PWD 'evidence/exact_exe_ui_self_test.json')) -Wait -PassThru
           if ($ui.ExitCode -ne 0) { throw "Exact EXE UI self-test failed: $($ui.ExitCode)" }
+          $upSelf = Start-Process -FilePath $updater1 -ArgumentList @('--self-test','--evidence-file',(Join-Path $PWD 'evidence/exact_updater_self_test.json')) -Wait -PassThru
+          if ($upSelf.ExitCode -ne 0) { throw "Exact Updater self-test failed: $($upSelf.ExitCode)" }
           Copy-Item $exe1 'evidence/Geometry_Lotto_Pro_Happy8_CANDIDATE_NOT_FINAL.exe' -Force
+          Copy-Item $updater1 'evidence/Geometry_Lotto_Pro_Happy8_Updater_CANDIDATE_NOT_FINAL.exe' -Force
           @{
             schema = 'happy8-windows-exact-exe-v1'
             status = 'PASS'
@@ -162,8 +176,12 @@ jobs:
             tested_pr_merge_sha = '${{ github.sha }}'
             exe_sha256 = $hash1
             rebuild_sha256 = $hash2
+            updater_sha256 = $updaterHash1
+            updater_rebuild_sha256 = $updaterHash2
             same_hash = $true
+            updater_same_hash = $true
             exact_exe_self_test = 'PASS'
+            exact_updater_self_test = 'PASS'
             exact_exe_ui_construction = 'PASS'
             physical_gui_click = 'NOT_VERIFIED'
             final_gate = 'FAIL'
