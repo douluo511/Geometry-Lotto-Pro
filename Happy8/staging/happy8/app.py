@@ -64,8 +64,29 @@ def main(argv: list[str] | None = None) -> int:
             path = Path(args.result_file)
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(text + "\n", encoding="utf-8")
-        else:
+            return
+
+        # GitHub's Windows runner may expose a cp1252 console even though the
+        # UI contract contains Chinese labels. Emit UTF-8 explicitly so the
+        # contract result is transport-safe and does not fail before its
+        # PASS/FAIL status can be observed.
+        stream = sys.stdout
+        if stream is None:
+            raise RuntimeError("stdout is unavailable for CLI output")
+        reconfigure = getattr(stream, "reconfigure", None)
+        if callable(reconfigure):
+            try:
+                reconfigure(encoding="utf-8", errors="strict")
+            except (AttributeError, OSError, ValueError):
+                pass
+        try:
             print(text)
+        except UnicodeEncodeError:
+            buffer = getattr(stream, "buffer", None)
+            if buffer is None:
+                raise
+            buffer.write((text + "\n").encode("utf-8"))
+            buffer.flush()
 
     if args.self_test:
         report = source_self_test()
