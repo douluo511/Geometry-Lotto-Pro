@@ -286,7 +286,7 @@ def main() -> int:
         original = b"old-exe-restart-recovery"
         target.write_bytes(original)
         updater = updater_with(manifest, artifact)
-        real_replace = os.replace
+        from happy8.updater import _replace_path as real_replace_path
         rollback_attempts = {"count": 0}
         _, expected_backup, _, _ = _update_transaction_paths(target)
         target_norm = os.path.normcase(os.path.abspath(os.fspath(target)))
@@ -298,10 +298,10 @@ def main() -> int:
             if src_norm == backup_norm and dst_norm == target_norm:
                 rollback_attempts["count"] += 1
                 raise PermissionError("injected rollback failure")
-            return real_replace(src, dst)
+            return real_replace_path(src, dst)
 
         with patch("happy8.updater.subprocess.run", side_effect=_failing_self_test):
-            with patch("happy8.updater.os.replace", side_effect=fail_backup_restore):
+            with patch("happy8.updater._replace_path", side_effect=fail_backup_restore):
                 failed = updater.install(target_exe=target, current_version="0.2.0")
         _, backup, _, journal = _update_transaction_paths(target)
         retained = backup.exists() and journal.exists()
