@@ -13,6 +13,7 @@ from happy8.storage import canonical_json, sha256_json
 from happy8.updater import _trusted_https, _version_tuple
 from real_release_evidence import validate_real_release_evidence
 from repository_independence_gate import REQUIRED_PATHS, evaluate_repository_independence
+from final_artifact_evidence import validate_final_artifact
 
 
 def expect_raises(exc_type, fn) -> bool:
@@ -211,6 +212,99 @@ def main() -> int:
     )
     checks["repository_independence_extra_project_rejected"] = {
         "status": "PASS" if extra_inventory.get("status") == "FAIL" else "FAIL"
+    }
+
+    shared_extra_inventory = evaluate_repository_independence(
+        repository="douluo511/Geometry-Lotto-Pro",
+        top_level={".github", "Happy8", "OtherProject"},
+        paths=repo_paths,
+    )
+    checks["repository_independence_shared_stays_blocked"] = {
+        "status": "PASS" if shared_extra_inventory.get("status") == "BLOCKED" else "FAIL"
+    }
+
+    windows_fixture = {
+        "status": "PASS",
+        "source_sha": source_sha,
+        "exe_sha256": new_main,
+        "rebuild_sha256": new_main,
+        "updater_sha256": new_updater,
+        "updater_rebuild_sha256": new_updater,
+        "same_hash": True,
+        "updater_same_hash": True,
+    }
+    physical_fixture = {
+        "status": "PASS",
+        "same_hash": True,
+        "exe_sha256_before": new_main,
+        "exe_sha256_after": new_main,
+    }
+    same_fixture = {
+        "status": "PASS",
+        "exe_sha256": new_main,
+        "build_sha256": new_main,
+        "physical_gui_sha256": new_main,
+    }
+    final_manifest = {
+        "schema": "happy8-final-artifact-v1",
+        "status": "PASS",
+        "repository": dedicated_repo,
+        "source_sha": source_sha,
+        "formal_release": {
+            "unique": True,
+            "release_id": "release-0.2.1",
+            "release_url": "https://updates.example/releases/0.2.1",
+            "version": "0.2.1",
+        },
+        "exact_exe": {
+            "filename": "Geometry_Lotto_Pro_Happy8.exe",
+            "sha256": new_main,
+            "bytes": 50000,
+        },
+        "updater_exe": {
+            "filename": "Geometry_Lotto_Pro_Happy8_Updater.exe",
+            "sha256": new_updater,
+            "bytes": 40000,
+        },
+        "created_at": "2026-10-03T11:00:00Z",
+    }
+    final_valid = validate_final_artifact(
+        final_manifest,
+        repository=dedicated_repo,
+        source_sha=source_sha,
+        windows=windows_fixture,
+        physical_gui=physical_fixture,
+        same_hash=same_fixture,
+        real_release=valid_release_report,
+    )
+    checks["final_artifact_valid_fixture"] = {
+        "status": "PASS" if final_valid.get("status") == "PASS" else "FAIL"
+    }
+    final_status_only = validate_final_artifact(
+        {"status": "PASS"},
+        repository=dedicated_repo,
+        source_sha=source_sha,
+        windows=windows_fixture,
+        physical_gui=physical_fixture,
+        same_hash=same_fixture,
+        real_release=valid_release_report,
+    )
+    checks["final_artifact_status_only_rejected"] = {
+        "status": "PASS" if final_status_only.get("status") == "FAIL" else "FAIL"
+    }
+    bad_final_manifest = json.loads(json.dumps(final_manifest))
+    bad_final_manifest["exact_exe"]["sha256"] = "7" * 64
+    final_hash_mismatch = validate_final_artifact(
+        bad_final_manifest,
+        repository=dedicated_repo,
+        source_sha=source_sha,
+        windows=windows_fixture,
+        physical_gui=physical_fixture,
+        same_hash=same_fixture,
+        real_release=valid_release_report,
+    )
+    checks["final_artifact_hash_mismatch_rejected"] = {
+        "status": "PASS" if final_hash_mismatch.get("status") == "FAIL" else "FAIL"
     }
 
     status = "PASS" if checks and all(x["status"] == "PASS" for x in checks.values()) else "FAIL"
