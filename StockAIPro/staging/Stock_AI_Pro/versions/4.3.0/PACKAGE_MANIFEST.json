@@ -75,6 +75,6 @@
     "tests/storage_test.py": "b8e8c5d1577720b25943201bf6b662f46644dbcc9fc76aee63a4d5d7d72a3962",
     "tests/universe_parser_test.py": "847d674af0a66acea40bb018a53fab89d51b988cab41d9d7300a94e895bd1be7",
     "VERSION": "328fc98df37ff4f37f53e1566d36d10b40f1a5855ba27fa0dc652d43f2a4c433",
-    "stock_ai/netclient.py": "1aa3b2611354343b3e70195c1f36f5ab50352b04a100e0cfdc3e6ccaee4d7db1"
+    "stock_ai/netclient.py": "d9b931123907ca256d5bc5319c3287c108957a3eade0db4199e0454c2af272f3"
   }
 }
