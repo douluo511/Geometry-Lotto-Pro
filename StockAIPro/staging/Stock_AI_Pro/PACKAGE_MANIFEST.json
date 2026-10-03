@@ -128,7 +128,7 @@
     "versions/4.3.0/FIRST_TIME_SETUP.bat": "b4ff8111302cb5dcd65cc2e5a575d8c31182147d05a66b8958010e6e8afa2016",
     "versions/4.3.0/healthcheck.py": "3fce152d6716e3119654f2b3945159c5b1d8bf20acbc4aee103a93511b4c84e5",
     "versions/4.3.0/ONE_CLICK_START.bat": "4c39c1441f1838093838ed1d67da3b7a7bdbd3b5878fd3ffa7ec79ee94767de1",
-    "versions/4.3.0/PACKAGE_MANIFEST.json": "e5b7524f452280e67aba1a89d0585d5e475e2b258ea0fe8da70380f88e1e8a85",
+    "versions/4.3.0/PACKAGE_MANIFEST.json": "758385a78480531e2efb96325f8e4075420c2945b1de63309c5e1ff120cd8dc6",
     "versions/4.3.0/README_CN.md": "7a3a280d0beaebffaa8c74ca3a773263ebb58e96ef024d3fabdc6dea13200703",
     "versions/4.3.0/REMOVE_AUTO_UPDATE.bat": "b3936b2d4f655ce5c7b0bb522e0088881ed900b9a20d4ac61a5ecd79866afdb3",
     "versions/4.3.0/REPAIR_ENV.bat": "a8e33f1a6f1a002091edbb394858d8aa5325fba3b6d3022a8f0b96e82ae15793",
@@ -192,6 +192,6 @@
     "versions/4.3.0/tests/universe_parser_test.py": "847d674af0a66acea40bb018a53fab89d51b988cab41d9d7300a94e895bd1be7",
     "versions/4.3.0/VERSION": "328fc98df37ff4f37f53e1566d36d10b40f1a5855ba27fa0dc652d43f2a4c433",
     "WINDOWS_FIRST_RUN_ACCEPTANCE.bat": "2513d682de4e43f8e3a9056afd045e710d4c548abeb60c53c12717a50d01fc92",
-    "versions/4.3.0/stock_ai/netclient.py": "1aa3b2611354343b3e70195c1f36f5ab50352b04a100e0cfdc3e6ccaee4d7db1"
+    "versions/4.3.0/stock_ai/netclient.py": "d9b931123907ca256d5bc5319c3287c108957a3eade0db4199e0454c2af272f3"
   }
 }
