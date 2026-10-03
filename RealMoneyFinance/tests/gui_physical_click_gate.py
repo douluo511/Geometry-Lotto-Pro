@@ -94,11 +94,12 @@ def main() -> int:
     try:
         refresh=root/"evidence"/"refresh.json"
         capital=root/"evidence"/"capital_change.json"
-        before=max(mtime(refresh), mtime(capital))
+        refresh_before=mtime(refresh)
+        capital_before=mtime(capital)
         b=win.child_window(title="资金变化", control_type="Button")
         b.click_input()
-        wait_changed(refresh, mtime(refresh), 240)
-        wait_changed(capital, mtime(capital), 60)
+        wait_changed(refresh, refresh_before, 240)
+        wait_changed(capital, capital_before, 60)
         wait_button_enabled(b, 30)
         evidence["actions"]["capital_change"]={"status":"PASS","refresh":str(refresh),"capital":str(capital)}
 
