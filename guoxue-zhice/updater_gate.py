@@ -282,7 +282,7 @@ def main() -> int:
     report = {
         "schema": "guoxue-updater-gate-v1",
         "status": status,
-        "github_sha": os.environ.get("GITHUB_SHA"),
+        "github_sha": (os.environ.get("GUOXUE_SOURCE_SHA") or os.environ.get("GITHUB_SHA")),
         "checks": checks,
     }
     Path(args.output).write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
