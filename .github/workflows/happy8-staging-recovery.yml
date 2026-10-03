@@ -47,6 +47,10 @@ jobs:
         id: service_gate
         continue-on-error: true
         run: python scripts/service_gate.py
+      - name: Software Updater handoff fail-closed gate
+        id: updater_handoff_gate
+        continue-on-error: true
+        run: python scripts/software_update_handoff_gate.py
       - name: Independent Updater contract and rollback gate
         id: updater_gate
         continue-on-error: true
@@ -240,6 +244,7 @@ jobs:
           if ('${{ steps.storage_gate.outcome }}' -ne 'success') { $failures += 'storage_evidence' }
           if ('${{ steps.science_protocol_contract.outcome }}' -ne 'success') { $failures += 'science_protocol_contract' }
           if ('${{ steps.service_gate.outcome }}' -ne 'success') { $failures += 'application_service' }
+          if ('${{ steps.updater_handoff_gate.outcome }}' -ne 'success') { $failures += 'updater_handoff' }
           if ('${{ steps.updater_gate.outcome }}' -ne 'success') { $failures += 'updater_contract_rollback' }
           if ('${{ steps.app_selftest.outcome }}' -ne 'success') { $failures += 'application_selftest' }
           if ('${{ steps.ui_contract.outcome }}' -ne 'success') { $failures += 'ui_construction' }
@@ -255,6 +260,7 @@ jobs:
           Write-Host "STORAGE_EVIDENCE_GATE=${{ steps.storage_gate.outcome }}"
           Write-Host "SCIENCE_PROTOCOL_CONTRACT=${{ steps.science_protocol_contract.outcome }}"
           Write-Host "APPLICATION_SERVICE=${{ steps.service_gate.outcome }}"
+          Write-Host "UPDATER_HANDOFF=${{ steps.updater_handoff_gate.outcome }}"
           Write-Host "UPDATER_CONTRACT_ROLLBACK=${{ steps.updater_gate.outcome }}"
           Write-Host "APPLICATION_SELFTEST=${{ steps.app_selftest.outcome }}"
           Write-Host "UI_CONSTRUCTION=${{ steps.ui_contract.outcome }}"
