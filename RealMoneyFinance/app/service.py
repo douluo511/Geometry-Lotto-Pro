@@ -56,5 +56,7 @@ class FinanceService:
                 "reason": "independent production updater executable/release context is not available",
             }
         p = subprocess.run([str(updater), "--root", str(self.root)], capture_output=True, text=True, timeout=300)
-        return {"status": "PASS" if p.returncode == 0 else "FAIL", "returncode": p.returncode,
-                "stdout": p.stdout[-10000:], "stderr": p.stderr[-10000:]}
+        status = "PASS" if p.returncode == 0 else ("BLOCKED" if p.returncode == 3 else "FAIL")
+        return {"status": status, "returncode": p.returncode,
+                "stdout": p.stdout[-10000:], "stderr": p.stderr[-10000:],
+                "reason": "signed production release endpoint is not configured" if p.returncode == 3 else None}
