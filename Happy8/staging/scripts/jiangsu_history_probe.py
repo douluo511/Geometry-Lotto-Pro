@@ -137,7 +137,7 @@ def inspect_page(page: int, periods: str = "") -> dict:
         if re.search(r"20\d{5}", label) or re.search(r"(?i)(?:winning|lottery|detail|notice|history)", absolute):
             anchors.append({"label": label, "href": html.unescape(href)[:500], "url": absolute[:700]})
         issue_match = re.search(r"(?<!\d)(20\d{5})(?!\d)", label)
-        date_match = re.search(r"/c/(20\d{2})/(\d{2})/(\d{2})/", absolute)
+        date_match = re.search(r"/c/(20\d{2})(?:/|-)(\d{2})(?:/|-)(\d{2})/", absolute)
         host = urlsplit(absolute).hostname
         if issue_match and date_match and host in {"www.cwl.gov.cn", "cwl.gov.cn"}:
             issue_date_hints.append({
