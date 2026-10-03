@@ -293,3 +293,33 @@ Do not label any project Final until Engineering=100%, Business=100%, hard_fail_
 - The first independent-repository seed must preserve byte/path identity for: `Happy8/ARCHITECTURE_SCOPE.json`, `BUSINESS_ACCEPTANCE_BASELINE.json`, `ENGINEERING_ACCEPTANCE_BASELINE.json`, `RECOVERY_STATUS.md`, `Happy8/recovered/**`, `Happy8/staging/**`, and `.github/workflows/happy8-staging-recovery.yml`.
 - Frozen current staging tree SHA: `08ee1d09fc7c61dec882ebf6eedc18f5409bb5ac`; recovered tree SHA: `8d31d70996e737a992fe0a9c8167832e43f546e0`; workflow blob SHA: `2599e0d4e584bca70e37efa9c13c2a6ee79f1845`.
 - This preparation does NOT satisfy E17. E17 remains BLOCKED until a dedicated repository actually exists, is visible to the GitHub installation, contains no other project code, and the manifest identities are independently verified there.
+
+
+## 2026-10-03 Happy8 current-head internal gates closed
+
+- Current exact source head: `64dfe1b9274abecd972edaa52c928f10cb2b6b23`.
+- Fresh workflow run `37116813770`, job `111185116882`, completed overall **FAIL only because frozen Final requirements remain unmet**, not because the current internal technical chain failed.
+- Raw Updater evidence `happy8-updater-gate-v2` is **PASS**. The preserved FAIL→FIX→PASS chain is now closed:
+  - previous raw failure: rollback injection count 0, action ROLLED_BACK, no retained recovery state;
+  - fixed current evidence: `rollback_failure_retains_recovery_state=PASS`, failed action `ROLLBACK_FAILED`, retained backup+journal=true, rollback injection count=1, observed stage->target then backup->target replacements;
+  - `restart_recovery_restores_previous_exe=PASS`, action `RECOVERED_ROLLBACK`, original bytes restored, backup/journal removed.
+- Current engineering acceptance is **16/19 = 84.2105%**:
+  - E01-E16 PASS;
+  - E17 BLOCKED: current checkout is still shared `douluo511/Geometry-Lotto-Pro`;
+  - E18 BLOCKED: real independent Release N→N+1 evidence unavailable;
+  - E19 BLOCKED: upstream repository/release gates are not all PASS.
+- Current business acceptance is **7/8 = 87.5%**:
+  - B01/B02/B03/B04/B05/B06/B08 PASS;
+  - B07 BLOCKED only by missing real independent production Release N→N+1; update/repair contract itself is PASS.
+- Current exact Windows EXE, physical GUI and post-GUI Same Hash are PASS. Physical GUI used foreground cursor positioning and mouse down/up on all four frozen entries. Main EXE SHA-256 before/after GUI is `1fa4f92b5757a8e94539909fecce0f9628bbff538e7ede0a3a701ae00d0aa761`.
+- Physical GUI operation evidence:
+  - 预测下一期: PASS, backend PASS;
+  - 一键更新: PASS_FAIL_CLOSED, backend FAIL because real independent release config is absent;
+  - 一键修复: PASS_BLOCKED_EXPLICIT, backend BLOCKED with local recovery verified and external config/network blocker surfaced;
+  - 高级分析: PASS, backend PASS;
+  - post-GUI store status PASS; post-GUI Same Hash PASS.
+- Official network/business evidence remains current-head PASS with two source receipts, storage integrity PASS, crosscheck PASS, canonical hash `18251a9adb2a6ae69b188816340afd253073df57becd6dc7e8969ef5ae8b1362`.
+- Scientific production truth remains fail-closed: edge_state `NO_EDGE`, dan_state `NULL_DAN`, production model `uniform_baseline`, formal dan count 0. Candidate-pool/protocol denominator PASS; no unproven gain was promoted.
+- Diagnostic artifact: ID `11271772985`, name `Happy8-Staging-Diagnostic-73348494dc294833f7d88cdf8dfd52de89b39ff5`, archive digest `sha256:afa0cb817d6611c4144c7cb21b33e12dc8900c41feedcefde6c71364e03ba449`.
+- Dedicated-repository migration boundary is frozen separately in `docs/HAPPY8_INDEPENDENT_REPO_MIGRATION_MANIFEST.json` (control commit `91338706e7505258140c86b271bb9891cea30f3b`). This preparation does not count as E17 PASS.
+- Final Gate remains **FAIL**. No final artifact is accepted or deliverable until E17, E18, E19 and B07 become PASS on the dedicated repository/release lineage.
