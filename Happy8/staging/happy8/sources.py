@@ -993,19 +993,19 @@ def build_official_snapshot() -> tuple[dict[str, Any], dict[str, bytes]]:
     history_error: str | None = None
     try:
         history, history_receipt, raw_sources, manifest = fetch_national_full_history()
-        history_source = "national_welfare_lottery"
+        history_source = history_receipt.source
         verification = "CWL_FULL_HISTORY_PLUS_JIANGSU_CURRENT"
     except Exception as national_exc:
         history_error = f"{type(national_exc).__name__}: {national_exc}"
         try:
             history, history_receipt, raw_sources, manifest = fetch_shanghai_full_history()
-            history_source = "shanghai_welfare_lottery"
+            history_source = history_receipt.source
             verification = "SHANGHAI_FULL_HISTORY_PLUS_JIANGSU_CURRENT"
         except Exception as shanghai_exc:
             shanghai_error = f"{type(shanghai_exc).__name__}: {shanghai_exc}"
             try:
                 history, history_receipt, raw_sources, manifest = fetch_provincial_composite_full_history()
-                history_source = "jiangxi_fuzhou_numbers_plus_mof_calendar_crosschecked_jiangsu"
+                history_source = history_receipt.source
                 verification = "FUZHOU_NUMBERS_PLUS_MOF_MARKET_CALENDAR_CROSSCHECKED_JIANGSU_AND_CURRENT_NUMBERS"
             except Exception as composite_exc:
                 raise RuntimeError(
@@ -1050,7 +1050,7 @@ def build_official_snapshot() -> tuple[dict[str, Any], dict[str, bytes]]:
                     "national_welfare_lottery": history_error,
                     "shanghai_welfare_lottery": locals().get("shanghai_error"),
                 }
-                if history_source == "jiangxi_fuzhou_numbers_plus_mof_calendar_crosschecked_jiangsu"
+                if history_source == "jiangxi_fuzhou_numbers_plus_mof_calendar_plus_jiangsu_issue_provenance"
                 else {}
             )
         ),
