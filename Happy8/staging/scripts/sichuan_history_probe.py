@@ -141,7 +141,7 @@ def inspect() -> dict:
             issue_match = re.search(r"(?<!\d)(20\d{5})(?!\d)", row_plain)
             date_match = re.search(r"20\d{2}-\d{2}-\d{2}", row_plain)
             href_match = re.search(
-                r"(?is)href\s*=\s*['\"]([^'\"]*/kl8info/\d+\.jhtml[^'\"]*)['\"]",
+                r"(?is)href\s*=\s*['\"]([^'\"]*/(?:kl8|kl8info)/\d+\.jhtml[^'\"]*)['\"]",
                 row,
             )
             if issue_match and date_match and href_match:
