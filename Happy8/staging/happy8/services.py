@@ -46,6 +46,7 @@ class Happy8Service:
         *,
         snapshot_builder: Callable[[], tuple[dict[str, Any], dict[str, bytes]]] = build_official_snapshot,
         science_validator: Callable[..., dict[str, Any]] = validate_history,
+        software_update_launcher: Callable[[], dict[str, Any]] | None = None,
     ):
         self.data_root = Path(data_root).resolve()
         self.data_root.mkdir(parents=True, exist_ok=True)
@@ -54,6 +55,7 @@ class Happy8Service:
         self.evidence = self.data_root / "evidence"
         self.snapshot_builder = snapshot_builder
         self.science_validator = science_validator
+        self.software_update_launcher = software_update_launcher
 
     @staticmethod
     def _draws(snapshot: dict[str, Any]) -> list[Draw]:
@@ -79,6 +81,14 @@ class Happy8Service:
                 "draw_count": snapshot["canonical"]["draw_count"],
                 "latest_issue": snapshot["canonical"]["draws"][-1]["issue"],
             })
+        return result
+
+    def software_update(self) -> dict[str, Any]:
+        if self.software_update_launcher is None:
+            raise RuntimeError("independent software Updater is not configured")
+        result = self.software_update_launcher()
+        if result.get("status") != "PASS" or result.get("action") != "UPDATER_HANDOFF":
+            raise RuntimeError("independent software Updater handoff failed")
         return result
 
     def update_data(self) -> dict[str, Any]:
