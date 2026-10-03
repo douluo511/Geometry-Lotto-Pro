@@ -91,4 +91,16 @@ The exact saved `Stock_AI_Pro_DELIVERABLE_FINAL.zip` bytes were recovered again 
 - `integration_pipeline_test.py` isolated rerun: PASS in 5.98s;
 - bundled aggregate `run_full_check.py --offline`: NOT VERIFIED as an aggregate because two attempts reached `integration_pipeline_test.py` and hit the runner's finite child timeout before returning an aggregate verdict. This must not be promoted to full-suite PASS merely from the isolated component PASS.
 
+### Current exact-source import boundary
+
+Fresh Library recovery identity for the exact archive:
+
+- Library file id: `file_00000000127c81f5bea0d5483c4b4eac`;
+- Library version id: `6`;
+- materialized byte size: `225815`;
+- recomputed SHA-256: `fedbc5378ed5916e487b9cdc70051d5d00f790e4689ba8ff96dc8f2396ac7e10`;
+- archive safety/shape check: 187 entries under `Stock_AI_Pro/`, no absolute/traversal/symlink entries; 186 UTF-8 text files plus one 645-byte binary ZIP fixture.
+
+The current GitHub connector can create UTF-8/base64 blobs and trees, but it has no direct byte-stream bridge from the materialized Library/container file into a Git blob. Therefore the exact archive is **recovered and reverified locally, but not yet imported into this branch**. A documentation record or reconstructed substitute must not be counted as exact-source import PASS. The unblock condition is a reliable binary upload/byte bridge (or an independent repository environment where the exact archive bytes can be checked out/imported and rehashed before migration).
+
 This recovery removes the stale statement that the exact delivery archive is unavailable. It does **not** satisfy the current product gates: exact source is not yet migrated into the current architecture/repository, the product is still ZIP/BAT/Streamlit rather than the frozen Windows desktop Exact EXE delivery, current Real Network is not verified, independent Updater release transaction is not verified, Windows Native Build/GUI Physical Click/Same Hash are not verified, repository independence remains FAIL, and Final Gate remains FAIL.
