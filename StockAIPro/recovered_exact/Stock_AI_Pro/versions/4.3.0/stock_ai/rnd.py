@@ -84,6 +84,7 @@ def _num_col(frame: pd.DataFrame, name: str, default=np.nan) -> pd.Series:
     return pd.Series(default,index=frame.index,dtype=float)
 
 def build_shadow_frame(scored: pd.DataFrame) -> pd.DataFrame:
+    """Freeze champion/challenger ranks before outcomes are known."""
     x=scored.copy()
     cost=_num_col(x,"estimated_roundtrip_cost_bps",0).fillna(0)/10000.0
     x["production_score"]=_num_col(x,"final_score")

@@ -72,6 +72,8 @@ def _model_weights(models,valid,target_col,shrinkage=.20):
         ic=rank_ic(valid[target_col],p)
         scores[name]=0.0 if not np.isfinite(ic) else float(ic)
     vals=np.array([scores[k] for k in models],dtype=float)
+    # Validation evidence drives the weights, but shrink toward equal weights to reduce
+    # single-window overfitting and keep model diversity.
     logits=np.clip(5*vals,-2.5,2.5)
     ex=np.exp(logits-logits.max()); dynamic=ex/ex.sum()
     shrink=float(np.clip(shrinkage,0,1)); equal=np.ones(len(models),dtype=float)/len(models)

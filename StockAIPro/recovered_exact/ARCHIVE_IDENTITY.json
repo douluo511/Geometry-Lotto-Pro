@@ -1,11 +1,15 @@
 {
-  "schema": "stock-ai-pro-exact-archive-import-v1",
-  "original_file": "Stock_AI_Pro_DELIVERABLE_FINAL.zip",
-  "original_size_bytes": 225815,
-  "original_sha256": "fedbc5378ed5916e487b9cdc70051d5d00f790e4689ba8ff96dc8f2396ac7e10",
-  "archive_entries": 187,
+  "schema": "stock-ai-exact-source-import-v1",
+  "status": "PASS",
+  "archive_sha256": "fedbc5378ed5916e487b9cdc70051d5d00f790e4689ba8ff96dc8f2396ac7e10",
+  "archive_bytes": 225815,
+  "file_count": 187,
+  "utf8_files": 186,
+  "binary_files": 1,
   "active_version": "4.3.0",
   "rollback_version": "4.2.0",
-  "import_note": "Exact archive bytes were re-materialized and SHA-256 reverified before extracting UTF-8 source files. This Git import does not claim that the ZIP container bytes themselves are stored in Git.",
-  "final_gate": "FAIL"
+  "source_prefix": "Stock_AI_Pro/",
+  "immutable_recovery": true,
+  "user_public_import_approval": "2026-10-03: explicit approval for 187 files to existing public recovery branch PR #72",
+  "rule": "PASS describes byte recovery only; verify remote tree against IMPORT_BYTE_MANIFEST. Offline exact Windows suite FAIL; separate staging fixes PASS. No desktop/production/Final claims."
 }

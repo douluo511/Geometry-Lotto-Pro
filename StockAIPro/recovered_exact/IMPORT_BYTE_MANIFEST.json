@@ -1,0 +1,1127 @@
+{
+  "archive_sha256": "fedbc5378ed5916e487b9cdc70051d5d00f790e4689ba8ff96dc8f2396ac7e10",
+  "files": [
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/ACCEPTANCE_REPORT.md",
+      "bytes": 3538,
+      "sha256": "5b221a4550deab2650016dcf936d6733bc5f19f18e2d4983dcd841f278a0eda8",
+      "git_blob": "15e35a04f5be9f4c16ff74ea9c89af7f096b4a3f"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/BOOTSTRAP.ps1",
+      "bytes": 2114,
+      "sha256": "6e153020d4021c7baa36e7d35d208926942d61cdb3aae9bf82481bb1b64795dc",
+      "git_blob": "06d5da19ea62e3b4e5b90d9f54772547f89be853"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/BUILD_AUDIT.json",
+      "bytes": 984,
+      "sha256": "b169f9c7b42757ca5fcaf6b8cde4dc8622e0ab8acfb797aeb6bdcf67472b507e",
+      "git_blob": "eeef0b477dcefbd1173c1b6a0daeaf679246faed"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/CHECK_SOFTWARE_UPDATE.bat",
+      "bytes": 201,
+      "sha256": "72409c3c9fe4360934f5f9fce6aced729486146408b8cc5156227277b4a9de27",
+      "git_blob": "2bef4e65b8f90f29ea2bad853d37e2fd3ec29856"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/DELIVERY_SPEC.md",
+      "bytes": 20887,
+      "sha256": "581f61e05b7588e44e6a7aa970e1db6396d538b0ce0aecc37d339b9c0ceddc68",
+      "git_blob": "e9a662508586d21ed2c755e49a62512e4a332ff7"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/ENSURE_RUNTIME.bat",
+      "bytes": 225,
+      "sha256": "428fb2763ccbb51ea462d08448127575a1ae7af53cf7b20d6d1b35353bebdd5e",
+      "git_blob": "e6627d37ae991f571f1c992834f766b84dc1d961"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/FIRST_RUN_DIAGNOSE.bat",
+      "bytes": 252,
+      "sha256": "15ddbe6899c0b1fcc7761543a15ab3402c321cff0139c007315a9246220cdc37",
+      "git_blob": "4f6628f805c18eef3fa676a2b19116e132099c13"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/ONE_CLICK_START.bat",
+      "bytes": 397,
+      "sha256": "5359536617f93db65cb8b624139348f28a425fa4f80306bae919aad8a23dc9fa",
+      "git_blob": "3677b7203569344294971a200703555ed9de7ef2"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/PACKAGE_MANIFEST.json",
+      "bytes": 20266,
+      "sha256": "e46a48dadfd0ee946c8eb5617867ac2a97c6045b5b22ed095488b1ab64c6d970",
+      "git_blob": "81ce4f4cb4913c03809f584a08aede4d3a844d93"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/README_CN.md",
+      "bytes": 6873,
+      "sha256": "7a3a280d0beaebffaa8c74ca3a773263ebb58e96ef024d3fabdc6dea13200703",
+      "git_blob": "85e91476863f8463da67e13674a6dc6b0683db50"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/REMOVE_AUTO_UPDATE.bat",
+      "bytes": 77,
+      "sha256": "b3936b2d4f655ce5c7b0bb522e0088881ed900b9a20d4ac61a5ecd79866afdb3",
+      "git_blob": "19ef299c587bfa47d93736ea86fbf8bb3542aefd"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/RUN_AUDIT.bat",
+      "bytes": 195,
+      "sha256": "94a4d55b86e8de885539273a952d2412aacdd414471bb6ae2c71d3122b1bfe68",
+      "git_blob": "25dadc4ac187d5c56c14854905177aaff51c90fc"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/RUN_BACKTEST.bat",
+      "bytes": 198,
+      "sha256": "c5d9e0968ec1502206c9e6a01ceefc8fd104cbf5dea96d30a68b177324b19dbd",
+      "git_blob": "71c361a26e52c83d3e228eb9cc1633a567545e19"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/RUN_DAILY.bat",
+      "bytes": 283,
+      "sha256": "8aa9b1d3e47277e2dd6fe058b99fa39f025e8b7af2a46201514c1f9fd3b6c46a",
+      "git_blob": "f16539ea116f7c25b001d1b15ced2aee8f9e7785"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/RUN_DAILY_SILENT.bat",
+      "bytes": 165,
+      "sha256": "75634d4276580a35539507df02e4caf7c3bbabee02988def081e6acf9d21e684",
+      "git_blob": "82f4995a4e1681621049800e0206099eff2abb62"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/RUN_FULL_CHECK.bat",
+      "bytes": 283,
+      "sha256": "494874dfe6f96f4df0374f118004621698dbc5280500fbef78b92fc6484961f3",
+      "git_blob": "6ceec383c2ff86ed21dba1cbb44eea15d86d2d60"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/RUN_RND.bat",
+      "bytes": 193,
+      "sha256": "02c66027694b9993385ac9505f5faaf6df3100442989ac07a67ac314228b7639",
+      "git_blob": "d07cf69de29a0555b518f0910a164acf198dc6b1"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/SETUP_AUTO_UPDATE.bat",
+      "bytes": 221,
+      "sha256": "45ab450b06038dd87eebe23f15e9cc031b94f89e69766d812b51791e191c5465",
+      "git_blob": "225bedfb556a7ce9a6520f96ae18d2aac6d75bb3"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/SETUP_AUTO_UPDATE.ps1",
+      "bytes": 962,
+      "sha256": "d37a78fc88d2bcfaa384b27e6356024242140aff3a6a9c994fd4124946967405",
+      "git_blob": "ca1922f2e56c1ac70edec4a9b97d075e4f819e28"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/START_APP.bat",
+      "bytes": 191,
+      "sha256": "9961e605e2fdf3f198a1b92e85ea707fcf1435e80ce5de48eecb43ae5ab7665e",
+      "git_blob": "2bb4cc0911105b439164d917444d57d4b4ef8dbc"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/START_HERE.txt",
+      "bytes": 1146,
+      "sha256": "450841d68e56e60e11170c4b689eee168be1f60f51dd2f7d29bce0e5a6629821",
+      "git_blob": "b5955aa115863b28c1ac466147146149df2f1506"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/UPDATE_MANIFEST_SCHEMA.md",
+      "bytes": 1595,
+      "sha256": "ef22886743ed59c9a7e99e8b713da250e46cbbbe4bbf4b13b55d9a5e90f53cd9",
+      "git_blob": "5d430fc45479e95cb12c4d1bc31db47332f9b659"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/WINDOWS_FIRST_RUN_ACCEPTANCE.bat",
+      "bytes": 482,
+      "sha256": "2513d682de4e43f8e3a9056afd045e710d4c548abeb60c53c12717a50d01fc92",
+      "git_blob": "7baa8790b3cee5fa0a01c011f1141abfe68e3f56"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/acceptance_tests/data_separation_test.py",
+      "bytes": 592,
+      "sha256": "f13a7102259df1300a977c63b568838812030a7c99e69cdd29adbcfd32a89c36",
+      "git_blob": "979f415a66faf49c20673b9064e8d3b5d0602b07"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/acceptance_tests/deterministic_build_test.py",
+      "bytes": 562,
+      "sha256": "9d24d7b30fb63c252d9001114fd743e7ea9db6e5c971ecc27e63fdb10cc9fdfe",
+      "git_blob": "5520b83a0b7bfa76cb30de97db69ebd45f1b64aa"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/acceptance_tests/distribution_layout_test.py",
+      "bytes": 768,
+      "sha256": "8037ff038f13ffbb7661ad3594b01b9be339032776414ff1cf9972cb4571380b",
+      "git_blob": "04ca0fbe75f155a5e1196a0d0a2cb6880d919fb7"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/acceptance_tests/fixtures/4.0.1.zip",
+      "bytes": 645,
+      "sha256": "ba1c5fc1fad495b455ce7e2b3b0cad8fdd75c68e1f917f28653f7b4f87f4df41",
+      "git_blob": "384b5fa8a2541283e35eb406e83a9e0046ba89dd"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/acceptance_tests/fixtures/manifest_4.0.1.json",
+      "bytes": 344,
+      "sha256": "2fec401546c5e4e709c903149f990febd2d058a337561ee5437a803450db00c9",
+      "git_blob": "120041444a4c9f3fbef9192c5596908e68f9e9ce"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/acceptance_tests/install_failfast_test.py",
+      "bytes": 622,
+      "sha256": "f1e5724e64a2eaef3ae69272dd348e1736f9711c2f1501c81e473a9aff9c93b3",
+      "git_blob": "167585c66034afbe2b47ed5741893f6e2ed5442d"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/acceptance_tests/launcher_rollback_test.py",
+      "bytes": 1385,
+      "sha256": "d9719e0c39f308a221b53cc8034f708f907bae084144ffa81e7c30903911baa8",
+      "git_blob": "3ad2ca890a87af3a8f4cdcdc9639d9c54e75098f"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/acceptance_tests/package_manifest_test.py",
+      "bytes": 1342,
+      "sha256": "d7147db19effcf20d966e26b2b2275af1d951df359047910e578fecf65e5e06b",
+      "git_blob": "166bd9cc9a1a7f5df12427a41c833455e760ace9"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/acceptance_tests/schema_rollback_compat_test.py",
+      "bytes": 805,
+      "sha256": "cc4fa2c763eb186582ddcf52aec9795ae4772f19bb10e7728421bac592e849b0",
+      "git_blob": "7efab1ecd9a7927c8d98b54e5003ac252ff11bc6"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/acceptance_tests/updater_security_test.py",
+      "bytes": 7950,
+      "sha256": "d19e689cf6bf0eecd7f44811b0f1513e99cddd00f5b0f67ee1d3f489c80da5cc",
+      "git_blob": "1d2bf9c1c3467b5033e0102c1550e8da1654e7db"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/acceptance_windows.py",
+      "bytes": 3620,
+      "sha256": "bc16099a395a8872d1e642aae132d95822020dcc022fa591f65bd6a069cf0dd6",
+      "git_blob": "d6f2c01333797e28b179a25c8a2a2a4e2b026e84"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/current.json",
+      "bytes": 184,
+      "sha256": "a92b5c8acacc9bab6196e12f1079e9830185ec3e919c403fadc060f52c87cf56",
+      "git_blob": "ce98f729a85b9b3d65b72d2f8ce778157e10e6b7"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/diagnose.py",
+      "bytes": 2102,
+      "sha256": "0b5f81dbc7f7d720910885ebb0478ef6fd8443eb6e6397ae602380d538c347d7",
+      "git_blob": "7bbe6d40320623e4b3c23a4754d0136b2a55cc60"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/launcher.py",
+      "bytes": 6446,
+      "sha256": "5e606e9a6afd2b7e46036111a46107e14b6c6e2a5f4848fe3fcdaea20e18af9e",
+      "git_blob": "627c93ffda629384acb47dc8a657a2459df9545a"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/release_tools/build_deterministic_zip.py",
+      "bytes": 1828,
+      "sha256": "344ddc0e33909d3ddf6db171f8c58a68247d6df43967480d984dd8d7310a0241",
+      "git_blob": "1a2a0ec502ea49cc3bd30d3a2bed94d1ea4f096c"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/requirements_runtime.txt",
+      "bytes": 39,
+      "sha256": "344bc0ac0ecc366012a8afbf7ed18f88b20ee11bd4ee67d8c1490922e42594d8",
+      "git_blob": "b28848b50f86c88b35a2e03ddd70c0b5c7502df3"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/run_full_check.py",
+      "bytes": 1731,
+      "sha256": "cc8306b9c938cb8bf86f5e7b638bbce1b818721ad88ae5bcf3a876e1d6a4ef41",
+      "git_blob": "7b3a3d468a67c3c670dba08fb1a74418a9ca48e9"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/updater_config.default.json",
+      "bytes": 95,
+      "sha256": "36bb2a35ad5132cdef31baa735d00c8487fcad18b9839c5ad7ab117332239fea",
+      "git_blob": "6de5d3f9d93678fbad7c275dcadeb478db0e1166"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/updater_public_key.pem",
+      "bytes": 113,
+      "sha256": "5646765c1594517fa315dd612e64d44d144f9d234de3deb094abb516d9bbd671",
+      "git_blob": "68be7e1dfefe96d1c725649e0ee1610fc254f01c"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/updater_runtime/__init__.py",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "git_blob": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/updater_runtime/updater.py",
+      "bytes": 14572,
+      "sha256": "bfb6bee030e4f6dc089984a5185cf0d56bcee94c03c5d9d6bd214d5fab5bd83b",
+      "git_blob": "e6ed65139965ffc4ed5b24e2f188484a57d9fc41"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/BOOTSTRAP.ps1",
+      "bytes": 2522,
+      "sha256": "e63cb8bc21fd0b589bcb31dc9d4d121055f6383c2fe012a741605a811606a200",
+      "git_blob": "1bfa805b9a6a26057740f42140357c215a2b6c56"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/BUILD_AUDIT.json",
+      "bytes": 885,
+      "sha256": "1fd5087ad1cfb12f4543e9c35454e064ce99436d0b73af3323a5edbedd2cc43b",
+      "git_blob": "b9f2a2648b004ba165b7e0497d8852a95695f3d7"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/ENSURE_ENV.bat",
+      "bytes": 385,
+      "sha256": "fd2079c5c8cb8ccf74e80dc3795a8815929a64c9f2933194854eeb96089bf7d4",
+      "git_blob": "a172098b5c05733713d90e5c05ab4f67c6b79e5e"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/FIRST_TIME_SETUP.bat",
+      "bytes": 267,
+      "sha256": "b4ff8111302cb5dcd65cc2e5a575d8c31182147d05a66b8958010e6e8afa2016",
+      "git_blob": "e2e4f02c0d4992072e9df3a7fb50f6ac71eda5dd"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/ONE_CLICK_START.bat",
+      "bytes": 362,
+      "sha256": "4c39c1441f1838093838ed1d67da3b7a7bdbd3b5878fd3ffa7ec79ee94767de1",
+      "git_blob": "8007f1e6408dfb844867c8048934c62063914a0e"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/PACKAGE_MANIFEST.json",
+      "bytes": 6739,
+      "sha256": "d7308fd9c912ce74129ff94f3aa155d6d1178a817b261806b63b4999f137da1b",
+      "git_blob": "063cef69af5935084ac9bd1ec4f6a1eb5a28b8f7"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/README_CN.md",
+      "bytes": 5863,
+      "sha256": "01c8adf0a63be0a3b7f580cebd701d68449c2629bb59c44aae90edbdcd23cec1",
+      "git_blob": "7cc5c97f65313f63b68c35f29f5c85f6eeafd1fa"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/REMOVE_AUTO_UPDATE.bat",
+      "bytes": 77,
+      "sha256": "b3936b2d4f655ce5c7b0bb522e0088881ed900b9a20d4ac61a5ecd79866afdb3",
+      "git_blob": "19ef299c587bfa47d93736ea86fbf8bb3542aefd"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/REPAIR_ENV.bat",
+      "bytes": 119,
+      "sha256": "a8e33f1a6f1a002091edbb394858d8aa5325fba3b6d3022a8f0b96e82ae15793",
+      "git_blob": "09f57f4e0064c049600d16e20fb4f98895910fd8"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/RUN_AUDIT.bat",
+      "bytes": 152,
+      "sha256": "abdebfecddbbbab66be77accf38ad588fff413bdc4d61038b97fd0da667fe682",
+      "git_blob": "0419dadf5870796f14c673f7b220ea1f3f1d9294"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/RUN_BACKTEST.bat",
+      "bytes": 155,
+      "sha256": "c8e0b0fed821ee82b2b2b8156426c7e19dc0b2a4256f7c147aafc1bd4e300aef",
+      "git_blob": "d5da7b852325b04805627e5ae4f131b58639422c"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/RUN_DAILY.bat",
+      "bytes": 358,
+      "sha256": "be12387f1842e1d060a6eba5bb18cfc03329c3774c2ea6de6f043f275969cf19",
+      "git_blob": "054e59c0e81b73374518176b75104b66272c5006"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/RUN_DAILY_SILENT.bat",
+      "bytes": 433,
+      "sha256": "887106694fc1a737e86b126c9b07fac4f2dfdd70aa2c5bf53cb23c99e45da0e2",
+      "git_blob": "4326c610b2be93cc4ae47032a5e23728493c5c05"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/RUN_FULL_CHECK.bat",
+      "bytes": 1183,
+      "sha256": "e3576b865c0c911395059a60ab2149fcffe25c3105d03a1e6c2236d19961a7c3",
+      "git_blob": "5d539866e83fd32c1e6b7a2b2d576d455db0cb59"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/RUN_RND.bat",
+      "bytes": 150,
+      "sha256": "c14875e39d6f900c2153ba32b30e49f497e32cb2af2ab66925e9d9019b918bec",
+      "git_blob": "2c4d2745aa498e9d1139dfcb33e6f0cef0f9ec30"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/RUN_SELF_TEST.bat",
+      "bytes": 211,
+      "sha256": "245be40cc510798010eb82966b9e46cf6505caeda4cdf1f54eb51be59b4bfd9d",
+      "git_blob": "485f6be97e84d7147d80be4d794b4b5679617a6a"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/SETUP_AUTO_UPDATE.bat",
+      "bytes": 237,
+      "sha256": "84e1e61e6ad7f5642e5a4cde0325f20926d934a69e5240d0a0ca28815eedf7f1",
+      "git_blob": "251c71bec31bb557e2406ec8d4d3a602c0a8a1e6"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/SETUP_AUTO_UPDATE.ps1",
+      "bytes": 926,
+      "sha256": "dea70e090781196443dd866dd3e01643f03f59a7821be975618622cdc2a36722",
+      "git_blob": "efa3b4a0ab87b2bc70ee4f6fcf9aac53313d0daa"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/START_APP.bat",
+      "bytes": 197,
+      "sha256": "cf1a73d081f0e45f693e87470baeef24a50856a57c40e209317c91a8163dfcce",
+      "git_blob": "882200f7175bb41e048f6b97c8b172bb05765db6"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/START_HERE.txt",
+      "bytes": 802,
+      "sha256": "ed5685c202bd1cfdb40b996af23c1459caf5e1d8e6fa5c7ba914afe7b8c2ccda",
+      "git_blob": "11541eb31566a4750dccc9ae07ada37677fa3a42"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/VERSION",
+      "bytes": 18,
+      "sha256": "c788edb9df43e26d029cdc95136f6c9a084903aad1626efdffa364f751f52544",
+      "git_blob": "275d53cdb98e667de0591dd35f47969e69ef9e7a"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/app.py",
+      "bytes": 6381,
+      "sha256": "46f169cf1e5e06f4baf77ab67c0c5763639b889f182d50df83ad9de90e110f0d",
+      "git_blob": "0559435c5208432c97983c8900e68e092d473d02"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/config.default.json",
+      "bytes": 3442,
+      "sha256": "07773bbef656d97164c03881fd7435ca1ac075edcc7e8d0f11b9d49f8a952538",
+      "git_blob": "1cbd24e1eac0ecd9556a8d32e4bf64976c1dc5f6"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/config.json",
+      "bytes": 3442,
+      "sha256": "07773bbef656d97164c03881fd7435ca1ac075edcc7e8d0f11b9d49f8a952538",
+      "git_blob": "1cbd24e1eac0ecd9556a8d32e4bf64976c1dc5f6"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/doctor.py",
+      "bytes": 2176,
+      "sha256": "511a6b525381179d39e1db4f9314225e17ed6a80d5a63eb79122bc025d0e2448",
+      "git_blob": "5792be1ccefd3852e2a299589d170a59b84c3510"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/healthcheck.py",
+      "bytes": 1011,
+      "sha256": "3fce152d6716e3119654f2b3945159c5b1d8bf20acbc4aee103a93511b4c84e5",
+      "git_blob": "0e4d4d03d21a1583c3247d32d313a1fcc92d3b07"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/requirements.txt",
+      "bytes": 147,
+      "sha256": "19d51aecbd9d1bd44e7d54f996cd21721981307e5c7c40630ccdb16f0b66b18a",
+      "git_blob": "05eab4f83f2a50f100a325aad37bd3c5b7574877"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/run_audit.py",
+      "bytes": 190,
+      "sha256": "f233e2f6fcde63f5f3050617d31e66f0e832b181faacca93ef0e76e1de00b609",
+      "git_blob": "0a92ec5b86224bc702701d7bdaa473552b626a90"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/run_backtest.py",
+      "bytes": 147,
+      "sha256": "1a2fb4d64d91f8e994f015795f783a19276322c1b82a8f8b9c8534b882559a94",
+      "git_blob": "940736ed39f4df8e3f53a190e03a417694547ef2"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/run_daily.py",
+      "bytes": 67,
+      "sha256": "43fb2ec4bb1ff0d2082e8fa0e6106d68785364c6395065535dc50d695edd6fdc",
+      "git_blob": "b2e9228b1c599ea7e01f42ed601fe8c78c7d6a37"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/run_rnd.py",
+      "bytes": 123,
+      "sha256": "d078602e4969d4f100a55939a9f7bff8445afe9a3836493a318cb1597fc471a7",
+      "git_blob": "2fe5a20e663ea53e38ed2ffa38828819f08d561e"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/stock_ai/__init__.py",
+      "bytes": 32,
+      "sha256": "cda446d70b742cb6561a06476d5f156c8f89f4bdca3a32cb186069d9dd49a293",
+      "git_blob": "05a5c021bf9b11d66aede9b72ff02d1a7a8593b0"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/stock_ai/audit.py",
+      "bytes": 7275,
+      "sha256": "45ba33bc4921d836e72512f094bf43fa1b904db4d5e245156aa7c5c675a1a77b",
+      "git_blob": "2709499b1a0bf86fccafde2d31a3d1ed788185f7"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/stock_ai/backtest.py",
+      "bytes": 6689,
+      "sha256": "9c6361152f9aaa20df07e69ab620d1a245655722531cf5ececb6c056a4fc8dda",
+      "git_blob": "ecf2860003fa227c668c4914ad8faef002928620"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/stock_ai/backup.py",
+      "bytes": 2376,
+      "sha256": "e9ee152dbae61b34a0115c1c8927008d0455d2514f31411c12cf8b3da37198d8",
+      "git_blob": "233265837fad30f4d109fdb28e335f5ab300ac0a"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/stock_ai/config.py",
+      "bytes": 4651,
+      "sha256": "301aee238332ce7387dcd04fe69a2235a2cef441a65aa886932d7794fed14d53",
+      "git_blob": "8d4bf2b6f2716ab9657e37ec39cb5a243ad3f957"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/stock_ai/cost.py",
+      "bytes": 2352,
+      "sha256": "84493b0c785c1cb0609a207a08adfd5560ebef08d155b2abedf0c32f15476755",
+      "git_blob": "79c3ce93cb707e28199a849de14ac74477b626e1"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/stock_ai/data_quality.py",
+      "bytes": 1031,
+      "sha256": "ca7c73909c7c57358ce7553903ade216358a0270876171d4b1aa54c13f48c12f",
+      "git_blob": "8d4eecdd2ef4c0cfeaa45e32c543d149a76d9c40"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/stock_ai/data_source.py",
+      "bytes": 23964,
+      "sha256": "eb066e403de0028dfca4852abe49683bfc9e6c26a6c3fb548b203e238f0c21c9",
+      "git_blob": "b601bcf80a649add3f36d26c0f81d8eba56244aa"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/stock_ai/decision.py",
+      "bytes": 1648,
+      "sha256": "e0d6bde0c4739116373efdcdce5a25c2907018e15bd8418c1c699bfc699ad4a3",
+      "git_blob": "245f1ce0b25c3c5140ab95fc741e49072a75f3bb"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/stock_ai/drift.py",
+      "bytes": 1837,
+      "sha256": "91e6df4296ee11fdfbcd7a7351dbde9a4e226c4b7b73b9a13b8e040a98717f66",
+      "git_blob": "ceb5582e46cad94d34ce424045523f0b3a34a533"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/stock_ai/features.py",
+      "bytes": 2796,
+      "sha256": "b262fd8fbb4b8b2d53f2171184769d441c774f0944da76039025b21de5019e6e",
+      "git_blob": "c915ad1fa5a40c19344af9ae134063e1bb7d29ed"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/stock_ai/maintenance.py",
+      "bytes": 1889,
+      "sha256": "bd5824ce32048873c7f200fb5a596ea8e5ddb5e2d19737ba31cefb7df432af91",
+      "git_blob": "0e2b28d049970fae42ed0a23b5b910bcc1c07b86"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/stock_ai/model.py",
+      "bytes": 3808,
+      "sha256": "c106e3a016fd36fd0d8ddae541fafd6b8725daac1a6cd84c424b03d4dd34ffd3",
+      "git_blob": "bac0261dd421ab92fae8d160560fa29bdf1607a9"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/stock_ai/pipeline.py",
+      "bytes": 8189,
+      "sha256": "eacd94024b26d3652354ee4af74a8d9464a87390f018ff2bd28c6df824384dc4",
+      "git_blob": "67ae381dbb8509d22f5069716e69ba4c944f5a45"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/stock_ai/regime.py",
+      "bytes": 1113,
+      "sha256": "c8194f0142531fb646c90da5625d631759ee1a760a88c5037e33acffe5920da5",
+      "git_blob": "55ae082dfaf28ee0bc7418b9fc14ae07012d1475"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/stock_ai/rnd.py",
+      "bytes": 15502,
+      "sha256": "6dffaaade378c148a8a98426f455dfbbb3f711d5bc486c2f68023561554146b2",
+      "git_blob": "bf212615985c74135d11121511eb3aea53958fde"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/stock_ai/scoring.py",
+      "bytes": 4287,
+      "sha256": "6cec2f7b2d71de672105a64cdf04e9490811cb91160fd9e1cc3077d50c181553",
+      "git_blob": "092a9deedcd35deb411eef3e17ab48cb3cc2b1b3"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/stock_ai/storage.py",
+      "bytes": 4541,
+      "sha256": "d7d071ee135fe9929e8ec1815be96b582164e07271ee37ccc87660bd2ae4c3fd",
+      "git_blob": "eccba7940b3ebc140132327012b667fa01463aa3"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/stock_ai/utils.py",
+      "bytes": 2480,
+      "sha256": "a068244a6b6c976beee2a6ea754b92bebe14204cbb3434729018783060cf3e72",
+      "git_blob": "2f1793117796a8bc2ee809631259d5226c816604"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/stock_ai/valuation.py",
+      "bytes": 6426,
+      "sha256": "d687da39d010799a3824aa08524af0afe0b0516f04942965ac4950763d925c9b",
+      "git_blob": "736b602f68689a4021e687806e06d19188f323a5"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/tests/app_static_test.py",
+      "bytes": 402,
+      "sha256": "cf8773810fbaa33ff7243d132367695f19db787bd0ceb51c80b3ac781ca7a427",
+      "git_blob": "2706b04d3c9bfc7a0fea696b8965a3a799d46e52"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/tests/audit_test.py",
+      "bytes": 2644,
+      "sha256": "69314835e5e3deb97ddd51fcee387bdca0f607927b0a13c8e986818edbe90bbb",
+      "git_blob": "432e7c74b2ae81a71c51343a7143148c8ab64e5d"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/tests/backtest_test.py",
+      "bytes": 2130,
+      "sha256": "38aba1677f86d6cd0f0d6232c1f463071f63c9ff20101acb69079ad02e2f8d94",
+      "git_blob": "8afdd0d8d48b596ac6eefe18650d8afd02d68aad"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/tests/config_migration_test.py",
+      "bytes": 1486,
+      "sha256": "3d4eafe2d48d2853745677d7c304e3e802152fd46db2389867af1084e1e682ca",
+      "git_blob": "d268a202808acf40d7ee2d03c65d8d3d06c4df12"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/tests/cost_valuation_decision_test.py",
+      "bytes": 1523,
+      "sha256": "2e3790da2d5eed91358b755e727d0012f61dec7d1eb2127ae8c8a848af26ce34",
+      "git_blob": "b936baabde768bdbc0d1bd2a37f58b1638ab21ea"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/tests/entrypoints_test.py",
+      "bytes": 469,
+      "sha256": "6876b9fe5c9fc5dae83b034734175c5b84a5db3b3d2fd8de8c570f25f64e3b07",
+      "git_blob": "e269d43e1f6e2620ae12dab875317a7e2f47668d"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/tests/freshness_gate_test.py",
+      "bytes": 1377,
+      "sha256": "b3ac9460b7840b8526de7e5b5a99d82577e50337400a71d5fa54685acc44d514",
+      "git_blob": "eae5cef01b4a3ebaf8c9b0f80e42a3a8aae46b8d"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/tests/integration_pipeline_test.py",
+      "bytes": 4022,
+      "sha256": "2b75cebf365714ffb9a64bd0743a75b1c7ac1ff962374a564993ecdae6bb31fc",
+      "git_blob": "edc392ab51774b78b528510ba10b7f1065f8498c"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/tests/legacy_migration_test.py",
+      "bytes": 775,
+      "sha256": "921c014797b0182397c156238349c468d81be5ca02dd4d53522f17d9bc23d451",
+      "git_blob": "b8507c4f2c065c9d1c0eed0ec7fa293e64f4d4f7"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/tests/lock_test.py",
+      "bytes": 494,
+      "sha256": "8574428e72bdf0c52ef02358460e05f2e14d89c8de70251694e44adcc154802d",
+      "git_blob": "60434f44445590e1cbb0b3c754b62718a00b0209"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/tests/maintenance_test.py",
+      "bytes": 1083,
+      "sha256": "ef110ed35df5d0a65d54807567f69b72abfb35e089bfd5adfae0c76740e86770",
+      "git_blob": "1ec547a73e284a3878f0149d5731d5e1d155b971"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/tests/model_mode_test.py",
+      "bytes": 1022,
+      "sha256": "d0f02f66206a527e857d9c7448d176848e335b7c9940bdcb4175b0595a1a958b",
+      "git_blob": "28365f8b1c1a4cd8986a30ee3f6bdc809c95cb6c"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/tests/network_config_test.py",
+      "bytes": 599,
+      "sha256": "de1f7cc457ba40c9c90bac4e0d89dc21a8ad413b796cfa12a09846361afa280f",
+      "git_blob": "d9b6e59967cb417db43f4a72cfc1a3b46eb96fdc"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/tests/package_manifest_test.py",
+      "bytes": 516,
+      "sha256": "0d105cc945978d4fae525a6346fdb88cc96e6fd02c1a100a66e5d74175d50269",
+      "git_blob": "c6f42713f3f1a059ba05b83bd7ea58010884d62f"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/tests/prediction_chain_test.py",
+      "bytes": 1265,
+      "sha256": "6a25a0ff22d53937c86cd405dd00ffe482e93559f73e4d71848786886ce2250d",
+      "git_blob": "9ed8133310f81499cedc296364ab99dc96550179"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/tests/provider_normalization_test.py",
+      "bytes": 1343,
+      "sha256": "0f014912407e99e6282c7947f0103b9d6a0c91460f31f810dd83c61cc996326f",
+      "git_blob": "4652104e777dfdee8dd6c494276450ff41a889d5"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/tests/rnd_test.py",
+      "bytes": 3914,
+      "sha256": "6c6799aba626c2e44a95eafb2f0bc494dd900a48414a0c3f561c7628142307f4",
+      "git_blob": "056504992275599177c7e9200e1c1d74991cefe8"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/tests/self_test.py",
+      "bytes": 2907,
+      "sha256": "e79984b71883dd8e536a51076836db4c5dbb297bbd0b8a2c32c7665ff114e388",
+      "git_blob": "f7e502d83e6ac40974ecf68187a9c58d323f4cfa"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/tests/storage_test.py",
+      "bytes": 1417,
+      "sha256": "b8e8c5d1577720b25943201bf6b662f46644dbcc9fc76aee63a4d5d7d72a3962",
+      "git_blob": "be5b704ddbb879683bd823da9b2e8ebf220a4738"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.2.0/tests/universe_parser_test.py",
+      "bytes": 734,
+      "sha256": "847d674af0a66acea40bb018a53fab89d51b988cab41d9d7300a94e895bd1be7",
+      "git_blob": "1018c7bdf13c3c804c17a8494a1bba85c12a78b9"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/BOOTSTRAP.ps1",
+      "bytes": 2522,
+      "sha256": "e63cb8bc21fd0b589bcb31dc9d4d121055f6383c2fe012a741605a811606a200",
+      "git_blob": "1bfa805b9a6a26057740f42140357c215a2b6c56"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/BUILD_AUDIT.json",
+      "bytes": 650,
+      "sha256": "39687864f83db5b94ffa12aee9195e665f785a0e894d50658584fb303cfca355",
+      "git_blob": "ed671cd408d6a7b57ee177a87e20a91b2a937f69"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/ENSURE_ENV.bat",
+      "bytes": 385,
+      "sha256": "fd2079c5c8cb8ccf74e80dc3795a8815929a64c9f2933194854eeb96089bf7d4",
+      "git_blob": "a172098b5c05733713d90e5c05ab4f67c6b79e5e"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/FIRST_TIME_SETUP.bat",
+      "bytes": 267,
+      "sha256": "b4ff8111302cb5dcd65cc2e5a575d8c31182147d05a66b8958010e6e8afa2016",
+      "git_blob": "e2e4f02c0d4992072e9df3a7fb50f6ac71eda5dd"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/ONE_CLICK_START.bat",
+      "bytes": 362,
+      "sha256": "4c39c1441f1838093838ed1d67da3b7a7bdbd3b5878fd3ffa7ec79ee94767de1",
+      "git_blob": "8007f1e6408dfb844867c8048934c62063914a0e"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/PACKAGE_MANIFEST.json",
+      "bytes": 6840,
+      "sha256": "8b87ed781c3f4b7825cadf434d6efecc51bca574f0d7affe7426f7549286edd6",
+      "git_blob": "51c8762f6f9bb8d8af5f11d86ecde319390f99fe"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/README_CN.md",
+      "bytes": 6873,
+      "sha256": "7a3a280d0beaebffaa8c74ca3a773263ebb58e96ef024d3fabdc6dea13200703",
+      "git_blob": "85e91476863f8463da67e13674a6dc6b0683db50"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/REMOVE_AUTO_UPDATE.bat",
+      "bytes": 77,
+      "sha256": "b3936b2d4f655ce5c7b0bb522e0088881ed900b9a20d4ac61a5ecd79866afdb3",
+      "git_blob": "19ef299c587bfa47d93736ea86fbf8bb3542aefd"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/REPAIR_ENV.bat",
+      "bytes": 119,
+      "sha256": "a8e33f1a6f1a002091edbb394858d8aa5325fba3b6d3022a8f0b96e82ae15793",
+      "git_blob": "09f57f4e0064c049600d16e20fb4f98895910fd8"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/RUN_AUDIT.bat",
+      "bytes": 152,
+      "sha256": "abdebfecddbbbab66be77accf38ad588fff413bdc4d61038b97fd0da667fe682",
+      "git_blob": "0419dadf5870796f14c673f7b220ea1f3f1d9294"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/RUN_BACKTEST.bat",
+      "bytes": 155,
+      "sha256": "c8e0b0fed821ee82b2b2b8156426c7e19dc0b2a4256f7c147aafc1bd4e300aef",
+      "git_blob": "d5da7b852325b04805627e5ae4f131b58639422c"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/RUN_DAILY.bat",
+      "bytes": 358,
+      "sha256": "be12387f1842e1d060a6eba5bb18cfc03329c3774c2ea6de6f043f275969cf19",
+      "git_blob": "054e59c0e81b73374518176b75104b66272c5006"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/RUN_DAILY_SILENT.bat",
+      "bytes": 433,
+      "sha256": "887106694fc1a737e86b126c9b07fac4f2dfdd70aa2c5bf53cb23c99e45da0e2",
+      "git_blob": "4326c610b2be93cc4ae47032a5e23728493c5c05"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/RUN_FULL_CHECK.bat",
+      "bytes": 1183,
+      "sha256": "e3576b865c0c911395059a60ab2149fcffe25c3105d03a1e6c2236d19961a7c3",
+      "git_blob": "5d539866e83fd32c1e6b7a2b2d576d455db0cb59"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/RUN_RND.bat",
+      "bytes": 150,
+      "sha256": "c14875e39d6f900c2153ba32b30e49f497e32cb2af2ab66925e9d9019b918bec",
+      "git_blob": "2c4d2745aa498e9d1139dfcb33e6f0cef0f9ec30"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/RUN_SELF_TEST.bat",
+      "bytes": 211,
+      "sha256": "245be40cc510798010eb82966b9e46cf6505caeda4cdf1f54eb51be59b4bfd9d",
+      "git_blob": "485f6be97e84d7147d80be4d794b4b5679617a6a"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/SETUP_AUTO_UPDATE.bat",
+      "bytes": 237,
+      "sha256": "84e1e61e6ad7f5642e5a4cde0325f20926d934a69e5240d0a0ca28815eedf7f1",
+      "git_blob": "251c71bec31bb557e2406ec8d4d3a602c0a8a1e6"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/SETUP_AUTO_UPDATE.ps1",
+      "bytes": 926,
+      "sha256": "dea70e090781196443dd866dd3e01643f03f59a7821be975618622cdc2a36722",
+      "git_blob": "efa3b4a0ab87b2bc70ee4f6fcf9aac53313d0daa"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/START_APP.bat",
+      "bytes": 197,
+      "sha256": "cf1a73d081f0e45f693e87470baeef24a50856a57c40e209317c91a8163dfcce",
+      "git_blob": "882200f7175bb41e048f6b97c8b172bb05765db6"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/START_HERE.txt",
+      "bytes": 1146,
+      "sha256": "450841d68e56e60e11170c4b689eee168be1f60f51dd2f7d29bce0e5a6629821",
+      "git_blob": "b5955aa115863b28c1ac466147146149df2f1506"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/VERSION",
+      "bytes": 18,
+      "sha256": "328fc98df37ff4f37f53e1566d36d10b40f1a5855ba27fa0dc652d43f2a4c433",
+      "git_blob": "a0bfc6cbbfc43e53a797ba0e25c17afb4eca218a"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/app.py",
+      "bytes": 6381,
+      "sha256": "3fb2dbdcbc130f0a07064540ae59c6b586fcbd179e145e7be37fab2c9e934a91",
+      "git_blob": "ad6d3990bbe2bd493556dda265e4a15c1d560974"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/config.default.json",
+      "bytes": 3795,
+      "sha256": "cb7de7e455db1abadab7ca2c6e51db9102ed68b83ed7669d2ce60d835f95aacc",
+      "git_blob": "3b07e90bc49353dcf86da67b3868158ba10fa748"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/config.json",
+      "bytes": 3795,
+      "sha256": "cb7de7e455db1abadab7ca2c6e51db9102ed68b83ed7669d2ce60d835f95aacc",
+      "git_blob": "3b07e90bc49353dcf86da67b3868158ba10fa748"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/doctor.py",
+      "bytes": 2195,
+      "sha256": "b93c14435acc776e3883632a019ef5bfd2ddb1edfdeef5b741f6dae5e7498d17",
+      "git_blob": "be8ff3ab98ba54a90f82460f9ef78f6d850077e5"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/healthcheck.py",
+      "bytes": 1011,
+      "sha256": "3fce152d6716e3119654f2b3945159c5b1d8bf20acbc4aee103a93511b4c84e5",
+      "git_blob": "0e4d4d03d21a1583c3247d32d313a1fcc92d3b07"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/requirements.txt",
+      "bytes": 154,
+      "sha256": "d92479ed0dd188695215049bcbddfcf7c866a6639e4aadb96948e4c3b32caa0b",
+      "git_blob": "4fcb2e72cc2e19331a81980db24aad634e28710e"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/run_audit.py",
+      "bytes": 190,
+      "sha256": "f233e2f6fcde63f5f3050617d31e66f0e832b181faacca93ef0e76e1de00b609",
+      "git_blob": "0a92ec5b86224bc702701d7bdaa473552b626a90"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/run_backtest.py",
+      "bytes": 147,
+      "sha256": "1a2fb4d64d91f8e994f015795f783a19276322c1b82a8f8b9c8534b882559a94",
+      "git_blob": "940736ed39f4df8e3f53a190e03a417694547ef2"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/run_daily.py",
+      "bytes": 67,
+      "sha256": "43fb2ec4bb1ff0d2082e8fa0e6106d68785364c6395065535dc50d695edd6fdc",
+      "git_blob": "b2e9228b1c599ea7e01f42ed601fe8c78c7d6a37"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/run_rnd.py",
+      "bytes": 123,
+      "sha256": "d078602e4969d4f100a55939a9f7bff8445afe9a3836493a318cb1597fc471a7",
+      "git_blob": "2fe5a20e663ea53e38ed2ffa38828819f08d561e"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/stock_ai/__init__.py",
+      "bytes": 34,
+      "sha256": "42b7e8e1308ac35447a3f72ace74caa306ed84f42f021eb1cd5ec74865bdf4ec",
+      "git_blob": "fe1bc9ca64e4fc9e0a40d00421d9e2907feb7dc8"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/stock_ai/audit.py",
+      "bytes": 7275,
+      "sha256": "45ba33bc4921d836e72512f094bf43fa1b904db4d5e245156aa7c5c675a1a77b",
+      "git_blob": "2709499b1a0bf86fccafde2d31a3d1ed788185f7"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/stock_ai/backtest.py",
+      "bytes": 7617,
+      "sha256": "3125fa83981f3cbc0c3c0d92809008b6b8e1ee79e098d8895d1db955069eb7ff",
+      "git_blob": "747bb7106339f52128284bea730f02c88a4ab9ed"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/stock_ai/backup.py",
+      "bytes": 2376,
+      "sha256": "e9ee152dbae61b34a0115c1c8927008d0455d2514f31411c12cf8b3da37198d8",
+      "git_blob": "233265837fad30f4d109fdb28e335f5ab300ac0a"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/stock_ai/config.py",
+      "bytes": 4651,
+      "sha256": "301aee238332ce7387dcd04fe69a2235a2cef441a65aa886932d7794fed14d53",
+      "git_blob": "8d4bf2b6f2716ab9657e37ec39cb5a243ad3f957"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/stock_ai/cost.py",
+      "bytes": 2352,
+      "sha256": "84493b0c785c1cb0609a207a08adfd5560ebef08d155b2abedf0c32f15476755",
+      "git_blob": "79c3ce93cb707e28199a849de14ac74477b626e1"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/stock_ai/data_quality.py",
+      "bytes": 1031,
+      "sha256": "ca7c73909c7c57358ce7553903ade216358a0270876171d4b1aa54c13f48c12f",
+      "git_blob": "8d4eecdd2ef4c0cfeaa45e32c543d149a76d9c40"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/stock_ai/data_source.py",
+      "bytes": 23964,
+      "sha256": "eb066e403de0028dfca4852abe49683bfc9e6c26a6c3fb548b203e238f0c21c9",
+      "git_blob": "b601bcf80a649add3f36d26c0f81d8eba56244aa"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/stock_ai/decision.py",
+      "bytes": 1648,
+      "sha256": "e0d6bde0c4739116373efdcdce5a25c2907018e15bd8418c1c699bfc699ad4a3",
+      "git_blob": "245f1ce0b25c3c5140ab95fc741e49072a75f3bb"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/stock_ai/drift.py",
+      "bytes": 1837,
+      "sha256": "91e6df4296ee11fdfbcd7a7351dbde9a4e226c4b7b73b9a13b8e040a98717f66",
+      "git_blob": "ceb5582e46cad94d34ce424045523f0b3a34a533"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/stock_ai/features.py",
+      "bytes": 2796,
+      "sha256": "b262fd8fbb4b8b2d53f2171184769d441c774f0944da76039025b21de5019e6e",
+      "git_blob": "c915ad1fa5a40c19344af9ae134063e1bb7d29ed"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/stock_ai/maintenance.py",
+      "bytes": 1889,
+      "sha256": "bd5824ce32048873c7f200fb5a596ea8e5ddb5e2d19737ba31cefb7df432af91",
+      "git_blob": "0e2b28d049970fae42ed0a23b5b910bcc1c07b86"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/stock_ai/model.py",
+      "bytes": 7830,
+      "sha256": "dba1979c09647092f715fca0a3d750819c5371357126783f498c6d3281fe767a",
+      "git_blob": "b93b2c788c9d1a702760ee6e3a4d163348242801"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/stock_ai/pipeline.py",
+      "bytes": 7359,
+      "sha256": "302e5a061ac49dfc11e07a5adf7c7f366916570bf6fe5ceed3c1801225fbeef2",
+      "git_blob": "1e168955ff51208da2e553d18e07fed454a2f8a3"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/stock_ai/regime.py",
+      "bytes": 1113,
+      "sha256": "c8194f0142531fb646c90da5625d631759ee1a760a88c5037e33acffe5920da5",
+      "git_blob": "55ae082dfaf28ee0bc7418b9fc14ae07012d1475"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/stock_ai/rnd.py",
+      "bytes": 15778,
+      "sha256": "e0f214b04dd45fdf7976566c6affbf95d63d3e70216491962a67ad282d9c277a",
+      "git_blob": "1cf67e243459e07c75e65975a533604094d4861c"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/stock_ai/scoring.py",
+      "bytes": 4331,
+      "sha256": "7eb1436dd834713f8e5434a11b33e475c0b501067aaf72922c254a0a112baa7a",
+      "git_blob": "ca98bddc5dba6c1c5675b2da084b9cd5ed4fcd92"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/stock_ai/storage.py",
+      "bytes": 4541,
+      "sha256": "d7d071ee135fe9929e8ec1815be96b582164e07271ee37ccc87660bd2ae4c3fd",
+      "git_blob": "eccba7940b3ebc140132327012b667fa01463aa3"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/stock_ai/utils.py",
+      "bytes": 2480,
+      "sha256": "a068244a6b6c976beee2a6ea754b92bebe14204cbb3434729018783060cf3e72",
+      "git_blob": "2f1793117796a8bc2ee809631259d5226c816604"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/stock_ai/valuation.py",
+      "bytes": 6426,
+      "sha256": "d687da39d010799a3824aa08524af0afe0b0516f04942965ac4950763d925c9b",
+      "git_blob": "736b602f68689a4021e687806e06d19188f323a5"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/tests/app_static_test.py",
+      "bytes": 402,
+      "sha256": "c6b2dbbdbfdc38ffe47c3994ef2a416cc243fac853bd2fc502077f921a108f6b",
+      "git_blob": "6dc42eca1b1606219f6a61ceb31d7f64b73ab3aa"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/tests/audit_test.py",
+      "bytes": 2644,
+      "sha256": "69314835e5e3deb97ddd51fcee387bdca0f607927b0a13c8e986818edbe90bbb",
+      "git_blob": "432e7c74b2ae81a71c51343a7143148c8ab64e5d"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/tests/backtest_test.py",
+      "bytes": 2468,
+      "sha256": "10435d0f2268a92aa2aae58e701c607f8cdef45f5ddaa524037157f13126f744",
+      "git_blob": "e0110666efdc78ff97aa9251a87d463de928344d"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/tests/config_migration_test.py",
+      "bytes": 1540,
+      "sha256": "4e3834644fcad3b49d5305d9d51f3bb2a01176569f0b2ca3e038fc79a07c18d5",
+      "git_blob": "2fbebc64d8ce5cb81faec7e9d43e7b9c9eb8ac63"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/tests/cost_valuation_decision_test.py",
+      "bytes": 1523,
+      "sha256": "2e3790da2d5eed91358b755e727d0012f61dec7d1eb2127ae8c8a848af26ce34",
+      "git_blob": "b936baabde768bdbc0d1bd2a37f58b1638ab21ea"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/tests/entrypoints_test.py",
+      "bytes": 469,
+      "sha256": "6876b9fe5c9fc5dae83b034734175c5b84a5db3b3d2fd8de8c570f25f64e3b07",
+      "git_blob": "e269d43e1f6e2620ae12dab875317a7e2f47668d"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/tests/freshness_gate_test.py",
+      "bytes": 1377,
+      "sha256": "b3ac9460b7840b8526de7e5b5a99d82577e50337400a71d5fa54685acc44d514",
+      "git_blob": "eae5cef01b4a3ebaf8c9b0f80e42a3a8aae46b8d"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/tests/integration_pipeline_test.py",
+      "bytes": 4127,
+      "sha256": "0ee2148b0273f32f68bb25969efdf471e747aaea3899952156c88ed8b154cf8c",
+      "git_blob": "5a789e5128fe671e67d4e60ef035e80a09e42fe0"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/tests/legacy_migration_test.py",
+      "bytes": 775,
+      "sha256": "921c014797b0182397c156238349c468d81be5ca02dd4d53522f17d9bc23d451",
+      "git_blob": "b8507c4f2c065c9d1c0eed0ec7fa293e64f4d4f7"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/tests/lock_test.py",
+      "bytes": 494,
+      "sha256": "8574428e72bdf0c52ef02358460e05f2e14d89c8de70251694e44adcc154802d",
+      "git_blob": "60434f44445590e1cbb0b3c754b62718a00b0209"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/tests/maintenance_test.py",
+      "bytes": 1083,
+      "sha256": "ef110ed35df5d0a65d54807567f69b72abfb35e089bfd5adfae0c76740e86770",
+      "git_blob": "1ec547a73e284a3878f0149d5731d5e1d155b971"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/tests/model_mode_test.py",
+      "bytes": 1159,
+      "sha256": "6fc79e5a5713efcc6ecccfe2e0c6cc2f43e8bcd37111ba32c1bc34a4e7e4282d",
+      "git_blob": "37c8c665e1b2d9b675f9e14bafe4d010eeef3128"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/tests/model_stack_test.py",
+      "bytes": 1658,
+      "sha256": "3cc5d2ddd044809842cebf942b2944bd538b62f5e5ecd587fc0b8c6d962da32c",
+      "git_blob": "8936a8d8ef49158e1f16951603fb6da1b061bb5d"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/tests/network_config_test.py",
+      "bytes": 599,
+      "sha256": "de1f7cc457ba40c9c90bac4e0d89dc21a8ad413b796cfa12a09846361afa280f",
+      "git_blob": "d9b6e59967cb417db43f4a72cfc1a3b46eb96fdc"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/tests/package_manifest_test.py",
+      "bytes": 914,
+      "sha256": "0ada7413061f4c858dd363ed9218da80e6e3012245f216a4855068f3922fbb2b",
+      "git_blob": "353c37f3acda45c1d62860c1f133e58ee893f892"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/tests/prediction_chain_test.py",
+      "bytes": 1265,
+      "sha256": "6a25a0ff22d53937c86cd405dd00ffe482e93559f73e4d71848786886ce2250d",
+      "git_blob": "9ed8133310f81499cedc296364ab99dc96550179"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/tests/provider_normalization_test.py",
+      "bytes": 1343,
+      "sha256": "0f014912407e99e6282c7947f0103b9d6a0c91460f31f810dd83c61cc996326f",
+      "git_blob": "4652104e777dfdee8dd6c494276450ff41a889d5"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/tests/rnd_test.py",
+      "bytes": 4013,
+      "sha256": "b52174faf51bf64e4d68ebdc1d1d251e247e7ee798ab0d29b4aad799728aa274",
+      "git_blob": "ad131155091243f5832ce8af34a72eaa13089764"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/tests/self_test.py",
+      "bytes": 2907,
+      "sha256": "e79984b71883dd8e536a51076836db4c5dbb297bbd0b8a2c32c7665ff114e388",
+      "git_blob": "f7e502d83e6ac40974ecf68187a9c58d323f4cfa"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/tests/storage_test.py",
+      "bytes": 1417,
+      "sha256": "b8e8c5d1577720b25943201bf6b662f46644dbcc9fc76aee63a4d5d7d72a3962",
+      "git_blob": "be5b704ddbb879683bd823da9b2e8ebf220a4738"
+    },
+    {
+      "path": "StockAIPro/recovered_exact/Stock_AI_Pro/versions/4.3.0/tests/universe_parser_test.py",
+      "bytes": 734,
+      "sha256": "847d674af0a66acea40bb018a53fab89d51b988cab41d9d7300a94e895bd1be7",
+      "git_blob": "1018c7bdf13c3c804c17a8494a1bba85c12a78b9"
+    }
+  ]
+}

@@ -34,6 +34,7 @@ def run_backtest():
     cfg=load_config();h=int(cfg["model"]["horizon_days"]); ds=build_dataset(load_histories(),h,int(cfg["model"]["min_history_days"])); target=cfg["model"].get("target","target_excess")
     ds=ds[ds[target].notna()&ds["target_return"].notna()].copy(); ds=_historical_candidate_pool(ds,cfg)
     if ds.empty:raise RuntimeError("没有可回测数据")
+    # PIT valuation only. Missing coverage is allowed but never silently filled with current valuation.
     ds=merge_historical_valuation(ds); ds=add_historical_valuation_score(ds,cfg)
     dates=sorted(ds["date"].unique()); lookback=int(cfg["backtest"]["lookback_eval_days"]); step=int(cfg["backtest"]["rebalance_every_days"]); eval_dates=dates[-lookback::step]
     max_eval=int(cfg["backtest"].get("max_eval_points",24) or 0)
@@ -47,6 +48,7 @@ def run_backtest():
     for d in eval_dates:
         pos=dates.index(d)
         if pos<160 or pos-h<0:continue
+        # Outer embargo: labels whose horizon could touch the test date are excluded.
         cutoff=dates[pos-h];train=ds[ds["date"]<cutoff].copy();test=ds[ds["date"]==d].copy();test=test[test.apply(_tradable_next_open,axis=1)]
         if len(train)<min_train or len(test)<max(topk,min_test):continue
         train=train.sort_values("date").tail(model_max_rows)
