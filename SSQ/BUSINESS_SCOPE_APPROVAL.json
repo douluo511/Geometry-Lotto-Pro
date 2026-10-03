@@ -1,0 +1,26 @@
+{
+  "schema": "ssq-business-scope-approval-v1",
+  "project": "SSQ",
+  "status": "APPROVED",
+  "approved_by": "user",
+  "scope_ids": [
+    "B01",
+    "B02",
+    "B03",
+    "B04",
+    "B05",
+    "B06",
+    "B07"
+  ],
+  "entry_inventory": [
+    "predict",
+    "update",
+    "repair",
+    "audit"
+  ],
+  "approval_reference": "User instruction in the current conversation on 2026-10-03: all EXEs must be redone under the strict engineering execution standard; existing requirements, architecture and acceptance checklist must be reused; core function, one-click update, one-click repair and advanced analysis are all mandatory; no required function may be marked not applicable and no scope may be reduced without an explicit user change.",
+  "original_requirements_preserved": true,
+  "denominator_rule": "B01-B07 plus predict/update/repair/audit are approved as the mandatory minimum business acceptance denominator because they are part of the existing frozen acceptance checklist the user explicitly ordered to be reused. They are not a scope ceiling: every original SSQ requirement remains binding and stricter hard gates may be added. No requirement may be removed to obtain PASS.",
+  "no_scope_reduction": true,
+  "reason": "The user explicitly approved reuse of the existing frozen requirements and acceptance checklist for the complete re-execution of every EXE, while explicitly requiring all four desktop entries and forbidding requirement reduction or not-applicable downgrades. This binds the existing B01-B07 plus four-entry minimum denominator without waiving any original requirement."
+}

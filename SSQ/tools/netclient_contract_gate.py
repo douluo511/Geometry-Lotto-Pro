@@ -29,6 +29,24 @@ class FakeResponse:
             raise requests.HTTPError(str(self.status_code))
 
 
+class StreamingResponse:
+    def __init__(self, chunks, *, status_code=200, url="https://example.invalid/data"):
+        self.status_code = status_code
+        self.url = url
+        self.headers = {"Content-Type": "application/json"}
+        self.history = []
+        self._content = False
+        self._chunks = list(chunks)
+        self.raw = object()
+        self.closed = False
+
+    def iter_content(self, chunk_size=1):
+        yield from self._chunks
+
+    def close(self):
+        self.closed = True
+
+
 class FakeSession:
     def __init__(self, outcomes):
         self.outcomes = list(outcomes)
@@ -204,6 +222,66 @@ def _run() -> dict:
         record("empty_payload_fail_closed", True, str(exc))
     except Exception as exc:
         record("empty_payload_fail_closed", False, f"{type(exc).__name__}: {exc}")
+
+    stream_session = FakeSession([
+        StreamingResponse([b"1234", b"5"]),
+    ])
+    try:
+        NetClient(
+            session=stream_session,
+            sleeper=lambda _: None,
+            max_response_bytes=4,
+        ).get("https://example.invalid/data")
+        record("streaming_body_limit_fail_closed", False, "oversized streamed body unexpectedly accepted")
+    except requests.RequestException as exc:
+        ledger = list(getattr(exc, "glp_attempts", ()))
+        record(
+            "streaming_body_limit_fail_closed",
+            len(stream_session.calls) == 1
+            and stream_session.calls[0].get("stream") is True
+            and bool(ledger)
+            and ledger[-1]["outcome"] == "BODY_TOO_LARGE",
+            {"calls": stream_session.calls, "ledger": ledger},
+        )
+    except Exception as exc:
+        record("streaming_body_limit_fail_closed", False, f"{type(exc).__name__}: {exc}")
+
+    now = [1000.0]
+    deadline_sleeps = []
+
+    def deadline_clock():
+        return now[0]
+
+    def deadline_sleep(delay):
+        deadline_sleeps.append(delay)
+        now[0] += delay
+
+    deadline_session = FakeSession([
+        FakeResponse(503, headers={"Content-Type": "application/json"}),
+        FakeResponse(200, headers={"Content-Type": "application/json"}),
+    ])
+    try:
+        NetClient(
+            session=deadline_session,
+            sleeper=deadline_sleep,
+            jitter_source=lambda: 0.5,
+            backoff_base=0.5,
+            total_timeout=0.6,
+            monotonic_clock=deadline_clock,
+        ).get("https://example.invalid/data")
+        record("total_operation_deadline_fail_closed", False, "operation exceeded total budget without failure")
+    except requests.Timeout as exc:
+        ledger = list(getattr(exc, "glp_attempts", ()))
+        record(
+            "total_operation_deadline_fail_closed",
+            len(deadline_session.calls) == 1
+            and deadline_sleeps == []
+            and bool(ledger)
+            and ledger[-1]["outcome"] == "OPERATION_DEADLINE",
+            {"calls": len(deadline_session.calls), "sleeps": deadline_sleeps, "ledger": ledger},
+        )
+    except Exception as exc:
+        record("total_operation_deadline_fail_closed", False, f"{type(exc).__name__}: {exc}")
 
     failures = [name for name, row in checks.items() if row["status"] != "PASS"]
     return {

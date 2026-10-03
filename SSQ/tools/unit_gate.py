@@ -27,6 +27,9 @@ def main() -> int:
         "tested_code": {
             "net_client_sha256": _sha(ROOT / "SSQ" / "glp" / "net_client.py"),
             "sources_sha256": _sha(ROOT / "SSQ" / "glp" / "sources.py"),
+            "service_sha256": _sha(ROOT / "SSQ" / "glp" / "service.py"),
+            "updater_sha256": _sha(ROOT / "updater.py"),
+            "launcher_sha256": _sha(ROOT / "launcher.py"),
         },
         "stdout": proc.stdout[-12000:],
         "stderr": proc.stderr[-12000:],

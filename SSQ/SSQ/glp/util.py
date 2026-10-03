@@ -27,10 +27,25 @@ def zscores(values: Iterable[float]) -> list[float]:
     mean=sum(vals)/len(vals); var=sum((v-mean)**2 for v in vals)/len(vals)
     if var <= 1e-15:return [0.0 for _ in vals]
     sd=var**0.5; return [(v-mean)/sd for v in vals]
+def _native_windows_local_appdata() -> Path | None:
+    if os.name != 'nt':
+        return None
+    try:
+        import ctypes
+        buffer=ctypes.create_unicode_buffer(32768)
+        # CSIDL_LOCAL_APPDATA resolves from the security context of the
+        # running process instead of trusting an inherited environment block.
+        hr=ctypes.windll.shell32.SHGetFolderPathW(None,0x001c,None,0,buffer)
+        if hr == 0 and buffer.value:
+            return Path(buffer.value)
+    except (AttributeError,OSError,ValueError):
+        pass
+    return None
 def app_data_dir() -> Path:
     override=os.environ.get('GLP_DATA_DIR')
     if override:return Path(override).expanduser().resolve()
-    base=Path(os.environ.get('LOCALAPPDATA') or (Path.home()/'AppData'/'Local'))
+    native=_native_windows_local_appdata()
+    base=native or Path(os.environ.get('LOCALAPPDATA') or (Path.home()/'AppData'/'Local'))
     return (base/'GeometryLottoPro'/'SSQ').resolve()
 def utc_now() -> str:
     return datetime.utcnow().replace(microsecond=0).isoformat()+'Z'

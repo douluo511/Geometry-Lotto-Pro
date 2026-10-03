@@ -1,5 +1,9 @@
 name: SSQ Windows exact-EXE acceptance
 
+permissions:
+  contents: write
+  actions: read
+
 on:
   workflow_dispatch:
   push:
@@ -10,11 +14,15 @@ on:
       - 'SSQ/**'
       - '.github/workflows/ssq-windows-build-acceptance.yml'
       - '.github/scripts/ssq_physical_gui_click_smoke.ps1'
+      - '.github/scripts/ssq_physical_gui_failure_smoke.ps1'
+      - '.github/scripts/ssq_standard_user_smoke.ps1'
   pull_request:
     paths:
       - 'SSQ/**'
       - '.github/workflows/ssq-windows-build-acceptance.yml'
       - '.github/scripts/ssq_physical_gui_click_smoke.ps1'
+      - '.github/scripts/ssq_physical_gui_failure_smoke.ps1'
+      - '.github/scripts/ssq_standard_user_smoke.ps1'
 
 defaults:
   run:
@@ -26,19 +34,71 @@ jobs:
     timeout-minutes: 180
     steps:
       - name: Checkout exact commit
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          # The PR merge commit must not be a shallow boundary: the identity
+          # gate below proves that the current candidate HEAD is an actual
+          # parent of the exact merge-ref being accepted.
+          fetch-depth: 2
+
+      - name: Exact checkout identity gate
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path "evidence\SSQ" | Out-Null
+          $eventName = "${{ github.event_name }}"
+          $eventHead = "${{ github.event.pull_request.head.sha }}"
+          $githubSha = "${{ github.sha }}"
+          $actual = (git rev-parse HEAD).Trim()
+          $parentText = (git show -s --format=%P HEAD).Trim()
+          $parents = @()
+          if (-not [string]::IsNullOrWhiteSpace($parentText)) {
+            $parents = @($parentText -split ' ' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+          }
+          if ($eventName -eq "pull_request") {
+            $ok = (-not [string]::IsNullOrWhiteSpace($eventHead)) -and (($actual -eq $eventHead) -or ($parents -contains $eventHead))
+          } else {
+            $ok = $actual -eq $githubSha
+          }
+          $report = [ordered]@{
+            schema = "ssq-checkout-identity-v1"
+            status = $(if ($ok) { "PASS" } else { "FAIL" })
+            github_sha = $env:GITHUB_SHA
+            github_run_id = $env:GITHUB_RUN_ID
+            event = $eventName
+            event_head_sha = $eventHead
+            actual_checkout_sha = $actual
+            parent_shas = $parents
+          }
+          $report | ConvertTo-Json -Depth 6 | Set-Content "evidence\SSQ\CHECKOUT_IDENTITY_GATE.json" -Encoding utf8
+          Write-Host ($report | ConvertTo-Json -Compress -Depth 6)
+          if (-not $ok) {
+            throw "checkout identity is stale or does not contain the current candidate HEAD"
+          }
 
       - name: Setup pinned Python x64
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: '3.11.9'
           architecture: 'x64'
 
-      - name: Install pinned build dependencies
-        run: python -m pip install --disable-pip-version-check -r requirements-build.txt
+      - name: Install frozen build dependency closure
+        run: >-
+          python -m pip install --disable-pip-version-check --no-deps
+          --only-binary=:all: -r requirements-build.txt
 
       - name: Code completeness compile gate
-        run: python -m compileall -q SSQ launcher.py tools
+        run: python -m compileall -q SSQ launcher.py updater.py tools
+
+      - name: Physical GUI acceptance script syntax gate
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          foreach ($script in @('..\.github\scripts\ssq_physical_gui_click_smoke.ps1', '..\.github\scripts\ssq_physical_gui_failure_smoke.ps1', '..\.github\scripts\ssq_standard_user_smoke.ps1')) {
+            $tokens = $null
+            $parseErrors = $null
+            $null = [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $script), [ref]$tokens, [ref]$parseErrors)
+            if ($parseErrors.Count -gt 0) { throw ($parseErrors | Out-String) }
+          }
 
       - name: Architecture mother-template gate
         run: python tools/architecture_gate.py
@@ -99,12 +159,140 @@ jobs:
       - name: Native Windows build plus exact-EXE acceptance
         run: python tools/build_windows.py
 
+      - name: Standard User Exact-EXE Acceptance
+        shell: pwsh
+        run: |
+          ..\.github\scripts\ssq_standard_user_smoke.ps1 `
+            -ExePath ".\dist\Geometry_Lotto_Pro_SSQ_Windows_Verified.exe" `
+            -EvidencePath ".\evidence\SSQ\STANDARD_USER_ACCEPTANCE.json"
+
+      - name: Publish hash-bound prerelease assets on independent main
+        id: publish_release
+        if: ${{ github.repository == 'douluo511/Geometry-Lotto-Pro-SSQ' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $acceptance = Get-Content "evidence\SSQ\WINDOWS_EXACT_EXE_ACCEPTANCE.json" -Raw | ConvertFrom-Json
+          $version = [string]$acceptance.checks.self.version
+          if ($version -notmatch '^\d+\.\d+\.\d+(?:\+[A-Za-z0-9.-]+)?$') {
+            throw "exact EXE did not report a stable SemVer: $version"
+          }
+          $exePath = "dist\Geometry_Lotto_Pro_SSQ_Windows_Verified.exe"
+          $selfPath = "evidence\SSQ\self.json"
+          if (-not (Test-Path $exePath) -or -not (Test-Path $selfPath)) {
+            throw "release asset or exact self-test evidence missing"
+          }
+          $manifestName = "ssq-$version-manifest.json"
+          $manifestPath = "evidence\SSQ\$manifestName"
+          $manifestEvidence = "evidence\SSQ\release-manifest-preparation-$version.json"
+          $tag = "v$version"
+
+          if ($version -eq "8.5.0") {
+            python tools/prepare_release_manifest.py --exe $exePath --version $version --baseline --tag $tag --self-test $selfPath --output $manifestPath --evidence $manifestEvidence
+            "baseline_only=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          } else {
+            gh release view v8.5.0 --repo $env:GITHUB_REPOSITORY --json tagName,isPrerelease | Out-Null
+            if ($LASTEXITCODE -ne 0) { throw "verified v8.5.0 baseline release is missing" }
+            python tools/prepare_release_manifest.py --exe $exePath --version $version --base-version 8.5.0 --tag $tag --self-test $selfPath --output $manifestPath --evidence $manifestEvidence
+            "baseline_only=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          }
+          if ($LASTEXITCODE -ne 0) { throw "hash-bound release manifest preparation failed" }
+
+          $expectedExeHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $exePath).Hash.ToLowerInvariant()
+          $expectedManifestHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $manifestPath).Hash.ToLowerInvariant()
+          $releaseExists = $false
+          gh release view $tag --repo $env:GITHUB_REPOSITORY --json tagName,isPrerelease 2>$null | Out-Null
+          if ($LASTEXITCODE -eq 0) { $releaseExists = $true }
+
+          if ($releaseExists) {
+            $verifyDir = Join-Path $env:RUNNER_TEMP ("verify-release-" + [Guid]::NewGuid().ToString("N"))
+            New-Item -ItemType Directory -Force -Path $verifyDir | Out-Null
+            gh release download $tag --repo $env:GITHUB_REPOSITORY --pattern "Geometry_Lotto_Pro_SSQ_Windows_Verified.exe" --pattern $manifestName --dir $verifyDir
+            if ($LASTEXITCODE -ne 0) { throw "existing release assets could not be downloaded for identity verification" }
+            $remoteExe = Join-Path $verifyDir "Geometry_Lotto_Pro_SSQ_Windows_Verified.exe"
+            $remoteManifest = Join-Path $verifyDir $manifestName
+            if ((Get-FileHash -Algorithm SHA256 -LiteralPath $remoteExe).Hash.ToLowerInvariant() -ne $expectedExeHash) {
+              throw "existing release EXE differs from current exact EXE"
+            }
+            if ((Get-FileHash -Algorithm SHA256 -LiteralPath $remoteManifest).Hash.ToLowerInvariant() -ne $expectedManifestHash) {
+              throw "existing release manifest differs from current manifest"
+            }
+          } else {
+            gh release create $tag $exePath $manifestPath --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "SSQ $version verification prerelease" --notes "Machine-generated prerelease. Not Final until updater real-network, Physical GUI, Same Hash and Final Gate pass." --prerelease
+            if ($LASTEXITCODE -ne 0) { throw "GitHub prerelease creation failed" }
+          }
+
+          $manifestUrl = "https://github.com/$($env:GITHUB_REPOSITORY)/releases/download/$tag/$manifestName"
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "tag=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "manifest_url=$manifestUrl" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          Write-Host "SSQ_RELEASE_PRERELEASE=$tag"
+          Write-Host "SSQ_RELEASE_MANIFEST_URL=$manifestUrl"
+          Write-Host "SSQ_RELEASE_EXE_SHA256=$expectedExeHash"
+
+      - name: Independent repository real-release updater acceptance
+        if: ${{ github.repository == 'douluo511/Geometry-Lotto-Pro-SSQ' && steps.publish_release.outputs.baseline_only != 'true' }}
+        shell: pwsh
+        env:
+          SSQ_UPDATER_BASE_MANIFEST_URL: https://github.com/douluo511/Geometry-Lotto-Pro-SSQ/releases/download/v8.5.0/ssq-8.5.0-manifest.json
+          SSQ_RELEASE_MANIFEST_URL: ${{ steps.publish_release.outputs.manifest_url }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:SSQ_UPDATER_BASE_MANIFEST_URL) -or [string]::IsNullOrWhiteSpace($env:SSQ_RELEASE_MANIFEST_URL)) {
+            throw "real release manifest URLs are required in the independent repository"
+          }
+          python tools/updater_release_acceptance.py `
+            --updater-exe "dist\Geometry_Lotto_Pro_SSQ_Updater.exe" `
+            --candidate-exe "dist\Geometry_Lotto_Pro_SSQ_Windows_Verified.exe" `
+            --base-manifest-url "$env:SSQ_UPDATER_BASE_MANIFEST_URL" `
+            --release-manifest-url "$env:SSQ_RELEASE_MANIFEST_URL" `
+            --evidence-dir "evidence\SSQ"
+          $r = Get-Content "evidence\SSQ\UPDATER_REAL_RELEASE_ACCEPTANCE.json" -Raw | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or $r.status -ne 'PASS') {
+            throw "independent repository real-release updater acceptance failed"
+          }
+
       - name: Physical GUI Click Smoke
         shell: pwsh
         run: |
           ..\.github\scripts\ssq_physical_gui_click_smoke.ps1 -ExePath ".\dist\Geometry_Lotto_Pro_SSQ_Windows_Verified.exe" -EvidencePath ".\evidence\SSQ\physical_gui_click.json"
 
+      - name: Physical GUI Fail-Closed Click Smoke
+        shell: pwsh
+        run: |
+          ..\.github\scripts\ssq_physical_gui_failure_smoke.ps1 `
+            -ExePath ".\dist\Geometry_Lotto_Pro_SSQ_Windows_Verified.exe" `
+            -UpdaterExePath ".\dist\Geometry_Lotto_Pro_SSQ_Updater.exe" `
+            -SuccessEvidencePath ".\evidence\SSQ\physical_gui_click.json" `
+            -EvidencePath ".\evidence\SSQ\physical_gui_failure.json"
+
+      - name: Physical GUI Repair Fail-Closed Click Smoke
+        shell: pwsh
+        run: |
+          ..\.github\scripts\ssq_physical_gui_failure_smoke.ps1 `
+            -ExePath ".\dist\Geometry_Lotto_Pro_SSQ_Windows_Verified.exe" `
+            -UpdaterExePath ".\dist\Geometry_Lotto_Pro_SSQ_Updater.exe" `
+            -SuccessEvidencePath ".\evidence\SSQ\physical_gui_click.json" `
+            -Operation repair -OperationTimeoutSeconds 900 `
+            -EvidencePath ".\evidence\SSQ\physical_gui_repair_failure.json"
+
+      - name: Preserve business-scope review state without manufacturing approval
+        shell: pwsh
+        run: |
+          $src = "BUSINESS_SCOPE_APPROVAL.json"
+          $dst = "evidence\SSQ\BUSINESS_SCOPE_APPROVAL.json"
+          if (-not (Test-Path -LiteralPath $src -PathType Leaf)) { throw "business scope review source missing" }
+          $a = Get-Content -LiteralPath $src -Raw | ConvertFrom-Json
+          if ($a.schema -ne "ssq-business-scope-approval-v1" -or $a.project -ne "SSQ") { throw "scope review identity mismatch" }
+          if ($a.status -notin @("PENDING", "APPROVED")) { throw "scope review state invalid" }
+          Copy-Item -LiteralPath $src -Destination $dst -Force
+          $hash = (Get-FileHash -LiteralPath $dst -Algorithm SHA256).Hash.ToLowerInvariant()
+          Write-Host "SSQ_BUSINESS_SCOPE_REVIEW_STATE=$($a.status)"
+          Write-Host "SSQ_BUSINESS_SCOPE_REVIEW_SHA256=$hash"
+          # Copying a proposal is not approval; Final Gate independently blocks PENDING.
+
       - name: Final evidence-derived release and same-hash proof
+        id: final_gate
         shell: pwsh
         run: |
           $reportPath = "evidence\SSQ\WINDOWS_EXACT_EXE_ACCEPTANCE.json"
@@ -112,51 +300,76 @@ jobs:
           if (-not (Test-Path $reportPath)) { throw "acceptance report missing" }
           if (-not (Test-Path $exePath)) { throw "exact EXE missing" }
 
-          python tools/derive_gate_status.py --evidence-dir evidence\SSQ --exe $exePath --report evidence\SSQ\mother-gates.json --repository-independent FAIL
+          python tools/derive_gate_status.py --evidence-dir evidence\SSQ --exe $exePath --report evidence\SSQ\mother-gates.json
           if ($LASTEXITCODE -ne 0) { throw "gate derivation failed" }
 
-          python tools/release_gate_22.py --gate-input evidence\SSQ\mother-gates.json --acceptance $reportPath --exe $exePath --report evidence\SSQ\FINAL_22_GATE.json --repository-independent FAIL
+          python tools/release_gate_22.py --gate-input evidence\SSQ\mother-gates.json --acceptance $reportPath --exe $exePath --report evidence\SSQ\FINAL_22_GATE.json
           $releaseExit = $LASTEXITCODE
 
           $final = Get-Content evidence\SSQ\FINAL_22_GATE.json -Raw | ConvertFrom-Json
           if ($releaseExit -ne 0 -or $final.final_gate -ne 'PASS' -or [int]$final.hard_fail_count -ne 0) {
-            throw "Final Gate blocked: independent repository is mandatory"
+            throw "Final Gate blocked: inspect all non-PASS gates"
           }
+
+          $acceptance = Get-Content $reportPath -Raw | ConvertFrom-Json
+          $releaseVersion = [string]$acceptance.checks.self.version
+          $stableVersionPattern = '^\d+\.\d+\.\d+(?:\+[A-Za-z0-9.-]+)?$'
+          if ($releaseVersion -notmatch $stableVersionPattern) {
+            throw "stable release version missing from exact-EXE self evidence: $releaseVersion"
+          }
+
+          "version=$releaseVersion" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "sha256=$($final.exe_sha256)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           Write-Host "SSQ_FINAL_EXE=$(Resolve-Path $exePath)"
+          Write-Host "SSQ_FINAL_VERSION=$releaseVersion"
           Write-Host "SSQ_FINAL_SHA256=$($final.exe_sha256)"
           Write-Host "FINAL_RELEASE_GATE=PASS"
 
       - name: Upload candidate diagnostic evidence when acceptance fails
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: SSQ-CANDIDATE-FAIL-EVIDENCE-${{ github.sha }}
-          path: SSQ/evidence/SSQ/**
+          path: |
+            SSQ/evidence/SSQ/**
+            SSQ/dist/Geometry_Lotto_Pro_SSQ_Windows_Verified.exe
+            SSQ/dist/Geometry_Lotto_Pro_SSQ_Updater.exe
           if-no-files-found: warn
           retention-days: 30
 
-      - name: Upload final EXE only after all hard gates pass
-        uses: actions/upload-artifact@v4
+      - name: Upload final audit evidence before release artifact
+        id: final_audit_upload
+        if: success()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: Geometry-Lotto-Pro-SSQ-FINAL-v8.5.0-Windows-x64
-          path: |
-            SSQ/dist/Geometry_Lotto_Pro_SSQ_Windows_Verified.exe
-            SSQ/evidence/SSQ/**
+          name: Geometry-Lotto-Pro-SSQ-RELEASE-GATE-PASS-AUDIT-${{ github.sha }}
+          path: SSQ/evidence/SSQ/**
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload final EXE only after all hard gates and audit upload pass
+        id: final_exe_upload
+        if: success()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: Geometry-Lotto-Pro-SSQ-FINAL-${{ steps.final_gate.outputs.version }}-Windows-x64
+          path: SSQ/dist/Geometry_Lotto_Pro_SSQ_Windows_Verified.exe
           if-no-files-found: error
           retention-days: 30
           compression-level: 0
 
-# Hard-gate revalidation trigger: 2026-09-24 master-template
+      - name: Promote independent release only after Final Gate and evidence uploads PASS
+        if: ${{ success() && steps.final_audit_upload.outcome == 'success' && steps.final_exe_upload.outcome == 'success' && github.repository == 'douluo511/Geometry-Lotto-Pro-SSQ' && github.ref == 'refs/heads/main' }}
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $version = "${{ steps.final_gate.outputs.version }}"
+          if ([string]::IsNullOrWhiteSpace($version)) { throw "final release version output missing" }
+          if ([string]::IsNullOrWhiteSpace("${{ steps.final_audit_upload.outputs.artifact-id }}")) { throw "durable audit artifact missing" }
+          if ([string]::IsNullOrWhiteSpace("${{ steps.final_exe_upload.outputs.artifact-id }}")) { throw "durable EXE artifact missing" }
+          gh release edit "v$version" --repo $env:GITHUB_REPOSITORY --prerelease=false --draft=false --title "Geometry Lotto Pro SSQ $version"
+          if ($LASTEXITCODE -ne 0) { throw "Final Gate passed but release promotion failed" }
+          Write-Host "SSQ_FORMAL_RELEASE=v$version"
 
-# physical-gui child-process discovery fix: 2026-09-24
-
-# physical-gui UIAutomation + desktop-hash fix: 2026-09-24
-
-# native client-coordinate physical click: 2026-09-24
-
-# SSQ exact native client centers: 2026-09-24
-
-# physical-gui native Win32 identity rerun trigger: 2026-09-30
-
-# physical-gui fully native Win32 rerun trigger: 2026-09-30
-# hard-gate retrigger: 2026-09-30 current-head full rerun
+# Hard-gate revalidation trigger: 2026-09-30 final release chain rebuilt

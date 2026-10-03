@@ -4,7 +4,9 @@ import json
 import shutil
 import sqlite3
 import sys
+import time
 from dataclasses import asdict
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 
@@ -33,6 +35,35 @@ def resource_path(name: str) -> Path:
 
 def _json_dumps(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
+MAX_REUSED_OFFICIAL_EVIDENCE_AGE_SECONDS = 15 * 60
+AUDIT_UPDATE_MAX_ATTEMPTS = 2
+AUDIT_UPDATE_RETRY_DELAY_SECONDS = 1.0
+AUDIT_TRANSIENT_UPDATE_MARKERS = (
+    "OperationDeadlineExceeded",
+    "ReadTimeout",
+    "ConnectTimeout",
+    "ConnectionError",
+    "ChunkedEncodingError",
+    "empty HTTP response",
+)
+
+
+
+def _utc_age_seconds(value: Any) -> float | None:
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return None
+    age = (datetime.now(timezone.utc) - parsed.astimezone(timezone.utc)).total_seconds()
+    if age < 0:
+        return None
+    return age
 
 
 class LottoService:
@@ -301,14 +332,17 @@ class LottoService:
 
     def predict(self, progress: Callable[[str], None] | None = None) -> dict[str, Any]:
         self.ensure_seed()
-        update_result = None
-        update_error = None
-        try:
-            update_result = self.update(progress=progress)
-        except Exception as exc:
-            update_error = f"{type(exc).__name__}: {exc}"
-            if progress:
-                progress("官方更新不可用；Fail-Closed：可计算研究结果，但禁止正式 Freeze/PASS")
+        # Prediction is an autonomous production entry and therefore uses the
+        # same bounded whole-quorum retry contract as audit/repair. Only
+        # explicitly classified transient transport/deadline failures may retry;
+        # semantic/schema/freshness/conflict failures remain single-attempt and
+        # fail closed. A failed retry chain may still compute a research-only
+        # result, but source_freshness/final_gate can never PASS.
+        update_result, update_error, update_attempts = self.update_with_transient_retry(
+            progress=progress
+        )
+        if update_result is None and progress:
+            progress("官方更新不可用；Fail-Closed：可计算研究结果，但禁止正式 Freeze/PASS")
 
         draws = self._load_draws()
         canonical_hash = self._canonical_hash()
@@ -343,6 +377,7 @@ class LottoService:
                 "historical_gate": existing_gate,
                 "auto_update": update_result,
                 "auto_update_error": update_error,
+                "auto_update_attempts": update_attempts,
                 "immutable_freeze_preserved": True,
             }
 
@@ -397,6 +432,7 @@ class LottoService:
             "canonical_context_hash": context_hash,
             "auto_update": update_result,
             "auto_update_error": update_error,
+            "auto_update_attempts": update_attempts,
             "immutable_freeze_preserved": False,
         }
 
@@ -504,6 +540,117 @@ class LottoService:
         finally:
             db.close()
 
+    def _current_verified_official_snapshot(self) -> dict[str, Any] | None:
+        """Reuse local official evidence only when strict current integrity PASSes.
+
+        This never turns the packaged seed into a current-source PASS. It only
+        avoids a redundant network fetch when another verified operation has
+        already persisted current raw-byte-bound multi-official evidence.
+        """
+        integrity = self._integrity_check()
+        if not integrity.get("ok"):
+            return None
+        try:
+            evidence = json.loads(Path(self.store.evidence_path).read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            return None
+        receipts = evidence.get("source_receipts")
+        evidence_age = _utc_age_seconds(evidence.get("fetched_at"))
+        pass_receipts = [
+            row for row in receipts
+            if isinstance(row, dict) and row.get("status") == "PASS"
+        ] if isinstance(receipts, list) else []
+        receipt_ages = [_utc_age_seconds(row.get("fetched_at")) for row in pass_receipts]
+        if (
+            evidence.get("game") != "SSQ"
+            or evidence.get("crosscheck_status") != "PASS"
+            or evidence.get("canonical_hash") != self._canonical_hash()
+            or evidence_age is None
+            or evidence_age > MAX_REUSED_OFFICIAL_EVIDENCE_AGE_SECONDS
+            or len(pass_receipts) < 2
+            or any(
+                age is None or age > MAX_REUSED_OFFICIAL_EVIDENCE_AGE_SECONDS
+                for age in receipt_ages
+            )
+        ):
+            return None
+        return {
+            "schema": "persisted-current-official-evidence-v1",
+            "source": "persisted-current-official-evidence",
+            "crosscheck_status": "PASS",
+            "canonical_hash": evidence.get("canonical_hash"),
+            "source_receipts": receipts,
+            "persisted_integrity": integrity,
+            "reused_current_evidence": True,
+            "evidence_age_seconds": evidence_age,
+            "max_reuse_age_seconds": MAX_REUSED_OFFICIAL_EVIDENCE_AGE_SECONDS,
+        }
+
+    @staticmethod
+    def _audit_update_retryable(exc: Exception) -> bool:
+        """Retry only explicit transient transport/deadline failures.
+
+        Source/schema/content/freshness/conflict failures remain fail-closed on
+        the first attempt. A wrapped SourceError is retryable only when its
+        diagnostic contains one of the frozen transport exception markers or a
+        literal empty HTTP response. A size-limit violation remains terminal.
+        """
+        detail = f"{type(exc).__name__}: {exc}"
+        return any(marker in detail for marker in AUDIT_TRANSIENT_UPDATE_MARKERS)
+
+    def update_with_transient_retry(
+        self, progress: Callable[[str], None] | None = None
+    ) -> tuple[dict[str, Any] | None, str | None, list[dict[str, Any]]]:
+        """Retry the whole official-quorum transaction once only for bounded source transients.
+
+        Transport/deadline failures and a literal empty HTTP 200 response may
+        retry once. Each failed attempt remains persisted through build_canonical's
+        failure sink. Oversized/schema/freshness/source-conflict failures never retry.
+        The canonical dataset is committed only by an attempt that independently
+        reaches crosscheck_status=PASS and strict persisted integrity.
+        """
+        attempts: list[dict[str, Any]] = []
+        for attempt in range(1, AUDIT_UPDATE_MAX_ATTEMPTS + 1):
+            try:
+                result = self.update(progress=progress)
+                crosscheck = result.get("crosscheck_status") if isinstance(result, dict) else None
+                attempts.append({
+                    "attempt": attempt,
+                    "status": "PASS" if crosscheck == "PASS" else "FAIL",
+                    "crosscheck_status": crosscheck,
+                    "retryable": False,
+                    "failure_evidence_path": None,
+                })
+                if crosscheck != "PASS":
+                    return None, "official update returned non-PASS crosscheck", attempts
+                return result, None, attempts
+            except Exception as exc:
+                retryable = self._audit_update_retryable(exc)
+                detail = f"{type(exc).__name__}: {exc}"
+                attempts.append({
+                    "attempt": attempt,
+                    "status": "FAIL",
+                    "error": detail,
+                    "retryable": retryable,
+                    "failure_evidence_path": getattr(exc, "failure_evidence_path", None),
+                })
+                if not retryable or attempt >= AUDIT_UPDATE_MAX_ATTEMPTS:
+                    return None, detail, attempts
+                if progress:
+                    progress(
+                        f"官方更新瞬态失败：第 {attempt} 次；"
+                        f"{AUDIT_UPDATE_RETRY_DELAY_SECONDS:.1f}s 后进行最后一次完整重试…"
+                    )
+                time.sleep(AUDIT_UPDATE_RETRY_DELAY_SECONDS)
+        return None, "official update retry loop exhausted", attempts
+
+    def _audit_update_with_retry(
+        self, progress: Callable[[str], None] | None = None
+    ) -> tuple[dict[str, Any] | None, str | None, list[dict[str, Any]]]:
+        # Compatibility wrapper: audit and Exact-EXE update share the same
+        # fail-closed bounded retry contract.
+        return self.update_with_transient_retry(progress=progress)
+
     def audit(self, progress: Callable[[str], None] | None = None) -> dict[str, Any]:
         """Advanced analysis is intentionally non-freezing.
 
@@ -511,12 +658,22 @@ class LottoService:
         research preview, but it never writes a formal prediction/freeze/gate.
         """
         self.ensure_seed()
-        update_result = None
+        update_result = self._current_verified_official_snapshot()
         update_error = None
-        try:
-            update_result = self.update(progress=progress)
-        except Exception as exc:
-            update_error = f"{type(exc).__name__}: {exc}"
+        update_attempts: list[dict[str, Any]] = []
+        if update_result is None:
+            update_result, update_error, update_attempts = self._audit_update_with_retry(
+                progress=progress
+            )
+        else:
+            update_attempts.append({
+                "attempt": 0,
+                "status": "PASS",
+                "crosscheck_status": update_result.get("crosscheck_status"),
+                "retryable": False,
+                "reused_current_evidence": True,
+                "failure_evidence_path": None,
+            })
         draws = self._load_draws()
         canonical_hash = self._canonical_hash()
         before = self._freeze_count()
@@ -550,6 +707,7 @@ class LottoService:
             "formal_freeze_written": False,
             "auto_update": update_result,
             "auto_update_error": update_error,
+            "auto_update_attempts": update_attempts,
             "self_test": self_test,
             "release_contract": self.release_contract(),
         }
@@ -563,6 +721,62 @@ class LottoService:
         finally:
             db.close()
 
+    def _repair_build_with_transient_retry(
+        self,
+        trusted_seed: list[Draw],
+        progress: Callable[[str], None] | None = None,
+    ) -> tuple[Any | None, dict[str, Any] | None, str | None, list[dict[str, Any]]]:
+        """Rebuild from official sources with one bounded retry for source transients only.
+
+        A retry reruns the whole source quorum. Transport/deadline failures and a
+        literal empty HTTP response may retry once; oversized/schema/freshness/
+        conflict failures are terminal on the first attempt. Storage commit, replay and
+        post-commit integrity are intentionally outside this retry boundary.
+        """
+        attempts: list[dict[str, Any]] = []
+        for attempt in range(1, AUDIT_UPDATE_MAX_ATTEMPTS + 1):
+            try:
+                dataset, evidences = build_canonical(
+                    progress=progress,
+                    baseline_draws=trusted_seed,
+                    failure_sink=self.store.save_failure_evidence,
+                )
+                crosscheck = getattr(dataset, "crosscheck_status", None)
+                attempts.append({
+                    "attempt": attempt,
+                    "status": "PASS" if crosscheck == "PASS" else "FAIL",
+                    "crosscheck_status": crosscheck,
+                    "retryable": False,
+                    "failure_evidence_path": None,
+                })
+                if crosscheck != "PASS":
+                    return (
+                        None,
+                        None,
+                        "official repair rebuild returned non-PASS crosscheck",
+                        attempts,
+                    )
+                return dataset, evidences, None, attempts
+            except Exception as exc:
+                retryable = self._audit_update_retryable(exc)
+                detail = f"{type(exc).__name__}: {exc}"
+                attempts.append({
+                    "attempt": attempt,
+                    "status": "FAIL",
+                    "error": detail,
+                    "retryable": retryable,
+                    "failure_evidence_path": getattr(exc, "failure_evidence_path", None),
+                })
+                if not retryable or attempt >= AUDIT_UPDATE_MAX_ATTEMPTS:
+                    return None, None, detail, attempts
+                if progress:
+                    progress(
+                        f"修复官方源瞬态失败：第 {attempt} 次；"
+                        f"{AUDIT_UPDATE_RETRY_DELAY_SECONDS:.1f}s 后进行最后一次完整重建…"
+                    )
+                time.sleep(AUDIT_UPDATE_RETRY_DELAY_SECONDS)
+        return None, None, "official repair rebuild retry loop exhausted", attempts
+
     def repair(self, progress: Callable[[str], None] | None = None) -> dict[str, Any]:
         # Repair must remain usable when the local dataset itself is corrupt.
         # Therefore it only materializes missing files first; it does NOT call
@@ -575,15 +789,15 @@ class LottoService:
             return payload
         if progress:
             progress("Integrity FAIL：从多官方源重建 Canonical Dataset…")
+        repair_attempts: list[dict[str, Any]] = []
         try:
             seed_payload = json.loads(resource_path("official_seed.json").read_text(encoding="utf-8"))
             trusted_seed = [Draw.from_dict(x) for x in seed_payload.get("draws", [])]
-            dataset, evidences = build_canonical(
-                progress=progress, baseline_draws=trusted_seed,
-                failure_sink=self.store.save_failure_evidence,
+            dataset, evidences, rebuild_error, repair_attempts = (
+                self._repair_build_with_transient_retry(trusted_seed, progress=progress)
             )
-            if getattr(dataset, "crosscheck_status", None) != "PASS":
-                raise RuntimeError("official source crosscheck did not PASS")
+            if dataset is None or evidences is None:
+                raise RuntimeError(rebuild_error or "official repair rebuild failed")
             self.store.save_dataset(dataset, evidences)
             replay_result = self.replay_all(progress=progress)
             after = self._integrity_check()
@@ -594,11 +808,18 @@ class LottoService:
                 "canonical_hash": getattr(dataset, "canonical_hash", None),
                 "crosscheck_status": getattr(dataset, "crosscheck_status", None),
                 "replayed": replay_result.get("replayed", 0),
+                "repair_attempts": repair_attempts,
             }
             self._append_experiment("repair", status, self._canonical_hash(), payload)
             return payload
         except Exception as exc:
-            payload = {"status": "FAIL", "repaired": False, "before": before, "detail": f"{type(exc).__name__}: {exc}"}
+            payload = {
+                "status": "FAIL",
+                "repaired": False,
+                "before": before,
+                "detail": f"{type(exc).__name__}: {exc}",
+                "repair_attempts": repair_attempts,
+            }
             # A corrupt history may not have a usable canonical hash; keep the
             # failure auditable without pretending the data itself validated.
             try:
