@@ -11,6 +11,8 @@ from happy8.domain import Draw
 from happy8.net_client import NetClient
 from happy8.storage import canonical_json, sha256_json
 from happy8.updater import _trusted_https, _version_tuple
+from real_release_evidence import validate_real_release_evidence
+from repository_independence_gate import REQUIRED_PATHS, evaluate_repository_independence
 
 
 def expect_raises(exc_type, fn) -> bool:
@@ -81,6 +83,134 @@ def main() -> int:
         "status": "PASS"
         if expect_raises(ValueError, lambda: NetClient(connect_timeout=0, read_timeout=1))
         else "FAIL"
+    }
+
+    source_sha = "a" * 40
+    old_main = "1" * 64
+    new_main = "2" * 64
+    old_updater = "3" * 64
+    new_updater = "4" * 64
+    manifest_sha = "5" * 64
+    dedicated_repo = "douluo511/Happy8"
+    valid_release = {
+        "schema": "happy8-real-release-update-v1",
+        "status": "PASS",
+        "repository": dedicated_repo,
+        "release_n": {
+            "version": "0.2.0",
+            "source_sha": "b" * 40,
+            "release_url": "https://updates.example/releases/0.2.0",
+            "main_exe_sha256": old_main,
+            "updater_exe_sha256": old_updater,
+        },
+        "release_n1": {
+            "version": "0.2.1",
+            "source_sha": source_sha,
+            "release_url": "https://updates.example/releases/0.2.1",
+            "main_exe_sha256": new_main,
+            "updater_exe_sha256": new_updater,
+        },
+        "update_config": {
+            "schema": "happy8-update-config-v1",
+            "manifest_url": "https://updates.example/latest.json",
+            "trusted_hosts": ["updates.example"],
+        },
+        "manifest": {
+            "schema": "happy8-update-manifest-v1",
+            "version": "0.2.1",
+            "artifact_url": "https://updates.example/Happy8-0.2.1.exe",
+            "artifact_sha256": new_main,
+            "artifact_bytes": 12345,
+        },
+        "updater_result": {
+            "status": "PASS",
+            "operation": "software_update",
+            "action": "UPDATED",
+            "from_version": "0.2.0",
+            "to_version": "0.2.1",
+            "old_exe_sha256": old_main,
+            "new_exe_sha256": new_main,
+            "manifest_receipt": {
+                "url": "https://updates.example/latest.json",
+                "http_status": 200,
+                "bytes": 321,
+                "sha256": manifest_sha,
+            },
+            "artifact_receipt": {
+                "url": "https://updates.example/Happy8-0.2.1.exe",
+                "http_status": 200,
+                "bytes": 12345,
+                "sha256": new_main,
+            },
+            "rollback_performed": False,
+            "startup_recovery": {"status": "PASS", "action": "NO_INCOMPLETE_UPDATE"},
+        },
+        "updater_execution": {
+            "independent_process": True,
+            "updater_exe_sha256": old_updater,
+            "main_exe_sha256_before": old_main,
+        },
+        "physical_update_click": {
+            "status": "PASS",
+            "label": "一键更新",
+            "from_exe_sha256": old_main,
+            "to_exe_sha256": new_main,
+        },
+        "post_update_self_test": {"status": "PASS", "exe_sha256": new_main},
+        "tested_at": "2026-10-03T11:00:00Z",
+    }
+
+    valid_release_report = validate_real_release_evidence(
+        valid_release,
+        repository=dedicated_repo,
+        source_sha=source_sha,
+    )
+    checks["real_release_valid_fixture"] = {
+        "status": "PASS" if valid_release_report.get("status") == "PASS" else "FAIL"
+    }
+    status_only_report = validate_real_release_evidence(
+        {"status": "PASS"},
+        repository=dedicated_repo,
+        source_sha=source_sha,
+    )
+    checks["real_release_status_only_rejected"] = {
+        "status": "PASS" if status_only_report.get("status") == "FAIL" else "FAIL"
+    }
+    bad_hash_release = json.loads(json.dumps(valid_release))
+    bad_hash_release["updater_result"]["artifact_receipt"]["sha256"] = "6" * 64
+    bad_hash_report = validate_real_release_evidence(
+        bad_hash_release,
+        repository=dedicated_repo,
+        source_sha=source_sha,
+    )
+    checks["real_release_hash_mismatch_rejected"] = {
+        "status": "PASS" if bad_hash_report.get("status") == "FAIL" else "FAIL"
+    }
+
+    repo_paths = set(REQUIRED_PATHS)
+    dedicated_inventory = evaluate_repository_independence(
+        repository=dedicated_repo,
+        top_level={".github", "Happy8"},
+        paths=repo_paths,
+    )
+    checks["repository_independence_valid_fixture"] = {
+        "status": "PASS" if dedicated_inventory.get("status") == "PASS" else "FAIL"
+    }
+    shared_inventory = evaluate_repository_independence(
+        repository="douluo511/Geometry-Lotto-Pro",
+        top_level={".github", "Happy8"},
+        paths=repo_paths,
+    )
+    checks["repository_independence_shared_blocked"] = {
+        "status": "PASS" if shared_inventory.get("status") == "BLOCKED" else "FAIL"
+    }
+    extra_inventory = evaluate_repository_independence(
+        repository=dedicated_repo,
+        top_level={".github", "Happy8", "OtherProject"},
+        paths=repo_paths,
+    )
+    checks["repository_independence_extra_project_rejected"] = {
+        "status": "PASS" if extra_inventory.get("status") == "FAIL" else "FAIL"
     }
 
     status = "PASS" if checks and all(x["status"] == "PASS" for x in checks.values()) else "FAIL"
