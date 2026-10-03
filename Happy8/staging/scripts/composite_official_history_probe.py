@@ -83,7 +83,7 @@ def _jiangsu_dates() -> tuple[dict[str, str], list[dict], list[dict]]:
         page = first if page_no == 1 else inspect_jiangsu_page(page_no)
         if page.get("http_status") != 200:
             raise RuntimeError(f"Jiangsu page HTTP failure: page={page_no} status={page.get('http_status')}")
-        hints = page.get("issue_date_hints") or []
+        hints = page.get("cwl_announcement_date_hints") or []
         for hint in hints:
             issue = str(hint.get("issue") or "")
             day = str(hint.get("date") or "")
@@ -113,7 +113,8 @@ def inspect() -> dict:
         "checks": {},
         "note": (
             "Diagnostic only. Jiangxi Fuzhou supplies issue->20 numbers; Jiangsu official index supplies "
-            "issue->draw date. Production admission requires complete set reconciliation plus an independent "
+            "issue-bound CWL announcement URL dates. Production admission requires frozen start/date-order "
+            "validation, complete set reconciliation plus an independent "
             "current-draw crosscheck in the production source chain."
         ),
     }
@@ -136,7 +137,7 @@ def inspect() -> dict:
                     f"status={page.get('http_status')}"
                 )
             matching = [
-                hint for hint in (page.get("issue_date_hints") or [])
+                hint for hint in (page.get("cwl_announcement_date_hints") or [])
                 if str(hint.get("issue") or "") == issue
             ]
             if len(matching) != 1:
@@ -182,11 +183,23 @@ def inspect() -> dict:
                 "numbers": numbers[latest_issue],
             }
 
+        ordered_date_issues = sorted(date_issues)
+        date_order_strict = True
+        prior_day = None
+        for issue in ordered_date_issues:
+            current_day = datetime.strptime(dates[issue], "%Y-%m-%d").date()
+            if prior_day is not None and current_day <= prior_day:
+                date_order_strict = False
+                break
+            prior_day = current_day
+
         checks = {
             "fuzhou_no_conflicts": not fuzhou_conflicts,
             "jiangsu_no_conflicts": not jiangsu_conflicts,
             "number_history_starts_2020001": min(number_issues, default=None) == "2020001",
             "date_history_starts_2020001": min(date_issues, default=None) == "2020001",
+            "date_start_anchor_2020_10_28": dates.get("2020001") == "2020-10-28",
+            "date_order_strict": date_order_strict,
             "sets_equal": number_issues == date_issues,
             "no_missing_number_issues": not only_dates,
             "no_missing_date_issues": not only_numbers,

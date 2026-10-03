@@ -17,7 +17,7 @@ from .net_client import NetClient
 NATIONAL_URL = "https://www.cwl.gov.cn/cwl_admin/front/cwlkj/search/kjxx/findDrawNotice"
 NATIONAL_LANDING_URL = "https://www.cwl.gov.cn/ygkj/wqkjgg/kl8/"
 SHANGHAI_HISTORY_URL = "https://www.swlc.net.cn/lottery/kl8.html"
-HAPPY8_HISTORY_START_ISSUE = "2020001"
+HAPPY8_HISTORY_START_ISSUE = "2020001"\nHAPPY8_HISTORY_START_DATE = "2020-10-28"
 JIANGSU_URL = "https://www.jslottery.com/"
 JIANGSU_HISTORY_URL = "https://www.jslottery.com/winning_history_a"
 FUZHOU_HISTORY_URL = "https://www.jxfzfc.cn/lottery.php"
@@ -558,21 +558,64 @@ def _parse_fuzhou_number_rows(markup: str) -> dict[str, tuple[int, ...]]:
 
 
 def _parse_jiangsu_issue_dates(markup: str) -> dict[str, str]:
-    plain = _plain(markup)
     pairs: dict[str, str] = {}
 
-    # Draw dates are accepted only when the issue and ISO date are visibly
-    # bound together on the Jiangsu official history index.  Dates embedded
-    # in linked CWL article URLs are publication dates, not draw dates, and
-    # must never enter canonical history.
+    # The Jiangsu official index republishes national CWL draw-announcement
+    # links. Its local articleDate can lag the actual draw announcement (for
+    # example 2020001 is listed locally as 2020-10-30 while the bound CWL
+    # announcement path is /2020/10/28/). Canonical event dates therefore
+    # come only from the date encoded in the exact CWL announcement URL that
+    # is bound to the same Happy8 issue title. The Jiangsu page itself is the
+    # HTTPS provenance container; the linked URL is parsed as metadata only.
+    visible_dates: dict[str, str] = {}
+    plain = _plain(markup)
     for match in re.finditer(
         r"(?:第\s*)?(20\d{5})\s*期[^0-9]{0,80}(20\d{2}-\d{2}-\d{2})",
         plain,
     ):
         issue, day = match.group(1), match.group(2)
+        previous = visible_dates.get(issue)
+        if previous is not None and previous != day:
+            raise RuntimeError(f"Jiangsu local article-date conflict for issue {issue}")
+        visible_dates[issue] = day
+
+    for href, body in re.findall(
+        r"(?is)<a\b[^>]*href\s*=\s*['\"]([^'\"]+)['\"][^>]*>(.*?)</a>",
+        markup,
+    ):
+        label = _plain(body)
+        if "快乐8" not in label:
+            continue
+        issue_match = re.search(r"(?<!\d)(20\d{5})(?!\d)", label)
+        if not issue_match:
+            continue
+        target = html.unescape(href).strip()
+        parsed = urlsplit(target)
+        if parsed.scheme.lower() not in {"http", "https"} or parsed.hostname not in {
+            "www.cwl.gov.cn",
+            "cwl.gov.cn",
+        }:
+            continue
+        date_match = re.search(r"/c/(20\d{2})/(\d{2})/(\d{2})/", parsed.path)
+        if not date_match:
+            continue
+        issue = issue_match.group(1)
+        day = f"{date_match.group(1)}-{date_match.group(2)}-{date_match.group(3)}"
+        try:
+            canonical_day = datetime.strptime(day, "%Y-%m-%d").date()
+        except ValueError as exc:
+            raise RuntimeError(f"Jiangsu CWL announcement date invalid for issue {issue}: {day}") from exc
+        local_day = visible_dates.get(issue)
+        if local_day:
+            local_date = datetime.strptime(local_day, "%Y-%m-%d").date()
+            if local_date < canonical_day:
+                raise RuntimeError(
+                    f"Jiangsu local article date precedes CWL announcement date for {issue}: "
+                    f"local={local_day} cwl={day}"
+                )
         previous = pairs.get(issue)
         if previous is not None and previous != day:
-            raise RuntimeError(f"Jiangsu official visible date conflict for issue {issue}")
+            raise RuntimeError(f"Jiangsu CWL announcement-date conflict for issue {issue}")
         pairs[issue] = day
     return pairs
 
@@ -714,6 +757,7 @@ def fetch_provincial_composite_full_history() -> tuple[
             "row_count": len(rows),
             "first_issue": min(rows),
             "last_issue": max(rows),
+            "date_contract": "cwl_announcement_url_date_bound_on_jiangsu_official_index",
         })
 
     number_issues = set(number_map)
@@ -769,6 +813,25 @@ def fetch_provincial_composite_full_history() -> tuple[
         })
 
     date_issues = set(date_map)
+    start_date = date_map.get(HAPPY8_HISTORY_START_ISSUE)
+    if start_date != HAPPY8_HISTORY_START_DATE:
+        raise RuntimeError(
+            f"provincial date contract start mismatch: "
+            f"issue={HAPPY8_HISTORY_START_ISSUE} expected={HAPPY8_HISTORY_START_DATE} actual={start_date}"
+        )
+    previous_issue: str | None = None
+    previous_day = None
+    for issue in sorted(date_map):
+        try:
+            current_day = datetime.strptime(date_map[issue], "%Y-%m-%d").date()
+        except ValueError as exc:
+            raise RuntimeError(f"provincial date contract invalid ISO date: {issue}={date_map[issue]!r}") from exc
+        if previous_day is not None and current_day <= previous_day:
+            raise RuntimeError(
+                f"provincial date contract is not strictly increasing: "
+                f"{previous_issue}={previous_day.isoformat()} then {issue}={current_day.isoformat()}"
+            )
+        previous_issue, previous_day = issue, current_day
     if number_issues != date_issues:
         missing_dates = sorted(number_issues - date_issues)
         missing_numbers = sorted(date_issues - number_issues)

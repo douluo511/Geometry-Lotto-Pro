@@ -145,11 +145,18 @@ def inspect_page(page: int, periods: str = "") -> dict:
         date_match = re.search(r"/c/(20\d{2})(?:/|-)(\d{2})(?:/|-)(\d{2})/", absolute)
         host = urlsplit(absolute).hostname
         if issue_match and date_match and host in {"www.cwl.gov.cn", "cwl.gov.cn"}:
+            day = f"{date_match.group(1)}-{date_match.group(2)}-{date_match.group(3)}"
             link_date_hints.append({
                 "issue": issue_match.group(1),
-                "article_publish_date": f"{date_match.group(1)}-{date_match.group(2)}-{date_match.group(3)}",
+                "article_publish_date": day,
                 "article_url": absolute,
-                "evidence": "cwl_article_url_metadata_not_draw_date",
+                "evidence": "cwl_article_url_metadata",
+            })
+            cwl_announcement_date_hints.append({
+                "issue": issue_match.group(1),
+                "date": day,
+                "article_url": absolute,
+                "evidence": "cwl_announcement_url_date_bound_on_jiangsu_official_index",
             })
     # Only the date visibly bound to an issue on the Jiangsu official index
     # is a draw-date candidate.  A linked CWL /c/YYYY/MM/DD/ path identifies
@@ -228,6 +235,7 @@ def inspect_page(page: int, periods: str = "") -> dict:
         "anchors": anchors[:100],
         "issue_date_hints": issue_date_hints[:100],
         "link_date_hints": link_date_hints[:100],
+        "cwl_announcement_date_hints": cwl_announcement_date_hints[:100],
         "visible_issue_date_pairs": visible_pairs[:100],
         "pagination_pages": sorted(set(pagination))[:500],
         "issue_contexts": issue_contexts,
@@ -337,19 +345,19 @@ def main() -> int:
         )
         start_date_hint = any(
             hint.get("issue") == "2020001"
-            and re.fullmatch(r"20\d{2}-\d{2}-\d{2}", str(hint.get("date") or ""))
+            and hint.get("date") == "2020-10-28"
             for page in report["period_searches"]
-            for hint in page.get("issue_date_hints", [])
+            for hint in page.get("cwl_announcement_date_hints", [])
         )
         current_date_hint = any(
             str(hint.get("issue") or "").startswith("2026")
             for page in report["pages"]
-            for hint in page.get("issue_date_hints", [])
+            for hint in page.get("cwl_announcement_date_hints", [])
         )
         report["date_contract_discovery"] = (
-            "JIANGSU_ISSUE_DATE_CONTRACT_CANDIDATE"
+            "JIANGSU_CWL_ANNOUNCEMENT_DATE_CONTRACT_CANDIDATE"
             if start_date_hint and current_date_hint
-            else "JIANGSU_ISSUE_DATE_CONTRACT_INCOMPLETE"
+            else "JIANGSU_CWL_ANNOUNCEMENT_DATE_CONTRACT_INCOMPLETE"
         )
         report["checks"] = {
             "official_https_pages": all(_official(page["final_url"]) for page in report["pages"]),

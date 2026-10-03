@@ -85,22 +85,37 @@ def main() -> int:
 
     jiangsu_html = """
     <html><body>
-      <div>中国福利彩票快乐8第2021001期开奖公告 2021-01-01</div>
-      <a href="https://www.cwl.gov.cn/c/2021/01/02/123.shtml">第2021001期开奖公告</a>
+      <li>
+        <a href="http://www.cwl.gov.cn/c/2021/01/01/123.shtml">
+          中国福利彩票"快乐8"第2021001期开奖公告
+        </a>
+        <span class="articleDate">2021-01-03</span>
+      </li>
     </body></html>
     """
     parsed_dates = _parse_jiangsu_issue_dates(jiangsu_html)
     if parsed_dates != {"2021001": "2021-01-01"}:
-        raise AssertionError(f"Jiangsu visible issue-date parser drifted: {parsed_dates!r}")
-    checks["jiangsu_visible_issue_date_contract"] = {"status": "PASS"}
+        raise AssertionError(f"Jiangsu CWL announcement-date parser drifted: {parsed_dates!r}")
+    checks["jiangsu_cwl_announcement_date_contract"] = {"status": "PASS"}
+
+    visible_only_jiangsu = """
+    <div>中国福利彩票快乐8第2021001期开奖公告 2021-01-03</div>
+    """
+    if _parse_jiangsu_issue_dates(visible_only_jiangsu):
+        raise AssertionError("Jiangsu local articleDate was incorrectly accepted as canonical draw date")
+    checks["jiangsu_local_article_date_rejected"] = {"status": "PASS"}
 
     conflicting_jiangsu = """
-    <div>第2021001期开奖公告 2021-01-01</div>
-    <div>第2021001期开奖公告 2021-01-02</div>
+    <a href="http://www.cwl.gov.cn/c/2021/01/01/123.shtml">
+      中国福利彩票"快乐8"第2021001期开奖公告
+    </a>
+    <a href="http://www.cwl.gov.cn/c/2021/01/02/124.shtml">
+      中国福利彩票"快乐8"第2021001期开奖公告
+    </a>
     """
     try:
         _parse_jiangsu_issue_dates(conflicting_jiangsu)
-        raise AssertionError("Jiangsu issue-date conflict accepted")
+        raise AssertionError("Jiangsu CWL announcement-date conflict accepted")
     except RuntimeError:
         checks["jiangsu_date_conflict_fail_closed"] = {"status": "PASS"}
 
