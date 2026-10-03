@@ -204,11 +204,12 @@ def ui_contract(window: Happy8Window) -> dict[str, Any]:
     }
     actual = {key: button.cget("text") for key, button in window.buttons.items()}
     commands_bound = all(bool(str(button.cget("command"))) for button in window.buttons.values())
+    truth_boundary_match = window.truth_label.cget("text") == TRUTH_BOUNDARY
     return {
-        "status": "PASS" if actual == expected and commands_bound else "FAIL",
+        "status": "PASS" if actual == expected and commands_bound and truth_boundary_match else "FAIL",
         "buttons": actual,
         "commands_bound": commands_bound,
         "title": window.title(),
         "truth_boundary": window.truth_label.cget("text"),
-        "truth_boundary_match": window.truth_label.cget("text") == TRUTH_BOUNDARY,
+        "truth_boundary_match": truth_boundary_match,
     }
