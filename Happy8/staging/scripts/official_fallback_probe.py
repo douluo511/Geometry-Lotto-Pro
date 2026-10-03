@@ -26,6 +26,20 @@ HEADERS = {
     "Referer": "https://www.gdfc.org.cn/",
 }
 
+GD_HEADER_PROFILES = {
+    "standard_chrome": {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.7",
+    },
+    "standard_chrome_with_referer": {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.7",
+        "Referer": "https://www.gdfc.org.cn/",
+    },
+}
+
 
 def _decode(raw: bytes) -> str:
     for enc in ("utf-8-sig", "utf-8", "gb18030"):
@@ -289,16 +303,11 @@ def inspect_hebei_contract() -> dict:
                 post_probes.append(post_number_probe("current_option_value", current["value"]))
             if current.get("issue"):
                 post_probes.append(post_number_probe("current_issue_literal", current["issue"]))
+        # Keep one negative control proving that the public issue number is not
+        # accepted as Hebei's internal lotteryId. Earlier bounded historical-ID
+        # sampling was disproved by schema mismatch and is intentionally not
+        # repeated on subsequent runs.
         post_probes.append(post_number_probe("early_issue_literal_2021001", "2021001"))
-
-        # Low-load bounded diagnostics only. Current option IDs show that the
-        # internal lotteryId is not the public issue number. Probe a handful
-        # of widely spaced historical IDs around the slope-estimated 2021
-        # region; never brute-force the endpoint.
-        for historical_id in ("1200", "1400", "1500", "1600", "1800"):
-            post_probes.append(
-                post_number_probe(f"historical_id_sample_{historical_id}", historical_id)
-            )
         record["number_endpoint_probes"] = post_probes
         record["diagnostic"] = (
             "HEBEI_CONTRACT_DISCOVERED"
@@ -312,19 +321,63 @@ def inspect_hebei_contract() -> dict:
         return record
 
 
+def inspect_guangdong_header_profiles(issue: str = "2025231") -> list[dict]:
+    url = BASE.format(issue=issue)
+    probes = []
+    for label, headers in GD_HEADER_PROFILES.items():
+        row = {"label": label, "issue": issue, "url": url}
+        try:
+            response = NET.get(
+                url,
+                headers=headers,
+                timeout=(10, 30),
+                allow_redirects=True,
+            )
+            raw = bytes(response.content)
+            final_url = str(getattr(response, "url", "") or url)
+            parsed = urlsplit(final_url)
+            expected = urlsplit(url)
+            markup = _decode(raw)
+            plain = _plain(markup)
+            row.update({
+                "http_status": int(response.status_code),
+                "final_url": final_url,
+                "raw_sha256": hashlib.sha256(raw).hexdigest(),
+                "bytes": len(raw),
+                "content_type": str(response.headers.get("Content-Type", "")),
+                "attempts": list(getattr(response, "happy8_attempts", ())),
+                "official_https_host": (
+                    parsed.scheme.lower() == "https"
+                    and parsed.hostname == expected.hostname
+                ),
+                "issue_visible": issue in plain,
+                "has_draw_marker": any(
+                    marker in plain
+                    for marker in ("本期中奖号码", "中奖号码", "开奖号码", "开奖公告")
+                ),
+                "body_head": plain[:500],
+            })
+        except Exception as exc:
+            row["error"] = f"{type(exc).__name__}: {exc}"
+        probes.append(row)
+    return probes
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", required=True)
     args = parser.parse_args()
     guangdong = [inspect_issue(issue) for issue in ISSUES]
     hebei = inspect_hebei_contract()
+    guangdong_header_profiles = inspect_guangdong_header_profiles()
     report = {
-        "schema": "happy8-official-fallback-probe-v3",
+        "schema": "happy8-official-fallback-probe-v4",
         "status": "DIAGNOSTIC_ONLY",
         "production_accepted": False,
         "sources": ["guangdong_welfare_lottery", "hebei_welfare_lottery"],
         "issues": list(ISSUES),
         "guangdong_probes": guangdong,
+        "guangdong_header_profile_probes": guangdong_header_profiles,
         "hebei_probe": hebei,
         "note": "Diagnostic evidence only. No source is admitted to production without a reproducible historical contract and raw provenance.",
     }
