@@ -927,8 +927,8 @@ def fetch_provincial_composite_full_history() -> tuple[
         raise RuntimeError(f"provincial official latest draw is stale/future: age_days={age}")
 
     receipt = SourceReceipt(
-        source="jiangxi_fuzhou_plus_jiangsu_official",
-        url=f"{FUZHOU_HISTORY_URL} + {JIANGSU_HISTORY_URL}",
+        source="jiangxi_fuzhou_numbers_plus_mof_calendar_crosschecked_jiangsu",
+        url=f"{FUZHOU_HISTORY_URL} + MOF market-calendar notices + {JIANGSU_HISTORY_URL}",
         http_status=200,
         fetched_at=_utc_now(),
         raw_sha256=_sha256_json(manifest),
@@ -975,8 +975,8 @@ def build_official_snapshot() -> tuple[dict[str, Any], dict[str, bytes]]:
             shanghai_error = f"{type(shanghai_exc).__name__}: {shanghai_exc}"
             try:
                 history, history_receipt, raw_sources, manifest = fetch_provincial_composite_full_history()
-                history_source = "jiangxi_fuzhou_plus_jiangsu_official"
-                verification = "FUZHOU_NUMBERS_PLUS_JIANGSU_DATES_AND_CURRENT_NUMBERS"
+                history_source = "jiangxi_fuzhou_numbers_plus_mof_calendar_crosschecked_jiangsu"
+                verification = "FUZHOU_NUMBERS_PLUS_MOF_MARKET_CALENDAR_CROSSCHECKED_JIANGSU_AND_CURRENT_NUMBERS"
             except Exception as composite_exc:
                 raise RuntimeError(
                     "Happy8 full-history official sources unavailable; "
@@ -1020,15 +1020,16 @@ def build_official_snapshot() -> tuple[dict[str, Any], dict[str, bytes]]:
                     "national_welfare_lottery": history_error,
                     "shanghai_welfare_lottery": locals().get("shanghai_error"),
                 }
-                if history_source == "jiangxi_fuzhou_plus_jiangsu_official"
+                if history_source == "jiangxi_fuzhou_numbers_plus_mof_calendar_crosschecked_jiangsu"
                 else {}
             )
         ),
         "note": (
             "Fail-closed official network gate: CWL kl8 is primary full-history source; "
-            "Shanghai is first official fallback; a strict Jiangxi-Fuzhou numbers + Jiangsu dates "
-            "composite is the second fallback only when the complete issue sets reconcile exactly. "
-            "Jiangsu current numbers crosscheck the accepted history source. "
+            "Shanghai is first official fallback; the second fallback uses official Jiangxi-Fuzhou draw numbers "
+            "with draw dates derived from the frozen Ministry of Finance lottery-market closure calendar. "
+            "Every available issue-bound Jiangsu CWL announcement date must agree, archive omissions are "
+            "bounded and recorded, and Jiangsu current numbers crosscheck the accepted history source. "
             "Portfolio Final still requires Windows/Exact EXE/GUI/Same Hash and repository independence."
         ),
     }
