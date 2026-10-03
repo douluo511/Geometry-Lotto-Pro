@@ -86,7 +86,10 @@ def _validate_raw_bundle(report: dict[str, Any], raw_sources: dict[str, bytes]) 
             if item_source == "jiangxi_fuzhou_welfare_lottery":
                 safe = re.fullmatch(r"fuzhou_page_\d{3}\.html", filename)
             elif item_source == "jiangsu_welfare_lottery":
-                safe = re.fullmatch(r"jiangsu_history_page_\d{3}\.html", filename)
+                safe = re.fullmatch(
+                    r"(?:jiangsu_history_page_\d{3}|jiangsu_issue_20\d{5})\.html",
+                    filename,
+                )
             else:
                 safe = None
         else:
