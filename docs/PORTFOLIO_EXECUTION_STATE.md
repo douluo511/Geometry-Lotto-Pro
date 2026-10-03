@@ -200,3 +200,11 @@ Do not label any project Final until Engineering=100%, Business=100%, hard_fail_
 - PyInstaller reproducible-build prerequisites were missing from the workflow. The build now pins `PYTHONHASHSEED=1`, derives `SOURCE_DATE_EPOCH` from the checked-out acceptance commit so both Windows builds receive the same PE timestamp, disables UPX, and cleans both main/updater work directories before rebuilding.
 - An intermediate workflow edit introduced a malformed PowerShell regex due to replacement-string semantics; that head is explicitly invalid and not used as evidence. Commit `81454c564f257f0479f76b1994bafcf5f5c609d9` repairs the workflow prelude and was re-read after commit to confirm the complete PowerShell block.
 - Current exact PR #87 head is `81454c564f257f0479f76b1994bafcf5f5c609d9`. No workflow run was registered yet at record time, so current-head Windows/Exact EXE/GUI/Same Hash remain NOT VERIFIED. Final Gate remains FAIL.
+
+
+### Happy8 workflow startup failure and recovery
+
+- Exact-head runs `37101776641` (`cd6c8ce...`) and `37101812912` (`81454c56...`) failed before any job was created. This was a workflow-definition failure, not a test failure and not a PASS.
+- Root cause: the earlier malformed replacement left a duplicated PowerShell/workflow payload appended after the legitimate `if-no-files-found: warn` end of the YAML file. GitHub therefore rejected the workflow before job creation.
+- Commit `26b736f469137e451dd175804d1c020d9cb9edeb` removes the 14,951-character trailing payload and leaves a single valid workflow ending at the artifact upload stanza. This preserves the reproducible-build fix (`PYTHONHASHSEED=1`, deterministic `SOURCE_DATE_EPOCH`, `--noupx`) while removing the invalid duplicate.
+- Current exact PR #87 head: `26b736f469137e451dd175804d1c020d9cb9edeb`. All current-head gates remain NOT VERIFIED until a job actually starts and reports evidence. Final Gate remains FAIL.
