@@ -5,6 +5,10 @@ on:
     paths:
       - 'StockAIPro/**'
       - '.github/workflows/stock-ai-business-real-network.yml'
+concurrency:
+  group: stock-ai-business-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 jobs:
