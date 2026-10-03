@@ -138,6 +138,13 @@ def main() -> int:
                 and not prediction.get("formal_dan")
                 and prediction.get("label") == "STRUCTURED_CANDIDATE_ONLY"
                 and len(prediction.get("candidate10_research_only") or []) == 10
+                and len(prediction.get("candidate20_research_only") or []) == 20
+                and len(prediction.get("observed_core_research_only") or []) == 4
+                and len(prediction.get("ranking80_research_only") or []) == 80
+                and [row.get("rank") for row in prediction.get("ranking80_research_only") or []] == list(range(1, 81))
+                and sorted(row.get("number") for row in prediction.get("ranking80_research_only") or []) == list(range(1, 81))
+                and prediction.get("baseline", {}).get("single_number_probability") == 0.25
+                and prediction.get("baseline", {}).get("pick10_expected_hits") == 2.5
             )
             else "FAIL"
         }
