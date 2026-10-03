@@ -1,6 +1,6 @@
 {
   "schema": "happy8-independent-repo-migration-manifest-v1",
-  "status": "PREPARED_NOT_MIGRATED",
+  "status": "STALE_PENDING_REGENERATION",
   "source_repository": "douluo511/Geometry-Lotto-Pro",
   "source_commit": "64dfe1b9274abecd972edaa52c928f10cb2b6b23",
   "rule": "Preserve source paths byte-for-byte for the first dedicated-repository seed. Any path/content restructuring is a new change and invalidates affected evidence.",
@@ -68,6 +68,19 @@
   "blocker": {
     "status": "BLOCKED",
     "reason": "Current GitHub connector exposes only douluo511/Geometry-Lotto-Pro and has no repository-creation action.",
-    "unblock": "Create a dedicated Happy8 repository and make it visible to the connected GitHub installation."
+    "unblock": "Create a dedicated Happy8 repository and make it visible to the connected GitHub installation.",
+    "note": "Do not migrate the previous seed as current. Regenerate from the latest fresh-accepted head first."
+  },
+  "stale_reason": "Happy8 acceptance/evidence scripts and workflow changed after the seed source head; migration identity must be regenerated only after the new exact head completes fresh acceptance.",
+  "previous_source_commit": "64dfe1b9274abecd972edaa52c928f10cb2b6b23",
+  "current_candidate_head": "74f4b2a22212b654eb8a1e4aef549ec3a7806bfb",
+  "current_candidate_run": 37120044111,
+  "previous_seed": {
+    "root_tree_sha": "16ee80c3d307df457c2cc49e469d24d8298bdc20",
+    "commit": "3015beacbd5d858601abe13ed207a32512344354",
+    "branch": "migration/happy8-independent-seed-20261003",
+    "validation_pr": 89,
+    "validation_run": 37119210013,
+    "disposition": "validation completed; PR closed without merge; historical only"
   }
 }
