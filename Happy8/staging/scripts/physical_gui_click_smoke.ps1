@@ -179,7 +179,7 @@ if($seedJson.status -ne 'PASS') { throw "exact EXE live-network seed was not PAS
 $ops=@(
   @{key='predict'; label='预测下一期'; rx=0.14; expected='PASS'},
   @{key='update'; label='一键更新'; rx=0.38; expected='FAIL_CLOSED'},
-  @{key='repair'; label='一键修复'; rx=0.62; expected='PASS'},
+  @{key='repair'; label='一键修复'; rx=0.62; expected='BLOCKED_EXTERNAL'},
   @{key='advanced'; label='高级分析'; rx=0.86; expected='PASS'}
 )
 $results=@()
@@ -212,18 +212,26 @@ foreach($op in $ops) {
       if($op.key -eq 'predict' -and [string]::IsNullOrWhiteSpace([string]$record.result.freeze_hash)) { throw "prediction freeze hash missing" }
       if($op.key -eq 'repair' -and $record.result.action -ne 'RESTORED_VERIFIED_GENERATION') { throw "repair did not restore the corrupted CURRENT pointer" }
       if($op.key -eq 'advanced' -and $record.result.report.software_verdict -ne 'PASS') { throw "advanced analysis software verdict not PASS" }
-    } else {
+    } elseif($op.expected -eq 'FAIL_CLOSED') {
       if($record.status -ne 'FAIL') { throw "one-click update must fail closed without a real independent release config" }
       $err=[string]$record.result.error
       if($err -notmatch 'release config is unavailable|independent repository/release source remains BLOCKED') {
         throw "one-click update failed for an unexpected reason: $err"
       }
+    } else {
+      if($record.status -ne 'BLOCKED') { throw "one-click repair must surface the missing trusted release/network configuration as BLOCKED" }
+      if($record.result.action -ne 'LOCAL_REPAIR_COMPLETE_EXTERNAL_BLOCKER') { throw "repair blocker action mismatch" }
+      if($record.result.components.data_integrity.status -ne 'PASS') { throw "repair local data integrity did not recover" }
+      if($record.result.components.index_pointer.status -ne 'PASS') { throw "repair CURRENT/index pointer did not recover" }
+      if($record.result.components.configuration.status -ne 'BLOCKED') { throw "repair release config blocker was hidden" }
+      if($record.result.components.network_configuration.status -ne 'BLOCKED') { throw "repair network config blocker was hidden" }
+      if($record.result.post_repair_self_check.status -ne 'PASS') { throw "repair post self-check did not pass" }
     }
 
     $results += [pscustomobject]@{
       key=$op.key
       label=$op.label
-      acceptance=$(if($op.expected -eq 'FAIL_CLOSED'){'PASS_FAIL_CLOSED'}else{'PASS'})
+      acceptance=$(if($op.expected -eq 'FAIL_CLOSED'){'PASS_FAIL_CLOSED'}elseif($op.expected -eq 'BLOCKED_EXTERNAL'){'PASS_BLOCKED_EXPLICIT'}else{'PASS'})
       backend_status=$record.status
       locator=$point.locator
       x=$point.x
