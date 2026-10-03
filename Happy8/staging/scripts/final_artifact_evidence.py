@@ -158,12 +158,20 @@ def validate_final_artifact(
     )
 
     real_release = real_release if isinstance(real_release, dict) else {}
+    rr_checks = real_release.get("checks") if isinstance(real_release.get("checks"), dict) else {}
+    rr_assets = rr_checks.get("release_asset_hashes") if isinstance(rr_checks.get("release_asset_hashes"), dict) else {}
+    rr_n1_main = _sha(rr_assets.get("release_n1_main"))
+    rr_n1_updater = _sha(rr_assets.get("release_n1_updater"))
     put(
         "real_release_binding",
         real_release.get("schema") == "happy8-real-release-validation-v1"
         and real_release.get("status") == "PASS"
         and real_release.get("repository") == repository
-        and str(real_release.get("source_sha") or "").lower() == source_sha,
+        and str(real_release.get("source_sha") or "").lower() == source_sha
+        and rr_n1_main == exact_sha
+        and rr_n1_updater == updater_sha,
+        release_n1_main_sha256=rr_n1_main,
+        release_n1_updater_sha256=rr_n1_updater,
     )
 
     put("created_at", _iso(value.get("created_at")), created_at=value.get("created_at"))
