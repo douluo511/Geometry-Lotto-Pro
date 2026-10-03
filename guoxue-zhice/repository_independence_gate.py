@@ -33,7 +33,7 @@ def main() -> int:
     root = Path(args.repo_root).resolve()
     report = {
         "schema": "guoxue-repository-independence-v1",
-        "github_sha": os.environ.get("GITHUB_SHA"),
+        "github_sha": (os.environ.get("GUOXUE_SOURCE_SHA") or os.environ.get("GITHUB_SHA")),
         "repository": args.repository,
     }
     try:
