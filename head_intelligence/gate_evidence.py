@@ -20,11 +20,12 @@ def current_binding() -> dict:
     head = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
     expected = os.environ.get("HEAD_SOURCE_SHA")
     run = os.environ.get("GITHUB_RUN_ID")
-    if head != expected or not run or not str(run).isdigit():
+    attempt = os.environ.get("GITHUB_RUN_ATTEMPT")
+    if head != expected or not run or not str(run).isdigit() or not attempt or not str(attempt).isdigit() or int(attempt)<1:
         raise RuntimeError("gate evidence requires the exact checked-out source and current GitHub run")
     if subprocess.check_output(["git", "diff", "--name-only", "HEAD"], text=True).strip():
         raise RuntimeError("tracked source differs from the accepted checkout")
-    return {"source_sha": head, "workflow_run": str(run)}
+    return {"source_sha": head, "workflow_run": str(run), "workflow_attempt":str(attempt)}
 
 
 def untracked(path: Path) -> bool:
@@ -32,18 +33,18 @@ def untracked(path: Path) -> bool:
     return result.returncode == 1
 
 
-def receipt_valid(value, *, gate, source_sha, workflow_run, artifact_hash=None):
+def receipt_valid(value, *, gate, source_sha, workflow_run, workflow_attempt, artifact_hash=None):
     return (isinstance(value, dict) and value.get("schema") == SCHEMA and value.get("gate") == gate
             and value.get("status") == "PASS" and value.get("exit_code") == 0
-            and value.get("source_sha") == source_sha and value.get("workflow_run") == str(workflow_run)
+            and value.get("source_sha") == source_sha and value.get("workflow_run") == str(workflow_run) and value.get("workflow_attempt") == str(workflow_attempt)
             and bool(value.get("command") or value.get("comparison"))
             and (artifact_hash is None or value.get("artifact_sha256") == artifact_hash))
 
 
-def read_receipt(path, *, gate, source_sha, workflow_run, artifact_hash=None, check_untracked=True):
+def read_receipt(path, *, gate, source_sha, workflow_run, workflow_attempt, artifact_hash=None, check_untracked=True):
     try:
         value = json.loads(Path(path).read_text(encoding="utf-8-sig"))
-        return (not check_untracked or untracked(Path(path))) and receipt_valid(value, gate=gate, source_sha=source_sha, workflow_run=workflow_run, artifact_hash=artifact_hash)
+        return (not check_untracked or untracked(Path(path))) and receipt_valid(value, gate=gate, source_sha=source_sha, workflow_run=workflow_run, workflow_attempt=workflow_attempt, artifact_hash=artifact_hash)
     except (OSError, ValueError, TypeError):
         return False
 

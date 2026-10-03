@@ -202,6 +202,7 @@ $report=[ordered]@{
   gui_run_id=$env:HEAD_GUI_RUN_ID
   source_sha=$env:HEAD_SOURCE_SHA
   workflow_run=$env:GITHUB_RUN_ID
+  workflow_attempt=$env:GITHUB_RUN_ATTEMPT
   status="PASS"
   exe=(Split-Path -Leaf $ExePath)
   tested_at=(Get-Date).ToUniversalTime().ToString("o")

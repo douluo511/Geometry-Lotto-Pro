@@ -15,18 +15,19 @@ def sha256(path: Path)->str:
 def bind(value: dict, operations: dict, exe_hash: str) -> dict:
     buttons = value.get("buttons")
     run_id = value.get("gui_run_id")
+    attempt = value.get("workflow_attempt")
     if not (value.get("schema") == "head-intelligence-physical-gui-v2" and value.get("status") == "PASS"
-            and run_id and isinstance(buttons, list) and len(buttons) == 4
+            and run_id and attempt and isinstance(buttons, list) and len(buttons) == 4
             and {button.get("operation") for button in buttons} == set(OPERATIONS)
             and all(button.get("status") == "PASS" and button.get("visual_changed") is True for button in buttons)):
         raise ValueError("physical clicks and visual changes are incomplete")
     by_name = operations.get("operations", {})
     if not (operations.get("schema") == "head-intelligence-gui-operations-v1"
-            and operations.get("main_exe_sha256") == exe_hash and operations.get("gui_run_id") == run_id):
+            and operations.get("main_exe_sha256") == exe_hash and operations.get("gui_run_id") == run_id and operations.get("workflow_attempt") == attempt):
         raise ValueError("backend operations are not bound to the tested EXE/run")
     for button in buttons:
         operation = by_name.get(button["operation"], {})
-        if not (operation.get("gui_run_id") == run_id and operation.get("process_id") == button.get("process_id")
+        if not (operation.get("gui_run_id") == run_id and operation.get("workflow_attempt") == attempt and operation.get("process_id") == button.get("process_id")
                 and operation.get("completed_at") and operation.get("status") == button.get("operation_status")):
             raise ValueError("a physical click has stale or unrelated backend evidence")
     judgment = by_name.get("information_judgment", {})

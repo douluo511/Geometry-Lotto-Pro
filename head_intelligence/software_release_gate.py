@@ -88,6 +88,7 @@ def main() -> int:
             "repository": args.repository,
             "source_sha": args.source_sha,
             "workflow_run": os.environ.get("GITHUB_RUN_ID"),
+            "workflow_attempt": os.environ.get("GITHUB_RUN_ATTEMPT"),
             "detail": "real independent production Release N→N+1 evidence is unavailable",
         }
         Path(args.output).write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -189,6 +190,7 @@ def main() -> int:
             "repository": args.repository,
             "source_sha": args.source_sha,
             "workflow_run": os.environ.get("GITHUB_RUN_ID"),
+            "workflow_attempt": os.environ.get("GITHUB_RUN_ATTEMPT"),
             "checks": checks,
             "official_source_receipts": official_receipts,
         }
@@ -200,6 +202,7 @@ def main() -> int:
             "repository": args.repository,
             "source_sha": args.source_sha,
             "workflow_run": os.environ.get("GITHUB_RUN_ID"),
+            "workflow_attempt": os.environ.get("GITHUB_RUN_ATTEMPT"),
             "error": f"{type(exc).__name__}: {exc}",
         }
 

@@ -299,6 +299,7 @@ def main() -> int:
         "schema": "head-intelligence-updater-gate-v1",
         "github_sha": os.environ.get("HEAD_SOURCE_SHA") or os.environ.get("GITHUB_SHA"),
         "workflow_run": os.environ.get("GITHUB_RUN_ID"),
+            "workflow_attempt": os.environ.get("GITHUB_RUN_ATTEMPT"),
         "status": status,
         "checks": checks,
     }

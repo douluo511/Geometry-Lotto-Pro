@@ -19,7 +19,7 @@ REQUIRED_MARKERS = [
 def make_gate_input(path: Path, override=None):
     gates={k:"PASS" for k in HARD_GATES}
     if override: gates.update(override)
-    path.write_text(json.dumps({"status":"PASS","source_sha":"a"*40,"workflow_run":"10","gates":gates}),encoding="utf-8")
+    path.write_text(json.dumps({"status":"PASS","source_sha":"a"*40,"workflow_run":"10","workflow_attempt":"1","gates":gates}),encoding="utf-8")
 
 def _fixture(tmp_path: Path):
     evidence=tmp_path/"evidence"; evidence.mkdir()
@@ -31,14 +31,14 @@ def _fixture(tmp_path: Path):
     receipts=evidence/"process-gates";receipts.mkdir()
     for name in set(MARKERS)|{"architecture","business_content","updater_exact_exe","updater_build"}:
         bound_hash=digest if name.startswith("updater_") else hashlib.sha256(candidate.read_bytes()).hexdigest()
-        (receipts/f"{name}.json").write_text(json.dumps({"schema":"head-intelligence-process-gate-v1","gate":name,"status":"PASS","source_sha":"a"*40,"workflow_run":"10","exit_code":0,"command":["offline-unit-fixture"],"artifact_sha256":bound_hash}))
+        (receipts/f"{name}.json").write_text(json.dumps({"schema":"head-intelligence-process-gate-v1","gate":name,"status":"PASS","source_sha":"a"*40,"workflow_run":"10","workflow_attempt":"1","exit_code":0,"command":["offline-unit-fixture"],"artifact_sha256":bound_hash}))
     (evidence/"updater_gate.json").write_text(json.dumps({"schema":"head-intelligence-updater-gate-v1","status":"PASS","github_sha":"a"*40,"checks":{name:{"status":"PASS"} for name in UPDATER_CHECKS}}),encoding="utf-8")
     (evidence/"updater_windows_gate.json").write_text(json.dumps({"schema":"head-intelligence-updater-windows-gate-v1","status":"PASS","github_sha":"a"*40,"updater_exact_exe":"PASS","updater_exe_sha256":digest,"final_updater_sha256":digest,"same_hash":True,"self_test":{"schema":"head-intelligence-updater-self-test-v1","status":"PASS","checks":{"version_parser":"PASS","https_trust":"PASS"}}}),encoding="utf-8")
     (evidence/"software_release_validation.json").write_text(json.dumps({"schema":"head-intelligence-real-software-release-validation-v1","status":"PASS","source_sha":"a"*40,"github_sha":"a"*40,"repository":"owner/HeadIntelligence","checks":{name:{"status":"PASS"} for name in REAL_RELEASE_CHECKS}}),encoding="utf-8")
     (evidence/"physical_gui_click.json").write_text(json.dumps({"schema":"head-intelligence-physical-gui-v2","status":"PASS","source_sha":"a"*40,"exe_sha256":hashlib.sha256(final.read_bytes()).hexdigest(),"button_count":4,"operation_binding":"PASS","release_mode":"ConfiguredRelease"}),encoding="utf-8")
-    (evidence/"repository_independence.json").write_text(json.dumps({"schema":"head-intelligence-repository-independence-v1","status":"PASS","source_sha":"a"*40,"workflow_run":"10","repository":"owner/HeadIntelligence","files":[{"path":"head_intelligence/"+name} for name in REQUIRED]}))
+    (evidence/"repository_independence.json").write_text(json.dumps({"schema":"head-intelligence-repository-independence-v1","status":"PASS","source_sha":"a"*40,"workflow_run":"10","workflow_attempt":"1","repository":"owner/HeadIntelligence","files":[{"path":"head_intelligence/"+name} for name in REQUIRED]}))
     for filename in ("updater_gate.json","updater_windows_gate.json","software_release_validation.json","physical_gui_click.json"):
-        path=evidence/filename;value=json.loads(path.read_text());value["workflow_run"]="10";path.write_text(json.dumps(value))
+        path=evidence/filename;value=json.loads(path.read_text());value["workflow_run"]="10";value["workflow_attempt"]="1";path.write_text(json.dumps(value))
     return evidence,candidate,final
 
 def test_release_gate_passes_only_with_all_markers_and_same_hash(tmp_path: Path):
@@ -126,3 +126,14 @@ def test_old_run_receipt_and_marker_only_cannot_pass(tmp_path):
     path.unlink()
     assert (evidence/"unit_tests.pass").exists()
     assert evaluate(evidence,candidate,final,gate_input)["failures"]["unit_test"]=="NOT VERIFIED"
+
+def test_previous_attempt_cannot_supply_repository_gui_or_updater_evidence(tmp_path):
+    evidence,candidate,final=_fixture(tmp_path)
+    gate_input=tmp_path/"gate.json";make_gate_input(gate_input)
+    for name in ("repository_independence.json","physical_gui_click.json","updater_gate.json","updater_windows_gate.json"):
+        path=evidence/name;value=json.loads(path.read_text());value["workflow_attempt"]="0";path.write_text(json.dumps(value))
+    result=evaluate(evidence,candidate,final,gate_input)
+    assert result["failures"]["repository_independence"]=="NOT VERIFIED"
+    assert result["failures"]["physical_gui_click"]=="FAIL"
+    assert result["failures"]["updater_atomic_rollback"]=="FAIL"
+    assert result["failures"]["updater_exact_exe"]=="FAIL"

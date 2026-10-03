@@ -186,7 +186,8 @@ class HeadIntelligenceApp(tk.Tk):
         exe = Path(sys.executable)
         value["main_exe_sha256"] = hashlib.sha256(exe.read_bytes()).hexdigest() if getattr(sys, "frozen", False) else None
         value["gui_run_id"] = os.environ.get("HEAD_GUI_RUN_ID")
-        value["operations"][operation] = {**result, "process_id":os.getpid(), "gui_run_id":os.environ.get("HEAD_GUI_RUN_ID"), "completed_at":datetime.now(timezone.utc).isoformat()}
+        value["workflow_attempt"] = os.environ.get("GITHUB_RUN_ATTEMPT")
+        value["operations"][operation] = {**result, "process_id":os.getpid(), "gui_run_id":os.environ.get("HEAD_GUI_RUN_ID"), "workflow_attempt":os.environ.get("GITHUB_RUN_ATTEMPT"), "completed_at":datetime.now(timezone.utc).isoformat()}
         storage.save_json_atomic("physical_gui_operations.json", value)
 
     def _render_snapshot(self, snapshot: dict | None):

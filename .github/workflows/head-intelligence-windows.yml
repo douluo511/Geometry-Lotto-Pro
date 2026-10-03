@@ -235,7 +235,7 @@ jobs:
           if ($main -ne $mainFinal -or $updater -ne $updaterFinal) { throw "post-GUI Same Hash failed" }
           $self=Get-Content evidence/updater_exe_self_test.json -Raw | ConvertFrom-Json
           if ($self.status -ne 'PASS') { throw "Updater self-test is not PASS" }
-          @{schema='head-intelligence-updater-windows-gate-v1';status='PASS';github_sha=$env:HEAD_SOURCE_SHA;workflow_run=$env:GITHUB_RUN_ID;updater_exact_exe='PASS';updater_exe_sha256=$updater;final_updater_sha256=$updaterFinal;same_hash=$true;self_test=$self} | ConvertTo-Json -Depth 8 | Set-Content evidence/updater_windows_gate.json -Encoding utf8
+          @{schema='head-intelligence-updater-windows-gate-v1';status='PASS';github_sha=$env:HEAD_SOURCE_SHA;workflow_run=$env:GITHUB_RUN_ID;workflow_attempt=$env:GITHUB_RUN_ATTEMPT;updater_exact_exe='PASS';updater_exe_sha256=$updater;final_updater_sha256=$updaterFinal;same_hash=$true;self_test=$self} | ConvertTo-Json -Depth 8 | Set-Content evidence/updater_windows_gate.json -Encoding utf8
 
       - name: Real independent software Release N to N+1 evidence
         shell: pwsh

@@ -6,21 +6,21 @@ from head_intelligence.repository_independence_gate import REQUIRED, evaluate_in
 
 def receipt():
     return {"schema":"head-intelligence-process-gate-v1","gate":"unit_test","status":"PASS","exit_code":0,
-            "source_sha":"a"*40,"workflow_run":"10","command":["offline-fixture"]}
+            "source_sha":"a"*40,"workflow_run":"10","workflow_attempt":"1","command":["offline-fixture"]}
 
 
 def test_receipt_rejects_stale_head_run_and_nonzero_exit():
     value=receipt()
-    assert receipt_valid(value,gate="unit_test",source_sha="a"*40,workflow_run="10")
-    for field,changed in (("source_sha","b"*40),("workflow_run","9"),("exit_code",1)):
+    assert receipt_valid(value,gate="unit_test",source_sha="a"*40,workflow_run="10",workflow_attempt="1")
+    for field,changed in (("source_sha","b"*40),("workflow_run","9"),("workflow_attempt","0"),("exit_code",1)):
         wrong={**value,field:changed}
-        assert not receipt_valid(wrong,gate="unit_test",source_sha="a"*40,workflow_run="10")
+        assert not receipt_valid(wrong,gate="unit_test",source_sha="a"*40,workflow_run="10",workflow_attempt="1")
 
 
 def test_tracked_receipt_is_never_authoritative(tmp_path):
     path=tmp_path/"receipt.json";path.write_text(json.dumps(receipt()))
     with patch("head_intelligence.gate_evidence.untracked",return_value=False):
-        assert not read_receipt(path,gate="unit_test",source_sha="a"*40,workflow_run="10")
+        assert not read_receipt(path,gate="unit_test",source_sha="a"*40,workflow_run="10",workflow_attempt="1")
 
 
 def test_shared_repo_seed_does_not_satisfy_independence():
