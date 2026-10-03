@@ -275,6 +275,35 @@ jobs:
           }
           python @args
 
+      - name: Evidence-driven unique final artifact freeze
+        id: final_artifact_freeze
+        if: always()
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $repoEvidence = if (Test-Path 'evidence/repository_independence.json') { Get-Content 'evidence/repository_independence.json' -Raw | ConvertFrom-Json } else { $null }
+          $releaseEvidence = if (Test-Path 'evidence/real_release_validation.json') { Get-Content 'evidence/real_release_validation.json' -Raw | ConvertFrom-Json } else { $null }
+          if ($null -eq $repoEvidence -or $repoEvidence.status -ne 'PASS' -or $null -eq $releaseEvidence -or $releaseEvidence.status -ne 'PASS') {
+            Write-Host 'FINAL_ARTIFACT_FREEZE=BLOCKED_UPSTREAM'
+            exit 0
+          }
+          $releaseId = [string]$releaseEvidence.checks.monotonic_versions.to_version
+          if ([string]::IsNullOrWhiteSpace($releaseId)) { throw 'validated release version is unavailable for formal release id' }
+          python scripts/final_artifact_freeze.py `
+            --repository '${{ github.repository }}' `
+            --source-sha '${{ github.event.pull_request.head.sha || github.sha }}' `
+            --run-id '${{ github.run_id }}' `
+            --run-attempt '${{ github.run_attempt }}' `
+            --release-id $releaseId `
+            --repository-evidence evidence/repository_independence.json `
+            --real-release evidence/real_release_validation.json `
+            --windows evidence/windows_exact_exe.json `
+            --physical-gui evidence/physical_gui_click.json `
+            --same-hash evidence/post_gui_same_hash.json `
+            --main-exe dist1/Geometry_Lotto_Pro_Happy8.exe `
+            --updater-exe dist1/Geometry_Lotto_Pro_Happy8_Updater.exe `
+            --output evidence/FINAL_ARTIFACT.json
+
       - name: Unique final artifact evidence validation
         id: final_artifact_validation
         if: always()
@@ -288,6 +317,8 @@ jobs:
             '--run-id','${{ github.run_id }}',
             '--run-attempt','${{ github.run_attempt }}',
             '--repo-root','../..',
+            '--main-exe','dist1/Geometry_Lotto_Pro_Happy8.exe',
+            '--updater-exe','dist1/Geometry_Lotto_Pro_Happy8_Updater.exe',
             '--output','evidence/final_artifact_validation.json'
           )
           if (Test-Path 'evidence/FINAL_ARTIFACT.json') { $args += @('--input','evidence/FINAL_ARTIFACT.json') }
