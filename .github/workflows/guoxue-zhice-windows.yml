@@ -26,12 +26,12 @@ jobs:
     env:
       PYTHONUTF8: '1'
       PYTHONIOENCODING: 'utf-8'
-      GUOXUE_SOURCE_SHA: \${{ github.event.pull_request.head.sha || github.sha }}
+      GUOXUE_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
       - name: Checkout exact source head
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          ref: \${{ env.GUOXUE_SOURCE_SHA }}
+          ref: ${{ env.GUOXUE_SOURCE_SHA }}
           fetch-depth: 0
 
       - name: Exact checkout identity gate
@@ -78,7 +78,7 @@ jobs:
         run: python updater_gate.py --output updater_gate.json
 
       - name: Repository independence evidence
-        run: python repository_independence_gate.py --repository "\${{ github.repository }}" --repo-root ".." --output repository_independence.json
+        run: python repository_independence_gate.py --repository "${{ github.repository }}" --repo-root ".." --output repository_independence.json
 
       - name: Business Counterexample Reversal Gate
         run: python business_validation_gate.py
@@ -135,7 +135,7 @@ jobs:
       - name: Real independent Release N to N+1 validation
         shell: pwsh
         run: |
-          $args=@('software_release_gate.py','--repository','\${{ github.repository }}','--source-sha',$env:GUOXUE_SOURCE_SHA,'--output','software_release_validation.json')
+          $args=@('software_release_gate.py','--repository','${{ github.repository }}','--source-sha',$env:GUOXUE_SOURCE_SHA,'--output','software_release_validation.json')
           if (Test-Path 'real_software_update.json') { $args += @('--input','real_software_update.json') }
           python @args
           if ($LASTEXITCODE -ne 0) { throw "real software release evidence is malformed or false" }
