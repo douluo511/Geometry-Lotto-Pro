@@ -23,39 +23,57 @@ jobs:
       - name: Install pinned dependencies
         run: python -m pip install --disable-pip-version-check -r requirements.txt
       - name: Compile staging port
+        id: compile_gate
+        continue-on-error: true
         run: python -m compileall -q happy8 scripts
       - name: Domain and NetClient contract gate
+        id: contract_gate
+        continue-on-error: true
         run: python scripts/contract_gate.py
       - name: Storage and Evidence atomicity gate
+        id: storage_gate
+        continue-on-error: true
         run: python scripts/storage_gate.py
       - name: Application Service contract gate
+        id: service_gate
+        continue-on-error: true
         run: python scripts/service_gate.py
       - name: Independent Updater contract and rollback gate
+        id: updater_gate
+        continue-on-error: true
         run: python scripts/updater_gate.py
       - name: Application source self-test
+        id: app_selftest
+        continue-on-error: true
         run: python -m happy8.app --self-test
       - name: Desktop UI construction contract
+        id: ui_contract
+        continue-on-error: true
         run: python -m happy8.app --ui-self-test
 
       # Independent source probes are diagnostic evidence. A timeout/HTTP failure on
       # one official source must not prevent the other independent probes from running.
       # Production remains fail-closed at the live aggregate gate below.
       - name: Provincial official fallback diagnostic probe
+        if: always()
         id: provincial_probe
         continue-on-error: true
         run: python scripts/official_fallback_probe.py --output evidence/official_fallback_probe.json
 
       - name: Shanghai official frontend contract probe
+        if: always()
         id: shanghai_probe
         continue-on-error: true
         run: python scripts/shanghai_contract_probe.py --output evidence/shanghai_contract_probe.json
 
       - name: Jiangsu official full-history contract probe
+        if: always()
         id: jiangsu_probe
         continue-on-error: true
         run: python scripts/jiangsu_history_probe.py --output evidence/jiangsu_history_probe.json
 
       - name: Jiangxi Fuzhou official number-history contract probe
+        if: always()
         id: fuzhou_probe
         continue-on-error: true
         timeout-minutes: 4
@@ -76,6 +94,7 @@ jobs:
           Write-Host "FUZHOU_DIAGNOSTIC_NON_PRODUCTION=PASS"
 
       - name: Two-official-source full-history reconciliation
+        if: always()
         id: composite_probe
         continue-on-error: true
         timeout-minutes: 8
@@ -96,11 +115,13 @@ jobs:
           Write-Host "COMPOSITE_DIAGNOSTIC_NON_PRODUCTION=PASS"
 
       - name: Sichuan official history contract probe
+        if: always()
         id: sichuan_probe
         continue-on-error: true
         run: python scripts/sichuan_history_probe.py --output evidence/sichuan_history_probe.json
 
       - name: CWL-designated media history contract diagnostic
+        if: always()
         id: zhcw_probe
         continue-on-error: true
         timeout-minutes: 4
@@ -202,10 +223,27 @@ jobs:
         shell: pwsh
         run: |
           $failures = @()
+          if ('${{ steps.compile_gate.outcome }}' -ne 'success') { $failures += 'compile' }
+          if ('${{ steps.contract_gate.outcome }}' -ne 'success') { $failures += 'domain_netclient_contract' }
+          if ('${{ steps.storage_gate.outcome }}' -ne 'success') { $failures += 'storage_evidence' }
+          if ('${{ steps.service_gate.outcome }}' -ne 'success') { $failures += 'application_service' }
+          if ('${{ steps.updater_gate.outcome }}' -ne 'success') { $failures += 'updater_contract_rollback' }
+          if ('${{ steps.app_selftest.outcome }}' -ne 'success') { $failures += 'application_selftest' }
+          if ('${{ steps.ui_contract.outcome }}' -ne 'success') { $failures += 'ui_construction' }
+          if ('${{ steps.fuzhou_guard.outcome }}' -ne 'success') { $failures += 'fuzhou_guard' }
+          if ('${{ steps.composite_guard.outcome }}' -ne 'success') { $failures += 'composite_guard' }
+          if ('${{ steps.zhcw_guard.outcome }}' -ne 'success') { $failures += 'zhcw_guard' }
           if ('${{ steps.live_gate.outcome }}' -ne 'success') { $failures += 'live_official_network' }
           if ('${{ steps.live_gate.outcome }}' -eq 'success' -and '${{ steps.science_gate.outcome }}' -ne 'success') { $failures += 'science_gate' }
           if ('${{ steps.live_gate.outcome }}' -eq 'success' -and '${{ steps.science_gate.outcome }}' -eq 'success' -and '${{ steps.windows_build.outcome }}' -ne 'success') { $failures += 'windows_exact_exe' }
 
+          Write-Host "COMPILE_GATE=${{ steps.compile_gate.outcome }}"
+          Write-Host "DOMAIN_NETCLIENT_CONTRACT=${{ steps.contract_gate.outcome }}"
+          Write-Host "STORAGE_EVIDENCE_GATE=${{ steps.storage_gate.outcome }}"
+          Write-Host "APPLICATION_SERVICE=${{ steps.service_gate.outcome }}"
+          Write-Host "UPDATER_CONTRACT_ROLLBACK=${{ steps.updater_gate.outcome }}"
+          Write-Host "APPLICATION_SELFTEST=${{ steps.app_selftest.outcome }}"
+          Write-Host "UI_CONSTRUCTION=${{ steps.ui_contract.outcome }}"
           Write-Host "PROVINCIAL_PROBE=${{ steps.provincial_probe.outcome }}"
           Write-Host "SHANGHAI_PROBE=${{ steps.shanghai_probe.outcome }}"
           Write-Host "JIANGSU_PROBE=${{ steps.jiangsu_probe.outcome }}"
