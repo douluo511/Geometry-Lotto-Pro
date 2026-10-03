@@ -50,7 +50,13 @@ class StockAIService:
         source_candidate = here.parents[1] / "staging" / "Stock_AI_Pro"
         if source_candidate.exists():
             return source_candidate
-        # Frozen/onedir candidate: executable directory contains Stock_AI_Pro.
+        # Frozen PyInstaller candidate: data files live under sys._MEIPASS.
+        meipass = getattr(sys, "_MEIPASS", None)
+        if meipass:
+            frozen_candidate = Path(meipass) / "Stock_AI_Pro"
+            if frozen_candidate.exists():
+                return frozen_candidate
+        # Alternate onedir layout: data files may sit beside the executable.
         exe_candidate = Path(sys.executable).resolve().parent / "Stock_AI_Pro"
         if exe_candidate.exists():
             return exe_candidate
