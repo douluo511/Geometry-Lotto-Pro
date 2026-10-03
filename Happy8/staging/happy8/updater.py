@@ -73,6 +73,11 @@ def _durable_sync_path(path: Path) -> None:
         os.close(fd)
 
 
+def _replace_path(src: Path, dst: Path) -> None:
+    """Single transaction replacement seam used for exact rollback fault injection."""
+    os.replace(src, dst)
+
+
 def _atomic_json(path: Path, value: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp_name = tempfile.mkstemp(prefix=path.name + ".", suffix=".tmp", dir=str(path.parent))
@@ -143,7 +148,7 @@ def recover_interrupted_update(target_exe: Path) -> dict[str, Any]:
         stage.unlink(missing_ok=True)
         health_file.unlink(missing_ok=True)
         if backup.exists():
-            os.replace(backup, target_exe)
+            _replace_path(backup, target_exe)
             restored = _sha256_path(target_exe)
             return {
                 "status": "PASS",
@@ -166,7 +171,7 @@ def recover_interrupted_update(target_exe: Path) -> dict[str, Any]:
     expected_new = str(state.get("new_exe_sha256") or "").lower()
 
     if backup.exists():
-        os.replace(backup, target_exe)
+        _replace_path(backup, target_exe)
         restored = _sha256_path(target_exe)
         if expected_old and restored != expected_old:
             raise RuntimeError("restart rollback restored bytes do not match the journaled old hash")
@@ -371,7 +376,7 @@ class Updater:
             transaction["phase"] = "BACKUP_CREATED"
             _atomic_json(journal, transaction)
 
-            os.replace(stage, target_exe)
+            _replace_path(stage, target_exe)
             transaction["phase"] = "REPLACED"
             _atomic_json(journal, transaction)
 
@@ -421,7 +426,7 @@ class Updater:
             action = "ABORTED_BEFORE_REPLACE"
             if backup_created and backup.exists():
                 try:
-                    os.replace(backup, target_exe)
+                    _replace_path(backup, target_exe)
                     restored = _sha256_path(target_exe)
                     if restored != old_hash:
                         raise RuntimeError("rollback restored hash mismatch")
