@@ -179,8 +179,9 @@ class Updater:
         stage = target_exe.with_name(target_exe.name + ".update-stage")
         backup = target_exe.with_name(target_exe.name + ".backup")
         health_file = target_exe.with_name(target_exe.name + ".health.json")
-        stage.write_bytes(artifact)
-        with stage.open("rb") as fh:
+        with stage.open("wb") as fh:
+            fh.write(artifact)
+            fh.flush()
             os.fsync(fh.fileno())
 
         _wait_parent_exit(parent_pid)
