@@ -11,7 +11,7 @@ def main()->int:
     exe=Path(a.exe); path=Path(a.evidence); report=json.loads(path.read_text(encoding="utf-8-sig")); buttons=report.get("buttons") or []
     ok=str(report.get("status","")).upper()=="PASS" and len(buttons)==4 and all(str(x.get("status","")).upper()=="PASS" and x.get("visual_changed") is True for x in buttons)
     if not ok: return 2
-    report["schema"]="guoxue-physical-gui-bound-v1"; report["github_sha"]=os.environ.get("GITHUB_SHA"); report["exe_sha256"]=sha256(exe)
+    report["schema"]="guoxue-physical-gui-bound-v1"; report["github_sha"]=(os.environ.get("GUOXUE_SOURCE_SHA") or os.environ.get("GITHUB_SHA")); report["exe_sha256"]=sha256(exe)
     path.write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding="utf-8"); print(json.dumps({"status":"PASS","github_sha":report["github_sha"],"exe_sha256":report["exe_sha256"],"button_count":4}))
     return 0
 if __name__=="__main__": raise SystemExit(main())
