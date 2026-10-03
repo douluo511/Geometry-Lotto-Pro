@@ -33,9 +33,18 @@ def source_ui_contract() -> dict[str, Any]:
             "service_method": service_method,
             "service_callable": callable(getattr(Happy8Service, service_method, None)),
         }
+    truth_boundary_match = (
+        "不构成投注建议或收益承诺" in TRUTH_BOUNDARY
+        and "25%" in TRUTH_BOUNDARY
+        and "2.5" in TRUTH_BOUNDARY
+    )
     return {
-        "status": "PASS" if all(item["service_callable"] for item in checks.values()) else "FAIL",
+        "status": "PASS"
+        if all(item["service_callable"] for item in checks.values()) and truth_boundary_match
+        else "FAIL",
         "bindings": checks,
+        "truth_boundary": TRUTH_BOUNDARY,
+        "truth_boundary_match": truth_boundary_match,
     }
 
 
