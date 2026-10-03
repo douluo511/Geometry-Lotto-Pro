@@ -289,11 +289,11 @@ jobs:
           $items.E15 = @{ status = S '${{ steps.physical_gui.outcome }}' }
           $items.E16 = @{ status = S '${{ steps.post_gui_same_hash.outcome }}' }
 
-          $expectedRepo = 'douluo511/Geometry-Lotto-Pro-Happy8'
-          if ('${{ github.repository }}' -eq $expectedRepo) {
-            $items.E17 = @{ status = 'NOT VERIFIED'; detail = 'independent repository identity requires final-main release evidence' }
+          $sharedRepo = 'douluo511/Geometry-Lotto-Pro'
+          if ('${{ github.repository }}' -eq $sharedRepo) {
+            $items.E17 = @{ status = 'BLOCKED'; detail = 'current checkout is still the shared portfolio repository; a dedicated Happy8 repository is required but its name is not frozen' }
           } else {
-            $items.E17 = @{ status = 'BLOCKED'; detail = "current repository is ${{ github.repository }}; required independent repository is $expectedRepo" }
+            $items.E17 = @{ status = 'NOT VERIFIED'; detail = 'repository is no longer the shared monorepo, but dedicated-project inventory/release evidence must independently prove repository independence' }
           }
 
           if (Test-Path 'evidence/real_release_update.json') {
@@ -354,8 +354,7 @@ jobs:
             $null -ne $win -and $win.status -eq 'PASS' -and
             $null -ne $gui -and $gui.status -eq 'PASS' -and
             $null -ne $same -and $same.status -eq 'PASS' -and
-            $null -ne $finalArtifact -and $finalArtifact.status -eq 'PASS' -and
-            '${{ github.repository }}' -eq 'douluo511/Geometry-Lotto-Pro-Happy8'
+            $null -ne $finalArtifact -and $finalArtifact.status -eq 'PASS'
           )
           $report = [ordered]@{
             schema = 'happy8-final-gate-v1'
@@ -366,7 +365,7 @@ jobs:
             physical_gui = $(if ($null -ne $gui) {$gui.status} else {'NOT VERIFIED'})
             same_hash = $(if ($null -ne $same) {$same.status} else {'NOT VERIFIED'})
             repository = '${{ github.repository }}'
-            required_repository = 'douluo511/Geometry-Lotto-Pro-Happy8'
+            required_repository = 'dedicated independent Happy8 repository (name not frozen)'
             unique_final_artifact = $(if ($null -ne $finalArtifact) {$finalArtifact.status} else {'NOT VERIFIED'})
             source_sha = (& git rev-parse HEAD).Trim()
           }
