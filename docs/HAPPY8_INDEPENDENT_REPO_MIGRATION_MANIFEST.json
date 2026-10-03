@@ -1,8 +1,8 @@
 {
   "schema": "happy8-independent-repo-migration-manifest-v1",
-  "status": "STALE_PENDING_REGENERATION",
+  "status": "BLOCKED",
   "source_repository": "douluo511/Geometry-Lotto-Pro",
-  "source_commit": "64dfe1b9274abecd972edaa52c928f10cb2b6b23",
+  "source_commit": "9b82e317f789b357604e6e8546a10fd0b49b626d",
   "rule": "Preserve source paths byte-for-byte for the first dedicated-repository seed. Any path/content restructuring is a new change and invalidates affected evidence.",
   "required_entries": [
     {
@@ -38,16 +38,16 @@
     {
       "path": "Happy8/staging",
       "type": "tree",
-      "sha": "08ee1d09fc7c61dec882ebf6eedc18f5409bb5ac"
+      "sha": "548978120f297578944003393418c122033d8487"
     },
     {
       "path": ".github/workflows/happy8-staging-recovery.yml",
       "type": "blob",
-      "sha": "2599e0d4e584bca70e37efa9c13c2a6ee79f1845"
+      "sha": "2b71bf1536b2efb632fa00fc9843ca8f0d71249e"
     }
   ],
   "staging_identity": {
-    "tree_sha": "08ee1d09fc7c61dec882ebf6eedc18f5409bb5ac",
+    "tree_sha": "548978120f297578944003393418c122033d8487",
     "includes": [
       "GeometryLottoProHappy8.spec",
       "GeometryLottoProHappy8Updater.spec",
@@ -69,12 +69,9 @@
     "status": "BLOCKED",
     "reason": "Current GitHub connector exposes only douluo511/Geometry-Lotto-Pro and has no repository-creation action.",
     "unblock": "Create a dedicated Happy8 repository and make it visible to the connected GitHub installation.",
-    "note": "Do not migrate the previous seed as current. Regenerate from the latest fresh-accepted head first."
+    "note": "Refreshed current seed is byte-verified and Windows self-containment validated. A dedicated repository and fresh dedicated-repository full acceptance/release remain required."
   },
-  "stale_reason": "Happy8 acceptance/evidence scripts and workflow changed after the seed source head; migration identity must be regenerated only after the new exact head completes fresh acceptance.",
   "previous_source_commit": "64dfe1b9274abecd972edaa52c928f10cb2b6b23",
-  "current_candidate_head": "74f4b2a22212b654eb8a1e4aef549ec3a7806bfb",
-  "current_candidate_run": 37120044111,
   "previous_seed": {
     "root_tree_sha": "16ee80c3d307df457c2cc49e469d24d8298bdc20",
     "commit": "3015beacbd5d858601abe13ed207a32512344354",
@@ -82,5 +79,34 @@
     "validation_pr": 89,
     "validation_run": 37119210013,
     "disposition": "validation completed; PR closed without merge; historical only"
+  },
+  "current_seed": {
+    "root_tree_sha": "3d9c6c32661615b03869369ede3f1102c8201f35",
+    "commit": "cb4807102d11d6b119945a30875325654987e3dc",
+    "branch": "migration/happy8-independent-seed-v2-20261003",
+    "validation_head": "f7977f7bbc86002d82fd5a89342a84617b255320",
+    "validation_pr": 90,
+    "validation_run": 37155556595,
+    "validation_job": 111298105713,
+    "validation_status": "PASS",
+    "validation_scope": "Isolated self-containment and all 16 internal engineering gates only; not E17 or Final",
+    "runtime_blob_count": 49,
+    "runtime_byte_identity": "PASS",
+    "extra_validation_document": "Happy8/SEED_VALIDATION_V2.md"
+  },
+  "current_product_validation": {
+    "run": 37139358208,
+    "job": 111250395053,
+    "engineering_pass": 16,
+    "engineering_required": 19,
+    "business_pass": 7,
+    "business_required": 8,
+    "final_gate": "FAIL",
+    "nonpass": {
+      "E17": "BLOCKED",
+      "E18": "BLOCKED",
+      "E19": "BLOCKED",
+      "B07": "BLOCKED"
+    }
   }
 }
