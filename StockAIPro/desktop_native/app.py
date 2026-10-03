@@ -10,6 +10,7 @@ import tkinter as tk
 from tkinter import messagebox, scrolledtext
 
 from service import ActionResult, StockAIService
+from worker import main as worker_main
 
 
 APP_TITLE = "Stock AI Pro · Windows Desktop Candidate"
@@ -142,12 +143,20 @@ class StockAIDesktop(tk.Tk):
 
 
 def main() -> int:
+    if "--worker" in sys.argv:
+        return worker_main(sys.argv[1:])
+    if "--self-test" in sys.argv:
+        service = StockAIService()
+        checks = {
+            "package_root_exists": service.package_root.exists(),
+            "version_root_exists": service.version_root.exists(),
+            "active_version": service.active_version,
+            "four_entries": ["核心功能", "一键更新", "一键修复", "高级分析"],
+        }
+        print(json.dumps(checks, ensure_ascii=False))
+        return 0 if checks["package_root_exists"] and checks["version_root_exists"] else 1
     service = StockAIService()
     app = StockAIDesktop(service)
-    if "--self-test" in sys.argv:
-        code = app.self_test()
-        app.destroy()
-        return code
     app.mainloop()
     return 0
 
