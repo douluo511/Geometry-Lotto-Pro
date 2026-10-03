@@ -52,7 +52,7 @@ class App(tk.Tk):
         items = [
             ("目标推演", self.show_goal),
             ("一键更新", self.run_update),
-            ("一键复盘", self.show_review),
+            ("一键修复", self.run_repair),
             ("高级分析", self.show_analysis),
         ]
         for i, (label, cmd) in enumerate(items):
@@ -142,21 +142,67 @@ class App(tk.Tk):
 
     def run_update(self):
         self.title(f"{APP_NAME} v{APP_VERSION} · 一键更新已触发")
-        self.status_var.set("正在联网获取知识库清单并做 SHA256 / 结构校验…")
+        self.status_var.set("正在检查可信软件发布配置并交接独立 Updater…")
         self.update_idletasks()
         threading.Thread(target=self._update_worker, daemon=True).start()
 
     def _update_worker(self):
         try:
             r = self.service.one_click_update()
-            self.after(0, lambda: messagebox.showinfo(
-                "一键更新 PASS",
-                f"知识库版本：{r['version']}\n经典条目：{r['classics']}\nSHA256：{r['sha256'][:20]}…"
+            if r.get("status") != "PASS" or r.get("action") != "UPDATER_HANDOFF":
+                raise RuntimeError(f"Updater handoff did not PASS: {r!r}")
+            updater_pid = r.get("updater_pid")
+            self.after(0, lambda pid=updater_pid: self.status_var.set(
+                f"一键更新已交接独立 Updater · PID {pid} · 主程序即将关闭"
             ))
-            self.after(0, lambda: self.status_var.set("一键更新 PASS · 原子替换完成，旧库可回滚"))
+            self.after(700, self.destroy)
         except Exception as exc:
-            self.after(0, lambda: messagebox.showerror("一键更新失败", str(exc)))
-            self.after(0, lambda: self.status_var.set("一键更新 FAIL · 未替换本地旧知识库"))
+            detail = f"{type(exc).__name__}: {exc}"
+            self.after(0, lambda d=detail: messagebox.showerror("一键更新失败", d))
+            self.after(0, lambda d=detail: self.status_var.set(
+                f"一键更新 FAIL-CLOSED · {d}"
+            ))
+
+    def run_repair(self):
+        self.title(f"{APP_NAME} v{APP_VERSION} · 一键修复已触发")
+        self.status_var.set("正在检查知识库、状态库与数据完整性…")
+        self.update_idletasks()
+        threading.Thread(target=self._repair_worker, daemon=True).start()
+
+    def _repair_worker(self):
+        try:
+            r = self.service.one_click_repair()
+            if r.get("status") != "PASS":
+                raise RuntimeError(f"repair did not PASS: {r!r}")
+            summary = "；".join(f"{name}:{status}" for name, status, _ in r.get("checks", []))
+            self.after(0, lambda s=summary: messagebox.showinfo("一键修复 PASS", s or "自检通过"))
+            self.after(0, lambda: self.status_var.set("一键修复 PASS · 用户数据保留 · 复检通过"))
+        except Exception as exc:
+            detail = f"{type(exc).__name__}: {exc}"
+            self.after(0, lambda d=detail: messagebox.showerror("一键修复失败", d))
+            self.after(0, lambda d=detail: self.status_var.set(f"一键修复 FAIL · {d}"))
+
+    def run_knowledge_refresh(self):
+        self.status_var.set("正在刷新知识库 · 这不是软件更新…")
+        self.update_idletasks()
+        threading.Thread(target=self._knowledge_refresh_worker, daemon=True).start()
+
+    def _knowledge_refresh_worker(self):
+        try:
+            r = self.service.refresh_knowledge()
+            if r.get("status") != "PASS":
+                raise RuntimeError(f"knowledge refresh did not PASS: {r!r}")
+            version = r.get("version")
+            digest = str(r.get("sha256") or "")
+            self.after(0, lambda v=version, d=digest: messagebox.showinfo(
+                "知识库刷新 PASS",
+                f"知识库版本：{v}\nSHA256：{d[:20]}…"
+            ))
+            self.after(0, lambda: self.status_var.set("知识库刷新 PASS · 原子提交完成"))
+        except Exception as exc:
+            detail = f"{type(exc).__name__}: {exc}"
+            self.after(0, lambda d=detail: messagebox.showerror("知识库刷新失败", d))
+            self.after(0, lambda d=detail: self.status_var.set(f"知识库刷新 FAIL-CLOSED · {d}"))
 
     def show_review(self):
         self.clear()
@@ -214,14 +260,38 @@ class App(tk.Tk):
         c.pack(fill="x", pady=(12, 0))
         tk.Label(c, text="当前治理规则", bg=CARD, fg=TEXT, font=("Microsoft YaHei UI", 12, "bold")).pack(anchor="w", padx=18, pady=(14, 6))
         rules = "原典 ≠ 后世解释 ≠ 网络鸡汤；任何方法必须给出来源、适用边界与反例入口。涉及健康时，古代文本只作为历史思想材料，不替代现代医学。"
-        tk.Label(c, text=rules, bg=CARD, fg=MUTED, font=("Microsoft YaHei UI", 10), wraplength=880, justify="left").pack(anchor="w", padx=18, pady=(0, 14))
-        self.status_var.set(f"高级分析 · 上次联网更新：{s['last_update']}")
+        tk.Label(c, text=rules, bg=CARD, fg=MUTED, font=("Microsoft YaHei UI", 10), wraplength=880, justify="left").pack(anchor="w", padx=18, pady=(0, 8))
+
+        tools = tk.Frame(c, bg=CARD)
+        tools.pack(fill="x", padx=18, pady=(0, 14))
+        tk.Button(
+            tools, text="行动复盘", command=self.show_review, bg="#475467", fg="white",
+            relief="flat", padx=16, pady=7, font=("Microsoft YaHei UI", 10, "bold")
+        ).pack(side="left")
+        tk.Button(
+            tools, text="刷新知识库", command=self.run_knowledge_refresh, bg=BLUE, fg="white",
+            relief="flat", padx=16, pady=7, font=("Microsoft YaHei UI", 10, "bold")
+        ).pack(side="left", padx=(10, 0))
+        self.status_var.set(f"高级分析 · 上次知识库刷新：{s['last_update']}")
 
 
 def main() -> int:
     if "--self-test" in sys.argv:
         result = self_test()
-        print(json.dumps(result, ensure_ascii=False))
+        text = json.dumps(result, ensure_ascii=False, indent=2)
+        if "--result-file" in sys.argv:
+            try:
+                idx = sys.argv.index("--result-file")
+                path = sys.argv[idx + 1]
+            except (ValueError, IndexError):
+                print(json.dumps({"status": "FAIL", "error": "--result-file requires a path"}, ensure_ascii=False))
+                return 2
+            from pathlib import Path
+            output = Path(path)
+            output.parent.mkdir(parents=True, exist_ok=True)
+            output.write_text(text + "\n", encoding="utf-8")
+        else:
+            print(text)
         return 0 if result["status"] == "PASS" else 2
     app = App()
     app.mainloop()
