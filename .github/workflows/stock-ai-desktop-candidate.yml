@@ -71,6 +71,19 @@ jobs:
             final_same_hash = "NOT VERIFIED"
           } | ConvertTo-Json -Depth 4 | Set-Content -Encoding UTF8 ./desktop_exact_exe_evidence.json
 
+      - name: Frozen EXE repair worker runs through Service-compatible runtime
+        shell: pwsh
+        run: |
+          $exe = Resolve-Path ./dist/StockAIPro/StockAIPro.exe
+          $root = Resolve-Path ./dist/StockAIPro/_internal/Stock_AI_Pro
+          $env:STOCK_AI_DATA_ROOT = Join-Path $env:RUNNER_TEMP "stock-ai-repair-worker"
+          $before = (Get-FileHash -Algorithm SHA256 $exe).Hash.ToLowerInvariant()
+          & $exe --worker repair --package-root $root
+          if ($LASTEXITCODE -ne 0) { throw "frozen repair worker failed rc=$LASTEXITCODE" }
+          $after = (Get-FileHash -Algorithm SHA256 $exe).Hash.ToLowerInvariant()
+          if ($before -ne $after) { throw "EXE changed after repair worker: $before != $after" }
+          Write-Host "FROZEN_REPAIR_WORKER=PASS; EXE_SHA256=$after"
+
       - name: Independent updater exposes missing production release as BLOCKED
         shell: pwsh
         run: |
