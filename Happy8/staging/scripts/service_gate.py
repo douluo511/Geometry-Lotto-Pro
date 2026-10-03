@@ -93,11 +93,24 @@ def main() -> int:
                 "test_fixture": True,
             }
 
+        def healthy_repair_environment():
+            return {
+                "status": "PASS",
+                "checks": {
+                    "release_config": {"status": "PASS"},
+                    "network_config": {"status": "PASS"},
+                    "version_contract": {"status": "PASS"},
+                    "updater_exe": {"status": "PASS"},
+                    "main_exe": {"status": "PASS"},
+                },
+            }
+
         service = Happy8Service(
             root,
             snapshot_builder=fixture_snapshot,
             science_validator=fixture_science_validator,
             software_update_launcher=fixture_software_update_launcher,
+            repair_environment_probe=healthy_repair_environment,
         )
 
         software_update = service.software_update()
@@ -145,21 +158,117 @@ def main() -> int:
             else "FAIL"
         }
 
+        service.cache.mkdir(parents=True, exist_ok=True)
+        (service.cache / "poison.tmp").write_bytes(b"cache-poison")
         repair_clean = service.repair()
-        checks["repair_clean"] = {
+        required_components = {
+            "data_store", "index_pointer", "missing_files", "cache",
+            "configuration", "network_configuration", "version_contract",
+            "data_integrity",
+        }
+        checks["repair_clean_full_contract"] = {
             "status": "PASS"
             if repair_clean.get("status") == "PASS"
-            and repair_clean.get("action") == "NO_CHANGE_REQUIRED"
+            and repair_clean.get("action") == "REPAIR_COMPLETE"
+            and required_components.issubset(set(repair_clean.get("components") or {}))
+            and all(
+                (repair_clean.get("components") or {}).get(name, {}).get("status") == "PASS"
+                for name in required_components
+            )
+            and repair_clean.get("post_repair_self_check", {}).get("status") == "PASS"
+            and repair_clean.get("user_data_deleted") is False
+            and not (service.cache / "poison.tmp").exists()
             else "FAIL"
         }
 
         service.store.current.write_text("{corrupt", encoding="utf-8")
         repair = service.repair()
-        checks["repair_corrupt_pointer"] = {
+        checks["repair_corrupt_index_pointer"] = {
             "status": "PASS"
             if repair.get("status") == "PASS"
-            and repair.get("action") == "RESTORED_VERIFIED_GENERATION"
+            and repair.get("store_repaired") is True
+            and repair.get("components", {}).get("index_pointer", {}).get("status") == "PASS"
+            and repair.get("post_repair_self_check", {}).get("status") == "PASS"
             and service.status().get("status") == "PASS"
+            else "FAIL"
+        }
+
+        service.store.current.unlink()
+        missing_pointer_repair = service.repair()
+        checks["repair_missing_required_pointer"] = {
+            "status": "PASS"
+            if missing_pointer_repair.get("status") == "PASS"
+            and missing_pointer_repair.get("store_repaired") is True
+            and missing_pointer_repair.get("components", {}).get("missing_files", {}).get("status") == "PASS"
+            and service.status().get("status") == "PASS"
+            else "FAIL"
+        }
+
+        blocked_repair = Happy8Service(
+            root,
+            snapshot_builder=fixture_snapshot,
+            science_validator=fixture_science_validator,
+            repair_environment_probe=lambda: {
+                "status": "BLOCKED",
+                "checks": {
+                    "release_config": {"status": "BLOCKED", "detail": "injected missing trusted release config"},
+                    "network_config": {"status": "BLOCKED", "detail": "injected missing trusted release endpoint"},
+                    "version_contract": {"status": "PASS"},
+                    "updater_exe": {"status": "PASS"},
+                    "main_exe": {"status": "PASS"},
+                },
+            },
+        )
+        blocked = blocked_repair.repair()
+        checks["repair_external_config_blocked_not_pass"] = {
+            "status": "PASS"
+            if blocked.get("status") == "BLOCKED"
+            and blocked.get("action") == "LOCAL_REPAIR_COMPLETE_EXTERNAL_BLOCKER"
+            and blocked.get("components", {}).get("configuration", {}).get("status") == "BLOCKED"
+            and blocked.get("components", {}).get("network_configuration", {}).get("status") == "BLOCKED"
+            and blocked.get("post_repair_self_check", {}).get("status") == "PASS"
+            else "FAIL"
+        }
+
+        bad_version = Happy8Service(
+            root,
+            snapshot_builder=fixture_snapshot,
+            science_validator=fixture_science_validator,
+            repair_environment_probe=lambda: {
+                "status": "FAIL",
+                "checks": {
+                    "release_config": {"status": "PASS"},
+                    "network_config": {"status": "PASS"},
+                    "version_contract": {"status": "FAIL", "detail": "injected version mismatch"},
+                },
+            },
+        ).repair()
+        checks["repair_version_mismatch_fail_closed"] = {
+            "status": "PASS"
+            if bad_version.get("status") == "FAIL"
+            and bad_version.get("components", {}).get("version_contract", {}).get("status") == "FAIL"
+            else "FAIL"
+        }
+
+        snapshot = service.store.read_current_snapshot()
+        raw_dir = service.store.generations / snapshot["generation_id"] / "RAW"
+        raw_file = next(path for path in raw_dir.iterdir() if path.is_file())
+        original_raw = raw_file.read_bytes()
+        raw_file.write_bytes(original_raw + b"tamper")
+        integrity_failure = service.repair()
+        checks["repair_unrecoverable_data_corruption_fail_closed"] = {
+            "status": "PASS"
+            if integrity_failure.get("status") == "FAIL"
+            and integrity_failure.get("components", {}).get("data_integrity", {}).get("status") == "FAIL"
+            and raw_file.exists()
+            else "FAIL"
+        }
+        raw_file.write_bytes(original_raw)
+        restored_after_tamper = service.repair()
+        checks["repair_post_tamper_recovery_self_check"] = {
+            "status": "PASS"
+            if restored_after_tamper.get("status") == "PASS"
+            and restored_after_tamper.get("post_repair_self_check", {}).get("status") == "PASS"
             else "FAIL"
         }
 
@@ -218,7 +327,7 @@ def main() -> int:
                 checks[operation_name] = {"status": "PASS"}
 
     status = "PASS" if checks and all(x.get("status") == "PASS" for x in checks.values()) else "FAIL"
-    report = {"schema": "happy8-service-gate-v1", "status": status, "checks": checks}
+    report = {"schema": "happy8-service-gate-v2", "status": status, "checks": checks}
     print(json.dumps(report, ensure_ascii=False, indent=2))
     return 0 if status == "PASS" else 2
 
