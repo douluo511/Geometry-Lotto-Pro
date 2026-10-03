@@ -107,23 +107,19 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          # PyInstaller reproducible-build prerequisites:
-          # - deterministic Python hash ordering
-          # - deterministic Windows PE build timestamp from the checked-out acceptance commit
+          # Match the already-proven DLT reproducible-build contract:
+          # stable hash seed + fixed source epoch + one frozen spec per binary.
           $env:PYTHONHASHSEED = '1'
-          $sourceEpoch = (& git show -s --format=%ct HEAD).Trim()
-          if ($LASTEXITCODE -ne 0 -or $sourceEpoch -notmatch '^\d+$') { throw "cannot derive SOURCE_DATE_EPOCH from checked-out acceptance commit" }
-          $env:SOURCE_DATE_EPOCH = $sourceEpoch
+          $env:SOURCE_DATE_EPOCH = '946684800'
           New-Item -ItemType Directory -Force -Path evidence | Out-Null
-          Remove-Item -Recurse -Force dist1,dist2,build1,build2,spec1,spec2,build1_updater,build2_updater -ErrorAction SilentlyContinue
-          New-Item -ItemType Directory -Force -Path spec1,spec2 | Out-Null
-          python -m PyInstaller --noconfirm --clean --noupx --onefile --windowed --name Geometry_Lotto_Pro_Happy8 --distpath dist1 --workpath build1 --specpath spec1 --paths . scripts/happy8_desktop.py
+          Remove-Item -Recurse -Force dist1,dist2,build1,build2,build1_updater,build2_updater -ErrorAction SilentlyContinue
+          python -m PyInstaller --noconfirm --clean --distpath dist1 --workpath build1 GeometryLottoProHappy8.spec
           if ($LASTEXITCODE -ne 0) { throw "first PyInstaller build failed" }
-          python -m PyInstaller --noconfirm --clean --noupx --onefile --windowed --name Geometry_Lotto_Pro_Happy8 --distpath dist2 --workpath build2 --specpath spec2 --paths . scripts/happy8_desktop.py
+          python -m PyInstaller --noconfirm --clean --distpath dist2 --workpath build2 GeometryLottoProHappy8.spec
           if ($LASTEXITCODE -ne 0) { throw "second PyInstaller build failed" }
-          python -m PyInstaller --noconfirm --clean --noupx --onefile --console --name Geometry_Lotto_Pro_Happy8_Updater --distpath dist1 --workpath build1_updater --specpath spec1 --paths . scripts/happy8_updater.py
+          python -m PyInstaller --noconfirm --clean --distpath dist1 --workpath build1_updater GeometryLottoProHappy8Updater.spec
           if ($LASTEXITCODE -ne 0) { throw "first Updater build failed" }
-          python -m PyInstaller --noconfirm --clean --noupx --onefile --console --name Geometry_Lotto_Pro_Happy8_Updater --distpath dist2 --workpath build2_updater --specpath spec2 --paths . scripts/happy8_updater.py
+          python -m PyInstaller --noconfirm --clean --distpath dist2 --workpath build2_updater GeometryLottoProHappy8Updater.spec
           if ($LASTEXITCODE -ne 0) { throw "second Updater build failed" }
           $exe1 = (Resolve-Path 'dist1/Geometry_Lotto_Pro_Happy8.exe').Path
           $exe2 = (Resolve-Path 'dist2/Geometry_Lotto_Pro_Happy8.exe').Path
