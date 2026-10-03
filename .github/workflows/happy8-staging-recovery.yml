@@ -14,6 +14,7 @@ defaults:
 jobs:
   recovered-source-staging:
     runs-on: windows-latest
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
@@ -54,94 +55,9 @@ jobs:
       # Independent source probes are diagnostic evidence. A timeout/HTTP failure on
       # one official source must not prevent the other independent probes from running.
       # Production remains fail-closed at the live aggregate gate below.
-      - name: Provincial official fallback diagnostic probe
-        if: always()
-        id: provincial_probe
-        continue-on-error: true
-        run: python scripts/official_fallback_probe.py --output evidence/official_fallback_probe.json
-
-      - name: Shanghai official frontend contract probe
-        if: always()
-        id: shanghai_probe
-        continue-on-error: true
-        run: python scripts/shanghai_contract_probe.py --output evidence/shanghai_contract_probe.json
-
-      - name: Jiangsu official full-history contract probe
-        if: always()
-        id: jiangsu_probe
-        continue-on-error: true
-        run: python scripts/jiangsu_history_probe.py --output evidence/jiangsu_history_probe.json
-
-      - name: Jiangxi Fuzhou official number-history contract probe
-        if: always()
-        id: fuzhou_probe
-        continue-on-error: true
-        timeout-minutes: 4
-        run: python scripts/jiangxi_fuzhou_history_probe.py --output evidence/jiangxi_fuzhou_history_probe.json
-
-      - name: Jiangxi Fuzhou candidate non-production guard
-        id: fuzhou_guard
-        if: always()
-        continue-on-error: true
-        shell: pwsh
-        run: |
-          if (-not (Test-Path evidence/jiangxi_fuzhou_history_probe.json)) {
-            throw "Fuzhou diagnostic evidence missing"
-          }
-          $r = Get-Content evidence/jiangxi_fuzhou_history_probe.json -Raw | ConvertFrom-Json
-          if ($r.production_accepted -ne $false) { throw "Fuzhou diagnostic was incorrectly production-accepted" }
-          if ($r.classification_claim -ne 'NUMBER_HISTORY_CANDIDATE_ONLY') { throw "Fuzhou source classification drifted" }
-          Write-Host "FUZHOU_DIAGNOSTIC_NON_PRODUCTION=PASS"
-
-      - name: Two-official-source full-history reconciliation
-        if: always()
-        id: composite_probe
-        continue-on-error: true
-        timeout-minutes: 8
-        run: python scripts/composite_official_history_probe.py --output evidence/composite_official_history_probe.json
-
-      - name: Composite history candidate non-production guard
-        id: composite_guard
-        if: always()
-        continue-on-error: true
-        shell: pwsh
-        run: |
-          if (-not (Test-Path evidence/composite_official_history_probe.json)) {
-            throw "composite diagnostic evidence missing"
-          }
-          $r = Get-Content evidence/composite_official_history_probe.json -Raw | ConvertFrom-Json
-          if ($r.production_accepted -ne $false) { throw "composite diagnostic was incorrectly production-accepted" }
-          if ($r.classification_claim -ne 'COMPOSITE_FULL_HISTORY_CANDIDATE_ONLY') { throw "composite source classification drifted" }
-          Write-Host "COMPOSITE_DIAGNOSTIC_NON_PRODUCTION=PASS"
-
-      - name: Sichuan official history contract probe
-        if: always()
-        id: sichuan_probe
-        continue-on-error: true
-        run: python scripts/sichuan_history_probe.py --output evidence/sichuan_history_probe.json
-
-      - name: CWL-designated media history contract diagnostic
-        if: always()
-        id: zhcw_probe
-        continue-on-error: true
-        timeout-minutes: 4
-        run: python scripts/zhcw_history_probe.py --output evidence/zhcw_history_probe.json
-
-      - name: Diagnostic source non-production guard
-        id: zhcw_guard
-        if: always()
-        continue-on-error: true
-        shell: pwsh
-        run: |
-          if (-not (Test-Path evidence/zhcw_history_probe.json)) {
-            throw "diagnostic source evidence missing"
-          }
-          $r = Get-Content evidence/zhcw_history_probe.json -Raw | ConvertFrom-Json
-          if ($r.status -ne 'DIAGNOSTIC_ONLY') { throw "diagnostic status was promoted" }
-          if ($r.production_accepted -ne $false) { throw "diagnostic source was incorrectly production-accepted" }
-          if ($r.classification_claim -ne 'NOT_EVALUATED_FOR_PRODUCTION') { throw "diagnostic source classification drifted" }
-          Write-Host "DIAGNOSTIC_NON_PRODUCTION_GUARD=PASS"
-
+      # Mandatory production evidence runs before expensive diagnostics.
+      # If it fails, the independent probes below execute to localize the failure
+      # without forcing a second full-history fetch when production already passed.
       - name: Live dual-official-source network gate
         id: live_gate
         if: always()
@@ -208,6 +124,94 @@ jobs:
             final_gate = 'FAIL'
           } | ConvertTo-Json -Depth 6 | Set-Content -Encoding utf8 evidence/windows_exact_exe.json
 
+      # Root-cause diagnostics run only after the mandatory live gate fails.
+      - name: Provincial official fallback diagnostic probe
+        if: always() && steps.live_gate.outcome != 'success'
+        id: provincial_probe
+        continue-on-error: true
+        run: python scripts/official_fallback_probe.py --output evidence/official_fallback_probe.json
+
+      - name: Shanghai official frontend contract probe
+        if: always() && steps.live_gate.outcome != 'success'
+        id: shanghai_probe
+        continue-on-error: true
+        run: python scripts/shanghai_contract_probe.py --output evidence/shanghai_contract_probe.json
+
+      - name: Jiangsu official full-history contract probe
+        if: always() && steps.live_gate.outcome != 'success'
+        id: jiangsu_probe
+        continue-on-error: true
+        run: python scripts/jiangsu_history_probe.py --output evidence/jiangsu_history_probe.json
+
+      - name: Jiangxi Fuzhou official number-history contract probe
+        if: always() && steps.live_gate.outcome != 'success'
+        id: fuzhou_probe
+        continue-on-error: true
+        timeout-minutes: 4
+        run: python scripts/jiangxi_fuzhou_history_probe.py --output evidence/jiangxi_fuzhou_history_probe.json
+
+      - name: Jiangxi Fuzhou candidate non-production guard
+        id: fuzhou_guard
+        if: always() && steps.live_gate.outcome != 'success'
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          if (-not (Test-Path evidence/jiangxi_fuzhou_history_probe.json)) {
+            throw "Fuzhou diagnostic evidence missing"
+          }
+          $r = Get-Content evidence/jiangxi_fuzhou_history_probe.json -Raw | ConvertFrom-Json
+          if ($r.production_accepted -ne $false) { throw "Fuzhou diagnostic was incorrectly production-accepted" }
+          if ($r.classification_claim -ne 'NUMBER_HISTORY_CANDIDATE_ONLY') { throw "Fuzhou source classification drifted" }
+          Write-Host "FUZHOU_DIAGNOSTIC_NON_PRODUCTION=PASS"
+
+      - name: Two-official-source full-history reconciliation
+        if: always() && steps.live_gate.outcome != 'success'
+        id: composite_probe
+        continue-on-error: true
+        timeout-minutes: 8
+        run: python scripts/composite_official_history_probe.py --output evidence/composite_official_history_probe.json
+
+      - name: Composite history candidate non-production guard
+        id: composite_guard
+        if: always() && steps.live_gate.outcome != 'success'
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          if (-not (Test-Path evidence/composite_official_history_probe.json)) {
+            throw "composite diagnostic evidence missing"
+          }
+          $r = Get-Content evidence/composite_official_history_probe.json -Raw | ConvertFrom-Json
+          if ($r.production_accepted -ne $false) { throw "composite diagnostic was incorrectly production-accepted" }
+          if ($r.classification_claim -ne 'COMPOSITE_FULL_HISTORY_CANDIDATE_ONLY') { throw "composite source classification drifted" }
+          Write-Host "COMPOSITE_DIAGNOSTIC_NON_PRODUCTION=PASS"
+
+      - name: Sichuan official history contract probe
+        if: always() && steps.live_gate.outcome != 'success'
+        id: sichuan_probe
+        continue-on-error: true
+        run: python scripts/sichuan_history_probe.py --output evidence/sichuan_history_probe.json
+
+      - name: CWL-designated media history contract diagnostic
+        if: always() && steps.live_gate.outcome != 'success'
+        id: zhcw_probe
+        continue-on-error: true
+        timeout-minutes: 4
+        run: python scripts/zhcw_history_probe.py --output evidence/zhcw_history_probe.json
+
+      - name: Diagnostic source non-production guard
+        id: zhcw_guard
+        if: always() && steps.live_gate.outcome != 'success'
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          if (-not (Test-Path evidence/zhcw_history_probe.json)) {
+            throw "diagnostic source evidence missing"
+          }
+          $r = Get-Content evidence/zhcw_history_probe.json -Raw | ConvertFrom-Json
+          if ($r.status -ne 'DIAGNOSTIC_ONLY') { throw "diagnostic status was promoted" }
+          if ($r.production_accepted -ne $false) { throw "diagnostic source was incorrectly production-accepted" }
+          if ($r.classification_claim -ne 'NOT_EVALUATED_FOR_PRODUCTION') { throw "diagnostic source classification drifted" }
+          Write-Host "DIAGNOSTIC_NON_PRODUCTION_GUARD=PASS"
       - name: Explicit non-final marker
         if: always()
         shell: pwsh
@@ -230,9 +234,9 @@ jobs:
           if ('${{ steps.updater_gate.outcome }}' -ne 'success') { $failures += 'updater_contract_rollback' }
           if ('${{ steps.app_selftest.outcome }}' -ne 'success') { $failures += 'application_selftest' }
           if ('${{ steps.ui_contract.outcome }}' -ne 'success') { $failures += 'ui_construction' }
-          if ('${{ steps.fuzhou_guard.outcome }}' -ne 'success') { $failures += 'fuzhou_guard' }
-          if ('${{ steps.composite_guard.outcome }}' -ne 'success') { $failures += 'composite_guard' }
-          if ('${{ steps.zhcw_guard.outcome }}' -ne 'success') { $failures += 'zhcw_guard' }
+          if ('${{ steps.live_gate.outcome }}' -ne 'success' -and '${{ steps.fuzhou_guard.outcome }}' -ne 'success') { $failures += 'fuzhou_guard' }
+          if ('${{ steps.live_gate.outcome }}' -ne 'success' -and '${{ steps.composite_guard.outcome }}' -ne 'success') { $failures += 'composite_guard' }
+          if ('${{ steps.live_gate.outcome }}' -ne 'success' -and '${{ steps.zhcw_guard.outcome }}' -ne 'success') { $failures += 'zhcw_guard' }
           if ('${{ steps.live_gate.outcome }}' -ne 'success') { $failures += 'live_official_network' }
           if ('${{ steps.live_gate.outcome }}' -eq 'success' -and '${{ steps.science_gate.outcome }}' -ne 'success') { $failures += 'science_gate' }
           if ('${{ steps.live_gate.outcome }}' -eq 'success' -and '${{ steps.science_gate.outcome }}' -eq 'success' -and '${{ steps.windows_build.outcome }}' -ne 'success') { $failures += 'windows_exact_exe' }
