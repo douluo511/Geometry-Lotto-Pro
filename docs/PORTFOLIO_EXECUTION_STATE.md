@@ -33,7 +33,7 @@ No completion percentage is recorded here unless the frozen engineering/business
 | 15 | Legal Philosophy Study | recovery task exists; no exact current application source/build identity | exact source/corpus/build lineage | BLOCKED |
 | 16 | Non-Hard-Work OS | content/candidate identities recovered, but no matching application source/build lineage | EXE↔source/build identity | BLOCKED |
 | 17 | Be Your Own Master | V10 content recovered, but content pack is not application source | exact application source/build/updater lineage | BLOCKED |
-| 18 | Happy 8 | current working head `1f67630909aee188d43bf0126109aca31d315423`; run `37091158131` current-SHA validation active after Jiangsu visible issue-date parser + strict Jiangxi-Fuzhou/Jiangsu production fallback | full official 2020001→current history + dual-official production Real Network | NOT VERIFIED / active |
+| 18 | Happy 8 | current working head `30816d0d1ca5628c33a60758032118661cb90654`; run `37091255729` current-SHA validation active; Compile/Contract/Storage PASS, official-network chain still executing | full official 2020001→current history + dual-official production Real Network | NOT VERIFIED / active |
 
 ## External repository blocker
 
