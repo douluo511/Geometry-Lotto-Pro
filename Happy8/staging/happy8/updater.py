@@ -114,6 +114,105 @@ def _wait_parent_exit(parent_pid: int, timeout: float = 30.0) -> None:
     raise RuntimeError(f"parent process {parent_pid} did not exit before timeout")
 
 
+def _update_transaction_paths(target_exe: Path) -> tuple[Path, Path, Path, Path]:
+    target_exe = Path(target_exe).resolve()
+    return (
+        target_exe.with_name(target_exe.name + ".update-stage"),
+        target_exe.with_name(target_exe.name + ".backup"),
+        target_exe.with_name(target_exe.name + ".health.json"),
+        target_exe.with_name(target_exe.name + ".update-transaction.json"),
+    )
+
+
+def _sha256_path(path: Path) -> str:
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def recover_interrupted_update(target_exe: Path) -> dict[str, Any]:
+    """Fail-closed restart recovery for an interrupted software-update transaction.
+
+    Recovery is deliberately conservative: if a durable backup exists it restores
+    the pre-update bytes. A transaction that reached SELF_TEST_PASSED may be
+    committed after restart only when the target still matches the journaled new
+    hash and no backup remains.
+    """
+    target_exe = Path(target_exe).resolve()
+    stage, backup, health_file, journal = _update_transaction_paths(target_exe)
+
+    if not journal.exists():
+        stage.unlink(missing_ok=True)
+        health_file.unlink(missing_ok=True)
+        if backup.exists():
+            os.replace(backup, target_exe)
+            restored = _sha256_path(target_exe)
+            return {
+                "status": "PASS",
+                "action": "RECOVERED_ORPHAN_BACKUP",
+                "restored_sha256": restored,
+            }
+        return {"status": "PASS", "action": "NO_INCOMPLETE_UPDATE"}
+
+    try:
+        state = json.loads(journal.read_text(encoding="utf-8-sig"))
+    except Exception as exc:
+        raise RuntimeError("software-update transaction journal is invalid") from exc
+    if not isinstance(state, dict) or state.get("schema") != "happy8-update-transaction-v1":
+        raise RuntimeError("software-update transaction journal schema invalid")
+    if str(Path(state.get("target_exe") or "").resolve()) != str(target_exe):
+        raise RuntimeError("software-update transaction journal target mismatch")
+
+    phase = str(state.get("phase") or "")
+    expected_old = str(state.get("old_exe_sha256") or "").lower()
+    expected_new = str(state.get("new_exe_sha256") or "").lower()
+
+    if backup.exists():
+        os.replace(backup, target_exe)
+        restored = _sha256_path(target_exe)
+        if expected_old and restored != expected_old:
+            raise RuntimeError("restart rollback restored bytes do not match the journaled old hash")
+        stage.unlink(missing_ok=True)
+        health_file.unlink(missing_ok=True)
+        journal.unlink(missing_ok=True)
+        return {
+            "status": "PASS",
+            "action": "RECOVERED_ROLLBACK",
+            "phase": phase,
+            "restored_sha256": restored,
+        }
+
+    if phase == "STAGED":
+        if not target_exe.exists():
+            raise RuntimeError("staged interrupted update lost the target EXE")
+        actual = _sha256_path(target_exe)
+        if expected_old and actual != expected_old:
+            raise RuntimeError("staged interrupted update target hash drifted")
+        stage.unlink(missing_ok=True)
+        health_file.unlink(missing_ok=True)
+        journal.unlink(missing_ok=True)
+        return {
+            "status": "PASS",
+            "action": "DISCARDED_PRE_REPLACE_STAGE",
+            "target_sha256": actual,
+        }
+
+    if phase == "SELF_TEST_PASSED" and target_exe.exists():
+        actual = _sha256_path(target_exe)
+        if expected_new and actual == expected_new:
+            stage.unlink(missing_ok=True)
+            health_file.unlink(missing_ok=True)
+            journal.unlink(missing_ok=True)
+            return {
+                "status": "PASS",
+                "action": "RECOVERED_COMMIT",
+                "target_sha256": actual,
+            }
+
+    raise RuntimeError(
+        f"incomplete software update cannot be recovered safely: phase={phase!r}, "
+        f"backup_exists={backup.exists()}, target_exists={target_exe.exists()}"
+    )
+
+
 class Updater:
     def __init__(
         self,
@@ -214,39 +313,69 @@ class Updater:
         target_exe = Path(target_exe).resolve()
         if not target_exe.exists() or not target_exe.is_file():
             raise FileNotFoundError(f"target EXE does not exist: {target_exe}")
+
         current = _version_tuple(current_version)
-        manifest, manifest_receipt = self.fetch_manifest()
-        proposed = _version_tuple(str(manifest["version"]))
-        if proposed <= current:
-            result = {
-                "status": "PASS",
-                "operation": "software_update",
-                "action": "UP_TO_DATE",
-                "current_version": current_version,
-                "manifest_version": manifest["version"],
-                "manifest_receipt": manifest_receipt,
-            }
-            if evidence_file:
-                _atomic_json(Path(evidence_file), result)
-            return result
+        recovery = recover_interrupted_update(target_exe)
+        stage, backup, health_file, journal = _update_transaction_paths(target_exe)
+        manifest: dict[str, Any] = {}
+        manifest_receipt: dict[str, Any] | None = None
+        artifact_receipt: dict[str, Any] | None = None
+        old_hash = _sha256_path(target_exe)
+        backup_created = False
 
-        artifact, artifact_receipt = self.download_artifact(manifest)
-        stage = target_exe.with_name(target_exe.name + ".update-stage")
-        backup = target_exe.with_name(target_exe.name + ".backup")
-        health_file = target_exe.with_name(target_exe.name + ".health.json")
-        with stage.open("wb") as fh:
-            fh.write(artifact)
-            fh.flush()
-        _durable_sync_path(stage)
-
-        _wait_parent_exit(parent_pid)
-        if backup.exists():
-            backup.unlink()
-        shutil.copy2(target_exe, backup)
-        old_hash = hashlib.sha256(backup.read_bytes()).hexdigest()
         try:
+            manifest, manifest_receipt = self.fetch_manifest()
+            proposed = _version_tuple(str(manifest["version"]))
+            if proposed <= current:
+                result = {
+                    "status": "PASS",
+                    "operation": "software_update",
+                    "action": "UP_TO_DATE",
+                    "current_version": current_version,
+                    "manifest_version": manifest["version"],
+                    "manifest_receipt": manifest_receipt,
+                    "startup_recovery": recovery,
+                }
+                if evidence_file:
+                    _atomic_json(Path(evidence_file), result)
+                return result
+
+            artifact, artifact_receipt = self.download_artifact(manifest)
+            stage.unlink(missing_ok=True)
+            health_file.unlink(missing_ok=True)
+            with stage.open("wb") as fh:
+                fh.write(artifact)
+                fh.flush()
+            _durable_sync_path(stage)
+
+            transaction = {
+                "schema": "happy8-update-transaction-v1",
+                "status": "IN_PROGRESS",
+                "phase": "STAGED",
+                "target_exe": str(target_exe),
+                "stage": str(stage),
+                "backup": str(backup),
+                "health_file": str(health_file),
+                "from_version": current_version,
+                "to_version": manifest["version"],
+                "old_exe_sha256": old_hash,
+                "new_exe_sha256": str(manifest["artifact_sha256"]).lower(),
+            }
+            _atomic_json(journal, transaction)
+
+            _wait_parent_exit(parent_pid)
+            backup.unlink(missing_ok=True)
+            shutil.copy2(target_exe, backup)
+            _durable_sync_path(backup)
+            backup_created = True
+            transaction["phase"] = "BACKUP_CREATED"
+            _atomic_json(journal, transaction)
+
             os.replace(stage, target_exe)
-            installed_hash = hashlib.sha256(target_exe.read_bytes()).hexdigest()
+            transaction["phase"] = "REPLACED"
+            _atomic_json(journal, transaction)
+
+            installed_hash = _sha256_path(target_exe)
             if installed_hash != str(manifest["artifact_sha256"]).lower():
                 raise RuntimeError("installed EXE hash changed after atomic replace")
 
@@ -269,7 +398,10 @@ class Updater:
             if health.get("status") != "PASS":
                 raise RuntimeError("new EXE health evidence is not PASS")
 
+            transaction["phase"] = "SELF_TEST_PASSED"
+            _atomic_json(journal, transaction)
             backup.unlink(missing_ok=True)
+            journal.unlink(missing_ok=True)
             health_file.unlink(missing_ok=True)
             result = {
                 "status": "PASS",
@@ -282,24 +414,36 @@ class Updater:
                 "manifest_receipt": manifest_receipt,
                 "artifact_receipt": artifact_receipt,
                 "rollback_performed": False,
+                "startup_recovery": recovery,
             }
         except Exception as exc:
             rollback_error = None
-            try:
-                if backup.exists():
+            action = "ABORTED_BEFORE_REPLACE"
+            if backup_created and backup.exists():
+                try:
                     os.replace(backup, target_exe)
-            except Exception as rollback_exc:
-                rollback_error = f"{type(rollback_exc).__name__}: {rollback_exc}"
+                    restored = _sha256_path(target_exe)
+                    if restored != old_hash:
+                        raise RuntimeError("rollback restored hash mismatch")
+                    action = "ROLLED_BACK"
+                    journal.unlink(missing_ok=True)
+                except Exception as rollback_exc:
+                    rollback_error = f"{type(rollback_exc).__name__}: {rollback_exc}"
+                    action = "ROLLBACK_FAILED"
+            else:
+                journal.unlink(missing_ok=True)
+
             result = {
                 "status": "FAIL",
                 "operation": "software_update",
-                "action": "ROLLED_BACK" if rollback_error is None else "ROLLBACK_FAILED",
+                "action": action,
                 "from_version": current_version,
                 "to_version": manifest.get("version"),
                 "error": f"{type(exc).__name__}: {exc}",
                 "rollback_error": rollback_error,
                 "manifest_receipt": manifest_receipt,
                 "artifact_receipt": artifact_receipt,
+                "startup_recovery": recovery,
             }
         finally:
             stage.unlink(missing_ok=True)
