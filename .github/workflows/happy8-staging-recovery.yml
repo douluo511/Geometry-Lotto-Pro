@@ -1,7 +1,7 @@
 name: Happy8 recovered prototype staging gates
 
 concurrency:
-  group: happy8-staging-${{ github.event.pull_request.number || github.ref }}
+  group: happy8-strict-v3-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 on:
@@ -21,44 +21,124 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Exact checkout identity gate
+        id: checkout_identity
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Force evidence | Out-Null
+          $actual = (& git rev-parse HEAD).Trim()
+          $expected = '${{ github.event.pull_request.head.sha || github.sha }}'
+          if ($actual -ne $expected) { throw "checkout identity mismatch: actual=$actual expected=$expected" }
+          @{
+            schema = 'happy8-checkout-identity-v1'
+            status = 'PASS'
+            checked_out_sha = $actual
+            expected_sha = $expected
+            event_sha = '${{ github.sha }}'
+          } | ConvertTo-Json | Set-Content -Encoding utf8 evidence/checkout_identity.json
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: '3.11.9'
           architecture: 'x64'
+      - name: Repository independence evidence gate
+        id: repository_independence
+        if: always()
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          python scripts/repository_independence_gate.py `
+            --repository '${{ github.repository }}' `
+            --repo-root '../..' `
+            --output evidence/repository_independence.json
+
+      - name: Governance and architecture gate
+        id: governance_gate
+        continue-on-error: true
+        run: python scripts/governance_architecture_gate.py
+
       - name: Install pinned dependencies
         run: python -m pip install --disable-pip-version-check -r requirements.txt
-      - name: Compile staging port
-        id: compile_gate
-        continue-on-error: true
-        run: python -m compileall -q happy8 scripts
-      - name: Domain and NetClient contract gate
-        id: contract_gate
-        continue-on-error: true
-        run: python scripts/contract_gate.py
-      - name: Storage and Evidence atomicity gate
-        id: storage_gate
-        continue-on-error: true
-        run: python scripts/storage_gate.py
-      - name: Scientific protocol contract gate
-        id: science_protocol_contract
-        continue-on-error: true
-        run: python scripts/science_protocol_contract.py
-      - name: Application Service contract gate
-        id: service_gate
-        continue-on-error: true
-        run: python scripts/service_gate.py
-      - name: Independent Updater contract and rollback gate
-        id: updater_gate
-        continue-on-error: true
-        run: python scripts/updater_gate.py
       - name: Application source self-test
         id: app_selftest
         continue-on-error: true
         run: python -m happy8.app --self-test
-      - name: Desktop UI-Service source contract
+
+      - name: Static compile gate
+        id: compile_gate
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          python -m compileall -q happy8 scripts
+          if ($LASTEXITCODE -ne 0) { throw 'Python compileall failed' }
+          foreach ($script in @('scripts/physical_gui_click_smoke.ps1','scripts/real_release_update_acceptance.ps1')) {
+            $tokens = $null
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile(
+              (Resolve-Path $script).Path,
+              [ref]$tokens,
+              [ref]$errors
+            )
+            if (@($errors).Count -gt 0) {
+              $messages = @($errors | ForEach-Object { $_.Message }) -join '; '
+              throw "PowerShell parse failed for ${script}: $messages"
+            }
+          }
+          python scripts/acceptance_regression_gate.py --output evidence/acceptance_regression.json
+          if ($LASTEXITCODE -ne 0) { throw 'Acceptance execution regression gate failed' }
+
+      - name: Unit gate
+        id: unit_gate
+        continue-on-error: true
+        run: python scripts/unit_gate.py
+
+      - name: Domain and NetClient contract gate
+        id: contract_gate
+        continue-on-error: true
+        run: python scripts/contract_gate.py
+
+      - name: Scientific protocol contract gate
+        id: science_protocol_contract
+        continue-on-error: true
+        run: python scripts/science_protocol_contract.py
+
+      - name: Desktop UI-Service contract gate
         id: ui_contract
         continue-on-error: true
-        run: python -m happy8.app --ui-contract
+        run: python -m happy8.app --ui-contract --result-file evidence/ui_contract.json
+
+      - name: Storage and Evidence integration gate
+        id: storage_gate
+        continue-on-error: true
+        run: python scripts/storage_gate.py
+
+      - name: Application Service integration gate
+        id: service_gate
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force evidence | Out-Null
+          python scripts/service_gate.py | Tee-Object -FilePath evidence/service_gate.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Software Updater handoff contract gate
+        id: updater_handoff_gate
+        continue-on-error: true
+        run: python scripts/software_update_handoff_gate.py
+
+      - name: Independent Updater integration and rollback gate
+        id: updater_gate
+        continue-on-error: true
+        run: python scripts/updater_gate.py
+
+      - name: Fault Injection gate
+        id: fault_injection_gate
+        continue-on-error: true
+        run: python scripts/fault_injection_gate.py
 
       # Independent source probes are diagnostic evidence. A timeout/HTTP failure on
       # one official source must not prevent the other independent probes from running.
@@ -68,7 +148,7 @@ jobs:
       # without forcing a second full-history fetch when production already passed.
       - name: Live dual-official-source network gate
         id: live_gate
-        if: always()
+        if: ${{ always() && !cancelled() }}
         continue-on-error: true
         run: python scripts/real_network_check.py --output evidence/live_official_history.json
 
@@ -78,6 +158,18 @@ jobs:
         continue-on-error: true
         run: python scripts/science_gate.py --input evidence/live_official_history.json --output evidence/scientific_validation.json
 
+      - name: Business validation evidence before Windows build
+        id: business_pre
+        if: steps.live_gate.outcome == 'success' && steps.science_gate.outcome == 'success'
+        continue-on-error: true
+        run: >
+          python scripts/business_acceptance_gate.py
+          --network evidence/live_official_history.json
+          --science evidence/scientific_validation.json
+          --service evidence/service_gate.json
+          --ui evidence/ui_contract.json
+          --output evidence/business_acceptance_pre_windows.json
+
       - name: Native Windows reproducible Exact EXE build
         id: windows_build
         if: steps.live_gate.outcome == 'success' && steps.science_gate.outcome == 'success'
@@ -85,16 +177,19 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
+          # Match the already-proven DLT reproducible-build contract:
+          # stable hash seed + fixed source epoch + one frozen spec per binary.
+          $env:PYTHONHASHSEED = '1'
+          $env:SOURCE_DATE_EPOCH = '946684800'
           New-Item -ItemType Directory -Force -Path evidence | Out-Null
-          Remove-Item -Recurse -Force dist1,dist2,build1,build2,spec1,spec2 -ErrorAction SilentlyContinue
-          New-Item -ItemType Directory -Force -Path spec1,spec2 | Out-Null
-          python -m PyInstaller --noconfirm --clean --onefile --windowed --name Geometry_Lotto_Pro_Happy8 --distpath dist1 --workpath build1 --specpath spec1 --paths . scripts/happy8_desktop.py
+          Remove-Item -Recurse -Force dist1,dist2,build1,build2,build1_updater,build2_updater -ErrorAction SilentlyContinue
+          python -m PyInstaller --noconfirm --clean --distpath dist1 --workpath build1 GeometryLottoProHappy8.spec
           if ($LASTEXITCODE -ne 0) { throw "first PyInstaller build failed" }
-          python -m PyInstaller --noconfirm --clean --onefile --windowed --name Geometry_Lotto_Pro_Happy8 --distpath dist2 --workpath build2 --specpath spec2 --paths . scripts/happy8_desktop.py
+          python -m PyInstaller --noconfirm --clean --distpath dist2 --workpath build2 GeometryLottoProHappy8.spec
           if ($LASTEXITCODE -ne 0) { throw "second PyInstaller build failed" }
-          python -m PyInstaller --noconfirm --clean --onefile --console --name Geometry_Lotto_Pro_Happy8_Updater --distpath dist1 --workpath build1_updater --specpath spec1 --paths . scripts/happy8_updater.py
+          python -m PyInstaller --noconfirm --clean --distpath dist1 --workpath build1_updater GeometryLottoProHappy8Updater.spec
           if ($LASTEXITCODE -ne 0) { throw "first Updater build failed" }
-          python -m PyInstaller --noconfirm --clean --onefile --console --name Geometry_Lotto_Pro_Happy8_Updater --distpath dist2 --workpath build2_updater --specpath spec2 --paths . scripts/happy8_updater.py
+          python -m PyInstaller --noconfirm --clean --distpath dist2 --workpath build2_updater GeometryLottoProHappy8Updater.spec
           if ($LASTEXITCODE -ne 0) { throw "second Updater build failed" }
           $exe1 = (Resolve-Path 'dist1/Geometry_Lotto_Pro_Happy8.exe').Path
           $exe2 = (Resolve-Path 'dist2/Geometry_Lotto_Pro_Happy8.exe').Path
@@ -117,14 +212,17 @@ jobs:
           @{
             schema = 'happy8-windows-exact-exe-v1'
             status = 'PASS'
-            source_sha = '${{ github.event.pull_request.head.sha }}'
-            tested_pr_merge_sha = '${{ github.sha }}'
+            source_sha = (& git rev-parse HEAD).Trim()
+            event_sha = '${{ github.sha }}'
+            exact_checkout_identity = 'PASS'
             exe_sha256 = $hash1
             rebuild_sha256 = $hash2
             updater_sha256 = $updaterHash1
             updater_rebuild_sha256 = $updaterHash2
             same_hash = $true
             updater_same_hash = $true
+            python_hash_seed = $env:PYTHONHASHSEED
+            source_date_epoch = $env:SOURCE_DATE_EPOCH
             exact_exe_self_test = 'PASS'
             exact_updater_self_test = 'PASS'
             exact_exe_ui_construction = 'PASS'
@@ -132,27 +230,305 @@ jobs:
             final_gate = 'FAIL'
           } | ConvertTo-Json -Depth 6 | Set-Content -Encoding utf8 evidence/windows_exact_exe.json
 
+      - name: Physical GUI mouse-click acceptance on Exact EXE
+        id: physical_gui
+        if: steps.windows_build.outcome == 'success'
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $releaseMode = 'BlockedRelease'
+          $configPath = 'dist1/Happy8_Update_Config.json'
+          if (Test-Path $configPath -PathType Leaf) {
+            $config = Get-Content $configPath -Raw -Encoding UTF8 | ConvertFrom-Json
+            $manifestUri = [Uri]([string]$config.manifest_url)
+            $trustedHosts = @($config.trusted_hosts | ForEach-Object { ([string]$_).Trim().ToLowerInvariant() })
+            if ($config.schema -ne 'happy8-update-config-v1' -or $manifestUri.Scheme -ne 'https' -or
+                [string]::IsNullOrWhiteSpace($manifestUri.Host) -or $trustedHosts -notcontains $manifestUri.Host.ToLowerInvariant()) {
+              throw 'Sibling release configuration is not trusted HTTPS'
+            }
+            $updaterPath = 'dist1/Geometry_Lotto_Pro_Happy8_Updater.exe'
+            if (-not (Test-Path $updaterPath -PathType Leaf)) { throw 'Configured release independent Updater is missing' }
+            $build = Get-Content evidence/windows_exact_exe.json -Raw | ConvertFrom-Json
+            $updaterHash = (Get-FileHash $updaterPath -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($updaterHash -ne $build.updater_sha256) { throw 'Configured release Updater hash does not match exact build' }
+            $releaseMode = 'ConfiguredRelease'
+          }
+          ./scripts/physical_gui_click_smoke.ps1 -ExePath dist1/Geometry_Lotto_Pro_Happy8.exe -EvidencePath evidence/physical_gui_click.json -ReleaseMode $releaseMode
+
+      - name: Same Hash after physical GUI
+        id: post_gui_same_hash
+        if: steps.physical_gui.outcome == 'success'
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $build = Get-Content evidence/windows_exact_exe.json -Raw | ConvertFrom-Json
+          $gui = Get-Content evidence/physical_gui_click.json -Raw | ConvertFrom-Json
+          $actual = (Get-FileHash dist1/Geometry_Lotto_Pro_Happy8.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($gui.status -ne 'PASS' -or $gui.same_hash -ne $true) { throw 'physical GUI evidence is not PASS' }
+          if ($actual -ne $build.exe_sha256 -or $actual -ne $gui.exe_sha256_after) { throw 'post-GUI Same Hash mismatch' }
+          @{
+            schema = 'happy8-post-gui-same-hash-v1'
+            status = 'PASS'
+            exe_sha256 = $actual
+            build_sha256 = $build.exe_sha256
+            physical_gui_sha256 = $gui.exe_sha256_after
+          } | ConvertTo-Json | Set-Content -Encoding utf8 evidence/post_gui_same_hash.json
+
+      - name: Real independent Release evidence validation
+        id: real_release_validation
+        if: always()
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $args = @(
+            'scripts/real_release_evidence.py',
+            '--repository','${{ github.repository }}',
+            '--source-sha','${{ github.event.pull_request.head.sha || github.sha }}',
+            '--run-id','${{ github.run_id }}',
+            '--run-attempt','${{ github.run_attempt }}',
+            '--repo-root','../..',
+            '--output','evidence/real_release_validation.json'
+          )
+          if (Test-Path 'evidence/real_release_update.json') {
+            $args += @('--input','evidence/real_release_update.json')
+          }
+          python @args
+
+      - name: Evidence-driven unique final artifact freeze
+        id: final_artifact_freeze
+        if: always()
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $repoEvidence = if (Test-Path 'evidence/repository_independence.json') { Get-Content 'evidence/repository_independence.json' -Raw | ConvertFrom-Json } else { $null }
+          $releaseEvidence = if (Test-Path 'evidence/real_release_validation.json') { Get-Content 'evidence/real_release_validation.json' -Raw | ConvertFrom-Json } else { $null }
+          if ($null -eq $repoEvidence -or $repoEvidence.status -ne 'PASS' -or $null -eq $releaseEvidence -or $releaseEvidence.status -ne 'PASS') {
+            Write-Host 'FINAL_ARTIFACT_FREEZE=BLOCKED_UPSTREAM'
+            exit 0
+          }
+          $releaseId = [string]$releaseEvidence.checks.release_ids.release_n1_id
+          if ([string]::IsNullOrWhiteSpace($releaseId)) { throw 'validated N+1 release identity is unavailable for final freeze' }
+          python scripts/final_artifact_freeze.py `
+            --repository '${{ github.repository }}' `
+            --source-sha '${{ github.event.pull_request.head.sha || github.sha }}' `
+            --run-id '${{ github.run_id }}' `
+            --run-attempt '${{ github.run_attempt }}' `
+            --release-id $releaseId `
+            --repository-evidence evidence/repository_independence.json `
+            --real-release evidence/real_release_validation.json `
+            --windows evidence/windows_exact_exe.json `
+            --physical-gui evidence/physical_gui_click.json `
+            --same-hash evidence/post_gui_same_hash.json `
+            --main-exe dist1/Geometry_Lotto_Pro_Happy8.exe `
+            --updater-exe dist1/Geometry_Lotto_Pro_Happy8_Updater.exe `
+            --output evidence/FINAL_ARTIFACT.json
+
+      - name: Unique final artifact evidence validation
+        id: final_artifact_validation
+        if: always()
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $args = @(
+            'scripts/final_artifact_evidence.py',
+            '--repository','${{ github.repository }}',
+            '--source-sha','${{ github.event.pull_request.head.sha || github.sha }}',
+            '--run-id','${{ github.run_id }}',
+            '--run-attempt','${{ github.run_attempt }}',
+            '--repo-root','../..',
+            '--main-exe','dist1/Geometry_Lotto_Pro_Happy8.exe',
+            '--updater-exe','dist1/Geometry_Lotto_Pro_Happy8_Updater.exe',
+            '--output','evidence/final_artifact_validation.json'
+          )
+          if (Test-Path 'evidence/FINAL_ARTIFACT.json') { $args += @('--input','evidence/FINAL_ARTIFACT.json') }
+          if (Test-Path 'evidence/windows_exact_exe.json') { $args += @('--windows','evidence/windows_exact_exe.json') }
+          if (Test-Path 'evidence/physical_gui_click.json') { $args += @('--physical-gui','evidence/physical_gui_click.json') }
+          if (Test-Path 'evidence/post_gui_same_hash.json') { $args += @('--same-hash','evidence/post_gui_same_hash.json') }
+          if (Test-Path 'evidence/real_release_validation.json') { $args += @('--real-release','evidence/real_release_validation.json') }
+          python @args
+
+      - name: Final business acceptance derivation
+        id: business_final
+        if: always() && steps.live_gate.outcome == 'success' && steps.science_gate.outcome == 'success'
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $args = @(
+            'scripts/business_acceptance_gate.py',
+            '--network','evidence/live_official_history.json',
+            '--science','evidence/scientific_validation.json',
+            '--service','evidence/service_gate.json',
+            '--ui','evidence/ui_contract.json',
+            '--output','evidence/business_acceptance.json'
+          )
+          if (Test-Path 'evidence/windows_exact_exe.json') {
+            $args += @('--windows','evidence/windows_exact_exe.json')
+          }
+          if (Test-Path 'evidence/physical_gui_click.json') {
+            $args += @('--physical-gui','evidence/physical_gui_click.json')
+          }
+          if (Test-Path 'evidence/real_release_validation.json') {
+            $args += @('--real-release','evidence/real_release_validation.json')
+          }
+          python @args
+
+      - name: Engineering acceptance derivation
+        id: engineering_final
+        if: always()
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          function S([string]$x) {
+            if ($x -eq 'success') { return 'PASS' }
+            if ($x -eq 'failure') { return 'FAIL' }
+            return 'NOT VERIFIED'
+          }
+          function C([string[]]$xs) {
+            if ($xs -contains 'failure') { return 'FAIL' }
+            if ($xs.Count -gt 0 -and @($xs | Where-Object { $_ -ne 'success' }).Count -eq 0) { return 'PASS' }
+            return 'NOT VERIFIED'
+          }
+          $baseline = Get-Content '..\ENGINEERING_ACCEPTANCE_BASELINE.json' -Raw | ConvertFrom-Json
+          if (@($baseline.items).Count -ne 19) { throw 'engineering denominator drift' }
+          $items = [ordered]@{}
+          $items.E01 = @{ status = C @('${{ steps.checkout_identity.outcome }}','${{ steps.governance_gate.outcome }}') }
+          $items.E02 = @{ status = C @('${{ steps.unit_gate.outcome }}','${{ steps.contract_gate.outcome }}') }
+          $items.E03 = @{ status = S '${{ steps.contract_gate.outcome }}' }
+          $items.E04 = @{ status = S '${{ steps.storage_gate.outcome }}' }
+          $items.E05 = @{ status = C @('${{ steps.science_protocol_contract.outcome }}','${{ steps.science_gate.outcome }}') }
+          $items.E06 = @{ status = S '${{ steps.service_gate.outcome }}' }
+          $items.E07 = @{ status = S '${{ steps.ui_contract.outcome }}' }
+          $items.E08 = @{ status = C @('${{ steps.updater_handoff_gate.outcome }}','${{ steps.updater_gate.outcome }}') }
+          $items.E09 = @{ status = C @('${{ steps.service_gate.outcome }}','${{ steps.fault_injection_gate.outcome }}') }
+          $items.E10 = @{ status = C @('${{ steps.app_selftest.outcome }}','${{ steps.compile_gate.outcome }}','${{ steps.unit_gate.outcome }}','${{ steps.contract_gate.outcome }}','${{ steps.storage_gate.outcome }}','${{ steps.service_gate.outcome }}') }
+          $items.E11 = @{ status = S '${{ steps.fault_injection_gate.outcome }}' }
+          $items.E12 = @{ status = S '${{ steps.live_gate.outcome }}' }
+          $items.E13 = @{ status = S '${{ steps.windows_build.outcome }}' }
+          $items.E14 = @{ status = S '${{ steps.windows_build.outcome }}' }
+          $items.E15 = @{ status = S '${{ steps.physical_gui.outcome }}' }
+          $items.E16 = @{ status = S '${{ steps.post_gui_same_hash.outcome }}' }
+
+          if (Test-Path 'evidence/repository_independence.json') {
+            $repoEvidence = Get-Content 'evidence/repository_independence.json' -Raw | ConvertFrom-Json
+            $repoStatus = [string]$repoEvidence.status
+            if (@('PASS','FAIL','BLOCKED','NOT VERIFIED') -notcontains $repoStatus) { $repoStatus = 'FAIL' }
+            $items.E17 = @{
+              status = $repoStatus
+              detail = $(if ($repoStatus -eq 'PASS') {'dedicated repository and project-only inventory verified'} elseif ($repoStatus -eq 'BLOCKED') {'dedicated Happy8 repository is not available on this checkout'} else {'repository independence evidence did not validate'})
+            }
+          } else {
+            $items.E17 = @{ status = 'NOT VERIFIED'; detail = 'repository independence evidence file missing' }
+          }
+
+          if (Test-Path 'evidence/real_release_validation.json') {
+            $rr = Get-Content 'evidence/real_release_validation.json' -Raw | ConvertFrom-Json
+            $rrStatus = [string]$rr.status
+            if (@('PASS','FAIL','BLOCKED','NOT VERIFIED') -notcontains $rrStatus) { $rrStatus = 'FAIL' }
+            $items.E18 = @{
+              status = $rrStatus
+              detail = $(if ($rrStatus -eq 'PASS') {'real independent Release N→N+1 evidence structurally and cryptographically cross-validated'} elseif ($rrStatus -eq 'BLOCKED') {'real independent Release N→N+1 evidence unavailable'} else {'real release evidence validation failed'})
+            }
+          } else {
+            $items.E18 = @{ status = 'NOT VERIFIED'; detail = 'real release validation evidence file missing' }
+          }
+
+          $prior = @('E01','E02','E03','E04','E05','E06','E07','E08','E09','E10','E11','E12','E13','E14','E15','E16','E17','E18')
+          $allPriorPass = @($prior | Where-Object { $items[$_].status -ne 'PASS' }).Count -eq 0
+          if (-not $allPriorPass) {
+            $items.E19 = @{ status = 'BLOCKED'; detail = 'upstream engineering/release gates are not all PASS' }
+          } elseif (Test-Path 'evidence/final_artifact_validation.json') {
+            $fa = Get-Content 'evidence/final_artifact_validation.json' -Raw | ConvertFrom-Json
+            $faStatus = [string]$fa.status
+            if (@('PASS','FAIL','BLOCKED','NOT VERIFIED') -notcontains $faStatus) { $faStatus = 'FAIL' }
+            $items.E19 = @{
+              status = $faStatus
+              detail = $(if ($faStatus -eq 'PASS') {'unique formal release artifact cross-validated against current EXE/Updater/GUI/Hash/release evidence'} elseif ($faStatus -eq 'NOT VERIFIED') {'unique final artifact manifest not generated'} else {'unique final artifact evidence validation did not pass'})
+            }
+          } else {
+            $items.E19 = @{ status = 'NOT VERIFIED'; detail = 'final artifact validation evidence file missing' }
+          }
+
+          $weights = @{}
+          foreach ($x in $baseline.items) { $weights[$x.id] = [double]$x.weight }
+          $den = 0.0; $pass = 0.0
+          foreach ($id in $weights.Keys) {
+            $den += $weights[$id]
+            if ($items[$id].status -eq 'PASS') { $pass += $weights[$id] }
+          }
+          $pct = if ($den -gt 0) { [math]::Round(100.0 * $pass / $den, 4) } else { 0.0 }
+          $all = @($items.GetEnumerator() | Where-Object { $_.Value.status -ne 'PASS' }).Count -eq 0
+          $report = [ordered]@{
+            schema = 'happy8-engineering-acceptance-v1'
+            status = $(if ($all) {'PASS'} else {'FAIL'})
+            completion_percent = $pct
+            passed_weight = $pass
+            required_weight = $den
+            items = $items
+          }
+          $report | ConvertTo-Json -Depth 8 | Set-Content -Encoding utf8 evidence/engineering_acceptance.json
+          Get-Content evidence/engineering_acceptance.json
+          if (-not $all) { exit 2 }
+
+      - name: Evidence-derived Final Gate
+        id: final_gate
+        if: always()
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $eng = if (Test-Path 'evidence/engineering_acceptance.json') { Get-Content 'evidence/engineering_acceptance.json' -Raw | ConvertFrom-Json } else { $null }
+          $biz = if (Test-Path 'evidence/business_acceptance.json') { Get-Content 'evidence/business_acceptance.json' -Raw | ConvertFrom-Json } else { $null }
+          $same = if (Test-Path 'evidence/post_gui_same_hash.json') { Get-Content 'evidence/post_gui_same_hash.json' -Raw | ConvertFrom-Json } else { $null }
+          $gui = if (Test-Path 'evidence/physical_gui_click.json') { Get-Content 'evidence/physical_gui_click.json' -Raw | ConvertFrom-Json } else { $null }
+          $win = if (Test-Path 'evidence/windows_exact_exe.json') { Get-Content 'evidence/windows_exact_exe.json' -Raw | ConvertFrom-Json } else { $null }
+          $finalArtifact = if (Test-Path 'evidence/final_artifact_validation.json') { Get-Content 'evidence/final_artifact_validation.json' -Raw | ConvertFrom-Json } else { $null }
+          $pass = (
+            $null -ne $eng -and $eng.status -eq 'PASS' -and [double]$eng.completion_percent -eq 100.0 -and
+            $null -ne $biz -and $biz.status -eq 'PASS' -and [double]$biz.completion_percent -eq 100.0 -and
+            $null -ne $win -and $win.status -eq 'PASS' -and
+            $null -ne $gui -and $gui.status -eq 'PASS' -and
+            $null -ne $same -and $same.status -eq 'PASS' -and
+            $null -ne $finalArtifact -and $finalArtifact.status -eq 'PASS'
+          )
+          $report = [ordered]@{
+            schema = 'happy8-final-gate-v1'
+            status = $(if ($pass) {'PASS'} else {'FAIL'})
+            engineering_completion = $(if ($null -ne $eng) {$eng.completion_percent} else {$null})
+            business_completion = $(if ($null -ne $biz) {$biz.completion_percent} else {$null})
+            exact_exe = $(if ($null -ne $win) {$win.status} else {'NOT VERIFIED'})
+            physical_gui = $(if ($null -ne $gui) {$gui.status} else {'NOT VERIFIED'})
+            same_hash = $(if ($null -ne $same) {$same.status} else {'NOT VERIFIED'})
+            repository = '${{ github.repository }}'
+            required_repository = 'dedicated independent Happy8 repository (name not frozen)'
+            unique_final_artifact = $(if ($null -ne $finalArtifact) {$finalArtifact.status} else {'NOT VERIFIED'})
+            source_sha = (& git rev-parse HEAD).Trim()
+          }
+          $report | ConvertTo-Json -Depth 6 | Set-Content -Encoding utf8 evidence/final_gate.json
+          Get-Content evidence/final_gate.json
+          if (-not $pass) { exit 2 }
+
       # Root-cause diagnostics run only after the mandatory live gate fails.
       - name: Provincial official fallback diagnostic probe
-        if: always() && steps.live_gate.outcome != 'success'
+        if: ${{ always() && !cancelled() && steps.live_gate.outcome != 'success' }}
         id: provincial_probe
         continue-on-error: true
         run: python scripts/official_fallback_probe.py --output evidence/official_fallback_probe.json
 
       - name: Shanghai official frontend contract probe
-        if: always() && steps.live_gate.outcome != 'success'
+        if: ${{ always() && !cancelled() && steps.live_gate.outcome != 'success' }}
         id: shanghai_probe
         continue-on-error: true
         run: python scripts/shanghai_contract_probe.py --output evidence/shanghai_contract_probe.json
 
       - name: Jiangsu official full-history contract probe
-        if: always() && steps.live_gate.outcome != 'success'
+        if: ${{ always() && !cancelled() && steps.live_gate.outcome != 'success' }}
         id: jiangsu_probe
         continue-on-error: true
         run: python scripts/jiangsu_history_probe.py --output evidence/jiangsu_history_probe.json
 
       - name: Jiangxi Fuzhou official number-history contract probe
-        if: always() && steps.live_gate.outcome != 'success'
+        if: ${{ always() && !cancelled() && steps.live_gate.outcome != 'success' }}
         id: fuzhou_probe
         continue-on-error: true
         timeout-minutes: 4
@@ -160,7 +536,7 @@ jobs:
 
       - name: Jiangxi Fuzhou candidate non-production guard
         id: fuzhou_guard
-        if: always() && steps.live_gate.outcome != 'success'
+        if: ${{ always() && !cancelled() && steps.live_gate.outcome != 'success' }}
         continue-on-error: true
         shell: pwsh
         run: |
@@ -173,7 +549,7 @@ jobs:
           Write-Host "FUZHOU_DIAGNOSTIC_NON_PRODUCTION=PASS"
 
       - name: Two-official-source full-history reconciliation
-        if: always() && steps.live_gate.outcome != 'success'
+        if: ${{ always() && !cancelled() && steps.live_gate.outcome != 'success' }}
         id: composite_probe
         continue-on-error: true
         timeout-minutes: 8
@@ -181,7 +557,7 @@ jobs:
 
       - name: Composite history candidate non-production guard
         id: composite_guard
-        if: always() && steps.live_gate.outcome != 'success'
+        if: ${{ always() && !cancelled() && steps.live_gate.outcome != 'success' }}
         continue-on-error: true
         shell: pwsh
         run: |
@@ -194,13 +570,13 @@ jobs:
           Write-Host "COMPOSITE_DIAGNOSTIC_NON_PRODUCTION=PASS"
 
       - name: Sichuan official history contract probe
-        if: always() && steps.live_gate.outcome != 'success'
+        if: ${{ always() && !cancelled() && steps.live_gate.outcome != 'success' }}
         id: sichuan_probe
         continue-on-error: true
         run: python scripts/sichuan_history_probe.py --output evidence/sichuan_history_probe.json
 
       - name: CWL-designated media history contract diagnostic
-        if: always() && steps.live_gate.outcome != 'success'
+        if: ${{ always() && !cancelled() && steps.live_gate.outcome != 'success' }}
         id: zhcw_probe
         continue-on-error: true
         timeout-minutes: 4
@@ -208,7 +584,7 @@ jobs:
 
       - name: Diagnostic source non-production guard
         id: zhcw_guard
-        if: always() && steps.live_gate.outcome != 'success'
+        if: ${{ always() && !cancelled() && steps.live_gate.outcome != 'success' }}
         continue-on-error: true
         shell: pwsh
         run: |
@@ -226,7 +602,14 @@ jobs:
         run: |
           Write-Host "RECOVERED_PROTOTYPE_SOURCE=PASS"
           Write-Host "WINDOWS_EXACT_EXE=${{ steps.windows_build.outcome }}"
-          Write-Host "PHYSICAL_GUI_CLICK=NOT_VERIFIED"
+          Write-Host "ENGINEERING_FINAL=${{ steps.engineering_final.outcome }}"
+          Write-Host "FINAL_GATE=${{ steps.final_gate.outcome }}"
+          Write-Host "PHYSICAL_GUI_CLICK=${{ steps.physical_gui.outcome }}"
+          Write-Host "POST_GUI_SAME_HASH=${{ steps.post_gui_same_hash.outcome }}"
+          Write-Host "BUSINESS_PRE=${{ steps.business_pre.outcome }}"
+          Write-Host "BUSINESS_FINAL=${{ steps.business_final.outcome }}"
+          Write-Host "PHYSICAL_GUI_CLICK=${{ steps.physical_gui.outcome }}"
+          Write-Host "POST_GUI_SAME_HASH=${{ steps.post_gui_same_hash.outcome }}"
           Write-Host "REPOSITORY_INDEPENDENCE=FAIL"
           Write-Host "FINAL_RELEASE_GATE=NOT_PASS"
 
@@ -235,11 +618,16 @@ jobs:
         shell: pwsh
         run: |
           $failures = @()
+          if ('${{ steps.checkout_identity.outcome }}' -ne 'success') { $failures += 'checkout_identity' }
+          if ('${{ steps.governance_gate.outcome }}' -ne 'success') { $failures += 'governance_architecture' }
           if ('${{ steps.compile_gate.outcome }}' -ne 'success') { $failures += 'compile' }
+          if ('${{ steps.unit_gate.outcome }}' -ne 'success') { $failures += 'unit' }
+          if ('${{ steps.fault_injection_gate.outcome }}' -ne 'success') { $failures += 'fault_injection' }
           if ('${{ steps.contract_gate.outcome }}' -ne 'success') { $failures += 'domain_netclient_contract' }
           if ('${{ steps.storage_gate.outcome }}' -ne 'success') { $failures += 'storage_evidence' }
           if ('${{ steps.science_protocol_contract.outcome }}' -ne 'success') { $failures += 'science_protocol_contract' }
           if ('${{ steps.service_gate.outcome }}' -ne 'success') { $failures += 'application_service' }
+          if ('${{ steps.updater_handoff_gate.outcome }}' -ne 'success') { $failures += 'updater_handoff' }
           if ('${{ steps.updater_gate.outcome }}' -ne 'success') { $failures += 'updater_contract_rollback' }
           if ('${{ steps.app_selftest.outcome }}' -ne 'success') { $failures += 'application_selftest' }
           if ('${{ steps.ui_contract.outcome }}' -ne 'success') { $failures += 'ui_construction' }
@@ -249,12 +637,22 @@ jobs:
           if ('${{ steps.live_gate.outcome }}' -ne 'success') { $failures += 'live_official_network' }
           if ('${{ steps.live_gate.outcome }}' -eq 'success' -and '${{ steps.science_gate.outcome }}' -ne 'success') { $failures += 'science_gate' }
           if ('${{ steps.live_gate.outcome }}' -eq 'success' -and '${{ steps.science_gate.outcome }}' -eq 'success' -and '${{ steps.windows_build.outcome }}' -ne 'success') { $failures += 'windows_exact_exe' }
+          if ('${{ steps.windows_build.outcome }}' -eq 'success' -and '${{ steps.physical_gui.outcome }}' -ne 'success') { $failures += 'physical_gui' }
+          if ('${{ steps.physical_gui.outcome }}' -eq 'success' -and '${{ steps.post_gui_same_hash.outcome }}' -ne 'success') { $failures += 'post_gui_same_hash' }
+          if ('${{ steps.live_gate.outcome }}' -eq 'success' -and '${{ steps.science_gate.outcome }}' -eq 'success' -and '${{ steps.business_final.outcome }}' -ne 'success') { $failures += 'business_final' }
+          if ('${{ steps.engineering_final.outcome }}' -ne 'success') { $failures += 'engineering_final' }
+          if ('${{ steps.final_gate.outcome }}' -ne 'success') { $failures += 'final_gate' }
 
+          Write-Host "CHECKOUT_IDENTITY=${{ steps.checkout_identity.outcome }}"
+          Write-Host "GOVERNANCE_ARCHITECTURE=${{ steps.governance_gate.outcome }}"
           Write-Host "COMPILE_GATE=${{ steps.compile_gate.outcome }}"
+          Write-Host "UNIT_GATE=${{ steps.unit_gate.outcome }}"
+          Write-Host "FAULT_INJECTION_GATE=${{ steps.fault_injection_gate.outcome }}"
           Write-Host "DOMAIN_NETCLIENT_CONTRACT=${{ steps.contract_gate.outcome }}"
           Write-Host "STORAGE_EVIDENCE_GATE=${{ steps.storage_gate.outcome }}"
           Write-Host "SCIENCE_PROTOCOL_CONTRACT=${{ steps.science_protocol_contract.outcome }}"
           Write-Host "APPLICATION_SERVICE=${{ steps.service_gate.outcome }}"
+          Write-Host "UPDATER_HANDOFF=${{ steps.updater_handoff_gate.outcome }}"
           Write-Host "UPDATER_CONTRACT_ROLLBACK=${{ steps.updater_gate.outcome }}"
           Write-Host "APPLICATION_SELFTEST=${{ steps.app_selftest.outcome }}"
           Write-Host "UI_CONSTRUCTION=${{ steps.ui_contract.outcome }}"

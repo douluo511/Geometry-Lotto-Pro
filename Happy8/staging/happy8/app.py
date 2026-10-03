@@ -10,9 +10,11 @@ from pathlib import Path
 from .domain import Draw
 from .net_client import NetClient
 from .services import Happy8Service
+from .software_update import launch_independent_updater, software_update_environment_status
 from .ui import Happy8Window, source_ui_contract, ui_contract
 
 APP_VERSION = "0.2.0-staging"
+SOFTWARE_VERSION = "0.2.0"
 
 
 def default_data_root() -> Path:
@@ -94,7 +96,17 @@ def main(argv: list[str] | None = None) -> int:
         return 0 if report["status"] == "PASS" else 2
 
     root = Path(args.data_root) if args.data_root else default_data_root()
-    service = Happy8Service(root)
+    service = Happy8Service(
+        root,
+        software_update_launcher=lambda: launch_independent_updater(
+            data_root=root,
+            current_version=SOFTWARE_VERSION,
+        ),
+        repair_environment_probe=lambda: software_update_environment_status(
+            main_exe=Path(sys.executable),
+            current_version=SOFTWARE_VERSION,
+        ),
+    )
 
     if args.ui_contract:
         report = source_ui_contract()

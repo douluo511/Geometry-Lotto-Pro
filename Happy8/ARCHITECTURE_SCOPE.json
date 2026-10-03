@@ -1,0 +1,161 @@
+{
+  "schema": "happy8-architecture-scope-v1",
+  "project": "Geometry Lotto Pro · Happy8",
+  "status": "FROZEN_RECOVERED_SCOPE",
+  "purpose": "Audited Happy8 structured screening, falsification and stability analysis. It must preserve scientific non-deception and must not claim betting returns or predictive edge without evidence.",
+  "five_why": [
+    "Users need one coherent desktop workflow instead of an unaudited recovered browser prototype.",
+    "A coherent workflow requires verified production data, not browser/localStorage or test fixtures.",
+    "Verified data requires fail-closed Source/NetClient/Storage/Evidence boundaries with canonical hashes and provenance.",
+    "Predictions require independent scientific validation against random/simple baselines and false-gain controls.",
+    "A trustworthy Windows product requires exact EXE, real GUI clicks, independent updater/repair, same-hash and release evidence tied to one artifact."
+  ],
+  "risk_boundaries": [
+    "No betting advice, return guarantee or fabricated predictive edge.",
+    "NO_EDGE must remain a valid production truth state with NULL_DAN and uniform baseline.",
+    "Mock/fixture/local cache cannot satisfy Real Network or production business evidence.",
+    "Raw data cannot enter results until validated and canonicalized.",
+    "Missing independent release/repository/update credentials remain BLOCKED, never locally simulated as production PASS.",
+    "Behavior changes invalidate affected downstream evidence."
+  ],
+  "architecture": [
+    {
+      "layer": "Product/Governance",
+      "implementation": [
+        "Happy8/RECOVERY_STATUS.md",
+        "Happy8/ARCHITECTURE_SCOPE.json",
+        "Happy8/ENGINEERING_ACCEPTANCE_BASELINE.json",
+        "Happy8/BUSINESS_ACCEPTANCE_BASELINE.json"
+      ]
+    },
+    {
+      "layer": "Domain",
+      "implementation": [
+        "Happy8/staging/happy8/domain.py"
+      ]
+    },
+    {
+      "layer": "Source",
+      "implementation": [
+        "Happy8/staging/happy8/sources.py"
+      ]
+    },
+    {
+      "layer": "NetClient",
+      "implementation": [
+        "Happy8/staging/happy8/net_client.py"
+      ]
+    },
+    {
+      "layer": "Storage",
+      "implementation": [
+        "Happy8/staging/happy8/storage.py"
+      ]
+    },
+    {
+      "layer": "Engine/Validation",
+      "implementation": [
+        "Happy8/staging/happy8/science.py"
+      ]
+    },
+    {
+      "layer": "Evidence",
+      "implementation": [
+        "Happy8/staging/evidence/**",
+        "Happy8/staging/scripts/*_gate.py"
+      ]
+    },
+    {
+      "layer": "Service",
+      "implementation": [
+        "Happy8/staging/happy8/services.py"
+      ]
+    },
+    {
+      "layer": "UI",
+      "implementation": [
+        "Happy8/staging/happy8/ui.py"
+      ]
+    },
+    {
+      "layer": "Acceptance/Release",
+      "implementation": [
+        ".github/workflows/happy8-staging-recovery.yml",
+        "Happy8/staging/happy8/updater.py",
+        "Happy8/staging/happy8/software_update.py"
+      ]
+    }
+  ],
+  "data_chain": [
+    "RAW",
+    "VALIDATED",
+    "CANONICAL",
+    "FEATURE/KNOWLEDGE",
+    "RESULT",
+    "EVIDENCE"
+  ],
+  "functions": [
+    {
+      "feature": "预测下一期",
+      "service": "Happy8Service.predict_next",
+      "input": "current verified canonical snapshot",
+      "output": "rank-1..80 research ranking, candidates, truth state and immutable freeze hash",
+      "failure": "fail closed on invalid store/science",
+      "evidence": [
+        "service gate",
+        "business B03",
+        "physical GUI audit"
+      ]
+    },
+    {
+      "feature": "一键更新",
+      "service": "Happy8Service.software_update",
+      "input": "trusted independent release configuration",
+      "output": "independent Updater handoff",
+      "failure": "BLOCKED/FAIL when real trusted release is unavailable",
+      "evidence": [
+        "updater handoff gate",
+        "updater gate",
+        "real Release N→N+1 evidence",
+        "physical GUI audit"
+      ]
+    },
+    {
+      "feature": "一键修复",
+      "service": "Happy8Service.repair",
+      "input": "local store/cache/config/update environment",
+      "output": "component repair evidence and post-repair self-check",
+      "failure": "FAIL for unrecoverable corruption; BLOCKED for external release/network config",
+      "evidence": [
+        "service gate repair denominator",
+        "fault injection",
+        "physical GUI audit"
+      ]
+    },
+    {
+      "feature": "高级分析",
+      "service": "Happy8Service.advanced_analysis",
+      "input": "current verified canonical snapshot",
+      "output": "canonical-bound scientific validation report",
+      "failure": "fail closed when science software gate fails",
+      "evidence": [
+        "service gate",
+        "science gate",
+        "business B04/B06",
+        "physical GUI audit"
+      ]
+    }
+  ],
+  "final_requirements": [
+    "engineering completion 100%",
+    "business completion 100%",
+    "real official network PASS",
+    "Windows native reproducible build PASS",
+    "Exact EXE PASS",
+    "physical GUI four-entry acceptance PASS",
+    "post-GUI Same Hash PASS",
+    "independent repository PASS",
+    "real Release N→N+1 updater PASS",
+    "unique final artifact and release evidence PASS"
+  ]
+}

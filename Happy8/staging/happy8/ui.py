@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import json
+import os
 import threading
 import tkinter as tk
+from datetime import datetime, timezone
+from pathlib import Path
 from tkinter import messagebox, ttk
 from typing import Any, Callable
 
@@ -11,10 +14,15 @@ from .services import Happy8Service
 
 UI_SERVICE_BINDINGS = {
     "predict": ("预测下一期", "predict_next"),
-    "update": ("一键更新", "update_data"),
+    "update": ("一键更新", "software_update"),
     "repair": ("一键修复", "repair"),
     "advanced": ("高级分析", "advanced_analysis"),
 }
+
+TRUTH_BOUNDARY = (
+    "仅供数学实验与娱乐，不构成投注建议或收益承诺。"
+    "快乐8每个号码理论边际概率为25%，固定选十理论平均命中2.5个。"
+)
 
 
 def source_ui_contract() -> dict[str, Any]:
@@ -25,9 +33,18 @@ def source_ui_contract() -> dict[str, Any]:
             "service_method": service_method,
             "service_callable": callable(getattr(Happy8Service, service_method, None)),
         }
+    truth_boundary_match = (
+        "不构成投注建议或收益承诺" in TRUTH_BOUNDARY
+        and "25%" in TRUTH_BOUNDARY
+        and "2.5" in TRUTH_BOUNDARY
+    )
     return {
-        "status": "PASS" if all(item["service_callable"] for item in checks.values()) else "FAIL",
+        "status": "PASS"
+        if all(item["service_callable"] for item in checks.values()) and truth_boundary_match
+        else "FAIL",
         "bindings": checks,
+        "truth_boundary": TRUTH_BOUNDARY,
+        "truth_boundary_match": truth_boundary_match,
     }
 
 
@@ -39,6 +56,14 @@ class Happy8Window(tk.Tk):
         self.geometry("920x640")
         self.minsize(760, 520)
         self.protocol("WM_DELETE_WINDOW", self.destroy)
+        audit_path = str(os.environ.get("HAPPY8_GUI_AUDIT_FILE") or "").strip()
+        self.audit_file = Path(audit_path).resolve() if audit_path else None
+
+        menu = tk.Menu(self)
+        tools_menu = tk.Menu(menu, tearoff=False)
+        tools_menu.add_command(label="刷新开奖数据", command=self._refresh_data)
+        menu.add_cascade(label="工具", menu=tools_menu)
+        self.configure(menu=menu)
 
         self.columnconfigure(0, weight=1)
         self.rowconfigure(2, weight=1)
@@ -62,7 +87,7 @@ class Happy8Window(tk.Tk):
         self.buttons: dict[str, ttk.Button] = {}
         specs = [
             ("predict", UI_SERVICE_BINDINGS["predict"][0], self._predict),
-            ("update", UI_SERVICE_BINDINGS["update"][0], self._update),
+            ("update", UI_SERVICE_BINDINGS["update"][0], self._software_update),
             ("repair", UI_SERVICE_BINDINGS["repair"][0], self._repair),
             ("advanced", UI_SERVICE_BINDINGS["advanced"][0], self._advanced),
         ]
@@ -83,6 +108,15 @@ class Happy8Window(tk.Tk):
         scrollbar = ttk.Scrollbar(body, command=self.output.yview)
         scrollbar.grid(row=1, column=1, sticky="ns")
         self.output.configure(yscrollcommand=scrollbar.set)
+
+        self.truth_label = ttk.Label(
+            self,
+            text=TRUTH_BOUNDARY,
+            justify="left",
+            wraplength=860,
+            padding=(18, 0, 18, 12),
+        )
+        self.truth_label.grid(row=3, column=0, sticky="ew")
         self.after(100, self.refresh_status)
 
     def _set_busy(self, busy: bool) -> None:
@@ -109,15 +143,40 @@ class Happy8Window(tk.Tk):
                     "operation": label,
                     "error": f"{type(exc).__name__}: {exc}",
                 }
-                self.after(0, lambda: self._complete(label, "FAIL", failure, exc))
+                self.after(
+                    0,
+                    lambda label=label, failure=failure, exc=exc: self._complete(
+                        label, "FAIL", failure, exc
+                    ),
+                )
 
         threading.Thread(target=worker, daemon=True).start()
+
+    def _audit_completion(self, label: str, status: str, result: dict[str, Any]) -> None:
+        if self.audit_file is None:
+            return
+        record = {
+            "schema": "happy8-gui-action-audit-v1",
+            "label": label,
+            "status": status,
+            "completed_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+            "result": result,
+        }
+        self.audit_file.parent.mkdir(parents=True, exist_ok=True)
+        with self.audit_file.open("a", encoding="utf-8", newline="\n") as fh:
+            fh.write(json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n")
+            fh.flush()
+            os.fsync(fh.fileno())
 
     def _complete(self, label: str, status: str, result: dict[str, Any], exc: Exception | None) -> None:
         self._set_busy(False)
         self.operation_var.set(f"{label}: {status}")
         self._render(result)
+        self._audit_completion(label, status, result)
         self.refresh_status()
+        if result.get("action") == "UPDATER_HANDOFF" and status == "PASS":
+            self.after(250, self.destroy)
+            return
         if exc is not None:
             messagebox.showerror("操作失败", result["error"])
 
@@ -137,8 +196,11 @@ class Happy8Window(tk.Tk):
     def _predict(self) -> None:
         self._run("预测下一期", self.service.predict_next)
 
-    def _update(self) -> None:
-        self._run("一键更新", self.service.update_data)
+    def _software_update(self) -> None:
+        self._run("一键更新", self.service.software_update)
+
+    def _refresh_data(self) -> None:
+        self._run("刷新开奖数据", self.service.update_data)
 
     def _repair(self) -> None:
         self._run("一键修复", self.service.repair)
@@ -156,9 +218,12 @@ def ui_contract(window: Happy8Window) -> dict[str, Any]:
     }
     actual = {key: button.cget("text") for key, button in window.buttons.items()}
     commands_bound = all(bool(str(button.cget("command"))) for button in window.buttons.values())
+    truth_boundary_match = window.truth_label.cget("text") == TRUTH_BOUNDARY
     return {
-        "status": "PASS" if actual == expected and commands_bound else "FAIL",
+        "status": "PASS" if actual == expected and commands_bound and truth_boundary_match else "FAIL",
         "buttons": actual,
         "commands_bound": commands_bound,
         "title": window.title(),
+        "truth_boundary": window.truth_label.cget("text"),
+        "truth_boundary_match": truth_boundary_match,
     }
