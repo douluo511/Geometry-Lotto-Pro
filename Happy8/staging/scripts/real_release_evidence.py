@@ -118,6 +118,14 @@ def validate_real_release_evidence(
 
     release_n = value.get("release_n") if isinstance(value.get("release_n"), dict) else {}
     release_n1 = value.get("release_n1") if isinstance(value.get("release_n1"), dict) else {}
+    release_n_id = str(release_n.get("release_id") or "").strip()
+    release_n1_id = str(release_n1.get("release_id") or "").strip()
+    put(
+        "release_ids",
+        bool(release_n_id) and bool(release_n1_id) and release_n_id != release_n1_id,
+        release_n_id=release_n_id,
+        release_n1_id=release_n1_id,
+    )
     n_version = _version(release_n.get("version"))
     n1_version = _version(release_n1.get("version"))
     put(
