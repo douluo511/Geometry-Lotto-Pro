@@ -1,16 +1,20 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import subprocess
 from datetime import datetime
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlsplit
 
 SHARED_REPOSITORY = "douluo511/Geometry-Lotto-Pro"
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
+REPOSITORY_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
+MAIN_EXE = "Geometry_Lotto_Pro_Happy8.exe"
+UPDATER_EXE = "Geometry_Lotto_Pro_Happy8_Updater.exe"
 
 
 def _version(value: object) -> tuple[int, ...] | None:
@@ -66,6 +70,80 @@ def _receipt_ok(receipt: object, *, trusted_hosts: set[str], sha: str | None = N
     return True
 
 
+def _official_json_receipt(receipt: object, expected_url: str) -> dict | None:
+    if not isinstance(receipt, dict) or receipt.get("url") != expected_url:
+        return None
+    raw = receipt.get("raw_body")
+    if not isinstance(raw, str):
+        return None
+    raw_bytes = raw.encode("utf-8")
+    if not _receipt_ok(receipt, trusted_hosts={"api.github.com"}, sha=hashlib.sha256(raw_bytes).hexdigest(), size=len(raw_bytes)):
+        return None
+    try:
+        value = json.loads(raw)
+    except ValueError:
+        return None
+    return value if isinstance(value, dict) else None
+
+
+def _official_release_binding(release: dict, *, repository: str) -> dict:
+    """Cross-check captured HTTPS release/tag responses and downloaded asset receipts."""
+    release_id = str(release.get("release_id") or "")
+    version = str(release.get("version") or "")
+    source = str(release.get("source_sha") or "").lower()
+    capture = release.get("official_release") if isinstance(release.get("official_release"), dict) else {}
+    api_root = f"https://api.github.com/repos/{repository}"
+    release_url = f"{api_root}/releases/{release_id}"
+    metadata = _official_json_receipt(capture.get("release_response"), release_url) or {}
+    tag = str(metadata.get("tag_name") or "")
+    commit_url = f"{api_root}/commits/{quote(tag, safe='')}"
+    commit = _official_json_receipt(capture.get("tag_commit_response"), commit_url) or {}
+    expected_page = f"https://github.com/{repository}/releases/tag/{quote(tag, safe='')}"
+    metadata_ok = (
+        bool(REPOSITORY_RE.fullmatch(repository))
+        and release_id.isdigit() and int(release_id) > 0
+        and str(metadata.get("id") or "") == release_id
+        and metadata.get("url") == release_url
+        and metadata.get("html_url") == expected_page
+        and release.get("release_url") == expected_page
+        and metadata.get("draft") is False and metadata.get("prerelease") is False
+        and _iso_timestamp(metadata.get("published_at"))
+        and tag in (version, "v" + version)
+        and commit.get("sha") == source and bool(COMMIT_RE.fullmatch(source))
+        and commit.get("html_url") == f"https://github.com/{repository}/commit/{source}"
+    )
+    assets = metadata.get("assets") if isinstance(metadata.get("assets"), list) else []
+    details = {}
+    for key, filename, expected_sha in (
+        ("main", MAIN_EXE, _sha256(release.get("main_exe_sha256"))),
+        ("updater", UPDATER_EXE, _sha256(release.get("updater_exe_sha256"))),
+    ):
+        matches = [asset for asset in assets if isinstance(asset, dict) and asset.get("name") == filename]
+        asset = matches[0] if len(matches) == 1 else {}
+        asset_id = str(asset.get("id") or "")
+        size = asset.get("size")
+        expected_asset_url = f"https://github.com/{repository}/releases/download/{quote(tag, safe='')}/{filename}"
+        receipt = capture.get(key + "_asset_receipt")
+        ok = (
+            len(matches) == 1 and asset_id.isdigit() and int(asset_id) > 0
+            and asset.get("url") == f"{api_root}/releases/assets/{asset_id}"
+            and asset.get("browser_download_url") == expected_asset_url
+            and asset.get("state") == "uploaded" and isinstance(size, int) and size > 0
+            and isinstance(receipt, dict) and str(receipt.get("asset_id") or "") == asset_id
+            and receipt.get("url") == expected_asset_url
+            and _receipt_ok(receipt, trusted_hosts={"github.com"}, sha=expected_sha, size=size)
+            and (asset.get("digest") is None or asset.get("digest") == "sha256:" + expected_sha)
+        )
+        details[key] = {"status": "PASS" if ok else "FAIL", "asset_id": asset_id,
+                        "asset_url": asset.get("browser_download_url"), "bytes": size, "sha256": expected_sha}
+    return {
+        "status": "PASS" if metadata_ok and all(item["status"] == "PASS" for item in details.values()) else "FAIL",
+        "release_id": release_id, "tag": tag, "resolved_source_sha": commit.get("sha"),
+        "release_response_url": release_url, "tag_commit_response_url": commit_url,
+        "metadata_status": "PASS" if metadata_ok else "FAIL", "assets": details,
+    }
+
+
 def validate_real_release_evidence(
     value: object,
     *,
@@ -118,6 +196,8 @@ def validate_real_release_evidence(
 
     release_n = value.get("release_n") if isinstance(value.get("release_n"), dict) else {}
     release_n1 = value.get("release_n1") if isinstance(value.get("release_n1"), dict) else {}
+    checks["official_release_n_binding"] = _official_release_binding(release_n, repository=repository)
+    checks["official_release_n1_binding"] = _official_release_binding(release_n1, repository=repository)
     release_n_id = str(release_n.get("release_id") or "").strip()
     release_n1_id = str(release_n1.get("release_id") or "").strip()
     put(
@@ -223,7 +303,8 @@ def validate_real_release_evidence(
 
     put(
         "manifest_receipt",
-        _receipt_ok(updater_result.get("manifest_receipt"), trusted_hosts=trusted_hosts),
+        _receipt_ok(updater_result.get("manifest_receipt"), trusted_hosts=trusted_hosts)
+        and updater_result["manifest_receipt"].get("url") == config.get("manifest_url"),
     )
     put(
         "artifact_receipt",
@@ -232,7 +313,7 @@ def validate_real_release_evidence(
             trusted_hosts=trusted_hosts,
             sha=n1_main if SHA256_RE.fullmatch(n1_main) else None,
             size=artifact_bytes if artifact_bytes > 0 else None,
-        ),
+        ) and updater_result["artifact_receipt"].get("url") == manifest.get("artifact_url"),
     )
 
     execution = value.get("updater_execution") if isinstance(value.get("updater_execution"), dict) else {}
@@ -329,7 +410,7 @@ def main() -> int:
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    print(json.dumps(report, ensure_ascii=False, indent=2))
+    print(json.dumps(report, ensure_ascii=True, indent=2))
     return 2 if report.get("status") == "FAIL" else 0
 
 

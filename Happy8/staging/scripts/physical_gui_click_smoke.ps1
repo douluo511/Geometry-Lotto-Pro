@@ -304,6 +304,10 @@ foreach($op in $ops) {
       backend_action=$record.result.action
       updater_status=$(if($null -ne $updaterResult){$updaterResult.status}else{$null})
       updater_action=$(if($null -ne $updaterResult){$updaterResult.action}else{$null})
+      updater_evidence=$updaterResult
+      updater_exe_sha256=$(if($null -ne $updaterResult){(Get-FileHash $updaterExe -Algorithm SHA256).Hash.ToLowerInvariant()}else{$null})
+      updater_pid=$record.result.updater_pid
+      requires_parent_exit=$record.result.requires_parent_exit
       locator=$point.locator
       x=$point.x
       y=$point.y
@@ -330,6 +334,12 @@ if($post.status -ne 'PASS') { throw "post-GUI store integrity is not PASS" }
 $report=[ordered]@{
   schema='happy8-physical-gui-v1'
   status='PASS'
+  execution_context=[ordered]@{
+    producer='happy8-physical-gui-acceptance-v1'
+    github_run_id=$env:GITHUB_RUN_ID
+    github_run_attempt=$env:GITHUB_RUN_ATTEMPT
+    head_sha=(& git rev-parse HEAD).Trim()
+  }
   exact_exe=$exe
   exe_sha256_before=$initialHash
   exe_sha256_after=$finalHash
