@@ -846,11 +846,22 @@ def fetch_provincial_composite_full_history() -> tuple[
                 raise RuntimeError(f"Jiangsu cross-page date conflict for issue {issue}")
             observed_date_map[issue] = day
             expected_day = date_map.get(issue)
-            if expected_day is not None and expected_day != day:
-                raise RuntimeError(
-                    f"official market-calendar/Jiangsu date conflict for {issue}: "
-                    f"calendar={expected_day} jiangsu_cwl={day}"
-                )
+            if expected_day is not None:
+                draw_day = datetime.strptime(expected_day, "%Y-%m-%d").date()
+                announcement_day = datetime.strptime(day, "%Y-%m-%d").date()
+                publication_lag_days = (announcement_day - draw_day).days
+                # Jiangsu binds each issue to the corresponding CWL announcement
+                # URL.  That URL date is the publication date, not necessarily
+                # the draw date: a late-night draw can be published after
+                # midnight on the following calendar day.  Keep this
+                # cross-check fail-closed by rejecting announcements before the
+                # draw or more than one day after it.
+                if publication_lag_days < 0 or publication_lag_days > 1:
+                    raise RuntimeError(
+                        f"official market-calendar/Jiangsu publication lag invalid for {issue}: "
+                        f"draw={expected_day} announcement={day} "
+                        f"lag_days={publication_lag_days}"
+                    )
         filename = f"jiangsu_history_page_{page_no:03d}.html"
         raw_sources[filename] = raw
         manifest.append({
@@ -864,7 +875,7 @@ def fetch_provincial_composite_full_history() -> tuple[
             "row_count": len(rows),
             "first_issue": min(rows),
             "last_issue": max(rows),
-            "date_contract": "cwl_announcement_url_date_bound_on_jiangsu_official_index",
+            "date_contract": "issue_bound_cwl_announcement_publication_date_with_0_or_1_day_lag",
         })
 
     observed_issues = set(observed_date_map)
