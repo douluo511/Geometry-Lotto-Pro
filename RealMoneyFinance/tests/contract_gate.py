@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 import json
 import tempfile
+from datetime import date, timedelta
 
 from app.domain import DailyBar
 from app.engine import analyze_observable_activity, reverse_validation
@@ -18,8 +19,9 @@ class FakeClient:
             retrieved_at_unix = 1.0
             url = url
         rows = []
+        start = date(2026, 7, 1)
         for i in range(40):
-            day = f"2026-08-{(i % 28) + 1:02d}"
+            day = (start + timedelta(days=i)).isoformat()
             rows.append(f"{day},10,10.1,10.2,9.9,{1000+i},{100000+i*1000},1,1.0,0.1,{2.0+i/100}")
         return {"data": {"klines": rows}}, Meta()
 
