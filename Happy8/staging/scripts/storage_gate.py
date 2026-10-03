@@ -241,6 +241,35 @@ def main() -> int:
         except ValueError:
             checks["manifest_tamper_fail_closed"] = {"status":"PASS"}
 
+    with tempfile.TemporaryDirectory(prefix="happy8-storage-repair-") as td:
+        store = Store(Path(td))
+        report, raw, _ = sample()
+        store.commit_official_snapshot(report, raw)
+        store.current.write_text("{corrupt", encoding="utf-8")
+        repaired = store.repair_current_pointer()
+        checks["repair_corrupt_current_pointer"] = {
+            "status": "PASS"
+            if repaired.get("status") == "PASS" and store.integrity_check().get("status") == "PASS"
+            else "FAIL"
+        }
+
+    with tempfile.TemporaryDirectory(prefix="happy8-storage-repair-fail-") as td:
+        store = Store(Path(td))
+        report, raw, sh_name = sample()
+        store.commit_official_snapshot(report, raw)
+        pointer = json.loads(store.current.read_text(encoding="utf-8"))
+        generation = store.generations / pointer["generation_id"]
+        target = generation / "RAW" / sh_name
+        target.write_bytes(target.read_bytes() + b"corrupt-all-generations")
+        store.current.write_text("{still-corrupt", encoding="utf-8")
+        before = store.current.read_bytes()
+        repaired = store.repair_current_pointer()
+        checks["repair_no_valid_generation_fail_closed"] = {
+            "status": "PASS"
+            if repaired.get("status") == "FAIL" and store.current.read_bytes() == before
+            else "FAIL"
+        }
+
     with tempfile.TemporaryDirectory(prefix="happy8-storage-national-") as td:
         report, raw = national_bootstrap_sample()
         result = Store(Path(td)).commit_official_snapshot(report, raw)
