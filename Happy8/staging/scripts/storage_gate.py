@@ -139,10 +139,13 @@ def composite_sample():
         "draw_date": "2026-09-28",
         "numbers": [2,7,16,19,21,25,30,31,33,35,42,45,50,52,53,55,56,60,63,72],
     }]
+    source_id = "jiangxi_fuzhou_numbers_plus_mof_calendar_plus_jiangsu_issue_provenance"
     fuzhou_name = "fuzhou_page_001.html"
+    mof_name = "mof_market_calendar_contract.json"
     jiangsu_history_name = "jiangsu_history_page_001.html"
     raw = {
         fuzhou_name: b"<html>fuzhou official fixture</html>" * 100,
+        mof_name: b'{"2026":"official-mof-calendar-fixture"}',
         jiangsu_history_name: b"<html>jiangsu history fixture</html>" * 100,
         "jiangsu_welfare_lottery.html": b"<html>jiangsu current fixture</html>" * 100,
     }
@@ -160,6 +163,17 @@ def composite_sample():
             "last_issue": "2026261",
         },
         {
+            "source": "ministry_of_finance_lottery_market_calendar",
+            "filename": mof_name,
+            "url": "https://zhs.mof.gov.cn/zhengcefabu/",
+            "http_status": 200,
+            "sha256": sha256_bytes(raw[mof_name]),
+            "bytes": len(raw[mof_name]),
+            "row_count": 1,
+            "first_issue": "2026261",
+            "last_issue": "2026261",
+        },
+        {
             "source": "jiangsu_welfare_lottery",
             "page": 1,
             "filename": jiangsu_history_name,
@@ -171,6 +185,19 @@ def composite_sample():
             "first_issue": "2026261",
             "last_issue": "2026261",
         },
+        {
+            "source": "jiangsu_welfare_lottery_issue_provenance_crosscheck",
+            "filename": "derived_from_jiangsu_history_pages",
+            "url": "https://www.jslottery.com/winning_history_a",
+            "http_status": 200,
+            "sha256": sha256_json({"publication_evidence": {"2026261": "fixture"}, "missing_index_issues": []}),
+            "bytes": 0,
+            "row_count": 1,
+            "first_issue": "2026261",
+            "last_issue": "2026261",
+            "missing_index_count": 0,
+            "missing_index_issues": [],
+        },
     ]
     report = {
         "schema": "happy8-staging-official-network-v4",
@@ -181,14 +208,14 @@ def composite_sample():
         "canonical_hash": sha256_json(draws),
         "crosscheck_count": 1,
         "crosscheck_status": "PASS",
-        "verification": "FUZHOU_NUMBERS_PLUS_JIANGSU_DATES_AND_CURRENT_NUMBERS",
-        "history_source": "jiangxi_fuzhou_plus_jiangsu_official",
+        "verification": "FUZHOU_NUMBERS_PLUS_MOF_MARKET_CALENDAR_CROSSCHECKED_JIANGSU_AND_CURRENT_NUMBERS",
+        "history_source": source_id,
         "history_raw_manifest": manifest,
         "source_receipts": [
             {
-                "source": "jiangxi_fuzhou_plus_jiangsu_official",
+                "source": source_id,
                 "raw_sha256": sha256_json(manifest),
-                "bytes": len(raw[fuzhou_name]) + len(raw[jiangsu_history_name]),
+                "bytes": sum(len(raw[name]) for name in (fuzhou_name, mof_name, jiangsu_history_name)),
                 "status": "PASS",
             },
             {
@@ -200,7 +227,6 @@ def composite_sample():
         ],
     }
     return report, raw
-
 
 def main() -> int:
     checks = {}
