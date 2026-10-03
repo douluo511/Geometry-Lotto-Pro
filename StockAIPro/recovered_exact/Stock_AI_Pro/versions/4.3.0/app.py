@@ -62,5 +62,5 @@ def main():
         st.caption('每期冻结清单链接上一期 Manifest SHA-256；R&D 候选同时记录配置、冻结样本和审计指纹。')
     with tabs[8]:
         st.json({'last_run':last,'last_update':update,'bootstrap':bootstrap,'valuation':vs,'rnd_status':rnd.get('status'),'data_quality':dq,'model_metrics':metrics,'feature_drift':drift,'prediction_chain':chain,'data_root':str(ROOT),'code_root':str(CODE_ROOT)})
-        st.caption('程序代码和用户数据分离；Windows 默认数据目录为 %APPDATA%\StockAIPro。')
+        st.caption('程序代码和用户数据分离；Windows 默认数据目录为 %APPDATA%\\StockAIPro。')
 if __name__=='__main__':main()
