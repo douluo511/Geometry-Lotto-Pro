@@ -122,6 +122,44 @@ def inspect() -> dict:
         dates, jiangsu_receipts, jiangsu_conflicts = _jiangsu_dates()
 
         number_issues = set(numbers)
+        missing_date_issues = sorted(number_issues - set(dates))
+        if len(missing_date_issues) > 20:
+            raise RuntimeError(
+                f"Jiangsu date fallback safety bound exceeded: {len(missing_date_issues)}"
+            )
+        exact_search_receipts = []
+        for issue in missing_date_issues:
+            page = inspect_jiangsu_page(1, issue)
+            if page.get("http_status") != 200:
+                raise RuntimeError(
+                    f"Jiangsu exact issue search HTTP failure: issue={issue} "
+                    f"status={page.get('http_status')}"
+                )
+            matching = [
+                hint for hint in (page.get("issue_date_hints") or [])
+                if str(hint.get("issue") or "") == issue
+            ]
+            if len(matching) != 1:
+                raise RuntimeError(
+                    f"Jiangsu exact issue search did not yield exactly one visible date: "
+                    f"issue={issue} matches={matching!r}"
+                )
+            _add_unique(
+                dates,
+                issue,
+                str(matching[0].get("date") or ""),
+                jiangsu_conflicts,
+                "jiangsu_exact_issue_search",
+            )
+            exact_search_receipts.append({
+                "issue": issue,
+                "final_url": page.get("final_url"),
+                "http_status": page.get("http_status"),
+                "bytes": page.get("bytes"),
+                "sha256": page.get("sha256"),
+                "visible_pair_count": len(matching),
+            })
+
         date_issues = set(dates)
         only_numbers = sorted(number_issues - date_issues)
         only_dates = sorted(date_issues - number_issues)
@@ -184,6 +222,7 @@ def inspect() -> dict:
             "jiangsu_conflicts": jiangsu_conflicts[:20],
             "fuzhou_page_receipts": fuzhou_receipts,
             "jiangsu_page_receipts": jiangsu_receipts,
+            "jiangsu_exact_issue_search_receipts": exact_search_receipts,
         })
     except Exception as exc:
         report["status"] = "FAIL"
