@@ -47,6 +47,7 @@ def source_self_test() -> dict:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-root")
+    parser.add_argument("--result-file")
     parser.add_argument("--self-test", action="store_true")
     parser.add_argument("--ui-self-test", action="store_true")
     parser.add_argument("--status", action="store_true")
@@ -56,9 +57,18 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--advanced", action="store_true")
     args = parser.parse_args(argv)
 
+    def emit(report: dict) -> None:
+        text = json.dumps(report, ensure_ascii=False, indent=2)
+        if args.result_file:
+            path = Path(args.result_file)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text + "\n", encoding="utf-8")
+        else:
+            print(text)
+
     if args.self_test:
         report = source_self_test()
-        print(json.dumps(report, ensure_ascii=False, indent=2))
+        emit(report)
         return 0 if report["status"] == "PASS" else 2
 
     root = Path(args.data_root) if args.data_root else default_data_root()
@@ -71,7 +81,7 @@ def main(argv: list[str] | None = None) -> int:
             report = ui_contract(window)
         finally:
             window.destroy()
-        print(json.dumps(report, ensure_ascii=False, indent=2))
+        emit(report)
         return 0 if report["status"] == "PASS" else 2
 
     operations = [
@@ -89,7 +99,7 @@ def main(argv: list[str] | None = None) -> int:
             result = selected[0]()
         except Exception as exc:
             result = {"status": "FAIL", "error": f"{type(exc).__name__}: {exc}"}
-        print(json.dumps(result, ensure_ascii=False, indent=2))
+        emit(result)
         return 0 if result.get("status") == "PASS" else 2
 
     window = Happy8Window(service)
