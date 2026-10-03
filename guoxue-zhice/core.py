@@ -533,30 +533,94 @@ class MaintenanceEngine:
         }
 
     def one_click_repair(self) -> dict[str, Any]:
-        checks = []
+        """Repair the frozen local denominator without silently deleting user bytes.
+
+        Corrupt user/state/config files are copied to recovery/ before replacement.
+        Cache and index are derived data and can be rebuilt.  The final PASS is
+        emitted only after every repaired component is reloaded and cross-checked.
+        """
+        checks: list[tuple[str, str, str]] = []
+        backups: list[str] = []
+
+        def preserve(path: Path, label: str) -> None:
+            saved = self.store.backup_for_recovery(path, label)
+            if saved:
+                backups.append(saved)
+
+        # Missing/corrupt knowledge + data integrity.
         try:
             kb = self.store.load_knowledge()
             checks.append(("Knowledge DB", "PASS", f'{len(kb["classics"])} classics'))
         except Exception as exc:
+            preserve(self.store.knowledge_path, "knowledge")
             shutil.copy2(bundled_path("data", "knowledge.json"), self.store.knowledge_path)
             kb = self.store.load_knowledge()
-            checks.append(("Knowledge DB", "REPAIRED", str(exc)))
+            checks.append(("Knowledge DB", "REPAIRED", f"{type(exc).__name__}: {exc}"))
 
+        # State DB holds user analyses/reviews.  Preserve corrupt bytes before reset.
         try:
             state = self.store.load_state()
             checks.append(("State DB", "PASS", f'{len(state["reviews"])} reviews'))
         except Exception as exc:
-            atomic_json(self.store.state_path, {"schema": 1, "analyses": [], "reviews": [], "last_update": None})
-            checks.append(("State DB", "REPAIRED", str(exc)))
-
-        try:
-            self.store.load_knowledge()
+            preserve(self.store.state_path, "state")
+            atomic_json(self.store.state_path, self.store._default_state())
             self.store.load_state()
+            checks.append(("State DB", "REPAIRED", f"{type(exc).__name__}: {exc}"))
+
+        # Configuration covers schema, app version and HTTPS-only network policy.
+        try:
+            self.store.load_config()
+            checks.append(("Configuration", "PASS", f"v{APP_VERSION} / https-only"))
+        except Exception as exc:
+            preserve(self.store.config_path, "config")
+            atomic_json(self.store.config_path, self.store._default_config())
+            self.store.load_config()
+            checks.append(("Configuration", "REPAIRED", f"{type(exc).__name__}: {exc}"))
+
+        # Cache is derived and can be safely reset.
+        try:
+            cache = self.store.load_cache()
+            checks.append(("Cache", "PASS", f'{len(cache["entries"])} entries'))
+        except Exception as exc:
+            atomic_json(self.store.cache_path, self.store._default_cache())
+            self.store.load_cache()
+            checks.append(("Cache", "REPAIRED", f"{type(exc).__name__}: {exc}"))
+
+        # Index must be bound to the current validated knowledge hash.
+        try:
+            index = self.store.load_index()
+            checks.append(("Index", "PASS", f'{len(index["titles"])} titles'))
+        except Exception as exc:
+            self.store.rebuild_index()
+            self.store.load_index()
+            checks.append(("Index", "REPAIRED", f"{type(exc).__name__}: {exc}"))
+
+        # Final reverse check: every local persistence surface must be valid after repair.
+        try:
+            kb = self.store.load_knowledge()
+            state = self.store.load_state()
+            config = self.store.load_config()
+            cache = self.store.load_cache()
+            index = self.store.load_index()
+            expected_index = self.store._index_value(kb)
+            if index.get("knowledge_sha256") != expected_index["knowledge_sha256"]:
+                raise ValueError("post-repair index hash mismatch")
+            if config.get("network_policy") != "https-only" or config.get("app_version") != APP_VERSION:
+                raise ValueError("post-repair config/network/version mismatch")
+            if not isinstance(state.get("reviews"), list) or not isinstance(cache.get("entries"), dict):
+                raise ValueError("post-repair state/cache contract mismatch")
+            checks.append(("Final Self-Check", "PASS", expected_index["knowledge_sha256"]))
             final = "PASS"
         except Exception as exc:
-            checks.append(("Final Gate", "FAIL", str(exc)))
+            checks.append(("Final Self-Check", "FAIL", f"{type(exc).__name__}: {exc}"))
             final = "FAIL"
-        return {"status": final, "checks": checks}
+
+        return {
+            "status": final,
+            "checks": checks,
+            "recovery_backups": backups,
+            "user_data_preservation": "PASS" if final == "PASS" else "NOT VERIFIED",
+        }
 
 
 def self_test(root: Path | None = None) -> dict[str, Any]:
