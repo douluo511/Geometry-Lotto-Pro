@@ -1,4 +1,5 @@
 name: Stock AI native Windows desktop candidate
+# exact-head retrigger marker after heavy-gate path narrowing
 
 on:
   workflow_dispatch:
