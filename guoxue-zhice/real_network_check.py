@@ -8,7 +8,7 @@ def main()->int:
     try:
         with tempfile.TemporaryDirectory(prefix="guoxue-net-") as td:
             svc=create_service(Path(td))
-            result=svc.one_click_update()
+            result=svc.refresh_knowledge()
             evidence=result.get("evidence") or {}
             ms=evidence.get("manifest_source") or {}
             ks=evidence.get("knowledge_source") or {}
