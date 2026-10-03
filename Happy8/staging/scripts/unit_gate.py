@@ -108,6 +108,7 @@ def main() -> int:
             "head_sha": source_sha,
         },
         "release_n": {
+            "release_id": "release-N-0.2.0",
             "version": "0.2.0",
             "source_sha": "b" * 40,
             "release_url": "https://updates.example/releases/0.2.0",
@@ -115,6 +116,7 @@ def main() -> int:
             "updater_exe_sha256": old_updater,
         },
         "release_n1": {
+            "release_id": "release-N1-0.2.1",
             "version": "0.2.1",
             "source_sha": source_sha,
             "release_url": "https://updates.example/releases/0.2.1",
@@ -180,6 +182,18 @@ def main() -> int:
     )
     checks["real_release_valid_fixture"] = {
         "status": "PASS" if valid_release_report.get("status") == "PASS" else "FAIL"
+    }
+    duplicate_release_id = json.loads(json.dumps(valid_release))
+    duplicate_release_id["release_n1"]["release_id"] = duplicate_release_id["release_n"]["release_id"]
+    duplicate_release_id_report = validate_real_release_evidence(
+        duplicate_release_id,
+        repository=dedicated_repo,
+        source_sha=source_sha,
+        run_id=run_id,
+        run_attempt=run_attempt,
+    )
+    checks["real_release_duplicate_id_rejected"] = {
+        "status": "PASS" if duplicate_release_id_report.get("status") == "FAIL" else "FAIL"
     }
     status_only_report = validate_real_release_evidence(
         {"status": "PASS"},
@@ -286,7 +300,7 @@ def main() -> int:
         },
         "formal_release": {
             "unique": True,
-            "release_id": "release-0.2.1",
+            "release_id": "release-N1-0.2.1",
             "release_url": "https://updates.example/releases/0.2.1",
             "version": "0.2.1",
         },
