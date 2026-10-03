@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import json
 import sys
 import threading
 from datetime import datetime
@@ -27,6 +28,11 @@ def resource_path(name: str) -> Path:
 
 
 def app_data_dir() -> Path:
+    configured = os.environ.get("PSYCHOLOGY_DATA_ROOT")
+    if configured:
+        p = Path(configured)
+        p.mkdir(parents=True, exist_ok=True)
+        return p
     root = Path(os.environ.get("APPDATA", str(Path.home())))
     p = root / "PsychologyInsightPro"
     p.mkdir(parents=True, exist_ok=True)
@@ -39,6 +45,24 @@ def make_service() -> PsychologyService:
         bundled_path=resource_path("knowledge.json"),
         knowledge_url=KNOWLEDGE_URLS,
     )
+
+
+def record_gui_audit(operation: str, status: str, result: dict) -> None:
+    """Opt-in current-run acceptance record, without submitted personal text."""
+    audit_path = os.environ.get("PSYCHOLOGY_GUI_AUDIT")
+    if not audit_path:
+        return
+    record = {"schema": "psychology-gui-operation-v1", "operation": operation,
+              "status": status, "result": result, "process_id": os.getpid(),
+              "source_sha": os.environ.get("PSYCHOLOGY_SOURCE_SHA"),
+              "github_run_id": os.environ.get("GITHUB_RUN_ID"),
+              "github_run_attempt": os.environ.get("GITHUB_RUN_ATTEMPT")}
+    path = Path(audit_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as stream:
+        stream.write(json.dumps(record, ensure_ascii=False) + "\n")
+        stream.flush()
+        os.fsync(stream.fileno())
 
 
 def format_result(result) -> str:
@@ -111,7 +135,7 @@ class PsychologyApp(tk.Tk):
 
         actions = [
             ("心理分析", self._show_analysis, "从对话/行为中建立竞争心理假设"),
-            ("一键更新", self._one_click_update, "真实网络更新知识规则，校验并原子替换"),
+            ("一键更新", self._one_click_update, "检查软件新版本，独立更新器校验并安全安装"),
             ("一键修复", self._one_click_repair, "检查存储、核心引擎、契约与知识库"),
             ("高级分析", self._show_advanced, "查看架构、证据链与风险边界"),
         ]
@@ -122,7 +146,7 @@ class PsychologyApp(tk.Tk):
                      font=("Microsoft YaHei UI", 16, "bold")).pack(anchor="w", padx=22, pady=(25, 6))
             tk.Label(card, text=desc, bg="white", fg="#64748b",
                      font=("Microsoft YaHei UI", 10), wraplength=360, justify="left").pack(anchor="w", padx=22)
-            ttk.Button(card, text="打开", style="Action.TButton", command=cmd).pack(anchor="e", padx=22, pady=24)
+            ttk.Button(card, text=title, style="Action.TButton", command=cmd).pack(anchor="e", padx=22, pady=24)
 
     def _show_analysis(self):
         self._clear()
@@ -169,33 +193,37 @@ class PsychologyApp(tk.Tk):
         self.result_text.insert("1.0", format_result(result))
         self.result_text.configure(state="disabled")
         self.status_var.set(f"分析完成 · 证据等级 {result.overall_confidence} · {datetime.now().strftime('%H:%M:%S')}")
+        record_gui_audit("analysis", "PASS", {"hypothesis_count": len(result.hypotheses), "disclaimer": result.disclaimer})
 
     def _one_click_update(self):
-        self.status_var.set("正在通过真实网络检查知识库更新…")
+        self.status_var.set("正在交接独立软件更新器…")
         def worker():
             try:
-                r = self.service.update_knowledge()
-                proof = ""
-                if r.source:
-                    proof = (
-                        f"\nNetwork Gate {r.network_gate}"
-                        f"\n一致分发源 {len(r.sources)}"
-                        f"\nHTTP {r.source.http_status}"
-                        f"\nSHA256 {r.source.sha256[:16]}…"
-                    )
-                self.after(0, lambda: self._notify("一键更新", f"{r.message}\n版本：{r.version}{proof}"))
+                result = self.service.one_click_update()
+                self.after(0, lambda value=result: self._finish_update_handoff(value))
             except Exception as e:
-                self.after(0, lambda: self._notify("一键更新失败", f"当前可用版本保持不变。\n\n{e}", True))
+                record_gui_audit("update", "FAIL", {"error": str(e)})
+                self.after(0, lambda error=str(e): self._notify("一键更新失败", f"当前可用版本保持不变。\n\n{error}", True))
         threading.Thread(target=worker, daemon=True).start()
+
+    def _finish_update_handoff(self, result):
+        record_gui_audit("update", result.get("status", "FAIL"), result)
+        if result.get("status") != "PASS" or result.get("action") != "UPDATER_HANDOFF" or result.get("requires_parent_exit") is not True:
+            self._notify("一键更新失败", "独立更新器交接未通过，当前程序保持运行。", True)
+            return
+        self.status_var.set("独立更新器已启动，正在关闭主程序以安全安装。")
+        self.after(200, self.destroy)
 
     def _one_click_repair(self):
         self.status_var.set("正在执行系统自检与修复…")
         def worker():
             try:
                 checks = self.service.repair()
+                record_gui_audit("repair", checks.get("status", "FAIL"), checks)
                 self.after(0, lambda: self._notify("一键修复完成", "\n".join(f"{k}: {v}" for k, v in checks.items())))
             except Exception as e:
-                self.after(0, lambda: self._notify("一键修复失败", str(e), True))
+                record_gui_audit("repair", "FAIL", {"error": str(e)})
+                self.after(0, lambda error=str(e): self._notify("一键修复失败", error, True))
         threading.Thread(target=worker, daemon=True).start()
 
     def _show_advanced(self):
@@ -205,6 +233,7 @@ class PsychologyApp(tk.Tk):
         text = tk.Text(win, wrap="word", font=("Microsoft YaHei UI", 10), padx=18, pady=18)
         text.pack(fill="both", expand=True)
         h = self.service.health()
+        record_gui_audit("advanced", "PASS" if all(h.get(k) == "PASS" for k in ("core", "reverse_validation", "confidence_calibration")) else "FAIL", h)
         text.insert("1.0", "\n".join([
             f"{APP_NAME} v{APP_VERSION}",
             f"知识库版本：{h['knowledge_version']}",
@@ -232,11 +261,22 @@ class PsychologyApp(tk.Tk):
 
 
 def cli_self_test() -> int:
+    result_path = None
+    if "--result-file" in sys.argv:
+        index = sys.argv.index("--result-file")
+        if index + 1 >= len(sys.argv):
+            return 3
+        result_path = Path(sys.argv[index + 1])
     try:
         health = make_service().health()
-        return 0 if all(health.get(k) == "PASS" for k in ("core", "reverse_validation", "confidence_calibration")) else 2
-    except Exception:
-        return 3
+        passed = all(health.get(k) == "PASS" for k in ("core", "reverse_validation", "confidence_calibration"))
+        report = {"schema": "psychology-app-self-test-v1", "status": "PASS" if passed else "FAIL", "health": health, "process_id": os.getpid()}
+    except Exception as exc:
+        report = {"schema": "psychology-app-self-test-v1", "status": "FAIL", "error": f"{type(exc).__name__}: {exc}"}
+    if result_path is not None:
+        result_path.parent.mkdir(parents=True, exist_ok=True)
+        result_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    return 0 if report["status"] == "PASS" else 2
 
 
 def cli_gui_smoke() -> int:
