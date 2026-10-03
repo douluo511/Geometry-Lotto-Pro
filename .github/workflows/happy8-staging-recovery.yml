@@ -1,7 +1,7 @@
 name: Happy8 recovered prototype staging gates
 
 concurrency:
-  group: happy8-strict-v2-${{ github.event.pull_request.number || github.ref }}
+  group: happy8-strict-v3-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 on:
@@ -113,7 +113,7 @@ jobs:
       # without forcing a second full-history fetch when production already passed.
       - name: Live dual-official-source network gate
         id: live_gate
-        if: always()
+        if: ${{ always() && !cancelled() }}
         continue-on-error: true
         run: python scripts/real_network_check.py --output evidence/live_official_history.json
 
@@ -249,25 +249,25 @@ jobs:
 
       # Root-cause diagnostics run only after the mandatory live gate fails.
       - name: Provincial official fallback diagnostic probe
-        if: always() && steps.live_gate.outcome != 'success'
+        if: ${{ always() && !cancelled() && steps.live_gate.outcome != 'success' }}
         id: provincial_probe
         continue-on-error: true
         run: python scripts/official_fallback_probe.py --output evidence/official_fallback_probe.json
 
       - name: Shanghai official frontend contract probe
-        if: always() && steps.live_gate.outcome != 'success'
+        if: ${{ always() && !cancelled() && steps.live_gate.outcome != 'success' }}
         id: shanghai_probe
         continue-on-error: true
         run: python scripts/shanghai_contract_probe.py --output evidence/shanghai_contract_probe.json
 
       - name: Jiangsu official full-history contract probe
-        if: always() && steps.live_gate.outcome != 'success'
+        if: ${{ always() && !cancelled() && steps.live_gate.outcome != 'success' }}
         id: jiangsu_probe
         continue-on-error: true
         run: python scripts/jiangsu_history_probe.py --output evidence/jiangsu_history_probe.json
 
       - name: Jiangxi Fuzhou official number-history contract probe
-        if: always() && steps.live_gate.outcome != 'success'
+        if: ${{ always() && !cancelled() && steps.live_gate.outcome != 'success' }}
         id: fuzhou_probe
         continue-on-error: true
         timeout-minutes: 4
@@ -275,7 +275,7 @@ jobs:
 
       - name: Jiangxi Fuzhou candidate non-production guard
         id: fuzhou_guard
-        if: always() && steps.live_gate.outcome != 'success'
+        if: ${{ always() && !cancelled() && steps.live_gate.outcome != 'success' }}
         continue-on-error: true
         shell: pwsh
         run: |
@@ -288,7 +288,7 @@ jobs:
           Write-Host "FUZHOU_DIAGNOSTIC_NON_PRODUCTION=PASS"
 
       - name: Two-official-source full-history reconciliation
-        if: always() && steps.live_gate.outcome != 'success'
+        if: ${{ always() && !cancelled() && steps.live_gate.outcome != 'success' }}
         id: composite_probe
         continue-on-error: true
         timeout-minutes: 8
@@ -296,7 +296,7 @@ jobs:
 
       - name: Composite history candidate non-production guard
         id: composite_guard
-        if: always() && steps.live_gate.outcome != 'success'
+        if: ${{ always() && !cancelled() && steps.live_gate.outcome != 'success' }}
         continue-on-error: true
         shell: pwsh
         run: |
@@ -309,13 +309,13 @@ jobs:
           Write-Host "COMPOSITE_DIAGNOSTIC_NON_PRODUCTION=PASS"
 
       - name: Sichuan official history contract probe
-        if: always() && steps.live_gate.outcome != 'success'
+        if: ${{ always() && !cancelled() && steps.live_gate.outcome != 'success' }}
         id: sichuan_probe
         continue-on-error: true
         run: python scripts/sichuan_history_probe.py --output evidence/sichuan_history_probe.json
 
       - name: CWL-designated media history contract diagnostic
-        if: always() && steps.live_gate.outcome != 'success'
+        if: ${{ always() && !cancelled() && steps.live_gate.outcome != 'success' }}
         id: zhcw_probe
         continue-on-error: true
         timeout-minutes: 4
@@ -323,7 +323,7 @@ jobs:
 
       - name: Diagnostic source non-production guard
         id: zhcw_guard
-        if: always() && steps.live_gate.outcome != 'success'
+        if: ${{ always() && !cancelled() && steps.live_gate.outcome != 'success' }}
         continue-on-error: true
         shell: pwsh
         run: |
