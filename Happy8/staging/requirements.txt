@@ -4,3 +4,4 @@ charset-normalizer==3.4.3
 idna==3.10
 urllib3==2.5.0
 pyinstaller==6.16.0
+pypdf==6.19.0

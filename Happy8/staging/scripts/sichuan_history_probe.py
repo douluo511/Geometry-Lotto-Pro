@@ -6,8 +6,11 @@ import html
 import json
 import re
 import sys
+from io import BytesIO
 from pathlib import Path
 from urllib.parse import urljoin, urlsplit
+
+from pypdf import PdfReader
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -70,6 +73,41 @@ def _fetch(url: str):
 
 def inspect_detail(url: str) -> dict:
     response, raw, markup = _fetch(url)
+    content_type = str(response.headers.get("Content-Type", ""))
+    final_url = str(response.url)
+
+    if "pdf" in content_type.lower() or urlsplit(final_url).path.lower().endswith(".pdf"):
+        if not raw.startswith(b"%PDF-"):
+            raise RuntimeError("Sichuan detail advertised as PDF but payload is not a PDF")
+        try:
+            reader = PdfReader(BytesIO(raw), strict=False)
+            text = "\n".join((page.extract_text() or "") for page in reader.pages)
+        except Exception as exc:
+            raise RuntimeError("Sichuan official PDF could not be parsed") from exc
+        plain = re.sub(r"\s+", " ", text).strip()
+        issue_match = re.search(r"第\s*(20\d{5})\s*期", plain)
+        date_match = re.search(r"(20\d{2})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日", plain)
+        dates = []
+        if date_match:
+            dates.append(
+                f"{int(date_match.group(1)):04d}-{int(date_match.group(2)):02d}-{int(date_match.group(3)):02d}"
+            )
+        number_candidates = _numbers(plain)
+        return {
+            "url": final_url,
+            "http_status": int(response.status_code),
+            "content_type": content_type,
+            "bytes": len(raw),
+            "sha256": hashlib.sha256(raw).hexdigest(),
+            "title": "四川省快乐8官方开奖公告PDF",
+            "issue": issue_match.group(1) if issue_match else None,
+            "dates": dates,
+            "numbers": number_candidates[:4],
+            "pdf_pages": len(reader.pages),
+            "pdf_header_valid": True,
+            "text_head": plain[:1800],
+        }
+
     plain = _plain(markup)
     title_match = re.search(r"(?is)<title[^>]*>(.*?)</title>", markup)
     issue = None
@@ -78,9 +116,9 @@ def inspect_detail(url: str) -> dict:
         issue = m.group(1)
     dates = re.findall(r"20\d{2}[-/.年]\d{1,2}[-/.月]\d{1,2}", plain)
     return {
-        "url": str(response.url),
+        "url": final_url,
         "http_status": int(response.status_code),
-        "content_type": str(response.headers.get("Content-Type", "")),
+        "content_type": content_type,
         "bytes": len(raw),
         "sha256": hashlib.sha256(raw).hexdigest(),
         "title": _plain(title_match.group(1))[:240] if title_match else "",
@@ -136,20 +174,37 @@ def inspect() -> dict:
         page_response, page_raw, page_markup = _fetch(url)
         page_plain = _plain(page_markup)
         entries = []
-        for row in re.findall(r"(?is)<tr\b[^>]*>(.*?)</tr>", page_markup):
-            row_plain = _plain(row)
-            issue_match = re.search(r"(?<!\d)(20\d{5})(?!\d)", row_plain)
-            date_match = re.search(r"20\d{2}-\d{2}-\d{2}", row_plain)
-            href_match = re.search(
-                r"(?is)href\s*=\s*['\"]([^'\"]*/(?:kl8|kl8info)/\d+\.jhtml[^'\"]*)['\"]",
-                row,
+
+        def add_entry(context: str, href: str) -> None:
+            context_plain = _plain(context)
+            issue_match = re.search(r"(?<!\d)(20\d{5})(?!\d)", context_plain)
+            date_match = re.search(r"20\d{2}-\d{2}-\d{2}", context_plain)
+            detail_url = urljoin(str(page_response.url), html.unescape(href))
+            detail_path = urlsplit(detail_url).path.lower()
+            supported = (
+                detail_path.endswith(".pdf")
+                or re.search(r"/(?:kl8|kl8info)/\d+\.jhtml$", detail_path)
             )
-            if issue_match and date_match and href_match:
-                entries.append({
-                    "issue": issue_match.group(0),
-                    "date": date_match.group(0),
-                    "detail_url": urljoin(str(page_response.url), html.unescape(href_match.group(1))),
-                })
+            if not (issue_match and date_match and supported and _official(detail_url)):
+                return
+            candidate = {
+                "issue": issue_match.group(0),
+                "date": date_match.group(0),
+                "detail_url": detail_url,
+            }
+            if candidate not in entries:
+                entries.append(candidate)
+
+        for row in re.findall(r"(?is)<tr\b[^>]*>(.*?)</tr>", page_markup):
+            for href in re.findall(r"(?is)href\s*=\s*['\"]([^'\"]+)['\"]", row):
+                add_entry(row, href)
+
+        for match in re.finditer(
+            r"(?is)<a\b[^>]*href\s*=\s*['\"]([^'\"]+\.pdf(?:\?[^'\"]*)?)['\"][^>]*>.*?</a>",
+            page_markup,
+        ):
+            context = page_markup[max(0, match.start() - 1000): min(len(page_markup), match.end() + 250)]
+            add_entry(context, match.group(1))
         return {
             "page": page_no,
             "url": str(page_response.url),
@@ -189,7 +244,11 @@ def inspect() -> dict:
     for href, body in re.findall(r"(?is)<a\b[^>]*href\s*=\s*['\"]([^'\"]+)['\"][^>]*>(.*?)</a>", markup):
         absolute = urljoin(final_url, html.unescape(href))
         label = _plain(body)[:240]
-        if _official(absolute) and re.search(r"/(?:kl8|kl8info)/(?:\d+\.jhtml)$", urlsplit(absolute).path):
+        path = urlsplit(absolute).path.lower()
+        if _official(absolute) and (
+            re.search(r"/(?:kl8|kl8info)/(?:\d+\.jhtml)$", path)
+            or path.endswith(".pdf")
+        ):
             links.append({"label": label, "url": absolute})
     dedup = []
     seen = set()
