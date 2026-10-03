@@ -38,6 +38,13 @@ class Provider:
         r = requests.get("http://example.invalid/data")
         return {"status": r.status_code}
 
+    def stock_info_a_code_name(self):
+        r = requests.post(
+            "https://www.bse.cn/nqxxController/nqxxCnzq.do",
+            data={"page": "0", "typejb": "T", "xxfcbj[]": "2"},
+        )
+        return {"status": r.status_code}
+
     def post_fetch(self):
         requests.post("https://example.invalid/data", data=b"x")
         return {"bad": True}
@@ -118,9 +125,19 @@ def run():
             except NetClientError:
                 pass
 
+        bse_calls = []
+        def bse_query(session, method, url, **kwargs):
+            bse_calls.append({"method": method, "url": url, "timeout": kwargs.get("timeout")})
+            return FakeResponse(200, b'{"rows":[]}', "application/json", url)
+        with patch.object(requests.sessions.Session, "request", new=bse_query):
+            proxy.stock_info_a_code_name()
+        assert bse_calls and bse_calls[0]["method"].upper() == "POST"
+        assert bse_calls[0]["url"] == "https://www.bse.cn/nqxxController/nqxxCnzq.do"
+        assert bse_calls[0]["timeout"] == (1.0, 2.0)
+
         try:
             proxy.post_fetch()
-            raise AssertionError("non-idempotent method must be rejected")
+            raise AssertionError("non-allowlisted POST must be rejected")
         except NetClientPolicyError:
             pass
 
@@ -143,7 +160,8 @@ def run():
                 "arbitrary_http_fail_closed",
                 "https_downgrade_fail_closed",
                 "content_type_fail_closed",
-                "non_idempotent_rejected",
+                "read_only_bse_post_allowlisted",
+                "non_allowlisted_post_rejected",
                 "raw_payload_sha256_receipt",
                 "pass_and_fail_evidence_preserved",
             ],
