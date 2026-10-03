@@ -30,6 +30,14 @@ class Provider:
         r = requests.get("https://example.invalid/data")
         return {"status": r.status_code, "value": 7}
 
+    def sina_fetch(self):
+        r = requests.get("http://vip.stock.finance.sina.com.cn/quotes_service/test")
+        return {"status": r.status_code}
+
+    def arbitrary_http_fetch(self):
+        r = requests.get("http://example.invalid/data")
+        return {"status": r.status_code}
+
     def post_fetch(self):
         requests.post("https://example.invalid/data", data=b"x")
         return {"bad": True}
@@ -60,6 +68,20 @@ def run():
         assert out["value"] == 7
         assert len(calls) == 2
         assert calls[0]["timeout"] == (1.0, 2.0)
+
+        upgraded_urls = []
+        def upgraded(session, method, url, **kwargs):
+            upgraded_urls.append(url)
+            return FakeResponse(200, b"{}", "application/json", url)
+        with patch.object(requests.sessions.Session, "request", new=upgraded):
+            proxy.sina_fetch()
+        assert upgraded_urls == ["https://vip.stock.finance.sina.com.cn/quotes_service/test"]
+
+        try:
+            proxy.arbitrary_http_fetch()
+            raise AssertionError("arbitrary plaintext HTTP must fail")
+        except NetClientPolicyError:
+            pass
 
         with patch.object(
             requests.sessions.Session,
@@ -117,6 +139,8 @@ def run():
                 "bounded_retry_503",
                 "bounded_retry_429",
                 "exponential_retry_policy_configured",
+                "allowlisted_http_upgraded_to_https",
+                "arbitrary_http_fail_closed",
                 "https_downgrade_fail_closed",
                 "content_type_fail_closed",
                 "non_idempotent_rejected",
