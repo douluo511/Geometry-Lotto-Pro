@@ -71,10 +71,14 @@ def main() -> int:
         rr_checks = real_release.get("checks") if isinstance(real_release.get("checks"), dict) else {}
         versions = rr_checks.get("monotonic_versions") if isinstance(rr_checks.get("monotonic_versions"), dict) else {}
         urls = rr_checks.get("release_urls_https") if isinstance(rr_checks.get("release_urls_https"), dict) else {}
+        release_ids = rr_checks.get("release_ids") if isinstance(rr_checks.get("release_ids"), dict) else {}
         version = str(versions.get("to_version") or "")
         release_url = str(urls.get("release_n1_url") or "")
-        if not version or not release_url:
-            raise RuntimeError("validated N+1 version/release URL is missing")
+        validated_release_id = str(release_ids.get("release_n1_id") or "")
+        if not version or not release_url or not validated_release_id:
+            raise RuntimeError("validated N+1 release identity/version/URL is missing")
+        if str(args.release_id) != validated_release_id:
+            raise RuntimeError("requested formal release id does not match validated N+1 release identity")
 
         main_exe = Path(args.main_exe).resolve()
         updater_exe = Path(args.updater_exe).resolve()
