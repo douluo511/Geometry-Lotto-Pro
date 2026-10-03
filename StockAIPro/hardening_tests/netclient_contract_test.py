@@ -1,0 +1,133 @@
+from __future__ import annotations
+import json
+import os
+from pathlib import Path
+import sys
+import tempfile
+from unittest.mock import patch
+
+ROOT = Path(__file__).resolve().parents[1]
+VERSION = ROOT / "staging" / "Stock_AI_Pro" / "versions" / "4.3.0"
+sys.path.insert(0, str(VERSION))
+
+import requests
+from stock_ai.netclient import AkShareProxy, NetClientError, NetClientPolicyError
+
+
+class FakeResponse:
+    def __init__(self, status, body=b"{}", content_type="application/json", url="https://example.invalid/data"):
+        self.status_code = status
+        self.content = body
+        self.headers = {"content-type": content_type} if content_type is not None else {}
+        self.url = url
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            raise requests.HTTPError(f"HTTP {self.status_code}")
+
+
+class Provider:
+    def fetch(self):
+        r = requests.get("https://example.invalid/data")
+        return {"status": r.status_code, "value": 7}
+
+    def post_fetch(self):
+        requests.post("https://example.invalid/data", data=b"x")
+        return {"bad": True}
+
+
+def run():
+    with tempfile.TemporaryDirectory() as td:
+        evidence = Path(td) / "netclient.jsonl"
+        cfg = {
+            "connect_timeout_seconds": 1,
+            "read_timeout_seconds": 2,
+            "retry_attempts": 3,
+            "retry_backoff_seconds": 0,
+            "retry_jitter_seconds": 0,
+            "retry_status_codes": [429, 500, 502, 503, 504],
+            "https_only": True,
+        }
+        proxy = AkShareProxy(Provider(), cfg, evidence)
+        calls = []
+        seq = [FakeResponse(503, b"busy"), FakeResponse(200, b'{"ok":true}')]
+
+        def flaky(session, method, url, **kwargs):
+            calls.append({"method": method, "url": url, "timeout": kwargs.get("timeout")})
+            return seq.pop(0)
+
+        with patch.object(requests.sessions.Session, "request", new=flaky):
+            out = proxy.fetch()
+        assert out["value"] == 7
+        assert len(calls) == 2
+        assert calls[0]["timeout"] == (1.0, 2.0)
+
+        with patch.object(
+            requests.sessions.Session,
+            "request",
+            new=lambda session, method, url, **kwargs: FakeResponse(
+                200, b"x", "application/json", "http://downgraded.invalid/data"
+            ),
+        ):
+            try:
+                proxy.fetch()
+                raise AssertionError("HTTPS downgrade must fail")
+            except NetClientPolicyError:
+                pass
+
+        with patch.object(
+            requests.sessions.Session,
+            "request",
+            new=lambda session, method, url, **kwargs: FakeResponse(200, b"x", None),
+        ):
+            try:
+                proxy.fetch()
+                raise AssertionError("missing Content-Type must fail")
+            except NetClientPolicyError:
+                pass
+
+        with patch.object(
+            requests.sessions.Session,
+            "request",
+            new=lambda session, method, url, **kwargs: FakeResponse(429, b"rate"),
+        ):
+            try:
+                proxy.fetch()
+                raise AssertionError("bounded 429 retries must end in FAIL")
+            except NetClientError:
+                pass
+
+        try:
+            proxy.post_fetch()
+            raise AssertionError("non-idempotent method must be rejected")
+        except NetClientPolicyError:
+            pass
+
+        rows = [json.loads(x) for x in evidence.read_text(encoding="utf-8").splitlines() if x.strip()]
+        assert rows and any(x["status"] == "PASS" for x in rows)
+        assert any(x["status"] == "FAIL" for x in rows)
+        passed = next(x for x in rows if x["status"] == "PASS")
+        assert passed["raw_responses"][0]["status_code"] == 503
+        assert passed["raw_responses"][1]["status_code"] == 200
+        assert len(passed["raw_responses"][1]["payload_sha256"]) == 64
+        report = {
+            "schema": "stock-ai-netclient-contract-v1",
+            "status": "PASS",
+            "checks": [
+                "connect_read_timeout",
+                "bounded_retry_503",
+                "bounded_retry_429",
+                "exponential_retry_policy_configured",
+                "https_downgrade_fail_closed",
+                "content_type_fail_closed",
+                "non_idempotent_rejected",
+                "raw_payload_sha256_receipt",
+                "pass_and_fail_evidence_preserved",
+            ],
+        }
+        out_path = ROOT / "netclient_contract_evidence.json"
+        out_path.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        print(json.dumps(report, ensure_ascii=False))
+
+
+if __name__ == "__main__":
+    run()
