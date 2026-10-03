@@ -8,6 +8,16 @@ from datetime import datetime
 
 from .storage import Storage
 
+DEFAULT_CONFIG = {
+    "schema_version": 1,
+    "default_symbol": "600000",
+    "risk_boundary": {
+        "allow_personalized_investment_advice": False,
+        "allow_true_capital_identity_from_public_l1": False,
+        "allow_capital_deployment": False,
+    },
+}
+
 
 def repair_user_state(root: Path) -> dict:
     root.mkdir(parents=True, exist_ok=True)
@@ -15,6 +25,10 @@ def repair_user_state(root: Path) -> dict:
     backup_dir.mkdir(parents=True, exist_ok=True)
     config = root / "config.json"
     default = root / "config.default.json"
+    if not default.exists():
+        tmp_default = default.with_suffix(".json.tmp")
+        tmp_default.write_text(json.dumps(DEFAULT_CONFIG, ensure_ascii=False, indent=2), encoding="utf-8")
+        os.replace(tmp_default, default)
 
     repaired: list[str] = []
     if config.exists():
