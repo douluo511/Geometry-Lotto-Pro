@@ -50,6 +50,17 @@ class SoftwareUpdateHandoffTests(unittest.TestCase):
             _load_release_config(self.main)
 
     def test_independent_updater_handoff(self):
+        self._assert_independent_updater_handoff()
+
+    def test_independent_updater_handoff_accepts_same_file_path_alias(self):
+        # Windows short-name paths and normalized paths can name the same EXE.
+        alias_directory = self.root / "path_alias"
+        alias_directory.mkdir()
+        self.updater = alias_directory / ".." / self.updater.name
+        self.assertNotEqual(self.updater, self.updater.resolve())
+        self._assert_independent_updater_handoff()
+
+    def _assert_independent_updater_handoff(self):
         self.write_config()
 
         class Proc:
@@ -69,7 +80,7 @@ class SoftwareUpdateHandoffTests(unittest.TestCase):
         self.assertEqual(report["updater_pid"], 4321)
         self.assertTrue(report["requires_parent_exit"])
         args = popen.call_args.args[0]
-        self.assertEqual(Path(args[0]), self.updater)
+        self.assertTrue(Path(args[0]).samefile(self.updater))
         self.assertIn("--parent-pid", args)
         self.assertIn("99", args)
         self.assertIn("--trusted-host", args)
