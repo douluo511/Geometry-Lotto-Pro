@@ -608,15 +608,14 @@ def _parse_fuzhou_number_rows(markup: str) -> dict[str, tuple[int, ...]]:
 
 
 def _parse_jiangsu_issue_dates(markup: str) -> dict[str, str]:
-    pairs: dict[str, str] = {}
+    """Return issue -> Jiangsu publication date for issue-bound official CWL links.
 
-    # The Jiangsu official index republishes national CWL draw-announcement
-    # links. Its local articleDate can lag the actual draw announcement (for
-    # example 2020001 is listed locally as 2020-10-30 while the bound CWL
-    # announcement path is /2020/10/28/). Canonical event dates therefore
-    # come only from the date encoded in the exact CWL announcement URL that
-    # is bound to the same Happy8 issue title. The Jiangsu page itself is the
-    # HTTPS provenance container; the linked URL is parsed as metadata only.
+    The date shown by the Jiangsu index is publication/republish metadata, not
+    the canonical draw date.  Likewise the /c/YYYY/MM/DD/ component of a CWL
+    article URL is publication metadata and is not used as an event date.
+    Canonical Happy8 draw dates are derived separately from the nationally
+    binding draw cadence plus Ministry of Finance market-closure calendar.
+    """
     visible_dates: dict[str, str] = {}
     plain = _plain(markup)
     for match in re.finditer(
@@ -624,11 +623,18 @@ def _parse_jiangsu_issue_dates(markup: str) -> dict[str, str]:
         plain,
     ):
         issue, day = match.group(1), match.group(2)
+        try:
+            datetime.strptime(day, "%Y-%m-%d")
+        except ValueError as exc:
+            raise RuntimeError(
+                f"Jiangsu visible publication date invalid for issue {issue}: {day}"
+            ) from exc
         previous = visible_dates.get(issue)
         if previous is not None and previous != day:
-            raise RuntimeError(f"Jiangsu local article-date conflict for issue {issue}")
+            raise RuntimeError(f"Jiangsu visible publication-date conflict for issue {issue}")
         visible_dates[issue] = day
 
+    linked_issues: set[str] = set()
     for href, body in re.findall(
         r"(?is)<a\b[^>]*href\s*=\s*['\"]([^'\"]+)['\"][^>]*>(.*?)</a>",
         markup,
@@ -646,29 +652,38 @@ def _parse_jiangsu_issue_dates(markup: str) -> dict[str, str]:
             "cwl.gov.cn",
         }:
             continue
-        date_match = re.search(r"/c/(20\d{2})/(\d{2})/(\d{2})/", parsed.path)
-        if not date_match:
-            continue
-        issue = issue_match.group(1)
-        day = f"{date_match.group(1)}-{date_match.group(2)}-{date_match.group(3)}"
-        try:
-            canonical_day = datetime.strptime(day, "%Y-%m-%d").date()
-        except ValueError as exc:
-            raise RuntimeError(f"Jiangsu CWL announcement date invalid for issue {issue}: {day}") from exc
-        local_day = visible_dates.get(issue)
-        if local_day:
-            local_date = datetime.strptime(local_day, "%Y-%m-%d").date()
-            if local_date < canonical_day:
-                raise RuntimeError(
-                    f"Jiangsu local article date precedes CWL announcement date for {issue}: "
-                    f"local={local_day} cwl={day}"
-                )
-        previous = pairs.get(issue)
-        if previous is not None and previous != day:
-            raise RuntimeError(f"Jiangsu CWL announcement-date conflict for issue {issue}")
-        pairs[issue] = day
+        # The linked national article is provenance for the same issue only.
+        # Its path date is intentionally ignored: live evidence has shown that
+        # article publication can be before/same/after the draw date.
+        linked_issues.add(issue_match.group(1))
+
+    pairs: dict[str, str] = {}
+    for issue in sorted(linked_issues):
+        day = visible_dates.get(issue)
+        if day is not None:
+            pairs[issue] = day
     return pairs
 
+
+def _validate_jiangsu_publication_lag(issue: str, draw_day: str, publication_day: str) -> int:
+    try:
+        draw_date = datetime.strptime(draw_day, "%Y-%m-%d").date()
+        published = datetime.strptime(publication_day, "%Y-%m-%d").date()
+    except ValueError as exc:
+        raise RuntimeError(
+            f"Jiangsu publication-lag date invalid for {issue}: "
+            f"draw={draw_day} publication={publication_day}"
+        ) from exc
+    lag_days = (published - draw_date).days
+    # Current official diagnostic corpus spans 0, +1 and +2 day local
+    # publication lags.  Negative lags or >=3 days are treated as semantic
+    # mismatch and fail closed rather than being silently accepted.
+    if lag_days < 0 or lag_days > 2:
+        raise RuntimeError(
+            f"Jiangsu publication lag outside frozen bound for {issue}: "
+            f"draw={draw_day} publication={publication_day} lag_days={lag_days}"
+        )
+    return lag_days
 
 def fetch_provincial_composite_full_history() -> tuple[
     list[Draw], SourceReceipt, dict[str, bytes], list[dict[str, Any]]
@@ -689,14 +704,15 @@ def fetch_provincial_composite_full_history() -> tuple[
     manifest: list[dict[str, Any]] = []
     number_map: dict[str, tuple[int, ...]] = {}
     date_map: dict[str, str] = {}
-    observed_date_map: dict[str, str] = {}
+    observed_publication_map: dict[str, str] = {}
 
-    # Draw numbers come from the Fuzhou official history. Draw dates are
-    # deterministically derived from the nationally binding Ministry of Finance
-    # lottery-market closure calendar and then cross-checked against every
-    # issue-bound CWL announcement date still visible in the Jiangsu official
-    # archive. This avoids treating a known omission in that index as if the draw
-    # never existed, while remaining fail-closed on any date disagreement.
+    # Draw numbers come from the Fuzhou official history. Canonical draw dates
+    # are deterministically derived from the nationally binding Ministry of
+    # Finance lottery-market closure calendar. The Jiangsu official archive is
+    # an independent issue-existence/provenance crosscheck; its visible dates
+    # are publication metadata and are validated only for a frozen 0..2-day lag
+    # after the derived draw date. CWL URL path dates are never treated as draw
+    # dates.
     first_fuzhou = NET.get(
         FUZHOU_HISTORY_URL,
         params={"play": "kl8", "sid": "new", "page": "1"},
@@ -840,17 +856,16 @@ def fetch_provincial_composite_full_history() -> tuple[
         rows = _parse_jiangsu_issue_dates(markup)
         if not rows:
             raise RuntimeError(f"Jiangsu Happy8 page {page_no} contained no issue-date rows")
-        for issue, day in rows.items():
-            previous = observed_date_map.get(issue)
-            if previous is not None and previous != day:
-                raise RuntimeError(f"Jiangsu cross-page date conflict for issue {issue}")
-            observed_date_map[issue] = day
-            expected_day = date_map.get(issue)
-            if expected_day is not None and expected_day != day:
+        for issue, publication_day in rows.items():
+            previous = observed_publication_map.get(issue)
+            if previous is not None and previous != publication_day:
                 raise RuntimeError(
-                    f"official market-calendar/Jiangsu date conflict for {issue}: "
-                    f"calendar={expected_day} jiangsu_cwl={day}"
+                    f"Jiangsu cross-page publication-date conflict for issue {issue}"
                 )
+            observed_publication_map[issue] = publication_day
+            expected_day = date_map.get(issue)
+            if expected_day is not None:
+                _validate_jiangsu_publication_lag(issue, expected_day, publication_day)
         filename = f"jiangsu_history_page_{page_no:03d}.html"
         raw_sources[filename] = raw
         manifest.append({
@@ -864,10 +879,10 @@ def fetch_provincial_composite_full_history() -> tuple[
             "row_count": len(rows),
             "first_issue": min(rows),
             "last_issue": max(rows),
-            "date_contract": "cwl_announcement_url_date_bound_on_jiangsu_official_index",
+            "date_contract": "jiangsu_visible_publication_date_bound_to_issue_and_official_cwl_link",
         })
 
-    observed_issues = set(observed_date_map)
+    observed_issues = set(observed_publication_map)
     crosschecked_issues = number_issues & observed_issues
     missing_index_issues = sorted(number_issues - observed_issues)
     extra_index_issues = sorted(observed_issues - number_issues)
@@ -912,7 +927,7 @@ def fetch_provincial_composite_full_history() -> tuple[
         "row_count": len(crosschecked_issues),
         "first_issue": min(crosschecked_issues),
         "last_issue": max(crosschecked_issues),
-        "date_contract": "mof_calendar_must_equal_issue_bound_cwl_announcement_date",
+        "date_contract": "mof_calendar_is_canonical;_jiangsu_publication_lag_must_be_0_to_2_days",
         "missing_index_count": len(missing_index_issues),
         "missing_index_issues": missing_index_issues,
     })
