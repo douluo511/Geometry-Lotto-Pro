@@ -76,10 +76,10 @@ function Wait-Window([System.Diagnostics.Process]$p,[string]$processName,[int[]]
   for($i=0;$i -lt 160;$i++) {
     Start-Sleep -Milliseconds 250
     $candidates=@(Get-Process -Name $processName -ErrorAction SilentlyContinue | Where-Object { $baseline -notcontains $_.Id })
-    [IntPtr]$hwnd=[IntPtr]::Zero; [int]$pid=0
+    [IntPtr]$hwnd=[IntPtr]::Zero; [int]$windowPid=0
     [int[]]$ids=@($candidates | ForEach-Object { [int]$_.Id })
-    if($ids.Count -gt 0 -and [Happy8PhysicalGui]::FindVisibleWindow($ids,[ref]$hwnd,[ref]$pid)) {
-      return @{ hwnd=$hwnd; pid=$pid }
+    if($ids.Count -gt 0 -and [Happy8PhysicalGui]::FindVisibleWindow($ids,[ref]$hwnd,[ref]$windowPid)) {
+      return @{ hwnd=$hwnd; pid=$windowPid }
     }
     try {
       $p.Refresh()
