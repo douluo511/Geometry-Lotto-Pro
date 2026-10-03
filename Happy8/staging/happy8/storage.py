@@ -97,9 +97,15 @@ def _validate_raw_bundle(report: dict[str, Any], raw_sources: dict[str, bytes]) 
                 safe = filename == "derived_from_jiangsu_history_pages"
                 derived = True
                 missing = item.get("missing_index_issues")
-                if not isinstance(missing, list) or int(item.get("missing_index_count") or -1) != len(missing):
+                missing_count = item.get("missing_index_count")
+                if (
+                    not isinstance(missing, list)
+                    or missing_count is None
+                    or int(missing_count) != len(missing)
+                ):
                     raise ValueError("composite derived crosscheck missing-index metadata invalid")
-                if int(item.get("bytes") or -1) != 0:
+                derived_bytes = item.get("bytes")
+                if derived_bytes is None or int(derived_bytes) != 0:
                     raise ValueError("composite derived crosscheck must not claim raw bytes")
                 if not re.fullmatch(r"[0-9a-f]{64}", str(item.get("sha256") or "")):
                     raise ValueError("composite derived crosscheck SHA invalid")
