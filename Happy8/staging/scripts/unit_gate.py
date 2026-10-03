@@ -314,6 +314,22 @@ def main() -> int:
     checks["final_artifact_valid_fixture"] = {
         "status": "PASS" if final_valid.get("status") == "PASS" else "FAIL"
     }
+    wrong_release_url_manifest = json.loads(json.dumps(final_manifest))
+    wrong_release_url_manifest["formal_release"]["release_url"] = "https://updates.example/releases/other"
+    final_url_mismatch = validate_final_artifact(
+        wrong_release_url_manifest,
+        repository=dedicated_repo,
+        source_sha=source_sha,
+        run_id=run_id,
+        run_attempt=run_attempt,
+        windows=windows_fixture,
+        physical_gui=physical_fixture,
+        same_hash=same_fixture,
+        real_release=valid_release_report,
+    )
+    checks["final_artifact_release_url_mismatch_rejected"] = {
+        "status": "PASS" if final_url_mismatch.get("status") == "FAIL" else "FAIL"
+    }
     final_status_only = validate_final_artifact(
         {"status": "PASS"},
         repository=dedicated_repo,
