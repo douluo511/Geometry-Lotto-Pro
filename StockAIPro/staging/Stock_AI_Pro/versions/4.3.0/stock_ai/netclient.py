@@ -33,6 +33,9 @@ _PATCH_LOCK = threading.RLock()
 _HTTP_TO_HTTPS_UPGRADE_HOSTS = {
     "vip.stock.finance.sina.com.cn",
 }
+_READ_ONLY_POST_ALLOWLIST = {
+    ("stock_info_a_code_name", "www.bse.cn", "/nqxxController/nqxxCnzq.do"),
+}
 
 
 def _safe_url(url: str) -> dict:
@@ -128,10 +131,18 @@ class AkShareProxy:
 
         def guarded(session, method, url, **kwargs):
             verb = str(method).upper()
-            if verb not in {"GET", "HEAD"}:
-                raise NetClientPolicyError(f"non-idempotent method rejected: {verb}")
             original_url = str(url)
             parsed = urlsplit(original_url)
+            read_only_post = False
+            if verb == "POST":
+                key = (operation, (parsed.hostname or "").lower(), parsed.path)
+                read_only_post = key in _READ_ONLY_POST_ALLOWLIST
+                if not read_only_post:
+                    raise NetClientPolicyError(
+                        f"non-idempotent POST rejected: operation={operation} host={parsed.hostname} path={parsed.path}"
+                    )
+            elif verb not in {"GET", "HEAD"}:
+                raise NetClientPolicyError(f"non-idempotent method rejected: {verb}")
             effective_url = original_url
             upgraded_from_http = False
             if self.https_only and parsed.scheme.lower() != "https":
@@ -158,6 +169,7 @@ class AkShareProxy:
                 "operation": operation,
                 "attempt": attempt,
                 "method": verb,
+                "read_only_post_allowlisted": read_only_post,
                 "original_request": _safe_url(original_url),
                 "request": _safe_url(effective_url),
                 "upgraded_from_http": upgraded_from_http,
