@@ -89,16 +89,254 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
+          # PyInstaller reproducible-build prerequisites:
+          # - deterministic Python hash ordering
+          # - deterministic Windows PE build timestamp derived from the exact source head
+          $env:PYTHONHASHSEED = '1'
+          $sourceEpoch = (& git show -s --format=%ct '${{ github.event.pull_request.head.sha }}').Trim()
+          if ($LASTEXITCODE -ne 0 -or $sourceEpoch -notmatch '^\d+
+          New-Item -ItemType Directory -Force -Path spec1,spec2 | Out-Null
+          python -m PyInstaller --noconfirm --clean --noupx --onefile --windowed --name Geometry_Lotto_Pro_Happy8 --distpath dist1 --workpath build1 --specpath spec1 --paths . scripts/happy8_desktop.py
+          if ($LASTEXITCODE -ne 0) { throw "first PyInstaller build failed" }
+          python -m PyInstaller --noconfirm --clean --noupx --onefile --windowed --name Geometry_Lotto_Pro_Happy8 --distpath dist2 --workpath build2 --specpath spec2 --paths . scripts/happy8_desktop.py
+          if ($LASTEXITCODE -ne 0) { throw "second PyInstaller build failed" }
+          python -m PyInstaller --noconfirm --clean --noupx --onefile --console --name Geometry_Lotto_Pro_Happy8_Updater --distpath dist1 --workpath build1_updater --specpath spec1 --paths . scripts/happy8_updater.py
+          if ($LASTEXITCODE -ne 0) { throw "first Updater build failed" }
+          python -m PyInstaller --noconfirm --clean --noupx --onefile --console --name Geometry_Lotto_Pro_Happy8_Updater --distpath dist2 --workpath build2_updater --specpath spec2 --paths . scripts/happy8_updater.py
+          if ($LASTEXITCODE -ne 0) { throw "second Updater build failed" }
+          $exe1 = (Resolve-Path 'dist1/Geometry_Lotto_Pro_Happy8.exe').Path
+          $exe2 = (Resolve-Path 'dist2/Geometry_Lotto_Pro_Happy8.exe').Path
+          $updater1 = (Resolve-Path 'dist1/Geometry_Lotto_Pro_Happy8_Updater.exe').Path
+          $updater2 = (Resolve-Path 'dist2/Geometry_Lotto_Pro_Happy8_Updater.exe').Path
+          $hash1 = (Get-FileHash $exe1 -Algorithm SHA256).Hash.ToLowerInvariant()
+          $hash2 = (Get-FileHash $exe2 -Algorithm SHA256).Hash.ToLowerInvariant()
+          $updaterHash1 = (Get-FileHash $updater1 -Algorithm SHA256).Hash.ToLowerInvariant()
+          $updaterHash2 = (Get-FileHash $updater2 -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($hash1 -ne $hash2) { throw "main reproducible Same Hash failed: $hash1 != $hash2" }
+          if ($updaterHash1 -ne $updaterHash2) { throw "updater reproducible Same Hash failed: $updaterHash1 != $updaterHash2" }
+          $self = Start-Process -FilePath $exe1 -ArgumentList @('--self-test','--result-file',(Join-Path $PWD 'evidence/exact_exe_self_test.json')) -Wait -PassThru
+          if ($self.ExitCode -ne 0) { throw "Exact EXE self-test failed: $($self.ExitCode)" }
+          $ui = Start-Process -FilePath $exe1 -ArgumentList @('--ui-self-test','--result-file',(Join-Path $PWD 'evidence/exact_exe_ui_self_test.json')) -Wait -PassThru
+          if ($ui.ExitCode -ne 0) { throw "Exact EXE UI self-test failed: $($ui.ExitCode)" }
+          $upSelf = Start-Process -FilePath $updater1 -ArgumentList @('--self-test','--evidence-file',(Join-Path $PWD 'evidence/exact_updater_self_test.json')) -Wait -PassThru
+          if ($upSelf.ExitCode -ne 0) { throw "Exact Updater self-test failed: $($upSelf.ExitCode)" }
+          Copy-Item $exe1 'evidence/Geometry_Lotto_Pro_Happy8_CANDIDATE_NOT_FINAL.exe' -Force
+          Copy-Item $updater1 'evidence/Geometry_Lotto_Pro_Happy8_Updater_CANDIDATE_NOT_FINAL.exe' -Force
+          @{
+            schema = 'happy8-windows-exact-exe-v1'
+            status = 'PASS'
+            source_sha = '${{ github.event.pull_request.head.sha }}'
+            tested_pr_merge_sha = '${{ github.sha }}'
+            exe_sha256 = $hash1
+            rebuild_sha256 = $hash2
+            updater_sha256 = $updaterHash1
+            updater_rebuild_sha256 = $updaterHash2
+            same_hash = $true
+            updater_same_hash = $true
+            python_hash_seed = $env:PYTHONHASHSEED
+            source_date_epoch = $env:SOURCE_DATE_EPOCH
+            exact_exe_self_test = 'PASS'
+            exact_updater_self_test = 'PASS'
+            exact_exe_ui_construction = 'PASS'
+            physical_gui_click = 'NOT_VERIFIED'
+            final_gate = 'FAIL'
+          } | ConvertTo-Json -Depth 6 | Set-Content -Encoding utf8 evidence/windows_exact_exe.json
+
+      - name: Physical GUI mouse-click acceptance on Exact EXE
+        id: physical_gui
+        if: steps.windows_build.outcome == 'success'
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          ./scripts/physical_gui_click_smoke.ps1 -ExePath dist1/Geometry_Lotto_Pro_Happy8.exe -EvidencePath evidence/physical_gui_click.json
+
+      - name: Same Hash after physical GUI
+        id: post_gui_same_hash
+        if: steps.physical_gui.outcome == 'success'
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $build = Get-Content evidence/windows_exact_exe.json -Raw | ConvertFrom-Json
+          $gui = Get-Content evidence/physical_gui_click.json -Raw | ConvertFrom-Json
+          $actual = (Get-FileHash dist1/Geometry_Lotto_Pro_Happy8.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($gui.status -ne 'PASS' -or $gui.same_hash -ne $true) { throw 'physical GUI evidence is not PASS' }
+          if ($actual -ne $build.exe_sha256 -or $actual -ne $gui.exe_sha256_after) { throw 'post-GUI Same Hash mismatch' }
+          @{
+            schema = 'happy8-post-gui-same-hash-v1'
+            status = 'PASS'
+            exe_sha256 = $actual
+            build_sha256 = $build.exe_sha256
+            physical_gui_sha256 = $gui.exe_sha256_after
+          } | ConvertTo-Json | Set-Content -Encoding utf8 evidence/post_gui_same_hash.json
+
+      # Root-cause diagnostics run only after the mandatory live gate fails.
+      - name: Provincial official fallback diagnostic probe
+        if: always() && steps.live_gate.outcome != 'success'
+        id: provincial_probe
+        continue-on-error: true
+        run: python scripts/official_fallback_probe.py --output evidence/official_fallback_probe.json
+
+      - name: Shanghai official frontend contract probe
+        if: always() && steps.live_gate.outcome != 'success'
+        id: shanghai_probe
+        continue-on-error: true
+        run: python scripts/shanghai_contract_probe.py --output evidence/shanghai_contract_probe.json
+
+      - name: Jiangsu official full-history contract probe
+        if: always() && steps.live_gate.outcome != 'success'
+        id: jiangsu_probe
+        continue-on-error: true
+        run: python scripts/jiangsu_history_probe.py --output evidence/jiangsu_history_probe.json
+
+      - name: Jiangxi Fuzhou official number-history contract probe
+        if: always() && steps.live_gate.outcome != 'success'
+        id: fuzhou_probe
+        continue-on-error: true
+        timeout-minutes: 4
+        run: python scripts/jiangxi_fuzhou_history_probe.py --output evidence/jiangxi_fuzhou_history_probe.json
+
+      - name: Jiangxi Fuzhou candidate non-production guard
+        id: fuzhou_guard
+        if: always() && steps.live_gate.outcome != 'success'
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          if (-not (Test-Path evidence/jiangxi_fuzhou_history_probe.json)) {
+            throw "Fuzhou diagnostic evidence missing"
+          }
+          $r = Get-Content evidence/jiangxi_fuzhou_history_probe.json -Raw | ConvertFrom-Json
+          if ($r.production_accepted -ne $false) { throw "Fuzhou diagnostic was incorrectly production-accepted" }
+          if ($r.classification_claim -ne 'NUMBER_HISTORY_CANDIDATE_ONLY') { throw "Fuzhou source classification drifted" }
+          Write-Host "FUZHOU_DIAGNOSTIC_NON_PRODUCTION=PASS"
+
+      - name: Two-official-source full-history reconciliation
+        if: always() && steps.live_gate.outcome != 'success'
+        id: composite_probe
+        continue-on-error: true
+        timeout-minutes: 8
+        run: python scripts/composite_official_history_probe.py --output evidence/composite_official_history_probe.json
+
+      - name: Composite history candidate non-production guard
+        id: composite_guard
+        if: always() && steps.live_gate.outcome != 'success'
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          if (-not (Test-Path evidence/composite_official_history_probe.json)) {
+            throw "composite diagnostic evidence missing"
+          }
+          $r = Get-Content evidence/composite_official_history_probe.json -Raw | ConvertFrom-Json
+          if ($r.production_accepted -ne $false) { throw "composite diagnostic was incorrectly production-accepted" }
+          if ($r.classification_claim -ne 'COMPOSITE_FULL_HISTORY_CANDIDATE_ONLY') { throw "composite source classification drifted" }
+          Write-Host "COMPOSITE_DIAGNOSTIC_NON_PRODUCTION=PASS"
+
+      - name: Sichuan official history contract probe
+        if: always() && steps.live_gate.outcome != 'success'
+        id: sichuan_probe
+        continue-on-error: true
+        run: python scripts/sichuan_history_probe.py --output evidence/sichuan_history_probe.json
+
+      - name: CWL-designated media history contract diagnostic
+        if: always() && steps.live_gate.outcome != 'success'
+        id: zhcw_probe
+        continue-on-error: true
+        timeout-minutes: 4
+        run: python scripts/zhcw_history_probe.py --output evidence/zhcw_history_probe.json
+
+      - name: Diagnostic source non-production guard
+        id: zhcw_guard
+        if: always() && steps.live_gate.outcome != 'success'
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          if (-not (Test-Path evidence/zhcw_history_probe.json)) {
+            throw "diagnostic source evidence missing"
+          }
+          $r = Get-Content evidence/zhcw_history_probe.json -Raw | ConvertFrom-Json
+          if ($r.status -ne 'DIAGNOSTIC_ONLY') { throw "diagnostic status was promoted" }
+          if ($r.production_accepted -ne $false) { throw "diagnostic source was incorrectly production-accepted" }
+          if ($r.classification_claim -ne 'NOT_EVALUATED_FOR_PRODUCTION') { throw "diagnostic source classification drifted" }
+          Write-Host "DIAGNOSTIC_NON_PRODUCTION_GUARD=PASS"
+      - name: Explicit non-final marker
+        if: always()
+        shell: pwsh
+        run: |
+          Write-Host "RECOVERED_PROTOTYPE_SOURCE=PASS"
+          Write-Host "WINDOWS_EXACT_EXE=${{ steps.windows_build.outcome }}"
+          Write-Host "PHYSICAL_GUI_CLICK=${{ steps.physical_gui.outcome }}"
+          Write-Host "POST_GUI_SAME_HASH=${{ steps.post_gui_same_hash.outcome }}"
+          Write-Host "PHYSICAL_GUI_CLICK=${{ steps.physical_gui.outcome }}"
+          Write-Host "POST_GUI_SAME_HASH=${{ steps.post_gui_same_hash.outcome }}"
+          Write-Host "REPOSITORY_INDEPENDENCE=FAIL"
+          Write-Host "FINAL_RELEASE_GATE=NOT_PASS"
+
+      - name: Evidence-derived staging aggregate
+        if: always()
+        shell: pwsh
+        run: |
+          $failures = @()
+          if ('${{ steps.compile_gate.outcome }}' -ne 'success') { $failures += 'compile' }
+          if ('${{ steps.contract_gate.outcome }}' -ne 'success') { $failures += 'domain_netclient_contract' }
+          if ('${{ steps.storage_gate.outcome }}' -ne 'success') { $failures += 'storage_evidence' }
+          if ('${{ steps.science_protocol_contract.outcome }}' -ne 'success') { $failures += 'science_protocol_contract' }
+          if ('${{ steps.service_gate.outcome }}' -ne 'success') { $failures += 'application_service' }
+          if ('${{ steps.updater_handoff_gate.outcome }}' -ne 'success') { $failures += 'updater_handoff' }
+          if ('${{ steps.updater_gate.outcome }}' -ne 'success') { $failures += 'updater_contract_rollback' }
+          if ('${{ steps.app_selftest.outcome }}' -ne 'success') { $failures += 'application_selftest' }
+          if ('${{ steps.ui_contract.outcome }}' -ne 'success') { $failures += 'ui_construction' }
+          if ('${{ steps.live_gate.outcome }}' -ne 'success' -and '${{ steps.fuzhou_guard.outcome }}' -ne 'success') { $failures += 'fuzhou_guard' }
+          if ('${{ steps.live_gate.outcome }}' -ne 'success' -and '${{ steps.composite_guard.outcome }}' -ne 'success') { $failures += 'composite_guard' }
+          if ('${{ steps.live_gate.outcome }}' -ne 'success' -and '${{ steps.zhcw_guard.outcome }}' -ne 'success') { $failures += 'zhcw_guard' }
+          if ('${{ steps.live_gate.outcome }}' -ne 'success') { $failures += 'live_official_network' }
+          if ('${{ steps.live_gate.outcome }}' -eq 'success' -and '${{ steps.science_gate.outcome }}' -ne 'success') { $failures += 'science_gate' }
+          if ('${{ steps.live_gate.outcome }}' -eq 'success' -and '${{ steps.science_gate.outcome }}' -eq 'success' -and '${{ steps.windows_build.outcome }}' -ne 'success') { $failures += 'windows_exact_exe' }
+          if ('${{ steps.windows_build.outcome }}' -eq 'success' -and '${{ steps.physical_gui.outcome }}' -ne 'success') { $failures += 'physical_gui' }
+          if ('${{ steps.physical_gui.outcome }}' -eq 'success' -and '${{ steps.post_gui_same_hash.outcome }}' -ne 'success') { $failures += 'post_gui_same_hash' }
+
+          Write-Host "COMPILE_GATE=${{ steps.compile_gate.outcome }}"
+          Write-Host "DOMAIN_NETCLIENT_CONTRACT=${{ steps.contract_gate.outcome }}"
+          Write-Host "STORAGE_EVIDENCE_GATE=${{ steps.storage_gate.outcome }}"
+          Write-Host "SCIENCE_PROTOCOL_CONTRACT=${{ steps.science_protocol_contract.outcome }}"
+          Write-Host "APPLICATION_SERVICE=${{ steps.service_gate.outcome }}"
+          Write-Host "UPDATER_HANDOFF=${{ steps.updater_handoff_gate.outcome }}"
+          Write-Host "UPDATER_CONTRACT_ROLLBACK=${{ steps.updater_gate.outcome }}"
+          Write-Host "APPLICATION_SELFTEST=${{ steps.app_selftest.outcome }}"
+          Write-Host "UI_CONSTRUCTION=${{ steps.ui_contract.outcome }}"
+          Write-Host "PROVINCIAL_PROBE=${{ steps.provincial_probe.outcome }}"
+          Write-Host "SHANGHAI_PROBE=${{ steps.shanghai_probe.outcome }}"
+          Write-Host "JIANGSU_PROBE=${{ steps.jiangsu_probe.outcome }}"
+          Write-Host "FUZHOU_PROBE=${{ steps.fuzhou_probe.outcome }}"
+          Write-Host "COMPOSITE_PROBE=${{ steps.composite_probe.outcome }}"
+          Write-Host "SICHUAN_PROBE=${{ steps.sichuan_probe.outcome }}"
+          Write-Host "ZHCW_PROBE=${{ steps.zhcw_probe.outcome }}"
+          Write-Host "LIVE_OFFICIAL_NETWORK=${{ steps.live_gate.outcome }}"
+          Write-Host "SCIENCE_GATE=${{ steps.science_gate.outcome }}"
+          Write-Host "WINDOWS_EXACT_EXE=${{ steps.windows_build.outcome }}"
+
+          if ($failures.Count -gt 0) {
+            throw "Happy8 staging aggregate blocked: $($failures -join ', ')"
+          }
+          Write-Host "HAPPY8_STAGING_AGGREGATE=PASS"
+
+      - name: Upload staging diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: Happy8-Staging-Diagnostic-${{ github.sha }}
+          path: Happy8/staging/evidence/**
+          if-no-files-found: warn
+) { throw "cannot derive SOURCE_DATE_EPOCH from exact PR head" }
+          $env:SOURCE_DATE_EPOCH = $sourceEpoch
           New-Item -ItemType Directory -Force -Path evidence | Out-Null
           Remove-Item -Recurse -Force dist1,dist2,build1,build2,spec1,spec2 -ErrorAction SilentlyContinue
           New-Item -ItemType Directory -Force -Path spec1,spec2 | Out-Null
-          python -m PyInstaller --noconfirm --clean --onefile --windowed --name Geometry_Lotto_Pro_Happy8 --distpath dist1 --workpath build1 --specpath spec1 --paths . scripts/happy8_desktop.py
+          python -m PyInstaller --noconfirm --clean --noupx --onefile --windowed --name Geometry_Lotto_Pro_Happy8 --distpath dist1 --workpath build1 --specpath spec1 --paths . scripts/happy8_desktop.py
           if ($LASTEXITCODE -ne 0) { throw "first PyInstaller build failed" }
-          python -m PyInstaller --noconfirm --clean --onefile --windowed --name Geometry_Lotto_Pro_Happy8 --distpath dist2 --workpath build2 --specpath spec2 --paths . scripts/happy8_desktop.py
+          python -m PyInstaller --noconfirm --clean --noupx --onefile --windowed --name Geometry_Lotto_Pro_Happy8 --distpath dist2 --workpath build2 --specpath spec2 --paths . scripts/happy8_desktop.py
           if ($LASTEXITCODE -ne 0) { throw "second PyInstaller build failed" }
-          python -m PyInstaller --noconfirm --clean --onefile --console --name Geometry_Lotto_Pro_Happy8_Updater --distpath dist1 --workpath build1_updater --specpath spec1 --paths . scripts/happy8_updater.py
+          python -m PyInstaller --noconfirm --clean --noupx --onefile --console --name Geometry_Lotto_Pro_Happy8_Updater --distpath dist1 --workpath build1_updater --specpath spec1 --paths . scripts/happy8_updater.py
           if ($LASTEXITCODE -ne 0) { throw "first Updater build failed" }
-          python -m PyInstaller --noconfirm --clean --onefile --console --name Geometry_Lotto_Pro_Happy8_Updater --distpath dist2 --workpath build2_updater --specpath spec2 --paths . scripts/happy8_updater.py
+          python -m PyInstaller --noconfirm --clean --noupx --onefile --console --name Geometry_Lotto_Pro_Happy8_Updater --distpath dist2 --workpath build2_updater --specpath spec2 --paths . scripts/happy8_updater.py
           if ($LASTEXITCODE -ne 0) { throw "second Updater build failed" }
           $exe1 = (Resolve-Path 'dist1/Geometry_Lotto_Pro_Happy8.exe').Path
           $exe2 = (Resolve-Path 'dist2/Geometry_Lotto_Pro_Happy8.exe').Path
