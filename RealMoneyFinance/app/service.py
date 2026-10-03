@@ -6,6 +6,7 @@ import os
 import subprocess
 import sys
 from typing import Any
+import time
 
 from .engine import analyze_observable_activity, reverse_validation
 from .netclient import NetClient
@@ -20,13 +21,24 @@ class FinanceService:
         self.storage = Storage(self.root)
         self.client = NetClient(self.root / "evidence" / "network.jsonl")
 
+    def _write_evidence(self, name: str, payload: dict[str, Any]) -> Path:
+        target = self.root / "evidence" / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        tmp = target.with_suffix(target.suffix + ".tmp")
+        obj = {"generated_at_unix": time.time(), **payload}
+        tmp.write_text(json.dumps(obj, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
+        os.replace(tmp, target)
+        return target
+
     def capital_change(self, symbol: str) -> dict[str, Any]:
         bars = self.storage.load_bars(symbol, 160)
         if len(bars) < 30:
             raise RuntimeError("no validated current data; run core refresh first")
         obs = analyze_observable_activity(bars)
         self.storage.save_observation(obs)
-        return {"observation": obs.to_dict(), "reverse_validation": reverse_validation(obs)}
+        result = {"observation": obs.to_dict(), "reverse_validation": reverse_validation(obs)}
+        self._write_evidence("capital_change.json", {"status": "PASS", **result})
+        return result
 
     def refresh_real_data(self, symbol: str) -> dict[str, Any]:
         bars, meta = fetch_daily_bars(self.client, symbol, 160)
@@ -34,7 +46,9 @@ class FinanceService:
         stored = self.storage.upsert_bars(bars)
         obs = analyze_observable_activity(self.storage.load_bars(bars[-1].symbol, 160))
         self.storage.save_observation(obs)
-        return {"status": "PASS", "stored_rows": stored, "source": meta, "observation": obs.to_dict()}
+        result = {"status": "PASS", "stored_rows": stored, "source": meta, "observation": obs.to_dict()}
+        self._write_evidence("refresh.json", result)
+        return result
 
     def repair(self) -> dict[str, Any]:
         return repair_user_state(self.root)
@@ -46,6 +60,7 @@ class FinanceService:
             "true_main_capital_identity": False,
             "capital_deployment_ready": False,
         }
+        self._write_evidence("advanced_analysis.json", {"status": "PASS", **result})
         return result
 
     def software_update(self) -> dict[str, Any]:
