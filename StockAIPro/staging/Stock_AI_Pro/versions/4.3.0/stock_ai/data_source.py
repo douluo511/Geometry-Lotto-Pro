@@ -6,13 +6,18 @@ import time
 import pandas as pd
 import numpy as np
 
-from .config import ROOT
+from .config import ROOT, load_config
+from .netclient import AkShareProxy
 from .utils import write_json, now_iso
 
 def _ak():
     try:
         import akshare as ak
-        return ak
+        return AkShareProxy(
+            ak,
+            (load_config().get("network", {}) or {}),
+            ROOT / "evidence" / "netclient_raw.jsonl",
+        )
     except Exception as e:
         raise RuntimeError(
             "AkShare 未安装或导入失败。请运行 FIRST_TIME_SETUP.bat 或 REPAIR_ENV.bat。"
