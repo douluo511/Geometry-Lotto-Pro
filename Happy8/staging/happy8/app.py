@@ -10,7 +10,7 @@ from pathlib import Path
 from .domain import Draw
 from .net_client import NetClient
 from .services import Happy8Service
-from .software_update import launch_independent_updater
+from .software_update import launch_independent_updater, software_update_environment_status
 from .ui import Happy8Window, source_ui_contract, ui_contract
 
 APP_VERSION = "0.2.0-staging"
@@ -100,6 +100,10 @@ def main(argv: list[str] | None = None) -> int:
         root,
         software_update_launcher=lambda: launch_independent_updater(
             data_root=root,
+            current_version=SOFTWARE_VERSION,
+        ),
+        repair_environment_probe=lambda: software_update_environment_status(
+            main_exe=Path(sys.executable),
             current_version=SOFTWARE_VERSION,
         ),
     )
