@@ -153,7 +153,8 @@ def main() -> int:
             "active_version": service.active_version,
             "four_entries": ["核心功能", "一键更新", "一键修复", "高级分析"],
         }
-        print(json.dumps(checks, ensure_ascii=False))
+        if sys.stdout is not None:
+            print(json.dumps(checks, ensure_ascii=False))
         return 0 if checks["package_root_exists"] and checks["version_root_exists"] else 1
     service = StockAIService()
     app = StockAIDesktop(service)
