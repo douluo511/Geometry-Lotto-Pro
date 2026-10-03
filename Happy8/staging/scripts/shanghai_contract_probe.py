@@ -16,7 +16,7 @@ from happy8.net_client import NetClient
 
 PAGE_URL = "https://www.swlc.net.cn/lottery/kl8.html"
 HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Happy8ShanghaiContractProbe/0.2",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Happy8ShanghaiContractProbe/0.3",
     "Accept": "text/html,application/xhtml+xml,application/javascript,text/javascript,*/*;q=0.5",
     "Referer": "https://www.swlc.net.cn/",
 }
@@ -202,6 +202,11 @@ def _script_contract(page_record: dict) -> list[dict]:
                     if len(lines) >= 160:
                         break
             item["keyword_lines"] = lines
+            # Preserve the complete small official frontend script as diagnostic evidence.
+            # This is bounded to avoid unbounded evidence growth; production admission still
+            # requires a separately validated source contract.
+            if len(body) <= 4096:
+                item["body_text"] = text
         except Exception as exc:
             item["error"] = f"{type(exc).__name__}: {exc}"
         records.append(item)
@@ -248,7 +253,7 @@ def inspect() -> dict:
         })
 
     report = {
-        "schema": "happy8-shanghai-frontend-contract-probe-v2",
+        "schema": "happy8-shanghai-frontend-contract-probe-v3",
         "status": "DIAGNOSTIC_ONLY",
         "production_accepted": False,
         "current": current,
