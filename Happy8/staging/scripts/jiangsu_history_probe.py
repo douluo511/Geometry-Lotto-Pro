@@ -136,6 +136,7 @@ def inspect_page(page: int, periods: str = "") -> dict:
     plain = _plain(markup)
     anchors = []
     link_date_hints = []
+    cwl_announcement_date_hints = []
     for href, body in re.findall(r"(?is)<a\b[^>]*href\s*=\s*['\"]([^'\"]+)['\"][^>]*>(.*?)</a>", markup):
         label = _plain(body)[:240]
         absolute = urljoin(final_url, html.unescape(href))
