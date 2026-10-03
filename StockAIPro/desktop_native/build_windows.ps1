@@ -26,6 +26,10 @@ if (Test-Path $build) { Remove-Item -Recurse -Force $build }
   --hidden-import requests `
   --hidden-import cryptography `
   --hidden-import akshare `
+  --hidden-import streamlit `
+  --collect-submodules sklearn `
+  --collect-all akshare `
+  --collect-all streamlit `
   desktop_native/app.py
 if ($LASTEXITCODE -ne 0) { throw "StockAIPro PyInstaller build failed" }
 
