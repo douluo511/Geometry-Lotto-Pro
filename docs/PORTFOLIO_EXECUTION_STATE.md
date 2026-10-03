@@ -50,6 +50,14 @@ Fresh GitHub App installation `163930022` visibility check on 2026-10-03 returne
 
 Do not rerun already-valid monorepo gates merely to generate activity while this prerequisite is unchanged.
 
+## Current repository/source inventory recheck — 2026-10-03
+
+- Default-branch root contains actual project trees only for: SSQ, DLT, English Root Intelligence, Guoxue Zhice, Head Intelligence, Investment Finance Pro, and Psychology Insight Pro.
+- Happy 8, Human Nature and TalkCraft have active recovery/migration branches outside main and therefore remain buildable staging candidates, not independent-repository finals.
+- Stock AI Pro branch `recover/stock-ai-pro-4.3.0-deliverable-20260930` exists, but PR #72 changes only `StockAIPro/RECOVERY_STATUS.md`; the recovered 187-entry exact archive is not imported into Git and no source-tree acceptance is claimed.
+- Branch search found no named source-recovery branches for Passive Income, AI Music, Non-Hard-Work, Be Your Own Master, Legal Philosophy, Real-Money Finance or Earth Online. Candidate binaries/content recovered elsewhere remain identity evidence only, not rebuildable-source PASS.
+- DLT latest raw Final aggregate (run `37033563762`, PR #79) has Real Network / Windows Build / Exact EXE / physical GUI / Same Hash / updater atomic rollback and data-network gates PASS. The four non-PASS gates are exactly `business_content`, `updater_real_network`, `repository_independence`, and `release_context`; business B05 is pending because independent production Release N→N+1 is not closed. No monorepo-only rerun can honestly clear those four.
+
 ## Active execution rule
 
 Advance the first executable non-PASS gate.
