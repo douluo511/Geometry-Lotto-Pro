@@ -137,6 +137,7 @@ class Happy8Service:
 
         freeze = {
             "schema": "happy8-prediction-freeze-v1",
+            "status": "PASS",
             "target_issue": target_issue,
             "source_latest_issue": latest_issue,
             "canonical_hash": snapshot["canonical"]["canonical_hash"],
