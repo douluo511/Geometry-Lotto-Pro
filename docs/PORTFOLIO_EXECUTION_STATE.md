@@ -208,3 +208,12 @@ Do not label any project Final until Engineering=100%, Business=100%, hard_fail_
 - Root cause: the earlier malformed replacement left a duplicated PowerShell/workflow payload appended after the legitimate `if-no-files-found: warn` end of the YAML file. GitHub therefore rejected the workflow before job creation.
 - Commit `26b736f469137e451dd175804d1c020d9cb9edeb` removes the 14,951-character trailing payload and leaves a single valid workflow ending at the artifact upload stanza. This preserves the reproducible-build fix (`PYTHONHASHSEED=1`, deterministic `SOURCE_DATE_EPOCH`, `--noupx`) while removing the invalid duplicate.
 - Current exact PR #87 head: `26b736f469137e451dd175804d1c020d9cb9edeb`. All current-head gates remain NOT VERIFIED until a job actually starts and reports evidence. Final Gate remains FAIL.
+
+
+## 2026-10-03 Happy8 explicit Unit and Fault Injection gates
+
+- Strict chain audit found that Unit and Fault Injection behaviors existed only partially inside other scripts; they were not independent named gates in the frozen sequence. This was treated as a validation-structure gap, not silently counted as PASS.
+- Commit `2ab9dd296babe9f2a18d9de5631ce3207faaa3fe` adds `unit_gate.py` for pure Domain, version, trust, canonicalization and bounded NetClient unit contracts.
+- Commit `3ab540755b82efb09a902bc62b46a3a12d9ce21d` adds `fault_injection_gate.py` covering offline, DNS/connection failure, timeout, 429, 500, 502, 503, non-JSON, empty response, schema drift, missing fields, invalid content type, data corruption fail-closed, cache pollution cleanup, unwritable evidence, disk anomaly, corrupted release configuration and updater failure preserving the target EXE.
+- Commit `1ab7963bfae56454f331662142543f1c6c049039` reorders the workflow categories to Self-Test → Static/Compile → Unit → Contract → Integration → Fault Injection → Real Network → Business/Science validation → Windows/Exact EXE → Physical GUI → Same Hash, and adds Unit/Fault outcomes to the evidence-derived aggregate.
+- Exact-head run `37102078794` is PENDING at record time. Earlier workflow-only run `37101890234` remains in progress and may supply unaffected diagnostic evidence, but cannot prove the new Unit/Fault gates. Final Gate remains FAIL.
