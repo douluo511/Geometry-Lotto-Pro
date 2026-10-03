@@ -288,9 +288,14 @@ def main() -> int:
         updater = updater_with(manifest, artifact)
         real_replace = os.replace
         rollback_attempts = {"count": 0}
+        _, expected_backup, _, _ = _update_transaction_paths(target)
+        target_norm = os.path.normcase(os.path.abspath(os.fspath(target)))
+        backup_norm = os.path.normcase(os.path.abspath(os.fspath(expected_backup)))
 
         def fail_backup_restore(src, dst):
-            if str(src).endswith(".backup") and Path(dst) == target:
+            src_norm = os.path.normcase(os.path.abspath(os.fspath(src)))
+            dst_norm = os.path.normcase(os.path.abspath(os.fspath(dst)))
+            if src_norm == backup_norm and dst_norm == target_norm:
                 rollback_attempts["count"] += 1
                 raise PermissionError("injected rollback failure")
             return real_replace(src, dst)
@@ -307,7 +312,11 @@ def main() -> int:
             and failed.get("action") == "ROLLBACK_FAILED"
             and retained
             and rollback_attempts["count"] == 1
-            else "FAIL"
+            else "FAIL",
+            "failed_status": failed.get("status"),
+            "failed_action": failed.get("action"),
+            "retained_backup_and_journal": retained,
+            "rollback_injection_count": rollback_attempts["count"],
         }
         checks["restart_recovery_restores_previous_exe"] = {
             "status": "PASS"
@@ -316,7 +325,12 @@ def main() -> int:
             and target.read_bytes() == original
             and not backup.exists()
             and not journal.exists()
-            else "FAIL"
+            else "FAIL",
+            "recovered_status": recovered.get("status"),
+            "recovered_action": recovered.get("action"),
+            "restored_original_bytes": target.read_bytes() == original,
+            "backup_removed": not backup.exists(),
+            "journal_removed": not journal.exists(),
         }
 
     status = "PASS" if checks and all(x.get("status") == "PASS" for x in checks.values()) else "FAIL"
