@@ -1,7 +1,7 @@
 param(
   [Parameter(Mandatory=$true)][string]$ExePath,
   [Parameter(Mandatory=$true)][string]$EvidencePath,
-  [int]$TimeoutSeconds = 1200
+  [int]$TimeoutSeconds = 180
 )
 
 $ErrorActionPreference = "Stop"
@@ -161,6 +161,17 @@ $processName=[System.IO.Path]::GetFileNameWithoutExtension($exe)
 $evidenceFull=[System.IO.Path]::GetFullPath($EvidencePath)
 $evidenceDir=Split-Path -Parent $evidenceFull
 New-Item -ItemType Directory -Force $evidenceDir | Out-Null
+$progressPath=Join-Path $evidenceDir "physical_gui_progress.jsonl"
+Remove-Item $progressPath -Force -ErrorAction SilentlyContinue
+function Write-Progress([string]$phase,[string]$status,[string]$detail="") {
+  [ordered]@{
+    schema='happy8-physical-gui-progress-v1'
+    phase=$phase
+    status=$status
+    detail=$detail
+    recorded_at=(Get-Date).ToUniversalTime().ToString('o')
+  } | ConvertTo-Json -Compress | Add-Content -Path $progressPath -Encoding UTF8
+}
 $root=Join-Path $evidenceDir ("physical-gui-"+[Guid]::NewGuid().ToString("N"))
 New-Item -ItemType Directory -Force $root | Out-Null
 $localAppData=Join-Path $root "LocalAppData"
@@ -171,10 +182,12 @@ New-Item -ItemType Directory -Force $dataRoot | Out-Null
 # network path. This is a precondition only; the four acceptance operations below
 # are all activated by physical foreground mouse events.
 $seedResult=Join-Path $root "seed-live-update.json"
+Write-Progress 'live_network_seed' 'RUNNING'
 $seed=Start-Process -FilePath $exe -ArgumentList @('--update','--data-root',$dataRoot,'--result-file',$seedResult) -Wait -PassThru
 if($seed.ExitCode -ne 0) { throw "exact EXE live-network seed failed: $($seed.ExitCode)" }
 $seedJson=Get-Content $seedResult -Raw -Encoding UTF8 | ConvertFrom-Json
 if($seedJson.status -ne 'PASS') { throw "exact EXE live-network seed was not PASS" }
+Write-Progress 'live_network_seed' 'PASS'
 
 $ops=@(
   @{key='predict'; label='预测下一期'; rx=0.14; expected='PASS'},
@@ -185,6 +198,7 @@ $ops=@(
 $results=@()
 
 foreach($op in $ops) {
+  Write-Progress ("operation-"+$op.key) 'STARTING'
   if($op.key -eq 'repair') {
     $current=Join-Path $dataRoot 'store/CURRENT.json'
     Set-Content -Path $current -Value '{corrupt' -Encoding UTF8
@@ -202,7 +216,9 @@ foreach($op in $ops) {
     $before=Screen-Hash
     $point=Find-Point $window.hwnd $op.label $op.rx 0.155
     Click-Point $window.hwnd $point.x $point.y
+    Write-Progress ("operation-"+$op.key) 'CLICKED' ("locator="+$point.locator+" x="+$point.x+" y="+$point.y)
     $record=Wait-Audit $audit $op.label $TimeoutSeconds
+    Write-Progress ("operation-"+$op.key) 'AUDIT_RECEIVED' ("backend_status="+$record.status)
     Start-Sleep -Milliseconds 400
     $after=Screen-Hash
     if($before -eq $after) { throw "physical click produced no visible desktop change for $($op.label)" }
@@ -227,6 +243,8 @@ foreach($op in $ops) {
       if($record.result.components.network_configuration.status -ne 'BLOCKED') { throw "repair network config blocker was hidden" }
       if($record.result.post_repair_self_check.status -ne 'PASS') { throw "repair post self-check did not pass" }
     }
+
+    Write-Progress ("operation-"+$op.key) 'PASS' ("expected="+$op.expected+" backend="+$record.status)
 
     $results += [pscustomobject]@{
       key=$op.key
@@ -271,5 +289,6 @@ $report=[ordered]@{
   final_gate='FAIL'
   tested_at=(Get-Date).ToUniversalTime().ToString('o')
 }
+Write-Progress 'physical_gui' 'PASS' ("same_hash="+$finalHash)
 $report | ConvertTo-Json -Depth 8 | Set-Content -Path $evidenceFull -Encoding UTF8
 Get-Content $evidenceFull -Raw
