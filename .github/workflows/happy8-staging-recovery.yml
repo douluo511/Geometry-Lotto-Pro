@@ -46,10 +46,10 @@ jobs:
         id: app_selftest
         continue-on-error: true
         run: python -m happy8.app --self-test
-      - name: Desktop UI construction contract
+      - name: Desktop UI-Service source contract
         id: ui_contract
         continue-on-error: true
-        run: python -m happy8.app --ui-self-test
+        run: python -m happy8.app --ui-contract
 
       # Independent source probes are diagnostic evidence. A timeout/HTTP failure on
       # one official source must not prevent the other independent probes from running.
