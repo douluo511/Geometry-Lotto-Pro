@@ -561,7 +561,10 @@ def _parse_jiangsu_issue_dates(markup: str) -> dict[str, str]:
     plain = _plain(markup)
     pairs: dict[str, str] = {}
 
-    # Primary contract: visible official index text binds issue and ISO date.
+    # Draw dates are accepted only when the issue and ISO date are visibly
+    # bound together on the Jiangsu official history index.  Dates embedded
+    # in linked CWL article URLs are publication dates, not draw dates, and
+    # must never enter canonical history.
     for match in re.finditer(
         r"(?:第\s*)?(20\d{5})\s*期[^0-9]{0,80}(20\d{2}-\d{2}-\d{2})",
         plain,
@@ -569,26 +572,7 @@ def _parse_jiangsu_issue_dates(markup: str) -> dict[str, str]:
         issue, day = match.group(1), match.group(2)
         previous = pairs.get(issue)
         if previous is not None and previous != day:
-            raise RuntimeError(f"Jiangsu official date conflict for issue {issue}")
-        pairs[issue] = day
-
-    # Secondary contract: some rows expose the draw date in the linked CWL
-    # article path. This is only used to fill a missing visible-text pair and
-    # any disagreement fails closed.
-    for href, body in re.findall(
-        r"(?is)<a\b[^>]*href\s*=\s*['\"]([^'\"]+)['\"][^>]*>(.*?)</a>",
-        markup,
-    ):
-        label = _plain(body)
-        issue_match = re.search(r"(?<!\d)(20\d{5})(?!\d)", label)
-        date_match = re.search(r"/c/(20\d{2})/(\d{2})/(\d{2})/", html.unescape(href))
-        if not issue_match or not date_match:
-            continue
-        issue = issue_match.group(1)
-        day = f"{date_match.group(1)}-{date_match.group(2)}-{date_match.group(3)}"
-        previous = pairs.get(issue)
-        if previous is not None and previous != day:
-            raise RuntimeError(f"Jiangsu official visible/link date conflict for issue {issue}")
+            raise RuntimeError(f"Jiangsu official visible date conflict for issue {issue}")
         pairs[issue] = day
     return pairs
 
