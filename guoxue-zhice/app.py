@@ -7,6 +7,8 @@ import tkinter as tk
 from tkinter import messagebox
 from tkinter import ttk
 
+from gui_audit import record_gui_result
+
 from service import APP_NAME, APP_VERSION, create_service, self_test
 
 BG = "#f4f7fb"
@@ -26,6 +28,7 @@ class App(tk.Tk):
         self.configure(bg=BG)
         self.service = create_service()
         self._goal_nav_seq = 0
+        self._last_goal_result = None
         self.status_var = tk.StringVar(value="系统就绪 · 原典/解释/边界分层已启用")
         self._configure_style()
         self._build_shell()
@@ -56,7 +59,7 @@ class App(tk.Tk):
             ("高级分析", self.show_analysis),
         ]
         for i, (label, cmd) in enumerate(items):
-            b = tk.Button(nav, text=label, command=cmd, bg=BLUE, fg="white",
+            b = tk.Button(nav, text=label, command=lambda l=label, c=cmd: self._invoke_gui(l, c), bg=BLUE, fg="white",
                           activebackground="#1d4ed8", activeforeground="white",
                           relief="flat", bd=0, cursor="hand2", height=2,
                           font=("Microsoft YaHei UI", 11, "bold"))
@@ -71,6 +74,51 @@ class App(tk.Tk):
         tk.Label(bottom, textvariable=self.status_var, bg="#eaf0f8", fg=MUTED,
                  font=("Microsoft YaHei UI", 9)).pack(side="left", padx=18, pady=7)
         tk.Label(bottom, text=f"v{APP_VERSION}", bg="#eaf0f8", fg=MUTED).pack(side="right", padx=18)
+
+    def _invoke_gui(self, label, callback):
+        # Only a navigation callback records a GUI operation; startup is excluded.
+        try:
+            callback()
+            if label == "目标推演":
+                result = self._last_goal_result
+                ok = isinstance(result, dict) and bool(result.get("methods")) and bool(result.get("five_whys")) and bool(result.get("reverse_validation"))
+                record_gui_result(label, "PASS" if ok else "FAIL", {"action": "GOAL_ANALYSIS", "result": result})
+            elif label == "高级分析":
+                stats = self.service.stats()
+                ok = all(isinstance(stats.get(k), int) and stats[k] >= 0 for k in ("classics", "analyses", "reviews", "disputed"))
+                record_gui_result(label, "PASS" if ok else "FAIL", {"action": "ADVANCED_ANALYSIS", "stats": stats})
+        except Exception as exc:
+            record_gui_result(label, "FAIL", {"error": f"{type(exc).__name__}: {exc}"})
+            raise
+
+    def _finish_update(self, result=None, error=None):
+        if error is not None:
+            detail = f"{type(error).__name__}: {error}"
+            missing = str(error).startswith("real software-update release config is unavailable;")
+            self.status_var.set(f"一键更新 FAIL-CLOSED · {detail}")
+            self.update_idletasks()
+            record_gui_result("一键更新", "BLOCKED" if missing else "FAIL", {
+                "action": "RELEASE_CONFIG_UNAVAILABLE" if missing else "UPDATE_FAILED", "error": detail})
+            messagebox.showerror("一键更新失败", detail)
+            return
+        self.status_var.set(f"一键更新已交接独立 Updater · PID {result['updater_pid']} · 主程序即将关闭")
+        self.update_idletasks()
+        record_gui_result("一键更新", "PASS", result)
+        self.after(700, self.destroy)
+
+    def _finish_repair(self, result=None, error=None):
+        if error is not None:
+            detail = f"{type(error).__name__}: {error}"
+            self.status_var.set(f"一键修复 FAIL · {detail}")
+            self.update_idletasks()
+            record_gui_result("一键修复", "FAIL", {"action": "REPAIR_FAILED", "error": detail})
+            messagebox.showerror("一键修复失败", detail)
+            return
+        self.status_var.set("一键修复 PASS · 用户数据保留 · 复检通过")
+        self.update_idletasks()
+        record_gui_result("一键修复", "PASS", {"action": "REPAIR_COMPLETE", "result": result})
+        summary = "；".join(f"{name}:{status}" for name, status, _ in result.get("checks", []))
+        messagebox.showinfo("一键修复 PASS", summary or "自检通过")
 
     def clear(self):
         for w in self.content.winfo_children():
@@ -106,11 +154,13 @@ class App(tk.Tk):
         self.update_idletasks()
 
     def analyze_goal(self):
+        self._last_goal_result = None
         try:
             r = self.service.analyze_goal(self.goal_entry.get())
         except Exception as exc:
             messagebox.showerror("推演失败", str(exc))
             return
+        self._last_goal_result = r
         lines = [
             f"目标：{r['goal']}",
             f"识别场景：{' / '.join(r['scenarios'])}",
@@ -151,17 +201,9 @@ class App(tk.Tk):
             r = self.service.one_click_update()
             if r.get("status") != "PASS" or r.get("action") != "UPDATER_HANDOFF":
                 raise RuntimeError(f"Updater handoff did not PASS: {r!r}")
-            updater_pid = r.get("updater_pid")
-            self.after(0, lambda pid=updater_pid: self.status_var.set(
-                f"一键更新已交接独立 Updater · PID {pid} · 主程序即将关闭"
-            ))
-            self.after(700, self.destroy)
+            self.after(0, lambda value=r: self._finish_update(result=value))
         except Exception as exc:
-            detail = f"{type(exc).__name__}: {exc}"
-            self.after(0, lambda d=detail: messagebox.showerror("一键更新失败", d))
-            self.after(0, lambda d=detail: self.status_var.set(
-                f"一键更新 FAIL-CLOSED · {d}"
-            ))
+            self.after(0, lambda error=exc: self._finish_update(error=error))
 
     def run_repair(self):
         self.title(f"{APP_NAME} v{APP_VERSION} · 一键修复已触发")
@@ -174,13 +216,9 @@ class App(tk.Tk):
             r = self.service.one_click_repair()
             if r.get("status") != "PASS":
                 raise RuntimeError(f"repair did not PASS: {r!r}")
-            summary = "；".join(f"{name}:{status}" for name, status, _ in r.get("checks", []))
-            self.after(0, lambda s=summary: messagebox.showinfo("一键修复 PASS", s or "自检通过"))
-            self.after(0, lambda: self.status_var.set("一键修复 PASS · 用户数据保留 · 复检通过"))
+            self.after(0, lambda value=r: self._finish_repair(result=value))
         except Exception as exc:
-            detail = f"{type(exc).__name__}: {exc}"
-            self.after(0, lambda d=detail: messagebox.showerror("一键修复失败", d))
-            self.after(0, lambda d=detail: self.status_var.set(f"一键修复 FAIL · {d}"))
+            self.after(0, lambda error=exc: self._finish_repair(error=error))
 
     def run_knowledge_refresh(self):
         self.status_var.set("正在刷新知识库 · 这不是软件更新…")

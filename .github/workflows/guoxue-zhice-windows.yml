@@ -65,6 +65,9 @@ jobs:
       - name: Unit Gate
         run: python validation_gate.py --suite unit --output unit_gate.json
 
+      - name: GUI backend evidence counterexamples
+        run: python -m unittest discover -s tests -p test_gui_backend_evidence.py -v
+
       - name: Contract Gate
         run: python validation_gate.py --suite contract --output contract_gate.json
 
@@ -112,9 +115,9 @@ jobs:
       - name: Physical GUI mouse-click acceptance on Exact main EXE
         shell: pwsh
         run: |
-          python ..\.github\scripts\tk_button_points.py --project-path . --module app --entry main --labels "目标推演;一键更新;一键修复;高级分析" --out ".\gui_points.txt"
+          python tk_button_points.py --project-path . --module app --entry main --labels "目标推演;一键更新;一键修复;高级分析" --out ".\gui_points.txt"
           $points=(Get-Content ".\gui_points.txt" -Raw).Trim()
-          ..\.github\scripts\physical_gui_click_smoke.ps1 -ExePath ".\dist\Guoxue_Zhice_Windows_Verified.exe" -Points $points -ButtonTexts "目标推演;一键更新;一键修复;高级分析" -SettleMs 1200 -EvidencePath ".\physical_gui_click.json"
+          .\physical_gui_click.ps1 -ExePath ".\dist\Guoxue_Zhice_Windows_Verified.exe" -Points $points -ButtonTexts "目标推演;一键更新;一键修复;高级分析" -SettleMs 1200 -EvidencePath ".\physical_gui_click.json"
           python bind_physical_gui.py --exe ".\dist\Guoxue_Zhice_Windows_Verified.exe" --evidence ".\physical_gui_click.json"
 
       - name: Freeze post-GUI exact bytes
@@ -201,6 +204,7 @@ jobs:
             guoxue-zhice/exact_candidate_gate.json
             guoxue-zhice/updater_exe_self_test.json
             guoxue-zhice/physical_gui_click.json
+            guoxue-zhice/gui-audit-*.json
             guoxue-zhice/updater_windows_gate.json
             guoxue-zhice/software_release_validation.json
             guoxue-zhice/FINAL_ARTIFACT.json

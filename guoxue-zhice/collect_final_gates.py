@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 from typing import Any
+from bind_physical_gui import validate_gui
 
 ROOT = Path(__file__).resolve().parent
 VALID_STATES = {"PASS", "FAIL", "NOT VERIFIED", "BLOCKED"}
@@ -121,7 +122,7 @@ def main() -> int:
         and physical.get("status") == "PASS"
         and physical.get("exe_sha256") == sh
         and len(buttons) == 4
-        and all(x.get("status") == "PASS" and x.get("visual_changed") is True for x in buttons)
+        and validate_gui(physical, sh)
     )
     gates["gui_smoke"] = "PASS" if physical_ok and (exact.get("gui_smoke") or {}).get("status") == "PASS" else "FAIL"
     gates["same_hash"] = "PASS" if sh and sh == fh == exact.get("exe_sha256") else "FAIL"

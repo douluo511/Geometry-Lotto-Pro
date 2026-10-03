@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+from bind_physical_gui import validate_gui
 
 
 def sha256(path: Path) -> str | None:
@@ -55,7 +56,7 @@ def main() -> int:
         "real_release": release.get("status"),
         "main_exact_hash": "PASS" if main_hash and main_hash == final_main_hash == exact.get("exe_sha256") == gui.get("exe_sha256") else "FAIL",
         "updater_exact_hash": "PASS" if updater_hash and updater_hash == final_updater_hash == updater_windows.get("updater_exe_sha256") else "FAIL",
-        "physical_gui": "PASS" if gui.get("status") == "PASS" else "FAIL",
+        "physical_gui": "PASS" if main_hash and validate_gui(gui, main_hash, full_release=True) else "FAIL",
         "updater_windows": "PASS" if updater_windows.get("status") == "PASS" and updater_windows.get("same_hash") is True else "FAIL",
     }
 
