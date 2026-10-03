@@ -150,3 +150,10 @@ Do not label any project Final until Engineering=100%, Business=100%, hard_fail_
 
 - **Be Your Own Master V10:** direct read of the empirical workbook confirms 30-day and 90-day acceptance remain `待实证`; current dashboard shows 0 completed training days, 0 story-training completions and 0 major-decision records. The frozen book explicitly forbids claiming real effect before 30/90-day evidence. Issue #23 comment `5965966813`. Business actual-effect gate remains NOT VERIFIED; content-pack completeness does not equal business-effect PASS.
 - **Non-Hard-Work V9:** the owned source defines a nine-stage business-validation chain V-A..V-I (logic, adversarial, demand, transaction, economics, repeatability, systemization, asset, scale). Worked examples are explicitly hypothetical teaching numbers and do not prove market performance. Issue #22 comment `5965970688` freezes these source-derived mandatory gates; no current bound real-project evidence is promoted to PASS.
+
+### Happy 8 live-console FAIL→FIX — 2026-10-03
+
+- Exact failing head: `c67f07b2380cb9e209ba73f90ac8e06fd12f5e6f`; run `37099855990`; diagnostic artifact `11265820956`, digest `sha256:6e47aa03930dd7d478afc6098006e5c92a0e9dbdb2d21b96c51e74ac32cd0863`.
+- Raw failure: `scripts/real_network_check.py` completed live snapshot/storage work but failed while printing non-ASCII diagnostic JSON to the Windows runner's cp1252 stdout: `UnicodeEncodeError: 'charmap' codec can't encode characters ...`. Therefore `LIVE_OFFICIAL_NETWORK=failure`; science and Windows Exact EXE remained skipped. This failure is retained; it is not rewritten as PASS.
+- Fix commits: `6d18d89bec458627c8ffd557c45854a2b0d9393e` makes console-only JSON `ensure_ascii=True` while leaving persisted evidence UTF-8; `e36bdeb2840234fb9652e0f156fc71e396f3c2ea` adds the reverse cp1252 serialization contract with non-ASCII Chinese input.
+- Current exact head: `e36bdeb2840234fb9652e0f156fc71e396f3c2ea`. Current validation run: `37100365856` (queued/pending at record time). Status remains NOT VERIFIED until that exact-head run closes.
