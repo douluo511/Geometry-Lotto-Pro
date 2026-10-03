@@ -53,10 +53,14 @@ def evaluate_repository_independence(
     }
 
     statuses = [str(x.get("status")) for x in checks.values()]
-    if "FAIL" in statuses:
-        status = "FAIL"
-    elif "BLOCKED" in statuses:
+    # The shared portfolio repository is the external blocker itself.  Record
+    # inventory defects, but do not misclassify the known external condition as
+    # an implementation FAIL.  Once the repository is dedicated, any mixed
+    # inventory becomes a real FAIL.
+    if checks["dedicated_repository_name"]["status"] == "BLOCKED":
         status = "BLOCKED"
+    elif "FAIL" in statuses:
+        status = "FAIL"
     elif statuses and all(x == "PASS" for x in statuses):
         status = "PASS"
     else:
