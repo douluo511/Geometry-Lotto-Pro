@@ -1,7 +1,9 @@
 param(
   [Parameter(Mandatory=$true)][string]$ExePath,
   [Parameter(Mandatory=$true)][string]$EvidencePath,
-  [int]$TimeoutSeconds = 180
+  [ValidateSet('BlockedRelease','ConfiguredRelease')][string]$ReleaseMode = 'BlockedRelease',
+  [int]$TimeoutSeconds = 180,
+  [int]$UpdaterEvidenceTimeoutSeconds = 180
 )
 
 $ErrorActionPreference = "Stop"
@@ -70,6 +72,22 @@ function Stop-Tree([System.Diagnostics.Process]$p,[int]$guiPid=0) {
   if($guiPid -gt 0 -and $guiPid -ne $p.Id) { Stop-Process -Id $guiPid -Force -ErrorAction SilentlyContinue }
   try { if(-not $p.HasExited) { & taskkill.exe /PID $p.Id /T /F | Out-Null } } catch {}
   Start-Sleep -Milliseconds 300
+}
+
+function Wait-JsonEvidence([string]$path,[int]$timeoutSeconds) {
+  $deadline=(Get-Date).AddSeconds($timeoutSeconds)
+  while((Get-Date) -lt $deadline) {
+    if(Test-Path $path) {
+      try {
+        $value=Get-Content $path -Raw -Encoding UTF8 | ConvertFrom-Json
+        if($null -ne $value -and -not [string]::IsNullOrWhiteSpace([string]$value.status)) {
+          return $value
+        }
+      } catch {}
+    }
+    Start-Sleep -Milliseconds 250
+  }
+  throw "timed out waiting for JSON evidence: $path"
 }
 
 function Wait-Window([System.Diagnostics.Process]$p,[string]$processName,[int[]]$baseline) {
@@ -189,10 +207,19 @@ $seedJson=Get-Content $seedResult -Raw -Encoding UTF8 | ConvertFrom-Json
 if($seedJson.status -ne 'PASS') { throw "exact EXE live-network seed was not PASS" }
 Write-Progress 'live_network_seed' 'PASS'
 
+$updateExpected=$(if($ReleaseMode -eq 'ConfiguredRelease'){'UP_TO_DATE_HANDOFF'}else{'FAIL_CLOSED'})
+$repairExpected=$(if($ReleaseMode -eq 'ConfiguredRelease'){'PASS'}else{'BLOCKED_EXTERNAL'})
+if($ReleaseMode -eq 'ConfiguredRelease') {
+  $releaseConfig=Join-Path (Split-Path $exe -Parent) 'Happy8_Update_Config.json'
+  $updaterExe=Join-Path (Split-Path $exe -Parent) 'Geometry_Lotto_Pro_Happy8_Updater.exe'
+  if(-not (Test-Path $releaseConfig -PathType Leaf)) { throw "configured-release GUI acceptance requires Happy8_Update_Config.json beside the Exact EXE" }
+  if(-not (Test-Path $updaterExe -PathType Leaf)) { throw "configured-release GUI acceptance requires the independent Updater EXE beside the Exact EXE" }
+}
+
 $ops=@(
   @{key='predict'; label='预测下一期'; rx=0.14; expected='PASS'},
-  @{key='update'; label='一键更新'; rx=0.38; expected='FAIL_CLOSED'},
-  @{key='repair'; label='一键修复'; rx=0.62; expected='BLOCKED_EXTERNAL'},
+  @{key='update'; label='一键更新'; rx=0.38; expected=$updateExpected},
+  @{key='repair'; label='一键修复'; rx=0.62; expected=$repairExpected},
   @{key='advanced'; label='高级分析'; rx=0.86; expected='PASS'}
 )
 $results=@()
@@ -223,16 +250,39 @@ foreach($op in $ops) {
     $after=Screen-Hash
     if($before -eq $after) { throw "physical click produced no visible desktop change for $($op.label)" }
 
+    $updaterResult=$null
     if($op.expected -eq 'PASS') {
       if($record.status -ne 'PASS') { throw "$($op.label) backend status was $($record.status), expected PASS" }
       if($op.key -eq 'predict' -and [string]::IsNullOrWhiteSpace([string]$record.result.freeze_hash)) { throw "prediction freeze hash missing" }
-      if($op.key -eq 'repair' -and $record.result.action -ne 'RESTORED_VERIFIED_GENERATION') { throw "repair did not restore the corrupted CURRENT pointer" }
+      if($op.key -eq 'repair') {
+        if($record.result.action -ne 'REPAIR_COMPLETE') { throw "configured repair did not complete normally" }
+        if($record.result.components.data_integrity.status -ne 'PASS') { throw "repair local data integrity did not recover" }
+        if($record.result.components.index.status -ne 'PASS') { throw "repair CURRENT/index pointer did not recover" }
+        if($record.result.components.configuration.status -ne 'PASS') { throw "configured release check did not pass" }
+        if($record.result.components.network_configuration.status -ne 'PASS') { throw "configured network release check did not pass" }
+        if($record.result.components.version.status -ne 'PASS') { throw "configured version check did not pass" }
+        if($record.result.post_repair_self_check.status -ne 'PASS') { throw "repair post self-check did not pass" }
+      }
       if($op.key -eq 'advanced' -and $record.result.report.software_verdict -ne 'PASS') { throw "advanced analysis software verdict not PASS" }
     } elseif($op.expected -eq 'FAIL_CLOSED') {
       if($record.status -ne 'FAIL') { throw "one-click update must fail closed without a real independent release config" }
       $err=[string]$record.result.error
       if($err -notmatch 'release config is unavailable|independent repository/release source remains BLOCKED') {
         throw "one-click update failed for an unexpected reason: $err"
+      }
+    } elseif($op.expected -eq 'UP_TO_DATE_HANDOFF') {
+      if($record.status -ne 'PASS' -or $record.result.action -ne 'UPDATER_HANDOFF') {
+        throw "configured one-click update did not hand off to the independent Updater"
+      }
+      if($record.result.requires_parent_exit -ne $true) { throw "Updater handoff did not require parent exit" }
+      $updaterEvidence=[string]$record.result.evidence_file
+      if([string]::IsNullOrWhiteSpace($updaterEvidence)) { throw "Updater handoff evidence path missing" }
+      $updaterResult=Wait-JsonEvidence $updaterEvidence $UpdaterEvidenceTimeoutSeconds
+      if($updaterResult.status -ne 'PASS' -or $updaterResult.operation -ne 'software_update' -or $updaterResult.action -ne 'UP_TO_DATE') {
+        throw "configured final-EXE update must complete through the independent Updater as UP_TO_DATE"
+      }
+      if($updaterResult.current_version -ne $updaterResult.manifest_version) {
+        throw "UP_TO_DATE evidence version mismatch"
       }
     } else {
       if($record.status -ne 'BLOCKED') { throw "one-click repair must surface the missing trusted release/network configuration as BLOCKED" }
@@ -249,8 +299,11 @@ foreach($op in $ops) {
     $results += [pscustomobject]@{
       key=$op.key
       label=$op.label
-      acceptance=$(if($op.expected -eq 'FAIL_CLOSED'){'PASS_FAIL_CLOSED'}elseif($op.expected -eq 'BLOCKED_EXTERNAL'){'PASS_BLOCKED_EXPLICIT'}else{'PASS'})
+      acceptance=$(if($op.expected -eq 'FAIL_CLOSED'){'PASS_FAIL_CLOSED'}elseif($op.expected -eq 'BLOCKED_EXTERNAL'){'PASS_BLOCKED_EXPLICIT'}elseif($op.expected -eq 'UP_TO_DATE_HANDOFF'){'PASS_UPDATER_HANDOFF_UP_TO_DATE'}else{'PASS'})
       backend_status=$record.status
+      backend_action=$record.result.action
+      updater_status=$(if($null -ne $updaterResult){$updaterResult.status}else{$null})
+      updater_action=$(if($null -ne $updaterResult){$updaterResult.action}else{$null})
       locator=$point.locator
       x=$point.x
       y=$point.y
@@ -285,7 +338,8 @@ $report=[ordered]@{
   live_network_seed_status='PASS'
   operations=$results
   post_gui_store_status='PASS'
-  updater_real_release='BLOCKED'
+  release_mode=$ReleaseMode
+  updater_real_release=$(if($ReleaseMode -eq 'ConfiguredRelease'){'CONFIGURED_VERIFIED_UP_TO_DATE'}else{'BLOCKED'})
   final_gate='FAIL'
   tested_at=(Get-Date).ToUniversalTime().ToString('o')
 }
