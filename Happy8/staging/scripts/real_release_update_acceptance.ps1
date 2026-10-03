@@ -99,9 +99,16 @@ function Compare-NumericVersion([string]$left,[string]$right) {
   return 0
 }
 
-function Assert-HttpsTrusted([string]$url,[string[]]$trustedHosts) {
+function Assert-Https([string]$url) {
   $uri=[Uri]$url
-  if($uri.Scheme -ne 'https') { throw "URL is not HTTPS: $url" }
+  if($uri.Scheme -ne 'https' -or [string]::IsNullOrWhiteSpace($uri.Host)) {
+    throw "URL is not HTTPS: $url"
+  }
+}
+
+function Assert-HttpsTrusted([string]$url,[string[]]$trustedHosts) {
+  Assert-Https $url
+  $uri=[Uri]$url
   $host=$uri.Host.ToLowerInvariant()
   if(@($trustedHosts | ForEach-Object {$_.ToLowerInvariant()}) -notcontains $host) {
     throw "URL host is not trusted: $host"
@@ -232,8 +239,8 @@ try {
   [string[]]$trustedHosts=@($config.trusted_hosts | ForEach-Object {[string]$_})
   if($trustedHosts.Count -eq 0) { throw 'Release N trusted_hosts is empty' }
   Assert-HttpsTrusted ([string]$config.manifest_url) $trustedHosts
-  Assert-HttpsTrusted $ReleaseNUrl $trustedHosts
-  Assert-HttpsTrusted $ReleaseN1Url $trustedHosts
+  Assert-Https $ReleaseNUrl
+  Assert-Https $ReleaseN1Url
 
   $manifestResponse=Invoke-WebRequest -Uri ([string]$config.manifest_url) -UseBasicParsing -Headers @{Accept='application/json'} -TimeoutSec 60
   if([int]$manifestResponse.StatusCode -ne 200) { throw "manifest HTTP $($manifestResponse.StatusCode)" }
