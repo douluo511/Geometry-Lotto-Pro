@@ -223,6 +223,22 @@ def main() -> int:
         raise AssertionError("official host accepted HTTP downgrade")
     checks["provincial_official_https_host_contract"] = {"status": "PASS"}
 
+    # Reverse-check the exact Windows console failure mode observed in live CI.
+    # Persisted evidence remains UTF-8; console diagnostics must stay safe even
+    # when stdout uses a legacy cp1252-compatible encoding.
+    console_probe = json.dumps(
+        {"source": "江西抚州福利彩票", "label": "开奖结果查询"},
+        ensure_ascii=True,
+        indent=2,
+    )
+    try:
+        console_probe.encode("cp1252")
+    except UnicodeEncodeError as exc:
+        raise AssertionError("ASCII-safe live console JSON regressed") from exc
+    if "\\u" not in console_probe:
+        raise AssertionError("non-ASCII console probe was not escaped")
+    checks["windows_cp1252_console_json_contract"] = {"status": "PASS"}
+
     report = {
         "schema": "happy8-staging-contract-v1",
         "status": "PASS" if all(x["status"] == "PASS" for x in checks.values()) else "FAIL",
