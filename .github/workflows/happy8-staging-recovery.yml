@@ -1,7 +1,7 @@
 name: Happy8 recovered prototype staging gates
 
 concurrency:
-  group: happy8-staging-${{ github.event.pull_request.number || github.ref }}
+  group: happy8-strict-v2-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 on:
