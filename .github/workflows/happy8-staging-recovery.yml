@@ -85,9 +85,11 @@ jobs:
             )
             if (@($errors).Count -gt 0) {
               $messages = @($errors | ForEach-Object { $_.Message }) -join '; '
-              throw "PowerShell parse failed for $script: $messages"
+              throw "PowerShell parse failed for ${script}: $messages"
             }
           }
+          python scripts/acceptance_regression_gate.py --output evidence/acceptance_regression.json
+          if ($LASTEXITCODE -ne 0) { throw 'Acceptance execution regression gate failed' }
 
       - name: Unit gate
         id: unit_gate
@@ -234,7 +236,24 @@ jobs:
         continue-on-error: true
         shell: pwsh
         run: |
-          ./scripts/physical_gui_click_smoke.ps1 -ExePath dist1/Geometry_Lotto_Pro_Happy8.exe -EvidencePath evidence/physical_gui_click.json
+          $releaseMode = 'BlockedRelease'
+          $configPath = 'dist1/Happy8_Update_Config.json'
+          if (Test-Path $configPath -PathType Leaf) {
+            $config = Get-Content $configPath -Raw -Encoding UTF8 | ConvertFrom-Json
+            $manifestUri = [Uri]([string]$config.manifest_url)
+            $trustedHosts = @($config.trusted_hosts | ForEach-Object { ([string]$_).Trim().ToLowerInvariant() })
+            if ($config.schema -ne 'happy8-update-config-v1' -or $manifestUri.Scheme -ne 'https' -or
+                [string]::IsNullOrWhiteSpace($manifestUri.Host) -or $trustedHosts -notcontains $manifestUri.Host.ToLowerInvariant()) {
+              throw 'Sibling release configuration is not trusted HTTPS'
+            }
+            $updaterPath = 'dist1/Geometry_Lotto_Pro_Happy8_Updater.exe'
+            if (-not (Test-Path $updaterPath -PathType Leaf)) { throw 'Configured release independent Updater is missing' }
+            $build = Get-Content evidence/windows_exact_exe.json -Raw | ConvertFrom-Json
+            $updaterHash = (Get-FileHash $updaterPath -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($updaterHash -ne $build.updater_sha256) { throw 'Configured release Updater hash does not match exact build' }
+            $releaseMode = 'ConfiguredRelease'
+          }
+          ./scripts/physical_gui_click_smoke.ps1 -ExePath dist1/Geometry_Lotto_Pro_Happy8.exe -EvidencePath evidence/physical_gui_click.json -ReleaseMode $releaseMode
 
       - name: Same Hash after physical GUI
         id: post_gui_same_hash

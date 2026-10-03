@@ -138,6 +138,7 @@ def validate_final_artifact(
     release_to_version = None
     release_to_url = None
     release_to_id = None
+    rr_prechecks = {}
     if isinstance(real_release, dict):
         rr_prechecks = real_release.get("checks", {}) if isinstance(real_release.get("checks"), dict) else {}
         monotonic = rr_prechecks.get("monotonic_versions", {})
@@ -212,9 +213,58 @@ def validate_final_artifact(
     )
 
     physical_gui = physical_gui if isinstance(physical_gui, dict) else {}
+    gui_context = physical_gui.get("execution_context") if isinstance(physical_gui.get("execution_context"), dict) else {}
+    operations = physical_gui.get("operations") if isinstance(physical_gui.get("operations"), list) else []
+    expected_entries = {"predict": "预测下一期", "update": "一键更新", "repair": "一键修复", "advanced": "高级分析"}
+    entries_ok = len(operations) == 4 and {op.get("key") for op in operations if isinstance(op, dict)} == set(expected_entries)
+    for op in operations:
+        if not isinstance(op, dict):
+            entries_ok = False
+            continue
+        key = op.get("key")
+        expected_acceptance = "PASS_UPDATER_HANDOFF_UP_TO_DATE" if key == "update" else "PASS"
+        entries_ok = entries_ok and (
+            op.get("label") == expected_entries.get(key)
+            and op.get("acceptance") == expected_acceptance
+            and op.get("backend_status") == "PASS"
+            and op.get("visual_changed") is True
+            and bool(SHA256_RE.fullmatch(_sha(op.get("before_screen_sha256"))))
+            and bool(SHA256_RE.fullmatch(_sha(op.get("after_screen_sha256"))))
+            and op.get("before_screen_sha256") != op.get("after_screen_sha256")
+        )
+        if key == "repair":
+            entries_ok = entries_ok and op.get("backend_action") == "REPAIR_COMPLETE"
+        if key == "update":
+            proof = op.get("updater_evidence") if isinstance(op.get("updater_evidence"), dict) else {}
+            receipt = proof.get("manifest_receipt") if isinstance(proof.get("manifest_receipt"), dict) else {}
+            rr_config = rr_prechecks.get("trusted_update_config") if isinstance(rr_prechecks.get("trusted_update_config"), dict) else {}
+            entries_ok = entries_ok and (
+                op.get("backend_action") == "UPDATER_HANDOFF"
+                and op.get("requires_parent_exit") is True
+                and isinstance(op.get("updater_pid"), int) and op["updater_pid"] > 0
+                and _sha(op.get("updater_exe_sha256")) == updater_sha
+                and op.get("updater_status") == "PASS" and op.get("updater_action") == "UP_TO_DATE"
+                and proof.get("status") == "PASS" and proof.get("operation") == "software_update"
+                and proof.get("action") == "UP_TO_DATE"
+                and proof.get("current_version") == release_to_version
+                and proof.get("manifest_version") == release_to_version
+                and _https(receipt.get("url")) and receipt.get("http_status") == 200
+                and receipt.get("url") == rr_config.get("manifest_url")
+                and bool(SHA256_RE.fullmatch(_sha(receipt.get("sha256"))))
+                and isinstance(receipt.get("bytes"), int) and receipt["bytes"] > 0
+            )
     put(
         "physical_gui_binding",
-        physical_gui.get("status") == "PASS"
+        physical_gui.get("schema") == "happy8-physical-gui-v1"
+        and physical_gui.get("release_mode") == "ConfiguredRelease"
+        and physical_gui.get("updater_real_release") == "CONFIGURED_VERIFIED_UP_TO_DATE"
+        and physical_gui.get("post_gui_store_status") == "PASS"
+        and gui_context.get("producer") == "happy8-physical-gui-acceptance-v1"
+        and str(gui_context.get("github_run_id") or "") == str(run_id)
+        and str(gui_context.get("github_run_attempt") or "") == str(run_attempt)
+        and str(gui_context.get("head_sha") or "").lower() == source_sha
+        and entries_ok
+        and physical_gui.get("status") == "PASS"
         and physical_gui.get("same_hash") is True
         and _sha(physical_gui.get("exe_sha256_before")) == exact_sha
         and _sha(physical_gui.get("exe_sha256_after")) == exact_sha,
@@ -234,6 +284,11 @@ def validate_final_artifact(
     rr_assets = rr_checks.get("release_asset_hashes") if isinstance(rr_checks.get("release_asset_hashes"), dict) else {}
     rr_n1_main = _sha(rr_assets.get("release_n1_main"))
     rr_n1_updater = _sha(rr_assets.get("release_n1_updater"))
+    rr_context = rr_checks.get("current_run_binding") if isinstance(rr_checks.get("current_run_binding"), dict) else {}
+    rr_official = rr_checks.get("official_release_n1_binding") if isinstance(rr_checks.get("official_release_n1_binding"), dict) else {}
+    rr_official_assets = rr_official.get("assets") if isinstance(rr_official.get("assets"), dict) else {}
+    rr_main_asset = rr_official_assets.get("main") if isinstance(rr_official_assets.get("main"), dict) else {}
+    rr_updater_asset = rr_official_assets.get("updater") if isinstance(rr_official_assets.get("updater"), dict) else {}
     put(
         "real_release_binding",
         real_release.get("schema") == "happy8-real-release-validation-v1"
@@ -241,7 +296,15 @@ def validate_final_artifact(
         and real_release.get("repository") == repository
         and str(real_release.get("source_sha") or "").lower() == source_sha
         and rr_n1_main == exact_sha
-        and rr_n1_updater == updater_sha,
+        and rr_n1_updater == updater_sha
+        and rr_context.get("status") == "PASS"
+        and str(rr_context.get("github_run_id") or "") == str(run_id)
+        and str(rr_context.get("github_run_attempt") or "") == str(run_attempt)
+        and str(rr_context.get("head_sha") or "").lower() == source_sha
+        and rr_official.get("status") == "PASS"
+        and rr_official.get("resolved_source_sha") == source_sha
+        and rr_main_asset.get("status") == "PASS" and rr_main_asset.get("bytes") == exact_bytes
+        and rr_updater_asset.get("status") == "PASS" and rr_updater_asset.get("bytes") == updater_bytes,
         release_n1_main_sha256=rr_n1_main,
         release_n1_updater_sha256=rr_n1_updater,
     )
@@ -341,7 +404,7 @@ def main() -> int:
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    print(json.dumps(report, ensure_ascii=False, indent=2))
+    print(json.dumps(report, ensure_ascii=True, indent=2))
     return 2 if report.get("status") == "FAIL" else 0
 
 
