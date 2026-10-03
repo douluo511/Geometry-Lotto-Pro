@@ -222,7 +222,7 @@ foreach($op in $ops) {
       if($record.status -ne 'BLOCKED') { throw "one-click repair must surface the missing trusted release/network configuration as BLOCKED" }
       if($record.result.action -ne 'LOCAL_REPAIR_COMPLETE_EXTERNAL_BLOCKER') { throw "repair blocker action mismatch" }
       if($record.result.components.data_integrity.status -ne 'PASS') { throw "repair local data integrity did not recover" }
-      if($record.result.components.index_pointer.status -ne 'PASS') { throw "repair CURRENT/index pointer did not recover" }
+      if($record.result.components.index.status -ne 'PASS') { throw "repair CURRENT/index pointer did not recover" }
       if($record.result.components.configuration.status -ne 'BLOCKED') { throw "repair release config blocker was hidden" }
       if($record.result.components.network_configuration.status -ne 'BLOCKED') { throw "repair network config blocker was hidden" }
       if($record.result.post_repair_self_check.status -ne 'PASS') { throw "repair post self-check did not pass" }
