@@ -18,6 +18,61 @@ from .net_client import NetClient
 from .storage import canonical_json
 
 
+def _durable_sync_path(path: Path) -> None:
+    """Force staged bytes to stable storage without relying on a live Python fd on Windows."""
+    path = Path(path).resolve()
+    if os.name == "nt":
+        import ctypes
+        from ctypes import wintypes
+
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        create_file = kernel32.CreateFileW
+        create_file.argtypes = [
+            wintypes.LPCWSTR,
+            wintypes.DWORD,
+            wintypes.DWORD,
+            wintypes.LPVOID,
+            wintypes.DWORD,
+            wintypes.DWORD,
+            wintypes.HANDLE,
+        ]
+        create_file.restype = wintypes.HANDLE
+        flush_file = kernel32.FlushFileBuffers
+        flush_file.argtypes = [wintypes.HANDLE]
+        flush_file.restype = wintypes.BOOL
+        close_handle = kernel32.CloseHandle
+        close_handle.argtypes = [wintypes.HANDLE]
+        close_handle.restype = wintypes.BOOL
+
+        GENERIC_WRITE = 0x40000000
+        OPEN_EXISTING = 3
+        FILE_ATTRIBUTE_NORMAL = 0x80
+        handle = create_file(
+            str(path),
+            GENERIC_WRITE,
+            0,
+            None,
+            OPEN_EXISTING,
+            FILE_ATTRIBUTE_NORMAL,
+            None,
+        )
+        invalid = wintypes.HANDLE(-1).value
+        if handle == invalid:
+            raise ctypes.WinError(ctypes.get_last_error())
+        try:
+            if not flush_file(handle):
+                raise ctypes.WinError(ctypes.get_last_error())
+        finally:
+            close_handle(handle)
+        return
+
+    fd = os.open(path, os.O_RDONLY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
 def _atomic_json(path: Path, value: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp_name = tempfile.mkstemp(prefix=path.name + ".", suffix=".tmp", dir=str(path.parent))
@@ -25,7 +80,7 @@ def _atomic_json(path: Path, value: Any) -> None:
         with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as fh:
             fh.write(canonical_json(value) + "\n")
             fh.flush()
-            os.fsync(fh.fileno())
+        _durable_sync_path(Path(tmp_name))
         os.replace(tmp_name, path)
     finally:
         try:
@@ -182,7 +237,7 @@ class Updater:
         with stage.open("wb") as fh:
             fh.write(artifact)
             fh.flush()
-            os.fsync(fh.fileno())
+        _durable_sync_path(stage)
 
         _wait_parent_exit(parent_pid)
         if backup.exists():
