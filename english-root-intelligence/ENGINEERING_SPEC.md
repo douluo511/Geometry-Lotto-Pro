@@ -42,7 +42,13 @@ All are hard gates and failures are explicit.
 Self-contained Windows EXE; exact artifact is tested, GUI-smoked, frozen and hash-bound.
 
 ## Final Gate
-All 22 frozen hard gates must be exactly PASS; all other states fail.
+Every named hard gate in release_gate.py must be exactly PASS; FAIL, NOT VERIFIED and BLOCKED never count as completion. Engineering and business completion are counted independently; combined completion is their minimum.
 
 ## Unique Product
 One EXE, one SHA256, one manifest/report. Any behavior-code change invalidates prior acceptance.
+
+## Independent Software Updater Contract
+The software update button calls Service and launches a separately built updater process beside the installed main EXE. Corpus refresh remains a separate audited Service operation and cannot satisfy software update gates. The main process exits only after a verified process handoff. The updater accepts only a trusted HTTPS release config, validates the raw manifest and artifact SHA256/size, waits for the parent exit, stages bytes, preserves the previous EXE and durable transaction journal, atomically replaces the installed EXE, verifies the new EXE self-test and version, and restarts it. Failure restores the previous bytes; failed rollback retains its backup and journal for restart recovery. Missing official release config is BLOCKED. Repair preserves healthy progress and archives corrupted original bytes before recovery.
+
+## Current Release Acceptance Evidence
+A dedicated repository, current exact source/run/attempt, separately built updater EXE, raw release N and N+1 network receipts, physical update click, new installed EXE health and matching source/final hashes are mandatory. Simulation fixtures and an isolated seed do not satisfy these gates. Only a fully accepted final main EXE is the unique user product; updater and audit files are independent supporting components.

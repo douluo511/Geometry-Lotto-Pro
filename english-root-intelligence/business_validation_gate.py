@@ -1,4 +1,5 @@
 from __future__ import annotations
+from gate_common import run_identity
 
 import json
 import os
@@ -28,7 +29,7 @@ def main() -> int:
         report = {
             "schema": "english-root-business-validation-v1",
             "status": status,
-            "github_sha": os.environ.get("GITHUB_SHA"),
+            **run_identity(), "github_sha": (os.environ.get("ENGLISH_ROOT_SOURCE_SHA") or os.environ.get("GITHUB_SHA")),
             "business_validation": status,
             "counterexample_validation": status if checks["unknown_word_is_not_overclaimed"] else "FAIL",
             "reversal_validation": status if checks["counterexample_reverses_confidence"] else "FAIL",
