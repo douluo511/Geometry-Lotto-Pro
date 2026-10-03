@@ -40,6 +40,18 @@ def _stable_seed(*parts: object) -> int:
     return int.from_bytes(hashlib.sha256(raw).digest()[:8], "big")
 
 
+def _canonical_draw_hash(draws: list[Draw]) -> str:
+    import json
+
+    raw = json.dumps(
+        [draw.to_dict() for draw in draws],
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(raw).hexdigest()
+
+
 @dataclass(frozen=True)
 class PrefixState:
     occurrence: list[list[int]]
@@ -477,10 +489,16 @@ def ablation(draws: list[Draw], state: PrefixState) -> list[dict]:
 def validate_history(draws: list[Draw], *, canonical_hash: str) -> dict:
     if not draws:
         raise ValueError("scientific validation requires official history")
-    if not canonical_hash or len(canonical_hash) < 32:
-        raise ValueError("scientific validation requires canonical history hash")
+    if not canonical_hash or len(canonical_hash) != 64:
+        raise ValueError("scientific validation requires a SHA-256 canonical history hash")
     for draw in draws:
         draw.validate()
+    computed_canonical_hash = _canonical_draw_hash(draws)
+    if computed_canonical_hash != canonical_hash.lower():
+        raise ValueError(
+            "canonical history hash mismatch: "
+            f"expected={canonical_hash.lower()} computed={computed_canonical_hash}"
+        )
     ordered = sorted(draws, key=lambda d: (d.draw_date, d.issue))
     if ordered != draws:
         raise ValueError("official history must be canonical chronological order")
@@ -530,7 +548,7 @@ def validate_history(draws: list[Draw], *, canonical_hash: str) -> dict:
             "PASS" if len(lopo) == LOPO_PERIODS and all(row["holdout_n"] > 0 for row in lopo) else "FAIL"
         ),
         "leakage_challenge": leakage["status"],
-        "canonical_hash_bound": "PASS",
+        "canonical_hash_bound": "PASS" if computed_canonical_hash == canonical_hash.lower() else "FAIL",
     }
     software_verdict = "PASS" if all(value == "PASS" for value in protocol_gates.values()) else "FAIL"
 
@@ -603,7 +621,8 @@ def validate_history(draws: list[Draw], *, canonical_hash: str) -> dict:
         "schema": "happy8-scientific-validation-v2",
         "status": "PASS" if software_verdict == "PASS" else "FAIL",
         "software_verdict": software_verdict,
-        "canonical_hash": canonical_hash,
+        "canonical_hash": canonical_hash.lower(),
+        "computed_canonical_hash": computed_canonical_hash,
         "draw_count": len(draws),
         "latest_issue": draws[-1].issue,
         "baseline": {
