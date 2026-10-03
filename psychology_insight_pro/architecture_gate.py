@@ -64,13 +64,13 @@ def main() -> int:
     report = {
         "schema": "psychology-architecture-gate-v2",
         "status": status,
-        "github_sha": os.environ.get("GITHUB_SHA"),
+        "github_run_id": os.environ.get("GITHUB_RUN_ID"), "github_run_attempt": os.environ.get("GITHUB_RUN_ATTEMPT"), "github_sha": (os.environ.get("PSYCHOLOGY_SOURCE_SHA") or os.environ.get("GITHUB_SHA")),
         "gates": gates,
         "checks": checks,
     }
     out = ROOT / "architecture_gate.json"
     out.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(json.dumps(report, ensure_ascii=False, indent=2))
+    print(json.dumps(report, ensure_ascii=True, indent=2))
     return 0 if status == "PASS" else 2
 
 

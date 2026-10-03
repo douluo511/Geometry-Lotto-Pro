@@ -39,11 +39,11 @@ def main() -> int:
     p.add_argument("--exe", required=True)
     p.add_argument("--final-exe", required=True)
     p.add_argument("--physical-gui", required=True)
-    p.add_argument("--repository-independent", choices=["PASS", "FAIL"], required=True)
+    p.add_argument("--repository-evidence", required=True)
     p.add_argument("--output", required=True)
     a = p.parse_args()
 
-    github_sha = os.environ.get("GITHUB_SHA")
+    github_sha = (os.environ.get("PSYCHOLOGY_SOURCE_SHA") or os.environ.get("GITHUB_SHA"))
     arch = read(ROOT / "architecture_gate.json")
     business = read(ROOT / "business_gate.json")
     unit = read(ROOT / "unit_gate.json")
@@ -55,7 +55,13 @@ def main() -> int:
     exact = read(ROOT / "exact_candidate_gate.json")
     physical = read(Path(a.physical_gui))
 
+    updater_fault = read(ROOT / "updater_gate.json")
+    updater_exact = read(ROOT / "updater_exact_candidate_gate.json")
+    real_release = read(ROOT / "real_release_validation.json")
+    independent = read(Path(a.repository_evidence))
     current_run_reports = {
+        "updater_fault": updater_fault, "updater_exact": updater_exact,
+        "real_release": real_release, "independent": independent,
         "architecture": arch,
         "business": business,
         "unit": unit,
@@ -68,7 +74,10 @@ def main() -> int:
         "physical_gui": physical,
     }
     current_run_binding = {
-        name: (report.get("github_sha") == github_sha)
+        name: (bool(github_sha) and report.get("github_sha") == github_sha
+                 and bool(os.environ.get("GITHUB_RUN_ID"))
+                 and report.get("github_run_id") == os.environ.get("GITHUB_RUN_ID")
+                 and report.get("github_run_attempt") == os.environ.get("GITHUB_RUN_ATTEMPT"))
         for name, report in current_run_reports.items()
     }
 
@@ -134,14 +143,28 @@ def main() -> int:
     ) else "FAIL"
     gates["same_hash"] = "PASS" if source_hash and source_hash == final_hash == exact_hash else "FAIL"
     gates["business_content"] = "PASS" if current_run_binding["business"] and passed(business) else "FAIL"
-    gates["repository_independence"] = a.repository_independent
+    def evidence_state(report, bound):
+        state = str(report.get("status", "NOT VERIFIED"))
+        return state if bound and state in {"PASS", "FAIL", "NOT VERIFIED", "BLOCKED"} else "NOT VERIFIED"
+    for key in ("updater_process", "updater_exact_exe", "updater_same_hash"):
+        valid = current_run_binding["updater_exact"] and passed(updater_exact) and updater_exact.get("gates", {}).get(key) == "PASS"
+        gates[key] = "PASS" if valid else "NOT VERIFIED"
+    required_faults = {"manifest_https_trust_fail_closed", "manifest_and_artifact_contract", "bad_hash_fail_closed", "truncated_download_fail_closed", "non_monotonic_no_replace", "normal_atomic_update", "offline_manifest_fail_closed", "download_interruption_fail_closed", "permission_replace_failure_rolls_back", "main_program_occupied_fail_closed", "health_failure_rolls_back", "rollback_failure_retains_recovery_state", "restart_recovery_restores_previous_exe"}
+    fault_checks = updater_fault.get("checks", {})
+    gates["updater_atomic_rollback"] = "PASS" if current_run_binding["updater_fault"] and passed(updater_fault) and required_faults <= set(fault_checks) and all(fault_checks[x].get("status") == "PASS" for x in required_faults) else "NOT VERIFIED"
+    gates["updater_real_network"] = evidence_state(real_release, current_run_binding["real_release"])
+    gates["repository_independence"] = evidence_state(independent, current_run_binding["independent"])
+    if gates["repository_independence"] == "PASS" and independent.get("repository") == "douluo511/Geometry-Lotto-Pro":
+        gates["repository_independence"] = "FAIL"
+    gui_operations_pass = gates["gui_smoke"] == "PASS" and physical.get("operation_binding") == "PASS"
+    gates["gui_smoke"] = "PASS" if gui_operations_pass and physical.get("acceptance_mode") == "ConfiguredRelease" and physical.get("software_update_release") == "PASS" else ("BLOCKED" if gui_operations_pass and physical.get("acceptance_mode") == "BlockedRelease" else "FAIL")
 
     failures = {k: v for k, v in gates.items() if v != "PASS"}
     report = {
         "schema": "psychology-mother-gate-input-v2",
         "status": "PASS" if not failures else "FAIL",
         "hard_fail_count": len(failures),
-        "github_sha": github_sha,
+        "github_run_id": os.environ.get("GITHUB_RUN_ID"), "github_run_attempt": os.environ.get("GITHUB_RUN_ATTEMPT"), "github_sha": github_sha,
         "gates": gates,
         "failures": failures,
         "exe_sha256": source_hash,
@@ -162,7 +185,7 @@ def main() -> int:
         "rule": "Only explicit current-run evidence-backed PASS counts; missing/warning/pending/skipped/unavailable/unknown all fail closed.",
     }
     Path(a.output).write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(json.dumps(report, ensure_ascii=False))
+    print(json.dumps(report, ensure_ascii=True))
     return 0 if report["status"] == "PASS" else 2
 
 

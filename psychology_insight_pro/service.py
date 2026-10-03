@@ -9,6 +9,10 @@ from domain import UpdateResult
 from net_client import NetClient, NetError
 from storage import KnowledgeStorage
 from engine import analyze, self_test
+from pathlib import Path
+from software_update import UpdateEnvironmentBlocked, launch_independent_updater, software_update_environment_status
+
+SOFTWARE_VERSION = "0.4.0"
 
 
 def _semantic_hash(payload: dict) -> str:
@@ -106,8 +110,21 @@ class PsychologyService:
     def repair(self):
         result = self.storage.repair_knowledge()
         self.knowledge = self.storage.load_knowledge()
-        result.update(self_test())
+        post_test = self_test()
+        result.update(post_test)
+        result["post_repair_self_test"] = {"status": "PASS" if all(x == "PASS" for x in post_test.values()) else "FAIL", "checks": post_test}
+        result["status"] = "PASS" if result.get("knowledge") == "PASS" and result["post_repair_self_test"]["status"] == "PASS" else "FAIL"
         return result
+
+    def one_click_update(self):
+        """Hand software replacement to the product's independent Updater."""
+        try:
+            return launch_independent_updater(data_root=self.storage.local_path.parent, current_version=SOFTWARE_VERSION)
+        except UpdateEnvironmentBlocked as exc:
+            return {"status": "BLOCKED", "operation": "software_update", "action": "RELEASE_DEPENDENCY_UNAVAILABLE", "detail": str(exc)}
+
+    def software_update_status(self, *, main_exe: Path):
+        return software_update_environment_status(main_exe=main_exe, current_version=SOFTWARE_VERSION)
 
     def health(self):
         return {
