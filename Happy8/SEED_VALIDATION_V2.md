@@ -1,10 +1,9 @@
-# Happy8 acceptance-hardened isolated seed validation
+# Validation-only Happy8 isolated current seed
 
-Validation-only trigger for isolated seed `2a6c287845de351220be207d390ffffc8d6793b6`.
+Product source: `9b82e317f789b357604e6e8546a10fd0b49b626d`.
+Product Windows run: `37139358208`; E01-E16 PASS; E17-E19 BLOCKED; Final FAIL.
+Seed root: `3d9c6c32661615b03869369ede3f1102c8201f35`.
+Seed commit: `cb4807102d11d6b119945a30875325654987e3dc`.
+Root inventory exactly `.github` and `Happy8`. Runtime, tests, acceptance scripts and workflow retain product blob identities. This document only triggers the isolated PR validation.
 
-Invariants:
-- top-level seed inventory is exactly `.github` + `Happy8`;
-- `Happy8` tree SHA is `4efd880066c508a6205f2258d239cc315f61d455`;
-- product source lineage is `f59eba6c3bfdce0f83bb34f925fda529f9137be7`;
-- this file is non-runtime and exists only to trigger pull_request validation;
-- this validation does not satisfy E17 because the repository container remains shared.
+Shared repository container cannot satisfy E17. Validation does not create a final product. Do not merge this isolated tree into portfolio main.

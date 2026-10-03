@@ -108,18 +108,18 @@ def main() -> int:
             "head_sha": source_sha,
         },
         "release_n": {
-            "release_id": "release-N-0.2.0",
+            "release_id": "101",
             "version": "0.2.0",
             "source_sha": "b" * 40,
-            "release_url": "https://updates.example/releases/0.2.0",
+            "release_url": "https://github.com/douluo511/Happy8/releases/tag/v0.2.0",
             "main_exe_sha256": old_main,
             "updater_exe_sha256": old_updater,
         },
         "release_n1": {
-            "release_id": "release-N1-0.2.1",
+            "release_id": "102",
             "version": "0.2.1",
             "source_sha": source_sha,
-            "release_url": "https://updates.example/releases/0.2.1",
+            "release_url": "https://github.com/douluo511/Happy8/releases/tag/v0.2.1",
             "main_exe_sha256": new_main,
             "updater_exe_sha256": new_updater,
         },
@@ -133,7 +133,7 @@ def main() -> int:
             "version": "0.2.1",
             "artifact_url": "https://updates.example/Happy8-0.2.1.exe",
             "artifact_sha256": new_main,
-            "artifact_bytes": 12345,
+            "artifact_bytes": 50000,
         },
         "updater_result": {
             "status": "PASS",
@@ -152,7 +152,7 @@ def main() -> int:
             "artifact_receipt": {
                 "url": "https://updates.example/Happy8-0.2.1.exe",
                 "http_status": 200,
-                "bytes": 12345,
+                "bytes": 50000,
                 "sha256": new_main,
             },
             "rollback_performed": False,
@@ -173,6 +173,35 @@ def main() -> int:
         "tested_at": "2026-10-03T11:00:00Z",
     }
 
+    def json_receipt(url: str, value: dict) -> dict:
+        raw = json.dumps(value, ensure_ascii=False)
+        encoded = raw.encode("utf-8")
+        return {"url": url, "http_status": 200, "raw_body": raw, "bytes": len(encoded), "sha256": hashlib.sha256(encoded).hexdigest()}
+
+    def official_release_capture(release: dict) -> dict:
+        api_root = f"https://api.github.com/repos/{dedicated_repo}"
+        tag = "v" + release["version"]
+        release_url = api_root + "/releases/" + release["release_id"]
+        assets = []
+        capture = {}
+        for key, filename in (("main", "Geometry_Lotto_Pro_Happy8.exe"), ("updater", "Geometry_Lotto_Pro_Happy8_Updater.exe")):
+            digest = release[key + "_exe_sha256"]
+            asset_id = int(release["release_id"]) * 10 + (1 if key == "main" else 2)
+            size = 50000 if key == "main" else 40000
+            asset_url = f"https://github.com/{dedicated_repo}/releases/download/{tag}/{filename}"
+            assets.append({"id": asset_id, "name": filename, "size": size, "state": "uploaded", "digest": "sha256:" + digest,
+                           "url": f"{api_root}/releases/assets/{asset_id}", "browser_download_url": asset_url})
+            capture[key + "_asset_receipt"] = {"url": asset_url, "asset_id": str(asset_id), "http_status": 200, "bytes": size, "sha256": digest}
+        metadata = {"id": int(release["release_id"]), "url": release_url, "html_url": release["release_url"], "tag_name": tag,
+                    "draft": False, "prerelease": False, "published_at": "2026-10-03T11:00:00Z", "assets": assets}
+        capture["release_response"] = json_receipt(release_url, metadata)
+        capture["tag_commit_response"] = json_receipt(api_root + "/commits/" + tag,
+            {"sha": release["source_sha"], "html_url": f"https://github.com/{dedicated_repo}/commit/{release['source_sha']}"})
+        return capture
+
+    for release_key in ("release_n", "release_n1"):
+        valid_release[release_key]["official_release"] = official_release_capture(valid_release[release_key])
+
     valid_release_report = validate_real_release_evidence(
         valid_release,
         repository=dedicated_repo,
@@ -183,6 +212,20 @@ def main() -> int:
     checks["real_release_valid_fixture"] = {
         "status": "PASS" if valid_release_report.get("status") == "PASS" else "FAIL"
     }
+    for defect, mutate in (
+        ("metadata_missing", lambda doc: doc["release_n1"].pop("official_release")),
+        ("metadata_receipt_tampered", lambda doc: doc["release_n1"]["official_release"]["release_response"].update(sha256="0" * 64)),
+        ("metadata_wrong_repo", lambda doc: doc["release_n1"]["official_release"]["release_response"].update(url="https://api.github.com/repos/other/Other/releases/102")),
+        ("asset_receipt_wrong_id", lambda doc: doc["release_n1"]["official_release"]["main_asset_receipt"].update(asset_id="999")),
+        ("asset_receipt_wrong_sha", lambda doc: doc["release_n1"]["official_release"]["main_asset_receipt"].update(sha256="0" * 64)),
+        ("tag_source_wrong", lambda doc: doc["release_n1"]["official_release"].update(tag_commit_response=json_receipt(
+            f"https://api.github.com/repos/{dedicated_repo}/commits/v0.2.1",
+            {"sha": "c" * 40, "html_url": f"https://github.com/{dedicated_repo}/commit/{'c' * 40}"}))),
+    ):
+        bad = json.loads(json.dumps(valid_release))
+        mutate(bad)
+        result = validate_real_release_evidence(bad, repository=dedicated_repo, source_sha=source_sha, run_id=run_id, run_attempt=run_attempt)
+        checks["real_release_" + defect + "_rejected"] = {"status": "PASS" if result.get("status") == "FAIL" else "FAIL"}
     duplicate_release_id = json.loads(json.dumps(valid_release))
     duplicate_release_id["release_n1"]["release_id"] = duplicate_release_id["release_n"]["release_id"]
     duplicate_release_id_report = validate_real_release_evidence(
@@ -276,11 +319,31 @@ def main() -> int:
         "updater_same_hash": True,
     }
     physical_fixture = {
+        "schema": "happy8-physical-gui-v1",
         "status": "PASS",
         "same_hash": True,
         "exe_sha256_before": new_main,
         "exe_sha256_after": new_main,
+        "release_mode": "ConfiguredRelease",
+        "updater_real_release": "CONFIGURED_VERIFIED_UP_TO_DATE",
+        "post_gui_store_status": "PASS",
+        "execution_context": {"producer": "happy8-physical-gui-acceptance-v1", "github_run_id": run_id,
+                              "github_run_attempt": run_attempt, "head_sha": source_sha},
+        "operations": [],
     }
+    for key, label in (("predict", "预测下一期"), ("update", "一键更新"), ("repair", "一键修复"), ("advanced", "高级分析")):
+        operation = {"key": key, "label": label, "backend_status": "PASS", "acceptance": "PASS", "visual_changed": True,
+                     "before_screen_sha256": "8" * 64, "after_screen_sha256": "9" * 64}
+        if key == "repair":
+            operation["backend_action"] = "REPAIR_COMPLETE"
+        if key == "update":
+            operation.update(acceptance="PASS_UPDATER_HANDOFF_UP_TO_DATE", backend_action="UPDATER_HANDOFF",
+                             requires_parent_exit=True, updater_pid=123, updater_exe_sha256=new_updater,
+                             updater_status="PASS", updater_action="UP_TO_DATE",
+                             updater_evidence={"status": "PASS", "operation": "software_update", "action": "UP_TO_DATE",
+                                               "current_version": "0.2.1", "manifest_version": "0.2.1",
+                                               "manifest_receipt": valid_release["updater_result"]["manifest_receipt"]})
+        physical_fixture["operations"].append(operation)
     same_fixture = {
         "status": "PASS",
         "exe_sha256": new_main,
@@ -300,8 +363,8 @@ def main() -> int:
         },
         "formal_release": {
             "unique": True,
-            "release_id": "release-N1-0.2.1",
-            "release_url": "https://updates.example/releases/0.2.1",
+            "release_id": "102",
+            "release_url": "https://github.com/douluo511/Happy8/releases/tag/v0.2.1",
             "version": "0.2.1",
         },
         "exact_exe": {
@@ -330,6 +393,18 @@ def main() -> int:
     checks["final_artifact_valid_fixture"] = {
         "status": "PASS" if final_valid.get("status") == "PASS" else "FAIL"
     }
+    for defect, mutate in (
+        ("blocked_gui", lambda gui: gui.update(release_mode="BlockedRelease", updater_real_release="BLOCKED")),
+        ("blocked_repair", lambda gui: gui["operations"][2].update(backend_status="BLOCKED", backend_action="LOCAL_REPAIR_COMPLETE_EXTERNAL_BLOCKER")),
+        ("updater_proof_missing", lambda gui: gui["operations"][1].pop("updater_evidence")),
+        ("wrong_gui_run", lambda gui: gui["execution_context"].update(github_run_id="old-run")),
+        ("missing_fourth_entry", lambda gui: gui["operations"].pop()),
+    ):
+        bad_gui = json.loads(json.dumps(physical_fixture))
+        mutate(bad_gui)
+        result = validate_final_artifact(final_manifest, repository=dedicated_repo, source_sha=source_sha, run_id=run_id,
+            run_attempt=run_attempt, windows=windows_fixture, physical_gui=bad_gui, same_hash=same_fixture, real_release=valid_release_report)
+        checks["final_artifact_" + defect + "_rejected"] = {"status": "PASS" if result.get("status") == "FAIL" else "FAIL"}
     wrong_release_url_manifest = json.loads(json.dumps(final_manifest))
     wrong_release_url_manifest["formal_release"]["release_url"] = "https://updates.example/releases/other"
     final_url_mismatch = validate_final_artifact(

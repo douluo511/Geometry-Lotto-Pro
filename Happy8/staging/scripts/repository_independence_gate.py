@@ -115,7 +115,7 @@ def main() -> int:
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    print(json.dumps(report, ensure_ascii=False, indent=2))
+    print(json.dumps(report, ensure_ascii=True, indent=2))
 
     # BLOCKED is an expected external state on the shared portfolio repo.
     # FAIL means a purported dedicated repo violates its frozen inventory.

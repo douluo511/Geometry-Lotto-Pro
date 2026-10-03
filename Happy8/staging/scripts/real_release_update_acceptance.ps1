@@ -80,6 +80,69 @@ function Get-Sha256([string]$path) {
   return (Get-FileHash $path -Algorithm SHA256).Hash.ToLowerInvariant()
 }
 
+function Capture-OfficialJson([string]$url,[string]$path) {
+  $headers=@{Accept='application/vnd.github+json';'User-Agent'='Happy8-Strict-Release-Acceptance';'X-GitHub-Api-Version'='2022-11-28'}
+  if(-not [string]::IsNullOrWhiteSpace($env:GITHUB_TOKEN)) { $headers.Authorization='Bearer '+$env:GITHUB_TOKEN }
+  $response=Invoke-WebRequest -Uri $url -Headers $headers -TimeoutSec 60 -OutFile $path -PassThru
+  if([int]$response.StatusCode -ne 200) { throw "official release metadata HTTP $($response.StatusCode)" }
+  $bytes=[System.IO.File]::ReadAllBytes($path)
+  $raw=[System.Text.Encoding]::UTF8.GetString($bytes)
+  return @{
+    document=($raw|ConvertFrom-Json)
+    receipt=[ordered]@{url=$url;http_status=200;bytes=$bytes.Length;sha256=(Get-Sha256 $path);raw_body=$raw}
+  }
+}
+
+function Capture-OfficialRelease([string]$releaseId,[string]$version,[string]$source,
+                                 [string]$mainHash,[string]$updaterHash,[string]$releaseUrl,
+                                 [string]$captureDir,[string]$captureName) {
+  if($Repository -notmatch '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$' -or $releaseId -notmatch '^[1-9][0-9]*$') {
+    throw 'independent GitHub repository and numeric published release ID are required'
+  }
+  $apiRoot='https://api.github.com/repos/'+$Repository
+  $release=Capture-OfficialJson ($apiRoot+'/releases/'+$releaseId) (Join-Path $captureDir ($captureName+'-release.json'))
+  $tag=[string]$release.document.tag_name
+  if($tag -ne $version -and $tag -ne ('v'+$version)) { throw 'official release tag does not identify the expected version' }
+  $encodedTag=[Uri]::EscapeDataString($tag)
+  $expectedPage='https://github.com/'+$Repository+'/releases/tag/'+$encodedTag
+  if([string]$release.document.id -ne $releaseId -or $release.document.draft -ne $false -or
+     $release.document.prerelease -ne $false -or [string]$release.document.html_url -ne $expectedPage -or
+     $releaseUrl -ne $expectedPage -or [string]::IsNullOrWhiteSpace([string]$release.document.published_at)) {
+    throw 'official release repository, identity, publication or URL binding failed'
+  }
+  $commit=Capture-OfficialJson ($apiRoot+'/commits/'+$encodedTag) (Join-Path $captureDir ($captureName+'-tag-commit.json'))
+  if(([string]$commit.document.sha).ToLowerInvariant() -ne $source.ToLowerInvariant()) {
+    throw 'official release tag resolves to a different source head'
+  }
+  $capture=[ordered]@{release_response=$release.receipt;tag_commit_response=$commit.receipt}
+  foreach($assetSpec in @(
+    @{key='main';name='Geometry_Lotto_Pro_Happy8.exe';sha=$mainHash},
+    @{key='updater';name='Geometry_Lotto_Pro_Happy8_Updater.exe';sha=$updaterHash}
+  )) {
+    $matchingAssets=@($release.document.assets|Where-Object{$_.name -eq $assetSpec.name})
+    if($matchingAssets.Count -ne 1) { throw "official release must contain one exact asset: $($assetSpec.name)" }
+    $asset=$matchingAssets[0]
+    $expectedAssetUrl='https://github.com/'+$Repository+'/releases/download/'+$encodedTag+'/'+$assetSpec.name
+    if([string]$asset.browser_download_url -ne $expectedAssetUrl -or $asset.state -ne 'uploaded') {
+      throw 'official release asset repository/tag/name binding failed'
+    }
+    $assetPath=Join-Path $captureDir ($captureName+'-'+$assetSpec.name)
+    $response=Invoke-WebRequest -Uri $expectedAssetUrl -TimeoutSec 120 -OutFile $assetPath -PassThru
+    $assetHash=Get-Sha256 $assetPath
+    $assetBytes=(Get-Item -LiteralPath $assetPath).Length
+    if([int]$response.StatusCode -ne 200 -or $assetHash -ne $assetSpec.sha -or $assetBytes -ne [long]$asset.size) {
+      throw 'downloaded official release asset differs from accepted EXE bytes'
+    }
+    if($null -ne $asset.digest -and [string]$asset.digest -ne ('sha256:'+$assetHash)) {
+      throw 'official release asset digest mismatch'
+    }
+    $capture[$assetSpec.key+'_asset_receipt']=[ordered]@{
+      url=$expectedAssetUrl;http_status=200;asset_id=[string]$asset.id;bytes=$assetBytes;sha256=$assetHash
+    }
+  }
+  return $capture
+}
+
 function Assert-NumericVersion([string]$value) {
   $parts=@($value.Split('.'))
   if($parts.Count -eq 0 -or @($parts | Where-Object { $_ -notmatch '^\d+$' }).Count -gt 0) {
@@ -111,9 +174,9 @@ function Assert-Https([string]$url) {
 function Assert-HttpsTrusted([string]$url,[string[]]$trustedHosts) {
   Assert-Https $url
   $uri=[Uri]$url
-  $host=$uri.Host.ToLowerInvariant()
-  if(@($trustedHosts | ForEach-Object {$_.ToLowerInvariant()}) -notcontains $host) {
-    throw "URL host is not trusted: $host"
+  $urlHost=$uri.Host.ToLowerInvariant()
+  if(@($trustedHosts | ForEach-Object {$_.ToLowerInvariant()}) -notcontains $urlHost) {
+    throw "URL host is not trusted: $urlHost"
   }
 }
 
@@ -121,10 +184,10 @@ function Wait-Window([System.Diagnostics.Process]$p,[string]$processName,[int[]]
   for($i=0;$i -lt 160;$i++) {
     Start-Sleep -Milliseconds 250
     $candidates=@(Get-Process -Name $processName -ErrorAction SilentlyContinue | Where-Object { $baseline -notcontains $_.Id })
-    [IntPtr]$hwnd=[IntPtr]::Zero; [int]$pid=0
+    [IntPtr]$hwnd=[IntPtr]::Zero; [int]$windowPid=0
     [int[]]$ids=@($candidates | ForEach-Object {[int]$_.Id})
-    if($ids.Count -gt 0 -and [Happy8ReleaseGui]::FindVisibleWindow($ids,[ref]$hwnd,[ref]$pid)) {
-      return @{hwnd=$hwnd;pid=$pid}
+    if($ids.Count -gt 0 -and [Happy8ReleaseGui]::FindVisibleWindow($ids,[ref]$hwnd,[ref]$windowPid)) {
+      return @{hwnd=$hwnd;pid=$windowPid}
     }
     try {
       $p.Refresh()
@@ -263,6 +326,10 @@ try {
   $newUpdaterSha=Get-Sha256 $updaterN1
 
   $scratch=Join-Path ([System.IO.Path]::GetTempPath()) ('happy8-real-release-'+[Guid]::NewGuid().ToString('N'))
+  $captureDir=Join-Path $scratch 'official-release-receipts'
+  New-Item -ItemType Directory -Force $captureDir | Out-Null
+  $officialN=Capture-OfficialRelease $ReleaseNId $ExpectedFromVersion $ReleaseNSourceSha $oldMainSha $oldUpdaterSha $ReleaseNUrl $captureDir 'N'
+  $officialN1=Capture-OfficialRelease $ReleaseN1Id $ExpectedToVersion $SourceSha $manifestSha $newUpdaterSha $ReleaseN1Url $captureDir 'N1'
   $localAppData=Join-Path $scratch 'LocalAppData'
   New-Item -ItemType Directory -Force $localAppData | Out-Null
   $audit=Join-Path $scratch 'update-audit.jsonl'
@@ -326,6 +393,7 @@ try {
       release_url=$ReleaseNUrl
       main_exe_sha256=$oldMainSha
       updater_exe_sha256=$oldUpdaterSha
+      official_release=$officialN
     }
     release_n1=[ordered]@{
       release_id=$ReleaseN1Id
@@ -334,6 +402,7 @@ try {
       release_url=$ReleaseN1Url
       main_exe_sha256=$newMainSha
       updater_exe_sha256=$newUpdaterSha
+      official_release=$officialN1
     }
     update_config=[ordered]@{
       schema='happy8-update-config-v1'
