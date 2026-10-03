@@ -91,10 +91,13 @@ jobs:
           $ErrorActionPreference = 'Stop'
           # PyInstaller reproducible-build prerequisites:
           # - deterministic Python hash ordering
-          # - deterministic Windows PE build timestamp derived from the exact source head
+          # - deterministic Windows PE build timestamp from the checked-out acceptance commit
           $env:PYTHONHASHSEED = '1'
-          $sourceEpoch = (& git show -s --format=%ct '${{ github.event.pull_request.head.sha }}').Trim()
-          if ($LASTEXITCODE -ne 0 -or $sourceEpoch -notmatch '^\d+
+          $sourceEpoch = (& git show -s --format=%ct HEAD).Trim()
+          if ($LASTEXITCODE -ne 0 -or $sourceEpoch -notmatch '^\d+$') { throw "cannot derive SOURCE_DATE_EPOCH from checked-out acceptance commit" }
+          $env:SOURCE_DATE_EPOCH = $sourceEpoch
+          New-Item -ItemType Directory -Force -Path evidence | Out-Null
+          Remove-Item -Recurse -Force dist1,dist2,build1,build2,spec1,spec2,build1_updater,build2_updater -ErrorAction SilentlyContinue
           New-Item -ItemType Directory -Force -Path spec1,spec2 | Out-Null
           python -m PyInstaller --noconfirm --clean --noupx --onefile --windowed --name Geometry_Lotto_Pro_Happy8 --distpath dist1 --workpath build1 --specpath spec1 --paths . scripts/happy8_desktop.py
           if ($LASTEXITCODE -ne 0) { throw "first PyInstaller build failed" }
