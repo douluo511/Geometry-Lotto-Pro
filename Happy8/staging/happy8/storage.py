@@ -55,10 +55,23 @@ def _validate_raw_bundle(report: dict[str, Any], raw_sources: dict[str, bytes]) 
         manifest = report.get("shanghai_raw_manifest")
     if not isinstance(manifest, list) or not manifest:
         raise ValueError("full-history raw manifest is missing")
-    manifest_hash = sha256_json(manifest)
+    bootstrap_record = None
+    if history_source == "national_welfare_lottery":
+        first = manifest[0] if manifest else {}
+        bootstrap_record = first.get("session_bootstrap") if isinstance(first, dict) else None
+        if not isinstance(bootstrap_record, dict):
+            raise ValueError("CWL session bootstrap evidence is missing")
+        manifest_hash = sha256_json({"session_bootstrap": bootstrap_record, "pages": manifest})
+        manifest_bytes = int(bootstrap_record.get("bytes") or 0) + sum(
+            int(x.get("bytes") or 0) for x in manifest
+        )
+    else:
+        manifest_hash = sha256_json(manifest)
+        manifest_bytes = sum(int(x.get("bytes") or 0) for x in manifest)
+
     if manifest_hash != history.get("raw_sha256"):
         raise ValueError("history raw manifest SHA mismatch")
-    if sum(int(x.get("bytes") or 0) for x in manifest) != int(history.get("bytes") or 0):
+    if manifest_bytes != int(history.get("bytes") or 0):
         raise ValueError("history raw manifest byte count mismatch")
 
     seen_files: set[str] = set()
@@ -68,6 +81,14 @@ def _validate_raw_bundle(report: dict[str, Any], raw_sources: dict[str, bytes]) 
             safe = re.fullmatch(r"national_page_\d{4}\.json", filename)
         elif history_source == "shanghai_welfare_lottery":
             safe = re.fullmatch(r"shanghai_20\d{5}_20\d{5}\.html", filename)
+        elif history_source == "jiangxi_fuzhou_plus_jiangsu_official":
+            item_source = str(item.get("source") or "")
+            if item_source == "jiangxi_fuzhou_welfare_lottery":
+                safe = re.fullmatch(r"fuzhou_page_\d{3}\.html", filename)
+            elif item_source == "jiangsu_welfare_lottery":
+                safe = re.fullmatch(r"jiangsu_history_page_\d{3}\.html", filename)
+            else:
+                safe = None
         else:
             safe = None
         if not safe:
@@ -82,6 +103,17 @@ def _validate_raw_bundle(report: dict[str, Any], raw_sources: dict[str, bytes]) 
             raise ValueError(f"history raw SHA mismatch: {filename}")
         if len(raw) != int(item.get("bytes") or -1):
             raise ValueError(f"history raw byte count mismatch: {filename}")
+
+    if history_source == "national_welfare_lottery":
+        bootstrap_name = "national_session_bootstrap.html"
+        bootstrap_raw = raw_sources.get(bootstrap_name)
+        if bootstrap_raw is None:
+            raise ValueError("missing CWL session bootstrap raw response")
+        if sha256_bytes(bootstrap_raw) != bootstrap_record.get("sha256"):
+            raise ValueError("CWL session bootstrap raw SHA mismatch")
+        if len(bootstrap_raw) != int(bootstrap_record.get("bytes") or -1):
+            raise ValueError("CWL session bootstrap raw byte count mismatch")
+        seen_files.add(bootstrap_name)
 
     jiangsu_name = "jiangsu_welfare_lottery.html"
     jiangsu_raw = raw_sources.get(jiangsu_name)
