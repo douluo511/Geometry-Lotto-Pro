@@ -85,11 +85,30 @@ def main() -> int:
     checks = {}
     with tempfile.TemporaryDirectory(prefix="happy8-service-gate-") as td:
         root = Path(td)
+        def fixture_software_update_launcher():
+            return {
+                "status": "PASS",
+                "operation": "software_update",
+                "action": "UPDATER_HANDOFF",
+                "test_fixture": True,
+            }
+
         service = Happy8Service(
             root,
             snapshot_builder=fixture_snapshot,
             science_validator=fixture_science_validator,
+            software_update_launcher=fixture_software_update_launcher,
         )
+
+        software_update = service.software_update()
+        checks["software_update_handoff"] = {
+            "status": "PASS"
+            if (
+                software_update.get("status") == "PASS"
+                and software_update.get("action") == "UPDATER_HANDOFF"
+            )
+            else "FAIL"
+        }
 
         update = service.update_data()
         checks["update_commit"] = {"status": update.get("status")}
@@ -162,6 +181,22 @@ def main() -> int:
                 if failed_service.status().get("canonical_hash") == stable_hash
                 else "FAIL"
             }
+
+
+        def failing_software_update_launcher():
+            return {"status": "FAIL", "operation": "software_update", "action": "BLOCKED"}
+
+        failed_updater = Happy8Service(
+            root,
+            snapshot_builder=fixture_snapshot,
+            science_validator=fixture_science_validator,
+            software_update_launcher=failing_software_update_launcher,
+        )
+        try:
+            failed_updater.software_update()
+            checks["software_update_fail_closed"] = {"status": "FAIL"}
+        except RuntimeError:
+            checks["software_update_fail_closed"] = {"status": "PASS"}
 
         def failing_science_validator(draws, *, canonical_hash: str):
             raise RuntimeError("simulated science failure")
