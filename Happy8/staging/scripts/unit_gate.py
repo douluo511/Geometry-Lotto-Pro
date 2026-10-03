@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import sys
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -13,7 +15,7 @@ from happy8.storage import canonical_json, sha256_json
 from happy8.updater import _trusted_https, _version_tuple
 from real_release_evidence import validate_real_release_evidence
 from repository_independence_gate import REQUIRED_PATHS, evaluate_repository_independence
-from final_artifact_evidence import validate_final_artifact
+from final_artifact_evidence import validate_artifact_files, validate_final_artifact
 
 
 def expect_raises(exc_type, fn) -> bool:
@@ -360,6 +362,38 @@ def main() -> int:
     checks["final_artifact_hash_mismatch_rejected"] = {
         "status": "PASS" if final_hash_mismatch.get("status") == "FAIL" else "FAIL"
     }
+
+    with tempfile.TemporaryDirectory(prefix="happy8-final-files-") as td:
+        td_path = Path(td)
+        main_path = td_path / "Geometry_Lotto_Pro_Happy8.exe"
+        updater_path = td_path / "Geometry_Lotto_Pro_Happy8_Updater.exe"
+        main_bytes = b"main-final-artifact-bytes"
+        updater_bytes = b"updater-final-artifact-bytes"
+        main_path.write_bytes(main_bytes)
+        updater_path.write_bytes(updater_bytes)
+        file_manifest = json.loads(json.dumps(final_manifest))
+        file_manifest["exact_exe"]["sha256"] = hashlib.sha256(main_bytes).hexdigest()
+        file_manifest["exact_exe"]["bytes"] = len(main_bytes)
+        file_manifest["updater_exe"]["sha256"] = hashlib.sha256(updater_bytes).hexdigest()
+        file_manifest["updater_exe"]["bytes"] = len(updater_bytes)
+        physical_files = validate_artifact_files(
+            file_manifest,
+            main_exe=main_path,
+            updater_exe=updater_path,
+        )
+        checks["final_artifact_physical_files_valid"] = {
+            "status": "PASS" if physical_files.get("status") == "PASS" else "FAIL"
+        }
+        bad_bytes_manifest = json.loads(json.dumps(file_manifest))
+        bad_bytes_manifest["exact_exe"]["bytes"] += 1
+        bad_bytes = validate_artifact_files(
+            bad_bytes_manifest,
+            main_exe=main_path,
+            updater_exe=updater_path,
+        )
+        checks["final_artifact_byte_mismatch_rejected"] = {
+            "status": "PASS" if bad_bytes.get("status") == "FAIL" else "FAIL"
+        }
 
     status = "PASS" if checks and all(x["status"] == "PASS" for x in checks.values()) else "FAIL"
     report = {"schema": "happy8-unit-gate-v1", "status": status, "checks": checks}
