@@ -28,63 +28,137 @@ jobs:
         run: python scripts/contract_gate.py
       - name: Storage and Evidence atomicity gate
         run: python scripts/storage_gate.py
+
+      # Independent source probes are diagnostic evidence. A timeout/HTTP failure on
+      # one official source must not prevent the other independent probes from running.
+      # Production remains fail-closed at the live aggregate gate below.
       - name: Provincial official fallback diagnostic probe
+        id: provincial_probe
         continue-on-error: true
         run: python scripts/official_fallback_probe.py --output evidence/official_fallback_probe.json
+
       - name: Shanghai official frontend contract probe
+        id: shanghai_probe
         continue-on-error: true
         run: python scripts/shanghai_contract_probe.py --output evidence/shanghai_contract_probe.json
+
       - name: Jiangsu official full-history contract probe
+        id: jiangsu_probe
         continue-on-error: true
         run: python scripts/jiangsu_history_probe.py --output evidence/jiangsu_history_probe.json
+
       - name: Jiangxi Fuzhou official number-history contract probe
+        id: fuzhou_probe
         continue-on-error: true
         timeout-minutes: 4
         run: python scripts/jiangxi_fuzhou_history_probe.py --output evidence/jiangxi_fuzhou_history_probe.json
+
       - name: Jiangxi Fuzhou candidate non-production guard
+        id: fuzhou_guard
+        if: always()
+        continue-on-error: true
         shell: pwsh
         run: |
+          if (-not (Test-Path evidence/jiangxi_fuzhou_history_probe.json)) {
+            throw "Fuzhou diagnostic evidence missing"
+          }
           $r = Get-Content evidence/jiangxi_fuzhou_history_probe.json -Raw | ConvertFrom-Json
           if ($r.production_accepted -ne $false) { throw "Fuzhou diagnostic was incorrectly production-accepted" }
           if ($r.classification_claim -ne 'NUMBER_HISTORY_CANDIDATE_ONLY') { throw "Fuzhou source classification drifted" }
           Write-Host "FUZHOU_DIAGNOSTIC_NON_PRODUCTION=PASS"
+
       - name: Two-official-source full-history reconciliation
+        id: composite_probe
         continue-on-error: true
         timeout-minutes: 8
         run: python scripts/composite_official_history_probe.py --output evidence/composite_official_history_probe.json
+
       - name: Composite history candidate non-production guard
+        id: composite_guard
+        if: always()
+        continue-on-error: true
         shell: pwsh
         run: |
+          if (-not (Test-Path evidence/composite_official_history_probe.json)) {
+            throw "composite diagnostic evidence missing"
+          }
           $r = Get-Content evidence/composite_official_history_probe.json -Raw | ConvertFrom-Json
           if ($r.production_accepted -ne $false) { throw "composite diagnostic was incorrectly production-accepted" }
           if ($r.classification_claim -ne 'COMPOSITE_FULL_HISTORY_CANDIDATE_ONLY') { throw "composite source classification drifted" }
           Write-Host "COMPOSITE_DIAGNOSTIC_NON_PRODUCTION=PASS"
+
       - name: Sichuan official history contract probe
+        id: sichuan_probe
         continue-on-error: true
         run: python scripts/sichuan_history_probe.py --output evidence/sichuan_history_probe.json
+
       - name: CWL-designated media history contract diagnostic
+        id: zhcw_probe
         continue-on-error: true
         timeout-minutes: 4
         run: python scripts/zhcw_history_probe.py --output evidence/zhcw_history_probe.json
+
       - name: Diagnostic source non-production guard
+        id: zhcw_guard
+        if: always()
+        continue-on-error: true
         shell: pwsh
         run: |
+          if (-not (Test-Path evidence/zhcw_history_probe.json)) {
+            throw "diagnostic source evidence missing"
+          }
           $r = Get-Content evidence/zhcw_history_probe.json -Raw | ConvertFrom-Json
+          if ($r.status -ne 'DIAGNOSTIC_ONLY') { throw "diagnostic status was promoted" }
           if ($r.production_accepted -ne $false) { throw "diagnostic source was incorrectly production-accepted" }
           if ($r.classification_claim -ne 'NOT_EVALUATED_FOR_PRODUCTION') { throw "diagnostic source classification drifted" }
-          Write-Host "DIAGNOSTIC_STATUS=$($r.status)"
           Write-Host "DIAGNOSTIC_NON_PRODUCTION_GUARD=PASS"
+
       - name: Live dual-official-source network gate
+        id: live_gate
+        if: always()
+        continue-on-error: true
         run: python scripts/real_network_check.py --output evidence/live_official_history.json
+
       - name: Current-history scientific validation gate
+        id: science_gate
+        if: steps.live_gate.outcome == 'success'
+        continue-on-error: true
         run: python scripts/science_gate.py --input evidence/live_official_history.json --output evidence/scientific_validation.json
+
       - name: Explicit non-final marker
+        if: always()
         shell: pwsh
         run: |
           Write-Host "RECOVERED_PROTOTYPE_SOURCE=PASS"
           Write-Host "WINDOWS_EXACT_EXE=PENDING"
           Write-Host "REPOSITORY_INDEPENDENCE=FAIL"
           Write-Host "FINAL_RELEASE_GATE=NOT_PASS"
+
+      - name: Evidence-derived staging aggregate
+        if: always()
+        shell: pwsh
+        run: |
+          $failures = @()
+          if ('${{ steps.fuzhou_guard.outcome }}' -ne 'success') { $failures += 'fuzhou_guard' }
+          if ('${{ steps.composite_guard.outcome }}' -ne 'success') { $failures += 'composite_guard' }
+          if ('${{ steps.zhcw_guard.outcome }}' -ne 'success') { $failures += 'zhcw_guard' }
+          if ('${{ steps.live_gate.outcome }}' -ne 'success') { $failures += 'live_official_network' }
+          if ('${{ steps.live_gate.outcome }}' -eq 'success' -and '${{ steps.science_gate.outcome }}' -ne 'success') { $failures += 'science_gate' }
+
+          Write-Host "PROVINCIAL_PROBE=${{ steps.provincial_probe.outcome }}"
+          Write-Host "SHANGHAI_PROBE=${{ steps.shanghai_probe.outcome }}"
+          Write-Host "JIANGSU_PROBE=${{ steps.jiangsu_probe.outcome }}"
+          Write-Host "FUZHOU_PROBE=${{ steps.fuzhou_probe.outcome }}"
+          Write-Host "COMPOSITE_PROBE=${{ steps.composite_probe.outcome }}"
+          Write-Host "SICHUAN_PROBE=${{ steps.sichuan_probe.outcome }}"
+          Write-Host "ZHCW_PROBE=${{ steps.zhcw_probe.outcome }}"
+          Write-Host "LIVE_OFFICIAL_NETWORK=${{ steps.live_gate.outcome }}"
+          Write-Host "SCIENCE_GATE=${{ steps.science_gate.outcome }}"
+
+          if ($failures.Count -gt 0) {
+            throw "Happy8 staging aggregate blocked: $($failures -join ', ')"
+          }
+          Write-Host "HAPPY8_STAGING_AGGREGATE=PASS"
 
       - name: Upload staging diagnostic evidence
         if: always()
