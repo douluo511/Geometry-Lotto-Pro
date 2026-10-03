@@ -256,13 +256,50 @@ class Updater:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--manifest-url", required=True)
-    parser.add_argument("--trusted-host", action="append", required=True)
-    parser.add_argument("--target-exe", required=True)
-    parser.add_argument("--current-version", required=True)
+    parser.add_argument("--self-test", action="store_true")
+    parser.add_argument("--manifest-url")
+    parser.add_argument("--trusted-host", action="append")
+    parser.add_argument("--target-exe")
+    parser.add_argument("--current-version")
     parser.add_argument("--parent-pid", type=int, default=0)
     parser.add_argument("--evidence-file")
     args = parser.parse_args(argv)
+
+    if args.self_test:
+        checks = {}
+        try:
+            checks["version_parser"] = "PASS" if _version_tuple("1.2.3") == (1, 2, 3) else "FAIL"
+        except Exception:
+            checks["version_parser"] = "FAIL"
+        checks["https_trust"] = (
+            "PASS"
+            if _trusted_https("https://updates.example/a", {"updates.example"})
+            and not _trusted_https("http://updates.example/a", {"updates.example"})
+            else "FAIL"
+        )
+        result = {
+            "schema": "happy8-updater-self-test-v1",
+            "status": "PASS" if all(v == "PASS" for v in checks.values()) else "FAIL",
+            "checks": checks,
+        }
+        if args.evidence_file:
+            _atomic_json(Path(args.evidence_file), result)
+        else:
+            print(json.dumps(result, ensure_ascii=False, indent=2))
+        return 0 if result["status"] == "PASS" else 2
+
+    missing = [
+        name
+        for name, value in (
+            ("manifest-url", args.manifest_url),
+            ("trusted-host", args.trusted_host),
+            ("target-exe", args.target_exe),
+            ("current-version", args.current_version),
+        )
+        if not value
+    ]
+    if missing:
+        parser.error("missing required updater arguments: " + ", ".join(missing))
 
     try:
         updater = Updater(
