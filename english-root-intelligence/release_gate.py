@@ -22,7 +22,8 @@ def validate_mother(data, source_sha):
     engineering = 100 * sum(value == "PASS" for key, value in gates.items() if key not in BUSINESS_GATES) / (len(HARD_GATES) - len(BUSINESS_GATES))
     business = 100 * sum(gates[key] == "PASS" for key in BUSINESS_GATES) / len(BUSINESS_GATES)
     if (not current_report(data, source_sha) or data.get("schema") != "english-root-mother-gate-input-v1"
-            or data.get("status") != "PASS" or data.get("hard_fail_count") != 0
+            or data.get("status") != ("PASS" if not failures else "FAIL")
+            or data.get("hard_fail_count") != len(failures)
             or data.get("engineering_completion") != engineering or data.get("business_completion") != business
             or data.get("combined_completion") != min(engineering, business)):
         failures["mother_evidence_binding"] = "FAIL"

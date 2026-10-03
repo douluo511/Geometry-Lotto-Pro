@@ -219,6 +219,22 @@ class AcceptanceBindingTests(unittest.TestCase):
             del altered["gates"][gate]
             self.assertEqual(validate_mother(altered, HEAD)["final_gate"], "FAIL")
 
+    @patch.dict("os.environ", {"GITHUB_RUN_ID": RUN, "GITHUB_RUN_ATTEMPT": ATTEMPT})
+    def test_bound_blockers_remain_blockers_without_false_binding_failure(self):
+        gates = dict.fromkeys(HARD_GATES, "PASS")
+        for gate in ("updater_real_network", "repository_independence", "final_artifact"):
+            gates[gate] = "BLOCKED"
+        value = {"schema":"english-root-mother-gate-input-v1", "status":"FAIL", "github_sha":HEAD,
+                 "github_run_id":RUN, "github_run_attempt":ATTEMPT, "hard_fail_count":3,
+                 "engineering_completion":90.625, "business_completion":100, "combined_completion":90.625,
+                 "gates":gates}
+        result = validate_mother(value, HEAD)
+        self.assertEqual(result["final_gate"], "FAIL")
+        self.assertEqual(result["hard_fail_count"], 3)
+        self.assertNotIn("mother_evidence_binding", result["failures"])
+        value["hard_fail_count"] = 0
+        self.assertEqual(validate_mother(value, HEAD)["failures"]["mother_evidence_binding"], "FAIL")
+
     def test_atomic_gate_requires_every_named_scenario(self):
         report = {"schema": "english-root-updater-gate-v1", "status": "PASS", "checks": {key: {"status": "PASS"} for key in UPDATER_CHECKS}}
         self.assertTrue(validate_atomic_checks(report))
