@@ -855,7 +855,7 @@ def fetch_provincial_composite_full_history() -> tuple[
 
         rows = _parse_jiangsu_issue_dates(markup)
         if not rows:
-            raise RuntimeError(f"Jiangsu Happy8 page {page_no} contained no issue-date rows")
+            raise RuntimeError(f"Jiangsu Happy8 page {page_no} contained no issue-bound publication evidence")
         for issue, publication_day in rows.items():
             previous = observed_publication_map.get(issue)
             if previous is not None and previous != publication_day:
@@ -898,7 +898,7 @@ def fetch_provincial_composite_full_history() -> tuple[
         )
     if len(crosschecked_issues) < int(len(number_issues) * 0.99):
         raise RuntimeError(
-            f"official date crosscheck coverage too low: "
+            f"official issue-provenance crosscheck coverage too low: "
             f"crosschecked={len(crosschecked_issues)} numbers={len(number_issues)}"
         )
 
@@ -914,13 +914,27 @@ def fetch_provincial_composite_full_history() -> tuple[
             )
         previous_issue, previous_day = issue, current_day
 
+    publication_evidence = {
+        issue: {
+            "draw_date": date_map[issue],
+            "publication_date": observed_publication_map[issue],
+            "publication_lag_days": _validate_jiangsu_publication_lag(
+                issue, date_map[issue], observed_publication_map[issue]
+            ),
+        }
+        for issue in sorted(crosschecked_issues)
+    }
+    max_publication_lag_days = max(
+        (item["publication_lag_days"] for item in publication_evidence.values()),
+        default=None,
+    )
     manifest.append({
-        "source": "jiangsu_welfare_lottery_crosscheck",
+        "source": "jiangsu_welfare_lottery_issue_provenance_crosscheck",
         "filename": "derived_from_jiangsu_history_pages",
         "url": JIANGSU_HISTORY_URL,
         "http_status": 200,
         "sha256": _sha256_json({
-            "crosschecked_issues": sorted(crosschecked_issues),
+            "publication_evidence": publication_evidence,
             "missing_index_issues": missing_index_issues,
         }),
         "bytes": 0,
@@ -928,6 +942,7 @@ def fetch_provincial_composite_full_history() -> tuple[
         "first_issue": min(crosschecked_issues),
         "last_issue": max(crosschecked_issues),
         "date_contract": "mof_calendar_is_canonical;_jiangsu_publication_lag_must_be_0_to_2_days",
+        "max_publication_lag_days": max_publication_lag_days,
         "missing_index_count": len(missing_index_issues),
         "missing_index_issues": missing_index_issues,
     })
@@ -942,7 +957,7 @@ def fetch_provincial_composite_full_history() -> tuple[
         raise RuntimeError(f"provincial official latest draw is stale/future: age_days={age}")
 
     receipt = SourceReceipt(
-        source="jiangxi_fuzhou_numbers_plus_mof_calendar_crosschecked_jiangsu",
+        source="jiangxi_fuzhou_numbers_plus_mof_calendar_plus_jiangsu_issue_provenance",
         url=f"{FUZHOU_HISTORY_URL} + MOF market-calendar notices + {JIANGSU_HISTORY_URL}",
         http_status=200,
         fetched_at=_utc_now(),
