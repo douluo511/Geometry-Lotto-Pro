@@ -318,6 +318,17 @@ def main() -> int:
         except ValueError:
             checks["composite_source_identity_fail_closed"] = {"status": "PASS"}
 
+        derived_tamper = copy.deepcopy(report)
+        derived_tamper["history_raw_manifest"][-1]["missing_index_count"] = 1
+        derived_tamper["source_receipts"][0]["raw_sha256"] = sha256_json(
+            derived_tamper["history_raw_manifest"]
+        )
+        try:
+            store.commit_official_snapshot(derived_tamper, raw)
+            checks["composite_derived_metadata_fail_closed"] = {"status": "FAIL"}
+        except ValueError:
+            checks["composite_derived_metadata_fail_closed"] = {"status": "PASS"}
+
     status = "PASS" if all(x["status"] == "PASS" for x in checks.values()) else "FAIL"
     value = {"schema":"happy8-storage-gate-v2","status":status,"checks":checks}
     print(json.dumps(value, ensure_ascii=False, indent=2))
