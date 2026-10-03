@@ -252,6 +252,128 @@ jobs:
           }
           python @args
 
+      - name: Engineering acceptance derivation
+        id: engineering_final
+        if: always()
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          function S([string]$x) {
+            if ($x -eq 'success') { return 'PASS' }
+            if ($x -eq 'failure') { return 'FAIL' }
+            return 'NOT VERIFIED'
+          }
+          function C([string[]]$xs) {
+            if ($xs -contains 'failure') { return 'FAIL' }
+            if ($xs.Count -gt 0 -and @($xs | Where-Object { $_ -ne 'success' }).Count -eq 0) { return 'PASS' }
+            return 'NOT VERIFIED'
+          }
+          $baseline = Get-Content '..\ENGINEERING_ACCEPTANCE_BASELINE.json' -Raw | ConvertFrom-Json
+          if (@($baseline.items).Count -ne 19) { throw 'engineering denominator drift' }
+          $items = [ordered]@{}
+          $items.E01 = @{ status = C @('${{ steps.checkout_identity.outcome }}','${{ steps.governance_gate.outcome }}') }
+          $items.E02 = @{ status = C @('${{ steps.unit_gate.outcome }}','${{ steps.contract_gate.outcome }}') }
+          $items.E03 = @{ status = S '${{ steps.contract_gate.outcome }}' }
+          $items.E04 = @{ status = S '${{ steps.storage_gate.outcome }}' }
+          $items.E05 = @{ status = C @('${{ steps.science_protocol_contract.outcome }}','${{ steps.science_gate.outcome }}') }
+          $items.E06 = @{ status = S '${{ steps.service_gate.outcome }}' }
+          $items.E07 = @{ status = S '${{ steps.ui_contract.outcome }}' }
+          $items.E08 = @{ status = C @('${{ steps.updater_handoff_gate.outcome }}','${{ steps.updater_gate.outcome }}') }
+          $items.E09 = @{ status = C @('${{ steps.service_gate.outcome }}','${{ steps.fault_injection_gate.outcome }}') }
+          $items.E10 = @{ status = C @('${{ steps.app_selftest.outcome }}','${{ steps.compile_gate.outcome }}','${{ steps.unit_gate.outcome }}','${{ steps.contract_gate.outcome }}','${{ steps.storage_gate.outcome }}','${{ steps.service_gate.outcome }}') }
+          $items.E11 = @{ status = S '${{ steps.fault_injection_gate.outcome }}' }
+          $items.E12 = @{ status = S '${{ steps.live_gate.outcome }}' }
+          $items.E13 = @{ status = S '${{ steps.windows_build.outcome }}' }
+          $items.E14 = @{ status = S '${{ steps.windows_build.outcome }}' }
+          $items.E15 = @{ status = S '${{ steps.physical_gui.outcome }}' }
+          $items.E16 = @{ status = S '${{ steps.post_gui_same_hash.outcome }}' }
+
+          $expectedRepo = 'douluo511/Geometry-Lotto-Pro-Happy8'
+          if ('${{ github.repository }}' -eq $expectedRepo) {
+            $items.E17 = @{ status = 'NOT VERIFIED'; detail = 'independent repository identity requires final-main release evidence' }
+          } else {
+            $items.E17 = @{ status = 'BLOCKED'; detail = "current repository is ${{ github.repository }}; required independent repository is $expectedRepo" }
+          }
+
+          if (Test-Path 'evidence/real_release_update.json') {
+            $rr = Get-Content 'evidence/real_release_update.json' -Raw | ConvertFrom-Json
+            $items.E18 = @{ status = $(if ($rr.status -eq 'PASS') {'PASS'} else {'FAIL'}); detail = 'real Release N→N+1 evidence file present' }
+          } else {
+            $items.E18 = @{ status = 'BLOCKED'; detail = 'real independent Release N→N+1 evidence unavailable' }
+          }
+
+          $prior = @('E01','E02','E03','E04','E05','E06','E07','E08','E09','E10','E11','E12','E13','E14','E15','E16','E17','E18')
+          $allPriorPass = @($prior | Where-Object { $items[$_].status -ne 'PASS' }).Count -eq 0
+          if ($allPriorPass -and (Test-Path 'evidence/FINAL_ARTIFACT.json')) {
+            $fa = Get-Content 'evidence/FINAL_ARTIFACT.json' -Raw | ConvertFrom-Json
+            $items.E19 = @{ status = $(if ($fa.status -eq 'PASS') {'PASS'} else {'FAIL'}); detail = 'unique final artifact manifest' }
+          } elseif (-not $allPriorPass) {
+            $items.E19 = @{ status = 'BLOCKED'; detail = 'upstream engineering/release gates are not all PASS' }
+          } else {
+            $items.E19 = @{ status = 'NOT VERIFIED'; detail = 'unique final artifact not generated' }
+          }
+
+          $weights = @{}
+          foreach ($x in $baseline.items) { $weights[$x.id] = [double]$x.weight }
+          $den = 0.0; $pass = 0.0
+          foreach ($id in $weights.Keys) {
+            $den += $weights[$id]
+            if ($items[$id].status -eq 'PASS') { $pass += $weights[$id] }
+          }
+          $pct = if ($den -gt 0) { [math]::Round(100.0 * $pass / $den, 4) } else { 0.0 }
+          $all = @($items.GetEnumerator() | Where-Object { $_.Value.status -ne 'PASS' }).Count -eq 0
+          $report = [ordered]@{
+            schema = 'happy8-engineering-acceptance-v1'
+            status = $(if ($all) {'PASS'} else {'FAIL'})
+            completion_percent = $pct
+            passed_weight = $pass
+            required_weight = $den
+            items = $items
+          }
+          $report | ConvertTo-Json -Depth 8 | Set-Content -Encoding utf8 evidence/engineering_acceptance.json
+          Get-Content evidence/engineering_acceptance.json
+          if (-not $all) { exit 2 }
+
+      - name: Evidence-derived Final Gate
+        id: final_gate
+        if: always()
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $eng = if (Test-Path 'evidence/engineering_acceptance.json') { Get-Content 'evidence/engineering_acceptance.json' -Raw | ConvertFrom-Json } else { $null }
+          $biz = if (Test-Path 'evidence/business_acceptance.json') { Get-Content 'evidence/business_acceptance.json' -Raw | ConvertFrom-Json } else { $null }
+          $same = if (Test-Path 'evidence/post_gui_same_hash.json') { Get-Content 'evidence/post_gui_same_hash.json' -Raw | ConvertFrom-Json } else { $null }
+          $gui = if (Test-Path 'evidence/physical_gui_click.json') { Get-Content 'evidence/physical_gui_click.json' -Raw | ConvertFrom-Json } else { $null }
+          $win = if (Test-Path 'evidence/windows_exact_exe.json') { Get-Content 'evidence/windows_exact_exe.json' -Raw | ConvertFrom-Json } else { $null }
+          $finalArtifact = if (Test-Path 'evidence/FINAL_ARTIFACT.json') { Get-Content 'evidence/FINAL_ARTIFACT.json' -Raw | ConvertFrom-Json } else { $null }
+          $pass = (
+            $null -ne $eng -and $eng.status -eq 'PASS' -and [double]$eng.completion_percent -eq 100.0 -and
+            $null -ne $biz -and $biz.status -eq 'PASS' -and [double]$biz.completion_percent -eq 100.0 -and
+            $null -ne $win -and $win.status -eq 'PASS' -and
+            $null -ne $gui -and $gui.status -eq 'PASS' -and
+            $null -ne $same -and $same.status -eq 'PASS' -and
+            $null -ne $finalArtifact -and $finalArtifact.status -eq 'PASS' -and
+            '${{ github.repository }}' -eq 'douluo511/Geometry-Lotto-Pro-Happy8'
+          )
+          $report = [ordered]@{
+            schema = 'happy8-final-gate-v1'
+            status = $(if ($pass) {'PASS'} else {'FAIL'})
+            engineering_completion = $(if ($null -ne $eng) {$eng.completion_percent} else {$null})
+            business_completion = $(if ($null -ne $biz) {$biz.completion_percent} else {$null})
+            exact_exe = $(if ($null -ne $win) {$win.status} else {'NOT VERIFIED'})
+            physical_gui = $(if ($null -ne $gui) {$gui.status} else {'NOT VERIFIED'})
+            same_hash = $(if ($null -ne $same) {$same.status} else {'NOT VERIFIED'})
+            repository = '${{ github.repository }}'
+            required_repository = 'douluo511/Geometry-Lotto-Pro-Happy8'
+            unique_final_artifact = $(if ($null -ne $finalArtifact) {$finalArtifact.status} else {'NOT VERIFIED'})
+            source_sha = (& git rev-parse HEAD).Trim()
+          }
+          $report | ConvertTo-Json -Depth 6 | Set-Content -Encoding utf8 evidence/final_gate.json
+          Get-Content evidence/final_gate.json
+          if (-not $pass) { exit 2 }
+
       # Root-cause diagnostics run only after the mandatory live gate fails.
       - name: Provincial official fallback diagnostic probe
         if: ${{ always() && !cancelled() && steps.live_gate.outcome != 'success' }}
@@ -346,6 +468,8 @@ jobs:
         run: |
           Write-Host "RECOVERED_PROTOTYPE_SOURCE=PASS"
           Write-Host "WINDOWS_EXACT_EXE=${{ steps.windows_build.outcome }}"
+          Write-Host "ENGINEERING_FINAL=${{ steps.engineering_final.outcome }}"
+          Write-Host "FINAL_GATE=${{ steps.final_gate.outcome }}"
           Write-Host "PHYSICAL_GUI_CLICK=${{ steps.physical_gui.outcome }}"
           Write-Host "POST_GUI_SAME_HASH=${{ steps.post_gui_same_hash.outcome }}"
           Write-Host "BUSINESS_PRE=${{ steps.business_pre.outcome }}"
@@ -382,6 +506,8 @@ jobs:
           if ('${{ steps.windows_build.outcome }}' -eq 'success' -and '${{ steps.physical_gui.outcome }}' -ne 'success') { $failures += 'physical_gui' }
           if ('${{ steps.physical_gui.outcome }}' -eq 'success' -and '${{ steps.post_gui_same_hash.outcome }}' -ne 'success') { $failures += 'post_gui_same_hash' }
           if ('${{ steps.live_gate.outcome }}' -eq 'success' -and '${{ steps.science_gate.outcome }}' -eq 'success' -and '${{ steps.business_final.outcome }}' -ne 'success') { $failures += 'business_final' }
+          if ('${{ steps.engineering_final.outcome }}' -ne 'success') { $failures += 'engineering_final' }
+          if ('${{ steps.final_gate.outcome }}' -ne 'success') { $failures += 'final_gate' }
 
           Write-Host "CHECKOUT_IDENTITY=${{ steps.checkout_identity.outcome }}"
           Write-Host "GOVERNANCE_ARCHITECTURE=${{ steps.governance_gate.outcome }}"
