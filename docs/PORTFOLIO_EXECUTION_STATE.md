@@ -323,3 +323,19 @@ Do not label any project Final until Engineering=100%, Business=100%, hard_fail_
 - Diagnostic artifact: ID `11271772985`, name `Happy8-Staging-Diagnostic-73348494dc294833f7d88cdf8dfd52de89b39ff5`, archive digest `sha256:afa0cb817d6611c4144c7cb21b33e12dc8900c41feedcefde6c71364e03ba449`.
 - Dedicated-repository migration boundary is frozen separately in `docs/HAPPY8_INDEPENDENT_REPO_MIGRATION_MANIFEST.json` (control commit `91338706e7505258140c86b271bb9891cea30f3b`). This preparation does not count as E17 PASS.
 - Final Gate remains **FAIL**. No final artifact is accepted or deliverable until E17, E18, E19 and B07 become PASS on the dedicated repository/release lineage.
+
+
+## 2026-10-03 Happy8 isolated seed tree validation
+
+- External E17 blocker rechecked: GitHub installation still exposes only `douluo511/Geometry-Lotto-Pro`; no repository-creation action is available. E17 remains BLOCKED.
+- To complete all work that does not require the missing repository, an isolated migration seed tree was created in the shared repository without changing the accepted Happy8 product head.
+- Seed source exact head: `64dfe1b9274abecd972edaa52c928f10cb2b6b23`.
+- Seed Happy8 tree SHA: `51147b825909a5395d43749ed4144f417d172500`.
+- Seed workflow blob SHA: `2599e0d4e584bca70e37efa9c13c2a6ee79f1845`.
+- Seed root tree SHA: `16ee80c3d307df457c2cc49e469d24d8298bdc20`.
+- Seed commit: `3015beacbd5d858601abe13ed207a32512344354`.
+- Seed branch: `migration/happy8-independent-seed-20261003`.
+- Root-tree verification: top-level entries are exactly `.github` and `Happy8`; no other portfolio project files are present.
+- Self-containment validation head: `a59e7db60878813c0a60a55b7b4fceafe5aab1c4`; only `Happy8/SEED_VALIDATION.md` was added to trigger the existing PR workflow. Runtime/build blobs under `Happy8/staging` remain unchanged.
+- Validation PR: #89, base `migration/happy8-independent-seed-20261003`, head `validation/happy8-independent-seed-selfcontained-20261003`.
+- Validation workflow run `37119210013`, job `111191881702`, started. This validates that the isolated seed has no hidden monorepo file dependency. Its success will not by itself satisfy E17 because the repository container is still shared.
