@@ -1,0 +1,143 @@
+{
+  "schema_version": 6,
+  "universe": {
+    "live_top_n": 300,
+    "history_start": "20180101",
+    "min_turnover_cny": 20000000,
+    "exclude_st": true,
+    "include_bj": false,
+    "history_adjust": "hfq",
+    "bootstrap_full_universe": true,
+    "bootstrap_batch": 60,
+    "bootstrap_max_symbols": 0,
+    "include_delisted_research": true,
+    "delisted_bootstrap_fraction": 0.25
+  },
+  "model": {
+    "horizon_days": 5,
+    "min_history_days": 240,
+    "validation_days": 40,
+    "max_train_rows": 180000,
+    "top_k": 20,
+    "random_state": 42,
+    "target": "target_excess",
+    "research_training_extra_symbols": 500,
+    "min_research_extra_symbols": 30,
+    "ensemble_mode": "validation_dynamic"
+  },
+  "weights": {
+    "ml": 0.32,
+    "momentum": 0.15,
+    "liquidity": 0.07,
+    "risk": 0.08,
+    "robustness": 0.08,
+    "cost": 0.12,
+    "valuation": 0.18
+  },
+  "portfolio": {
+    "balanced_size": 20,
+    "offense_size": 15,
+    "defense_size": 20,
+    "max_per_industry": 3
+  },
+  "backtest": {
+    "lookback_eval_days": 180,
+    "rebalance_every_days": 5,
+    "roundtrip_cost_bps": 20,
+    "random_trials": 100,
+    "min_test_universe": 50,
+    "min_train_rows": 5000,
+    "capacity_order_sizes_cny": [
+      100000,
+      500000,
+      1000000,
+      5000000,
+      10000000
+    ]
+  },
+  "automation": {
+    "run_time": "17:30",
+    "maintenance_every_days": 5,
+    "auto_backtest": true,
+    "auto_audit": true,
+    "auto_rnd": true
+  },
+  "safety": {
+    "min_live_update_ratio": 0.7,
+    "max_prediction_age_days": 5,
+    "stale_lock_hours": 4,
+    "abort_on_low_data_quality": true
+  },
+  "drift": {
+    "enabled": true,
+    "warn_mean_z": 0.75,
+    "fail_mean_z": 1.5,
+    "warn_fraction_shifted": 0.3,
+    "fail_fraction_shifted": 0.6
+  },
+  "backup": {
+    "enabled": true,
+    "keep_days": 90,
+    "snapshot_every_days": 7
+  },
+  "network": {
+    "timeout_seconds": 15,
+    "retry_attempts": 3,
+    "request_delay_seconds": 0.12,
+    "retry_backoff_seconds": 0.8
+  },
+  "cost": {
+    "order_size_cny": 100000,
+    "commission_rate": 0.00025,
+    "minimum_commission_cny": 5.0,
+    "stamp_duty_sell_rate": 0.0005,
+    "transfer_fee_rate_each_side": 1e-05,
+    "base_slippage_bps_each_side": 1.0,
+    "impact_coefficient_bps": 100.0,
+    "range_slippage_fraction": 0.02,
+    "max_dynamic_slippage_bps_each_side": 30.0
+  },
+  "valuation": {
+    "enabled": true,
+    "pe_weight": 0.6,
+    "pb_weight": 0.4,
+    "loss_company_score": 15.0,
+    "missing_score": 50.0,
+    "extreme_pe": 100.0,
+    "extreme_pb": 10.0,
+    "extreme_penalty_points": 12.0,
+    "history_indicators": [
+      "市盈率(TTM)",
+      "市净率"
+    ],
+    "history_refresh_batch": 20,
+    "history_refresh_days": 7,
+    "history_period": "全部",
+    "backtest_min_coverage": 0.4,
+    "industry_relative": true
+  },
+  "decision": {
+    "min_positive_net_alpha_count": 5,
+    "min_topk_mean_net_alpha": 0.0,
+    "risk_off_min_topk_mean_net_alpha": 0.002,
+    "min_confidence": 50.0
+  },
+  "rnd": {
+    "enabled": true,
+    "max_prediction_days": 120,
+    "min_eval_points": 12,
+    "top_k": 20,
+    "bootstrap_trials": 1000,
+    "min_mean_improvement": 0.001,
+    "min_win_rate": 0.55,
+    "max_drawdown_tolerance": 0.03,
+    "require_positive_ci_lower": true,
+    "recent_window": 6,
+    "degradation_threshold": 0.002,
+    "auto_promote": false
+  },
+  "integrity": {
+    "prediction_hash_chain": true,
+    "rnd_evidence_registry": true
+  }
+}

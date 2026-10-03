@@ -1,0 +1,26 @@
+{
+  "version": "4.3.0-deliverable",
+  "generated_at": "2026-09-10T11:36:59.839561+00:00",
+  "active_version": "4.3.0",
+  "rollback_version": "4.2.0",
+  "updater_version": "1.2.0",
+  "source_acceptance": "PASS",
+  "first_candidate_acceptance": "FAIL_REJECTED_MISSING_NESTED_FIXTURE",
+  "second_candidate_fresh_unzip_acceptance": "PASS",
+  "exact_final_zip_acceptance": "PERFORM_AFTER_FINAL_ARCHIVE_CREATION_NO_MUTATION",
+  "unique_zip_policy": "Only one final user-facing ZIP after exact final-package acceptance",
+  "model_stack": [
+    "ridge",
+    "hgb",
+    "extra_trees"
+  ],
+  "production_backtest_model_parity": true,
+  "schema_rollback_compatibility": "PASS: active 4.3 and rollback 4.2 both schema 6",
+  "manifest_completeness": "BIDIRECTIONAL",
+  "deterministic_archive_builder": "PASS",
+  "target_environment_not_executed_here": [
+    "Windows BAT/PowerShell/Task Scheduler",
+    "fresh Windows online dependency install",
+    "live AkShare prediction on user machine"
+  ]
+}
