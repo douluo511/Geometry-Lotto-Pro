@@ -132,16 +132,37 @@ def main() -> int:
         "leakage_challenge",
         "canonical_hash_bound",
     }
+    oos = science.get("oos") if isinstance(science.get("oos"), dict) else {}
+    ablations = science.get("ablations") if isinstance(science.get("ablations"), list) else []
+    candidate_pool = science.get("candidate_pool") if isinstance(science.get("candidate_pool"), list) else []
+    science_baseline = science.get("baseline") if isinstance(science.get("baseline"), dict) else {}
     b04_ok = (
         science.get("status") == "PASS"
         and science.get("software_verdict") == "PASS"
         and set(protocol) == required_protocol
         and all(value == "PASS" for value in protocol.values())
         and science.get("canonical_hash") == canonical_hash
+        and len(candidate_pool) >= 7
+        and len(ablations) >= 5
+        and oos.get("bootstrap_95_lower") is not None
+        and isinstance(oos.get("signflip_p"), (int, float))
+        and 0.0 <= float(oos.get("signflip_p")) <= 1.0
+        and science_baseline.get("baseline_model") == "uniform_random_without_replacement"
+        and science_baseline.get("single_number_probability") == 0.25
+        and science_baseline.get("pick10_expected_hits") == 2.5
     )
     results["B04"] = item(
         "PASS" if b04_ok else "FAIL",
-        {"science_status": science.get("status"), "software_verdict": science.get("software_verdict"), "protocol_gates": protocol},
+        {
+            "science_status": science.get("status"),
+            "software_verdict": science.get("software_verdict"),
+            "protocol_gates": protocol,
+            "candidate_pool_count": len(candidate_pool),
+            "ablation_count": len(ablations),
+            "bootstrap_executed": oos.get("bootstrap_95_lower") is not None,
+            "signflip_p": oos.get("signflip_p"),
+            "baseline_model": science_baseline.get("baseline_model"),
+        },
     )
 
     edge_state = science.get("edge_state")
