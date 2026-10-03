@@ -217,3 +217,10 @@ Do not label any project Final until Engineering=100%, Business=100%, hard_fail_
 - Commit `3ab540755b82efb09a902bc62b46a3a12d9ce21d` adds `fault_injection_gate.py` covering offline, DNS/connection failure, timeout, 429, 500, 502, 503, non-JSON, empty response, schema drift, missing fields, invalid content type, data corruption fail-closed, cache pollution cleanup, unwritable evidence, disk anomaly, corrupted release configuration and updater failure preserving the target EXE.
 - Commit `1ab7963bfae56454f331662142543f1c6c049039` reorders the workflow categories to Self-Test → Static/Compile → Unit → Contract → Integration → Fault Injection → Real Network → Business/Science validation → Windows/Exact EXE → Physical GUI → Same Hash, and adds Unit/Fault outcomes to the evidence-derived aggregate.
 - Exact-head run `37102078794` is PENDING at record time. Earlier workflow-only run `37101890234` remains in progress and may supply unaffected diagnostic evidence, but cannot prove the new Unit/Fault gates. Final Gate remains FAIL.
+
+
+### Happy8 strict validation concurrency handoff
+
+- Superseded v1 run `37101890234` remained in-progress inside the real-network step and the exact-head strict run stayed PENDING. The available GitHub connector exposes no cancel/dispatch action for workflow runs.
+- Commit `eace15c94bd140fd99aa9cebe888929797efbce8` moves the strict PR validation chain to concurrency group `happy8-strict-v2-*` while retaining `cancel-in-progress: true` for all subsequent v2 heads. This prevents the obsolete v1 run from blocking current validation without disabling deduplication for future changes.
+- Current exact head is `eace15c94bd140fd99aa9cebe888929797efbce8`; current-head gates remain NOT VERIFIED until its run is created and executes.
