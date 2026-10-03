@@ -34,9 +34,20 @@ jobs:
         run: python scripts/shanghai_contract_probe.py --output evidence/shanghai_contract_probe.json
       - name: Jiangsu official full-history contract probe
         run: python scripts/jiangsu_history_probe.py --output evidence/jiangsu_history_probe.json
+      - name: Jiangxi Fuzhou official number-history contract probe
+        timeout-minutes: 4
+        run: python scripts/jiangxi_fuzhou_history_probe.py --output evidence/jiangxi_fuzhou_history_probe.json
+      - name: Jiangxi Fuzhou candidate non-production guard
+        shell: pwsh
+        run: |
+          $r = Get-Content evidence/jiangxi_fuzhou_history_probe.json -Raw | ConvertFrom-Json
+          if ($r.production_accepted -ne $false) { throw "Fuzhou diagnostic was incorrectly production-accepted" }
+          if ($r.classification_claim -ne 'NUMBER_HISTORY_CANDIDATE_ONLY') { throw "Fuzhou source classification drifted" }
+          Write-Host "FUZHOU_DIAGNOSTIC_NON_PRODUCTION=PASS"
       - name: Sichuan official history contract probe
         run: python scripts/sichuan_history_probe.py --output evidence/sichuan_history_probe.json
       - name: CWL-designated media history contract diagnostic
+        timeout-minutes: 4
         run: python scripts/zhcw_history_probe.py --output evidence/zhcw_history_probe.json
       - name: Diagnostic source non-production guard
         shell: pwsh
