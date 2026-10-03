@@ -86,7 +86,7 @@ def main() -> int:
     jiangsu_html = """
     <html><body>
       <div>中国福利彩票快乐8第2021001期开奖公告 2021-01-01</div>
-      <a href="https://www.cwl.gov.cn/c/2021/01/01/123.shtml">第2021001期开奖公告</a>
+      <a href="https://www.cwl.gov.cn/c/2021/01/02/123.shtml">第2021001期开奖公告</a>
     </body></html>
     """
     parsed_dates = _parse_jiangsu_issue_dates(jiangsu_html)
