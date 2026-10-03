@@ -63,7 +63,7 @@ class T(unittest.TestCase):
             before = s.storage.store.roots_path.read_bytes()
             progress_before = s.storage.store.progress_path.read_bytes()
             with self.assertRaises(Exception):
-                s.one_click_update()
+                s.refresh_knowledge()
             self.assertEqual(before, s.storage.store.roots_path.read_bytes())
             self.assertEqual(progress_before, s.storage.store.progress_path.read_bytes())
 
@@ -74,7 +74,7 @@ class T(unittest.TestCase):
             s = create_service(root, QuorumNet(seed, second_raw=seed + b"\n"))
             before = s.storage.store.roots_path.read_bytes()
             with self.assertRaises(Exception):
-                s.one_click_update()
+                s.refresh_knowledge()
             self.assertEqual(before, s.storage.store.roots_path.read_bytes())
 
     def test_evidence_stage_failure_rolls_back_all_production_files(self):
@@ -92,7 +92,7 @@ class T(unittest.TestCase):
                 return original(path, data)
             s.storage._stage = fail_evidence
             with self.assertRaises(OSError):
-                s.one_click_update()
+                s.refresh_knowledge()
             self.assertEqual(roots_before, s.storage.store.roots_path.read_bytes())
             self.assertEqual(progress_before, s.storage.store.progress_path.read_bytes())
             current = s.evidence.path.read_bytes() if s.evidence.path.exists() else None

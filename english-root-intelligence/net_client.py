@@ -25,6 +25,7 @@ class NetClient:
         session: requests.Session | None = None,
         sleeper: Callable[[float], None] = time.sleep,
         rng: random.Random | None = None,
+        max_payload_bytes: int = 5_000_000,
     ):
         self.connect_timeout = float(connect_timeout)
         self.read_timeout = float(read_timeout)
@@ -38,6 +39,9 @@ class NetClient:
         self.session = session
         self.sleeper = sleeper
         self.rng = rng or random.Random()
+        self.max_payload_bytes = int(max_payload_bytes)
+        if not 0 < self.max_payload_bytes <= 512 * 1024 * 1024:
+            raise ValueError("max_payload_bytes must be positive and at most 512 MiB")
 
     def _delay(self, attempt: int, response=None) -> float:
         retry_after = None
@@ -70,12 +74,14 @@ class NetClient:
         ledger: list[dict] = []
 
         for attempt in range(1, self.max_attempts + 1):
+            r = None
             try:
                 r = getter(
                     url,
                     timeout=(self.connect_timeout, self.read_timeout),
                     headers={"User-Agent": "EnglishRootIntelligence/0.4"},
                     allow_redirects=True,
+                    stream=True,
                 )
                 status = int(getattr(r, "status_code", 0) or 0)
                 final_url = str(getattr(r, "url", "") or url)
@@ -112,8 +118,26 @@ class NetClient:
                     })
                     raise self._attach(ValueError(f"unexpected content type: {ctype or 'missing'}"), ledger)
 
-                raw = bytes(r.content)
-                if not raw or len(raw) > 5_000_000:
+                try:
+                    declared = int(r.headers.get("Content-Length") or 0)
+                except ValueError:
+                    declared = 0
+                if declared > self.max_payload_bytes:
+                    raise self._attach(ValueError("declared response size exceeds configured limit"), ledger)
+                if callable(getattr(r, "iter_content", None)):
+                    chunks = []
+                    total = 0
+                    for chunk in r.iter_content(chunk_size=64 * 1024):
+                        if not chunk:
+                            continue
+                        total += len(chunk)
+                        if total > self.max_payload_bytes:
+                            raise self._attach(ValueError("streamed response exceeds configured limit"), ledger)
+                        chunks.append(bytes(chunk))
+                    raw = b"".join(chunks)
+                else:
+                    raw = bytes(r.content)
+                if not raw or len(raw) > self.max_payload_bytes:
                     ledger.append({
                         "attempt": attempt, "outcome": "FINAL_SIZE",
                         "status_code": status, "error_type": "ValueError", "retry_delay": 0.0, "url": url,
@@ -152,6 +176,9 @@ class NetClient:
                     "status_code": None, "error_type": type(exc).__name__, "retry_delay": delay, "url": url,
                 })
                 self.sleeper(delay)
+            finally:
+                if r is not None and callable(getattr(r, "close", None)):
+                    r.close()
 
         raise RuntimeError("GET exhausted retry loop")
 
