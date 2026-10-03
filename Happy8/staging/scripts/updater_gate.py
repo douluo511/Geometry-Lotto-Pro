@@ -288,14 +288,23 @@ def main() -> int:
         updater = updater_with(manifest, artifact)
         from happy8.updater import _replace_path as real_replace_path
         rollback_attempts = {"count": 0}
+        observed_replaces = []
         _, expected_backup, _, _ = _update_transaction_paths(target)
-        target_norm = os.path.normcase(os.path.abspath(os.fspath(target)))
-        backup_norm = os.path.normcase(os.path.abspath(os.fspath(expected_backup)))
 
         def fail_backup_restore(src, dst):
-            src_norm = os.path.normcase(os.path.abspath(os.fspath(src)))
-            dst_norm = os.path.normcase(os.path.abspath(os.fspath(dst)))
-            if src_norm == backup_norm and dst_norm == target_norm:
+            src_path = Path(src)
+            dst_path = Path(dst)
+            observed_replaces.append({
+                "src": str(src_path),
+                "dst": str(dst_path),
+                "src_name": src_path.name,
+                "dst_name": dst_path.name,
+            })
+            # Match the transaction semantic boundary rather than a Windows
+            # absolute-path string representation.  The first replacement is
+            # stage -> target and must succeed; only backup -> target is the
+            # injected rollback failure.
+            if src_path.name == expected_backup.name and dst_path.name == target.name:
                 rollback_attempts["count"] += 1
                 raise PermissionError("injected rollback failure")
             return real_replace_path(src, dst)
@@ -317,6 +326,7 @@ def main() -> int:
             "failed_action": failed.get("action"),
             "retained_backup_and_journal": retained,
             "rollback_injection_count": rollback_attempts["count"],
+            "observed_replaces": observed_replaces,
         }
         checks["restart_recovery_restores_previous_exe"] = {
             "status": "PASS"
