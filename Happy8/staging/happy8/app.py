@@ -10,7 +10,7 @@ from pathlib import Path
 from .domain import Draw
 from .net_client import NetClient
 from .services import Happy8Service
-from .ui import Happy8Window, ui_contract
+from .ui import Happy8Window, source_ui_contract, ui_contract
 
 APP_VERSION = "0.2.0-staging"
 
@@ -49,6 +49,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--data-root")
     parser.add_argument("--result-file")
     parser.add_argument("--self-test", action="store_true")
+    parser.add_argument("--ui-contract", action="store_true")
     parser.add_argument("--ui-self-test", action="store_true")
     parser.add_argument("--status", action="store_true")
     parser.add_argument("--update", action="store_true")
@@ -73,6 +74,11 @@ def main(argv: list[str] | None = None) -> int:
 
     root = Path(args.data_root) if args.data_root else default_data_root()
     service = Happy8Service(root)
+
+    if args.ui_contract:
+        report = source_ui_contract()
+        emit(report)
+        return 0 if report["status"] == "PASS" else 2
 
     if args.ui_self_test:
         window = Happy8Window(service)
