@@ -34,7 +34,7 @@ def main()->int:
     checks["software_update_is_not_knowledge_refresh"]="return self.maintenance.one_click_update()" not in svc.split("def one_click_update",1)[1].split("def ",1)[0]
     checks["repair_is_top_level"]="(\"一键修复\", self.run_repair)" in app
     status="PASS" if all(checks.values()) and all(v=="PASS" for v in gates.values()) else "FAIL"
-    report={"schema":"guoxue-architecture-gate-v1","status":status,"github_sha":os.environ.get("GITHUB_SHA"),"gates":gates,"checks":checks}
+    report={"schema":"guoxue-architecture-gate-v1","status":status,"github_sha":(os.environ.get("GUOXUE_SOURCE_SHA") or os.environ.get("GITHUB_SHA")),"gates":gates,"checks":checks}
     (ROOT/"architecture_gate.json").write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding="utf-8")
     print(json.dumps(report,ensure_ascii=False))
     return 0 if status=="PASS" else 2
