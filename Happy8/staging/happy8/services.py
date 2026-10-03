@@ -45,6 +45,7 @@ class Happy8Service:
         data_root: Path,
         *,
         snapshot_builder: Callable[[], tuple[dict[str, Any], dict[str, bytes]]] = build_official_snapshot,
+        science_validator: Callable[..., dict[str, Any]] = validate_history,
     ):
         self.data_root = Path(data_root).resolve()
         self.data_root.mkdir(parents=True, exist_ok=True)
@@ -52,6 +53,7 @@ class Happy8Service:
         self.results = self.data_root / "results"
         self.evidence = self.data_root / "evidence"
         self.snapshot_builder = snapshot_builder
+        self.science_validator = science_validator
 
     @staticmethod
     def _draws(snapshot: dict[str, Any]) -> list[Draw]:
@@ -101,7 +103,7 @@ class Happy8Service:
     def predict_next(self) -> dict[str, Any]:
         snapshot = self.store.read_current_snapshot()
         draws = self._draws(snapshot)
-        science = validate_history(
+        science = self.science_validator(
             draws,
             canonical_hash=str(snapshot["canonical"]["canonical_hash"]),
         )
@@ -195,7 +197,7 @@ class Happy8Service:
     def advanced_analysis(self) -> dict[str, Any]:
         snapshot = self.store.read_current_snapshot()
         draws = self._draws(snapshot)
-        report = validate_history(
+        report = self.science_validator(
             draws,
             canonical_hash=str(snapshot["canonical"]["canonical_hash"]),
         )
