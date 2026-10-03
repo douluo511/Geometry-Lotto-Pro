@@ -45,6 +45,69 @@ def _load_release_config(main_exe: Path) -> dict[str, Any]:
     }
 
 
+def software_update_environment_status(
+    *,
+    main_exe: Path,
+    current_version: str,
+    updater_exe: Path | None = None,
+) -> dict[str, Any]:
+    """Diagnose the local software-update configuration without inventing release data."""
+    main_exe = Path(main_exe).resolve()
+    if updater_exe is None:
+        updater_exe = main_exe.with_name(UPDATER_EXE_FILENAME)
+    updater_exe = Path(updater_exe).resolve()
+
+    checks: dict[str, dict[str, Any]] = {}
+    parts = str(current_version).strip().split(".")
+    version_ok = bool(parts) and all(part.isdigit() for part in parts)
+    checks["version_contract"] = {
+        "status": "PASS" if version_ok else "FAIL",
+        "current_version": str(current_version),
+    }
+    checks["main_exe"] = {
+        "status": "PASS" if main_exe.is_file() else "BLOCKED",
+        "path": str(main_exe),
+    }
+    checks["updater_exe"] = {
+        "status": "PASS" if updater_exe.is_file() else "BLOCKED",
+        "path": str(updater_exe),
+    }
+    try:
+        release = _load_release_config(main_exe)
+        checks["release_config"] = {
+            "status": "PASS",
+            "config_path": release["config_path"],
+            "manifest_url": release["manifest_url"],
+            "trusted_hosts": release["trusted_hosts"],
+        }
+        checks["network_config"] = {
+            "status": "PASS",
+            "detail": "trusted HTTPS release manifest configuration is present",
+        }
+    except Exception as exc:
+        checks["release_config"] = {
+            "status": "BLOCKED",
+            "detail": f"{type(exc).__name__}: {exc}",
+        }
+        checks["network_config"] = {
+            "status": "BLOCKED",
+            "detail": "no trusted release endpoint can be reconstructed locally",
+        }
+
+    states = [str(item.get("status")) for item in checks.values()]
+    if "FAIL" in states:
+        status = "FAIL"
+    elif "BLOCKED" in states:
+        status = "BLOCKED"
+    else:
+        status = "PASS"
+    return {
+        "schema": "happy8-software-update-environment-v1",
+        "status": status,
+        "checks": checks,
+    }
+
+
 def launch_independent_updater(
     *,
     data_root: Path,
