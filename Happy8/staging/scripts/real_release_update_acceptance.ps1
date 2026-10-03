@@ -5,6 +5,8 @@ param(
   [Parameter(Mandatory=$true)][string]$Repository,
   [Parameter(Mandatory=$true)][string]$SourceSha,
   [Parameter(Mandatory=$true)][string]$ReleaseNSourceSha,
+  [Parameter(Mandatory=$true)][string]$ReleaseNId,
+  [Parameter(Mandatory=$true)][string]$ReleaseN1Id,
   [Parameter(Mandatory=$true)][string]$ReleaseNUrl,
   [Parameter(Mandatory=$true)][string]$ReleaseN1Url,
   [Parameter(Mandatory=$true)][string]$ExpectedFromVersion,
@@ -225,6 +227,9 @@ try {
   if((Compare-NumericVersion $ExpectedToVersion $ExpectedFromVersion) -le 0) {
     throw "ExpectedToVersion must be newer than ExpectedFromVersion"
   }
+  if([string]::IsNullOrWhiteSpace($ReleaseNId) -or [string]::IsNullOrWhiteSpace($ReleaseN1Id) -or $ReleaseNId -eq $ReleaseN1Id) {
+    throw "Release N and N+1 must have distinct real release identities"
+  }
   if($SourceSha -notmatch '^[0-9a-fA-F]{40}$' -or $ReleaseNSourceSha -notmatch '^[0-9a-fA-F]{40}$') {
     throw 'release source SHA must be a 40-hex commit'
   }
@@ -315,6 +320,7 @@ try {
       head_sha=$SourceSha.ToLowerInvariant()
     }
     release_n=[ordered]@{
+      release_id=$ReleaseNId
       version=$ExpectedFromVersion
       source_sha=$ReleaseNSourceSha.ToLowerInvariant()
       release_url=$ReleaseNUrl
@@ -322,6 +328,7 @@ try {
       updater_exe_sha256=$oldUpdaterSha
     }
     release_n1=[ordered]@{
+      release_id=$ReleaseN1Id
       version=$ExpectedToVersion
       source_sha=$SourceSha.ToLowerInvariant()
       release_url=$ReleaseN1Url
