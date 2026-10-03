@@ -44,6 +44,16 @@ jobs:
           if ($r.production_accepted -ne $false) { throw "Fuzhou diagnostic was incorrectly production-accepted" }
           if ($r.classification_claim -ne 'NUMBER_HISTORY_CANDIDATE_ONLY') { throw "Fuzhou source classification drifted" }
           Write-Host "FUZHOU_DIAGNOSTIC_NON_PRODUCTION=PASS"
+      - name: Two-official-source full-history reconciliation
+        timeout-minutes: 8
+        run: python scripts/composite_official_history_probe.py --output evidence/composite_official_history_probe.json
+      - name: Composite history candidate non-production guard
+        shell: pwsh
+        run: |
+          $r = Get-Content evidence/composite_official_history_probe.json -Raw | ConvertFrom-Json
+          if ($r.production_accepted -ne $false) { throw "composite diagnostic was incorrectly production-accepted" }
+          if ($r.classification_claim -ne 'COMPOSITE_FULL_HISTORY_CANDIDATE_ONLY') { throw "composite source classification drifted" }
+          Write-Host "COMPOSITE_DIAGNOSTIC_NON_PRODUCTION=PASS"
       - name: Sichuan official history contract probe
         run: python scripts/sichuan_history_probe.py --output evidence/sichuan_history_probe.json
       - name: CWL-designated media history contract diagnostic
