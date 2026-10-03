@@ -4,7 +4,7 @@ from pathlib import Path
 from service import create_service
 ROOT=Path(__file__).resolve().parent
 def main()->int:
-    report={"schema":"guoxue-real-network-v1","status":"FAIL","github_sha":os.environ.get("GITHUB_SHA"),"network_gate":"FAIL"}
+    report={"schema":"guoxue-real-network-v1","status":"FAIL","github_sha":(os.environ.get("GUOXUE_SOURCE_SHA") or os.environ.get("GITHUB_SHA")),"network_gate":"FAIL"}
     try:
         with tempfile.TemporaryDirectory(prefix="guoxue-net-") as td:
             svc=create_service(Path(td))
