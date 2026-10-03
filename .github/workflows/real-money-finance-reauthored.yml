@@ -52,13 +52,13 @@ jobs:
         run: python -m compileall -q app tests main.py
 
       - name: Contract gate
-        run: python tests/contract_gate.py
+        run: python -m tests.contract_gate
 
       - name: Fault injection gate
-        run: python tests/fault_injection_gate.py
+        run: python -m tests.fault_injection_gate
 
       - name: Real production network gate
-        run: python tests/real_network_gate.py
+        run: python -m tests.real_network_gate
 
       - name: Windows native candidate build
         shell: pwsh
@@ -101,7 +101,7 @@ jobs:
         run: |
           $exe=Resolve-Path ./dist/RealMoneyFinance.exe
           $root=Join-Path $env:RUNNER_TEMP "rmf-gui"
-          python tests/gui_physical_click_gate.py --exe $exe --root $root --evidence gui_click_evidence.json
+          python -m tests.gui_physical_click_gate --exe $exe --root $root --evidence gui_click_evidence.json
 
       - name: Freeze candidate manifest
         shell: pwsh
