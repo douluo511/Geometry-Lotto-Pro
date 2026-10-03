@@ -22,7 +22,7 @@ HEADERS = {
     "Accept": "text/html,application/xhtml+xml,application/javascript,text/javascript,*/*;q=0.5",
     "Referer": "https://www.zhcw.com/",
 }
-NET = NetClient(connect_timeout=10, read_timeout=30, max_attempts=3)
+NET = NetClient(connect_timeout=5, read_timeout=12, max_attempts=1)\nMAX_SCRIPT_FETCHES = 8
 
 
 def _decode(raw: bytes) -> str:
@@ -40,7 +40,7 @@ def _same_host(url: str) -> bool:
 
 
 def _fetch(url: str) -> tuple[object, bytes, str]:
-    response = NET.get(url, headers=HEADERS, timeout=(10, 30), allow_redirects=True)
+    response = NET.get(url, headers=HEADERS, timeout=(5, 12), allow_redirects=True)
     raw = bytes(response.content)
     final_url = str(getattr(response, "url", "") or url)
     if int(response.status_code) != 200:
@@ -120,7 +120,7 @@ def _api_probe(params: dict[str, str]) -> dict:
         API_URL,
         params=request_params,
         headers=HEADERS,
-        timeout=(10, 30),
+        timeout=(5, 12),
         allow_redirects=True,
     )
     raw = bytes(response.content)
@@ -228,7 +228,7 @@ def inspect() -> dict:
             html.unescape(x).strip()
             for x in re.findall(r"""(?is)<script\b[^>]*\bsrc\s*=\s*['"]([^'"]+)['"]""", page_markup)
         ]
-        for src in srcs:
+        for src in srcs[:MAX_SCRIPT_FETCHES]:
             url = urljoin(ROOT_URL, src)
             if url in seen or not _same_host(url):
                 continue
@@ -243,7 +243,7 @@ def inspect() -> dict:
                 record["error"] = f"{type(exc).__name__}: {exc}"
             if record.get("keyword_lines") or record.get("url_hints"):
                 report["scripts"].append(record)
-            if len(report["scripts"]) >= 30:
+            if len(report["scripts"]) >= MAX_SCRIPT_FETCHES:
                 break
 
 
