@@ -207,19 +207,30 @@ class Store:
             raise RuntimeError("post-commit integrity verification failed")
         return {"status": "PASS", "generation_id": generation_id, "canonical_hash": canonical_hash}
 
-    def integrity_check(self) -> dict[str, Any]:
+    def read_current_snapshot(self) -> dict[str, Any]:
+        integrity = self.integrity_check()
+        if integrity.get("status") != "PASS":
+            raise RuntimeError("current store integrity is not PASS")
+        pointer = json.loads(self.current.read_text(encoding="utf-8"))
+        generation = self.generations / str(pointer["generation_id"])
+        canonical = json.loads((generation / "CANONICAL.json").read_text(encoding="utf-8"))
+        evidence = json.loads((generation / "EVIDENCE.json").read_text(encoding="utf-8"))
+        return {
+            "generation_id": str(pointer["generation_id"]),
+            "canonical": canonical,
+            "evidence": evidence,
+        }
+
+    def _generation_integrity(self, generation_id: str) -> dict[str, Any]:
         checks: list[dict[str, Any]] = []
         try:
-            pointer = json.loads(self.current.read_text(encoding="utf-8"))
-            generation_id = str(pointer["generation_id"])
-            generation = self.generations / generation_id
+            generation = self.generations / str(generation_id)
             canonical = json.loads((generation / "CANONICAL.json").read_text(encoding="utf-8"))
             evidence = json.loads((generation / "EVIDENCE.json").read_text(encoding="utf-8"))
-
             computed = sha256_json(canonical["draws"])
             checks.append({
                 "name": "canonical_hash",
-                "status": "PASS" if computed == canonical.get("canonical_hash") == pointer.get("canonical_hash") else "FAIL",
+                "status": "PASS" if computed == canonical.get("canonical_hash") else "FAIL",
             })
             checks.append({
                 "name": "evidence_binding",
@@ -231,7 +242,6 @@ class Store:
                 if evidence.get("crosscheck_status") == "PASS" and int(evidence.get("crosscheck_count") or 0) >= 1
                 else "FAIL",
             })
-
             raw_sources = {
                 path.name: path.read_bytes()
                 for path in (generation / "RAW").iterdir()
@@ -246,7 +256,77 @@ class Store:
             _validate_raw_bundle(integrity_report, raw_sources)
             checks.append({"name": "raw_provenance", "status": "PASS"})
         except Exception as exc:
-            checks.append({"name": "store_read", "status": "FAIL", "detail": f"{type(exc).__name__}: {exc}"})
-
+            checks.append({
+                "name": "generation_read",
+                "status": "FAIL",
+                "detail": f"{type(exc).__name__}: {exc}",
+            })
         status = "PASS" if checks and all(x["status"] == "PASS" for x in checks) else "FAIL"
-        return {"schema": "happy8-storage-integrity-v2", "status": status, "checks": checks}
+        return {
+            "schema": "happy8-generation-integrity-v1",
+            "generation_id": str(generation_id),
+            "status": status,
+            "checks": checks,
+        }
+
+    def repair_current_pointer(self) -> dict[str, Any]:
+        before = self.current.read_bytes() if self.current.exists() else None
+        candidates = sorted(
+            [path for path in self.generations.iterdir() if path.is_dir() and not path.name.startswith(".")],
+            key=lambda path: path.stat().st_mtime_ns,
+            reverse=True,
+        )
+        inspected: list[dict[str, Any]] = []
+        for generation in candidates:
+            verdict = self._generation_integrity(generation.name)
+            inspected.append(verdict)
+            if verdict.get("status") != "PASS":
+                continue
+            canonical = json.loads((generation / "CANONICAL.json").read_text(encoding="utf-8"))
+            pointer = {
+                "schema": "happy8-current-pointer-v2",
+                "generation_id": generation.name,
+                "canonical_hash": canonical["canonical_hash"],
+            }
+            _atomic_bytes(self.current, (canonical_json(pointer) + "\n").encode("utf-8"))
+            after = self.integrity_check()
+            if after.get("status") != "PASS":
+                if before is not None:
+                    _atomic_bytes(self.current, before)
+                elif self.current.exists():
+                    self.current.unlink()
+                raise RuntimeError("repair candidate failed post-switch integrity")
+            return {
+                "status": "PASS",
+                "generation_id": generation.name,
+                "inspected": inspected,
+            }
+        if before is not None and (not self.current.exists() or self.current.read_bytes() != before):
+            _atomic_bytes(self.current, before)
+        return {"status": "FAIL", "reason": "no_valid_generation", "inspected": inspected}
+
+    def integrity_check(self) -> dict[str, Any]:
+        try:
+            pointer = json.loads(self.current.read_text(encoding="utf-8"))
+            generation_id = str(pointer["generation_id"])
+            verdict = self._generation_integrity(generation_id)
+            generation = self.generations / generation_id
+            canonical = json.loads((generation / "CANONICAL.json").read_text(encoding="utf-8"))
+            pointer_match = canonical.get("canonical_hash") == pointer.get("canonical_hash")
+            checks = list(verdict.get("checks") or [])
+            checks.append({
+                "name": "current_pointer_binding",
+                "status": "PASS" if pointer_match else "FAIL",
+            })
+            status = "PASS" if checks and all(x["status"] == "PASS" for x in checks) else "FAIL"
+            return {"schema": "happy8-storage-integrity-v2", "status": status, "checks": checks}
+        except Exception as exc:
+            return {
+                "schema": "happy8-storage-integrity-v2",
+                "status": "FAIL",
+                "checks": [{
+                    "name": "store_read",
+                    "status": "FAIL",
+                    "detail": f"{type(exc).__name__}: {exc}",
+                }],
+            }
