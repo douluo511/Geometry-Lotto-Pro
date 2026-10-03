@@ -21,6 +21,7 @@ jobs:
       PSYCHOLOGY_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
       PSYCHOLOGY_DATA_ROOT: ${{ github.workspace }}/psychology_gate_data
       PSYCHOLOGY_GUI_AUDIT: ${{ github.workspace }}/psychology_insight_pro/gui_operations.jsonl
+      PSYCHOLOGY_GUI_LAYOUT: ${{ github.workspace }}/psychology_insight_pro/current_gui_layout.json
     defaults:
       run:
         shell: pwsh
@@ -137,6 +138,7 @@ jobs:
             psychology_insight_pro/real_release_validation.json
             psychology_insight_pro/physical_gui_click.json
             psychology_insight_pro/gui_operations.jsonl
+            psychology_insight_pro/current_gui_layout.json
             psychology_insight_pro/gui_screenshots/**
           if-no-files-found: error
           retention-days: 30

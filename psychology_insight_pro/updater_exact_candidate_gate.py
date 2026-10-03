@@ -51,6 +51,7 @@ def main() -> int:
     }
     report = {'schema': 'psychology-updater-exact-candidate-v1', 'status': 'PASS' if all(v == 'PASS' for v in gates.values()) else 'FAIL',
               'github_sha': os.environ.get('PSYCHOLOGY_SOURCE_SHA') or os.environ.get('GITHUB_SHA'),
+              'github_run_id': os.environ.get('GITHUB_RUN_ID'), 'github_run_attempt': os.environ.get('GITHUB_RUN_ATTEMPT'),
               'exe_sha256': before, 'exe_sha256_after': after, 'final_exe_sha256': final_hash,
               'independent_child_pid': child_pid, 'exit_code': exit_code, 'self_test': proof, 'gates': gates}
     output = Path(args.output)

@@ -64,6 +64,32 @@ def record_gui_audit(operation: str, status: str, result: dict) -> None:
         stream.flush()
         os.fsync(stream.fileno())
 
+def record_gui_layout(root, page):
+    """Describe the visible controls of this exact process, without invoking them."""
+    output = os.environ.get("PSYCHOLOGY_GUI_LAYOUT")
+    if not output:
+        return
+    root.update_idletasks()
+    controls = {}
+    def walk(widget):
+        yield widget
+        for child in widget.winfo_children():
+            yield from walk(child)
+    for widget in walk(root):
+        if isinstance(widget, (tk.Button, ttk.Button)) and widget.winfo_ismapped():
+            label = str(widget.cget("text"))
+            controls[label] = {"x": (widget.winfo_rootx() + widget.winfo_width()/2 - root.winfo_rootx()) / root.winfo_width(),
+                               "y": (widget.winfo_rooty() + widget.winfo_height()/2 - root.winfo_rooty()) / root.winfo_height()}
+    record = {"schema": "psychology-current-gui-layout-v1", "page": page, "controls": controls,
+              "width": root.winfo_width(), "height": root.winfo_height(), "process_id": os.getpid(),
+              "source_sha": os.environ.get("PSYCHOLOGY_SOURCE_SHA"), "github_run_id": os.environ.get("GITHUB_RUN_ID"),
+              "github_run_attempt": os.environ.get("GITHUB_RUN_ATTEMPT")}
+    path = Path(output)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(f".{os.getpid()}.tmp")
+    temporary.write_text(json.dumps(record, ensure_ascii=False), encoding="utf-8")
+    os.replace(temporary, path)
+
 
 def format_result(result) -> str:
     lines = ["=== 心理分析结果 ===", f"总体证据等级：{result.overall_confidence}", "", "【客观观察】"]
@@ -147,6 +173,7 @@ class PsychologyApp(tk.Tk):
             tk.Label(card, text=desc, bg="white", fg="#64748b",
                      font=("Microsoft YaHei UI", 10), wraplength=360, justify="left").pack(anchor="w", padx=22)
             ttk.Button(card, text=title, style="Action.TButton", command=cmd).pack(anchor="e", padx=22, pady=24)
+        self.after(200, lambda: record_gui_layout(self, "home"))
 
     def _show_analysis(self):
         self._clear()
@@ -164,12 +191,12 @@ class PsychologyApp(tk.Tk):
         panes.add(right, weight=1)
 
         tk.Label(left, text="当前对话 / 行为 / 事件", bg="white", font=("Microsoft YaHei UI", 11, "bold")).pack(anchor="w", padx=16, pady=(16, 6))
-        self.input_text = tk.Text(left, wrap="word", height=13, font=("Microsoft YaHei UI", 11), relief="solid", bd=1)
+        self.input_text = tk.Text(left, wrap="word", height=8, font=("Microsoft YaHei UI", 11), relief="solid", bd=1)
         self.input_text.pack(fill="x", padx=16)
         self.input_text.insert("1.0", "例：最近他回复越来越短，经常说“最近很忙，改天再说”，但偶尔又会主动问我什么时候有空。")
 
         tk.Label(left, text="过去常态 / 历史基线（可选）", bg="white", font=("Microsoft YaHei UI", 11, "bold")).pack(anchor="w", padx=16, pady=(16, 6))
-        self.baseline_text = tk.Text(left, wrap="word", height=7, font=("Microsoft YaHei UI", 10), relief="solid", bd=1)
+        self.baseline_text = tk.Text(left, wrap="word", height=4, font=("Microsoft YaHei UI", 10), relief="solid", bd=1)
         self.baseline_text.pack(fill="x", padx=16)
         self.baseline_text.insert("1.0", "例：以前通常当天回复，话题会主动延续，也会主动约具体时间。")
         ttk.Button(left, text="开始分析", style="Action.TButton", command=self._run_analysis).pack(anchor="e", padx=16, pady=16)
@@ -179,6 +206,7 @@ class PsychologyApp(tk.Tk):
         self.result_text.pack(fill="both", expand=True, padx=16, pady=(0, 16))
         self.result_text.insert("1.0", "结果会显示多个竞争解释、证据/反证、5 Why、逆转验证与下一步验证。")
         self.result_text.configure(state="disabled")
+        self.after(200, lambda: record_gui_layout(self, "analysis"))
 
     def _run_analysis(self):
         try:

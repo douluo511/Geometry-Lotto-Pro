@@ -131,6 +131,33 @@ function Stop-Tree([System.Diagnostics.Process]$p){
     Start-Sleep -Milliseconds 300
   }
 }
+function Wait-CurrentLayout([int]$guiPid,[string]$page){
+  if (-not $env:PSYCHOLOGY_GUI_LAYOUT) { throw 'Exact EXE layout evidence path is missing' }
+  for ($tryIndex=0; $tryIndex -lt 100; $tryIndex++) {
+    if (Test-Path -LiteralPath $env:PSYCHOLOGY_GUI_LAYOUT) {
+      try {
+        $layout=Get-Content -LiteralPath $env:PSYCHOLOGY_GUI_LAYOUT -Raw | ConvertFrom-Json
+        if ($layout.process_id -eq $guiPid -and $layout.page -eq $page -and $layout.source_sha -eq $env:PSYCHOLOGY_SOURCE_SHA -and $layout.github_run_id -eq $env:GITHUB_RUN_ID -and $layout.github_run_attempt -eq $env:GITHUB_RUN_ATTEMPT) { return $layout }
+      } catch {}
+    }
+    Start-Sleep -Milliseconds 100
+  }
+  throw "Current exact-process layout unavailable: page=$page pid=$guiPid"
+}
+function Wait-CurrentOperation([int]$guiPid,[string]$operation){
+  for ($tryIndex=0; $tryIndex -lt 150; $tryIndex++) {
+    if (Test-Path -LiteralPath $env:PSYCHOLOGY_GUI_AUDIT) {
+      foreach ($line in (Get-Content -LiteralPath $env:PSYCHOLOGY_GUI_AUDIT)) {
+        try {
+          $record=$line | ConvertFrom-Json
+          if ($record.process_id -eq $guiPid -and $record.operation -eq $operation -and $record.source_sha -eq $env:PSYCHOLOGY_SOURCE_SHA -and $record.github_run_id -eq $env:GITHUB_RUN_ID -and $record.github_run_attempt -eq $env:GITHUB_RUN_ATTEMPT) { return $record }
+        } catch {}
+      }
+    }
+    Start-Sleep -Milliseconds 100
+  }
+  throw "Actual backend operation record missing: operation=$operation pid=$guiPid"
+}
 $buttonNames=@()
 if($ButtonTexts){ $buttonNames=@($ButtonTexts.Split(';')) }
 if($buttonNames.Count -gt 0 -and $buttonNames.Count -ne 4){ throw "ButtonTexts must contain exactly four names" }
@@ -143,6 +170,11 @@ for($i=0;$i -lt 4;$i++){
   try {
     $window=Wait-MainWindow $p $processName $baselinePids
     $hwnd=$window.hwnd
+    $currentLayout=Wait-CurrentLayout $window.pid 'home'
+    $actualLabels=@('心理分析','一键更新','一键修复','高级分析')
+    $actualOperations=@('analysis','update','repair','advanced')
+    $actualControl=$currentLayout.controls.($actualLabels[$i])
+    if ($null -eq $actualControl -or $actualControl.x -lt 0 -or $actualControl.x -gt 1 -or $actualControl.y -lt 0 -or $actualControl.y -gt 1) { throw 'Actual exact EXE button bounds invalid' }
     if($i -eq 0 -and $PreconditionIndex -ge 0){
       if($buttonNames.Count -eq 4){
         $prePoint=Find-ButtonPoint $hwnd $buttonNames[$PreconditionIndex]
@@ -164,14 +196,18 @@ for($i=0;$i -lt 4;$i++){
       $point=Find-ButtonPoint $hwnd $buttonNames[$i]
       $click=Click-ScreenPoint $hwnd $point.x $point.y
     } else {
-      $pt=$parsed[$i]
-      $click=Click-Normalized $hwnd $pt[0] $pt[1]
+      $click=Click-Normalized $hwnd ([double]$actualControl.x) ([double]$actualControl.y)
     }
     Start-Sleep -Milliseconds $SettleMs
     if ($i -eq 0) {
-      [void](Click-Normalized $hwnd ([double]$analysisCoordinates[0]) ([double]$analysisCoordinates[1]))
+      $analysisLayout=Wait-CurrentLayout $window.pid 'analysis'
+      $startControl=$analysisLayout.controls.'开始分析'
+      if ($null -eq $startControl -or $startControl.y -gt 1 -or $startControl.y -lt 0) { throw 'Actual analysis start button is outside visible client area' }
+      [void](Click-Normalized $hwnd ([double]$startControl.x) ([double]$startControl.y))
       Start-Sleep -Milliseconds $SettleMs
     }
+    $operationRecord=Wait-CurrentOperation $window.pid $actualOperations[$i]
+    Write-Host ("PHYSICAL_BACKEND {0}={1} pid={2}" -f $actualOperations[$i],$operationRecord.status,$window.pid)
     $p.Refresh()
     if ($i -eq 1 -and $AcceptanceMode -eq 'ConfiguredRelease') {
       if (-not $p.WaitForExit(120000)) { throw 'Configured update did not close main process' }
