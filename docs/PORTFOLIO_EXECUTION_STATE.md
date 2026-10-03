@@ -224,3 +224,10 @@ Do not label any project Final until Engineering=100%, Business=100%, hard_fail_
 - Superseded v1 run `37101890234` remained in-progress inside the real-network step and the exact-head strict run stayed PENDING. The available GitHub connector exposes no cancel/dispatch action for workflow runs.
 - Commit `eace15c94bd140fd99aa9cebe888929797efbce8` moves the strict PR validation chain to concurrency group `happy8-strict-v2-*` while retaining `cancel-in-progress: true` for all subsequent v2 heads. This prevents the obsolete v1 run from blocking current validation without disabling deduplication for future changes.
 - Current exact head is `eace15c94bd140fd99aa9cebe888929797efbce8`; current-head gates remain NOT VERIFIED until its run is created and executes.
+
+
+### Exact-head strict run 37102268143 — early gates
+
+- Exact source head: `eace15c94bd140fd99aa9cebe888929797efbce8`; strict run: `37102268143`, job `111143976736`.
+- Verified PASS on this exact head: Application Self-Test; Static/Compile; Unit; Domain+NetClient Contract; Scientific Protocol Contract; Desktop UI-Service Contract; Storage+Evidence Integration; Application Service Integration (including full Repair denominator); Software Updater handoff contract; Independent Updater integration/rollback/restart-recovery; explicit Fault Injection.
+- At record time Live dual-official-source Real Network is IN_PROGRESS. Business/Science current-history validation, Windows reproducible Exact EXE, physical GUI mouse clicks and post-GUI Same Hash are NOT VERIFIED. Repository independence and real production N→N+1 release/update remain BLOCKED. Final Gate remains FAIL.
