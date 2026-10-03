@@ -9,6 +9,28 @@ from typing import Any, Callable
 from .services import Happy8Service
 
 
+UI_SERVICE_BINDINGS = {
+    "predict": ("预测下一期", "predict_next"),
+    "update": ("一键更新", "update_data"),
+    "repair": ("一键修复", "repair"),
+    "advanced": ("高级分析", "advanced_analysis"),
+}
+
+
+def source_ui_contract() -> dict[str, Any]:
+    checks = {}
+    for key, (label, service_method) in UI_SERVICE_BINDINGS.items():
+        checks[key] = {
+            "label": label,
+            "service_method": service_method,
+            "service_callable": callable(getattr(Happy8Service, service_method, None)),
+        }
+    return {
+        "status": "PASS" if all(item["service_callable"] for item in checks.values()) else "FAIL",
+        "bindings": checks,
+    }
+
+
 class Happy8Window(tk.Tk):
     def __init__(self, service: Happy8Service):
         super().__init__()
@@ -39,10 +61,10 @@ class Happy8Window(tk.Tk):
 
         self.buttons: dict[str, ttk.Button] = {}
         specs = [
-            ("predict", "预测下一期", self._predict),
-            ("update", "一键更新", self._update),
-            ("repair", "一键修复", self._repair),
-            ("advanced", "高级分析", self._advanced),
+            ("predict", UI_SERVICE_BINDINGS["predict"][0], self._predict),
+            ("update", UI_SERVICE_BINDINGS["update"][0], self._update),
+            ("repair", UI_SERVICE_BINDINGS["repair"][0], self._repair),
+            ("advanced", UI_SERVICE_BINDINGS["advanced"][0], self._advanced),
         ]
         for col, (key, label, command) in enumerate(specs):
             button = ttk.Button(actions, text=label, command=command)
