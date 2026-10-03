@@ -160,10 +160,16 @@ def main() -> int:
 
         service.cache.mkdir(parents=True, exist_ok=True)
         (service.cache / "poison.tmp").write_bytes(b"cache-poison")
+        service.results.mkdir(parents=True, exist_ok=True)
+        service.evidence.mkdir(parents=True, exist_ok=True)
+        user_result = service.results / "user-preserve.json"
+        user_evidence = service.evidence / "user-preserve.json"
+        user_result.write_text('{"keep":true}', encoding="utf-8")
+        user_evidence.write_text('{"keep":true}', encoding="utf-8")
         repair_clean = service.repair()
         required_components = {
-            "data_store", "index_pointer", "missing_files", "cache",
-            "configuration", "network_configuration", "version_contract",
+            "database", "index", "missing_files", "cache",
+            "configuration", "network_configuration", "version",
             "data_integrity",
         }
         checks["repair_clean_full_contract"] = {
@@ -178,6 +184,8 @@ def main() -> int:
             and repair_clean.get("post_repair_self_check", {}).get("status") == "PASS"
             and repair_clean.get("user_data_deleted") is False
             and not (service.cache / "poison.tmp").exists()
+            and user_result.exists()
+            and user_evidence.exists()
             else "FAIL"
         }
 
@@ -187,7 +195,7 @@ def main() -> int:
             "status": "PASS"
             if repair.get("status") == "PASS"
             and repair.get("store_repaired") is True
-            and repair.get("components", {}).get("index_pointer", {}).get("status") == "PASS"
+            and repair.get("components", {}).get("index", {}).get("status") == "PASS"
             and repair.get("post_repair_self_check", {}).get("status") == "PASS"
             and service.status().get("status") == "PASS"
             else "FAIL"
@@ -246,7 +254,30 @@ def main() -> int:
         checks["repair_version_mismatch_fail_closed"] = {
             "status": "PASS"
             if bad_version.get("status") == "FAIL"
-            and bad_version.get("components", {}).get("version_contract", {}).get("status") == "FAIL"
+            and bad_version.get("components", {}).get("version", {}).get("status") == "FAIL"
+            else "FAIL"
+        }
+
+        snapshot = service.store.read_current_snapshot()
+        generation_dir = service.store.generations / snapshot["generation_id"]
+        evidence_path = generation_dir / "EVIDENCE.json"
+        original_generation_evidence = evidence_path.read_bytes()
+        evidence_path.unlink()
+        missing_generation_file = service.repair()
+        checks["repair_missing_generation_file_fail_closed"] = {
+            "status": "PASS"
+            if missing_generation_file.get("status") == "FAIL"
+            and missing_generation_file.get("components", {}).get("missing_files", {}).get("status") == "FAIL"
+            and user_result.exists()
+            and user_evidence.exists()
+            else "FAIL"
+        }
+        evidence_path.write_bytes(original_generation_evidence)
+        restored_missing_file = service.repair()
+        checks["repair_missing_file_reversal"] = {
+            "status": "PASS"
+            if restored_missing_file.get("status") == "PASS"
+            and restored_missing_file.get("post_repair_self_check", {}).get("status") == "PASS"
             else "FAIL"
         }
 
