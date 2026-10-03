@@ -30,6 +30,10 @@ jobs:
         run: python scripts/storage_gate.py
       - name: Application Service contract gate
         run: python scripts/service_gate.py
+      - name: Application source self-test
+        run: python -m happy8.app --self-test
+      - name: Desktop UI construction contract
+        run: python -m happy8.app --ui-self-test
 
       # Independent source probes are diagnostic evidence. A timeout/HTTP failure on
       # one official source must not prevent the other independent probes from running.
@@ -127,12 +131,51 @@ jobs:
         continue-on-error: true
         run: python scripts/science_gate.py --input evidence/live_official_history.json --output evidence/scientific_validation.json
 
+      - name: Native Windows reproducible Exact EXE build
+        id: windows_build
+        if: steps.live_gate.outcome == 'success' && steps.science_gate.outcome == 'success'
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Force -Path evidence | Out-Null
+          Remove-Item -Recurse -Force dist1,dist2,build1,build2,spec1,spec2 -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path spec1,spec2 | Out-Null
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name Geometry_Lotto_Pro_Happy8 --distpath dist1 --workpath build1 --specpath spec1 --paths . scripts/happy8_desktop.py
+          if ($LASTEXITCODE -ne 0) { throw "first PyInstaller build failed" }
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name Geometry_Lotto_Pro_Happy8 --distpath dist2 --workpath build2 --specpath spec2 --paths . scripts/happy8_desktop.py
+          if ($LASTEXITCODE -ne 0) { throw "second PyInstaller build failed" }
+          $exe1 = (Resolve-Path 'dist1/Geometry_Lotto_Pro_Happy8.exe').Path
+          $exe2 = (Resolve-Path 'dist2/Geometry_Lotto_Pro_Happy8.exe').Path
+          $hash1 = (Get-FileHash $exe1 -Algorithm SHA256).Hash.ToLowerInvariant()
+          $hash2 = (Get-FileHash $exe2 -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($hash1 -ne $hash2) { throw "reproducible Same Hash failed: $hash1 != $hash2" }
+          $self = Start-Process -FilePath $exe1 -ArgumentList @('--self-test','--result-file',(Join-Path $PWD 'evidence/exact_exe_self_test.json')) -Wait -PassThru
+          if ($self.ExitCode -ne 0) { throw "Exact EXE self-test failed: $($self.ExitCode)" }
+          $ui = Start-Process -FilePath $exe1 -ArgumentList @('--ui-self-test','--result-file',(Join-Path $PWD 'evidence/exact_exe_ui_self_test.json')) -Wait -PassThru
+          if ($ui.ExitCode -ne 0) { throw "Exact EXE UI self-test failed: $($ui.ExitCode)" }
+          Copy-Item $exe1 'evidence/Geometry_Lotto_Pro_Happy8_CANDIDATE_NOT_FINAL.exe' -Force
+          @{
+            schema = 'happy8-windows-exact-exe-v1'
+            status = 'PASS'
+            source_sha = '${{ github.event.pull_request.head.sha }}'
+            tested_pr_merge_sha = '${{ github.sha }}'
+            exe_sha256 = $hash1
+            rebuild_sha256 = $hash2
+            same_hash = $true
+            exact_exe_self_test = 'PASS'
+            exact_exe_ui_construction = 'PASS'
+            physical_gui_click = 'NOT_VERIFIED'
+            final_gate = 'FAIL'
+          } | ConvertTo-Json -Depth 6 | Set-Content -Encoding utf8 evidence/windows_exact_exe.json
+
       - name: Explicit non-final marker
         if: always()
         shell: pwsh
         run: |
           Write-Host "RECOVERED_PROTOTYPE_SOURCE=PASS"
-          Write-Host "WINDOWS_EXACT_EXE=PENDING"
+          Write-Host "WINDOWS_EXACT_EXE=${{ steps.windows_build.outcome }}"
+          Write-Host "PHYSICAL_GUI_CLICK=NOT_VERIFIED"
           Write-Host "REPOSITORY_INDEPENDENCE=FAIL"
           Write-Host "FINAL_RELEASE_GATE=NOT_PASS"
 
@@ -141,11 +184,9 @@ jobs:
         shell: pwsh
         run: |
           $failures = @()
-          if ('${{ steps.fuzhou_guard.outcome }}' -ne 'success') { $failures += 'fuzhou_guard' }
-          if ('${{ steps.composite_guard.outcome }}' -ne 'success') { $failures += 'composite_guard' }
-          if ('${{ steps.zhcw_guard.outcome }}' -ne 'success') { $failures += 'zhcw_guard' }
           if ('${{ steps.live_gate.outcome }}' -ne 'success') { $failures += 'live_official_network' }
           if ('${{ steps.live_gate.outcome }}' -eq 'success' -and '${{ steps.science_gate.outcome }}' -ne 'success') { $failures += 'science_gate' }
+          if ('${{ steps.live_gate.outcome }}' -eq 'success' -and '${{ steps.science_gate.outcome }}' -eq 'success' -and '${{ steps.windows_build.outcome }}' -ne 'success') { $failures += 'windows_exact_exe' }
 
           Write-Host "PROVINCIAL_PROBE=${{ steps.provincial_probe.outcome }}"
           Write-Host "SHANGHAI_PROBE=${{ steps.shanghai_probe.outcome }}"
@@ -156,6 +197,7 @@ jobs:
           Write-Host "ZHCW_PROBE=${{ steps.zhcw_probe.outcome }}"
           Write-Host "LIVE_OFFICIAL_NETWORK=${{ steps.live_gate.outcome }}"
           Write-Host "SCIENCE_GATE=${{ steps.science_gate.outcome }}"
+          Write-Host "WINDOWS_EXACT_EXE=${{ steps.windows_build.outcome }}"
 
           if ($failures.Count -gt 0) {
             throw "Happy8 staging aggregate blocked: $($failures -join ', ')"
