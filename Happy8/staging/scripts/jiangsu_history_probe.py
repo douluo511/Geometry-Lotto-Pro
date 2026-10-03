@@ -135,7 +135,7 @@ def inspect_page(page: int, periods: str = "") -> dict:
     final_url = str(response.url)
     plain = _plain(markup)
     anchors = []
-    issue_date_hints = []
+    link_date_hints = []
     for href, body in re.findall(r"(?is)<a\b[^>]*href\s*=\s*['\"]([^'\"]+)['\"][^>]*>(.*?)</a>", markup):
         label = _plain(body)[:240]
         absolute = urljoin(final_url, html.unescape(href))
@@ -145,18 +145,16 @@ def inspect_page(page: int, periods: str = "") -> dict:
         date_match = re.search(r"/c/(20\d{2})(?:/|-)(\d{2})(?:/|-)(\d{2})/", absolute)
         host = urlsplit(absolute).hostname
         if issue_match and date_match and host in {"www.cwl.gov.cn", "cwl.gov.cn"}:
-            issue_date_hints.append({
+            link_date_hints.append({
                 "issue": issue_match.group(1),
-                "date": f"{date_match.group(1)}-{date_match.group(2)}-{date_match.group(3)}",
+                "article_publish_date": f"{date_match.group(1)}-{date_match.group(2)}-{date_match.group(3)}",
                 "article_url": absolute,
+                "evidence": "cwl_article_url_metadata_not_draw_date",
             })
-    # The Jiangsu official index visibly renders rows in the form
-    # "第2020001期开奖公告 2020-10-30".  Do not depend solely on the
-    # linked CWL article URL for the date because some historical rows have
-    # incomplete/different link metadata.  Bind issue+date only when they
-    # appear together in the official page text, and let the reconciliation
-    # layer reject any conflict.
-    link_date_hints = list(issue_date_hints)
+    # Only the date visibly bound to an issue on the Jiangsu official index
+    # is a draw-date candidate.  A linked CWL /c/YYYY/MM/DD/ path identifies
+    # article publication metadata and is deliberately excluded from
+    # issue_date_hints.
     visible_pairs = []
     for match in re.finditer(
         r"(?:第\s*)?(20\d{5})\s*期[^0-9]{0,80}(20\d{2}-\d{2}-\d{2})",
@@ -170,12 +168,7 @@ def inspect_page(page: int, periods: str = "") -> dict:
         }
         if pair not in visible_pairs:
             visible_pairs.append(pair)
-    for pair in visible_pairs:
-        if not any(
-            hint.get("issue") == pair["issue"] and hint.get("date") == pair["date"]
-            for hint in issue_date_hints
-        ):
-            issue_date_hints.append(pair)
+    issue_date_hints = list(visible_pairs)
 
     pagination = []
     for href in re.findall(r"(?is)href\s*=\s*['\"]([^'\"]+)['\"]", markup):
