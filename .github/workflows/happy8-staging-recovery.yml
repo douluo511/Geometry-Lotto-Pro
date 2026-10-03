@@ -27,42 +27,60 @@ jobs:
           architecture: 'x64'
       - name: Install pinned dependencies
         run: python -m pip install --disable-pip-version-check -r requirements.txt
-      - name: Compile staging port
-        id: compile_gate
-        continue-on-error: true
-        run: python -m compileall -q happy8 scripts
-      - name: Domain and NetClient contract gate
-        id: contract_gate
-        continue-on-error: true
-        run: python scripts/contract_gate.py
-      - name: Storage and Evidence atomicity gate
-        id: storage_gate
-        continue-on-error: true
-        run: python scripts/storage_gate.py
-      - name: Scientific protocol contract gate
-        id: science_protocol_contract
-        continue-on-error: true
-        run: python scripts/science_protocol_contract.py
-      - name: Application Service contract gate
-        id: service_gate
-        continue-on-error: true
-        run: python scripts/service_gate.py
-      - name: Software Updater handoff fail-closed gate
-        id: updater_handoff_gate
-        continue-on-error: true
-        run: python scripts/software_update_handoff_gate.py
-      - name: Independent Updater contract and rollback gate
-        id: updater_gate
-        continue-on-error: true
-        run: python scripts/updater_gate.py
       - name: Application source self-test
         id: app_selftest
         continue-on-error: true
         run: python -m happy8.app --self-test
-      - name: Desktop UI-Service source contract
+
+      - name: Static compile gate
+        id: compile_gate
+        continue-on-error: true
+        run: python -m compileall -q happy8 scripts
+
+      - name: Unit gate
+        id: unit_gate
+        continue-on-error: true
+        run: python scripts/unit_gate.py
+
+      - name: Domain and NetClient contract gate
+        id: contract_gate
+        continue-on-error: true
+        run: python scripts/contract_gate.py
+
+      - name: Scientific protocol contract gate
+        id: science_protocol_contract
+        continue-on-error: true
+        run: python scripts/science_protocol_contract.py
+
+      - name: Desktop UI-Service contract gate
         id: ui_contract
         continue-on-error: true
         run: python -m happy8.app --ui-contract
+
+      - name: Storage and Evidence integration gate
+        id: storage_gate
+        continue-on-error: true
+        run: python scripts/storage_gate.py
+
+      - name: Application Service integration gate
+        id: service_gate
+        continue-on-error: true
+        run: python scripts/service_gate.py
+
+      - name: Software Updater handoff contract gate
+        id: updater_handoff_gate
+        continue-on-error: true
+        run: python scripts/software_update_handoff_gate.py
+
+      - name: Independent Updater integration and rollback gate
+        id: updater_gate
+        continue-on-error: true
+        run: python scripts/updater_gate.py
+
+      - name: Fault Injection gate
+        id: fault_injection_gate
+        continue-on-error: true
+        run: python scripts/fault_injection_gate.py
 
       # Independent source probes are diagnostic evidence. A timeout/HTTP failure on
       # one official source must not prevent the other independent probes from running.
@@ -279,6 +297,8 @@ jobs:
         run: |
           $failures = @()
           if ('${{ steps.compile_gate.outcome }}' -ne 'success') { $failures += 'compile' }
+          if ('${{ steps.unit_gate.outcome }}' -ne 'success') { $failures += 'unit' }
+          if ('${{ steps.fault_injection_gate.outcome }}' -ne 'success') { $failures += 'fault_injection' }
           if ('${{ steps.contract_gate.outcome }}' -ne 'success') { $failures += 'domain_netclient_contract' }
           if ('${{ steps.storage_gate.outcome }}' -ne 'success') { $failures += 'storage_evidence' }
           if ('${{ steps.science_protocol_contract.outcome }}' -ne 'success') { $failures += 'science_protocol_contract' }
@@ -297,6 +317,8 @@ jobs:
           if ('${{ steps.physical_gui.outcome }}' -eq 'success' -and '${{ steps.post_gui_same_hash.outcome }}' -ne 'success') { $failures += 'post_gui_same_hash' }
 
           Write-Host "COMPILE_GATE=${{ steps.compile_gate.outcome }}"
+          Write-Host "UNIT_GATE=${{ steps.unit_gate.outcome }}"
+          Write-Host "FAULT_INJECTION_GATE=${{ steps.fault_injection_gate.outcome }}"
           Write-Host "DOMAIN_NETCLIENT_CONTRACT=${{ steps.contract_gate.outcome }}"
           Write-Host "STORAGE_EVIDENCE_GATE=${{ steps.storage_gate.outcome }}"
           Write-Host "SCIENCE_PROTOCOL_CONTRACT=${{ steps.science_protocol_contract.outcome }}"
