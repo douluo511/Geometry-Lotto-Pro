@@ -1,0 +1,22 @@
+{
+  "version": "4.3.0-deliverable",
+  "generated_at": "2026-09-10T11:32:13.014203+00:00",
+  "source_engineering_acceptance": "PASS",
+  "offline_healthcheck": "PASS",
+  "config_schema": 6,
+  "rollback_schema_compatible_with": "4.2.0",
+  "model_stack": [
+    "ridge",
+    "hgb",
+    "extra_trees"
+  ],
+  "production_backtest_model_parity": true,
+  "new_4_3_gates": [
+    "THREE_MODEL_ENSEMBLE",
+    "ENSEMBLE_WEIGHT_SHRINKAGE",
+    "PRODUCTION_BACKTEST_MODEL_PARITY",
+    "EXTRA_TREES_RND_CHALLENGER",
+    "ACTIVE_PREVIOUS_SCHEMA_ROLLBACK_COMPATIBILITY"
+  ],
+  "research_claim_boundary": "Engineering acceptance is not proof of future A-share alpha."
+}

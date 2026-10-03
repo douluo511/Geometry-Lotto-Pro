@@ -1,0 +1,17 @@
+Stock AI Pro 4.3 Deliverable
+
+唯一正常入口：ONE_CLICK_START.bat
+目标电脑首次真机验收：WINDOWS_FIRST_RUN_ACCEPTANCE.bat
+
+4.3 重点升级：
+1. 生产模型升级为 Ridge + HGB + ExtraTrees 三模型异构集成，验证权重带等权收缩以降低单窗口过拟合。
+2. Walk-forward 与生产模型同构：历史每个评估点只用过去数据、horizon embargo、过去验证窗口学习权重。
+3. R&D 新增 ExtraTrees Challenger，仍严格 auto_promote=false。
+4. 配置 Schema 保持 6；新模型参数通过默认合并加入，不做不必要迁移，确保 4.3→4.2 可回滚。
+5. Updater 1.2：反降级、磁盘预检、下载上限、HTTPS 最终跳转检查、Schema-2 内部 Manifest 逐文件验证。
+6. 发布构建增加确定性 ZIP 复现测试，最终包仍必须 fresh-unzip exact-package 全验收。
+
+Windows 用户数据：%APPDATA%\StockAIPro
+评分不是上涨概率；软件不保证收益，不自动下单。
+
+交付标准：唯一 ZIP；源码/功能/攻击测试全部通过；封包后从最终 ZIP 本体在新空目录重新解压并再次全量验收，最后才允许下载。
