@@ -10,6 +10,9 @@ from pathlib import Path
 from typing import Any
 
 
+PROVINCIAL_COMPOSITE_SOURCE = "jiangxi_fuzhou_numbers_plus_mof_calendar_plus_jiangsu_issue_provenance"
+
+
 def canonical_json(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
 
@@ -81,15 +84,25 @@ def _validate_raw_bundle(report: dict[str, Any], raw_sources: dict[str, bytes]) 
             safe = re.fullmatch(r"national_page_\d{4}\.json", filename)
         elif history_source == "shanghai_welfare_lottery":
             safe = re.fullmatch(r"shanghai_20\d{5}_20\d{5}\.html", filename)
-        elif history_source == "jiangxi_fuzhou_plus_jiangsu_official":
+        elif history_source == PROVINCIAL_COMPOSITE_SOURCE:
             item_source = str(item.get("source") or "")
+            derived = False
             if item_source == "jiangxi_fuzhou_welfare_lottery":
                 safe = re.fullmatch(r"fuzhou_page_\d{3}\.html", filename)
+            elif item_source == "ministry_of_finance_lottery_market_calendar":
+                safe = filename == "mof_market_calendar_contract.json"
             elif item_source == "jiangsu_welfare_lottery":
-                safe = re.fullmatch(
-                    r"(?:jiangsu_history_page_\d{3}|jiangsu_issue_20\d{5})\.html",
-                    filename,
-                )
+                safe = re.fullmatch(r"jiangsu_history_page_\d{3}\.html", filename)
+            elif item_source == "jiangsu_welfare_lottery_issue_provenance_crosscheck":
+                safe = filename == "derived_from_jiangsu_history_pages"
+                derived = True
+                missing = item.get("missing_index_issues")
+                if not isinstance(missing, list) or int(item.get("missing_index_count") or -1) != len(missing):
+                    raise ValueError("composite derived crosscheck missing-index metadata invalid")
+                if int(item.get("bytes") or -1) != 0:
+                    raise ValueError("composite derived crosscheck must not claim raw bytes")
+                if not re.fullmatch(r"[0-9a-f]{64}", str(item.get("sha256") or "")):
+                    raise ValueError("composite derived crosscheck SHA invalid")
             else:
                 safe = None
         else:
@@ -99,6 +112,8 @@ def _validate_raw_bundle(report: dict[str, Any], raw_sources: dict[str, bytes]) 
         if filename in seen_files:
             raise ValueError(f"duplicate history raw filename: {filename}")
         seen_files.add(filename)
+        if history_source == PROVINCIAL_COMPOSITE_SOURCE and derived:
+            continue
         raw = raw_sources.get(filename)
         if raw is None:
             raise ValueError(f"missing history raw response: {filename}")
