@@ -279,7 +279,12 @@ def main() -> int:
         }
 
     status = "PASS" if checks and all(x.get("status") == "PASS" for x in checks.values()) else "FAIL"
-    report = {"schema": "guoxue-updater-gate-v1", "status": status, "checks": checks}
+    report = {
+        "schema": "guoxue-updater-gate-v1",
+        "status": status,
+        "github_sha": os.environ.get("GITHUB_SHA"),
+        "checks": checks,
+    }
     Path(args.output).write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(report, ensure_ascii=False, indent=2))
     return 0 if status == "PASS" else 2
