@@ -1,0 +1,73 @@
+{
+  "schema": "happy8-independent-repo-migration-manifest-v1",
+  "status": "PREPARED_NOT_MIGRATED",
+  "source_repository": "douluo511/Geometry-Lotto-Pro",
+  "source_commit": "64dfe1b9274abecd972edaa52c928f10cb2b6b23",
+  "rule": "Preserve source paths byte-for-byte for the first dedicated-repository seed. Any path/content restructuring is a new change and invalidates affected evidence.",
+  "required_entries": [
+    {
+      "path": "Happy8/ARCHITECTURE_SCOPE.json",
+      "type": "blob",
+      "sha": "4558f4d36d7307524e5865b78403e061fa5d7e87"
+    },
+    {
+      "path": "Happy8/BUSINESS_ACCEPTANCE_BASELINE.json",
+      "type": "blob",
+      "sha": "bd20ddb825a908e8850f410dd71f8a39c99d66c9"
+    },
+    {
+      "path": "Happy8/ENGINEERING_ACCEPTANCE_BASELINE.json",
+      "type": "blob",
+      "sha": "361ae12a31f6b18672be263ef8b72a56256d7ec2"
+    },
+    {
+      "path": "Happy8/RECOVERY_STATUS.md",
+      "type": "blob",
+      "sha": "dbd24e5016877b36d18c1acfc5dc6fdeafd63f3f"
+    },
+    {
+      "path": "Happy8/recovered",
+      "type": "tree",
+      "sha": "8d31d70996e737a992fe0a9c8167832e43f546e0"
+    },
+    {
+      "path": "Happy8/recovered/Geometry_Lotto_Pro_Happy8.html",
+      "type": "blob",
+      "sha": "2f3a9ac1bedd77f2d584e5ce2a1295f452878b74"
+    },
+    {
+      "path": "Happy8/staging",
+      "type": "tree",
+      "sha": "08ee1d09fc7c61dec882ebf6eedc18f5409bb5ac"
+    },
+    {
+      "path": ".github/workflows/happy8-staging-recovery.yml",
+      "type": "blob",
+      "sha": "2599e0d4e584bca70e37efa9c13c2a6ee79f1845"
+    }
+  ],
+  "staging_identity": {
+    "tree_sha": "08ee1d09fc7c61dec882ebf6eedc18f5409bb5ac",
+    "includes": [
+      "GeometryLottoProHappy8.spec",
+      "GeometryLottoProHappy8Updater.spec",
+      "happy8/**",
+      "requirements.txt",
+      "scripts/**"
+    ]
+  },
+  "acceptance_after_migration": [
+    "Verify every required entry blob/tree SHA matches this manifest.",
+    "Verify repository is not douluo511/Geometry-Lotto-Pro and contains no other project code.",
+    "Run the full frozen Happy8 workflow on the dedicated repository exact commit.",
+    "Create real Release N and N+1 only from the dedicated repository.",
+    "Run real updater N→N+1 through trusted HTTPS manifest/artifact, rollback and restart recovery.",
+    "Rebuild/freeze the final Exact EXE, physically click all four GUI entries, then prove post-GUI Same Hash.",
+    "Only then generate FINAL_ARTIFACT.json and evaluate E17/E18/E19 and Final Gate."
+  ],
+  "blocker": {
+    "status": "BLOCKED",
+    "reason": "Current GitHub connector exposes only douluo511/Geometry-Lotto-Pro and has no repository-creation action.",
+    "unblock": "Create a dedicated Happy8 repository and make it visible to the connected GitHub installation."
+  }
+}
