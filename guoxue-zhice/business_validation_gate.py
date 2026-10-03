@@ -19,7 +19,7 @@ def main()->int:
           "review_roundtrip":svc.save_review("谈合作","确认替代方案","拿到真实预算","下次先验证时间压力").get("goal")=="谈合作",
         }
         status="PASS" if all(checks.values()) else "FAIL"
-        report={"schema":"guoxue-business-validation-v1","status":status,"github_sha":os.environ.get("GITHUB_SHA"),"business_validation":status,"counterexample_validation":"PASS" if checks["counterexample_prompts"] and checks["source_and_boundary"] else "FAIL","reversal_validation":"PASS" if checks["counterexample_prompts"] and checks["action_hypothesis"] else "FAIL","checks":checks}
+        report={"schema":"guoxue-business-validation-v1","status":status,"github_sha":(os.environ.get("GUOXUE_SOURCE_SHA") or os.environ.get("GITHUB_SHA")),"business_validation":status,"counterexample_validation":"PASS" if checks["counterexample_prompts"] and checks["source_and_boundary"] else "FAIL","reversal_validation":"PASS" if checks["counterexample_prompts"] and checks["action_hypothesis"] else "FAIL","checks":checks}
     (ROOT/"business_validation_gate.json").write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding="utf-8")
     print(json.dumps(report,ensure_ascii=False))
     return 0 if status=="PASS" else 2
