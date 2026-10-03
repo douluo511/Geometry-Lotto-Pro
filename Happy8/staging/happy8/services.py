@@ -122,7 +122,23 @@ class Happy8Service:
         )
         state = build_prefix_state(draws)
         ranking = rank_prefix(draws, state, len(draws))
+        ranking80 = [
+            {
+                "rank": int(row["rank"]),
+                "number": int(row["number"]),
+                "score": float(row["score"]),
+                "consensus": float(row["consensus"]),
+                "stability": float(row["stability"]),
+                "seed_support": float(row["seed_support"]),
+                "frequency_signal": float(row["frequency_signal"]),
+                "transition_signal": float(row["transition_signal"]),
+                "geometry_signal": float(row["geometry_signal"]),
+            }
+            for row in ranking
+        ]
         candidate10 = sorted(int(row["number"]) for row in ranking[:PICK_SIZE])
+        candidate20 = sorted(int(row["number"]) for row in ranking[:20])
+        observed_core = sorted(int(row["number"]) for row in ranking[:4])
         latest_issue = draws[-1].issue
         target_issue = str(int(latest_issue) + 1)
 
@@ -145,7 +161,14 @@ class Happy8Service:
             "source_latest_issue": latest_issue,
             "canonical_hash": snapshot["canonical"]["canonical_hash"],
             "generation_id": snapshot["generation_id"],
+            "ranking80_research_only": ranking80,
             "candidate10_research_only": candidate10,
+            "candidate20_research_only": candidate20,
+            "observed_core_research_only": observed_core,
+            "baseline": {
+                "single_number_probability": 0.25,
+                "pick10_expected_hits": 2.5,
+            },
             "formal_dan": formal_dan,
             "edge_state": edge_state,
             "dan_state": dan_state,
