@@ -2,11 +2,15 @@ from __future__ import annotations
 
 from argparse import ArgumentParser
 from pathlib import Path
+import contextlib
+import importlib.util
+import io
 import json
 import os
 import subprocess
 import sys
 import time
+from types import SimpleNamespace
 
 
 def _load_current(root: Path) -> dict:
@@ -65,17 +69,30 @@ def repair(package_root: Path) -> dict:
     cfg = ensure_user_config()
     removed = _cleanup_stale_temp_files(data_root)
 
-    doctor = subprocess.run(
-        [sys.executable, str(version_root / "doctor.py")],
-        cwd=str(version_root),
-        env=os.environ.copy(),
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        capture_output=True,
-        timeout=180,
-        shell=False,
-    )
+    doctor_path = version_root / "doctor.py"
+    if getattr(sys, "frozen", False):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        spec = importlib.util.spec_from_file_location("stock_ai_doctor_runtime", doctor_path)
+        if spec is None or spec.loader is None:
+            raise RuntimeError("cannot load doctor module")
+        module = importlib.util.module_from_spec(spec)
+        with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+            spec.loader.exec_module(module)
+            rc = int(module.main())
+        doctor = SimpleNamespace(returncode=rc, stdout=stdout.getvalue(), stderr=stderr.getvalue())
+    else:
+        doctor = subprocess.run(
+            [sys.executable, str(doctor_path)],
+            cwd=str(version_root),
+            env=os.environ.copy(),
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            capture_output=True,
+            timeout=180,
+            shell=False,
+        )
     evidence = {
         "status": "PASS" if doctor.returncode == 0 else "FAIL",
         "active_version": version,
