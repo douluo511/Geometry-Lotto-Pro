@@ -30,6 +30,9 @@ class RetryableHTTPError(NetClientError):
 
 
 _PATCH_LOCK = threading.RLock()
+_HTTP_TO_HTTPS_UPGRADE_HOSTS = {
+    "vip.stock.finance.sina.com.cn",
+}
 
 
 def _safe_url(url: str) -> dict:
@@ -127,12 +130,22 @@ class AkShareProxy:
             verb = str(method).upper()
             if verb not in {"GET", "HEAD"}:
                 raise NetClientPolicyError(f"non-idempotent method rejected: {verb}")
-            parsed = urlsplit(str(url))
+            original_url = str(url)
+            parsed = urlsplit(original_url)
+            effective_url = original_url
+            upgraded_from_http = False
             if self.https_only and parsed.scheme.lower() != "https":
-                raise NetClientPolicyError(f"non-HTTPS production request rejected: {url}")
+                if (
+                    parsed.scheme.lower() == "http"
+                    and (parsed.hostname or "").lower() in _HTTP_TO_HTTPS_UPGRADE_HOSTS
+                ):
+                    effective_url = parsed._replace(scheme="https").geturl()
+                    upgraded_from_http = True
+                else:
+                    raise NetClientPolicyError(f"non-HTTPS production request rejected: {url}")
             kwargs.setdefault("timeout", (self.connect_timeout, self.read_timeout))
-            response = original(session, method, url, **kwargs)
-            final = urlsplit(str(getattr(response, "url", url)))
+            response = original(session, method, effective_url, **kwargs)
+            final = urlsplit(str(getattr(response, "url", effective_url)))
             if self.https_only and final.scheme.lower() != "https":
                 raise NetClientPolicyError(
                     f"HTTPS request redirected to insecure URL: {getattr(response, 'url', '')}"
@@ -145,8 +158,10 @@ class AkShareProxy:
                 "operation": operation,
                 "attempt": attempt,
                 "method": verb,
-                "request": _safe_url(str(url)),
-                "final_url": _safe_url(str(getattr(response, "url", url))),
+                "original_request": _safe_url(original_url),
+                "request": _safe_url(effective_url),
+                "upgraded_from_http": upgraded_from_http,
+                "final_url": _safe_url(str(getattr(response, "url", effective_url))),
                 "status_code": int(getattr(response, "status_code", 0) or 0),
                 "content_type": content_type,
                 "payload_bytes": len(body),
@@ -156,7 +171,7 @@ class AkShareProxy:
             raw_receipts.append(receipt)
             status = receipt["status_code"]
             if status in self.retry_status:
-                raise RetryableHTTPError(status, str(getattr(response, "url", url)))
+                raise RetryableHTTPError(status, str(getattr(response, "url", effective_url)))
             if status >= 400:
                 response.raise_for_status()
             return response
