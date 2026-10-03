@@ -6,7 +6,7 @@ import json
 import re
 import requests
 from dataclasses import asdict, dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Any
 from urllib.parse import parse_qsl, urlsplit
 
@@ -23,6 +23,24 @@ JIANGSU_URL = "https://www.jslottery.com/"
 JIANGSU_HISTORY_URL = "https://www.jslottery.com/winning_history_a"
 FUZHOU_HISTORY_URL = "https://www.jxfzfc.cn/lottery.php"
 FUZHOU_AUTHORITY_MARKER = "抚州市慈善和福利彩票事业发展中心"
+HAPPY8_MARKET_CLOSURES: dict[int, tuple[tuple[str, str], ...]] = {
+    2020: (),
+    2021: (("2021-02-09", "2021-02-18"), ("2021-10-01", "2021-10-04")),
+    2022: (("2022-01-29", "2022-02-07"), ("2022-10-01", "2022-10-04")),
+    2023: (("2023-01-19", "2023-01-28"), ("2023-10-01", "2023-10-04")),
+    2024: (("2024-02-08", "2024-02-17"), ("2024-10-01", "2024-10-04")),
+    2025: (("2025-01-27", "2025-02-05"), ("2025-10-01", "2025-10-04")),
+    2026: (("2026-02-14", "2026-02-23"), ("2026-10-01", "2026-10-04")),
+}
+HAPPY8_MARKET_CALENDAR_SOURCES: dict[int, str] = {
+    2020: "https://zhs.mof.gov.cn/zhengcefabu/201912/t20191216_3442598.htm",
+    2021: "https://m.mof.gov.cn/czxw/202012/t20201215_3634843.htm",
+    2022: "https://www.mof.gov.cn/gp/xxgkml/zhs/202112/t20211216_3775504.htm",
+    2023: "https://zhs.mof.gov.cn/zhengcefabu/202212/t20221227_3860392.htm",
+    2024: "https://www.mof.gov.cn/jrttts/202312/t20231204_3919516.htm",
+    2025: "https://zhs.mof.gov.cn/zhengcefabu/202412/t20241206_3949123.htm",
+    2026: "https://zhs.mof.gov.cn/zhengcefabu/202512/t20251225_3980205.htm",
+}
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Happy8Evidence/0.3",
     "Accept": "application/json,text/html;q=0.9,application/xhtml+xml;q=0.8,*/*;q=0.5",
@@ -501,6 +519,37 @@ def fetch_shanghai_full_history() -> tuple[list[Draw], SourceReceipt, dict[str, 
 
 
 
+def _market_calendar_date_for_issue(issue: str) -> str:
+    if not re.fullmatch(r"20\d{5}", issue):
+        raise RuntimeError(f"Happy8 issue format invalid for market calendar: {issue!r}")
+    year = int(issue[:4])
+    sequence = int(issue[4:])
+    if year not in HAPPY8_MARKET_CLOSURES:
+        raise RuntimeError(f"Happy8 market calendar year is not frozen: {year}")
+    if sequence < 1:
+        raise RuntimeError(f"Happy8 issue sequence invalid: {issue}")
+
+    current = date(2020, 10, 28) if year == 2020 else date(year, 1, 1)
+    closures = tuple(
+        (
+            datetime.strptime(start, "%Y-%m-%d").date(),
+            datetime.strptime(end, "%Y-%m-%d").date(),
+        )
+        for start, end in HAPPY8_MARKET_CLOSURES[year]
+    )
+    count = 0
+    while current.year == year:
+        if not any(start <= current <= end for start, end in closures):
+            count += 1
+            if count == sequence:
+                return current.isoformat()
+        current += timedelta(days=1)
+    raise RuntimeError(
+        f"Happy8 issue exceeds official market-calendar capacity: issue={issue} "
+        f"year_count={count}"
+    )
+
+
 def _decode_html(raw: bytes) -> str:
     for encoding in ("utf-8-sig", "utf-8", "gb18030"):
         try:
@@ -640,55 +689,14 @@ def fetch_provincial_composite_full_history() -> tuple[
     manifest: list[dict[str, Any]] = []
     number_map: dict[str, tuple[int, ...]] = {}
     date_map: dict[str, str] = {}
+    observed_date_map: dict[str, str] = {}
 
-    # Fail fast on the currently evidenced Jiangsu archive gap before the
-    # expensive full pagination walk. This is not a bypass: if the official
-    # source later exposes the required issue-bound CWL date, the complete
-    # reconciliation continues unchanged.
-    sentinel_issue = "2021016"
-    sentinel_params = {
-        "locale": "zh-CN",
-        "lottery_type_id": "17",
-        "page": "1",
-        "periods": sentinel_issue,
-    }
-    sentinel_response = NET.get(
-        JIANGSU_HISTORY_URL,
-        params=sentinel_params,
-        headers=jiangsu_headers,
-        timeout=(10, 30),
-        allow_redirects=True,
-    )
-    sentinel_raw = _validate_html_response(sentinel_response)
-    if not _official_host(str(sentinel_response.url), {"www.jslottery.com"}):
-        raise RuntimeError("Jiangsu sentinel issue search left official HTTPS host")
-    sentinel_actual = dict(parse_qsl(urlsplit(str(sentinel_response.url)).query, keep_blank_values=True))
-    if sentinel_actual != sentinel_params:
-        raise RuntimeError(
-            f"Jiangsu sentinel issue query changed in transit: expected={sentinel_params!r} "
-            f"actual={sentinel_actual!r}"
-        )
-    sentinel_rows = _parse_jiangsu_issue_dates(_decode_html(sentinel_raw))
-    if set(sentinel_rows) != {sentinel_issue}:
-        raise RuntimeError(
-            "Jiangsu required historical issue-date evidence unavailable: "
-            f"issue={sentinel_issue} parsed={sorted(sentinel_rows)!r}"
-        )
-    raw_sources[f"jiangsu_sentinel_{sentinel_issue}.html"] = sentinel_raw
-    manifest.append({
-        "source": "jiangsu_welfare_lottery",
-        "query": "required_issue_sentinel",
-        "issue": sentinel_issue,
-        "filename": f"jiangsu_sentinel_{sentinel_issue}.html",
-        "url": str(sentinel_response.url),
-        "http_status": int(sentinel_response.status_code),
-        "sha256": hashlib.sha256(sentinel_raw).hexdigest(),
-        "bytes": len(sentinel_raw),
-        "row_count": 1,
-        "first_issue": sentinel_issue,
-        "last_issue": sentinel_issue,
-    })
-
+    # Draw numbers come from the Fuzhou official history. Draw dates are
+    # deterministically derived from the nationally binding Ministry of Finance
+    # lottery-market closure calendar and then cross-checked against every
+    # issue-bound CWL announcement date still visible in the Jiangsu official
+    # archive. This avoids treating a known omission in that index as if the draw
+    # never existed, while remaining fail-closed on any date disagreement.
     first_fuzhou = NET.get(
         FUZHOU_HISTORY_URL,
         params={"play": "kl8", "sid": "new", "page": "1"},
@@ -748,6 +756,50 @@ def fetch_provincial_composite_full_history() -> tuple[
             "last_issue": max(rows),
         })
 
+    number_issues = set(number_map)
+    if not number_issues or min(number_issues) != HAPPY8_HISTORY_START_ISSUE:
+        raise RuntimeError(
+            f"provincial official history does not start at {HAPPY8_HISTORY_START_ISSUE}"
+        )
+    if len(number_issues) < 2000:
+        raise RuntimeError(f"provincial official history too short: {len(number_issues)}")
+
+    date_map = {issue: _market_calendar_date_for_issue(issue) for issue in number_issues}
+    if date_map.get(HAPPY8_HISTORY_START_ISSUE) != HAPPY8_HISTORY_START_DATE:
+        raise RuntimeError(
+            f"market-calendar start mismatch: issue={HAPPY8_HISTORY_START_ISSUE} "
+            f"expected={HAPPY8_HISTORY_START_DATE} "
+            f"actual={date_map.get(HAPPY8_HISTORY_START_ISSUE)}"
+        )
+
+    calendar_contract = {
+        "schema": "happy8-market-calendar-contract-v1",
+        "derivation": "daily_draws_excluding_mof_market_closures",
+        "launch_issue": HAPPY8_HISTORY_START_ISSUE,
+        "launch_date": HAPPY8_HISTORY_START_DATE,
+        "closure_windows": HAPPY8_MARKET_CLOSURES,
+        "source_urls": HAPPY8_MARKET_CALENDAR_SOURCES,
+    }
+    calendar_raw = json.dumps(
+        calendar_contract, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    raw_sources["mof_market_calendar_contract.json"] = calendar_raw
+    manifest.append({
+        "source": "ministry_of_finance_lottery_market_calendar",
+        "filename": "mof_market_calendar_contract.json",
+        "url": " + ".join(
+            HAPPY8_MARKET_CALENDAR_SOURCES[y]
+            for y in sorted(HAPPY8_MARKET_CALENDAR_SOURCES)
+        ),
+        "http_status": None,
+        "sha256": hashlib.sha256(calendar_raw).hexdigest(),
+        "bytes": len(calendar_raw),
+        "row_count": len(date_map),
+        "first_issue": min(date_map),
+        "last_issue": max(date_map),
+        "date_contract": "daily_draws_excluding_official_market_closure_windows",
+    })
+
     first_jiangsu = NET.get(
         JIANGSU_HISTORY_URL,
         params={"locale": "zh-CN", "lottery_type_id": "17", "page": "1", "periods": ""},
@@ -789,10 +841,16 @@ def fetch_provincial_composite_full_history() -> tuple[
         if not rows:
             raise RuntimeError(f"Jiangsu Happy8 page {page_no} contained no issue-date rows")
         for issue, day in rows.items():
-            previous = date_map.get(issue)
+            previous = observed_date_map.get(issue)
             if previous is not None and previous != day:
                 raise RuntimeError(f"Jiangsu cross-page date conflict for issue {issue}")
-            date_map[issue] = day
+            observed_date_map[issue] = day
+            expected_day = date_map.get(issue)
+            if expected_day is not None and expected_day != day:
+                raise RuntimeError(
+                    f"official market-calendar/Jiangsu date conflict for {issue}: "
+                    f"calendar={expected_day} jiangsu_cwl={day}"
+                )
         filename = f"jiangsu_history_page_{page_no:03d}.html"
         raw_sources[filename] = raw
         manifest.append({
@@ -809,92 +867,55 @@ def fetch_provincial_composite_full_history() -> tuple[
             "date_contract": "cwl_announcement_url_date_bound_on_jiangsu_official_index",
         })
 
-    number_issues = set(number_map)
-    missing_date_issues = sorted(number_issues - set(date_map))
-    if len(missing_date_issues) > 20:
+    observed_issues = set(observed_date_map)
+    crosschecked_issues = number_issues & observed_issues
+    missing_index_issues = sorted(number_issues - observed_issues)
+    extra_index_issues = sorted(observed_issues - number_issues)
+    if extra_index_issues:
         raise RuntimeError(
-            f"Jiangsu exact-date fallback safety bound exceeded: {len(missing_date_issues)}"
+            f"Jiangsu official archive contains issues missing from Fuzhou number history: "
+            f"{extra_index_issues[:20]}"
         )
-    for issue in missing_date_issues:
-        params = {
-            "locale": "zh-CN",
-            "lottery_type_id": "17",
-            "page": "1",
-            "periods": issue,
-        }
-        response = NET.get(
-            JIANGSU_HISTORY_URL,
-            params=params,
-            headers=jiangsu_headers,
-            timeout=(10, 30),
-            allow_redirects=True,
+    if len(missing_index_issues) > 20:
+        raise RuntimeError(
+            f"Jiangsu official archive gap safety bound exceeded: "
+            f"{len(missing_index_issues)} missing issues"
         )
-        raw = _validate_html_response(response)
-        if not _official_host(str(response.url), {"www.jslottery.com"}):
-            raise RuntimeError("Jiangsu exact issue search left official HTTPS host")
-        actual = dict(parse_qsl(urlsplit(str(response.url)).query, keep_blank_values=True))
-        if actual != params:
-            raise RuntimeError(
-                f"Jiangsu exact issue query changed in transit: expected={params!r} actual={actual!r}"
-            )
-        markup = _decode_html(raw)
-        rows = _parse_jiangsu_issue_dates(markup)
-        if set(rows) != {issue}:
-            raise RuntimeError(
-                f"Jiangsu exact issue search did not return exactly requested issue: "
-                f"issue={issue} parsed={sorted(rows)!r}"
-            )
-        date_map[issue] = rows[issue]
-        filename = f"jiangsu_issue_{issue}.html"
-        raw_sources[filename] = raw
-        manifest.append({
-            "source": "jiangsu_welfare_lottery",
-            "query": "exact_issue",
-            "issue": issue,
-            "filename": filename,
-            "url": str(response.url),
-            "http_status": int(response.status_code),
-            "sha256": hashlib.sha256(raw).hexdigest(),
-            "bytes": len(raw),
-            "row_count": 1,
-            "first_issue": issue,
-            "last_issue": issue,
-        })
+    if len(crosschecked_issues) < int(len(number_issues) * 0.99):
+        raise RuntimeError(
+            f"official date crosscheck coverage too low: "
+            f"crosschecked={len(crosschecked_issues)} numbers={len(number_issues)}"
+        )
 
-    date_issues = set(date_map)
-    start_date = date_map.get(HAPPY8_HISTORY_START_ISSUE)
-    if start_date != HAPPY8_HISTORY_START_DATE:
-        raise RuntimeError(
-            f"provincial date contract start mismatch: "
-            f"issue={HAPPY8_HISTORY_START_ISSUE} expected={HAPPY8_HISTORY_START_DATE} actual={start_date}"
-        )
     previous_issue: str | None = None
     previous_day = None
     for issue in sorted(date_map):
-        try:
-            current_day = datetime.strptime(date_map[issue], "%Y-%m-%d").date()
-        except ValueError as exc:
-            raise RuntimeError(f"provincial date contract invalid ISO date: {issue}={date_map[issue]!r}") from exc
+        current_day = datetime.strptime(date_map[issue], "%Y-%m-%d").date()
         if previous_day is not None and current_day <= previous_day:
             raise RuntimeError(
-                f"provincial date contract is not strictly increasing: "
-                f"{previous_issue}={previous_day.isoformat()} then {issue}={current_day.isoformat()}"
+                f"market-calendar dates are not strictly increasing: "
+                f"{previous_issue}={previous_day.isoformat()} then "
+                f"{issue}={current_day.isoformat()}"
             )
         previous_issue, previous_day = issue, current_day
-    if number_issues != date_issues:
-        missing_dates = sorted(number_issues - date_issues)
-        missing_numbers = sorted(date_issues - number_issues)
-        raise RuntimeError(
-            "provincial official history set mismatch: "
-            f"numbers={len(number_issues)} dates={len(date_issues)} "
-            f"missing_dates={missing_dates[:20]} missing_numbers={missing_numbers[:20]}"
-        )
-    if not number_issues or min(number_issues) != HAPPY8_HISTORY_START_ISSUE:
-        raise RuntimeError(
-            f"provincial official history does not start at {HAPPY8_HISTORY_START_ISSUE}"
-        )
-    if len(number_issues) < 2000:
-        raise RuntimeError(f"provincial official history too short: {len(number_issues)}")
+
+    manifest.append({
+        "source": "jiangsu_welfare_lottery_crosscheck",
+        "filename": "derived_from_jiangsu_history_pages",
+        "url": JIANGSU_HISTORY_URL,
+        "http_status": 200,
+        "sha256": _sha256_json({
+            "crosschecked_issues": sorted(crosschecked_issues),
+            "missing_index_issues": missing_index_issues,
+        }),
+        "bytes": 0,
+        "row_count": len(crosschecked_issues),
+        "first_issue": min(crosschecked_issues),
+        "last_issue": max(crosschecked_issues),
+        "date_contract": "mof_calendar_must_equal_issue_bound_cwl_announcement_date",
+        "missing_index_count": len(missing_index_issues),
+        "missing_index_issues": missing_index_issues,
+    })
 
     ordered: list[Draw] = []
     for issue in sorted(number_issues):
