@@ -1,5 +1,9 @@
 name: Happy8 recovered prototype staging gates
 
+concurrency:
+  group: happy8-staging-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 on:
   pull_request:
     paths:
