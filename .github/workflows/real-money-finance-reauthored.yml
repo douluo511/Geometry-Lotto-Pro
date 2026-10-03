@@ -1,0 +1,151 @@
+name: Real-Money Finance reauthored Windows candidate
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'RealMoneyFinance/**'
+      - '.github/workflows/real-money-finance-reauthored.yml'
+
+concurrency:
+  group: real-money-finance-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  strict-candidate:
+    runs-on: windows-2022
+    timeout-minutes: 55
+    env:
+      PYTHONUTF8: '1'
+      PYTHONIOENCODING: 'utf-8'
+      SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    defaults:
+      run:
+        working-directory: RealMoneyFinance
+
+    steps:
+      - name: Checkout exact candidate head
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          fetch-depth: 0
+
+      - name: Verify exact checkout
+        shell: pwsh
+        run: |
+          $actual=(git rev-parse HEAD).Trim()
+          if($actual -ne $env:SOURCE_SHA){throw "stale checkout: $actual != $env:SOURCE_SHA"}
+
+      - name: Setup pinned Windows Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.11.9'
+          architecture: 'x64'
+
+      - name: Install frozen validation dependencies
+        run: python -m pip install --disable-pip-version-check -r requirements.txt
+
+      - name: Static compile
+        run: python -m compileall -q app tests main.py
+
+      - name: Contract gate
+        run: python tests/contract_gate.py
+
+      - name: Fault injection gate
+        run: python tests/fault_injection_gate.py
+
+      - name: Real production network gate
+        run: python tests/real_network_gate.py
+
+      - name: Windows native candidate build
+        shell: pwsh
+        run: ./build_windows.ps1
+
+      - name: Exact EXE self-test and same-hash pre-GUI
+        shell: pwsh
+        run: |
+          $exe=Resolve-Path ./dist/RealMoneyFinance.exe
+          $before=(Get-FileHash -Algorithm SHA256 $exe).Hash.ToLowerInvariant()
+          $env:REAL_MONEY_FINANCE_ROOT=Join-Path $env:RUNNER_TEMP "rmf-selftest"
+          & $exe --self-test
+          if($LASTEXITCODE -ne 0){throw "Exact EXE self-test failed rc=$LASTEXITCODE"}
+          $after=(Get-FileHash -Algorithm SHA256 $exe).Hash.ToLowerInvariant()
+          if($before -ne $after){throw "EXE changed after self-test"}
+          [ordered]@{
+            status="PASS"
+            exact_exe="PASS"
+            exe_sha256_before=$before
+            exe_sha256_after=$after
+            same_hash_pre_gui="PASS"
+          }|ConvertTo-Json -Depth 5|Set-Content -Encoding UTF8 exact_exe_evidence.json
+
+      - name: Independent updater negative production-context gate
+        shell: pwsh
+        run: |
+          $root=Join-Path $env:RUNNER_TEMP "rmf-updater"
+          New-Item -ItemType Directory -Force $root|Out-Null
+          & ./dist/RealMoneyFinanceUpdater.exe --root $root
+          $rc=$LASTEXITCODE
+          if($rc -ne 3){throw "expected BLOCKED rc=3 without production release context, got $rc"}
+          [ordered]@{
+            status="BLOCKED"
+            reason="signed production release endpoint / real N-to-N+1 lineage unavailable"
+            returncode=$rc
+          }|ConvertTo-Json|Set-Content -Encoding UTF8 updater_blocked_evidence.json
+
+      - name: Physical GUI click gate on exact EXE
+        shell: pwsh
+        run: |
+          $exe=Resolve-Path ./dist/RealMoneyFinance.exe
+          $root=Join-Path $env:RUNNER_TEMP "rmf-gui"
+          python tests/gui_physical_click_gate.py --exe $exe --root $root --evidence gui_click_evidence.json
+
+      - name: Freeze candidate manifest
+        shell: pwsh
+        run: |
+          $main=Resolve-Path ./dist/RealMoneyFinance.exe
+          $updater=Resolve-Path ./dist/RealMoneyFinanceUpdater.exe
+          [ordered]@{
+            status="CANDIDATE_ONLY"
+            source_sha=$env:SOURCE_SHA
+            main_sha256=(Get-FileHash -Algorithm SHA256 $main).Hash.ToLowerInvariant()
+            updater_sha256=(Get-FileHash -Algorithm SHA256 $updater).Hash.ToLowerInvariant()
+            real_network="PASS_IF_PRIOR_STEP_PASSED"
+            windows_build="PASS_IF_PRIOR_STEP_PASSED"
+            exact_exe="PASS_IF_PRIOR_STEP_PASSED"
+            physical_gui_core_repair_advanced="PASS_IF_PRIOR_STEP_PASSED"
+            software_update_positive="BLOCKED"
+            repository_independence="BLOCKED"
+            final_gate="FAIL"
+          }|ConvertTo-Json -Depth 5|Set-Content -Encoding UTF8 candidate_manifest.json
+
+      - name: Upload diagnostic candidate evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: Real-Money-Finance-reauthored-${{ env.SOURCE_SHA }}
+          path: |
+            RealMoneyFinance/dist/RealMoneyFinance.exe
+            RealMoneyFinance/dist/RealMoneyFinanceUpdater.exe
+            RealMoneyFinance/contract_evidence.json
+            RealMoneyFinance/real_network_evidence.json
+            RealMoneyFinance/windows_build_evidence.json
+            RealMoneyFinance/exact_exe_evidence.json
+            RealMoneyFinance/updater_blocked_evidence.json
+            RealMoneyFinance/gui_click_evidence.json
+            RealMoneyFinance/gui_click_evidence.png
+            RealMoneyFinance/candidate_manifest.json
+          if-no-files-found: warn
+
+      - name: Explicit Final boundary
+        if: success()
+        shell: pwsh
+        run: |
+          Write-Host "MONOREPO_STAGE=CANDIDATE"
+          Write-Host "REPOSITORY_INDEPENDENCE=BLOCKED"
+          Write-Host "REAL_RELEASE_N_TO_N_PLUS_1=BLOCKED"
+          Write-Host "CAPITAL_DEPLOYMENT_READY=FALSE"
+          Write-Host "FINAL_GATE=FAIL"
