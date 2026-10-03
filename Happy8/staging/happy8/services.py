@@ -47,6 +47,7 @@ class Happy8Service:
         snapshot_builder: Callable[[], tuple[dict[str, Any], dict[str, bytes]]] = build_official_snapshot,
         science_validator: Callable[..., dict[str, Any]] = validate_history,
         software_update_launcher: Callable[[], dict[str, Any]] | None = None,
+        repair_environment_probe: Callable[[], dict[str, Any]] | None = None,
     ):
         self.data_root = Path(data_root).resolve()
         self.data_root.mkdir(parents=True, exist_ok=True)
@@ -56,6 +57,8 @@ class Happy8Service:
         self.snapshot_builder = snapshot_builder
         self.science_validator = science_validator
         self.software_update_launcher = software_update_launcher
+        self.repair_environment_probe = repair_environment_probe
+        self.cache = self.data_root / "cache"
 
     @staticmethod
     def _draws(snapshot: dict[str, Any]) -> list[Draw]:
@@ -167,41 +170,171 @@ class Happy8Service:
         return freeze
 
     def repair(self) -> dict[str, Any]:
+        """Repair only recoverable local state and diagnose externally bound state.
+
+        The application uses a generation-based file store rather than SQLite.
+        That store is the persistence/database-equivalent layer; CURRENT.json is
+        its index pointer. Release/network configuration is never synthesized.
+        """
+        components: dict[str, dict[str, Any]] = {}
         before = self.store.integrity_check()
+
+        # Database/storage + index + missing-file + data-integrity recovery:
+        # switch only to an already verified immutable generation.
+        repaired = None
         if before.get("status") == "PASS":
             snapshot = self.store.read_current_snapshot()
-            result = {
+            components["data_store"] = {
                 "status": "PASS",
-                "operation": "repair",
                 "action": "NO_CHANGE_REQUIRED",
                 "generation_id": snapshot["generation_id"],
-                "completed_at": _utc_now(),
+            }
+            components["index_pointer"] = {
+                "status": "PASS",
+                "action": "CURRENT_POINTER_VERIFIED",
+            }
+            components["missing_files"] = {
+                "status": "PASS",
+                "action": "CURRENT_GENERATION_REQUIRED_FILES_VERIFIED",
             }
         else:
             repaired = self.store.repair_current_pointer()
-            if repaired.get("status") != "PASS":
-                result = {
-                    "status": "FAIL",
-                    "operation": "repair",
-                    "action": "NO_VALID_GENERATION",
-                    "before": before,
-                    "repair": repaired,
-                    "completed_at": _utc_now(),
+            if repaired.get("status") == "PASS":
+                components["data_store"] = {
+                    "status": "PASS",
+                    "action": "RESTORED_VERIFIED_GENERATION",
+                    "generation_id": repaired["generation_id"],
                 }
-                _atomic_json(self.evidence / "last_repair.json", result)
-                return result
-            after = self.store.integrity_check()
-            if after.get("status") != "PASS":
-                raise RuntimeError("repair reported PASS but post-repair integrity failed")
-            result = {
-                "status": "PASS",
-                "operation": "repair",
-                "action": "RESTORED_VERIFIED_GENERATION",
-                "generation_id": repaired["generation_id"],
-                "before": before,
-                "after": after,
-                "completed_at": _utc_now(),
+                components["index_pointer"] = {
+                    "status": "PASS",
+                    "action": "REBUILT_FROM_VERIFIED_GENERATION",
+                }
+                components["missing_files"] = {
+                    "status": "PASS",
+                    "action": "RECOVERED_BY_VERIFIED_GENERATION_SWITCH",
+                }
+            else:
+                components["data_store"] = {
+                    "status": "FAIL",
+                    "action": "NO_VALID_GENERATION",
+                    "detail": repaired,
+                }
+                components["index_pointer"] = {
+                    "status": "FAIL",
+                    "action": "NO_SAFE_POINTER_TARGET",
+                }
+                components["missing_files"] = {
+                    "status": "FAIL",
+                    "action": "NO_SAFE_LOCAL_SOURCE",
+                }
+
+        # Cache is explicitly ephemeral. Never delete generations/results/evidence.
+        cache_removed = 0
+        cache_error = None
+        try:
+            if self.cache.exists():
+                for path in sorted(self.cache.rglob("*"), key=lambda p: len(p.parts), reverse=True):
+                    if path.is_symlink() or path.is_file():
+                        path.unlink()
+                        cache_removed += 1
+                    elif path.is_dir():
+                        path.rmdir()
+                self.cache.rmdir()
+            self.cache.mkdir(parents=True, exist_ok=True)
+        except Exception as exc:
+            cache_error = f"{type(exc).__name__}: {exc}"
+        components["cache"] = {
+            "status": "PASS" if cache_error is None else "FAIL",
+            "action": "CLEARED_EPHEMERAL_CACHE" if cache_error is None else "CACHE_REPAIR_FAILED",
+            "removed_entries": cache_removed,
+            "detail": cache_error,
+        }
+
+        # Configuration/network/version are externally anchored. Diagnose them;
+        # never generate a fake trusted endpoint or version.
+        if self.repair_environment_probe is None:
+            environment = {
+                "status": "BLOCKED",
+                "checks": {
+                    "release_config": {
+                        "status": "BLOCKED",
+                        "detail": "trusted software-update environment probe is not configured",
+                    },
+                    "network_config": {
+                        "status": "BLOCKED",
+                        "detail": "trusted network release configuration cannot be inferred",
+                    },
+                    "version_contract": {
+                        "status": "BLOCKED",
+                        "detail": "packaged software version contract is unavailable",
+                    },
+                },
             }
+        else:
+            try:
+                environment = self.repair_environment_probe()
+            except Exception as exc:
+                environment = {
+                    "status": "FAIL",
+                    "checks": {
+                        "environment_probe": {
+                            "status": "FAIL",
+                            "detail": f"{type(exc).__name__}: {exc}",
+                        }
+                    },
+                }
+
+        env_checks = dict(environment.get("checks") or {})
+        components["configuration"] = dict(
+            env_checks.get("release_config")
+            or {"status": environment.get("status", "FAIL"), "detail": "release config check missing"}
+        )
+        components["network_configuration"] = dict(
+            env_checks.get("network_config")
+            or {"status": environment.get("status", "FAIL"), "detail": "network config check missing"}
+        )
+        components["version_contract"] = dict(
+            env_checks.get("version_contract")
+            or {"status": environment.get("status", "FAIL"), "detail": "version contract check missing"}
+        )
+        if "updater_exe" in env_checks:
+            components["updater_file"] = dict(env_checks["updater_exe"])
+        if "main_exe" in env_checks:
+            components["main_exe_file"] = dict(env_checks["main_exe"])
+
+        after = self.store.integrity_check()
+        components["data_integrity"] = {
+            "status": "PASS" if after.get("status") == "PASS" else "FAIL",
+            "before": before,
+            "after": after,
+        }
+
+        states = [str(item.get("status") or "FAIL") for item in components.values()]
+        if "FAIL" in states:
+            status = "FAIL"
+        elif "BLOCKED" in states:
+            status = "BLOCKED"
+        else:
+            status = "PASS"
+
+        action = (
+            "REPAIR_COMPLETE"
+            if status == "PASS"
+            else "LOCAL_REPAIR_COMPLETE_EXTERNAL_BLOCKER"
+            if status == "BLOCKED" and after.get("status") == "PASS"
+            else "REPAIR_FAILED"
+        )
+        result = {
+            "schema": "happy8-repair-v2",
+            "status": status,
+            "operation": "repair",
+            "action": action,
+            "components": components,
+            "store_repaired": bool(repaired and repaired.get("status") == "PASS"),
+            "user_data_deleted": False,
+            "post_repair_self_check": after,
+            "completed_at": _utc_now(),
+        }
         _atomic_json(self.evidence / "last_repair.json", result)
         return result
 
