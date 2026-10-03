@@ -38,7 +38,18 @@ def canonical_hash(draws: list[Draw]) -> str:
 
 def main() -> int:
     draws = build_synthetic_history()
-    report = validate_history(draws, canonical_hash=canonical_hash(draws))
+    expected_hash = canonical_hash(draws)
+    report = validate_history(draws, canonical_hash=expected_hash)
+    if report.get("computed_canonical_hash") != expected_hash:
+        raise SystemExit("scientific report is not bound to recomputed canonical history hash")
+
+    mismatch_rejected = False
+    try:
+        validate_history(draws, canonical_hash="0" * 64)
+    except ValueError as exc:
+        mismatch_rejected = "canonical history hash mismatch" in str(exc)
+    if not mismatch_rejected:
+        raise SystemExit("wrong canonical history hash was not rejected fail-closed")
 
     required_protocol = {
         "candidate_pool_independent_validation",
@@ -96,6 +107,7 @@ def main() -> int:
         "draw_count": len(draws),
         "oos_n": report["oos"]["n"],
         "protocol_gates": protocol,
+        "canonical_hash_reversal": "PASS",
         "edge_state": report["edge_state"],
         "dan_state": report["dan_state"],
         "candidate_models": [row["model"] for row in pool],
