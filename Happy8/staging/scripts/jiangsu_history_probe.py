@@ -130,11 +130,21 @@ def inspect_page(page: int, periods: str = "") -> dict:
     final_url = str(response.url)
     plain = _plain(markup)
     anchors = []
+    issue_date_hints = []
     for href, body in re.findall(r"(?is)<a\b[^>]*href\s*=\s*['\"]([^'\"]+)['\"][^>]*>(.*?)</a>", markup):
         label = _plain(body)[:240]
         absolute = urljoin(final_url, html.unescape(href))
         if re.search(r"20\d{5}", label) or re.search(r"(?i)(?:winning|lottery|detail|notice|history)", absolute):
             anchors.append({"label": label, "href": html.unescape(href)[:500], "url": absolute[:700]})
+        issue_match = re.search(r"(?<!\d)(20\d{5})(?!\d)", label)
+        date_match = re.search(r"/c/(20\d{2})/(\d{2})/(\d{2})/", absolute)
+        host = urlsplit(absolute).hostname
+        if issue_match and date_match and host in {"www.cwl.gov.cn", "cwl.gov.cn"}:
+            issue_date_hints.append({
+                "issue": issue_match.group(1),
+                "date": f"{date_match.group(1)}-{date_match.group(2)}-{date_match.group(3)}",
+                "article_url": absolute,
+            })
     pagination = []
     for href in re.findall(r"(?is)href\s*=\s*['\"]([^'\"]+)['\"]", markup):
         absolute = urljoin(final_url, html.unescape(href))
@@ -191,6 +201,7 @@ def inspect_page(page: int, periods: str = "") -> dict:
         "issue_tokens": re.findall(r"20\d{5}", plain)[:100],
         "visible_20_number_candidates": _numbers(plain),
         "anchors": anchors[:100],
+        "issue_date_hints": issue_date_hints[:100],
         "pagination_pages": sorted(set(pagination))[:500],
         "issue_contexts": issue_contexts,
         "attribute_candidates": attribute_candidates[:200],
@@ -294,10 +305,28 @@ def main() -> int:
             x.get("visible_20_number_candidates")
             for x in report["cwl_article_probes"]
         )
+        start_date_hint = any(
+            hint.get("issue") == "2020001"
+            and re.fullmatch(r"20\d{2}-\d{2}-\d{2}", str(hint.get("date") or ""))
+            for page in report["period_searches"]
+            for hint in page.get("issue_date_hints", [])
+        )
+        current_date_hint = any(
+            str(hint.get("issue") or "").startswith("2026")
+            for page in report["pages"]
+            for hint in page.get("issue_date_hints", [])
+        )
+        report["date_contract_discovery"] = (
+            "JIANGSU_ISSUE_DATE_CONTRACT_CANDIDATE"
+            if start_date_hint and current_date_hint
+            else "JIANGSU_ISSUE_DATE_CONTRACT_INCOMPLETE"
+        )
         report["checks"] = {
             "official_https_pages": all(_official(page["final_url"]) for page in report["pages"]),
             "early_history_visible": early_visible,
             "current_history_visible": current_visible,
+            "exact_start_issue_date_discovered": start_date_hint,
+            "current_issue_date_discovered": current_date_hint,
             "detail_links_discovered": bool(detail_urls),
             "detail_numbers_machine_readable": details_have_numbers,
             "exact_start_issue_search": exact_start_search,
