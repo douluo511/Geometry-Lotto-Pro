@@ -71,7 +71,7 @@ def main() -> int:
     report = {
         "schema": "guoxue-final-artifact-v1",
         "status": status,
-        "github_sha": os.environ.get("GITHUB_SHA"),
+        "github_sha": (os.environ.get("GUOXUE_SOURCE_SHA") or os.environ.get("GITHUB_SHA")),
         "repository": repo.get("repository"),
         "main_exe": Path(args.final_main_exe).name,
         "main_exe_sha256": final_main_hash,
