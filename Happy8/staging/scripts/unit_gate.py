@@ -93,10 +93,18 @@ def main() -> int:
     new_updater = "4" * 64
     manifest_sha = "5" * 64
     dedicated_repo = "douluo511/Happy8"
+    run_id = "123456"
+    run_attempt = "1"
     valid_release = {
         "schema": "happy8-real-release-update-v1",
         "status": "PASS",
         "repository": dedicated_repo,
+        "execution_context": {
+            "producer": "happy8-real-release-acceptance-v1",
+            "github_run_id": run_id,
+            "github_run_attempt": run_attempt,
+            "head_sha": source_sha,
+        },
         "release_n": {
             "version": "0.2.0",
             "source_sha": "b" * 40,
@@ -165,6 +173,8 @@ def main() -> int:
         valid_release,
         repository=dedicated_repo,
         source_sha=source_sha,
+        run_id=run_id,
+        run_attempt=run_attempt,
     )
     checks["real_release_valid_fixture"] = {
         "status": "PASS" if valid_release_report.get("status") == "PASS" else "FAIL"
@@ -173,6 +183,8 @@ def main() -> int:
         {"status": "PASS"},
         repository=dedicated_repo,
         source_sha=source_sha,
+        run_id=run_id,
+        run_attempt=run_attempt,
     )
     checks["real_release_status_only_rejected"] = {
         "status": "PASS" if status_only_report.get("status") == "FAIL" else "FAIL"
@@ -183,9 +195,23 @@ def main() -> int:
         bad_hash_release,
         repository=dedicated_repo,
         source_sha=source_sha,
+        run_id=run_id,
+        run_attempt=run_attempt,
     )
     checks["real_release_hash_mismatch_rejected"] = {
         "status": "PASS" if bad_hash_report.get("status") == "FAIL" else "FAIL"
+    }
+    wrong_run_release = json.loads(json.dumps(valid_release))
+    wrong_run_release["execution_context"]["github_run_id"] = "999999"
+    wrong_run_report = validate_real_release_evidence(
+        wrong_run_release,
+        repository=dedicated_repo,
+        source_sha=source_sha,
+        run_id=run_id,
+        run_attempt=run_attempt,
+    )
+    checks["real_release_wrong_run_rejected"] = {
+        "status": "PASS" if wrong_run_report.get("status") == "FAIL" else "FAIL"
     }
 
     repo_paths = set(REQUIRED_PATHS)
@@ -250,6 +276,12 @@ def main() -> int:
         "status": "PASS",
         "repository": dedicated_repo,
         "source_sha": source_sha,
+        "execution_context": {
+            "producer": "happy8-final-artifact-freeze-v1",
+            "github_run_id": run_id,
+            "github_run_attempt": run_attempt,
+            "head_sha": source_sha,
+        },
         "formal_release": {
             "unique": True,
             "release_id": "release-0.2.1",
@@ -272,6 +304,8 @@ def main() -> int:
         final_manifest,
         repository=dedicated_repo,
         source_sha=source_sha,
+        run_id=run_id,
+        run_attempt=run_attempt,
         windows=windows_fixture,
         physical_gui=physical_fixture,
         same_hash=same_fixture,
@@ -284,6 +318,8 @@ def main() -> int:
         {"status": "PASS"},
         repository=dedicated_repo,
         source_sha=source_sha,
+        run_id=run_id,
+        run_attempt=run_attempt,
         windows=windows_fixture,
         physical_gui=physical_fixture,
         same_hash=same_fixture,
@@ -298,6 +334,8 @@ def main() -> int:
         bad_final_manifest,
         repository=dedicated_repo,
         source_sha=source_sha,
+        run_id=run_id,
+        run_attempt=run_attempt,
         windows=windows_fixture,
         physical_gui=physical_fixture,
         same_hash=same_fixture,
