@@ -102,8 +102,10 @@ jobs:
       - name: Exact Updater EXE self-test
         shell: pwsh
         run: |
-          & ".\dist\Guoxue_Zhice_Updater.exe" --self-test --evidence-file ".\updater_exe_self_test.json"
-          if ($LASTEXITCODE -ne 0) { throw "Updater EXE self-test failed" }
+          $selfTestPath = [IO.Path]::GetFullPath("updater_exe_self_test.json")
+          $updaterProcess = Start-Process -FilePath (Resolve-Path ".\dist\Guoxue_Zhice_Updater.exe").Path -ArgumentList @('--self-test', '--evidence-file', ('"{0}"' -f $selfTestPath)) -WindowStyle Hidden -PassThru -Wait
+          if ($updaterProcess.ExitCode -ne 0) { throw "Updater EXE self-test failed: exit=$($updaterProcess.ExitCode)" }
+          if (-not (Test-Path -LiteralPath $selfTestPath)) { throw "Updater EXE self-test evidence missing after process exit" }
           $self=Get-Content ".\updater_exe_self_test.json" -Raw | ConvertFrom-Json
           if ($self.status -ne 'PASS') { throw "Updater EXE evidence not PASS" }
 
