@@ -25,11 +25,11 @@
     "min_research_extra_symbols": 30,
     "ensemble_mode": "validation_dynamic",
     "ensemble_shrinkage": 0.2,
-    "ridge_alpha": 8.0,
+    "ridge_alpha": 8,
     "hgb_max_depth": 5,
     "hgb_learning_rate": 0.05,
     "hgb_max_iter": 260,
-    "hgb_l2": 1.0,
+    "hgb_l2": 1,
     "extra_trees_n_estimators": 320,
     "extra_trees_min_samples_leaf": 8,
     "extra_trees_max_features": 0.8,
@@ -96,28 +96,39 @@
     "timeout_seconds": 15,
     "retry_attempts": 3,
     "request_delay_seconds": 0.12,
-    "retry_backoff_seconds": 0.8
+    "retry_backoff_seconds": 0.8,
+    "connect_timeout_seconds": 5,
+    "read_timeout_seconds": 15,
+    "retry_jitter_seconds": 0.2,
+    "retry_status_codes": [
+      429,
+      500,
+      502,
+      503,
+      504
+    ],
+    "https_only": true
   },
   "cost": {
     "order_size_cny": 100000,
     "commission_rate": 0.00025,
-    "minimum_commission_cny": 5.0,
+    "minimum_commission_cny": 5,
     "stamp_duty_sell_rate": 0.0005,
-    "transfer_fee_rate_each_side": 1e-05,
-    "base_slippage_bps_each_side": 1.0,
-    "impact_coefficient_bps": 100.0,
+    "transfer_fee_rate_each_side": 0.00001,
+    "base_slippage_bps_each_side": 1,
+    "impact_coefficient_bps": 100,
     "range_slippage_fraction": 0.02,
-    "max_dynamic_slippage_bps_each_side": 30.0
+    "max_dynamic_slippage_bps_each_side": 30
   },
   "valuation": {
     "enabled": true,
     "pe_weight": 0.6,
     "pb_weight": 0.4,
-    "loss_company_score": 15.0,
-    "missing_score": 50.0,
-    "extreme_pe": 100.0,
-    "extreme_pb": 10.0,
-    "extreme_penalty_points": 12.0,
+    "loss_company_score": 15,
+    "missing_score": 50,
+    "extreme_pe": 100,
+    "extreme_pb": 10,
+    "extreme_penalty_points": 12,
     "history_indicators": [
       "市盈率(TTM)",
       "市净率"
@@ -130,9 +141,9 @@
   },
   "decision": {
     "min_positive_net_alpha_count": 5,
-    "min_topk_mean_net_alpha": 0.0,
+    "min_topk_mean_net_alpha": 0,
     "risk_off_min_topk_mean_net_alpha": 0.002,
-    "min_confidence": 50.0
+    "min_confidence": 50
   },
   "rnd": {
     "enabled": true,
