@@ -137,23 +137,29 @@ def validate_final_artifact(
     formal = value.get("formal_release") if isinstance(value.get("formal_release"), dict) else {}
     release_to_version = None
     release_to_url = None
+    release_to_id = None
     if isinstance(real_release, dict):
         rr_prechecks = real_release.get("checks", {}) if isinstance(real_release.get("checks"), dict) else {}
         monotonic = rr_prechecks.get("monotonic_versions", {})
         release_urls = rr_prechecks.get("release_urls_https", {})
+        release_ids = rr_prechecks.get("release_ids", {})
         if isinstance(monotonic, dict):
             release_to_version = monotonic.get("to_version")
         if isinstance(release_urls, dict):
             release_to_url = release_urls.get("release_n1_url")
+        if isinstance(release_ids, dict):
+            release_to_id = release_ids.get("release_n1_id")
     put(
         "formal_release",
         formal.get("unique") is True
         and bool(str(formal.get("release_id") or "").strip())
+        and formal.get("release_id") == release_to_id
         and _https(formal.get("release_url"))
         and bool(str(formal.get("version") or "").strip())
         and formal.get("version") == release_to_version
         and formal.get("release_url") == release_to_url,
         release_id=formal.get("release_id"),
+        validated_release_id=release_to_id,
         release_url=formal.get("release_url"),
         version=formal.get("version"),
         validated_release_version=release_to_version,
