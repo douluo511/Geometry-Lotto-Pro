@@ -143,7 +143,12 @@ class Happy8Window(tk.Tk):
                     "operation": label,
                     "error": f"{type(exc).__name__}: {exc}",
                 }
-                self.after(0, lambda: self._complete(label, "FAIL", failure, exc))
+                self.after(
+                    0,
+                    lambda label=label, failure=failure, exc=exc: self._complete(
+                        label, "FAIL", failure, exc
+                    ),
+                )
 
         threading.Thread(target=worker, daemon=True).start()
 
