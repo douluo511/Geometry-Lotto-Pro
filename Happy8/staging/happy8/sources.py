@@ -641,6 +641,54 @@ def fetch_provincial_composite_full_history() -> tuple[
     number_map: dict[str, tuple[int, ...]] = {}
     date_map: dict[str, str] = {}
 
+    # Fail fast on the currently evidenced Jiangsu archive gap before the
+    # expensive full pagination walk. This is not a bypass: if the official
+    # source later exposes the required issue-bound CWL date, the complete
+    # reconciliation continues unchanged.
+    sentinel_issue = "2021016"
+    sentinel_params = {
+        "locale": "zh-CN",
+        "lottery_type_id": "17",
+        "page": "1",
+        "periods": sentinel_issue,
+    }
+    sentinel_response = NET.get(
+        JIANGSU_HISTORY_URL,
+        params=sentinel_params,
+        headers=jiangsu_headers,
+        timeout=(10, 30),
+        allow_redirects=True,
+    )
+    sentinel_raw = _validate_html_response(sentinel_response)
+    if not _official_host(str(sentinel_response.url), {"www.jslottery.com"}):
+        raise RuntimeError("Jiangsu sentinel issue search left official HTTPS host")
+    sentinel_actual = dict(parse_qsl(urlsplit(str(sentinel_response.url)).query, keep_blank_values=True))
+    if sentinel_actual != sentinel_params:
+        raise RuntimeError(
+            f"Jiangsu sentinel issue query changed in transit: expected={sentinel_params!r} "
+            f"actual={sentinel_actual!r}"
+        )
+    sentinel_rows = _parse_jiangsu_issue_dates(_decode_html(sentinel_raw))
+    if set(sentinel_rows) != {sentinel_issue}:
+        raise RuntimeError(
+            "Jiangsu required historical issue-date evidence unavailable: "
+            f"issue={sentinel_issue} parsed={sorted(sentinel_rows)!r}"
+        )
+    raw_sources[f"jiangsu_sentinel_{sentinel_issue}.html"] = sentinel_raw
+    manifest.append({
+        "source": "jiangsu_welfare_lottery",
+        "query": "required_issue_sentinel",
+        "issue": sentinel_issue,
+        "filename": f"jiangsu_sentinel_{sentinel_issue}.html",
+        "url": str(sentinel_response.url),
+        "http_status": int(sentinel_response.status_code),
+        "sha256": hashlib.sha256(sentinel_raw).hexdigest(),
+        "bytes": len(sentinel_raw),
+        "row_count": 1,
+        "first_issue": sentinel_issue,
+        "last_issue": sentinel_issue,
+    })
+
     first_fuzhou = NET.get(
         FUZHOU_HISTORY_URL,
         params={"play": "kl8", "sid": "new", "page": "1"},

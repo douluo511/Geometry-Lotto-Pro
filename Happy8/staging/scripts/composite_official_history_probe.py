@@ -4,6 +4,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
+from datetime import datetime
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -67,6 +68,19 @@ def _fuzhou_history() -> tuple[dict[str, list[int]], list[dict], list[dict]]:
 
 
 def _jiangsu_dates() -> tuple[dict[str, str], list[dict], list[dict]]:
+    sentinel_issue = "2021016"
+    sentinel = inspect_jiangsu_page(1, sentinel_issue)
+    sentinel_matches = [
+        hint for hint in (sentinel.get("cwl_announcement_date_hints") or [])
+        if str(hint.get("issue") or "") == sentinel_issue
+    ]
+    if sentinel.get("http_status") != 200 or len(sentinel_matches) != 1:
+        raise RuntimeError(
+            "Jiangsu required historical issue-date evidence unavailable: "
+            f"issue={sentinel_issue} status={sentinel.get('http_status')} "
+            f"matches={sentinel_matches!r}"
+        )
+
     first = inspect_jiangsu_page(1)
     pages = first.get("pagination_pages") or []
     max_page = max(pages, default=1)
