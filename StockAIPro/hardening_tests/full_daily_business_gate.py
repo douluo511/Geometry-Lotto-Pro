@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import traceback
@@ -12,6 +13,12 @@ ROOT = Path(__file__).resolve().parents[1]
 VERSION = ROOT / "staging" / "Stock_AI_Pro" / "versions" / "4.3.0"
 DATA_ROOT = ROOT / "_business_gate_data"
 os.environ["STOCK_AI_DATA_ROOT"] = str(DATA_ROOT)
+REQUIRED_FROZEN_FILES = (
+    "manifest.json", "predictions.csv", "summary.json", "model_metrics.json",
+    "data_quality.json", "valuation_status.json", "cost_assumptions.json",
+    "decision.json", "portfolio_balanced.csv", "portfolio_offense.csv",
+    "portfolio_defense.csv",
+)
 
 
 def sha256(path: Path) -> str:
@@ -26,6 +33,46 @@ def load(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def run_logged(command, log_path: Path, *, cwd, env, timeout):
+    # Stream to disk from process start so a timeout still leaves the exact
+    # stdout/stderr that preceded it. PIPE+write-after-return lost all of it.
+    with log_path.open("wb") as output:
+        return subprocess.run(command, cwd=cwd, env=env, stdout=output,
+                              stderr=subprocess.STDOUT, timeout=timeout)
+
+
+def verify_prediction_freeze(latest: Path) -> dict:
+    missing = [name for name in REQUIRED_FROZEN_FILES if not (latest / name).is_file()]
+    if missing:
+        raise RuntimeError(f"frozen prediction missing files: {missing}")
+    manifest = load(latest / "manifest.json")
+    if not isinstance(manifest, dict):
+        raise RuntimeError("prediction freeze manifest must be an object")
+    files = manifest.get("files")
+    if not isinstance(files, dict) or not files:
+        raise RuntimeError("prediction freeze files must be a nonempty object")
+    uncovered = sorted(set(REQUIRED_FROZEN_FILES) - {"manifest.json"} - set(files))
+    if uncovered:
+        raise RuntimeError(f"prediction freeze required files are uncontrolled: {uncovered}")
+    base = latest.resolve()
+    for name, expected in files.items():
+        if not isinstance(name, str) or not name or name == "manifest.json":
+            raise RuntimeError(f"prediction freeze invalid file name: {name!r}")
+        if not isinstance(expected, str) or re.fullmatch(r"[0-9a-fA-F]{64}", expected) is None:
+            raise RuntimeError(f"prediction freeze invalid SHA-256: {name}")
+        relative = Path(name)
+        if relative.is_absolute():
+            raise RuntimeError(f"prediction freeze path outside latest: {name}")
+        path = (base / relative).resolve()
+        try:
+            path.relative_to(base)
+        except ValueError as exc:
+            raise RuntimeError(f"prediction freeze path outside latest: {name}") from exc
+        if not path.is_file() or sha256(path) != expected.lower():
+            raise RuntimeError(f"prediction freeze hash mismatch: {name}")
+    return manifest
+
+
 def main() -> int:
     evidence_path = ROOT / "business_daily_evidence.json"
     report = {
@@ -36,6 +83,7 @@ def main() -> int:
         "physical_gui": "NOT VERIFIED",
         "same_hash": "NOT VERIFIED",
         "final_gate": "FAIL",
+        "source_sha": os.environ.get("STOCK_SOURCE_SHA", "NOT VERIFIED"),
     }
     try:
         if DATA_ROOT.exists():
@@ -53,14 +101,13 @@ def main() -> int:
         if doctor.returncode != 0:
             raise RuntimeError("Doctor failed")
 
-        daily = subprocess.run(
-            [sys.executable, str(VERSION / "run_daily.py")],
-            cwd=VERSION, env=os.environ.copy(), text=True,
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=3300,
+        daily = run_logged(
+            [sys.executable, "-u", str(VERSION / "run_daily.py")],
+            ROOT / "business_daily.log",
+            cwd=VERSION, env=os.environ.copy(), timeout=3300,
         )
-        (ROOT / "business_daily.log").write_text(daily.stdout, encoding="utf-8")
         report["daily_exit_code"] = daily.returncode
-        report["daily_log_sha256"] = hashlib.sha256(daily.stdout.encode("utf-8")).hexdigest()
+        report["daily_log_sha256"] = sha256(ROOT / "business_daily.log")
         if daily.returncode != 0:
             raise RuntimeError(f"run_daily failed exit={daily.returncode}")
 
@@ -69,21 +116,7 @@ def main() -> int:
             raise RuntimeError(f"last_run is not PASS: {last_run}")
 
         latest = DATA_ROOT / "predictions" / "latest"
-        required = [
-            "manifest.json", "predictions.csv", "summary.json", "model_metrics.json",
-            "data_quality.json", "valuation_status.json", "cost_assumptions.json",
-            "decision.json", "portfolio_balanced.csv", "portfolio_offense.csv",
-            "portfolio_defense.csv",
-        ]
-        missing = [x for x in required if not (latest / x).is_file()]
-        if missing:
-            raise RuntimeError(f"frozen prediction missing files: {missing}")
-
-        manifest = load(latest / "manifest.json")
-        for name, expected in (manifest.get("files") or {}).items():
-            p = latest / name
-            if not p.is_file() or sha256(p) != expected:
-                raise RuntimeError(f"prediction freeze hash mismatch: {name}")
+        verify_prediction_freeze(latest)
 
         summary = load(latest / "summary.json")
         metrics = load(latest / "model_metrics.json")
@@ -149,6 +182,16 @@ def main() -> int:
     except Exception as exc:
         report["error"] = f"{type(exc).__name__}: {exc}"
         report["traceback"] = traceback.format_exc()
+
+    log_path = ROOT / "business_daily.log"
+    if log_path.is_file():
+        report["daily_log_sha256"] = sha256(log_path)
+        report["daily_log_bytes"] = log_path.stat().st_size
+    report["runtime_checkpoints"] = {}
+    for name in ("daily_progress.json", "live_history_progress.json", "bootstrap_history_progress.json", "last_run.json"):
+        path = DATA_ROOT / "state" / name
+        if path.is_file():
+            report["runtime_checkpoints"][name] = load(path)
 
     evidence_path.write_text(
         json.dumps(report, ensure_ascii=False, indent=2, default=str) + "\n",

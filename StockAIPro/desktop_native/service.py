@@ -2,11 +2,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import hashlib
 import json
 import os
 import subprocess
 import sys
 import time
+import uuid
 from typing import Iterable
 
 
@@ -19,6 +21,7 @@ class ActionResult:
     finished_at: float
     stdout: str
     stderr: str
+    invocation_id: str = ""
 
     @property
     def ok(self) -> bool:
@@ -32,13 +35,46 @@ class StockAIService:
     Stock AI modules/scripts; no business logic is embedded in Tkinter.
     """
 
-    def __init__(self, package_root: Path | None = None, timeout_seconds: int = 1800):
+    def __init__(self, package_root: Path | None = None, timeout_seconds: int = 3300):
         self.package_root = (package_root or self._detect_package_root()).resolve()
-        self.timeout_seconds = int(timeout_seconds)
+        self.timeout_seconds = min(3300, int(timeout_seconds))
+        if self.timeout_seconds <= 0:
+            raise ValueError("positive bounded action timeout required")
         self.current = self._read_current()
         self.active_version = str(self.current["active_version"])
         self.version_root = self.package_root / "versions" / self.active_version
         self._validate_layout()
+        executable = Path(sys.executable).resolve()
+        with executable.open("rb") as stream:
+            executable_hash = hashlib.file_digest(stream, "sha256").hexdigest()
+        self.identity = {
+            "pid": os.getpid(),
+            "executable": str(executable),
+            "exe_sha256": executable_hash,
+            "frozen": bool(getattr(sys, "frozen", False)),
+            "source_commit": os.environ.get("STOCK_SOURCE_SHA"),
+            "github_run_id": os.environ.get("GITHUB_RUN_ID"),
+            "github_run_attempt": os.environ.get("GITHUB_RUN_ATTEMPT"),
+            "active_version": self.active_version,
+        }
+
+    def data_root(self) -> Path:
+        explicit = os.environ.get("STOCK_AI_DATA_ROOT")
+        if explicit:
+            return Path(explicit).expanduser().resolve()
+        if os.name == "nt" and os.environ.get("APPDATA"):
+            return Path(os.environ["APPDATA"]) / "StockAIPro"
+        return Path.cwd() / "userdata"
+
+    def write_evidence(self, name: str, payload: dict) -> Path:
+        target = self.data_root() / "evidence" / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        temporary = target.with_suffix(target.suffix + ".tmp")
+        temporary.write_text(json.dumps({**payload, **self.identity,
+                                        "recorded_at": time.time()},
+                                       ensure_ascii=True, indent=2), encoding="utf-8")
+        os.replace(temporary, target)
+        return target
 
     @staticmethod
     def _detect_package_root() -> Path:
@@ -94,20 +130,37 @@ class StockAIService:
 
     def _run(self, action: str, argv: Iterable[str], cwd: Path) -> ActionResult:
         started = time.time()
+        invocation_id = uuid.uuid4().hex
+        command = list(argv)
+        env = self._env()
+        env["STOCK_GUI_INVOCATION_ID"] = invocation_id
+        action_limit = {"update": 180, "repair": 420}.get(action, 3300)
+        timeout = min(self.timeout_seconds, action_limit)
         try:
             proc = subprocess.run(
-                list(argv),
+                command,
                 cwd=str(cwd),
-                env=self._env(),
+                env=env,
                 text=True,
                 encoding="utf-8",
                 errors="replace",
                 capture_output=True,
-                timeout=self.timeout_seconds,
+                timeout=timeout,
                 shell=False,
             )
             status = "PASS" if proc.returncode == 0 else "FAIL"
-            return ActionResult(
+            # Return code 3 is BLOCKED only when the actual updater emitted a
+            # matching structured result. It is never a generic success code.
+            if action == "update" and proc.returncode == 3:
+                for line in reversed(proc.stdout.splitlines()):
+                    try:
+                        payload = json.loads(line)
+                    except (ValueError, TypeError):
+                        continue
+                    if isinstance(payload, dict) and payload.get("status") == "BLOCKED" and payload.get("reason"):
+                        status = "BLOCKED"
+                    break
+            result = ActionResult(
                 action=action,
                 status=status,
                 returncode=int(proc.returncode),
@@ -115,9 +168,10 @@ class StockAIService:
                 finished_at=time.time(),
                 stdout=proc.stdout[-30000:],
                 stderr=proc.stderr[-30000:],
+                invocation_id=invocation_id,
             )
         except subprocess.TimeoutExpired as exc:
-            return ActionResult(
+            result = ActionResult(
                 action=action,
                 status="FAIL",
                 returncode=124,
@@ -125,9 +179,10 @@ class StockAIService:
                 finished_at=time.time(),
                 stdout=(exc.stdout or "")[-30000:] if isinstance(exc.stdout, str) else "",
                 stderr="timeout",
+                invocation_id=invocation_id,
             )
         except Exception as exc:
-            return ActionResult(
+            result = ActionResult(
                 action=action,
                 status="FAIL",
                 returncode=125,
@@ -135,7 +190,22 @@ class StockAIService:
                 finished_at=time.time(),
                 stdout="",
                 stderr=repr(exc),
+                invocation_id=invocation_id,
             )
+        self.write_evidence("service_" + action + ".json", {
+            "schema": "stock-ai-service-invocation-v1",
+            "action": result.action,
+            "status": result.status,
+            "returncode": result.returncode,
+            "invocation_id": invocation_id,
+            "started_at": result.started_at,
+            "finished_at": result.finished_at,
+            "argv": command,
+            "stdout": result.stdout,
+            "stderr": result.stderr,
+            "timeout_seconds": timeout,
+        })
+        return result
 
     def _worker_argv(self, action: str) -> list[str]:
         if getattr(sys, "frozen", False):
@@ -179,15 +249,27 @@ class StockAIService:
         exe = Path(sys.executable).resolve().parent / "StockAIUpdater.exe"
         if getattr(sys, "frozen", False):
             if not exe.exists():
-                return ActionResult(
+                started = time.time()
+                invocation_id = uuid.uuid4().hex
+                result = ActionResult(
                     action="update",
                     status="FAIL",
                     returncode=127,
-                    started_at=time.time(),
+                    started_at=started,
                     finished_at=time.time(),
                     stdout="",
                     stderr=f"independent updater executable missing: {exe}",
+                    invocation_id=invocation_id,
                 )
+                self.write_evidence("service_update.json", {
+                    "schema": "stock-ai-service-invocation-v1",
+                    "action": "update", "status": "FAIL", "returncode": 127,
+                    "invocation_id": invocation_id, "started_at": started,
+                    "finished_at": result.finished_at,
+                    "argv": [str(exe), "--package-root", str(self.package_root)],
+                    "process_invoked": False, "stdout": "", "stderr": result.stderr,
+                })
+                return result
             argv = [str(exe), "--package-root", str(self.package_root)]
         else:
             argv = [

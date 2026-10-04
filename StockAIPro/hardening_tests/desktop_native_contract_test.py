@@ -56,53 +56,6 @@ def check_ast_contracts() -> dict:
     }
 
 
-def check_windowed_worker_stream_contract() -> dict:
-    sys.path.insert(0, str(DESKTOP.resolve()))
-    import worker as worker_mod
-
-    original_stdout, original_stderr = sys.stdout, sys.stderr
-    old_root = os.environ.get("STOCK_AI_DATA_ROOT")
-    result = None
-    with tempfile.TemporaryDirectory() as td:
-        redirected = []
-        try:
-            os.environ["STOCK_AI_DATA_ROOT"] = td
-            worker_mod.sys.stdout = None
-            worker_mod.sys.stderr = None
-            status = worker_mod._ensure_standard_streams()
-            for name in ("stdout", "stderr"):
-                stream = getattr(worker_mod.sys, name)
-                if stream is None or not hasattr(stream, "write"):
-                    fail("windowed worker stream was not restored: " + name)
-                stream.write("stream-contract-" + name + "\n")
-                stream.flush()
-                redirected.append(stream)
-            log = Path(td) / "logs" / "worker_stdio.log"
-            if not log.exists() or "stream-contract-stdout" not in log.read_text(encoding="utf-8"):
-                fail("windowed worker stdio evidence log missing")
-            if status.get("stdout") != str(log) or status.get("stderr") != str(log):
-                fail("windowed worker did not report file-backed streams")
-            result = {"stdio_restored": True, "log_name": log.name}
-        finally:
-            # Windows cannot remove an open redirected log. Restore/close before
-            # TemporaryDirectory.__exit__ attempts cleanup.
-            worker_mod.sys.stdout = original_stdout
-            worker_mod.sys.stderr = original_stderr
-            sys.stdout = original_stdout
-            sys.stderr = original_stderr
-            for stream in redirected:
-                try:
-                    stream.close()
-                except Exception:
-                    pass
-            if old_root is None:
-                os.environ.pop("STOCK_AI_DATA_ROOT", None)
-            else:
-                os.environ["STOCK_AI_DATA_ROOT"] = old_root
-    if result is None:
-        fail("windowed worker stream contract produced no result")
-    return result
-
 def check_service_source_mode() -> dict:
     env = os.environ.copy()
     env["STOCK_AI_PACKAGE_ROOT"] = str(PACKAGE.resolve())
@@ -169,12 +122,50 @@ def check_repair_isolated_data() -> dict:
         }
 
 
+def check_windowed_worker_streams() -> dict:
+    # Actual tqdm writer under the None streams supplied by PyInstaller --windowed.
+    # This regression fixture does not count as real-network acceptance.
+    with tempfile.TemporaryDirectory() as td:
+        env = os.environ.copy()
+        env["STOCK_AI_DATA_ROOT"] = td
+        code = '''
+import json, os, sys
+from pathlib import Path
+from tqdm import tqdm
+import worker
+saved_out, saved_err = sys.stdout, sys.stderr
+try:
+    sys.stdout = sys.stderr = None
+    with worker.windowed_worker_streams("contract"):
+        for _ in tqdm(range(2), mininterval=0):
+            pass
+        print("WINDOWED_PROGRESS_WRITER_PASS")
+    assert sys.stdout is None and sys.stderr is None
+    assert worker.main(["--worker", "core", "--package-root", "missing-package"]) == 1
+    assert sys.stdout is None and sys.stderr is None
+finally:
+    sys.stdout, sys.stderr = saved_out, saved_err
+root = Path(os.environ["STOCK_AI_DATA_ROOT"]) / "evidence"
+assert "WINDOWED_PROGRESS_WRITER_PASS" in (root / "worker_contract.log").read_text(encoding="utf-8")
+failure = json.loads((root / "worker_core.json").read_text(encoding="utf-8"))
+assert failure["status"] == "FAIL" and "FileNotFoundError" in failure["error"]
+assert '"status": "FAIL"' in (root / "worker_core.log").read_text(encoding="utf-8")
+print(json.dumps({"tqdm_windowed_streams": "PASS", "failure_receipt": "PASS", "streams_restored": "PASS"}))
+'''
+        proc = subprocess.run([sys.executable, "-c", code], cwd=DESKTOP, env=env,
+                              text=True, encoding="utf-8", errors="replace",
+                              capture_output=True, timeout=30, shell=False)
+        if proc.returncode != 0:
+            fail("windowed worker stream regression: " + proc.stdout + proc.stderr)
+        return json.loads(proc.stdout.strip().splitlines()[-1])
+
+
 def main() -> int:
     evidence = {
         "ast_contracts": check_ast_contracts(),
         "service_source_mode": check_service_source_mode(),
-        "windowed_worker_streams": check_windowed_worker_stream_contract(),
         "isolated_repair": check_repair_isolated_data(),
+        "windowed_worker_regression": check_windowed_worker_streams(),
         "desktop_final_boundary": {
             "windows_native_build": "NOT VERIFIED",
             "exact_exe": "NOT VERIFIED",

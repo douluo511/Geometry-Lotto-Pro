@@ -1,6 +1,7 @@
 
 from __future__ import annotations
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import re
 import time
 import pandas as pd
@@ -382,8 +383,8 @@ def _upgrade_legacy_history(old: pd.DataFrame) -> pd.DataFrame:
         x["schema_version"] = 3
     return x
 
-def update_symbol_history(code: str, cfg: dict, logger=None) -> pd.DataFrame:
-    ak = _ak()
+def update_symbol_history(code: str, cfg: dict, logger=None, provider=None) -> pd.DataFrame:
+    ak = provider if provider is not None else _ak()
     out = ROOT / "data" / "history" / f"{code}.csv"
     adjust = str(cfg["universe"].get("history_adjust","hfq"))
     start = str(cfg["universe"].get("history_start","20180101"))
@@ -408,22 +409,22 @@ def update_symbol_history(code: str, cfg: dict, logger=None) -> pd.DataFrame:
     nc = cfg.get("network", {}) or {}
     timeout = float(nc.get("timeout_seconds",15))
 
-    # AkShareProxy/NetClient is the single owner of bounded retry/backoff.
-    # Do not retry the same provider again here: doing so multiplies the
-    # configured retry budget (for example 3 x 3 = 9 attempts per symbol)
-    # and can exhaust the full daily gate during a provider-wide outage.
     for fetcher in (_fetch_history_primary, _fetch_history_fallback):
+        # AkShareProxy alone owns bounded transport retries. Retrying here
+        # multiplied 3 configured attempts into 9 requests per provider.
         try:
             new = fetcher(ak, code, start, end, adjust, timeout=timeout)
-            break
         except Exception as e:
             errs.append(f"{fetcher.__name__}: {e}")
+        if new is not None:
+            break
 
     if new is None:
         if out.exists() and not old.empty:
             if logger:
-                logger.warning("%s 两个历史源均失败，保留缓存: %s", code, " | ".join(errs))
-            return old
+                logger.warning("%s 两个历史源均失败，保留缓存但本次更新计为失败: %s", code, " | ".join(errs))
+            # Preserving user data is separate from a successful live refresh.
+            # Counting old cache as ok could conceal a complete provider outage.
         raise RuntimeError(" | ".join(errs))
 
     if not old.empty:
@@ -475,27 +476,69 @@ def fetch_expected_trade_date(logger=None):
         logger.warning("交易日基准主备源均失败，跳过新鲜度硬门禁: %s", " | ".join(errors))
     return None
 
+def _run_history_batch(codes, cfg: dict, phase: str, logger=None):
+    # Keep the production universe and historical date range intact. A small
+    # worker bound overlaps provider I/O rather than reducing the workload.
+    codes = list(dict.fromkeys(map(str, codes)))
+    workers = min(4, max(1, int((cfg.get("network", {}) or {}).get("history_workers", 4))))
+    ak = _ak()
+    completed, failed = 0, []
+    checkpoint = ROOT / "state" / f"{phase}_progress.json"
+    started = time.monotonic()
+
+    def record(status, code=None):
+        write_json(checkpoint, {
+            "status": status, "phase": phase, "total": len(codes),
+            "completed": completed, "failed_count": len(failed),
+            "failed": failed, "last_code": code, "workers": workers,
+            "elapsed_seconds": time.monotonic() - started, "updated_at": now_iso(),
+        })
+
+    def fetch(code):
+        try:
+            return update_symbol_history(code, cfg, logger, provider=ak)
+        finally:
+            time.sleep(float((cfg.get("network", {}) or {}).get("request_delay_seconds", 0.12)))
+
+    record("RUNNING")
+    with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="stock-history") as pool:
+        futures = {pool.submit(fetch, code): code for code in codes}
+        for future in as_completed(futures):
+            code = futures[future]
+            try:
+                value, error = future.result(), None
+            except Exception as exc:
+                value, error = None, str(exc)
+                failed.append({"code": code, "error": error})
+            completed += 1
+            record("COMPLETE" if completed == len(codes) else "RUNNING", code)
+            if logger:
+                logger.info("历史更新进度 %s: %s/%s，失败=%s，当前=%s", phase, completed, len(codes), len(failed), code)
+            yield code, value, error
+    if not codes:
+        record("COMPLETE")
+
+
 def update_live_histories(snapshot: pd.DataFrame, cfg: dict, logger=None) -> dict:
     ok, failed, latest_dates = 0, [], []
     provider_counts = {}
-    for code in snapshot["code"].astype(str):
-        try:
-            x = update_symbol_history(code, cfg, logger)
+    codes = list(dict.fromkeys(snapshot["code"].astype(str)))
+    for code, x, error in _run_history_batch(codes, cfg, "live_history", logger):
+        if error is None:
             ok += 1
             if not x.empty:
                 latest_dates.append(pd.to_datetime(x["date"]).max())
                 if "provider" in x:
                     provider = str(x["provider"].iloc[-1])
                     provider_counts[provider] = provider_counts.get(provider, 0) + 1
-        except Exception as e:
-            failed.append({"code":code,"error":str(e)})
+        else:
+            failed.append({"code":code,"error":error})
             if logger:
-                logger.error("更新 %s 失败: %s", code, e)
-        time.sleep(float((cfg.get("network",{}) or {}).get("request_delay_seconds",0.12)))
+                logger.error("更新 %s 失败: %s", code, error)
 
     latest = max(latest_dates).strftime("%Y-%m-%d") if latest_dates else None
     return {
-        "ok":ok,"failed":failed,"total":len(snapshot),"latest_date":latest,
+        "ok":ok,"failed":failed,"total":len(codes),"latest_date":latest,
         "provider_counts":provider_counts
     }
 
@@ -527,13 +570,11 @@ def bootstrap_research_pool(master: pd.DataFrame, cfg: dict, live_codes=None, lo
         queue += leftovers[:batch-len(queue)]
 
     downloaded, failed = 0, []
-    for code in queue:
-        try:
-            update_symbol_history(code, cfg, logger)
+    for code, _, error in _run_history_batch(queue, cfg, "bootstrap_history", logger):
+        if error is None:
             downloaded += 1
-        except Exception as e:
-            failed.append({"code":code,"error":str(e)})
-        time.sleep(float((cfg.get("network",{}) or {}).get("request_delay_seconds",0.12)))
+        else:
+            failed.append({"code":code,"error":error})
 
     existing_after = {p.stem for p in folder.glob("*.csv")}
     all_codes = set(m["code"])

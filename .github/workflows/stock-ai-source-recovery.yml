@@ -11,6 +11,8 @@ on:
       - 'StockAIPro/requirements-offline-ci.txt'
       - 'StockAIPro/hardening_tests/netclient_contract_test.py'
       - 'StockAIPro/hardening_tests/universe_fallback_test.py'
+      - 'StockAIPro/hardening_tests/history_execution_contract_test.py'
+      - 'StockAIPro/hardening_tests/full_daily_business_gate.py'
       - 'StockAIPro/hardening_tests/real_network_gate.py'
       - '.github/workflows/stock-ai-source-recovery.yml'
 concurrency:
@@ -53,6 +55,8 @@ jobs:
         run: python hardening_tests/netclient_contract_test.py
       - name: Full-universe failover contract gate
         run: python hardening_tests/universe_fallback_test.py
+      - name: Bounded concurrent history and timeout fault regressions
+        run: python hardening_tests/history_execution_contract_test.py
       - name: Immutable 187 file import and full 32 gate Windows offline regression
         run: python verify_recovery.py --repo-root .. --output source_recovery_evidence.json
       - name: Install pinned AkShare for production source integration
@@ -68,6 +72,7 @@ jobs:
             StockAIPro/source_recovery_evidence.json
             StockAIPro/source_recovery_evidence.log
             StockAIPro/netclient_contract_evidence.json
+            StockAIPro/history_execution_contract_evidence.json
             StockAIPro/real_network_evidence.json
             StockAIPro/_real_network_gate_data/evidence/netclient_raw.jsonl
             StockAIPro/_real_network_gate_data/cache/real_network_snapshot.csv

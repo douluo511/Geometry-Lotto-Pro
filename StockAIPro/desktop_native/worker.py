@@ -1,44 +1,34 @@
 from __future__ import annotations
 
 from pathlib import Path
+from contextlib import contextmanager
 import json
+import hashlib
 import os
 import sys
 import traceback
 
 
-def _ensure_standard_streams() -> dict[str, str]:
-    """Guarantee writable text streams for PyInstaller --windowed workers.
-
-    A windowed frozen process can start with sys.stdout/sys.stderr set to None.
-    Some provider libraries (including progress reporters) write to those streams;
-    leaving them None turns a usable network fallback into a frozen-only crash.
-    Source-mode consoles are preserved. Frozen missing streams are redirected to
-    an evidence-friendly append-only log under the isolated data root.
-    """
-    status: dict[str, str] = {}
-    missing = [name for name in ("stdout", "stderr") if getattr(sys, name) is None]
-    log_path: Path | None = None
-    if missing:
-        data_root = Path(os.environ.get("STOCK_AI_DATA_ROOT") or Path.cwd() / "userdata")
-        log_dir = data_root / "logs"
-        log_dir.mkdir(parents=True, exist_ok=True)
-        log_path = log_dir / "worker_stdio.log"
-    for name in ("stdout", "stderr"):
-        stream = getattr(sys, name)
-        if stream is None:
-            stream = log_path.open("a", encoding="utf-8", buffering=1)
-            setattr(sys, name, stream)
-            status[name] = str(log_path)
-        else:
-            try:
-                stream.reconfigure(encoding="utf-8", errors="replace")
-            except Exception:
-                pass
-            status[name] = "existing"
-    if log_path is not None:
-        os.environ["STOCK_AI_WORKER_STDIO_LOG"] = str(log_path)
-    return status
+@contextmanager
+def windowed_worker_streams(action: str):
+    """AkShare/tqdm need writable streams even in a windowed frozen EXE."""
+    original_stdout, original_stderr = sys.stdout, sys.stderr
+    log = None
+    try:
+        if original_stdout is None or original_stderr is None:
+            data_root = Path(os.environ.get("STOCK_AI_DATA_ROOT") or Path.cwd() / "userdata")
+            log_dir = data_root / "evidence"
+            log_dir.mkdir(parents=True, exist_ok=True)
+            log = (log_dir / f"worker_{action}.log").open("a", encoding="utf-8", buffering=1)
+            if original_stdout is None:
+                sys.stdout = log
+            if original_stderr is None:
+                sys.stderr = log
+        yield
+    finally:
+        sys.stdout, sys.stderr = original_stdout, original_stderr
+        if log is not None:
+            log.close()
 
 
 def _version_root(package_root: Path) -> tuple[str, Path]:
@@ -64,10 +54,11 @@ def run_worker(action: str, package_root: Path) -> int:
     if action == "advanced":
         from stock_ai.audit import run_audit
         from stock_ai.backtest import run_backtest
-        audit = run_audit()
         _, summary = run_backtest()
+        audit = run_audit()
         print(json.dumps({
-            "status": "PASS",
+            "execution_status": "PASS",
+            "business_qualification": "NOT VERIFIED",
             "active_version": version,
             "audit_trust": audit.get("trust") if isinstance(audit, dict) else None,
             "backtest": summary,
@@ -84,7 +75,12 @@ def run_worker(action: str, package_root: Path) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    _ensure_standard_streams()
+    for stream in (sys.stdout, sys.stderr):
+        if stream is not None:
+            try:
+                stream.reconfigure(encoding="utf-8", errors="replace")
+            except Exception:
+                pass
     args = list(sys.argv[1:] if argv is None else argv)
     if len(args) < 2 or args[0] != "--worker":
         print("usage: --worker <core|advanced|repair> [--package-root PATH]", file=sys.stderr)
@@ -99,8 +95,32 @@ def main(argv: list[str] | None = None) -> int:
     if not package_root:
         print("STOCK_AI_PACKAGE_ROOT is required", file=sys.stderr)
         return 2
+    with windowed_worker_streams(action):
+        return _execute_worker(action, package_root)
+
+
+def _execute_worker(action: str, package_root: str) -> int:
     try:
-        return run_worker(action, Path(package_root))
+        rc = run_worker(action, Path(package_root))
+        receipt = {
+            "status": "PASS" if rc == 0 else "FAIL",
+            "action": action,
+            "returncode": rc,
+            "source_commit": os.environ.get("STOCK_SOURCE_SHA"),
+            "invocation_id": os.environ.get("STOCK_GUI_INVOCATION_ID"),
+            "frozen": bool(getattr(sys, "frozen", False)),
+            "executable": str(sys.executable),
+        }
+        data_root = Path(os.environ.get("STOCK_AI_DATA_ROOT") or Path.cwd() / "userdata")
+        evidence_dir = data_root / "evidence"
+        evidence_dir.mkdir(parents=True, exist_ok=True)
+        if receipt["frozen"]:
+            receipt["exe_sha256"] = hashlib.sha256(Path(sys.executable).read_bytes()).hexdigest()
+        target = evidence_dir / f"worker_{action}.json"
+        tmp = target.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps(receipt, ensure_ascii=True, indent=2), encoding="utf-8")
+        os.replace(tmp, target)
+        return rc
     except Exception as exc:
         failure = {
             "status": "FAIL",
@@ -110,7 +130,8 @@ def main(argv: list[str] | None = None) -> int:
             "package_root": str(package_root),
             "frozen": bool(getattr(sys, "frozen", False)),
             "executable": str(sys.executable),
-            "worker_stdio_log": os.environ.get("STOCK_AI_WORKER_STDIO_LOG"),
+            "source_commit": os.environ.get("STOCK_SOURCE_SHA"),
+            "invocation_id": os.environ.get("STOCK_GUI_INVOCATION_ID"),
         }
         try:
             data_root = Path(os.environ.get("STOCK_AI_DATA_ROOT") or Path.cwd() / "userdata")

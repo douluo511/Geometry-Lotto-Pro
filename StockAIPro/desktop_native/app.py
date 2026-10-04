@@ -50,7 +50,25 @@ class StockAIDesktop(tk.Tk):
         self.output.pack(fill="both", expand=True, padx=24, pady=(0, 20))
         self.output.insert(tk.END, self._startup_text())
 
+        self.bind("<Configure>", lambda event: self.after_idle(self._record_layout))
+        self.after_idle(self._record_layout)
         self.after(150, self._poll)
+
+    def _record_layout(self) -> None:
+        """Expose live geometry; the acceptance producer still uses real input."""
+        self.service.write_evidence("ui_layout.json", {
+            "schema": "stock-ai-live-tk-layout-v1",
+            "window_title": self.title(),
+            "busy": self._busy,
+            "buttons": {
+                str(button.cget("text")): {
+                    "x": button.winfo_rootx() + button.winfo_width() // 2,
+                    "y": button.winfo_rooty() + button.winfo_height() // 2,
+                    "state": str(button.cget("state")),
+                }
+                for button in (self.btn_core, self.btn_update, self.btn_repair, self.btn_analysis)
+            },
+        })
 
     def _startup_text(self) -> str:
         return (
@@ -77,6 +95,7 @@ class StockAIDesktop(tk.Tk):
         state = tk.DISABLED if busy else tk.NORMAL
         for b in (self.btn_core, self.btn_update, self.btn_repair, self.btn_analysis):
             b.configure(state=state)
+        self.after_idle(self._record_layout)
 
     def _start(self, label: str, action) -> None:
         if self._busy:
@@ -118,6 +137,7 @@ class StockAIDesktop(tk.Tk):
             "returncode": result.returncode,
             "started_at": result.started_at,
             "finished_at": result.finished_at,
+            "invocation_id": result.invocation_id,
         }
         self.output.insert(tk.END, json.dumps(payload, ensure_ascii=False) + "\n")
         if result.stdout:
@@ -126,7 +146,9 @@ class StockAIDesktop(tk.Tk):
             self.output.insert(tk.END, "STDERR:\n" + result.stderr + "\n")
         self.output.see(tk.END)
         self._set_busy(False)
-        if not result.ok:
+        if result.status == "BLOCKED":
+            messagebox.showwarning("Stock AI Pro", f"{result.action} -> BLOCKED\nrc={result.returncode}\n{result.stdout}")
+        elif not result.ok:
             messagebox.showerror("Stock AI Pro", f"{result.action} -> {result.status}\nrc={result.returncode}")
 
     def self_test(self) -> int:

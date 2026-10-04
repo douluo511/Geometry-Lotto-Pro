@@ -7,9 +7,10 @@ on:
     paths:
       - 'StockAIPro/desktop_native/**'
       - 'StockAIPro/staging/**'
+      - 'StockAIPro/hardening_tests/netclient_contract_test.py'
       - 'StockAIPro/hardening_tests/desktop_native_contract_test.py'
       - 'StockAIPro/hardening_tests/desktop_gui_physical_click_gate.py'
-      - 'StockAIPro/hardening_tests/netclient_contract_test.py'
+      - 'StockAIPro/hardening_tests/collect_worker_diagnostics.py'
       - '.github/workflows/stock-ai-desktop-candidate.yml'
 
 concurrency:
@@ -22,7 +23,7 @@ permissions:
 jobs:
   desktop-candidate:
     runs-on: windows-2022
-    timeout-minutes: 120
+    timeout-minutes: 240
     env:
       PYTHONUTF8: '1'
       PYTHONIOENCODING: 'utf-8'
@@ -56,7 +57,11 @@ jobs:
           python -m pip install --disable-pip-version-check pywinauto==0.6.9 pillow==11.3.0
 
       - name: Native desktop service, repair, and updater contract gate
-        run: python hardening_tests/desktop_native_contract_test.py
+        run: |
+          python hardening_tests/desktop_native_contract_test.py
+          if ($LASTEXITCODE -ne 0) { throw "native desktop contracts failed" }
+          python hardening_tests/desktop_gui_physical_click_gate.py --contract-test
+          if ($LASTEXITCODE -ne 0) { throw "GUI source contracts failed" }
 
       - name: Build native Windows main and independent updater candidates
         shell: pwsh
@@ -67,7 +72,7 @@ jobs:
         run: |
           $exe = Resolve-Path ./dist/StockAIPro/StockAIPro.exe
           $before = (Get-FileHash -Algorithm SHA256 $exe).Hash.ToLowerInvariant()
-          $proc = Start-Process -FilePath $exe -ArgumentList '--self-test' -Wait -PassThru
+          $proc = Start-Process -FilePath $exe -ArgumentList '--self-test' -Wait -PassThru -WindowStyle Hidden
           if ($proc.ExitCode -ne 0) { throw "StockAIPro.exe self-test failed rc=$($proc.ExitCode)" }
           $after = (Get-FileHash -Algorithm SHA256 $exe).Hash.ToLowerInvariant()
           if ($before -ne $after) { throw "EXE changed after self-test: $before != $after" }
@@ -87,7 +92,7 @@ jobs:
           $root = Resolve-Path ./dist/StockAIPro/_internal/Stock_AI_Pro
           $env:STOCK_AI_DATA_ROOT = Join-Path $env:RUNNER_TEMP "stock-ai-repair-worker"
           $before = (Get-FileHash -Algorithm SHA256 $exe).Hash.ToLowerInvariant()
-          $proc = Start-Process -FilePath $exe -ArgumentList @('--worker','repair','--package-root',"$root") -Wait -PassThru
+          $proc = Start-Process -FilePath $exe -ArgumentList @('--worker','repair','--package-root',"$root") -Wait -PassThru -WindowStyle Hidden
           $workerEvidence = Join-Path $env:STOCK_AI_DATA_ROOT "evidence/worker_repair.json"
           if (Test-Path $workerEvidence) {
             Copy-Item -Force $workerEvidence ./desktop_repair_worker_evidence.json
@@ -106,19 +111,12 @@ jobs:
           $data = Join-Path $env:RUNNER_TEMP "stock-ai-frozen-business"
           $env:STOCK_AI_DATA_ROOT = $data
           $before = (Get-FileHash -Algorithm SHA256 $exe).Hash.ToLowerInvariant()
-          $proc = Start-Process -FilePath $exe -ArgumentList @('--worker','core','--package-root',"$root") -Wait -PassThru
-          $workerEvidence = Join-Path $data "evidence/worker_core.json"
-          if (Test-Path $workerEvidence) {
-            Copy-Item -Force $workerEvidence ./desktop_core_worker_evidence.json
-            Get-Content -Raw $workerEvidence | Write-Host
-          }
-          $stdioLog = Join-Path $data "logs/worker_stdio.log"
-          if (Test-Path $stdioLog) { Copy-Item -Force $stdioLog ./desktop_worker_stdio.log }
+          $proc = Start-Process -FilePath $exe -ArgumentList @('--worker','core','--package-root',"$root") -Wait -PassThru -WindowStyle Hidden
           if ($proc.ExitCode -ne 0) { throw "frozen core worker failed rc=$($proc.ExitCode)" }
           $lastRun = Join-Path $data "state/last_run.json"
           if (!(Test-Path $lastRun)) { throw "frozen core produced no last_run.json" }
           $last = Get-Content -Raw $lastRun | ConvertFrom-Json
-          if ($last.status -eq "FAIL") { throw "frozen core last_run status FAIL: $($last.error)" }
+          if ($last.status -ne "PASS") { throw "frozen core last_run not explicit PASS: $($last.status)" }
           $latest = Join-Path $data "predictions/latest/summary.json"
           if (!(Test-Path $latest)) { throw "frozen core produced no frozen prediction summary" }
           $after = (Get-FileHash -Algorithm SHA256 $exe).Hash.ToLowerInvariant()
@@ -139,18 +137,12 @@ jobs:
           $root = Resolve-Path ./dist/StockAIPro/_internal/Stock_AI_Pro
           $env:STOCK_AI_DATA_ROOT = Join-Path $env:RUNNER_TEMP "stock-ai-frozen-business"
           $before = (Get-FileHash -Algorithm SHA256 $exe).Hash.ToLowerInvariant()
-          $proc = Start-Process -FilePath $exe -ArgumentList @('--worker','advanced','--package-root',"$root") -Wait -PassThru
+          $proc = Start-Process -FilePath $exe -ArgumentList @('--worker','advanced','--package-root',"$root") -Wait -PassThru -WindowStyle Hidden
           if ($proc.ExitCode -ne 0) { throw "frozen advanced worker failed rc=$($proc.ExitCode)" }
-          if (!(Test-Path (Join-Path $env:STOCK_AI_DATA_ROOT "reports/audit_report.json"))) { throw "audit report missing" }
-          if (!(Test-Path (Join-Path $env:STOCK_AI_DATA_ROOT "reports/backtest_summary.json"))) { throw "backtest summary missing" }
           $after = (Get-FileHash -Algorithm SHA256 $exe).Hash.ToLowerInvariant()
           if ($before -ne $after) { throw "EXE changed after advanced analysis: $before != $after" }
-          [ordered]@{
-            status = "PASS"
-            action = "advanced_analysis"
-            exe_sha256_before = $before
-            exe_sha256_after = $after
-          } | ConvertTo-Json -Depth 5 | Set-Content -Encoding UTF8 ./desktop_frozen_advanced_evidence.json
+          python hardening_tests/validate_frozen_advanced.py --data-root $env:STOCK_AI_DATA_ROOT --exe $exe --output desktop_frozen_advanced_evidence.json
+          if ($LASTEXITCODE -ne 0) { throw "frozen advanced business output validation failed" }
 
       - name: Physical GUI click gate on the same Windows EXE
         shell: pwsh
@@ -168,6 +160,13 @@ jobs:
           if ($rc -ne 3) { throw "expected updater BLOCKED rc=3 without production release config, got $rc" }
           Write-Host "UPDATER_REAL_RELEASE=BLOCKED; reason=production signed manifest/release context absent"
 
+      - name: Collect sanitized CI worker diagnostics
+        if: always()
+        shell: pwsh
+        run: |
+          $data = Join-Path $env:RUNNER_TEMP "stock-ai-frozen-business"
+          python hardening_tests/collect_worker_diagnostics.py --data-root $data --output desktop_worker_diagnostic.json
+
       - name: Upload current Windows candidate and evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -179,22 +178,26 @@ jobs:
             StockAIPro/desktop_windows_build_evidence.json
             StockAIPro/desktop_exact_exe_evidence.json
             StockAIPro/desktop_frozen_core_evidence.json
-            StockAIPro/desktop_core_worker_evidence.json
-            StockAIPro/desktop_worker_stdio.log
             StockAIPro/desktop_frozen_advanced_evidence.json
             StockAIPro/desktop_repair_worker_evidence.json
             StockAIPro/desktop_gui_click_evidence.json
             StockAIPro/desktop_gui_click_evidence.png
+            StockAIPro/desktop_worker_diagnostic.json
           if-no-files-found: warn
 
       - name: Explicit Final boundary
         if: success()
         shell: pwsh
         run: |
-          Write-Host "WINDOWS_NATIVE_BUILD=CANDIDATE_PASS"
-          Write-Host "EXACT_EXE_SELF_TEST=CANDIDATE_PASS"
-          Write-Host "PHYSICAL_GUI_CORE_REPAIR_ADVANCED=PASS"
-          Write-Host "PHYSICAL_GUI_UPDATE_POSITIVE=BLOCKED"
+          $build = Get-Content -Raw ./desktop_windows_build_evidence.json | ConvertFrom-Json
+          $exact = Get-Content -Raw ./desktop_exact_exe_evidence.json | ConvertFrom-Json
+          $gui = Get-Content -Raw ./desktop_gui_click_evidence.json | ConvertFrom-Json
+          Write-Host "WINDOWS_NATIVE_BUILD=$($build.status)"
+          Write-Host "EXACT_EXE_SELF_TEST=$($exact.status)"
+          Write-Host "PHYSICAL_GUI_ENTRY_INVOCATIONS=$($gui.physical_gui_entry_invocations)"
+          Write-Host "PHYSICAL_GUI_CORE_REPAIR_ADVANCED=$($gui.physical_gui_positive_actions)"
+          Write-Host "PHYSICAL_GUI_UPDATE_POSITIVE=$($gui.physical_gui_update_positive)"
+          Write-Host "BUSINESS_AUDIT=$($gui.actions.advanced_analysis.status)"
           Write-Host "REAL_RELEASE_UPDATE=BLOCKED"
           Write-Host "REPOSITORY_INDEPENDENCE=BLOCKED"
           Write-Host "FINAL_GATE=FAIL"
