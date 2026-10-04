@@ -91,19 +91,38 @@ class BusinessBoundaries(unittest.TestCase):
         gate_names = ("cost_slippage_model", "liquidity_capacity", "corporate_action_adjustment",
                       "leakage_safe_time_split", "survivorship_selection_control", "oos_walk_forward",
                       "bootstrap", "ablation", "stability", "multiple_testing_correction")
+        acceptance_text = (Path(__file__).resolve().parents[1] / "ACCEPTANCE_CONTRACT.json").read_text(
+            encoding="utf-8"
+        )
         with tempfile.TemporaryDirectory() as td, patch.dict(os.environ, {"SOURCE_SHA": "a"*40}):
             previous = Path.cwd()
             try:
                 os.chdir(td)
-                Path("business_qualification_evidence.json").write_text(json.dumps({"status": "PASS",
-                    "real_market_research_qualification": {"gates": {x: "PASS" for x in gate_names}}}))
+                Path("ACCEPTANCE_CONTRACT.json").write_text(acceptance_text, encoding="utf-8")
+                Path("business_qualification_evidence.json").write_text(json.dumps({
+                    "status": "PASS",
+                    "real_market_research_qualification": {
+                        "business_qualification_status": "NOT VERIFIED",
+                        "gates": {x: "PASS" for x in gate_names},
+                        "capital_deployment_ready": False,
+                    },
+                }))
                 with redirect_stdout(io.StringIO()):
                     collect()
                 evidence = json.loads(Path("candidate_manifest.json").read_text())
                 self.assertEqual(evidence["business_qualification_status"], "NOT VERIFIED")
-                for key in ("cost_slippage_liquidity_corporate_action", "leakage_survivorship_time_splits",
-                            "oos_walk_forward_bootstrap_ablation_stability_multiple_testing"):
-                    self.assertEqual(evidence["gates"][key], "NOT VERIFIED")
+                self.assertEqual(evidence["business_completion"]["status"], "NOT VERIFIED")
+                for key in (
+                    "cost_slippage_calibration", "liquidity_capacity", "corporate_action_point_in_time",
+                    "leakage_point_in_time", "survivorship_precommitted_universe",
+                    "walk_forward_holdout_power", "dependence_aware_bootstrap", "ablation_replication",
+                    "regime_stability", "multiple_testing_search_family",
+                ):
+                    self.assertEqual(
+                        evidence["business_completion"]["gate_statuses"][key],
+                        "NOT VERIFIED",
+                    )
+                self.assertLess(evidence["business_completion"]["percent"], 100.0)
                 self.assertEqual(evidence["final_gate"], "FAIL")
             finally:
                 os.chdir(previous)

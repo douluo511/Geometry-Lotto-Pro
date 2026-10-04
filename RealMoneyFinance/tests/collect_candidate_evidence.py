@@ -54,6 +54,7 @@ def main():
     business = read("business_qualification_evidence.json")
     business_real = business.get("real_market_research_qualification", {}) if business.get("status") == "PASS" else {}
     business_gates = business_real.get("gates", {})
+    business_qualified = business_real.get("business_qualification_status") == "PASS"
     build = read("windows_build_evidence.json")
     exact = read("exact_exe_evidence.json")
     gui = read("gui_click_evidence.json")
@@ -141,22 +142,25 @@ def main():
         and isinstance(base_walk.get("cash_baseline_mean_return"), (int, float))
     ) else "NOT VERIFIED"
 
+    def qualified_business_gate(name):
+        return "PASS" if business_qualified and business_gates.get(name) == "PASS" else "NOT VERIFIED"
+
     business_statuses = {
         "public_l1_identity_boundary": "PASS" if contract.get("status") == "PASS" else "NOT VERIFIED",
         "observable_activity_analysis": "PASS" if (
             network.get("status") == "PASS" and bool(network.get("activity_state"))
         ) else "NOT VERIFIED",
         "source_freshness": "NOT VERIFIED",
-        "cost_slippage_calibration": business_gates.get("cost_slippage_model", "NOT VERIFIED"),
-        "liquidity_capacity": business_gates.get("liquidity_capacity", "NOT VERIFIED"),
-        "corporate_action_point_in_time": business_gates.get("corporate_action_adjustment", "NOT VERIFIED"),
-        "leakage_point_in_time": business_gates.get("leakage_safe_time_split", "NOT VERIFIED"),
-        "survivorship_precommitted_universe": business_gates.get("survivorship_selection_control", "NOT VERIFIED"),
-        "walk_forward_holdout_power": business_gates.get("oos_walk_forward", "NOT VERIFIED"),
-        "dependence_aware_bootstrap": business_gates.get("bootstrap", "NOT VERIFIED"),
-        "ablation_replication": business_gates.get("ablation", "NOT VERIFIED"),
-        "regime_stability": business_gates.get("stability", "NOT VERIFIED"),
-        "multiple_testing_search_family": business_gates.get("multiple_testing_correction", "NOT VERIFIED"),
+        "cost_slippage_calibration": qualified_business_gate("cost_slippage_model"),
+        "liquidity_capacity": qualified_business_gate("liquidity_capacity"),
+        "corporate_action_point_in_time": qualified_business_gate("corporate_action_adjustment"),
+        "leakage_point_in_time": qualified_business_gate("leakage_safe_time_split"),
+        "survivorship_precommitted_universe": qualified_business_gate("survivorship_selection_control"),
+        "walk_forward_holdout_power": qualified_business_gate("oos_walk_forward"),
+        "dependence_aware_bootstrap": qualified_business_gate("bootstrap"),
+        "ablation_replication": qualified_business_gate("ablation"),
+        "regime_stability": qualified_business_gate("stability"),
+        "multiple_testing_search_family": qualified_business_gate("multiple_testing_correction"),
         "baseline_comparison": baseline_comparison,
         "economic_signal_qualification_decision": (
             "PASS" if business_real.get("business_qualification_status") == "PASS"
