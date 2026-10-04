@@ -46,19 +46,22 @@ def _feature_point(rows: list[DailyBar], index: int, fields: tuple[str, ...]) ->
 
 def _observations(rows: list[DailyBar], fields: tuple[str, ...]) -> list[dict]:
     points: list[dict] = []
-    for i in range(20, len(rows) - 1):
+    # A finalized close/volume feature is unavailable at that same close. Execute
+    # at the following open and hold to the next open, preserving A-share T+1.
+    for i in range(20, len(rows) - 2):
         score = _feature_point(rows, i, fields)
         if score is None:
             continue
-        close = float(rows[i].close)
-        nxt = float(rows[i + 1].close)
-        if close <= 0 or nxt <= 0:
+        entry = float(rows[i + 1].open)
+        exit_price = float(rows[i + 2].open)
+        if not math.isfinite(entry) or not math.isfinite(exit_price) or entry <= 0 or exit_price <= 0:
             continue
         points.append({
             "feature_date": rows[i].trade_date,
-            "outcome_date": rows[i + 1].trade_date,
+            "entry_date": rows[i + 1].trade_date,
+            "outcome_date": rows[i + 2].trade_date,
             "score": score,
-            "next_return": nxt / close - 1.0,
+            "next_return": exit_price / entry - 1.0,
             "amount": float(rows[i].amount or 0.0),
         })
     return points
@@ -72,6 +75,7 @@ def _walk_forward(points: list[dict], cost_bps: float, train_min: int = 60, fold
     folds: list[dict] = []
     start = train_min
     previous_position = 0
+    costs: list[float] = []
     while start < len(points):
         stop = min(len(points), start + fold_size)
         train = points[:start]
@@ -85,6 +89,7 @@ def _walk_forward(points: list[dict], cost_bps: float, train_min: int = 60, fold
             cost = turnover * cost_bps / 10000.0
             net_return = gross_return - cost
             gross.append(gross_return)
+            costs.append(cost)
             oos.append(net_return)
             fold_net.append(net_return)
             previous_position = position
@@ -97,6 +102,17 @@ def _walk_forward(points: list[dict], cost_bps: float, train_min: int = 60, fold
             "mean_net_return": mean(fold_net) if fold_net else 0.0,
         })
         start = stop
+    # A remaining long must sell at the last outcome open. Without this charge,
+    # an all-long path pays only its purchase cost and understates round trips.
+    if previous_position:
+        closing_cost = cost_bps / 10000.0
+        oos[-1] -= closing_cost
+        costs[-1] += closing_cost
+        last_fold = folds[-1]
+        last_fold["mean_net_return"] -= closing_cost / last_fold["test_count"]
+    baseline = [x["next_return"] for x in points[train_min:]]
+    baseline[0] -= cost_bps / 10000.0
+    baseline[-1] -= cost_bps / 10000.0
     return {
         "folds": folds,
         "oos_net_returns": oos,
@@ -105,6 +121,10 @@ def _walk_forward(points: list[dict], cost_bps: float, train_min: int = 60, fold
         "mean_net_return": mean(oos) if oos else 0.0,
         "mean_gross_return": mean(gross) if gross else 0.0,
         "hit_rate": sum(1 for x in oos if x > 0) / max(1, len(oos)),
+        "total_cost_return": sum(costs),
+        "buy_and_hold_baseline_mean_net_return": mean(baseline),
+        "cash_baseline_mean_return": 0.0,
+        "execution_timing": "feature close t; rebalance open t+1; return open t+1 to t+2; final liquidation charged",
     }
 
 
@@ -145,16 +165,24 @@ def qualify_research(
 ) -> dict:
     ordered = list(rows)
     assumptions = assumptions or CostAssumptions()
+    if any(not math.isfinite(v) or v < 0 for v in (
+        assumptions.commission_bps_each_side, assumptions.slippage_bps_each_side, assumptions.sell_tax_bps
+    )) or not 0 < assumptions.max_participation_rate <= 1:
+        raise ValueError("cost assumptions must be finite, nonnegative; participation must be in (0, 1]")
     if len(ordered) < 120:
         raise ValueError("at least 120 validated adjusted daily bars are required")
     if not _strict_dates(ordered):
         raise ValueError("bars must be unique and strictly chronological")
 
     adjustment = str(source_meta.get("price_adjustment", "")).lower()
-    corporate_action = "PASS" if adjustment == "qfq" else "NOT VERIFIED"
+    # A provider's adjustment label is lineage, not independently verified
+    # corporate-action factors, dates or point-in-time availability.
+    corporate_action = "NOT VERIFIED"
     positive_amount = sum(1 for x in ordered if float(x.amount or 0.0) > 0)
     amount_coverage = positive_amount / len(ordered)
-    liquidity = "PASS" if amount_coverage >= 0.95 else "NOT VERIFIED"
+    # Positive daily amount neither states an order size nor proves executable
+    # participation/impact. No capacity PASS can be inferred from coverage.
+    liquidity = "NOT VERIFIED"
 
     feature_sets = {
         "all_available": ("amount", "turnover_rate", "volume"),
@@ -208,46 +236,62 @@ def qualify_research(
 
     base = results[base_name]
     base_corrected = float(base.get("bonferroni_p_value", 1.0))
-    economic_signal_qualified = (
+    diagnostic_thresholds_met = (
         base["walk_forward"]["mean_net_return"] > 0
         and base["bootstrap"]["mean_ci95"][0] > 0
         and base_corrected <= 0.05
         and all(x["mean_net_return"] > 0 for x in stability.values())
-        and liquidity == "PASS"
-        and corporate_action == "PASS"
     )
 
-    gates = {
+    method_gates = {
         "cost_slippage_model": "PASS",
-        "liquidity_capacity": liquidity,
-        "corporate_action_adjustment": corporate_action,
         "leakage_safe_time_split": "PASS",
-        "survivorship_selection_control": "NOT VERIFIED",
         "oos_walk_forward": "PASS",
         "bootstrap": "PASS",
-        "ablation": "PASS",
+        "ablation": "PASS" if all(x.get("status") == "PASS" for x in results.values()) else "NOT VERIFIED",
         "stability": "PASS",
         "multiple_testing_correction": "PASS",
     }
+    gaps = {
+        "cost_slippage_model": "Illustrative basis-point assumptions lack current exchange/broker calibration and observed execution slippage.",
+        "liquidity_capacity": "No order notional, executable participation, spread/impact or limit/suspension fill evidence.",
+        "corporate_action_adjustment": "Provider qfq label lacks verified action factors/dates and point-in-time lineage.",
+        "leakage_safe_time_split": "Lagged execution and train-only splits are implemented; point-in-time source availability is unverified.",
+        "survivorship_selection_control": "User-selected single symbol lacks a precommitted survivorship-safe investable universe.",
+        "oos_walk_forward": "A short single-symbol run does not verify a frozen holdout/power requirement or performance versus baseline.",
+        "bootstrap": "IID resampling lacks dependence-aware return resampling and coverage validation.",
+        "ablation": "Variant computation alone does not establish a stable independently replicated ablation result.",
+        "stability": "Three assumed cost multipliers do not establish regime/market/sample stability.",
+        "multiple_testing_correction": "Bonferroni covers executed variants only; the full prior search family is not frozen or accounted for.",
+    }
+    gates = {key: "NOT VERIFIED" for key in gaps}
     return {
         "status": "PASS",
-        "scope": "research qualification; not personalized investment advice",
+        "scope": "method execution diagnostics; full business qualification is NOT VERIFIED",
+        "method_execution_status": "PASS",
+        "business_qualification_status": "NOT VERIFIED",
         "symbol": ordered[-1].symbol,
         "asof": ordered[-1].trade_date,
         "rows": len(ordered),
         "source_provider": source_meta.get("provider"),
         "source_price_adjustment": adjustment or None,
         "amount_coverage": amount_coverage,
+        "liquidity_capacity_status": liquidity,
+        "corporate_action_status": corporate_action,
         "cost_assumptions": asdict(assumptions),
         "round_trip_cost_bps_assumption": assumptions.round_trip_bps(),
         "base_feature_set": base_name,
         "feature_results": results,
         "stability": stability,
         "gates": gates,
-        "economic_signal_qualified": economic_signal_qualified,
+        "method_gates": method_gates,
+        "qualification_gaps": gaps,
+        "diagnostic_thresholds_met": diagnostic_thresholds_met,
+        "economic_signal_qualified": False,
         "capital_deployment_ready": False,
         "selection_bias_boundary": (
             "This gate evaluates a user-selected single symbol. It does not prove a survivorship-safe "
             "precommitted investable universe, so portfolio deployment remains fail-closed."
         ),
     }
+

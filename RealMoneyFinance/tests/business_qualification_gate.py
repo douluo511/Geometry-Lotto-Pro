@@ -9,6 +9,7 @@ from app.business_validation import CostAssumptions, qualify_research
 from app.domain import DailyBar
 from app.netclient import NetClient
 from app.source_market import fetch_daily_bars_failover
+from tests.business_failclosed_contract import run_contract
 
 
 def synthetic_contract() -> dict:
@@ -35,18 +36,20 @@ def synthetic_contract() -> dict:
         ))
     got = qualify_research(rows, {"provider": "synthetic_contract_only", "price_adjustment": "qfq"})
     required = [
-        "cost_slippage_model", "liquidity_capacity", "corporate_action_adjustment",
+        "cost_slippage_model",
         "leakage_safe_time_split", "oos_walk_forward", "bootstrap", "ablation",
         "stability", "multiple_testing_correction",
     ]
     for key in required:
-        if got["gates"].get(key) != "PASS":
-            raise AssertionError(f"synthetic methodological control did not PASS: {key}={got['gates'].get(key)}")
+        if got["method_gates"].get(key) != "PASS":
+            raise AssertionError(f"synthetic methodological control did not PASS: {key}={got['method_gates'].get(key)}")
+    if any(value == "PASS" for value in got["gates"].values()):
+        raise AssertionError("synthetic method execution cannot promote full business qualification")
     if got["gates"]["survivorship_selection_control"] != "NOT VERIFIED":
         raise AssertionError("single-symbol selection must not claim survivorship-safe universe")
     if got["capital_deployment_ready"] is not False:
         raise AssertionError("business qualification must not enable capital deployment")
-    return {"status": "PASS", "gates": got["gates"]}
+    return {"status": "PASS", "method_gates": got["method_gates"], "business_gates": got["gates"]}
 
 
 def real_network_qualification() -> dict:
@@ -66,6 +69,7 @@ def main() -> int:
     try:
         evidence = {
             "status": "PASS",
+            "business_boundary_contract": run_contract(),
             "synthetic_method_contract": synthetic_contract(),
             "real_market_research_qualification": real_network_qualification(),
         }
@@ -85,3 +89,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

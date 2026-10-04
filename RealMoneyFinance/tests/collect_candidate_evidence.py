@@ -27,6 +27,7 @@ def main():
     business=read("business_qualification_evidence.json")
     business_real=business.get("real_market_research_qualification", {}) if business.get("status")=="PASS" else {}
     business_gates=business_real.get("gates", {})
+    business_qualified=business_real.get("business_qualification_status")=="PASS"
     build=read("windows_build_evidence.json")
     exact=read("exact_exe_evidence.json")
     gui=read("gui_click_evidence.json")
@@ -51,17 +52,17 @@ def main():
         "repository_independence": "BLOCKED",
         "same_hash_build_exact_gui_current_bytes": same_hash,
         "cost_slippage_liquidity_corporate_action": (
-            "PASS" if all(business_gates.get(x)=="PASS" for x in (
+            "PASS" if business_qualified and all(business_gates.get(x)=="PASS" for x in (
                 "cost_slippage_model","liquidity_capacity","corporate_action_adjustment"
             )) else "NOT VERIFIED"
         ),
         "leakage_survivorship_time_splits": (
-            "PASS" if all(business_gates.get(x)=="PASS" for x in (
+            "PASS" if business_qualified and all(business_gates.get(x)=="PASS" for x in (
                 "leakage_safe_time_split","survivorship_selection_control"
             )) else "NOT VERIFIED"
         ),
         "oos_walk_forward_bootstrap_ablation_stability_multiple_testing": (
-            "PASS" if all(business_gates.get(x)=="PASS" for x in (
+            "PASS" if business_qualified and all(business_gates.get(x)=="PASS" for x in (
                 "oos_walk_forward","bootstrap","ablation","stability","multiple_testing_correction"
             )) else "NOT VERIFIED"
         ),
@@ -71,7 +72,9 @@ def main():
               "engineering_completion":{"status":"NOT VERIFIED", "frozen_denominator":None},
               "business_completion":{"status":"NOT VERIFIED", "frozen_denominator":None},
               "known_non_pass_gate_count":sum(value!="PASS" for value in gates.values()),
-              "business_qualification_status":business.get("status","NOT VERIFIED"),
+              "business_method_execution_status":business.get("status","NOT VERIFIED"),
+              "business_qualification_status":business_real.get("business_qualification_status","NOT VERIFIED"),
+              "business_qualification_gaps":business_real.get("qualification_gaps",{}),
               "economic_signal_qualified":business_real.get("economic_signal_qualified",False),
               "capital_deployment_ready":False, "final_gate":"FAIL", "delivery_allowed":False,
               "note":"Known diagnostic gates are not a frozen full engineering/business denominator."}
@@ -82,3 +85,4 @@ def main():
 
 if __name__=="__main__":
     raise SystemExit(main())
+
