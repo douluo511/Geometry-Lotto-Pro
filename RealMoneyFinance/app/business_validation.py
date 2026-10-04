@@ -20,6 +20,24 @@ class CostAssumptions:
         return 2.0 * (self.commission_bps_each_side + self.slippage_bps_each_side) + self.sell_tax_bps
 
 
+# Frozen before qualification. Every declared candidate stays in the multiple-
+# testing denominator even if a provider lacks one of its fields.
+FROZEN_SEARCH_FAMILY = {
+    "all_available": ("amount", "turnover_rate", "volume"),
+    "volume_only": ("volume",),
+    "amount_only": ("amount",),
+    "turnover_only": ("turnover_rate",),
+}
+FROZEN_METHOD_THRESHOLDS = {
+    "min_oos_observations": 120,
+    "min_walk_forward_folds": 6,
+    "moving_block_length": 5,
+    "bootstrap_samples": 1000,
+    "regime_windows": 3,
+    "min_regime_observations": 30,
+}
+
+
 def _strict_dates(rows: list[DailyBar]) -> bool:
     dates = [x.trade_date for x in rows]
     return len(dates) == len(set(dates)) and dates == sorted(dates)
@@ -128,19 +146,36 @@ def _walk_forward(points: list[dict], cost_bps: float, train_min: int = 60, fold
     }
 
 
-def _bootstrap_ci(values: list[float], seed: int = 20261004, samples: int = 1000) -> dict:
-    if len(values) < 20:
-        raise ValueError("insufficient OOS values for bootstrap")
+def _moving_block_bootstrap_ci(
+    values: list[float],
+    seed: int = 20261004,
+    samples: int = 1000,
+    block_length: int = 5,
+) -> dict:
+    if len(values) < max(20, block_length * 4):
+        raise ValueError("insufficient OOS values for dependence-aware bootstrap")
+    if block_length < 2 or block_length > len(values):
+        raise ValueError("invalid moving bootstrap block length")
     rng = random.Random(seed)
-    means = []
     n = len(values)
+    starts = list(range(0, n - block_length + 1))
+    means = []
     for _ in range(samples):
-        draw = [values[rng.randrange(n)] for _ in range(n)]
-        means.append(mean(draw))
+        draw: list[float] = []
+        while len(draw) < n:
+            start = starts[rng.randrange(len(starts))]
+            draw.extend(values[start:start + block_length])
+        means.append(mean(draw[:n]))
     means.sort()
     lo = means[int(0.025 * (samples - 1))]
     hi = means[int(0.975 * (samples - 1))]
-    return {"samples": samples, "seed": seed, "mean_ci95": [lo, hi]}
+    return {
+        "method": "moving_block_bootstrap",
+        "samples": samples,
+        "seed": seed,
+        "block_length": block_length,
+        "mean_ci95": [lo, hi],
+    }
 
 
 def _two_sided_normal_p(values: list[float]) -> float:
@@ -153,9 +188,10 @@ def _two_sided_normal_p(values: list[float]) -> float:
     return min(1.0, 2.0 * (1.0 - NormalDist().cdf(z)))
 
 
-def _bonferroni(p_values: dict[str, float]) -> dict[str, float]:
-    m = max(1, len(p_values))
-    return {name: min(1.0, value * m) for name, value in p_values.items()}
+def _bonferroni(p_values: dict[str, float], family_size: int) -> dict[str, float]:
+    if family_size < len(p_values) or family_size <= 0:
+        raise ValueError("multiple-testing family size cannot be smaller than executed tests")
+    return {name: min(1.0, value * family_size) for name, value in p_values.items()}
 
 
 def qualify_research(
@@ -184,12 +220,7 @@ def qualify_research(
     # participation/impact. No capacity PASS can be inferred from coverage.
     liquidity = "NOT VERIFIED"
 
-    feature_sets = {
-        "all_available": ("amount", "turnover_rate", "volume"),
-        "volume_only": ("volume",),
-        "amount_only": ("amount",),
-        "turnover_only": ("turnover_rate",),
-    }
+    feature_sets = dict(FROZEN_SEARCH_FAMILY)
     results: dict[str, dict] = {}
     p_values: dict[str, float] = {}
     one_way_cost_bps = assumptions.round_trip_bps() / 2.0
@@ -199,7 +230,11 @@ def qualify_research(
             results[name] = {"status": "NOT VERIFIED", "reason": "insufficient usable lagged feature observations"}
             continue
         wf = _walk_forward(points, one_way_cost_bps)
-        ci = _bootstrap_ci(wf["oos_net_returns"])
+        ci = _moving_block_bootstrap_ci(
+            wf["oos_net_returns"],
+            samples=FROZEN_METHOD_THRESHOLDS["bootstrap_samples"],
+            block_length=FROZEN_METHOD_THRESHOLDS["moving_block_length"],
+        )
         p_value = _two_sided_normal_p(wf["oos_net_returns"])
         p_values[name] = p_value
         results[name] = {
@@ -221,18 +256,34 @@ def qualify_research(
     if base_name is None:
         raise ValueError("no feature set has enough usable lagged observations")
 
-    corrected = _bonferroni(p_values)
+    corrected = _bonferroni(p_values, len(feature_sets))
     for name, value in corrected.items():
         results[name]["bonferroni_p_value"] = value
 
     stability: dict[str, dict] = {}
     base_points = _observations(ordered, tuple(results[base_name]["fields"]))
+    base_wf = _walk_forward(base_points, one_way_cost_bps)
     for multiplier in (0.5, 1.0, 2.0):
         wf = _walk_forward(base_points, one_way_cost_bps * multiplier)
         stability[str(multiplier)] = {
             "mean_net_return": wf["mean_net_return"],
             "oos_count": wf["oos_count"],
         }
+
+    oos_values = list(base_wf["oos_net_returns"])
+    window_count = FROZEN_METHOD_THRESHOLDS["regime_windows"]
+    regime_windows: list[dict] = []
+    for index in range(window_count):
+        start = index * len(oos_values) // window_count
+        stop = (index + 1) * len(oos_values) // window_count
+        chunk = oos_values[start:stop]
+        regime_windows.append({
+            "window": index + 1,
+            "start_oos_index": start,
+            "stop_oos_index_exclusive": stop,
+            "count": len(chunk),
+            "mean_net_return": mean(chunk) if chunk else None,
+        })
 
     base = results[base_name]
     base_corrected = float(base.get("bonferroni_p_value", 1.0))
@@ -243,28 +294,59 @@ def qualify_research(
         and all(x["mean_net_return"] > 0 for x in stability.values())
     )
 
+    walk_forward_coverage = (
+        base_wf["oos_count"] >= FROZEN_METHOD_THRESHOLDS["min_oos_observations"]
+        and len(base_wf["folds"]) >= FROZEN_METHOD_THRESHOLDS["min_walk_forward_folds"]
+    )
+    bootstrap_coverage = (
+        base["bootstrap"].get("method") == "moving_block_bootstrap"
+        and base["bootstrap"].get("samples") == FROZEN_METHOD_THRESHOLDS["bootstrap_samples"]
+        and base["bootstrap"].get("block_length") == FROZEN_METHOD_THRESHOLDS["moving_block_length"]
+    )
+    regime_coverage = (
+        len(regime_windows) == FROZEN_METHOD_THRESHOLDS["regime_windows"]
+        and all(
+            item["count"] >= FROZEN_METHOD_THRESHOLDS["min_regime_observations"]
+            and isinstance(item["mean_net_return"], (int, float))
+            and math.isfinite(item["mean_net_return"])
+            for item in regime_windows
+        )
+    )
+    search_family_coverage = (
+        set(results) == set(FROZEN_SEARCH_FAMILY)
+        and len(feature_sets) == len(FROZEN_SEARCH_FAMILY)
+        and all(name in results for name in FROZEN_SEARCH_FAMILY)
+    )
+
     method_gates = {
         "cost_slippage_model": "PASS",
         "leakage_safe_time_split": "PASS",
-        "oos_walk_forward": "PASS",
-        "bootstrap": "PASS",
+        "oos_walk_forward": "PASS" if walk_forward_coverage else "NOT VERIFIED",
+        "bootstrap": "PASS" if bootstrap_coverage else "NOT VERIFIED",
         "ablation": "PASS" if all(x.get("status") == "PASS" for x in results.values()) else "NOT VERIFIED",
-        "stability": "PASS",
-        "multiple_testing_correction": "PASS",
+        "stability": "PASS" if regime_coverage else "NOT VERIFIED",
+        "multiple_testing_correction": "PASS" if search_family_coverage else "NOT VERIFIED",
+    }
+    gates = {
+        "cost_slippage_model": "NOT VERIFIED",
+        "liquidity_capacity": "NOT VERIFIED",
+        "corporate_action_adjustment": "NOT VERIFIED",
+        "leakage_safe_time_split": "NOT VERIFIED",
+        "survivorship_selection_control": "NOT VERIFIED",
+        "oos_walk_forward": method_gates["oos_walk_forward"],
+        "bootstrap": method_gates["bootstrap"],
+        "ablation": "NOT VERIFIED",
+        "stability": method_gates["stability"],
+        "multiple_testing_correction": method_gates["multiple_testing_correction"],
     }
     gaps = {
         "cost_slippage_model": "Illustrative basis-point assumptions lack current exchange/broker calibration and observed execution slippage.",
         "liquidity_capacity": "No order notional, executable participation, spread/impact or limit/suspension fill evidence.",
         "corporate_action_adjustment": "Provider qfq label lacks verified action factors/dates and point-in-time lineage.",
-        "leakage_safe_time_split": "Lagged execution and train-only splits are implemented; point-in-time source availability is unverified.",
+        "leakage_safe_time_split": "Lagged execution is implemented, but historical point-in-time source availability is unverified.",
         "survivorship_selection_control": "User-selected single symbol lacks a precommitted survivorship-safe investable universe.",
-        "oos_walk_forward": "A short single-symbol run does not verify a frozen holdout/power requirement or performance versus baseline.",
-        "bootstrap": "IID resampling lacks dependence-aware return resampling and coverage validation.",
-        "ablation": "Variant computation alone does not establish a stable independently replicated ablation result.",
-        "stability": "Three assumed cost multipliers do not establish regime/market/sample stability.",
-        "multiple_testing_correction": "Bonferroni covers executed variants only; the full prior search family is not frozen or accounted for.",
+        "ablation": "Provider field coverage is insufficient to execute every frozen feature ablation on the same real dataset.",
     }
-    gates = {key: "NOT VERIFIED" for key in gaps}
     return {
         "status": "PASS",
         "scope": "method execution diagnostics; full business qualification is NOT VERIFIED",
@@ -283,6 +365,10 @@ def qualify_research(
         "base_feature_set": base_name,
         "feature_results": results,
         "stability": stability,
+        "regime_windows": regime_windows,
+        "frozen_search_family": {name: list(fields) for name, fields in FROZEN_SEARCH_FAMILY.items()},
+        "frozen_method_thresholds": dict(FROZEN_METHOD_THRESHOLDS),
+        "multiple_testing_family_size": len(FROZEN_SEARCH_FAMILY),
         "gates": gates,
         "method_gates": method_gates,
         "qualification_gaps": gaps,
