@@ -37,7 +37,7 @@ class NetClient:
         with self.evidence_path.open("a", encoding="utf-8") as f:
             f.write(json.dumps(row, ensure_ascii=False, sort_keys=True) + "\n")
 
-    def get_json(self, url: str, params: dict[str, Any]) -> tuple[dict[str, Any], ResponseMeta]:
+    def get_json(self, url: str, params: dict[str, Any], headers: dict[str, str] | None = None) -> tuple[dict[str, Any], ResponseMeta]:
         if not str(url).lower().startswith("https://"):
             raise ValueError("production network requests require HTTPS")
         last_error: Exception | None = None
@@ -47,6 +47,7 @@ class NetClient:
                 r = self.session.get(
                     url,
                     params=params,
+                    headers=headers,
                     timeout=(self.connect_timeout, self.read_timeout),
                     allow_redirects=True,
                 )
