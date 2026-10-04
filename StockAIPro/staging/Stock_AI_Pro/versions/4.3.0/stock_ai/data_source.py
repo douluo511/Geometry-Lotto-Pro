@@ -3,12 +3,14 @@ from __future__ import annotations
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import re
+import threading
 import time
 import pandas as pd
 import numpy as np
+import requests
 
 from .config import ROOT, load_config
-from .netclient import AkShareProxy
+from .netclient import AkShareProxy, NetClientError, RetryableHTTPError
 from .utils import write_json, now_iso
 
 def _ak():
@@ -383,7 +385,95 @@ def _upgrade_legacy_history(old: pd.DataFrame) -> pd.DataFrame:
         x["schema_version"] = 3
     return x
 
-def update_symbol_history(code: str, cfg: dict, logger=None, provider=None) -> pd.DataFrame:
+def _transient_transport_failure(exc: Exception) -> bool:
+    """True only when a provider failure is rooted in a retryable transport error."""
+    current = exc
+    seen = set()
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        if isinstance(current, (requests.Timeout, requests.ConnectionError, RetryableHTTPError)):
+            return True
+        current = current.__cause__ or current.__context__
+    return False
+
+
+class _HistorySourceHealth:
+    """Batch-local primary-source circuit breaker.
+
+    A repeatedly unavailable primary must not consume the full retry budget for
+    every symbol. The fallback still runs for every skipped symbol, and the
+    primary is periodically probed so recovery is detected during the same batch.
+    Non-transport data/schema failures never open this breaker.
+    """
+
+    def __init__(self, failures: int = 4, probe_every: int = 24):
+        self.failures = max(2, int(failures))
+        self.probe_every = max(4, int(probe_every))
+        self._lock = threading.Lock()
+        self._consecutive_transient = 0
+        self._open = False
+        self._skipped_since_probe = 0
+        self._skipped_total = 0
+        self._probe_total = 0
+        self._opened_total = 0
+        self._primary_successes = 0
+        self._primary_transient_failures = 0
+        self._primary_nontransient_failures = 0
+
+    def allow_primary(self) -> bool:
+        with self._lock:
+            if not self._open:
+                return True
+            self._skipped_since_probe += 1
+            if self._skipped_since_probe >= self.probe_every:
+                self._skipped_since_probe = 0
+                self._probe_total += 1
+                return True
+            self._skipped_total += 1
+            return False
+
+    def record_primary_success(self) -> None:
+        with self._lock:
+            self._primary_successes += 1
+            self._consecutive_transient = 0
+            self._open = False
+            self._skipped_since_probe = 0
+
+    def record_primary_failure(self, exc: Exception) -> None:
+        transient = _transient_transport_failure(exc)
+        with self._lock:
+            if transient:
+                self._primary_transient_failures += 1
+                self._consecutive_transient += 1
+                if self._consecutive_transient >= self.failures and not self._open:
+                    self._open = True
+                    self._opened_total += 1
+                    self._skipped_since_probe = 0
+            else:
+                self._primary_nontransient_failures += 1
+                # The endpoint was reachable enough to return/parse a response;
+                # do not suppress future symbols because their data can differ.
+                self._consecutive_transient = 0
+                self._open = False
+                self._skipped_since_probe = 0
+
+    def snapshot(self) -> dict:
+        with self._lock:
+            return {
+                "primary_circuit_open": self._open,
+                "primary_consecutive_transient_failures": self._consecutive_transient,
+                "primary_skipped_total": self._skipped_total,
+                "primary_probe_total": self._probe_total,
+                "primary_opened_total": self._opened_total,
+                "primary_successes": self._primary_successes,
+                "primary_transient_failures": self._primary_transient_failures,
+                "primary_nontransient_failures": self._primary_nontransient_failures,
+                "failure_threshold": self.failures,
+                "probe_every": self.probe_every,
+            }
+
+
+def update_symbol_history(code: str, cfg: dict, logger=None, provider=None, source_health=None) -> pd.DataFrame:
     ak = provider if provider is not None else _ak()
     out = ROOT / "data" / "history" / f"{code}.csv"
     adjust = str(cfg["universe"].get("history_adjust","hfq"))
@@ -409,15 +499,26 @@ def update_symbol_history(code: str, cfg: dict, logger=None, provider=None) -> p
     nc = cfg.get("network", {}) or {}
     timeout = float(nc.get("timeout_seconds",15))
 
-    for fetcher in (_fetch_history_primary, _fetch_history_fallback):
-        # AkShareProxy alone owns bounded transport retries. Retrying here
-        # multiplied 3 configured attempts into 9 requests per provider.
+    primary_allowed = source_health is None or source_health.allow_primary()
+    if primary_allowed:
         try:
-            new = fetcher(ak, code, start, end, adjust, timeout=timeout)
+            new = _fetch_history_primary(ak, code, start, end, adjust, timeout=timeout)
+            if source_health is not None:
+                source_health.record_primary_success()
         except Exception as e:
-            errs.append(f"{fetcher.__name__}: {e}")
-        if new is not None:
-            break
+            if source_health is not None:
+                source_health.record_primary_failure(e)
+            errs.append(f"_fetch_history_primary: {e}")
+    else:
+        errs.append("_fetch_history_primary: batch circuit open after repeated transient transport failures")
+
+    if new is None:
+        # Fallback is never suppressed by the primary breaker. AkShareProxy still
+        # owns its normal bounded retry/timeout policy.
+        try:
+            new = _fetch_history_fallback(ak, code, start, end, adjust, timeout=timeout)
+        except Exception as e:
+            errs.append(f"_fetch_history_fallback: {e}")
 
     if new is None:
         if out.exists() and not old.empty:
@@ -482,6 +583,11 @@ def _run_history_batch(codes, cfg: dict, phase: str, logger=None):
     codes = list(dict.fromkeys(map(str, codes)))
     workers = min(4, max(1, int((cfg.get("network", {}) or {}).get("history_workers", 4))))
     ak = _ak()
+    nc = cfg.get("network", {}) or {}
+    source_health = _HistorySourceHealth(
+        failures=int(nc.get("history_primary_circuit_failures", 4)),
+        probe_every=int(nc.get("history_primary_probe_every", 24)),
+    )
     completed, failed = 0, []
     checkpoint = ROOT / "state" / f"{phase}_progress.json"
     started = time.monotonic()
@@ -491,12 +597,13 @@ def _run_history_batch(codes, cfg: dict, phase: str, logger=None):
             "status": status, "phase": phase, "total": len(codes),
             "completed": completed, "failed_count": len(failed),
             "failed": failed, "last_code": code, "workers": workers,
+            "source_health": source_health.snapshot(),
             "elapsed_seconds": time.monotonic() - started, "updated_at": now_iso(),
         })
 
     def fetch(code):
         try:
-            return update_symbol_history(code, cfg, logger, provider=ak)
+            return update_symbol_history(code, cfg, logger, provider=ak, source_health=source_health)
         finally:
             time.sleep(float((cfg.get("network", {}) or {}).get("request_delay_seconds", 0.12)))
 
