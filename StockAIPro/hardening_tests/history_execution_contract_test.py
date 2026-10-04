@@ -243,6 +243,87 @@ def test_history_circuit_does_not_hide_nontransport_primary_failure(folder):
     assert state["source_health"]["primary_nontransient_failures"] == len(codes)
 
 
+
+def test_qualification_bootstrap_reaches_frozen_coverage(folder):
+    cfg = json.loads((VERSION / "config.default.json").read_text(encoding="utf-8"))
+    cfg["universe"].update({
+        "qualification_coverage_target": 0.20,  # implementation must not weaken 90%
+        "qualification_delisted_target": 0.20,
+        "qualification_bootstrap_chunk": 5,
+        "qualification_bootstrap_max_seconds": 60,
+    })
+    cfg["network"].update({
+        "qualification_history_workers": 4,
+        "retry_backoff_seconds": 0,
+        "retry_jitter_seconds": 0,
+        "request_delay_seconds": 0,
+    })
+    data = folder / "qualification-coverage"
+    (data / "data" / "history").mkdir(parents=True)
+    master = pd.DataFrame({
+        "code": [str(i).zfill(6) for i in range(1, 21)],
+        "status": ["current"] * 16 + ["delisted"] * 4,
+    })
+
+    def fake_update(code, cfg, logger=None, provider=None, source_health=None):
+        frame = pd.DataFrame({
+            "date": pd.date_range("2026-09-21", periods=4),
+            "close": [9, 10, 11, 12], "open": [9, 10, 11, 12],
+            "high": [10, 11, 12, 13], "low": [8, 9, 10, 11],
+            "volume": [100] * 4, "amount": [1000] * 4,
+            "turnover_rate": [0.01] * 4, "provider": ["fixture"] * 4,
+        })
+        frame.to_csv(data / "data" / "history" / f"{code}.csv", index=False)
+        return frame
+
+    with patch.object(data_source, "ROOT", data), \
+            patch.object(data_source, "_ak", return_value=object()), \
+            patch.object(data_source, "update_symbol_history", side_effect=fake_update):
+        status = data_source.qualify_research_pool_coverage(master, cfg)
+    assert status["qualification_target"] == 0.90
+    assert status["qualification_delisted_target"] == 0.90
+    assert status["qualification_status"] == "PASS"
+    assert status["coverage"] >= 0.90
+    assert status["delisted_coverage"] >= 0.90
+    assert status["covered_symbols"] >= 18
+    progress = json.loads((data / "state" / "qualification_history_progress.json").read_text(encoding="utf-8"))
+    assert progress["workers"] == 4
+    assert progress["status"] == "COMPLETE"
+
+
+def test_qualification_bootstrap_fails_closed_when_sources_unavailable(folder):
+    cfg = json.loads((VERSION / "config.default.json").read_text(encoding="utf-8"))
+    cfg["universe"].update({
+        "qualification_bootstrap_chunk": 20,
+        "qualification_bootstrap_max_seconds": 60,
+    })
+    cfg["network"].update({
+        "qualification_history_workers": 4,
+        "retry_backoff_seconds": 0,
+        "retry_jitter_seconds": 0,
+        "request_delay_seconds": 0,
+    })
+    data = folder / "qualification-unavailable"
+    (data / "data" / "history").mkdir(parents=True)
+    master = pd.DataFrame({
+        "code": [str(i).zfill(6) for i in range(1, 11)],
+        "status": ["current"] * 8 + ["delisted"] * 2,
+    })
+
+    def unavailable(*args, **kwargs):
+        raise RuntimeError("both production history sources unavailable")
+
+    with patch.object(data_source, "ROOT", data), \
+            patch.object(data_source, "_ak", return_value=object()), \
+            patch.object(data_source, "update_symbol_history", side_effect=unavailable):
+        status = data_source.qualify_research_pool_coverage(master, cfg)
+    assert status["qualification_status"] == "NOT VERIFIED"
+    assert status["coverage"] == 0
+    assert status["delisted_coverage"] == 0
+    assert status["qualification_failed_once_count"] == 10
+    assert len(status["failed"]) == 10
+
+
 def test_unavailable_sources_fail_closed(folder):
     from stock_ai import pipeline
     cfg = json.loads((VERSION / "config.default.json").read_text(encoding="utf-8"))
@@ -341,6 +422,8 @@ def main():
         test_parallel_transport(folder)
         test_retry_classification(folder)
         test_full_history_workload(folder)
+        test_qualification_bootstrap_reaches_frozen_coverage(folder)
+        test_qualification_bootstrap_fails_closed_when_sources_unavailable(folder)
         test_unavailable_sources_fail_closed(folder)
         test_timeout_retains_log(folder)
         test_prediction_freeze_fail_closed(folder)
@@ -351,6 +434,8 @@ def main():
                          "only_transient_failures_retry", "single_retry_owner_three_attempts",
                          "300_live_plus_60_bootstrap_preserved", "eight_year_range_preserved", "models_unchanged",
                          "atomic_history_target_deduplicated", "progress_checkpoints_persisted",
+                         "qualification_bootstrap_keeps_ninety_percent_floor",
+                         "qualification_bootstrap_unavailable_sources_not_verified",
                          "both_sources_unavailable_stop_prediction", "preserved_cache_not_counted_as_live_refresh", "timeout_retains_stdout",
                          "prediction_freeze_rejects_missing_empty_malformed_map", "prediction_freeze_requires_all_frozen_files",
                          "prediction_freeze_requires_sha256_hex", "prediction_freeze_rejects_outside_paths",
