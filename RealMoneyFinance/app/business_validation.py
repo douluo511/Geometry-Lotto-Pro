@@ -35,6 +35,11 @@ FROZEN_METHOD_THRESHOLDS = {
     "bootstrap_samples": 1000,
     "regime_windows": 3,
     "min_regime_observations": 30,
+    # Frozen before the next exact-head real-network qualification. This is a
+    # decision target, not a claim that the observed signal has enough power.
+    "holdout_alpha": 0.05,
+    "holdout_target_power": 0.80,
+    "holdout_min_detectable_mean_return": 0.0010,
 }
 
 
@@ -194,6 +199,38 @@ def _bonferroni(p_values: dict[str, float], family_size: int) -> dict[str, float
     return {name: min(1.0, value * family_size) for name, value in p_values.items()}
 
 
+def _holdout_power_analysis(values: list[float]) -> dict:
+    """Evaluate the frozen holdout-power target without promoting signal success."""
+    if len(values) < 20 or any(not math.isfinite(float(x)) for x in values):
+        return {"status": "NOT VERIFIED", "reason": "insufficient finite holdout returns"}
+    alpha = float(FROZEN_METHOD_THRESHOLDS["holdout_alpha"])
+    target_power = float(FROZEN_METHOD_THRESHOLDS["holdout_target_power"])
+    mde = float(FROZEN_METHOD_THRESHOLDS["holdout_min_detectable_mean_return"])
+    if not (0 < alpha < 1 and 0.5 < target_power < 1 and mde > 0):
+        raise ValueError("invalid frozen holdout power target")
+    sigma = pstdev(values)
+    if not math.isfinite(sigma) or sigma <= 0:
+        return {"status": "NOT VERIFIED", "reason": "non-positive holdout volatility"}
+    z_alpha = NormalDist().inv_cdf(1.0 - alpha / 2.0)
+    z_power = NormalDist().inv_cdf(target_power)
+    required_n = math.ceil(((z_alpha + z_power) * sigma / mde) ** 2)
+    observed_n = len(values)
+    gaps = {name: reason for name, reason in gaps.items() if gates.get(name) != "PASS"}
+
+    return {
+        "status": "PASS",
+        "method": "normal_approximation_two_sided_mean_test",
+        "alpha": alpha,
+        "target_power": target_power,
+        "minimum_detectable_mean_return": mde,
+        "observed_sigma": sigma,
+        "observed_n": observed_n,
+        "required_n": required_n,
+        "power_sufficient": observed_n >= required_n,
+        "decision": "SUFFICIENT" if observed_n >= required_n else "INSUFFICIENT",
+    }
+
+
 def qualify_research(
     rows: Iterable[DailyBar],
     source_meta: dict,
@@ -271,6 +308,7 @@ def qualify_research(
         }
 
     oos_values = list(base_wf["oos_net_returns"])
+    holdout_power = _holdout_power_analysis(oos_values)
     window_count = FROZEN_METHOD_THRESHOLDS["regime_windows"]
     regime_windows: list[dict] = []
     for index in range(window_count):
@@ -292,6 +330,7 @@ def qualify_research(
         and base["bootstrap"]["mean_ci95"][0] > 0
         and base_corrected <= 0.05
         and all(x["mean_net_return"] > 0 for x in stability.values())
+        and holdout_power.get("power_sufficient") is True
     )
 
     walk_forward_coverage = (
@@ -333,8 +372,13 @@ def qualify_research(
         "corporate_action_adjustment": "NOT VERIFIED",
         "leakage_safe_time_split": "NOT VERIFIED",
         "survivorship_selection_control": "NOT VERIFIED",
-        # Execution coverage alone is not a formal holdout-power analysis.
-        "oos_walk_forward": "NOT VERIFIED",
+        # PASS means the frozen holdout-power decision was executed on current
+        # real-network evidence; it does not mean the signal itself has adequate power.
+        "oos_walk_forward": "PASS" if (
+            source_meta.get("qualification_scope") == "production_real_network"
+            and walk_forward_coverage
+            and holdout_power.get("status") == "PASS"
+        ) else "NOT VERIFIED",
         "bootstrap": method_gates["bootstrap"],
         "ablation": "NOT VERIFIED",
         # Chronological windows are useful diagnostics but are not independently
@@ -348,7 +392,7 @@ def qualify_research(
         "corporate_action_adjustment": "Provider qfq label lacks verified action factors/dates and point-in-time lineage.",
         "leakage_safe_time_split": "Lagged execution is implemented, but historical point-in-time source availability is unverified.",
         "survivorship_selection_control": "User-selected single symbol lacks a precommitted survivorship-safe investable universe.",
-        "oos_walk_forward": "Walk-forward execution is covered, but no frozen minimum detectable effect/power target was precommitted.",
+        "oos_walk_forward": "Frozen holdout-power target was not executed on current production real-network evidence.",
         "ablation": "Provider field coverage is insufficient to execute every frozen feature ablation on the same real dataset.",
         "stability": "Chronological windows are diagnostics only; independently defined market-regime labels and coverage are not verified.",
     }
@@ -373,6 +417,7 @@ def qualify_research(
         "regime_windows": regime_windows,
         "frozen_search_family": {name: list(fields) for name, fields in FROZEN_SEARCH_FAMILY.items()},
         "frozen_method_thresholds": dict(FROZEN_METHOD_THRESHOLDS),
+        "holdout_power_analysis": holdout_power,
         "multiple_testing_family_size": len(FROZEN_SEARCH_FAMILY),
         "gates": gates,
         "method_gates": method_gates,

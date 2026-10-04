@@ -83,6 +83,9 @@ def fetch_daily_bars_failover(client: NetClient, symbol: str, limit: int = 120):
 
     meta = dict(meta)
     meta["source_freshness"] = source_freshness
+    # This marker is issued only after a real provider succeeded, cross-source
+    # freshness was evaluated and the source was accepted in this live call.
+    meta["qualification_scope"] = "production_real_network"
     meta["provider_attempts"] = attempts
     meta["cross_source_validation"] = cross_source
     meta["selected_provider"] = chosen_provider

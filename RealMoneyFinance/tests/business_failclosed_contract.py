@@ -11,7 +11,7 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-from app.business_validation import CostAssumptions, _observations, _walk_forward, qualify_research
+from app.business_validation import CostAssumptions, _holdout_power_analysis, _observations, _walk_forward, qualify_research
 from app.domain import DailyBar
 from app.source_tencent import fetch_daily_bars_tencent
 from tests.collect_candidate_evidence import main as collect
@@ -49,6 +49,20 @@ class BusinessBoundaries(unittest.TestCase):
         self.assertAlmostEqual(sum(result["oos_net_returns"]), -.002)
         self.assertAlmostEqual(result["total_cost_return"], .002)
         self.assertAlmostEqual(result["buy_and_hold_baseline_mean_net_return"], -.002 / 20)
+
+    def test_holdout_power_target_is_explicit_and_does_not_promote_synthetic_evidence(self):
+        got = qualify_research(
+            bars(),
+            {"provider": "synthetic_contract_only", "qualification_scope": "offline_contract"},
+        )
+        power = got["holdout_power_analysis"]
+        self.assertEqual(power["status"], "PASS")
+        self.assertIn(power["decision"], {"SUFFICIENT", "INSUFFICIENT"})
+        self.assertGreater(power["minimum_detectable_mean_return"], 0)
+        self.assertEqual(got["gates"]["oos_walk_forward"], "NOT VERIFIED")
+        direct = _holdout_power_analysis([(-1 if i % 2 else 1) * 0.01 for i in range(160)])
+        self.assertEqual(direct["status"], "PASS")
+        self.assertIsInstance(direct["power_sufficient"], bool)
 
     def test_high_amount_and_qfq_label_do_not_prove_capacity_or_actions(self):
         rows = [replace(x, amount=1e15) for x in bars()]
