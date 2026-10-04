@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -29,19 +30,46 @@ class LegalPhilosophyUI:
 
         buttons = ttk.Frame(self.root, padding=(10, 0, 10, 10))
         buttons.pack(fill="x")
+        self.buttons = {}
         for text, action in (
             ("核心研习", self.on_study),
             ("一键更新", self.on_update),
             ("一键修复", self.on_repair),
             ("高级分析", self.on_advanced),
         ):
-            ttk.Button(buttons, text=text, command=action).pack(side="left", padx=4)
+            button = ttk.Button(buttons, text=text, command=action)
+            button.pack(side="left", padx=4)
+            self.buttons[text] = button
 
         ttk.Label(self.root, textvariable=self.status_var, padding=(10, 0)).pack(fill="x")
         self.output = tk.Text(self.root, wrap="word", height=30)
         self.output.pack(fill="both", expand=True, padx=10, pady=10)
         self.output.insert("1.0", "所有输出区分来源、解释与模型推断；本系统不提供个案法律意见。\n")
         self.output.configure(state="disabled")
+        self.root.after(500, self._write_layout)
+
+    def _write_layout(self) -> None:
+        self.root.update_idletasks()
+        layout = {
+            "status": "PASS",
+            "pid": os.getpid(),
+            "window_title": self.root.title(),
+            "window": {
+                "x": self.root.winfo_rootx(),
+                "y": self.root.winfo_rooty(),
+                "width": self.root.winfo_width(),
+                "height": self.root.winfo_height(),
+            },
+            "buttons": {},
+        }
+        for text, button in self.buttons.items():
+            layout["buttons"][text] = {
+                "center_x": button.winfo_rootx() + button.winfo_width() // 2,
+                "center_y": button.winfo_rooty() + button.winfo_height() // 2,
+                "width": button.winfo_width(),
+                "height": button.winfo_height(),
+            }
+        self.service.storage.atomic_json(self.service.storage.evidence / "ui_layout.json", layout)
 
     def _audit(self, action: str, status: str, payload: object) -> None:
         path = self.service.storage.evidence / "gui_actions.jsonl"
