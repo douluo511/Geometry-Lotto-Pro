@@ -1,3 +1,4 @@
+# capability probe 2026-10-04: verify DLT_REPO_ADMIN_TOKEN without changing product runtime
 name: DLT Final Production Bootstrap
 
 on:
