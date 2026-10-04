@@ -23,6 +23,7 @@ def check_ast_contracts() -> dict:
     service = (DESKTOP / "service.py").read_text(encoding="utf-8")
     repair = (DESKTOP / "repair_entry.py").read_text(encoding="utf-8")
     updater = (DESKTOP / "updater_entry.py").read_text(encoding="utf-8")
+    worker = (DESKTOP / "worker.py").read_text(encoding="utf-8")
 
     for text in ("核心功能", "一键更新", "一键修复", "高级分析"):
         if text not in app:
@@ -39,6 +40,8 @@ def check_ast_contracts() -> dict:
         fail("repair entry must not wipe user directories")
     if '"status": "BLOCKED"' not in updater:
         fail("updater must expose missing production release context as BLOCKED")
+    if "from stock_ai.pipeline import run as pipeline_run" not in worker or "pipeline_run(" not in worker:
+        fail("frozen core worker must bypass CLI argparse main and call pipeline.run")
 
     for path in DESKTOP.glob("*.py"):
         ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
