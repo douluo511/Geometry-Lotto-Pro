@@ -10,6 +10,7 @@ from app.domain import DailyBar
 from app.engine import analyze_observable_activity, reverse_validation
 from app.source_eastmoney import fetch_daily_bars
 from app.source_tencent import fetch_daily_bars_tencent
+from app.source_yahoo import fetch_daily_bars_yahoo
 from app.storage import Storage
 
 
@@ -48,6 +49,26 @@ class FakeTencentClient:
             rows.append([day, "10", "10.1", "10.2", "9.9", str(1000+i), {"meta": i}])
         return {"data": {"sh600000": {"qfqday": rows}}}, meta
 
+
+class FakeYahooClient:
+    def get_json(self, url, params, headers=None):
+        meta = SimpleNamespace(
+            status=200,
+            payload_sha256="c" * 64,
+            retrieved_at_unix=3.0,
+            url=url,
+        )
+        base = 1780000000
+        timestamps = [base + i * 86400 for i in range(40)]
+        quote = {
+            "open": [10 + i / 100 for i in range(40)],
+            "close": [10.1 + i / 100 for i in range(40)],
+            "high": [10.2 + i / 100 for i in range(40)],
+            "low": [9.9 + i / 100 for i in range(40)],
+            "volume": [1000 + i for i in range(40)],
+        }
+        return {"chart": {"result": [{"timestamp": timestamps, "indicators": {"quote": [quote]}}], "error": None}}, meta
+
 def main() -> int:
     bars, meta = fetch_daily_bars(FakeClient(), "600000", 40)
     assert len(bars) == 40
@@ -58,6 +79,12 @@ def main() -> int:
     assert all(x.amount == 0.0 for x in tencent_bars)
     assert all(x.raw_sha256 == "b" * 64 for x in tencent_bars)
     assert tmeta["provider"] == "tencent_public_kline"
+
+    yahoo_bars, ymeta = fetch_daily_bars_yahoo(FakeYahooClient(), "600000", 40)
+    assert len(yahoo_bars) == 40
+    assert all(x.amount == 0.0 for x in yahoo_bars)
+    assert all(x.raw_sha256 == "c" * 64 for x in yahoo_bars)
+    assert ymeta["provider"] == "yahoo_public_chart"
 
     obs = analyze_observable_activity(bars)
     assert obs.true_capital_identity == "UNAVAILABLE_FROM_PUBLIC_LEVEL1"

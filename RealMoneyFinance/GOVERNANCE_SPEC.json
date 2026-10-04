@@ -39,49 +39,100 @@
     "Acceptance/Release"
   ],
   "architecture_files": {
-    "Product/Governance": ["ACCEPTANCE_CONTRACT.json", "GOVERNANCE_SPEC.json", "STATUS.md", "UPDATE_PROTOCOL.md"],
-    "Domain": ["app/domain.py"],
-    "Source": ["app/source_market.py", "app/source_eastmoney.py", "app/source_tencent.py"],
-    "NetClient": ["app/netclient.py"],
-    "Storage": ["app/storage.py"],
-    "Engine": ["app/engine.py", "app/business_validation.py"],
-    "Validation": ["tests/contract_gate.py", "tests/fault_injection_gate.py", "tests/business_qualification_gate.py"],
-    "Evidence": ["tests/collect_candidate_evidence.py"],
-    "Service": ["app/service.py"],
-    "UI": ["app/ui.py"],
-    "Acceptance/Release": ["build_windows.ps1", "UPDATE_PROTOCOL.md"]
+    "Product/Governance": [
+      "ACCEPTANCE_CONTRACT.json",
+      "GOVERNANCE_SPEC.json",
+      "STATUS.md",
+      "UPDATE_PROTOCOL.md"
+    ],
+    "Domain": [
+      "app/domain.py"
+    ],
+    "Source": [
+      "app/source_market.py",
+      "app/source_eastmoney.py",
+      "app/source_tencent.py",
+      "app/source_yahoo.py"
+    ],
+    "NetClient": [
+      "app/netclient.py"
+    ],
+    "Storage": [
+      "app/storage.py"
+    ],
+    "Engine": [
+      "app/engine.py",
+      "app/business_validation.py"
+    ],
+    "Validation": [
+      "tests/contract_gate.py",
+      "tests/fault_injection_gate.py",
+      "tests/business_qualification_gate.py"
+    ],
+    "Evidence": [
+      "tests/collect_candidate_evidence.py"
+    ],
+    "Service": [
+      "app/service.py"
+    ],
+    "UI": [
+      "app/ui.py"
+    ],
+    "Acceptance/Release": [
+      "build_windows.ps1",
+      "UPDATE_PROTOCOL.md"
+    ]
   },
   "domain_model": {
-    "entities": ["DailyBar", "CapitalObservation"],
-    "services": ["FinanceService"],
-    "infrastructure": ["NetClient", "Storage"],
-    "desktop": ["FinanceDesktop"]
+    "entities": [
+      "DailyBar",
+      "CapitalObservation"
+    ],
+    "services": [
+      "FinanceService"
+    ],
+    "infrastructure": [
+      "NetClient",
+      "Storage"
+    ],
+    "desktop": [
+      "FinanceDesktop"
+    ]
   },
   "function_inventory": {
     "资金变化": {
       "ui_handler": "FinanceDesktop._core",
-      "service_functions": ["FinanceService.refresh_real_data", "FinanceService.capital_change"],
+      "service_functions": [
+        "FinanceService.refresh_real_data",
+        "FinanceService.capital_change"
+      ],
       "input": "six-digit security symbol",
       "output": "real-source refresh metadata plus observable capital activity analysis",
       "failure": "fail closed when production data cannot be validated"
     },
     "一键更新": {
       "ui_handler": "FinanceService.software_update",
-      "service_functions": ["FinanceService.software_update"],
+      "service_functions": [
+        "FinanceService.software_update"
+      ],
       "input": "current installed product/version/source identity",
       "output": "BLOCKED, FAIL, or RESTART_REQUIRED with evidence",
       "failure": "must not report PASS without real independent signed release context"
     },
     "一键修复": {
       "ui_handler": "FinanceService.repair",
-      "service_functions": ["FinanceService.repair"],
+      "service_functions": [
+        "FinanceService.repair"
+      ],
       "input": "current user-state root",
       "output": "repair/self-check result",
       "failure": "preserve user data and report explicit failure"
     },
     "高级分析": {
       "ui_handler": "FinanceDesktop._advanced",
-      "service_functions": ["FinanceService.advanced_analysis"],
+      "service_functions": [
+        "FinanceService.advanced_analysis"
+      ],
       "input": "six-digit security symbol",
       "output": "observable analysis plus explicit risk boundary",
       "failure": "capital_deployment_ready remains false unless frozen business gates qualify"

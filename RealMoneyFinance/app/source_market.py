@@ -3,6 +3,7 @@ from __future__ import annotations
 from .netclient import NetClient
 from .source_eastmoney import fetch_daily_bars as fetch_eastmoney
 from .source_tencent import fetch_daily_bars_tencent
+from .source_yahoo import fetch_daily_bars_yahoo
 
 
 def _latest_close(rows):
@@ -16,6 +17,7 @@ def fetch_daily_bars_failover(client: NetClient, symbol: str, limit: int = 120):
     for provider, fn in [
         ("eastmoney_public_l1", fetch_eastmoney),
         ("tencent_public_kline", fetch_daily_bars_tencent),
+        ("yahoo_public_chart", fetch_daily_bars_yahoo),
     ]:
         try:
             rows, meta = fn(client, symbol, limit)
