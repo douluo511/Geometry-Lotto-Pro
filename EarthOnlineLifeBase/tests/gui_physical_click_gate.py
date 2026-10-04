@@ -3,6 +3,17 @@ import argparse, hashlib, json, os, subprocess, time
 
 def sha(p): return hashlib.sha256(p.read_bytes()).hexdigest()
 def load(p): return json.loads(p.read_text(encoding="utf-8"))
+def wait_receipt(path:Path,expected:set[str],timeout=45):
+    deadline=time.time()+timeout
+    while time.time()<deadline:
+        if path.is_file():
+            try:
+                data=load(path)
+                if data.get("status") in expected: return data
+            except Exception: pass
+        time.sleep(.25)
+    raise RuntimeError("receipt unavailable: "+str(path))
+
 def main():
     ap=argparse.ArgumentParser(); ap.add_argument("--exe",required=True); ap.add_argument("--output",required=True); a=ap.parse_args()
     from pywinauto import Desktop
@@ -18,8 +29,15 @@ def main():
             time.sleep(.25)
         if win is None: raise RuntimeError("window not found")
         layout_path=data/"evidence"/"ui_layout.json"
-        labels=["决策训练","一键更新","一键修复","高级分析"]; actions={}
-        for label in labels:
+        plan=[
+            ("决策训练","service_core.json",{"PASS"}),
+            ("一键更新","service_update.json",{"BLOCKED"}),
+            ("一键修复","service_repair.json",{"PASS"}),
+            ("高级分析","service_advanced.json",{"PASS"}),
+        ]
+        actions={}
+        receipts={}
+        for label,receipt_name,expected in plan:
             deadline=time.time()+30
             while time.time()<deadline:
                 if layout_path.is_file():
@@ -27,14 +45,20 @@ def main():
                     if pt and pt.get("state")=="normal": break
                 time.sleep(.25)
             else: raise RuntimeError("layout unavailable "+label)
+            receipt=data/"evidence"/receipt_name
+            if receipt.exists(): receipt.unlink()
             rect=win.rectangle(); win.set_focus()
             win.click_input(coords=(int(pt["x"])-rect.left,int(pt["y"])-rect.top))
-            time.sleep(2)
-            actions[label]="CLICKED"
+            receipts[label]=wait_receipt(receipt,expected)
+            actions[label]="CLICKED_AND_VERIFIED"
+        if receipts["高级分析"].get("business_content_import")!="PASS":
+            raise RuntimeError("advanced analysis did not verify full software content import")
         after=sha(exe)
-        report.update({"status":"BLOCKED","physical_gui":"PASS","actions":actions,"exe_sha256_before":before,
-                       "exe_sha256_after":after,"same_hash":"PASS" if before==after else "FAIL",
-                       "repository_independence":"BLOCKED","positive_production_update":"BLOCKED"})
+        report.update({"status":"BLOCKED","physical_gui":"PASS","actions":actions,"receipts":receipts,
+                       "exe_sha256_before":before,"exe_sha256_after":after,
+                       "same_hash":"PASS" if before==after else "FAIL",
+                       "business_content_import":"PASS","repository_independence":"BLOCKED",
+                       "positive_production_update":"BLOCKED"})
         if before!=after: report["status"]="FAIL"
         win.close()
     except Exception as exc:
