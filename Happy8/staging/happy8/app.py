@@ -9,10 +9,10 @@ from pathlib import Path
 
 from .domain import Draw
 from .net_client import NetClient
-from .services import Happy8Service
+from .services import Happy8Service, SOFTWARE_VERSION
 from .ui import Happy8Window, source_ui_contract, ui_contract
 
-APP_VERSION = "0.2.0-staging"
+APP_VERSION = SOFTWARE_VERSION
 
 
 def default_data_root() -> Path:
@@ -113,7 +113,7 @@ def main(argv: list[str] | None = None) -> int:
 
     operations = [
         (args.status, service.status),
-        (args.update, service.update_data),
+        (args.update, service.one_click_update),
         (args.predict, service.predict_next),
         (args.repair, service.repair),
         (args.advanced, service.advanced_analysis),
