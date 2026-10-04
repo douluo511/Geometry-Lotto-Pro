@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
+import sys
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
@@ -11,6 +13,8 @@ from .domain import Draw
 from .science import PICK_SIZE, build_prefix_state, rank_prefix, validate_history
 from .sources import build_official_snapshot
 from .storage import Store, canonical_json, sha256_json
+
+SOFTWARE_VERSION = "0.2.0"
 
 
 def _utc_now() -> str:
@@ -79,6 +83,123 @@ class Happy8Service:
             })
         return result
 
+    def one_click_update(self) -> dict[str, Any]:
+        """Refresh official data, then hand software replacement to the independent Updater.
+
+        A data refresh is never promoted to a software-update PASS. Without a
+        production HTTPS manifest/trust context the result is explicitly BLOCKED.
+        """
+        data_result = self.update_data()
+        manifest_url = str(os.environ.get("HAPPY8_UPDATE_MANIFEST_URL") or "").strip()
+        trusted_hosts = [
+            item.strip().lower()
+            for item in str(os.environ.get("HAPPY8_UPDATE_TRUSTED_HOSTS") or "").split(",")
+            if item.strip()
+        ]
+        target_override = str(os.environ.get("HAPPY8_TARGET_EXE") or "").strip()
+        updater_override = str(os.environ.get("HAPPY8_UPDATER_EXE") or "").strip()
+
+        target_exe = Path(target_override).resolve() if target_override else Path(sys.executable).resolve()
+        updater_exe = (
+            Path(updater_override).resolve()
+            if updater_override
+            else target_exe.with_name("Geometry_Lotto_Pro_Happy8_Updater.exe")
+        )
+        updater_evidence = self.evidence / "software_updater_result.json"
+
+        if not manifest_url or not trusted_hosts:
+            result = {
+                "status": "BLOCKED",
+                "operation": "one_click_update",
+                "data_update": data_result,
+                "software_update": {
+                    "status": "BLOCKED",
+                    "reason": "production update manifest/trusted-host context is unavailable",
+                    "required_environment": [
+                        "HAPPY8_UPDATE_MANIFEST_URL",
+                        "HAPPY8_UPDATE_TRUSTED_HOSTS",
+                    ],
+                },
+                "completed_at": _utc_now(),
+            }
+            _atomic_json(self.evidence / "last_one_click_update.json", result)
+            return result
+
+        if not target_exe.is_file() or not updater_exe.is_file():
+            result = {
+                "status": "BLOCKED",
+                "operation": "one_click_update",
+                "data_update": data_result,
+                "software_update": {
+                    "status": "BLOCKED",
+                    "reason": "exact main EXE or independent Updater EXE is unavailable",
+                    "target_exe": str(target_exe),
+                    "updater_exe": str(updater_exe),
+                },
+                "completed_at": _utc_now(),
+            }
+            _atomic_json(self.evidence / "last_one_click_update.json", result)
+            return result
+
+        command = [
+            str(updater_exe),
+            "--manifest-url",
+            manifest_url,
+        ]
+        for host in trusted_hosts:
+            command.extend(["--trusted-host", host])
+        command.extend([
+            "--target-exe",
+            str(target_exe),
+            "--current-version",
+            SOFTWARE_VERSION,
+            "--parent-pid",
+            str(os.getpid()),
+            "--evidence-file",
+            str(updater_evidence),
+        ])
+        try:
+            flags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+            process = subprocess.Popen(
+                command,
+                cwd=str(target_exe.parent),
+                creationflags=flags,
+                close_fds=True,
+            )
+        except Exception as exc:
+            result = {
+                "status": "FAIL",
+                "operation": "one_click_update",
+                "data_update": data_result,
+                "software_update": {
+                    "status": "FAIL",
+                    "error": f"{type(exc).__name__}: {exc}",
+                    "updater_exe": str(updater_exe),
+                },
+                "completed_at": _utc_now(),
+            }
+            _atomic_json(self.evidence / "last_one_click_update.json", result)
+            return result
+
+        result = {
+            "status": "PENDING_RESTART",
+            "operation": "one_click_update",
+            "data_update": data_result,
+            "software_update": {
+                "status": "PENDING_RESTART",
+                "action": "INDEPENDENT_UPDATER_LAUNCHED",
+                "updater_pid": int(process.pid),
+                "target_exe": str(target_exe),
+                "updater_exe": str(updater_exe),
+                "manifest_url": manifest_url,
+                "trusted_hosts": trusted_hosts,
+                "final_evidence": str(updater_evidence),
+            },
+            "completed_at": _utc_now(),
+        }
+        _atomic_json(self.evidence / "last_one_click_update.json", result)
+        return result
+
     def update_data(self) -> dict[str, Any]:
         report, raw_sources = self.snapshot_builder()
         if report.get("status") != "PASS":
@@ -125,6 +246,7 @@ class Happy8Service:
 
         freeze = {
             "schema": "happy8-prediction-freeze-v1",
+            "status": "PASS",
             "target_issue": target_issue,
             "source_latest_issue": latest_issue,
             "canonical_hash": snapshot["canonical"]["canonical_hash"],
