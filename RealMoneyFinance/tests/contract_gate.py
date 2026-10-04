@@ -54,6 +54,7 @@ def main() -> int:
     tencent_bars, tmeta = fetch_daily_bars_tencent(FakeTencentClient(), "600000", 40)
     assert len(tencent_bars) == 40
     assert all(x.amount == 0.0 for x in tencent_bars)
+    assert all(x.raw_sha256 == "b" * 64 for x in tencent_bars)
     assert tmeta["provider"] == "tencent_public_kline"
 
     obs = analyze_observable_activity(bars)
