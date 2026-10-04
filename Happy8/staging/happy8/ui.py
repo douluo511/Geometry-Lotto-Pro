@@ -11,7 +11,7 @@ from .services import Happy8Service
 
 UI_SERVICE_BINDINGS = {
     "predict": ("预测下一期", "predict_next"),
-    "update": ("一键更新", "update_data"),
+    "update": ("一键更新", "one_click_update"),
     "repair": ("一键修复", "repair"),
     "advanced": ("高级分析", "advanced_analysis"),
 }
@@ -118,6 +118,8 @@ class Happy8Window(tk.Tk):
         self.operation_var.set(f"{label}: {status}")
         self._render(result)
         self.refresh_status()
+        if result.get("operation") == "one_click_update" and status == "PENDING_RESTART":
+            self.after(350, self.destroy)
         if exc is not None:
             messagebox.showerror("操作失败", result["error"])
 
@@ -138,7 +140,7 @@ class Happy8Window(tk.Tk):
         self._run("预测下一期", self.service.predict_next)
 
     def _update(self) -> None:
-        self._run("一键更新", self.service.update_data)
+        self._run("一键更新", self.service.one_click_update)
 
     def _repair(self) -> None:
         self._run("一键修复", self.service.repair)
