@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from io import BytesIO
 import hashlib
 import html
 import re
+
+from pypdf import PdfReader
 
 from .domain import SourceDocument
 from .netclient import NetClient
@@ -51,23 +54,26 @@ SOURCE_SPECS = (
     {
         "source_id": "loc_plessy_v_ferguson",
         "title": "Plessy v. Ferguson, 163 U.S. 537 (1896) — U.S. Reports / Library of Congress",
-        "url": "https://www.loc.gov/item/usrep163537/",
+        "url": "https://tile.loc.gov/storage-services/service/ll/usrep/usrep163/usrep163537/usrep163537.pdf",
         "role": "CASE",
-        "markers": ("Plessy v. Ferguson", "163 U.S. 537", "Separate but equal"),
+        "format": "pdf",
+        "markers": ("PLESSY v. FERGUSON", "No. 210", "Fourteenth Amendment"),
     },
     {
         "source_id": "loc_barnette",
         "title": "West Virginia State Board of Education v. Barnette, 319 U.S. 624 (1943) — U.S. Reports / Library of Congress",
-        "url": "https://www.loc.gov/item/usrep319624/",
+        "url": "https://tile.loc.gov/storage-services/service/ll/usrep/usrep319/usrep319624/usrep319624.pdf",
         "role": "CASE",
-        "markers": ("Board of Education et al. v. Barnette", "319 U.S. 624", "First Amendment"),
+        "format": "pdf",
+        "markers": ("WEST VIRGINIA STATE BOARD OF EDUCATION", "No. 591", "First and Fourteenth Amendments"),
     },
     {
         "source_id": "loc_obergefell_v_hodges",
         "title": "Obergefell v. Hodges, 576 U.S. 644 (2015) — U.S. Reports / Library of Congress",
-        "url": "https://www.loc.gov/item/usrep576644/",
+        "url": "https://tile.loc.gov/storage-services/service/ll/usrep/usrep576/usrep576644/usrep576644.pdf",
         "role": "CASE",
-        "markers": ("Obergefell v. Hodges", "576 U.S. 644", "Fourteenth Amendment"),
+        "format": "pdf",
+        "markers": ("OBERGEFELL", "Fourteenth Amendment", "same-sex couples"),
     },
 )
 
@@ -91,26 +97,58 @@ PRIMARY_EDITION = {
 }
 
 
+def _normalize_text(text: str) -> str:
+    return re.sub(r"\s+", " ", text).strip()
+
+
 def _plain_text(markup: str) -> str:
-    without_scripts = re.sub(r"(?is)<(script|style).*?>.*?</\1>", " ", markup)
+    without_scripts = re.sub(r"(?is)<(script|style).*?>.*?</\\1>", " ", markup)
     without_tags = re.sub(r"(?s)<[^>]+>", " ", without_scripts)
-    normalized = re.sub(r"\s+", " ", html.unescape(without_tags)).strip()
+    normalized = _normalize_text(html.unescape(without_tags))
     if len(normalized) < 500:
         raise ValueError("validated source text unexpectedly short")
     return normalized
+
+
+def _pdf_text(payload: bytes) -> str:
+    if not payload.startswith(b"%PDF-"):
+        raise ValueError("validated PDF source is missing PDF magic")
+    reader = PdfReader(BytesIO(payload), strict=False)
+    pages = [page.extract_text() or "" for page in reader.pages]
+    normalized = _normalize_text("\n".join(pages))
+    if len(pages) < 1 or len(normalized) < 1000:
+        raise ValueError("validated PDF source text unexpectedly short")
+    return normalized
+
+
+def _fetch_source_text(client: NetClient, spec: dict):
+    if spec.get("format") == "pdf":
+        payload, receipt = client.get_bytes(
+            spec["url"],
+            allowed_content_types=("application/pdf",),
+            max_bytes=30_000_000,
+            accept="application/pdf",
+        )
+        return _pdf_text(payload), receipt
+    markup, receipt = client.get_text(spec["url"])
+    return _plain_text(markup), receipt
 
 
 def fetch_current_sources(client: NetClient) -> tuple[list[SourceDocument], dict[str, str]]:
     docs: list[SourceDocument] = []
     texts: dict[str, str] = {}
     for spec in SOURCE_SPECS:
-        markup, receipt = client.get_text(spec["url"])
-        text = _plain_text(markup)
-        lower = text.casefold()
-        hits = tuple(marker for marker in spec["markers"] if marker.casefold() in lower)
-        if len(hits) != len(spec["markers"]):
-            missing = sorted(set(spec["markers"]) - set(hits))
-            raise ValueError(f"source semantic markers missing for {spec['source_id']}: {missing}")
+        try:
+            text, receipt = _fetch_source_text(client, spec)
+            lower = text.casefold()
+            hits = tuple(marker for marker in spec["markers"] if marker.casefold() in lower)
+            if len(hits) != len(spec["markers"]):
+                missing = sorted(set(spec["markers"]) - set(hits))
+                raise ValueError(f"semantic markers missing: {missing}")
+        except Exception as exc:
+            raise RuntimeError(
+                f"source validation failed for {spec['source_id']} ({spec['url']}): {exc}"
+            ) from exc
         doc = SourceDocument(
             source_id=spec["source_id"],
             title=spec["title"],
@@ -126,7 +164,6 @@ def fetch_current_sources(client: NetClient) -> tuple[list[SourceDocument], dict
         docs.append(doc)
         texts[doc.source_id] = text
     return docs, texts
-
 
 def fetch_primary_edition(client: NetClient) -> tuple[dict, str, bytes]:
     catalog_markup, catalog_receipt = client.get_text(PRIMARY_EDITION["catalog_url"])
