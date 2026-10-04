@@ -53,6 +53,7 @@ jobs:
           path: |
             StockAIPro/business_daily_evidence.json
             StockAIPro/business_daily.log
+            StockAIPro/business_maintenance.log
             StockAIPro/_business_gate_data/state/**
             StockAIPro/_business_gate_data/reports/**
             StockAIPro/_business_gate_data/predictions/latest/**
