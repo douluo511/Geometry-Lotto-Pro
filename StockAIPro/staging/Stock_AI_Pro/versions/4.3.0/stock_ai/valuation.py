@@ -1,13 +1,17 @@
 from __future__ import annotations
 from datetime import datetime,timedelta
 import time, numpy as np, pandas as pd
-from .config import ROOT
+from .config import ROOT,load_config
+from .netclient import AkShareProxy
 from .utils import write_json,now_iso
 
-def _ak():
+def _ak(network_cfg=None):
     try:
-        import akshare as ak; return ak
-    except Exception as e: raise RuntimeError("AkShare 未安装") from e
+        import akshare as ak
+        cfg = network_cfg if network_cfg is not None else (load_config().get("network", {}) or {})
+        return AkShareProxy(ak, cfg, ROOT / "evidence" / "netclient_raw.jsonl")
+    except Exception as e:
+        raise RuntimeError("AkShare 未安装或 NetClient 初始化失败") from e
 
 def _cheap_score(s,loss_score=15.0,missing_score=50.0):
     x=pd.to_numeric(s,errors="coerce"); out=pd.Series(float(missing_score),index=x.index,dtype=float)
@@ -47,7 +51,7 @@ def _read(code):
     except Exception:return pd.DataFrame()
 
 def update_valuation_history(code,cfg,logger=None):
-    vc=cfg.get("valuation",{}) or {}; ak=_ak(); merged=None; errs=[]
+    vc=cfg.get("valuation",{}) or {}; ak=_ak(cfg.get("network",{}) or {}); merged=None; errs=[]
     for ind in vc.get("history_indicators",["市盈率(TTM)","市净率"]):
         try:
             raw=ak.stock_zh_valuation_baidu(symbol=str(code),indicator=ind,period=str(vc.get("history_period","全部")))
