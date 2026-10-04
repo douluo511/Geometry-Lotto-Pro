@@ -9,6 +9,7 @@ from types import SimpleNamespace
 from app.domain import DailyBar
 from app.engine import analyze_observable_activity, reverse_validation
 from app.source_eastmoney import fetch_daily_bars
+from app.source_market import _select_success
 from app.source_tencent import fetch_daily_bars_tencent
 from app.source_tencent_full import fetch_daily_bars_tencent_full
 from app.source_yahoo import fetch_daily_bars_yahoo
@@ -119,6 +120,19 @@ def main() -> int:
     assert all(x.raw_sha256 == "c" * 64 for x in yahoo_bars)
     assert ymeta["provider"] == "yahoo_public_chart"
 
+    short_qfq = ("tencent_public_kline", tencent_bars * 8, {**tmeta, "price_adjustment": "qfq"})
+    long_unadjusted = ("yahoo_public_chart", yahoo_bars * 20, {**ymeta, "price_adjustment": "unadjusted"})
+    selected = _select_success([short_qfq, long_unadjusted], 800)
+    assert selected[0] == "yahoo_public_chart", "requested history coverage must outrank adjustment preference"
+
+    long_qfq = ("tencent_public_kline", tencent_bars * 20, {**tmeta, "price_adjustment": "qfq"})
+    selected = _select_success([long_qfq, long_unadjusted], 800)
+    assert selected[0] == "tencent_public_kline", "qfq must win only after requested coverage is met"
+
+    equal_eastmoney = ("eastmoney_public_l1", bars * 20, {**meta, "price_adjustment": "qfq"})
+    selected = _select_success([long_qfq, equal_eastmoney], 800)
+    assert selected[0] == "eastmoney_public_l1", "fixed provider order must resolve equal evidence deterministically"
+
     obs = analyze_observable_activity(bars)
     assert obs.true_capital_identity == "UNAVAILABLE_FROM_PUBLIC_LEVEL1"
     rv = reverse_validation(obs)
@@ -137,6 +151,7 @@ def main() -> int:
         "contract": "public L1 stays non-identity-grade",
         "storage": "PASS",
         "engine_boundary": "PASS",
+        "failover_selection_policy": "coverage_then_adjustment_then_rows_then_fixed_provider_order",
     }
     Path("contract_evidence.json").write_text(json.dumps(evidence, indent=2), encoding="utf-8")
     print(json.dumps(evidence))

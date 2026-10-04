@@ -11,6 +11,30 @@ def _latest_close(rows):
     return (rows[-1].trade_date, float(rows[-1].close)) if rows else (None, None)
 
 
+_PROVIDER_PRIORITY = {
+    "eastmoney_public_l1": 3,
+    "tencent_public_kline": 2,
+    "yahoo_public_chart": 1,
+}
+
+
+def _select_success(successes, requested_limit: int):
+    """Select acquisition evidence without consulting returns, labels or model output."""
+    requested = max(30, int(requested_limit))
+    if not successes:
+        raise ValueError("no successful providers to select")
+    def rank(item):
+        provider, rows, meta = item
+        adjustment = str((meta or {}).get("price_adjustment", "")).lower()
+        return (
+            len(rows) >= requested,
+            adjustment == "qfq",
+            len(rows),
+            _PROVIDER_PRIORITY.get(provider, 0),
+        )
+    return max(successes, key=rank)
+
+
 def fetch_daily_bars_failover(client: NetClient, symbol: str, limit: int = 120):
     attempts = []
     successes = []
@@ -33,14 +57,15 @@ def fetch_daily_bars_failover(client: NetClient, symbol: str, limit: int = 120):
             + __import__("json").dumps(attempts, ensure_ascii=True, sort_keys=True)
         )
 
-    chosen_provider, rows, meta = successes[0]
+    chosen_provider, rows, meta = _select_success(successes, limit)
     cross_source = {
         "status": "NOT VERIFIED",
         "reason": "only one production provider succeeded",
     }
 
     if len(successes) >= 2:
-        _, rows2, meta2 = successes[1]
+        remaining = [item for item in successes if item[0] != chosen_provider]
+        _, rows2, meta2 = _select_success(remaining, limit)
         d1, c1 = _latest_close(rows)
         d2, c2 = _latest_close(rows2)
         if d1 == d2 and c1 and c2:
@@ -89,4 +114,12 @@ def fetch_daily_bars_failover(client: NetClient, symbol: str, limit: int = 120):
     meta["provider_attempts"] = attempts
     meta["cross_source_validation"] = cross_source
     meta["selected_provider"] = chosen_provider
+    meta["selection_policy"] = {
+        "requested_rows": max(30, int(limit)),
+        "coverage_first": True,
+        "prefer_qfq_after_coverage": True,
+        "then_row_count": True,
+        "provider_priority_tiebreak": ["eastmoney_public_l1", "tencent_public_kline", "yahoo_public_chart"],
+        "outcome_fields_used": False,
+    }
     return rows, meta
