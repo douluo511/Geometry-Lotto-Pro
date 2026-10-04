@@ -1,0 +1,69 @@
+name: AI Music Independent Repository Export Verification
+on:
+  pull_request:
+    paths:
+      - '.github/scripts/export_ai_music_independent_repo.py'
+      - '.github/workflows/ai-music-independent-repo-export.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  export-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact migration head
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Exact checkout identity
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.11'
+      - name: Export project-only seed
+        env:
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          EXPORT_DIR: ${{ runner.temp }}/ai-music-independent
+        run: |
+          set -euo pipefail
+          python .github/scripts/export_ai_music_independent_repo.py --destination "$EXPORT_DIR" --source-commit "$SOURCE_SHA" | tee "$RUNNER_TEMP/AI_MUSIC_EXPORT.json"
+      - name: Independent second-pass verification
+        env:
+          EXPORT_DIR: ${{ runner.temp }}/ai-music-independent
+        run: |
+          set -euo pipefail
+          python .github/scripts/export_ai_music_independent_repo.py --destination "$EXPORT_DIR" --verify-only | tee "$RUNNER_TEMP/AI_MUSIC_VERIFY.json"
+          grep -q '"status": "PASS"' "$RUNNER_TEMP/AI_MUSIC_VERIFY.json"
+      - name: Deliberate tamper must fail closed
+        env:
+          EXPORT_DIR: ${{ runner.temp }}/ai-music-independent
+        run: |
+          set -euo pipefail
+          cp -a "$EXPORT_DIR" "$RUNNER_TEMP/ai-music-tampered"
+          printf '\n# tampered\n' >> "$RUNNER_TEMP/ai-music-tampered/AIMusic/main.py"
+          set +e
+          python .github/scripts/export_ai_music_independent_repo.py --destination "$RUNNER_TEMP/ai-music-tampered" --verify-only > "$RUNNER_TEMP/AI_MUSIC_TAMPER.json"
+          rc=$?
+          set -e
+          test "$rc" -ne 0
+          grep -q '"status": "FAIL"' "$RUNNER_TEMP/AI_MUSIC_TAMPER.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: AI-MUSIC-INDEPENDENT-REPO-EXPORT-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            ${{ runner.temp }}/ai-music-independent
+            ${{ runner.temp }}/AI_MUSIC_EXPORT.json
+            ${{ runner.temp }}/AI_MUSIC_VERIFY.json
+            ${{ runner.temp }}/AI_MUSIC_TAMPER.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Explicit boundary
+        run: |
+          echo "PROJECT_ONLY_EXPORT=PASS"
+          echo "REPOSITORY_INDEPENDENCE=NOT VERIFIED"
+          echo "REAL_RELEASE_N_TO_N_PLUS_1=NOT VERIFIED"
+          echo "CLOUD_AI_PROVIDER_GENERATION=NOT VERIFIED"
+          echo "FINAL_GATE=FAIL"
