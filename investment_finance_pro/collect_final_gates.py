@@ -42,6 +42,12 @@ def _science_ok(path:Path)->bool:
         and all(value.get("integrity_checks",{}).values())
     )
 
+def _load(path:Path)->dict:
+    if not path.exists():
+        return {}
+    value=json.loads(path.read_text(encoding="utf-8-sig"))
+    return value if isinstance(value,dict) else {}
+
 def main()->int:
     p=argparse.ArgumentParser()
     p.add_argument("--evidence-dir",required=True)
@@ -52,12 +58,15 @@ def main()->int:
     p.add_argument("--candidate-exe",required=True)
     p.add_argument("--final-exe",required=True)
     p.add_argument("--physical-gui",required=True)
-    p.add_argument("--repository-independent",choices=["PASS","FAIL"],required=True)
+    p.add_argument("--updater-evidence",required=True)
+    p.add_argument("--updater-exe",required=True)
+    p.add_argument("--final-updater-exe",required=True)
+    p.add_argument("--repository-independent",choices=["PASS","FAIL","BLOCKED"],required=True)
     p.add_argument("--out",required=True)
     a=p.parse_args()
     ed=Path(a.evidence_dir)
-    arch=json.loads(Path(a.architecture).read_text(encoding="utf-8-sig"))
-    business=json.loads(Path(a.business).read_text(encoding="utf-8-sig"))
+    arch=_load(Path(a.architecture))
+    business=_load(Path(a.business))
     gates={k:arch.get("gates",{}).get(k,"UNKNOWN") for k in ARCH_GATES}
     for gate,marker in MARKERS.items():
         gates[gate]="PASS" if (ed/marker).exists() else "FAIL"
@@ -71,17 +80,39 @@ def main()->int:
     if not ch or not fh or ch!=fh:
         gates["same_hash"]="FAIL"
 
-    physical=json.loads(Path(a.physical_gui).read_text(encoding="utf-8-sig")) if Path(a.physical_gui).exists() else {}
+    physical=_load(Path(a.physical_gui))
     if physical.get("status")!="PASS" or physical.get("exe_sha256")!=fh or physical.get("button_count")!=4:
         gates["physical_gui_click"]="FAIL"
 
+    updater=_load(Path(a.updater_evidence))
+    mapping={
+        "updater_process":"process",
+        "updater_exact_exe":"exact_exe",
+        "updater_atomic_rollback":"atomic_rollback",
+        "updater_real_network":"real_network",
+        "updater_same_hash":"same_hash",
+    }
+    for gate,key in mapping.items():
+        gates[gate]=updater.get(key,"NOT VERIFIED")
+
+    updater_candidate=Path(a.updater_exe); updater_final=Path(a.final_updater_exe)
+    uch=sha256(updater_candidate) if updater_candidate.exists() else None
+    ufh=sha256(updater_final) if updater_final.exists() else None
+    if not uch or not ufh or uch!=ufh:
+        gates["updater_same_hash"]="FAIL"
+    if updater.get("updater_sha256") != uch or updater.get("final_updater_sha256") != ufh:
+        gates["updater_exact_exe"]="FAIL"
+        gates["updater_same_hash"]="FAIL"
+
     bad={k:v for k,v in gates.items() if v!="PASS"}
     report={
-        "schema":"investment-finance-current-run-gates-v2",
+        "schema":"investment-finance-current-run-gates-v3",
         "status":"PASS" if not bad else "FAIL",
         "gates":gates,
         "candidate_sha256":ch,
         "final_sha256":fh,
+        "updater_sha256":uch,
+        "final_updater_sha256":ufh,
         "source_science_status":"PASS" if _science_ok(Path(a.source_science)) else "FAIL",
         "exe_science_status":"PASS" if _science_ok(Path(a.exe_science)) else "FAIL",
         "failures":bad,
