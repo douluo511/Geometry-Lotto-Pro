@@ -10,6 +10,7 @@ from unittest.mock import patch
 PROJECT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT))
 import collect_final_gates
+from collect_final_gates import physical_gui_status
 from bind_gui_operations import validate_operations
 from real_release_evidence import validate_real_release_evidence
 
@@ -52,6 +53,21 @@ class AcceptanceEvidenceTests(unittest.TestCase):
         records.append(copy.deepcopy(records[0]))
         with self.assertRaises(ValueError):
             validate_operations(records, buttons, 'a'*40, '123', '1')
+    def test_physical_gui_gate_is_independent_from_production_update_release(self):
+        exact = {'gui_smoke': {'status': 'PASS'}}
+        physical = {
+            'status': 'PASS',
+            'operation_binding': 'PASS',
+            'acceptance_mode': 'BlockedRelease',
+            'software_update_release': 'BLOCKED',
+            'buttons': [{'status': 'PASS', 'visual_changed': True} for _ in range(4)],
+        }
+        self.assertEqual(physical_gui_status(exact, physical, True), 'PASS')
+        self.assertEqual(physical['software_update_release'], 'BLOCKED')
+        broken = copy.deepcopy(physical)
+        broken['buttons'][0]['visual_changed'] = False
+        self.assertEqual(physical_gui_status(exact, broken, True), 'FAIL')
+
     def test_missing_updater_and_same_sha_old_run_fail_closed(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
