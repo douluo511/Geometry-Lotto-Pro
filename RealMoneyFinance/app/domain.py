@@ -31,6 +31,7 @@ class CapitalObservation:
     price_return_20d: float | None
     amount_ratio_5d_vs_20d: float | None
     turnover_ratio_5d_vs_20d: float | None
+    volume_ratio_5d_vs_20d: float | None
     activity_state: str
     true_capital_identity: str
     conclusion_boundary: str
