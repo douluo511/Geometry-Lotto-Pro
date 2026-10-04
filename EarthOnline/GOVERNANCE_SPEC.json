@@ -1,0 +1,44 @@
+{
+  "schema": "earth-online-governance-v1",
+  "lineage": "NEW_REAUTHORED_LINEAGE",
+  "historical_source_recovered": false,
+  "purpose": "Build an auditable thinking-and-action system: facts -> evidence grade -> five-dimensional analysis -> 5 Why -> reversal -> options/risk -> smallest action -> result -> review/update.",
+  "frozen_business_source": "User-owned Earth Online v1/v2 complete manuals; source document bytes remain outside this public repository.",
+  "five_dimensions": [
+    "history",
+    "power",
+    "economics",
+    "execution",
+    "philosophy"
+  ],
+  "five_why_rule": "Each layer is a hypothesis branch; follow the branch with evidence and stop when evidence is insufficient.",
+  "reversal_rule": "Every important belief must state the strongest countercase, observable disconfirmation and alternative explanation.",
+  "high_risk_boundary": {
+    "domains": [
+      "health",
+      "investment",
+      "politics",
+      "law"
+    ],
+    "rule": "Train general reasoning only; never replace doctors, licensed professionals or first-party current official information."
+  },
+  "curriculum_contract": {
+    "chapters": 21,
+    "minimum_cases": 40,
+    "training_days": 365,
+    "checkpoints": [
+      30,
+      90,
+      180,
+      270,
+      365
+    ],
+    "content_bytes_public": false
+  },
+  "ui_entries": [
+    "决策训练",
+    "一键更新",
+    "一键修复",
+    "高级分析"
+  ]
+}
