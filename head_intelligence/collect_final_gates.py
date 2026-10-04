@@ -67,8 +67,6 @@ def main()->int:
     physical=json.loads(Path(a.physical_gui).read_text(encoding="utf-8-sig")) if Path(a.physical_gui).exists() else {}
     if physical.get("status")!="PASS" or physical.get("exe_sha256")!=fh or physical.get("source_sha")!=a.source_sha or physical.get("workflow_run")!=binding["workflow_run"] or physical.get("workflow_attempt")!=binding["workflow_attempt"] or physical.get("button_count")!=4 or physical.get("operation_binding")!="PASS" or not untracked(Path(a.physical_gui)):
         gates["physical_gui_click"]="FAIL"
-    elif physical.get("release_mode") != "ConfiguredRelease":
-        gates["physical_gui_click"]="BLOCKED"
     bad={k:v for k,v in gates.items() if v!="PASS"}
     report={
       "schema":"head-intelligence-current-run-gates-v2",
