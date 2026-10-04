@@ -1,35 +1,22 @@
 {
-  "schema": "earth-online-content-import-v1",
+  "schema": "earth-online-content-import-v2",
   "source_version": "v2.0",
   "source_date": "2026-09-17",
-  "import_status": "PARTIAL_INDEX_ONLY",
-  "chapter_titles": [
-    "事实与解释",
-    "证据、概率与基准率",
-    "五维模型",
-    "5 Why 根因分析",
-    "逆转验证与证伪",
-    "决策闭环与复盘",
-    "《易经》：变化与时位",
-    "《道德经》：低摩擦行动",
-    "《庄子》：视角与自由",
-    "《孙子兵法》：战略、信息与风险",
-    "《韩非子》：制度、权力与激励",
-    "实践-认识循环：近现代方法论文本的批判阅读",
-    "《黄帝内经》：传统健康思想与现代证据边界",
-    "术数辨析：八字、易林、五运六气与可验证性",
-    "经济学：激励、机会成本与边际",
-    "博弈论：合作、竞争、承诺与谈判",
-    "概率统计：期望值、贝叶斯、回归均值",
-    "系统思维：反馈、滞后与二阶效应",
-    "认知心理：偏差、情绪与信息卫生",
-    "学习、职业与金钱：能力资本与复利",
-    "综合决策引擎：把所有模块装进现实生活"
+  "source_pages": 95,
+  "import_status": "FULL_TEXT_CORPUS_IMPORTED",
+  "corpus_chunk_files": [
+    "v2_corpus_pages_001_012.txt",
+    "v2_corpus_pages_013_024.txt",
+    "v2_corpus_pages_025_036.txt",
+    "v2_corpus_pages_037_048.txt",
+    "v2_corpus_pages_049_060.txt",
+    "v2_corpus_pages_061_072.txt",
+    "v2_corpus_pages_073_084.txt",
+    "v2_corpus_pages_085_095.txt"
   ],
-  "source_case_count": 43,
-  "imported_cases": 0,
-  "source_training_days": 365,
-  "imported_training_days": 0,
+  "chapter_count": 21,
+  "imported_cases": 43,
+  "imported_training_days": 365,
   "templates": [
     "一页式重大决策",
     "5 Why",
@@ -46,5 +33,5 @@
     "major decision/5 Why/reversal/weekly review templates exist",
     "outcome is updateable judgment, controlled error cost, reviewable action; never guaranteed correctness"
   ],
-  "note": "Only the verified index/governance baseline is imported in this commit. Full chapter/case/day corpus remains NOT VERIFIED in the software package and cannot be counted as final business content."
+  "note": "The complete parsed text corpus from the owned 95-page v2.0 source is imported as eight page-range chunks. Acceptance code validates the actual imported text rather than trusting manifest counts alone."
 }
