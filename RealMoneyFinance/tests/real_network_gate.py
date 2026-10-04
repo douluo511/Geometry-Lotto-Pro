@@ -7,7 +7,7 @@ import tempfile
 
 from app.engine import analyze_observable_activity
 from app.netclient import NetClient
-from app.source_eastmoney import fetch_daily_bars
+from app.source_market import fetch_daily_bars_failover
 from app.storage import Storage
 
 
@@ -15,7 +15,7 @@ def main() -> int:
     with tempfile.TemporaryDirectory() as td:
         root = Path(td)
         client = NetClient(root / "evidence" / "network.jsonl", max_attempts=3)
-        bars, meta = fetch_daily_bars(client, "600000", 90)
+        bars, meta = fetch_daily_bars_failover(client, "600000", 90)
         if meta["http_status"] != 200:
             raise AssertionError("real source did not return HTTP 200")
         if len(bars) < 30:
@@ -29,6 +29,9 @@ def main() -> int:
         evidence = {
             "status": "PASS",
             "provider": meta["provider"],
+            "selected_provider": meta.get("selected_provider"),
+            "provider_attempts": meta.get("provider_attempts"),
+            "cross_source_validation": meta.get("cross_source_validation"),
             "payload_sha256": meta["payload_sha256"],
             "row_count": len(bars),
             "asof": obs.asof,
