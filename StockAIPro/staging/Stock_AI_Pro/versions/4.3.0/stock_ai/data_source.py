@@ -406,21 +406,18 @@ def update_symbol_history(code: str, cfg: dict, logger=None) -> pd.DataFrame:
     new = None
     errs = []
     nc = cfg.get("network", {}) or {}
-    attempts = max(1, int(nc.get("retry_attempts",3)))
     timeout = float(nc.get("timeout_seconds",15))
-    backoff = float(nc.get("retry_backoff_seconds",0.8))
 
+    # AkShareProxy/NetClient is the single owner of bounded retry/backoff.
+    # Do not retry the same provider again here: doing so multiplies the
+    # configured retry budget (for example 3 x 3 = 9 attempts per symbol)
+    # and can exhaust the full daily gate during a provider-wide outage.
     for fetcher in (_fetch_history_primary, _fetch_history_fallback):
-        for attempt in range(1, attempts + 1):
-            try:
-                new = fetcher(ak, code, start, end, adjust, timeout=timeout)
-                break
-            except Exception as e:
-                errs.append(f"{fetcher.__name__}[{attempt}/{attempts}]: {e}")
-                if attempt < attempts:
-                    time.sleep(backoff * attempt)
-        if new is not None:
+        try:
+            new = fetcher(ak, code, start, end, adjust, timeout=timeout)
             break
+        except Exception as e:
+            errs.append(f"{fetcher.__name__}: {e}")
 
     if new is None:
         if out.exists() and not old.empty:
