@@ -87,8 +87,9 @@ jobs:
         run: |
           $root=Join-Path $env:RUNNER_TEMP "rmf-updater"
           New-Item -ItemType Directory -Force $root|Out-Null
-          & ./dist/RealMoneyFinanceUpdater.exe --root $root
-          $rc=$LASTEXITCODE
+          $updater=Resolve-Path ./dist/RealMoneyFinanceUpdater.exe
+          $proc=Start-Process -FilePath $updater -ArgumentList @('--root',"$root") -Wait -PassThru -NoNewWindow
+          $rc=$proc.ExitCode
           if($rc -ne 3){throw "expected BLOCKED rc=3 without production release context, got $rc"}
           [ordered]@{
             status="BLOCKED"
