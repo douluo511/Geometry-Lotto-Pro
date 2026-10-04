@@ -67,7 +67,9 @@
     "Validation": [
       "tests/contract_gate.py",
       "tests/fault_injection_gate.py",
-      "tests/business_qualification_gate.py"
+      "tests/business_qualification_gate.py",
+      "app/freshness.py",
+      "tests/source_freshness_contract.py"
     ],
     "Evidence": [
       "tests/collect_candidate_evidence.py"

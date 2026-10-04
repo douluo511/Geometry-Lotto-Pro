@@ -57,6 +57,9 @@ jobs:
       - name: Contract gate
         run: python -m tests.contract_gate
 
+      - name: Source freshness fail-closed contract gate
+        run: python -m tests.source_freshness_contract
+
       - name: Fault injection gate
         run: python -m tests.fault_injection_gate
 
@@ -138,6 +141,7 @@ jobs:
             RealMoneyFinance/fault_injection_evidence.json
             RealMoneyFinance/updater_contract_evidence.json
             RealMoneyFinance/real_network_evidence.json
+            RealMoneyFinance/source_freshness_contract_evidence.json
             RealMoneyFinance/real_network_failure_evidence.json
             RealMoneyFinance/business_qualification_evidence.json
             RealMoneyFinance/windows_build_evidence.json

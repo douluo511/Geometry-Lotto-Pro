@@ -6,6 +6,7 @@ import os
 import tempfile
 
 from app.engine import analyze_observable_activity
+from app.freshness import qualify_source_freshness
 from app.netclient import NetClient
 from app.source_market import fetch_daily_bars_failover
 from app.storage import Storage
@@ -46,12 +47,16 @@ def main() -> int:
         obs = analyze_observable_activity(store.load_bars("600000", 120))
         if obs.true_capital_identity != "UNAVAILABLE_FROM_PUBLIC_LEVEL1":
             raise AssertionError("identity boundary violated")
+        source_freshness = qualify_source_freshness(
+            obs.asof, meta.get("cross_source_validation")
+        )
         evidence = {
             "status": "PASS",
             "provider": meta["provider"],
             "selected_provider": meta.get("selected_provider"),
             "provider_attempts": meta.get("provider_attempts"),
             "cross_source_validation": meta.get("cross_source_validation"),
+            "source_freshness": source_freshness,
             "payload_sha256": meta["payload_sha256"],
             "row_count": len(bars),
             "asof": obs.asof,
@@ -61,6 +66,8 @@ def main() -> int:
         }
         Path("real_network_evidence.json").write_text(json.dumps(evidence, indent=2), encoding="utf-8")
         print(json.dumps(evidence))
+        if source_freshness["status"] == "FAIL":
+            raise AssertionError("source freshness failed closed: " + source_freshness["reason"])
     return 0
 
 

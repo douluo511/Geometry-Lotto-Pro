@@ -81,6 +81,7 @@ def main():
         "fault_injection": fault.get("status", "NOT VERIFIED"),
         "real_network": network.get("status", "NOT VERIFIED"),
         "cross_source_validation": network.get("cross_source_validation", {}).get("status", "NOT VERIFIED"),
+        "source_freshness": network.get("source_freshness", {}).get("status", "NOT VERIFIED"),
         "windows_build": build.get("status", "NOT VERIFIED") if build.get("source_sha") == source_sha else "NOT VERIFIED",
         "exact_exe": exact.get("exact_exe", "NOT VERIFIED") if exact.get("source_sha") == source_sha else "NOT VERIFIED",
         "exact_exe_real_network": gui.get("exact_exe_real_network", {}).get("status", "NOT VERIFIED"),
@@ -100,6 +101,7 @@ def main():
         "fault_injection_evidence.json",
         "updater_contract_evidence.json",
         "real_network_evidence.json",
+        "source_freshness_contract_evidence.json",
         "business_qualification_evidence.json",
         "windows_build_evidence.json",
         "exact_exe_evidence.json",
@@ -156,7 +158,7 @@ def main():
         "observable_activity_analysis": "PASS" if (
             network.get("status") == "PASS" and bool(network.get("activity_state"))
         ) else "NOT VERIFIED",
-        "source_freshness": "NOT VERIFIED",
+        "source_freshness": network.get("source_freshness", {}).get("status", "NOT VERIFIED"),
         "cost_slippage_calibration": qualified_business_gate("cost_slippage_model"),
         "liquidity_capacity": qualified_business_gate("liquidity_capacity"),
         "corporate_action_point_in_time": qualified_business_gate("corporate_action_adjustment"),
