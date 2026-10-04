@@ -2,6 +2,7 @@
 from __future__ import annotations
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import math
 import re
 import threading
 import time
@@ -581,9 +582,12 @@ def _run_history_batch(codes, cfg: dict, phase: str, logger=None):
     # Keep the production universe and historical date range intact. A small
     # worker bound overlaps provider I/O rather than reducing the workload.
     codes = list(dict.fromkeys(map(str, codes)))
-    workers = min(4, max(1, int((cfg.get("network", {}) or {}).get("history_workers", 4))))
-    ak = _ak()
     nc = cfg.get("network", {}) or {}
+    if str(phase).startswith("qualification_history"):
+        workers = min(12, max(1, int(nc.get("qualification_history_workers", 12))))
+    else:
+        workers = min(4, max(1, int(nc.get("history_workers", 4))))
+    ak = _ak()
     source_health = _HistorySourceHealth(
         failures=int(nc.get("history_primary_circuit_failures", 4)),
         probe_every=int(nc.get("history_primary_probe_every", 24)),
@@ -704,6 +708,141 @@ def bootstrap_research_pool(master: pd.DataFrame, cfg: dict, live_codes=None, lo
     }
     write_json(ROOT / "cache" / "bootstrap_status.json", status)
     return status
+
+
+def _research_coverage_snapshot(master: pd.DataFrame) -> dict:
+    """Measure persisted real-history coverage against the frozen research master."""
+    m = master.copy()
+    m["code"] = m["code"].astype(str)
+    existing = {p.stem for p in (ROOT / "data" / "history").glob("*.csv")}
+    all_codes = set(m["code"])
+    if "status" in m:
+        current_codes = set(m.loc[m["status"] == "current", "code"])
+        delisted_codes = set(m.loc[m["status"] == "delisted", "code"])
+    else:
+        current_codes, delisted_codes = all_codes, set()
+    covered = len(all_codes & existing)
+    return {
+        "covered_symbols": covered,
+        "target_symbols": len(all_codes),
+        "coverage": covered / max(1, len(all_codes)),
+        "remaining": max(0, len(all_codes) - covered),
+        "current_coverage": len(current_codes & existing) / max(1, len(current_codes)),
+        "delisted_coverage": (
+            len(delisted_codes & existing) / max(1, len(delisted_codes))
+            if delisted_codes else 1.0
+        ),
+        "current_target": len(current_codes),
+        "delisted_target": len(delisted_codes),
+        "_existing": existing,
+        "_current_codes": current_codes,
+        "_delisted_codes": delisted_codes,
+    }
+
+
+def qualify_research_pool_coverage(master: pd.DataFrame, cfg: dict, logger=None) -> dict:
+    """Build a mature research corpus without weakening the >=90% audit gate.
+
+    Daily bootstrap remains intentionally incremental. Advanced qualification may
+    spend a larger, explicitly bounded real-network budget to mature the same
+    persisted corpus. Failed symbols never count as covered and are not retried
+    forever during one invocation.
+    """
+    if not cfg["universe"].get("bootstrap_full_universe", True):
+        raise RuntimeError("full-universe research bootstrap is disabled")
+
+    m = master.copy()
+    m["code"] = m["code"].astype(str)
+    max_symbols = int(cfg["universe"].get("bootstrap_max_symbols", 0))
+    if max_symbols > 0:
+        m = m.head(max_symbols)
+
+    target = max(0.90, float(cfg["universe"].get("qualification_coverage_target", 0.90)))
+    delisted_target = max(
+        0.90, float(cfg["universe"].get("qualification_delisted_target", 0.90))
+    )
+    if target > 1.0 or delisted_target > 1.0:
+        raise ValueError("qualification coverage targets must be <= 1.0")
+    chunk = max(1, min(512, int(cfg["universe"].get("qualification_bootstrap_chunk", 384))))
+    max_seconds = max(
+        60.0, float(cfg["universe"].get("qualification_bootstrap_max_seconds", 7200))
+    )
+    started = time.monotonic()
+    failed_once: set[str] = set()
+    failures: list[dict] = []
+    downloaded = 0
+
+    def persist(snapshot: dict, status: str) -> dict:
+        clean = {k: v for k, v in snapshot.items() if not k.startswith("_")}
+        clean.update({
+            "enabled": True,
+            "downloaded": downloaded,
+            "failed": failures,
+            "qualification_status": status,
+            "qualification_target": target,
+            "qualification_delisted_target": delisted_target,
+            "qualification_failed_once_count": len(failed_once),
+            "qualification_elapsed_seconds": time.monotonic() - started,
+            "updated_at": now_iso(),
+        })
+        write_json(ROOT / "cache" / "bootstrap_status.json", clean)
+        return clean
+
+    while True:
+        snap = _research_coverage_snapshot(m)
+        if snap["coverage"] >= target and snap["delisted_coverage"] >= delisted_target:
+            return persist(snap, "PASS")
+        if time.monotonic() - started >= max_seconds:
+            return persist(snap, "NOT VERIFIED")
+
+        existing = snap["_existing"]
+        current_codes = snap["_current_codes"]
+        delisted_codes = snap["_delisted_codes"]
+        need_current = max(
+            0, math.ceil(target * len(current_codes)) - len(current_codes & existing)
+        )
+        need_delisted = max(
+            0,
+            math.ceil(delisted_target * len(delisted_codes))
+            - len(delisted_codes & existing),
+        )
+        missing_delisted = sorted(delisted_codes - existing - failed_once)
+        missing_current = sorted(current_codes - existing - failed_once)
+
+        # Preserve both denominators: each chunk allocates capacity to delisted
+        # and current deficits instead of filling only the much larger current set.
+        selected: list[str] = []
+        if need_delisted and missing_delisted:
+            take = min(len(missing_delisted), max(1, min(need_delisted, chunk // 4)))
+            selected.extend(missing_delisted[:take])
+        remaining_slots = chunk - len(selected)
+        if remaining_slots > 0 and need_current and missing_current:
+            selected.extend(missing_current[:min(need_current, remaining_slots)])
+        remaining_slots = chunk - len(selected)
+        if remaining_slots > 0 and need_delisted:
+            used = set(selected)
+            more = [x for x in missing_delisted if x not in used]
+            selected.extend(more[:remaining_slots])
+
+        if not selected:
+            return persist(snap, "NOT VERIFIED")
+
+        before = snap["covered_symbols"]
+        for code, _, error in _run_history_batch(
+            selected, cfg, "qualification_history", logger
+        ):
+            if error is None:
+                downloaded += 1
+            else:
+                failed_once.add(code)
+                failures.append({"code": code, "error": error})
+        after = _research_coverage_snapshot(m)
+        persist(after, "RUNNING")
+        if after["covered_symbols"] <= before and all(code in failed_once for code in selected):
+            # No-progress batches remain explicit NOT VERIFIED; never spin/retry
+            # a permanently unavailable population until the CI timeout.
+            continue
+
 
 def load_histories(codes=None) -> dict[str,pd.DataFrame]:
     folder = ROOT / "data" / "history"
