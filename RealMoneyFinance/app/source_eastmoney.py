@@ -20,7 +20,7 @@ def fetch_daily_bars(client: NetClient, symbol: str, limit: int = 120) -> tuple[
         "secid": _secid(symbol),
         "klt": "101",
         "fqt": "1",
-        "lmt": str(max(30, min(int(limit), 500))),
+        "lmt": str(max(30, min(int(limit), 1200))),
         "end": "20500101",
         "fields1": "f1,f2,f3,f4,f5,f6",
         "fields2": "f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61",

@@ -14,6 +14,8 @@ from app.source_tencent_full import fetch_daily_bars_tencent_full
 from app.source_yahoo import fetch_daily_bars_yahoo
 from tests.business_failclosed_contract import run_contract
 
+QUALIFICATION_HISTORY_ROWS = 800
+
 
 def synthetic_contract() -> dict:
     rows = []
@@ -163,7 +165,7 @@ def real_network_qualification() -> dict:
     with tempfile.TemporaryDirectory() as td:
         root = Path(td)
         client = NetClient(root / "network.jsonl", max_attempts=3)
-        bars, meta = fetch_daily_bars_failover(client, "600000", 260)
+        bars, meta = fetch_daily_bars_failover(client, "600000", QUALIFICATION_HISTORY_ROWS)
         benchmark_rows = []
         benchmark_meta = {
             "qualification_scope": "NOT VERIFIED",
@@ -172,7 +174,7 @@ def real_network_qualification() -> dict:
         benchmark_error = None
         try:
             benchmark_rows, benchmark_meta = fetch_daily_bars_yahoo(
-                client, "000001", 260, ticker_override="000001.SS"
+                client, "000001", QUALIFICATION_HISTORY_ROWS, ticker_override="000001.SS"
             )
             benchmark_meta = dict(benchmark_meta)
             if benchmark_rows and benchmark_rows[-1].trade_date == bars[-1].trade_date:

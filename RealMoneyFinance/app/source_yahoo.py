@@ -30,7 +30,7 @@ def fetch_daily_bars_yahoo(
     obj, meta = client.get_json(
         CHART_BASE + ticker,
         {
-            "range": "2y",
+            "range": "5y",
             "interval": "1d",
             "events": "history",
             "includeAdjustedClose": "true",
@@ -92,7 +92,7 @@ def fetch_daily_bars_yahoo(
             raw_sha256=meta.payload_sha256,
         ))
     rows.sort(key=lambda x: x.trade_date)
-    rows = rows[-max(30, min(int(limit), 500)):]
+    rows = rows[-max(30, min(int(limit), 1200)):]
     if len(rows) < 30:
         raise ValueError("Yahoo response has insufficient valid daily rows")
     validate_market_rows(rows)
