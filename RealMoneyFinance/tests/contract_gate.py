@@ -13,17 +13,19 @@ from app.storage import Storage
 
 class FakeClient:
     def get_json(self, url, params):
-        class Meta:
-            status = 200
-            payload_sha256 = "a" * 64
-            retrieved_at_unix = 1.0
-            url = url
+        from types import SimpleNamespace
+        meta = SimpleNamespace(
+            status=200,
+            payload_sha256="a" * 64,
+            retrieved_at_unix=1.0,
+            url=url,
+        )
         rows = []
         start = date(2026, 7, 1)
         for i in range(40):
             day = (start + timedelta(days=i)).isoformat()
             rows.append(f"{day},10,10.1,10.2,9.9,{1000+i},{100000+i*1000},1,1.0,0.1,{2.0+i/100}")
-        return {"data": {"klines": rows}}, Meta()
+        return {"data": {"klines": rows}}, meta
 
 
 def main() -> int:
