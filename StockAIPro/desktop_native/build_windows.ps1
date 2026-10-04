@@ -21,6 +21,8 @@ if (Test-Path $build) { Remove-Item -Recurse -Force $build }
   --add-data "staging/Stock_AI_Pro;Stock_AI_Pro" `
   --hidden-import pandas `
   --hidden-import numpy `
+  --collect-all numpy `
+  --collect-all pandas `
   --hidden-import sklearn `
   --hidden-import joblib `
   --hidden-import requests `
