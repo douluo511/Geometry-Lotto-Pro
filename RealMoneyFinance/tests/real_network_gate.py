@@ -18,10 +18,18 @@ def main() -> int:
         try:
             bars, meta = fetch_daily_bars_failover(client, "600000", 90)
         except Exception as exc:
+            receipt_path = root / "evidence" / "network.jsonl"
+            receipts = []
+            if receipt_path.exists():
+                try:
+                    receipts = receipt_path.read_text(encoding="utf-8").splitlines()[-20:]
+                except Exception as receipt_exc:
+                    receipts = [json.dumps({"receipt_read_error": repr(receipt_exc)})]
             failure = {
                 "status": "FAIL",
                 "error": repr(exc),
-                "network_receipts": str(root / "evidence" / "network.jsonl"),
+                "network_receipts": str(receipt_path),
+                "recent_network_receipts": receipts,
             }
             Path("real_network_failure_evidence.json").write_text(
                 json.dumps(failure, ensure_ascii=True, indent=2), encoding="utf-8"
