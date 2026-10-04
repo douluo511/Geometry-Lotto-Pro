@@ -14,7 +14,6 @@ from app.storage import Storage
 
 class FakeClient:
     def get_json(self, url, params):
-        from types import SimpleNamespace
         meta = SimpleNamespace(
             status=200,
             payload_sha256="a" * 64,
