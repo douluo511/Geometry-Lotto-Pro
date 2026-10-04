@@ -1,0 +1,50 @@
+{
+  "schema": "earth-online-acceptance-v1",
+  "engineering_denominator": [
+    "requirements_purpose_model",
+    "five_why",
+    "risk_boundary",
+    "domain_model",
+    "architecture",
+    "function_inventory",
+    "interface_contracts",
+    "data_sources",
+    "netclient",
+    "storage",
+    "engine",
+    "validation",
+    "evidence",
+    "service",
+    "ui",
+    "self_test",
+    "contract_test",
+    "fault_injection",
+    "real_network",
+    "windows_build",
+    "exact_exe",
+    "physical_gui",
+    "updater_contract",
+    "positive_production_update",
+    "repository_independence",
+    "real_release_n_to_n_plus_1",
+    "same_hash_current_bytes",
+    "formal_release_redownload_same_hash"
+  ],
+  "business_denominator": [
+    "21_chapter_full_bodies",
+    "case_library_40_plus",
+    "facts_vs_interpretation",
+    "365_day_full_training",
+    "traditional_health_divination_boundary",
+    "political_historical_boundary",
+    "decision_templates",
+    "updateable_judgment_outcome"
+  ],
+  "status_vocabulary": [
+    "PASS",
+    "FAIL",
+    "BLOCKED",
+    "NOT VERIFIED"
+  ],
+  "no_inheritance": true
+}

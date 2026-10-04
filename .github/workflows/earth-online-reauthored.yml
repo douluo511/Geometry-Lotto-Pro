@@ -1,0 +1,90 @@
+name: Earth Online Life Base reauthored Windows candidate
+
+on:
+  pull_request:
+    paths:
+      - "EarthOnlineLifeBase/**"
+      - ".github/workflows/earth-online-reauthored.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-candidate:
+    runs-on: windows-2022
+    timeout-minutes: 90
+    env:
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: "utf-8"
+      EARTH_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      EARTH_ONLINE_DATA_ROOT: ${{ runner.temp }}\earth-online-data
+    defaults:
+      run:
+        working-directory: EarthOnlineLifeBase
+    steps:
+      - name: Checkout exact reauthored head
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ env.EARTH_SOURCE_SHA }}
+          fetch-depth: 0
+      - name: Exact checkout identity
+        shell: pwsh
+        run: |
+          if ((git rev-parse HEAD).Trim() -ne $env:EARTH_SOURCE_SHA) { throw "stale checkout" }
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.11.9"
+          architecture: x64
+      - name: Install pinned build and physical GUI dependencies
+        run: python -m pip install --disable-pip-version-check pyinstaller==6.11.1 pywinauto==0.6.9 pillow==11.3.0
+      - name: Compile and contracts
+        run: |
+          python -m compileall -q .
+          python tests/contract_gate.py
+          python tests/fault_injection_gate.py
+          python tests/business_content_gate.py
+      - name: Real Network source-reference gate
+        run: python tests/real_network_gate.py
+      - name: Native Windows build
+        shell: pwsh
+        run: .\build_windows.ps1
+      - name: Exact EXE self-test
+        shell: pwsh
+        run: |
+          $exe=Resolve-Path .\dist\EarthOnlineLifeBase\EarthOnlineLifeBase.exe
+          $before=(Get-FileHash -Algorithm SHA256 $exe).Hash.ToLowerInvariant()
+          $p=Start-Process -FilePath $exe -ArgumentList '--self-test' -Wait -PassThru -WindowStyle Hidden
+          if($p.ExitCode -ne 0){throw "self-test failed"}
+          $after=(Get-FileHash -Algorithm SHA256 $exe).Hash.ToLowerInvariant()
+          if($before -ne $after){throw "EXE changed after self-test"}
+      - name: Independent updater blocked boundary
+        shell: pwsh
+        run: |
+          $u=Resolve-Path .\dist\EarthOnlineLifeBase\EarthOnlineUpdater.exe
+          $p=Start-Process -FilePath $u -Wait -PassThru -WindowStyle Hidden
+          if($p.ExitCode -ne 3){throw "expected updater BLOCKED rc=3"}
+      - name: Physical GUI clicks and Same Hash
+        run: python tests/gui_physical_click_gate.py --exe dist/EarthOnlineLifeBase/EarthOnlineLifeBase.exe --output physical_gui.json
+      - name: Candidate boundary
+        shell: pwsh
+        run: |
+          Write-Host "LINEAGE=NEW_REAUTHORED_IMPLEMENTATION"
+          Write-Host "WINDOWS_BUILD=PASS"
+          Write-Host "EXACT_EXE=PASS"
+          Write-Host "PHYSICAL_GUI=PASS"
+          Write-Host "SOFTWARE_CONTENT_IMPORT=NOT VERIFIED"
+          Write-Host "POSITIVE_PRODUCTION_UPDATE=BLOCKED"
+          Write-Host "REPOSITORY_INDEPENDENCE=BLOCKED"
+          Write-Host "REAL_RELEASE_N_TO_N_PLUS_1=BLOCKED"
+          Write-Host "FINAL_GATE=FAIL"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: EARTH-ONLINE-REAUTHORED-${{ env.EARTH_SOURCE_SHA }}
+          path: |
+            EarthOnlineLifeBase/dist/EarthOnlineLifeBase/**
+            EarthOnlineLifeBase/business_evidence.json
+            EarthOnlineLifeBase/physical_gui.json
+          if-no-files-found: warn
+          retention-days: 30
