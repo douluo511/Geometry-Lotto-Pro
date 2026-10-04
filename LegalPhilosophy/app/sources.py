@@ -13,7 +13,11 @@ from .netclient import NetClient
 
 
 PRIMARY_SOURCE_ID = "hegel_dyde_1896_primary"
-PRIMARY_SCAN_URL = "https://upload.wikimedia.org/wikipedia/commons/6/67/Hegel%27s_Philosophy_of_right_%28IA_cu31924014578979%29.pdf"
+PRIMARY_SCAN_URLS = (
+    "https://archive.org/download/cu31924014578979/cu31924014578979.pdf",
+    "https://davidmhart.com/liberty/OtherWorks/Hegel/Philosophie_des_Rechts/1896-trans/Hegel_PhilRight1896.pdf",
+    "https://upload.wikimedia.org/wikipedia/commons/6/67/Hegel%27s_Philosophy_of_right_%28IA_cu31924014578979%29.pdf",
+)
 PRIMARY_REQUIRED_PREFIXES = (
     "EDITION:DYDE_1896:",
     "SECTION:Preface / Introduction:1-32:",
@@ -31,7 +35,8 @@ SOURCE_SPECS = (
     {
         "source_id": PRIMARY_SOURCE_ID,
         "title": "Hegel's Philosophy of Right — S. W. Dyde translation (1896)",
-        "url": PRIMARY_SCAN_URL,
+        "url": PRIMARY_SCAN_URLS[0],
+        "fallback_urls": PRIMARY_SCAN_URLS[1:],
         "role": "PRIMARY_TEXT",
         "format": "primary_pdf",
         "markers": (),
@@ -184,16 +189,28 @@ def _primary_pdf_text_and_hits(payload: bytes) -> tuple[str, tuple[str, ...]]:
 
 
 def _fetch_source_text(client: NetClient, spec: dict):
-    if spec.get("format") in {"pdf", "primary_pdf"}:
+    if spec.get("format") == "primary_pdf":
+        failures = []
+        for url in (spec["url"], *tuple(spec.get("fallback_urls") or ())):
+            try:
+                payload, receipt = client.get_bytes(
+                    url,
+                    allowed_content_types=("application/pdf",),
+                    max_bytes=15_000_000,
+                    accept="application/pdf",
+                )
+                text, hits = _primary_pdf_text_and_hits(payload)
+                return text, receipt, hits
+            except Exception as exc:
+                failures.append({"url": url, "error": repr(exc)})
+        raise RuntimeError(f"all trusted primary-edition mirrors failed validation: {failures}")
+    if spec.get("format") == "pdf":
         payload, receipt = client.get_bytes(
             spec["url"],
             allowed_content_types=("application/pdf",),
-            max_bytes=15_000_000 if spec.get("format") == "primary_pdf" else 30_000_000,
+            max_bytes=30_000_000,
             accept="application/pdf",
         )
-        if spec.get("format") == "primary_pdf":
-            text, hits = _primary_pdf_text_and_hits(payload)
-            return text, receipt, hits
         return _pdf_text(payload), receipt, None
     markup, receipt = client.get_text(spec["url"])
     return _plain_text(markup), receipt, None
@@ -219,7 +236,7 @@ def fetch_current_sources(client: NetClient) -> tuple[list[SourceDocument], dict
         doc = SourceDocument(
             source_id=spec["source_id"],
             title=spec["title"],
-            url=spec["url"],
+            url=str(receipt.url),
             role=spec["role"],
             retrieved_at=datetime.now(timezone.utc).isoformat(),
             payload_sha256=str(receipt.payload_sha256),
