@@ -1,13 +1,19 @@
 from __future__ import annotations
 from datetime import datetime,timedelta
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import math
 import time, numpy as np, pandas as pd
-from .config import ROOT
+from .config import ROOT,load_config
+from .netclient import AkShareProxy
 from .utils import write_json,now_iso
 
-def _ak():
+def _ak(network_cfg=None):
     try:
-        import akshare as ak; return ak
-    except Exception as e: raise RuntimeError("AkShare 未安装") from e
+        import akshare as ak
+        cfg = network_cfg if network_cfg is not None else (load_config().get("network", {}) or {})
+        return AkShareProxy(ak, cfg, ROOT / "evidence" / "netclient_raw.jsonl")
+    except Exception as e:
+        raise RuntimeError("AkShare 未安装或 NetClient 初始化失败") from e
 
 def _cheap_score(s,loss_score=15.0,missing_score=50.0):
     x=pd.to_numeric(s,errors="coerce"); out=pd.Series(float(missing_score),index=x.index,dtype=float)
@@ -47,7 +53,7 @@ def _read(code):
     except Exception:return pd.DataFrame()
 
 def update_valuation_history(code,cfg,logger=None):
-    vc=cfg.get("valuation",{}) or {}; ak=_ak(); merged=None; errs=[]
+    vc=cfg.get("valuation",{}) or {}; ak=_ak(cfg.get("network",{}) or {}); merged=None; errs=[]
     for ind in vc.get("history_indicators",["市盈率(TTM)","市净率"]):
         try:
             raw=ak.stock_zh_valuation_baidu(symbol=str(code),indicator=ind,period=str(vc.get("history_period","全部")))
@@ -81,6 +87,62 @@ def refresh_valuation_histories(codes,cfg,logger=None):
 
 def valuation_history_coverage(codes):
     codes=list(map(str,codes)); folder=ROOT/"data"/"valuation"; return sum((folder/f"{c}.csv").exists() for c in codes)/max(1,len(codes))
+
+
+def _has_pit_valuation(code,asof_date):
+    v=_read(str(code))
+    if v.empty or "date" not in v:return False
+    cutoff=pd.Timestamp(asof_date)
+    dates=pd.to_datetime(v["date"],errors="coerce")
+    x=v[dates<=cutoff]
+    cols=[c for c in ["pe_ttm","pb"] if c in x.columns]
+    if x.empty or not cols:return False
+    return bool(x[cols].apply(pd.to_numeric,errors="coerce").notna().any(axis=1).any())
+
+def qualify_backtest_valuation_histories(codes,cfg,asof_date,min_coverage,logger=None):
+    requested=sorted({str(c) for c in codes})
+    target=float(min_coverage)
+    if not requested or not (0<target<=1):
+        report={"status":"FAIL","requested_count":len(requested),"required_count":0,"ending_valid_count":0,"coverage":0.0,"target_coverage":target,"asof_date":str(pd.Timestamp(asof_date).date()),"error":"invalid qualification denominator"}
+        write_json(ROOT/"cache"/"valuation_backtest_qualification.json",report);return report
+    required=max(1,int(math.ceil(len(requested)*target)))
+    valid={c for c in requested if _has_pit_valuation(c,asof_date)}
+    starting=len(valid); attempted=[]; failed=[]
+    candidates=[c for c in requested if c not in valid]
+    workers=max(1,min(12,int((cfg.get("network",{}) or {}).get("qualification_history_workers",12))))
+    cursor=0
+    while len(valid)<required and cursor<len(candidates):
+        deficit=required-len(valid)
+        batch=candidates[cursor:cursor+deficit]
+        cursor+=len(batch)
+        if not batch:break
+        with ThreadPoolExecutor(max_workers=min(workers,len(batch)),thread_name_prefix="stock-valuation-qual") as pool:
+            futures={pool.submit(update_valuation_history,c,cfg,logger):c for c in batch}
+            for future in as_completed(futures):
+                code=futures[future];attempted.append(code)
+                try:
+                    future.result()
+                    if _has_pit_valuation(code,asof_date):valid.add(code)
+                    else:failed.append({"code":code,"error":"no PIT valuation on or before qualification date"})
+                except Exception as exc:
+                    failed.append({"code":code,"error":str(exc)})
+    report={
+        "status":"PASS" if len(valid)>=required else "FAIL",
+        "selection_order":"lexicographic_code_only_no_outcome_selection",
+        "asof_date":str(pd.Timestamp(asof_date).date()),
+        "target_coverage":target,
+        "requested_count":len(requested),
+        "required_count":required,
+        "starting_valid_count":starting,
+        "attempted_count":len(attempted),
+        "ending_valid_count":len(valid),
+        "coverage":len(valid)/len(requested),
+        "workers":workers,
+        "failed":failed,
+        "updated_at":now_iso(),
+    }
+    write_json(ROOT/"cache"/"valuation_backtest_qualification.json",report)
+    return report
 
 def merge_historical_valuation(ds):
     if ds.empty:return ds

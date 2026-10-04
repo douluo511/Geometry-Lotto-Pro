@@ -1,6 +1,8 @@
 from __future__ import annotations
+import inspect
 import json
 import os
+import types
 from pathlib import Path
 import sys
 import tempfile
@@ -13,6 +15,7 @@ sys.path.insert(0, str(VERSION))
 import requests
 from stock_ai.netclient import AkShareProxy, NetClientError, NetClientPolicyError
 from stock_ai import data_source as data_source_mod
+from stock_ai import valuation as valuation_mod
 
 
 class FakeResponse:
@@ -189,6 +192,15 @@ def run():
             data_source_mod._fetch_history_primary = original_primary
             data_source_mod._fetch_history_fallback = original_fallback
 
+        fake_ak = types.ModuleType("akshare")
+        with patch.dict(sys.modules, {"akshare": fake_ak}):
+            with patch.object(valuation_mod, "load_config", return_value={"network": cfg}):
+                valuation_proxy = valuation_mod._ak()
+        assert isinstance(valuation_proxy, AkShareProxy)
+        assert valuation_proxy.evidence_path == valuation_mod.ROOT / "evidence" / "netclient_raw.jsonl"
+        valuation_source = inspect.getsource(valuation_mod.update_valuation_history)
+        assert "_ak(cfg.get(\"network\"" in valuation_source
+
         rows = [json.loads(x) for x in evidence.read_text(encoding="utf-8").splitlines() if x.strip()]
         assert rows and any(x["status"] == "PASS" for x in rows)
         assert any(x["status"] == "FAIL" for x in rows)
@@ -212,6 +224,7 @@ def run():
                 "non_allowlisted_post_rejected",
                 "raw_payload_sha256_receipt",
                 "pass_and_fail_evidence_preserved",
+                "valuation_network_path_owned_by_netclient",
             ],
         }
         out_path = ROOT / "netclient_contract_evidence.json"

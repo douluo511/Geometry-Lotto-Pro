@@ -1,5 +1,6 @@
 from __future__ import annotations
 import argparse,pandas as pd
+from concurrent.futures import ThreadPoolExecutor
 from .config import ROOT,load_config,ensure_dirs
 from .utils import setup_logging,close_logging,write_json,now_iso,process_lock
 from .data_source import fetch_market_snapshot,fetch_full_universe,update_live_histories,bootstrap_research_pool,load_histories,enrich_industries,select_training_histories,fetch_expected_trade_date
@@ -20,12 +21,25 @@ def _checkpoint(phase, logger, status="RUNNING"):
     write_json(ROOT/"state"/"daily_progress.json", {"phase":phase,"status":status,"updated_at":now_iso()})
     logger.info("每日闭环阶段: %s / %s", phase, status)
 
+def _parallel_pair(left,right):
+    """Run two independent critical-path operations concurrently without changing either denominator."""
+    with ThreadPoolExecutor(max_workers=2,thread_name_prefix="stock-pipeline") as pool:
+        lf=pool.submit(left)
+        try:
+            rv=right()
+            lv=lf.result()
+        except Exception:
+            lf.cancel()
+            raise
+    return lv,rv
+
 def _run_locked(cfg,logger,force,run_maintenance):
     logger.info("=== Stock AI Pro 4.3 每日闭环开始 ===")
     _checkpoint("full_universe",logger)
-    master=fetch_full_universe(cfg,logger)
-    _checkpoint("market_snapshot",logger)
-    snapshot=fetch_market_snapshot(cfg,logger)
+    def _snapshot():
+        _checkpoint("market_snapshot",logger)
+        return fetch_market_snapshot(cfg,logger)
+    master,snapshot=_parallel_pair(lambda:fetch_full_universe(cfg,logger),_snapshot)
     if snapshot.empty: raise RuntimeError("实时股票池为空，停止生成新预测")
     snapshot.to_csv(ROOT/"cache"/"market_snapshot.csv",index=False,encoding="utf-8-sig")
     _checkpoint("live_histories",logger)
@@ -54,10 +68,15 @@ def _run_locked(cfg,logger,force,run_maintenance):
     metrics.update({"research_training_symbols":len(training_hist),"research_extra_symbols":extra_count})
     drift=feature_drift(final_train,current,cfg); write_json(ROOT/"reports"/"drift_report.json",drift)
     pred=predict_ensemble(models,current,weights); regime=detect_market_regime(current,snapshot)
+    top_codes=pred.sort_values("pred",ascending=False).head(120)["code"].tolist()
     _checkpoint("industry_enrichment",logger)
-    industries=enrich_industries(pred.sort_values("pred",ascending=False).head(120)["code"].tolist(),logger)
-    _checkpoint("valuation_histories",logger)
-    valuation_status=refresh_valuation_histories(pred.sort_values("pred",ascending=False).head(120)["code"].tolist(),cfg,logger)
+    def _valuation():
+        _checkpoint("valuation_histories",logger)
+        return refresh_valuation_histories(top_codes,cfg,logger)
+    industries,valuation_status=_parallel_pair(
+        lambda:enrich_industries(top_codes,logger),
+        _valuation,
+    )
     scored=add_scores(pred,snapshot,cfg,regime,industries); decision=decide(scored,cfg,regime,drift.get("status","PASS"),metrics.get("rank_ic")); portfolios=make_portfolios(scored,cfg,regime); rnd_shadow=build_shadow_frame(scored)
     persist_model(models,weights,asof,metrics,cfg)
     summary={"version":"4.3.0-deliverable","asof":asof,"generated_at":now_iso(),"live_universe_size":len(snapshot),"research_master_size":len(master),"research_training_symbols":len(training_hist),"research_extra_symbols":extra_count,"dev_train_rows":len(dev),"production_train_rows":len(final_train),"validation_rows":len(valid),"model_names":metrics.get("model_names",[]),"horizon_days":h,"validation_embargo_days":h,"entry_assumption":"next_open","top_k":int(cfg["model"]["top_k"]),"market_regime":regime["regime"],"model_rank_ic":metrics.get("rank_ic"),"ensemble_mode":metrics.get("ensemble_mode","validation_dynamic"),"feature_drift":drift.get("status"),"bootstrap_coverage":bootstrap.get("coverage"),"delisted_coverage":bootstrap.get("delisted_coverage"),"valuation_history_coverage":valuation_status.get("coverage"),"spot_provider":str(snapshot["spot_provider"].mode().iloc[0]) if "spot_provider" in snapshot and not snapshot.empty else "unknown","history_provider_counts":upd.get("provider_counts",{}),"expected_trade_date":expected,"decision":decision["decision"],"model_trust":decision["model_trust"],"note":"评分是横截面相对排序，不是上涨概率。成本、估值和Net Alpha已进入同一生产决策链；历史估值覆盖不足时不会冒充已验证。"}
