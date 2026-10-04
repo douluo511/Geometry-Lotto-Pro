@@ -8,7 +8,7 @@ from pathlib import Path
 from .domain import SourceDocument
 from .engine import build_study_result
 from .netclient import NetClient
-from .sources import build_conflict_registry, fetch_current_sources
+from .sources import CASE_CORPUS_IDS, build_conflict_registry, fetch_current_sources
 from .storage import Storage
 
 
@@ -32,7 +32,7 @@ class LegalPhilosophyService:
             "source_conflict_handling": conflict.get("status", "NOT VERIFIED"),
             "case_source_lineage": (
                 "PASS"
-                if any(doc.source_id == "nara_brown_v_board" and doc.role == "CASE" for doc in docs)
+                if CASE_CORPUS_IDS.issubset({doc.source_id for doc in docs if doc.role == "CASE"})
                 else "NOT VERIFIED"
             ),
             "primary_source_lineage": "NOT VERIFIED",
@@ -83,7 +83,12 @@ class LegalPhilosophyService:
             "source_conflict_handling": conflict.get("status", "NOT VERIFIED"),
             "case_source_lineage": (
                 "PASS"
-                if "nara_brown_v_board" in source_ids and "CASE" in roles
+                if CASE_CORPUS_IDS.issubset(source_ids) and "CASE" in roles
+                else "NOT VERIFIED"
+            ),
+            "case_boundary": (
+                "PASS"
+                if CASE_CORPUS_IDS.issubset(source_ids) and "CASE" in roles
                 else "NOT VERIFIED"
             ),
             "claim_layer_separation": "PASS",
