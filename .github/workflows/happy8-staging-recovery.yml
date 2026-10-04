@@ -43,6 +43,12 @@ jobs:
         id: service_gate
         continue-on-error: true
         run: python scripts/service_gate.py
+      - name: Scientific false-gain method contract
+        id: science_method_contract
+        continue-on-error: true
+        timeout-minutes: 20
+        run: python scripts/science_method_contract.py
+
       - name: Independent Updater contract and rollback gate
         id: updater_gate
         continue-on-error: true
@@ -235,6 +241,7 @@ jobs:
           if ('${{ steps.contract_gate.outcome }}' -ne 'success') { $failures += 'domain_netclient_contract' }
           if ('${{ steps.storage_gate.outcome }}' -ne 'success') { $failures += 'storage_evidence' }
           if ('${{ steps.service_gate.outcome }}' -ne 'success') { $failures += 'application_service' }
+          if ('${{ steps.science_method_contract.outcome }}' -ne 'success') { $failures += 'science_method_contract' }
           if ('${{ steps.updater_gate.outcome }}' -ne 'success') { $failures += 'updater_contract_rollback' }
           if ('${{ steps.app_selftest.outcome }}' -ne 'success') { $failures += 'application_selftest' }
           if ('${{ steps.ui_contract.outcome }}' -ne 'success') { $failures += 'ui_construction' }
@@ -249,6 +256,7 @@ jobs:
           Write-Host "DOMAIN_NETCLIENT_CONTRACT=${{ steps.contract_gate.outcome }}"
           Write-Host "STORAGE_EVIDENCE_GATE=${{ steps.storage_gate.outcome }}"
           Write-Host "APPLICATION_SERVICE=${{ steps.service_gate.outcome }}"
+          Write-Host "SCIENCE_METHOD_CONTRACT=${{ steps.science_method_contract.outcome }}"
           Write-Host "UPDATER_CONTRACT_ROLLBACK=${{ steps.updater_gate.outcome }}"
           Write-Host "APPLICATION_SELFTEST=${{ steps.app_selftest.outcome }}"
           Write-Host "UI_CONSTRUCTION=${{ steps.ui_contract.outcome }}"
