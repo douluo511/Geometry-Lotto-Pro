@@ -139,7 +139,12 @@ jobs:
           while(!(Test-Path $layout) -and (Get-Date) -lt $deadline){ Start-Sleep -Milliseconds 250 }
           if(!(Test-Path $layout)){ Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue; throw "GUI layout not published" }
           $geo=Get-Content -Raw $layout | ConvertFrom-Json
-          if($geo.status -ne "PASS" -or [int]$geo.pid -ne $proc.Id){ throw "GUI evidence process mismatch" }
+          if($geo.status -ne "PASS"){ throw "GUI layout status failed" }
+          # PyInstaller one-file uses a bootloader parent plus an application child PID.
+          # Bind physical GUI evidence to the child's own sys.executable path+hash instead of assuming launcher PID equality.
+          if(([string]$geo.executable) -ne $exe -or ([string]$geo.exe_sha256) -ne $before){ throw "GUI child is not bound to exact EXE bytes" }
+          $guiPid=[int]$geo.pid
+          $guiProcess=Get-Process -Id $guiPid -ErrorAction Stop
 
           function Click-Entry([string]$label,[int]$sleepMs){
             $entry=$geo.buttons.PSObject.Properties[$label].Value
@@ -163,6 +168,7 @@ jobs:
           if($actions."一键修复".status -notin @("PASS","WARN")){ throw "repair physical click failed" }
           if($actions."高级制作".status -ne "PASS"){ throw "advanced physical click failed" }
 
+          Stop-Process -Id $guiPid -Force -ErrorAction SilentlyContinue
           Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
           Start-Sleep -Milliseconds 500
           $after=(Get-FileHash -Algorithm SHA256 $exe).Hash.ToLowerInvariant()
@@ -173,7 +179,8 @@ jobs:
             status="PASS"
             physical_gui="PASS"
             click_method="OS physical mouse coordinates from exact process-published screen geometry"
-            pid=$proc.Id
+            launcher_pid=$proc.Id
+            gui_pid=$guiPid
             exe=$exe
             exe_sha256_before=$before
             exe_sha256_after=$after
