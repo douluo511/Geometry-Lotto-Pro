@@ -49,7 +49,10 @@ def fetch_daily_bars_tencent(client: NetClient, symbol: str, limit: int = 120) -
             raise ValueError("Tencent kline schema changed or row is incomplete")
         trade_date = str(row[0])
         open_p, close_p, high_p, low_p, volume = map(float, row[1:6])
-        amount = float(row[6]) if len(row) > 6 and str(row[6]).strip() not in {"", "None"} else 0.0
+        # Tencent daily K-line defines only six standard fields here:
+        # date/open/close/high/low/volume. Extra elements can be metadata objects.
+        # Do not fabricate turnover amount from price * volume.
+        amount = 0.0
         rows.append(DailyBar(
             symbol=code[-6:],
             trade_date=trade_date,
