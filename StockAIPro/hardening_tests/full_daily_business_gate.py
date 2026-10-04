@@ -157,6 +157,9 @@ def main() -> int:
             raise RuntimeError(f"automatic audit not complete: {maintenance_result}")
 
         valuation_cfg = frozen_cfg.get("valuation", {}) or {}
+        qualification = backtest_summary.get("valuation_qualification") or {}
+        if valuation_cfg.get("enabled", True) and qualification.get("status") != "PASS":
+            raise RuntimeError(f"historical PIT valuation qualification failed closed: {qualification}")
         if valuation_cfg.get("enabled", True) and not bool(backtest_summary.get("value_baseline_validated")):
             raise RuntimeError(
                 "historical PIT valuation baseline did not satisfy frozen "
@@ -180,6 +183,7 @@ def main() -> int:
             "valuation_backtest_min_coverage": valuation_cfg.get("backtest_min_coverage", 0.4),
             "valuation_value_baseline_validated": backtest_summary.get("value_baseline_validated"),
             "valuation_value_valid_points": backtest_summary.get("value_valid_points"),
+            "valuation_qualification": qualification,
             "history_provider_counts": summary.get("history_provider_counts"),
             "spot_provider": summary.get("spot_provider"),
             "expected_trade_date": summary.get("expected_trade_date"),

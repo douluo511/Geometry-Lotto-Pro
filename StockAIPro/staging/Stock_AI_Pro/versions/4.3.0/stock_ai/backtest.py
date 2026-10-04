@@ -7,7 +7,7 @@ from .features import build_dataset
 from .model import rank_ic,train_validated_ensemble,predict_ensemble
 from .utils import write_json,now_iso
 from .cost import historical_roundtrip_cost_rate
-from .valuation import merge_historical_valuation,add_historical_valuation_score
+from .valuation import merge_historical_valuation,add_historical_valuation_score,qualify_backtest_valuation_histories
 
 def _max_drawdown(returns):
     eq=(1+pd.Series(returns).fillna(0)).cumprod(); return float((eq/eq.cummax()-1).min())
@@ -30,18 +30,36 @@ def _net_mean(frame,cfg,order_size=None):
     if frame.empty:return float('nan')
     return float((frame["target_return"]-historical_roundtrip_cost_rate(frame,cfg,order_size)).mean())
 
+def _qualification_target(ds,dates,eval_dates,h,topk,min_test,min_train):
+    for d in reversed(eval_dates):
+        pos=dates.index(d)
+        if pos<160 or pos-h<0:continue
+        cutoff=dates[pos-h]
+        train=ds[ds["date"]<cutoff]
+        test=ds[ds["date"]==d].copy();test=test[test.apply(_tradable_next_open,axis=1)]
+        if len(train)>=min_train and len(test)>=max(topk,min_test):
+            return d,sorted(test["code"].astype(str).unique())
+    return None,[]
+
 def run_backtest():
     cfg=load_config();h=int(cfg["model"]["horizon_days"]); ds=build_dataset(load_histories(),h,int(cfg["model"]["min_history_days"])); target=cfg["model"].get("target","target_excess")
     ds=ds[ds[target].notna()&ds["target_return"].notna()].copy(); ds=_historical_candidate_pool(ds,cfg)
     if ds.empty:raise RuntimeError("没有可回测数据")
-    # PIT valuation only. Missing coverage is allowed but never silently filled with current valuation.
-    ds=merge_historical_valuation(ds); ds=add_historical_valuation_score(ds,cfg)
     dates=sorted(ds["date"].unique()); lookback=int(cfg["backtest"]["lookback_eval_days"]); step=int(cfg["backtest"]["rebalance_every_days"]); eval_dates=dates[-lookback::step]
     max_eval=int(cfg["backtest"].get("max_eval_points",24) or 0)
     if max_eval>0 and len(eval_dates)>max_eval: eval_dates=eval_dates[-max_eval:]
     topk=int(cfg["model"]["top_k"]);trials=int(cfg["backtest"]["random_trials"]);rng=np.random.default_rng(int(cfg["model"]["random_state"])); min_test=int(cfg["backtest"].get("min_test_universe",50)); min_train=int(cfg["backtest"].get("min_train_rows",5000)); rows=[]
     cap_sizes=[int(x) for x in cfg["backtest"].get("capacity_order_sizes_cny",[100000,500000,1000000,5000000,10000000])]
     value_min=float(cfg.get("valuation",{}).get("backtest_min_coverage",.4)); value_valid_points=0
+    qualification={"status":"NOT_REQUIRED","target_coverage":value_min}
+    if (cfg.get("valuation",{}) or {}).get("enabled",True):
+        qdate,qcodes=_qualification_target(ds,dates,eval_dates,h,topk,min_test,min_train)
+        if qdate is None:
+            qualification={"status":"FAIL","target_coverage":value_min,"error":"no eligible historical evaluation date for valuation qualification"}
+        else:
+            qualification=qualify_backtest_valuation_histories(qcodes,cfg,qdate,value_min)
+    # PIT valuation only. Qualification is code-order deterministic and uses no return/prediction outcome.
+    ds=merge_historical_valuation(ds); ds=add_historical_valuation_score(ds,cfg)
     model_max_rows=int(cfg["backtest"].get("max_train_rows",80000))
     validation_days=int(cfg["model"].get("validation_days",40))
     ensemble_mode=cfg["model"].get("ensemble_mode","validation_dynamic")
@@ -75,5 +93,5 @@ def run_backtest():
     if out["value_return"].notna().any():out["value_equity"]=(1+out["value_return"].fillna(0)).cumprod()
     out.to_csv(ROOT/"reports"/"backtest.csv",index=False,encoding="utf-8-sig")
     capacity={str(size):float(out[f"strategy_return_cap_{size}"].mean()) for size in cap_sizes}; base=capacity.get(str(cap_sizes[0]),float('nan')); cap_limit=max([s for s in cap_sizes if np.isfinite(capacity[str(s)]) and (not np.isfinite(base) or capacity[str(s)]>0)],default=0)
-    summary={"generated_at":now_iso(),"software_version":"4.3.0-deliverable","eval_points":len(out),"mean_strategy_return":float(out.strategy_return.mean()),"mean_random_return":float(out.random_return.mean()),"mean_market_return":float(out.market_median_return.mean()),"mean_momentum_return":float(out.momentum_return.mean()),"mean_value_return":float(out.value_return.mean()) if out.value_return.notna().any() else None,"value_baseline_validated":bool(value_valid_points>0),"value_valid_points":value_valid_points,"mean_excess_vs_random":float(out.excess_vs_random.mean()),"mean_excess_vs_market":float(out.excess_vs_market.mean()),"positive_excess_rate":float((out.excess_vs_random>0).mean()),"mean_rank_ic":float(out.rank_ic.mean()),"mean_validation_rank_ic":float(pd.to_numeric(out.validation_rank_ic,errors='coerce').mean()),"max_drawdown":_max_drawdown(out.strategy_return),"dynamic_cost_model":True,"production_model_parity":True,"model_stack":["ridge","hgb","extra_trees"],"capacity_mean_net_returns":capacity,"capacity_limit_cny":cap_limit,"entry_assumption":"信号日收盘后生成；下一交易日开盘入场；第horizon交易日收盘退出。","universe_note":"历史候选池按历史成交额门槛及流动性排名重建，不使用今天股票池倒推。","valuation_note":"Value Baseline 仅使用估值日期<=信号日期的历史PIT缓存；覆盖不足时标记未验证。","model_note":"每个回测点只使用该日以前的数据，并在历史训练区内部再次使用 horizon embargo 的验证窗口学习集成权重。"}
+    summary={"generated_at":now_iso(),"software_version":"4.3.0-deliverable","eval_points":len(out),"mean_strategy_return":float(out.strategy_return.mean()),"mean_random_return":float(out.random_return.mean()),"mean_market_return":float(out.market_median_return.mean()),"mean_momentum_return":float(out.momentum_return.mean()),"mean_value_return":float(out.value_return.mean()) if out.value_return.notna().any() else None,"value_baseline_validated":bool(value_valid_points>0),"value_valid_points":value_valid_points,"valuation_qualification":qualification,"mean_excess_vs_random":float(out.excess_vs_random.mean()),"mean_excess_vs_market":float(out.excess_vs_market.mean()),"positive_excess_rate":float((out.excess_vs_random>0).mean()),"mean_rank_ic":float(out.rank_ic.mean()),"mean_validation_rank_ic":float(pd.to_numeric(out.validation_rank_ic,errors='coerce').mean()),"max_drawdown":_max_drawdown(out.strategy_return),"dynamic_cost_model":True,"production_model_parity":True,"model_stack":["ridge","hgb","extra_trees"],"capacity_mean_net_returns":capacity,"capacity_limit_cny":cap_limit,"entry_assumption":"信号日收盘后生成；下一交易日开盘入场；第horizon交易日收盘退出。","universe_note":"历史候选池按历史成交额门槛及流动性排名重建，不使用今天股票池倒推。","valuation_note":"Value Baseline 仅使用估值日期<=信号日期的历史PIT缓存；资格补齐按最新合格评估日、股票代码固定顺序执行，不按收益/预测挑样本；覆盖不足时标记未验证。","model_note":"每个回测点只使用该日以前的数据，并在历史训练区内部再次使用 horizon embargo 的验证窗口学习集成权重。"}
     write_json(ROOT/"reports"/"backtest_summary.json",summary);return out,summary
