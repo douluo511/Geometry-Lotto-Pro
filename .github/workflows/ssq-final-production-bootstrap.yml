@@ -1,3 +1,4 @@
+# capability probe 2026-10-04: verify SSQ_REPO_ADMIN_TOKEN without changing product runtime
 name: SSQ Final Production Bootstrap
 
 on:
