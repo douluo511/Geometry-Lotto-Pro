@@ -27,7 +27,7 @@ def _coerce_json(obj):
 def fetch_daily_bars_tencent(client: NetClient, symbol: str, limit: int = 120) -> tuple[list[DailyBar], dict]:
     code = _code(symbol)
     params = {"param": f"{code},day,,,{max(30, min(int(limit), 320))},qfq"}
-    obj, meta = client.get_json(KLINE_URL, params)
+    obj, meta = client.get_json(KLINE_URL, params, headers={"User-Agent": "Mozilla/5.0", "Referer": "https://finance.qq.com/"})
     root = _coerce_json(obj).get("data")
     if not isinstance(root, dict):
         raise ValueError("Tencent response missing data object")
