@@ -87,7 +87,7 @@ class BusinessBoundaries(unittest.TestCase):
         _, got = fetch_daily_bars_tencent(client, "600000", 30)
         self.assertEqual(got["price_adjustment"], "unadjusted")
 
-    def test_legacy_method_pass_does_not_promote_business_manifest(self):
+    def test_individual_business_passes_count_without_promoting_final(self):
         gate_names = ("cost_slippage_model", "liquidity_capacity", "corporate_action_adjustment",
                       "leakage_safe_time_split", "survivorship_selection_control", "oos_walk_forward",
                       "bootstrap", "ablation", "stability", "multiple_testing_correction")
@@ -112,15 +112,16 @@ class BusinessBoundaries(unittest.TestCase):
                 evidence = json.loads(Path("candidate_manifest.json").read_text())
                 self.assertEqual(evidence["business_qualification_status"], "NOT VERIFIED")
                 self.assertEqual(evidence["business_completion"]["status"], "NOT VERIFIED")
-                for key in (
+                expected_pass = (
                     "cost_slippage_calibration", "liquidity_capacity", "corporate_action_point_in_time",
                     "leakage_point_in_time", "survivorship_precommitted_universe",
                     "walk_forward_holdout_power", "dependence_aware_bootstrap", "ablation_replication",
                     "regime_stability", "multiple_testing_search_family",
-                ):
+                )
+                for key in expected_pass:
                     self.assertEqual(
                         evidence["business_completion"]["gate_statuses"][key],
-                        "NOT VERIFIED",
+                        "PASS",
                     )
                 self.assertLess(evidence["business_completion"]["percent"], 100.0)
                 self.assertEqual(evidence["final_gate"], "FAIL")
@@ -186,6 +187,38 @@ class BusinessBoundaries(unittest.TestCase):
                     evidence["business_completion"]["gate_statuses"]["economic_signal_qualification_decision"],
                     "NOT VERIFIED",
                 )
+            finally:
+                os.chdir(previous)
+
+
+    def test_missing_individual_business_gate_stays_not_verified(self):
+        acceptance_text = (Path(__file__).resolve().parents[1] / "ACCEPTANCE_CONTRACT.json").read_text(
+            encoding="utf-8"
+        )
+        with tempfile.TemporaryDirectory() as td, patch.dict(os.environ, {"SOURCE_SHA": "a"*40}):
+            previous = Path.cwd()
+            try:
+                os.chdir(td)
+                Path("ACCEPTANCE_CONTRACT.json").write_text(acceptance_text, encoding="utf-8")
+                Path("business_qualification_evidence.json").write_text(json.dumps({
+                    "status": "PASS",
+                    "real_market_research_qualification": {
+                        "method_execution_status": "PASS",
+                        "business_qualification_status": "NOT VERIFIED",
+                        "diagnostic_thresholds_met": False,
+                        "economic_signal_qualified": False,
+                        "capital_deployment_ready": False,
+                        "gates": {"bootstrap": "PASS"},
+                        "feature_results": {},
+                    },
+                }))
+                with redirect_stdout(io.StringIO()):
+                    collect()
+                evidence = json.loads(Path("candidate_manifest.json").read_text())
+                statuses = evidence["business_completion"]["gate_statuses"]
+                self.assertEqual(statuses["dependence_aware_bootstrap"], "PASS")
+                self.assertEqual(statuses["walk_forward_holdout_power"], "NOT VERIFIED")
+                self.assertEqual(evidence["final_gate"], "FAIL")
             finally:
                 os.chdir(previous)
 
