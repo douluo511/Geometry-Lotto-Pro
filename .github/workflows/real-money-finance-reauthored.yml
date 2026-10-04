@@ -128,7 +128,9 @@ jobs:
           path: |
             RealMoneyFinance/dist/RealMoneyFinance.exe
             RealMoneyFinance/dist/RealMoneyFinanceUpdater.exe
+            RealMoneyFinance/ACCEPTANCE_CONTRACT.json
             RealMoneyFinance/contract_evidence.json
+            RealMoneyFinance/fault_injection_evidence.json
             RealMoneyFinance/updater_contract_evidence.json
             RealMoneyFinance/real_network_evidence.json
             RealMoneyFinance/real_network_failure_evidence.json

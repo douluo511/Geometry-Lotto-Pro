@@ -45,6 +45,7 @@ def expect_fail(fn, name):
 
 
 def main() -> int:
+    cases = []
     with tempfile.TemporaryDirectory() as td:
         client=NetClient(Path(td)/"net.jsonl", max_attempts=3, backoff_base=0)
         client.session=SequenceSession([
@@ -55,10 +56,12 @@ def main() -> int:
         obj, meta=client.get_json("https://example.invalid/data", {})
         assert obj["ok"] is True
         assert meta.attempts == 3
+        cases.append({"name":"bounded_retry_then_success","status":"PASS","attempts":meta.attempts})
 
         bad_type=NetClient(Path(td)/"badtype.jsonl", max_attempts=1, backoff_base=0)
         bad_type.session=SequenceSession([Resp(200, ctype="text/html", obj={"x": 1})])
         expect_fail(lambda: bad_type.get_json("https://example.invalid/data", {}), "content-type")
+        cases.append({"name":"wrong_content_type_fail_closed","status":"PASS"})
 
         mislabeled=NetClient(Path(td)/"mislabeled.jsonl", max_attempts=1, backoff_base=0)
         good_json = Resp(200, ctype="text/html", obj={"x": 1})
@@ -69,14 +72,19 @@ def main() -> int:
         )
         assert obj == {"x": 1}
         assert meta.content_type_policy == "provider-mislabeled-strict-json-body"
+        cases.append({"name":"provider_mislabeled_strict_json_body","status":"PASS"})
 
         empty_schema=NetClient(Path(td)/"schema.jsonl", max_attempts=1, backoff_base=0)
         empty_schema.session=SequenceSession([Resp(200, obj={"data": {"klines": []}})])
         expect_fail(lambda: fetch_daily_bars(empty_schema, "600000", 40), "schema")
+        cases.append({"name":"empty_schema_fail_closed","status":"PASS"})
 
         expect_fail(lambda: client.get_json("http://example.invalid/data", {}), "non-HTTPS")
+        cases.append({"name":"non_https_rejected","status":"PASS"})
 
-    print("FAULT_INJECTION=PASS")
+    evidence={"status":"PASS","cases":cases,"case_count":len(cases)}
+    Path("fault_injection_evidence.json").write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    print(json.dumps(evidence))
     return 0
 
 
