@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 import json
 from pathlib import Path
 
-from app.sources import CASE_CORPUS_IDS
+from app.sources import CASE_CORPUS_IDS, PRIMARY_REQUIRED_PREFIXES, PRIMARY_SOURCE_ID
 
 
 def main() -> int:
@@ -37,11 +37,23 @@ def main() -> int:
         if item.get("role")=="CASE" and item.get("validation_status")=="PASS"
     }
     case_corpus_present=CASE_CORPUS_IDS.issubset(validated_case_ids)
+    primary_docs=[
+        item for item in sources
+        if item.get("source_id")==PRIMARY_SOURCE_ID
+        and item.get("role")=="PRIMARY_TEXT"
+        and item.get("validation_status")=="PASS"
+        and item.get("content_type")=="application/pdf"
+    ]
+    primary_hits=tuple(primary_docs[0].get("marker_hits") or ()) if len(primary_docs)==1 else ()
+    primary_lineage=(
+        len(primary_docs)==1
+        and network.get("primary_source_lineage")=="PASS"
+        and all(any(str(hit).startswith(prefix) for hit in primary_hits) for prefix in PRIMARY_REQUIRED_PREFIXES)
+    )
 
     statuses={
         "frozen_scope_sections":"PASS",
-        # A catalog/scan identity alone is insufficient for edition+section textual lineage.
-        "primary_source_lineage":"NOT VERIFIED",
+        "primary_source_lineage":"PASS" if primary_lineage else "NOT VERIFIED",
         "scholarship_lineage":"PASS" if "AUTHORITATIVE_SCHOLARSHIP" in roles else "NOT VERIFIED",
         "legal_authority_lineage":"PASS" if "LEGAL_AUTHORITY" in roles else "NOT VERIFIED",
         "claim_layer_separation":"PASS",
@@ -58,7 +70,7 @@ def main() -> int:
     passed=sum(v=="PASS" for v in statuses.values())
     total=len(statuses)
     gap_reasons={
-        "primary_source_lineage":"verified edition/section-level Hegel primary text lineage is still not integrated; metadata or scan identity must not substitute for text/page evidence",
+        "primary_source_lineage":"exact Dyde 1896 PDF title-page identity plus all frozen section-range lineage markers are required; metadata alone is insufficient",
         "case_boundary":"the frozen four-source historical/modern official case corpus is not fully validated on the current network run",
         "source_conflict_handling":"two independent current scholarship sources plus explicit preserved-tension evidence are required",
         "source_freshness_and_replay":"every current production source needs a fresh successful receipt bound to validated canonical bytes",
@@ -74,6 +86,8 @@ def main() -> int:
         "percent":round(100*passed/total,1),
         "gate_statuses":statuses,
         "diagnostics":{
+            "primary_dyde_1896_section_lineage":"PASS" if primary_lineage else "NOT VERIFIED",
+            "primary_marker_hits":list(primary_hits),
             "historical_modern_case_corpus":"PASS" if case_corpus_present else "NOT VERIFIED",
             "case_source_ids":sorted(validated_case_ids),
             "verified_live_receipt_count":len(receipts),
