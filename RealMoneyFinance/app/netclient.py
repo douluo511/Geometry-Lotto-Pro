@@ -56,12 +56,16 @@ class NetClient:
                 if status == 429 or 500 <= status <= 599:
                     raise requests.HTTPError(f"retryable HTTP {status}", response=r)
                 r.raise_for_status()
-                if "json" not in ctype and "javascript" not in ctype and "text/plain" not in ctype:
-                    raise ValueError(f"unexpected Content-Type: {ctype}")
                 body = r.content
                 if not body:
                     raise ValueError("empty response")
                 digest = hashlib.sha256(body).hexdigest()
+                if "json" not in ctype and "javascript" not in ctype and "text/plain" not in ctype:
+                    prefix = body[:240].decode("utf-8", errors="replace")
+                    raise ValueError(
+                        f"unexpected Content-Type: {ctype}; payload_sha256={digest}; "
+                        f"body_prefix={prefix!r}"
+                    )
                 obj = r.json()
                 if not isinstance(obj, dict):
                     raise ValueError("JSON root must be an object")
