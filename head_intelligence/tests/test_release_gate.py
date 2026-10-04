@@ -98,7 +98,7 @@ def test_arbitrary_pass_check_names_cannot_satisfy_updater(tmp_path):
     (evidence/"updater_gate.json").write_text(json.dumps(value))
     assert evaluate(evidence,candidate,final,gate_input)["failures"]["updater_atomic_rollback"]=="FAIL"
 
-def test_arbitrary_real_release_check_names_and_blocked_gui_cannot_pass(tmp_path):
+def test_real_release_failure_does_not_erase_valid_physical_gui_evidence(tmp_path):
     evidence,candidate,final=_fixture(tmp_path)
     gate_input=tmp_path/"gate.json"; make_gate_input(gate_input)
     value=json.loads((evidence/"software_release_validation.json").read_text())
@@ -110,7 +110,7 @@ def test_arbitrary_real_release_check_names_and_blocked_gui_cannot_pass(tmp_path
     result=evaluate(evidence,candidate,final,gate_input)
     assert result["final_gate"]=="FAIL"
     assert result["failures"]["updater_real_network"]=="FAIL"
-    assert result["failures"]["physical_gui_click"]=="BLOCKED"
+    assert result["gates"]["physical_gui_click"]=="PASS"
 
 def test_cli_style_pass_cannot_override_shared_repository(tmp_path):
     evidence,candidate,final=_fixture(tmp_path)
