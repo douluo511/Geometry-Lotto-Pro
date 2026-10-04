@@ -4,6 +4,8 @@ from datetime import datetime, timezone
 import json
 from pathlib import Path
 
+from app.sources import CASE_CORPUS_IDS
+
 
 def main() -> int:
     network=json.loads(Path("real_network_evidence.json").read_text(encoding="utf-8"))
@@ -29,15 +31,12 @@ def main() -> int:
         network.get("source_conflict_handling")=="PASS"
         and {"sep_hegel_social_political","iep_hegel_social_political"}.issubset(source_ids)
     )
-    archival_case_present=(
-        "nara_brown_v_board" in source_ids
-        and any(
-            item.get("source_id")=="nara_brown_v_board"
-            and item.get("role")=="CASE"
-            and item.get("validation_status")=="PASS"
-            for item in sources
-        )
-    )
+    validated_case_ids={
+        item.get("source_id")
+        for item in sources
+        if item.get("role")=="CASE" and item.get("validation_status")=="PASS"
+    }
+    case_corpus_present=CASE_CORPUS_IDS.issubset(validated_case_ids)
 
     statuses={
         "frozen_scope_sections":"PASS",
@@ -50,8 +49,7 @@ def main() -> int:
         "educational_not_legal_advice":"PASS",
         "five_why_application":"PASS",
         "reversal_falsification":"PASS",
-        # One archival case proves the case source layer works, not a sufficient historical/modern case corpus.
-        "case_boundary":"NOT VERIFIED",
+        "case_boundary":"PASS" if case_corpus_present else "NOT VERIFIED",
         "source_freshness_and_replay":"PASS" if fresh and network.get("raw_canonical_integrity")=="PASS" else "NOT VERIFIED",
         "citation_hash_lineage":"PASS" if hash_lineage else "NOT VERIFIED",
         "practical_study_output":"PASS" if network.get("study_service")=="PASS" else "NOT VERIFIED",
@@ -61,7 +59,7 @@ def main() -> int:
     total=len(statuses)
     gap_reasons={
         "primary_source_lineage":"verified edition/section-level Hegel primary text lineage is still not integrated; metadata or scan identity must not substitute for text/page evidence",
-        "case_boundary":"one validated archival case source is present, but the frozen historical/modern case-corpus boundary is not yet sufficiently covered",
+        "case_boundary":"the frozen four-source historical/modern official case corpus is not fully validated on the current network run",
         "source_conflict_handling":"two independent current scholarship sources plus explicit preserved-tension evidence are required",
         "source_freshness_and_replay":"every current production source needs a fresh successful receipt bound to validated canonical bytes",
         "citation_hash_lineage":"every admitted source must retain payload and canonical-text SHA-256 lineage",
@@ -76,7 +74,8 @@ def main() -> int:
         "percent":round(100*passed/total,1),
         "gate_statuses":statuses,
         "diagnostics":{
-            "archival_case_source_lineage":"PASS" if archival_case_present else "NOT VERIFIED",
+            "historical_modern_case_corpus":"PASS" if case_corpus_present else "NOT VERIFIED",
+            "case_source_ids":sorted(validated_case_ids),
             "verified_live_receipt_count":len(receipts),
         },
         "gaps":gaps,
