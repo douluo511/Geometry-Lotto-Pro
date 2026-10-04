@@ -16,7 +16,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
 from app.update_runtime import (UpdateBlocked, ReleaseNetwork, apply_update, atomic_json, config,
-                                digest, health, recover, semver, verify_manifest)
+                                digest, health, launch, recover, semver, verify_manifest)
 
 
 class FixtureNetwork:
@@ -70,7 +70,7 @@ class UpdaterContracts(unittest.TestCase):
             def health_check(target, user_root, expected):
                 self.assertEqual(digest(target), expected["sha256"])
         if launch_app is None:
-            launch_app = lambda target, user_root: None
+            launch_app = lambda target, user_root, expected: {"status":"PASS"}
         network=network or FixtureNetwork(self.manifest, self.payload)
         network.current_manifest=self.current_manifest
         return apply_update(target, root / "userdata", self.cfg, "0.1.0", "a" * 40,
@@ -81,11 +81,15 @@ class UpdaterContracts(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             launches = []
-            result = self.install(root, launch_app=lambda target, user_root: launches.append(digest(target)))
+            def accepted_launch(target,user_root,expected):
+                launches.append(digest(target))
+                return {"status":"PASS"}
+            result = self.install(root, launch_app=accepted_launch)
             self.assertEqual(result["status"], "PASS")
             self.assertEqual(launches, [hashlib.sha256(self.payload).hexdigest()])
             self.assertEqual((root / ".rmf-updates" / "previous.exe").read_bytes(), b"MZOFFLINE-PROTOCOL-FIXTURE-OLD")
-            self.assertEqual(json.loads((root / ".rmf-updates" / "journal.json").read_text())["stage"], "COMMITTED")
+            self.assertEqual(json.loads((root / ".rmf-updates" / "journal.json").read_text())["stage"], "STARTED")
+            self.assertIs(result["startup_verified"],True)
 
     def test_unsigned_tamper_rejected(self):
         self.manifest["source_sha"] = "c" * 40
@@ -140,18 +144,22 @@ class UpdaterContracts(unittest.TestCase):
             with self.assertRaises(UpdateBlocked):
                 self.install(root)
 
-    def test_launch_failure_rolls_back_and_relaunches_old(self):
+    def test_postcommit_launch_failure_retains_healthy_new_version(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             launched = []
-            def fail_new(target, user_root):
+            def fail_new(target, user_root, expected):
                 value = target.read_bytes()
                 launched.append(value)
                 if value == self.payload:
                     raise OSError("fixture launch failed")
-            with self.assertRaisesRegex(RuntimeError, "previous application restored"):
+            with self.assertRaisesRegex(RuntimeError, "healthy committed version retained"):
                 self.install(root, launch_app=fail_new)
-            self.assertEqual(launched, [self.payload, b"MZOFFLINE-PROTOCOL-FIXTURE-OLD"])
+            self.assertEqual(launched, [self.payload])
+            self.assertEqual((root/"RealMoneyFinance.exe").read_bytes(),self.payload)
+            journal=json.loads((root/".rmf-updates"/"journal.json").read_text())
+            self.assertEqual(journal["stage"],"STARTUP_FAILED")
+            self.assertIs(journal["startup_verified"],False)
 
     def test_interrupted_replace_recovers_original_hash(self):
         with tempfile.TemporaryDirectory() as td:
@@ -262,8 +270,71 @@ class UpdaterContracts(unittest.TestCase):
             network.current_manifest=self.current_manifest
             with patch("app.update_runtime.wait_parent", side_effect=lambda pid:order.append("wait")), patch("app.update_runtime.recover", side_effect=lambda *args:order.append("recover")):
                 apply_update(target,root/"userdata",self.cfg,"0.1.0","a"*40,network,parent_pid=999,
-                             health_check=lambda *args:None,launch_app=lambda *args:None)
+                             health_check=lambda *args:None,launch_app=lambda *args:{"status":"PASS"})
             self.assertEqual(order,["wait","recover"])
+
+    def test_committed_journal_failure_happens_before_new_launch_and_rolls_back(self):
+        launched=[]
+        def fail_commit(path,value):
+            if value.get("stage")=="COMMITTED":
+                raise OSError("fixture durable commit write failed")
+            atomic_json(path,value)
+        def accepted_launch(target,user_root,expected):
+            launched.append(target.read_bytes())
+            return {"status":"PASS"}
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            with patch("app.update_runtime.atomic_json",side_effect=fail_commit):
+                with self.assertRaisesRegex(RuntimeError,"previous application restored"):
+                    self.install(root,launch_app=accepted_launch)
+            self.assertEqual(launched,[b"MZOFFLINE-PROTOCOL-FIXTURE-OLD"])
+            self.assertEqual((root/"RealMoneyFinance.exe").read_bytes(),b"MZOFFLINE-PROTOCOL-FIXTURE-OLD")
+            self.assertEqual(json.loads((root/".rmf-updates"/"journal.json").read_text())["stage"],"ROLLED_BACK")
+
+    def test_postcommit_missing_startup_ack_does_not_pass_or_rollback(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            with self.assertRaisesRegex(RuntimeError,"healthy committed version retained"):
+                self.install(root,launch_app=lambda *args:None)
+            self.assertEqual((root/"RealMoneyFinance.exe").read_bytes(),self.payload)
+            journal=json.loads((root/".rmf-updates"/"journal.json").read_text())
+            self.assertEqual(journal["stage"],"STARTUP_FAILED")
+            self.assertIs(journal["startup_verified"],False)
+
+    def test_gui_startup_ack_is_bound_to_nonce_exact_source_version_and_hash(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            target=root/"RealMoneyFinance.exe"
+            target.write_bytes(self.payload)
+            expected={"version":"0.2.0","source_sha":"b"*40,"sha256":digest(target)}
+            process=SimpleNamespace(poll=lambda:None)
+            def start(command,**kwargs):
+                ack=Path(command[command.index("--startup-ack")+1])
+                nonce=command[command.index("--startup-nonce")+1]
+                atomic_json(ack,{"status":"PASS","product":"RealMoneyFinance","nonce":nonce,"gui_mapped":True,
+                                 "version":"0.2.0","source_sha":"b"*40,"exe_sha256":digest(target)})
+                return process
+            with patch("app.update_runtime.subprocess.Popen",side_effect=start):
+                result=launch(target,root,expected)
+                self.assertEqual(result["source_sha"],expected["source_sha"])
+
+    def test_wrong_gui_startup_ack_is_rejected(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            target=root/"RealMoneyFinance.exe"
+            target.write_bytes(self.payload)
+            expected={"version":"0.2.0","source_sha":"b"*40,"sha256":digest(target)}
+            terminated=[]
+            process=SimpleNamespace(poll=lambda:None,terminate=lambda:terminated.append(True),wait=lambda timeout:0)
+            def start(command,**kwargs):
+                ack=Path(command[command.index("--startup-ack")+1])
+                atomic_json(ack,{"status":"PASS","product":"RealMoneyFinance","nonce":"stale","gui_mapped":True,
+                                 "version":"0.2.0","source_sha":"b"*40,"exe_sha256":digest(target)})
+                return process
+            with patch("app.update_runtime.subprocess.Popen",side_effect=start):
+                with self.assertRaisesRegex(RuntimeError,"startup.*identity mismatch"):
+                    launch(target,root,expected)
+            self.assertEqual(terminated,[True])
 
 
 def main():

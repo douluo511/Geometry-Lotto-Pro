@@ -227,10 +227,36 @@ def health(target: Path, root: Path, expected: dict) -> None:
         raise RuntimeError("updated EXE health/version/source/hash identity mismatch")
 
 
-def launch(target: Path, root: Path) -> None:
+def launch(target: Path, root: Path, expected: dict) -> dict:
+    nonce = uuid.uuid4().hex
+    ack = root / "evidence" / ("startup-" + nonce + ".json")
     env = os.environ.copy()
     env["REAL_MONEY_FINANCE_ROOT"] = str(root)
-    subprocess.Popen([str(target)], cwd=str(target.parent), env=env)
+    process = subprocess.Popen([str(target), "--startup-ack", str(ack), "--startup-nonce", nonce],
+                               cwd=str(target.parent), env=env)
+    deadline = time.monotonic() + 45
+    try:
+        while time.monotonic() < deadline:
+            if process.poll() is not None:
+                raise RuntimeError("application exited before a verified GUI startup acknowledgment")
+            if ack.exists():
+                obj = json.loads(ack.read_text(encoding="utf-8"))
+                required = {"status": "PASS", "product": PRODUCT, "nonce": nonce, "gui_mapped": True,
+                            "version": expected["version"], "source_sha": expected["source_sha"], "exe_sha256": expected["sha256"]}
+                if any(obj.get(key) != value for key, value in required.items()) or digest(target) != expected["sha256"]:
+                    raise RuntimeError("GUI startup product/version/source/hash/nonce identity mismatch")
+                return obj
+            time.sleep(0.1)
+        raise TimeoutError("application GUI startup acknowledgment was not produced")
+    except Exception:
+        if process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=10)
+        raise
 
 
 class InstallLock:
@@ -301,7 +327,7 @@ def apply_update(target: Path, root: Path, cfg: dict, current_version: str, curr
         except Exception:
             if parent_pid:
                 health_check(target, root, {"version": current_version, "source_sha": current_source, "sha256": initial_hash})
-                launch_app(target, root)
+                launch_app(target, root, {"version": current_version, "source_sha": current_source, "sha256": initial_hash})
             raise
         staged = update_dir / "download.exe"
         backup = update_dir / "previous.exe"
@@ -318,7 +344,9 @@ def apply_update(target: Path, root: Path, cfg: dict, current_version: str, curr
                 raise RuntimeError("backup hash mismatch")
             state = {"target": str(target), "backup": str(backup), "old_sha256": old_hash,
                      "old_version": current_version, "old_source_sha": current_source,
-                     "release_id": manifest["release_id"], "source_sha": manifest["source_sha"], "stage": "PREPARED"}
+                     "release_id": manifest["release_id"], "source_sha": manifest["source_sha"],
+                     "new_version": manifest["version"], "new_sha256": manifest["artifact"]["sha256"],
+                     "startup_verified": False, "stage": "PREPARED"}
             atomic_json(journal, state)
             try:
                 transaction_started = True
@@ -327,27 +355,36 @@ def apply_update(target: Path, root: Path, cfg: dict, current_version: str, curr
                 atomic_json(journal, state)
                 expected = {"version": manifest["version"], "source_sha": manifest["source_sha"], "sha256": manifest["artifact"]["sha256"]}
                 health_check(target, root, expected)
-                launch_app(target, root)
                 state["stage"] = "COMMITTED"
                 atomic_json(journal, state)
-                return {"status": "PASS", "version": manifest["version"], "source_sha": manifest["source_sha"],
-                        "exe_sha256": digest(target), "release_id": manifest["release_id"], "repository": cfg["repository"]}
             except Exception as exc:
                 failed["ids"] = sorted(set([*failed["ids"], manifest["release_id"]]))
                 atomic_json(failed_path, failed)
                 try:
                     restore(target, backup, old_hash)
                     health_check(target, root, {"version": current_version, "source_sha": current_source, "sha256": old_hash})
-                    launch_app(target, root)
                     atomic_json(journal, {**state, "stage": "ROLLED_BACK", "error": repr(exc)})
+                    launch_app(target, root, {"version": current_version, "source_sha": current_source, "sha256": old_hash})
                 except Exception as rollback_exc:
                     atomic_json(journal, {**state, "stage": "ROLLBACK_FAILED", "error": repr(exc), "rollback_error": repr(rollback_exc)})
                     raise RuntimeError("update failed and rollback needs recovery") from rollback_exc
                 raise RuntimeError("update failed; previous application restored and health-checked") from exc
+            try:
+                startup = launch_app(target, root, expected)
+                if not isinstance(startup, dict) or startup.get("status") != "PASS":
+                    raise RuntimeError("post-commit GUI startup has no verified acknowledgment")
+                atomic_json(journal, {**state, "stage": "STARTED", "startup_verified": True})
+            except Exception as startup_exc:
+                atomic_json(journal, {**state, "stage": "STARTUP_FAILED", "startup_verified": False,
+                                      "error": repr(startup_exc)})
+                raise RuntimeError("post-commit GUI startup failed; healthy committed version retained for recovery") from startup_exc
+            return {"status": "PASS", "version": manifest["version"], "source_sha": manifest["source_sha"],
+                    "exe_sha256": digest(target), "release_id": manifest["release_id"], "repository": cfg["repository"],
+                    "startup_verified": True}
         except Exception:
             if parent_pid and not transaction_started:
                 health_check(target, root, {"version": current_version, "source_sha": current_source, "sha256": initial_hash})
-                launch_app(target, root)
+                launch_app(target, root, {"version": current_version, "source_sha": current_source, "sha256": initial_hash})
             raise
         finally:
             staged.unlink(missing_ok=True)

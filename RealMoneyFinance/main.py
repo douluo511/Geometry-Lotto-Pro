@@ -45,6 +45,27 @@ def main() -> int:
 
     from app.ui import FinanceDesktop
     app = FinanceDesktop(root)
+    if "--startup-ack" in sys.argv:
+        import hashlib
+        import uuid
+        ack = Path(sys.argv[sys.argv.index("--startup-ack") + 1])
+        nonce = sys.argv[sys.argv.index("--startup-nonce") + 1]
+        def acknowledge_startup():
+            if not app.winfo_ismapped():
+                app.after(100, acknowledge_startup)
+                return
+            with Path(sys.executable).open("rb") as stream:
+                binary_hash = hashlib.file_digest(stream, "sha256").hexdigest()
+            obj={"status":"PASS", "product":PRODUCT, "version":VERSION, "source_sha":SOURCE_SHA,
+                 "exe_sha256":binary_hash, "nonce":nonce, "gui_mapped":True, "process_id":os.getpid()}
+            ack.parent.mkdir(parents=True, exist_ok=True)
+            temporary=ack.with_suffix("."+uuid.uuid4().hex+".tmp")
+            with temporary.open("w", encoding="utf-8") as stream:
+                json.dump(obj,stream)
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.replace(temporary,ack)
+        app.after(100, acknowledge_startup)
     app.mainloop()
     return 0
 

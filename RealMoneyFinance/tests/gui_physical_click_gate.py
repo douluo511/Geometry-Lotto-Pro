@@ -7,6 +7,7 @@ import json
 import os
 import subprocess
 import time
+import uuid
 
 from pywinauto import Application, Desktop, mouse
 
@@ -105,7 +106,9 @@ def main() -> int:
     env["REAL_MONEY_FINANCE_ROOT"]=str(root)
     before_hash=sha256(exe)
 
-    p=subprocess.Popen([str(exe)], cwd=str(exe.parent), env=env)
+    startup=root/"evidence"/"candidate-startup.json"
+    startup_nonce=uuid.uuid4().hex
+    p=subprocess.Popen([str(exe),"--startup-ack",str(startup),"--startup-nonce",startup_nonce], cwd=str(exe.parent), env=env)
     desktop=Desktop(backend="uia")
     deadline=time.time()+45
     win=None
@@ -129,6 +132,13 @@ def main() -> int:
 
     evidence={"status":"FAIL","exe_sha256_before":before_hash,"actions":{}}
     try:
+        wait_changed(startup,0,45)
+        startup_result=json.loads(startup.read_text(encoding="utf-8"))
+        expected_startup={"status":"PASS","product":"RealMoneyFinance","nonce":startup_nonce,"gui_mapped":True,
+                          "version":"0.1.0","source_sha":os.environ["SOURCE_SHA"],"exe_sha256":before_hash}
+        if any(startup_result.get(key)!=value for key,value in expected_startup.items()):
+            raise AssertionError("Exact EXE GUI startup nonce/source/version/hash identity failed")
+        evidence["physical_gui_startup_ack"]="PASS"
         refresh=root/"evidence"/"refresh.json"
         capital=root/"evidence"/"capital_change.json"
         refresh_before=mtime(refresh)

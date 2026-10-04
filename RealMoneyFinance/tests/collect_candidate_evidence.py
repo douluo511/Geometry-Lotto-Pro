@@ -40,6 +40,7 @@ def main():
         "exact_exe": exact.get("exact_exe", "NOT VERIFIED") if exact.get("source_sha")==source_sha else "NOT VERIFIED",
         "exact_exe_real_network": gui.get("exact_exe_real_network", {}).get("status", "NOT VERIFIED"),
         "physical_gui_core_repair_advanced": gui.get("physical_gui_core_repair_advanced", "NOT VERIFIED"),
+        "physical_gui_startup_ack": gui.get("physical_gui_startup_ack", "NOT VERIFIED"),
         "physical_gui_update_negative": gui.get("physical_gui_update_negative", "NOT VERIFIED"),
         "physical_gui_update_positive": "BLOCKED",
         "independent_updater_contract_faults": updater_contract.get("status", "NOT VERIFIED"),
