@@ -23,7 +23,7 @@ permissions:
 jobs:
   desktop-candidate:
     runs-on: windows-2022
-    timeout-minutes: 240
+    timeout-minutes: 360
     env:
       PYTHONUTF8: '1'
       PYTHONIOENCODING: 'utf-8'
