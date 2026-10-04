@@ -57,6 +57,8 @@ class FakeYahooClient:
             payload_sha256="c" * 64,
             retrieved_at_unix=3.0,
             url=url,
+            content_type="application/json; charset=utf-8",
+            content_type_policy="header-json",
         )
         base = 1780000000
         timestamps = [base + i * 86400 for i in range(40)]
