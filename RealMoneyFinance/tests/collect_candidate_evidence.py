@@ -45,6 +45,23 @@ def coverage(required, statuses):
     }
 
 
+def final_acceptance(engineering, business_completion, business_qualified):
+    # Checklist coverage cannot substitute for the full qualification decision
+    # or for the explicit production repository/release/hash gates.
+    required_production = (
+        "positive_production_update", "repository_independence",
+        "real_release_n_to_n_plus_1", "formal_release_redownload_same_hash",
+    )
+    return "PASS" if (
+        business_qualified is True
+        and engineering.get("status") == "PASS"
+        and business_completion.get("status") == "PASS"
+        and all(engineering.get("gate_statuses", {}).get(x) == "PASS" for x in required_production)
+        and all(x == "PASS" for x in business_completion.get("gate_statuses", {}).values())
+        and bool(business_completion.get("gate_statuses"))
+    ) else "FAIL"
+
+
 def main():
     source_sha = os.environ["SOURCE_SHA"]
     acceptance_path = PROJECT_ROOT / "ACCEPTANCE_CONTRACT.json"
@@ -190,7 +207,7 @@ def main():
 
     engineering = coverage(acceptance.get("engineering_required", []), engineering_statuses)
     business_completion = coverage(acceptance.get("business_required", []), business_statuses)
-    final_gate = "PASS" if engineering["status"] == "PASS" and business_completion["status"] == "PASS" else "FAIL"
+    final_gate = final_acceptance(engineering, business_completion, business_qualified)
 
     manifest = {
         "status": "CANDIDATE_ONLY" if final_gate != "PASS" else "FINAL_ELIGIBLE_PENDING_FORMAL_RELEASE",
@@ -218,3 +235,4 @@ def main():
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

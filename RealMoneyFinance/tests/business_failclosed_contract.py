@@ -4,6 +4,7 @@ from dataclasses import replace
 from datetime import date, timedelta
 import io
 import json
+import math
 import os
 from pathlib import Path
 import tempfile
@@ -12,20 +13,96 @@ import unittest
 from unittest.mock import patch
 
 from app.business_validation import CostAssumptions, _holdout_power_analysis, _observations, _walk_forward, qualify_research
-from app.domain import DailyBar
+from app.domain import DailyBar, validate_market_rows
 from app.source_tencent import fetch_daily_bars_tencent
-from tests.collect_candidate_evidence import main as collect
+from app.source_tencent_full import fetch_daily_bars_tencent_full
+from app.source_eastmoney import fetch_daily_bars as fetch_daily_bars_eastmoney
+from app.source_yahoo import fetch_daily_bars_yahoo
+from tests.contract_gate import FakeClient, FakeTencentClient, FakeTencentFullClient, FakeYahooClient
+from tests.collect_candidate_evidence import main as collect, final_acceptance
 
 
-def bars():
+def bars(count=150):
     start = date(2025, 1, 1)
     return [DailyBar("600000", (start + timedelta(days=i)).isoformat(),
                      10 + i / 100, 10.1 + i / 100, 10.2 + i / 100, 9.9 + i / 100,
                      1000 + i, 100000 + i * 100, 1.0, .01 + i / 10000,
-                     "synthetic_contract_only", "a" * 64) for i in range(150)]
+                     "synthetic_contract_only", "a" * 64) for i in range(count)]
 
 
 class BusinessBoundaries(unittest.TestCase):
+    def test_insufficient_real_holdout_power_is_not_a_business_pass(self):
+        rows = []
+        for i, row in enumerate(bars(300)):
+            price = 100 + 10 * math.sin(i)
+            rows.append(replace(row, open=price, close=price * 1.001,
+                                high=price * 1.02, low=price * .98,
+                                volume=1_000_000 + (i % 15) * 10_000))
+        got = qualify_research(rows, {"qualification_scope": "production_real_network"})
+        self.assertEqual(got["holdout_power_analysis"]["status"], "PASS")
+        self.assertFalse(got["holdout_power_analysis"]["power_sufficient"])
+        self.assertEqual(got["method_gates"]["oos_walk_forward"], "PASS")
+        self.assertEqual(got["gates"]["oos_walk_forward"], "NOT VERIFIED")
+
+    def test_checklist_pass_requires_full_qualification_and_formal_release(self):
+        production = {x: "PASS" for x in (
+            "positive_production_update", "repository_independence",
+            "real_release_n_to_n_plus_1", "formal_release_redownload_same_hash")}
+        engineering = {"status": "PASS", "gate_statuses": production}
+        business = {"status": "PASS", "gate_statuses": {"required_business": "PASS"}}
+        self.assertEqual(final_acceptance(engineering, business, False), "FAIL")
+        for gate in production:
+            with self.subTest(gate=gate):
+                missing = {**production, gate: "NOT VERIFIED"}
+                self.assertEqual(final_acceptance({"status": "PASS", "gate_statuses": missing}, business, True), "FAIL")
+        self.assertEqual(final_acceptance(engineering, {"status": "PASS", "gate_statuses": {"required": "NOT VERIFIED"}}, True), "FAIL")
+        self.assertEqual(final_acceptance(engineering, business, True), "PASS")
+
+    def test_non_finite_market_rows_cannot_reach_qualification(self):
+        for field in ("open", "close", "high", "low", "volume", "amount", "pct_change", "turnover_rate"):
+            for value in (float("nan"), float("inf"), -float("inf")):
+                with self.subTest(field=field, value=value), self.assertRaises(ValueError):
+                    validate_market_rows([replace(row, **{field: value}) if i == 20 else row
+                                          for i, row in enumerate(bars())])
+
+    def test_all_production_adapters_reject_non_finite_prices(self):
+        cases = (
+            (FakeClient, fetch_daily_bars_eastmoney, "eastmoney"),
+            (FakeTencentClient, fetch_daily_bars_tencent, "tencent"),
+            (FakeTencentFullClient, fetch_daily_bars_tencent_full, "full"),
+            (FakeYahooClient, fetch_daily_bars_yahoo, "yahoo"),
+        )
+        for cls, fetcher, kind in cases:
+            client = cls()
+            method = "get_jsonp_object" if kind == "full" else "get_json"
+            original = getattr(client, method)
+            def corrupted(*args, _original=original, _kind=kind, **kwargs):
+                obj, meta = _original(*args, **kwargs)
+                if _kind == "eastmoney":
+                    parts = obj["data"]["klines"][20].split(",")
+                    parts[1] = "nan"
+                    obj["data"]["klines"][20] = ",".join(parts)
+                elif _kind == "yahoo":
+                    obj["chart"]["result"][0]["indicators"]["quote"][0]["open"][20] = float("nan")
+                else:
+                    obj["data"]["sh600000"]["qfqday"][20][1] = "nan"
+                return obj, meta
+            setattr(client, method, corrupted)
+            with self.subTest(provider=kind), self.assertRaises(ValueError):
+                fetcher(client, "600000", 40)
+
+    def test_full_tencent_raw_fallback_cannot_claim_qfq(self):
+        client = FakeTencentFullClient()
+        original = client.get_jsonp_object
+        def raw_response(*args, **kwargs):
+            obj, meta = original(*args, **kwargs)
+            stock = obj["data"]["sh600000"]
+            stock["day"] = stock.pop("qfqday")
+            return obj, meta
+        client.get_jsonp_object = raw_response
+        _, meta = fetch_daily_bars_tencent_full(client, "600000", 40)
+        self.assertEqual(meta["price_adjustment"], "unadjusted")
+
     def test_final_close_features_cannot_trade_that_close(self):
         rows = bars()
         item = _observations(rows, ("volume",))[0]
@@ -251,3 +328,4 @@ def run_contract() -> dict:
 
 if __name__ == "__main__":
     print(json.dumps(run_contract()))
+

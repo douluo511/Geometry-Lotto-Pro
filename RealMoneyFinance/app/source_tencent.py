@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import re
 
-from .domain import DailyBar
+from .domain import DailyBar, validate_market_rows
 from .netclient import NetClient
 
 
@@ -68,6 +68,7 @@ def fetch_daily_bars_tencent(client: NetClient, symbol: str, limit: int = 120) -
             raw_sha256=meta.payload_sha256,
         ))
     rows.sort(key=lambda x: x.trade_date)
+    validate_market_rows(rows)
     return rows, {
         "provider": "tencent_public_kline",
         "url": meta.url,

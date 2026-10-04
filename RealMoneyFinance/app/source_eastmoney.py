@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from .domain import DailyBar
+from .domain import DailyBar, validate_market_rows
 from .netclient import NetClient
 
 
@@ -66,6 +66,7 @@ def fetch_daily_bars(client: NetClient, symbol: str, limit: int = 120) -> tuple[
             raw_sha256=meta.payload_sha256,
         ))
     rows.sort(key=lambda x: x.trade_date)
+    validate_market_rows(rows)
     return rows, {
         "provider": "eastmoney_public_l1",
         "url": meta.url,
@@ -75,3 +76,4 @@ def fetch_daily_bars(client: NetClient, symbol: str, limit: int = 120) -> tuple[
         "row_count": len(rows),
         "price_adjustment": "qfq",
     }
+

@@ -65,6 +65,15 @@ def main() -> int:
     )
     assert old_receipt["status"] == "FAIL"
 
+    invalid_receipts = []
+    for value in (float("nan"), float("inf"), -float("inf"), "invalid", True):
+        rejected = qualify_source_freshness(
+            "2026-09-30", cross, retrieved_at_unix=value, now=holiday_now,
+        )
+        assert rejected["status"] == "FAIL"
+        assert rejected["reason"] == "invalid production retrieval timestamp"
+        invalid_receipts.append(rejected)
+
     future_year = datetime(2027, 1, 2, 5, 0, tzinfo=timezone.utc)
     unsupported_calendar = qualify_source_freshness(
         "2026-12-31",
@@ -92,6 +101,7 @@ def main() -> int:
             "reopen_after_daily_bar_settles": reopened,
             "one_source": one_source,
             "old_receipt": old_receipt,
+            "invalid_receipts_fail_closed": invalid_receipts,
             "unsupported_calendar_year": unsupported_calendar,
             "malformed": malformed,
         },
@@ -105,3 +115,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

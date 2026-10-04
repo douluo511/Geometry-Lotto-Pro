@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime, time as clock_time, timedelta, timezone
+import math
 from typing import Any
 
 
@@ -131,7 +132,17 @@ def qualify_source_freshness(
             "authoritative_schedule_reference": SSE_2026_SCHEDULE_SOURCE,
         }
 
-    receipt_age_seconds = current.timestamp() - float(retrieved_at_unix)
+    try:
+        receipt = float(retrieved_at_unix)
+        if isinstance(retrieved_at_unix, bool) or not math.isfinite(receipt):
+            raise ValueError("non-finite retrieval timestamp")
+    except (TypeError, ValueError, OverflowError):
+        return {
+            "status": "FAIL", "reason": "invalid production retrieval timestamp",
+            "asof": market_date.isoformat(), "expected_completed_session": expected,
+            "china_time": local.isoformat(), "providers": providers,
+        }
+    receipt_age_seconds = current.timestamp() - receipt
     base = {
         "asof": market_date.isoformat(),
         "expected_completed_session": expected,
@@ -159,3 +170,4 @@ def qualify_source_freshness(
         "status": "PASS",
         "reason": "two live providers agree and market date equals latest completed SSE session",
     }
+

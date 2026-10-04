@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from .domain import DailyBar
+from .domain import DailyBar, validate_market_rows
 from .netclient import NetClient
 
 
@@ -95,6 +95,7 @@ def fetch_daily_bars_yahoo(
     rows = rows[-max(30, min(int(limit), 500)):]
     if len(rows) < 30:
         raise ValueError("Yahoo response has insufficient valid daily rows")
+    validate_market_rows(rows)
     return rows, {
         "provider": "yahoo_public_chart",
         "url": meta.url,
@@ -107,3 +108,4 @@ def fetch_daily_bars_yahoo(
         "content_type_policy": meta.content_type_policy,
         "instrument_role": "benchmark_sse_composite" if ticker_override else "security",
     }
+

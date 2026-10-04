@@ -7,7 +7,7 @@ import random
 from statistics import NormalDist, mean, median, pstdev
 from typing import Iterable
 
-from .domain import DailyBar
+from .domain import DailyBar, validate_market_rows
 
 
 @dataclass(frozen=True)
@@ -314,6 +314,7 @@ def qualify_research(
     benchmark_meta: dict | None = None,
 ) -> dict:
     ordered = list(rows)
+    validate_market_rows(ordered)
     assumptions = assumptions or CostAssumptions()
     if any(not math.isfinite(v) or v < 0 for v in (
         assumptions.commission_bps_each_side, assumptions.slippage_bps_each_side, assumptions.sell_tax_bps
@@ -488,12 +489,13 @@ def qualify_research(
         "corporate_action_adjustment": "NOT VERIFIED",
         "leakage_safe_time_split": "NOT VERIFIED",
         "survivorship_selection_control": "NOT VERIFIED",
-        # PASS means the frozen holdout-power decision was executed on current
-        # real-network evidence; it does not mean the signal itself has adequate power.
+        # Computing an INSUFFICIENT decision completes a method diagnostic but
+        # cannot satisfy the frozen business gate named holdout power.
         "oos_walk_forward": "PASS" if (
             source_meta.get("qualification_scope") == "production_real_network"
             and walk_forward_coverage
             and holdout_power.get("status") == "PASS"
+            and holdout_power.get("power_sufficient") is True
         ) else "NOT VERIFIED",
         "bootstrap": method_gates["bootstrap"],
         "ablation": "PASS" if (
@@ -512,7 +514,7 @@ def qualify_research(
         "corporate_action_adjustment": "Provider qfq label lacks verified action factors/dates and point-in-time lineage.",
         "leakage_safe_time_split": "Lagged execution is implemented, but historical point-in-time source availability is unverified.",
         "survivorship_selection_control": "User-selected single symbol lacks a precommitted survivorship-safe investable universe.",
-        "oos_walk_forward": "Frozen holdout-power target was not executed on current production real-network evidence.",
+        "oos_walk_forward": "Frozen holdout-power target lacks sufficient current real-network OOS evidence; computing an INSUFFICIENT decision is not a power PASS.",
         "ablation": "Frozen leave-one-feature-out replication was not executed with complete field coverage on current production real-network evidence.",
         "stability": "Independent SSE Composite BULL/BEAR regime labels lack complete current real-network OOS coverage.",
     }
@@ -554,4 +556,5 @@ def qualify_research(
             "precommitted investable universe, so portfolio deployment remains fail-closed."
         ),
     }
+
 

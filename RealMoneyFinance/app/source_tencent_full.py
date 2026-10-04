@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date
 import hashlib
 
-from .domain import DailyBar
+from .domain import DailyBar, validate_market_rows
 from .netclient import NetClient
 from .source_tencent import _code
 
@@ -85,6 +85,7 @@ def fetch_daily_bars_tencent_full(
     rows = rows[-max(30, min(int(limit), 500)):]
     if len(rows) < 30:
         raise ValueError("Tencent full response has insufficient unique valid rows")
+    validate_market_rows(rows)
     return rows, {
         "provider": "tencent_public_full_kline",
         "url": meta.url,
@@ -92,9 +93,10 @@ def fetch_daily_bars_tencent_full(
         "payload_sha256": meta.payload_sha256,
         "retrieved_at_unix": meta.retrieved_at_unix,
         "row_count": len(rows),
-        "price_adjustment": "qfq",
+        "price_adjustment": "qfq" if stock.get("qfqday") else "unadjusted",
         "content_type": meta.content_type,
         "content_type_policy": meta.content_type_policy,
         "field_contract": "date/open/close/high/low/volume/turnover/amount",
         "unit_contract": "volume=shares; turnover_rate=fraction; amount=CNY",
     }
+
