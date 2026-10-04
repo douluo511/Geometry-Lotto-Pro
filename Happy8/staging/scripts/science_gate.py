@@ -37,12 +37,24 @@ def main() -> int:
     # Method/software acceptance may pass while edge_state honestly remains NO_EDGE.
     # The release workflow separately remains NOT FINAL until prospective, Windows,
     # same-hash, repository-independence and final release gates are satisfied.
+    gates = report.get("gates", {})
+    required_method_gates = (
+        "candidate_pool_independent_validation",
+        "multi_window_multi_seed",
+        "reality_check_max_model_null",
+        "holm_multiple_testing",
+        "leave_one_period_out",
+        "leakage_future_mutation",
+        "false_gain_elimination",
+    )
+    method_complete = all(gates.get(name) == "PASS" for name in required_method_gates)
     ok = (
         report.get("status") == "PASS"
         and report.get("software_verdict") == "PASS"
-        and report.get("gates", {}).get("data_integrity") == "PASS"
-        and report.get("gates", {}).get("sample_size") == "PASS"
-        and report.get("gates", {}).get("oos_size") == "PASS"
+        and gates.get("data_integrity") == "PASS"
+        and gates.get("sample_size") == "PASS"
+        and gates.get("oos_size") == "PASS"
+        and method_complete
         and (report.get("edge_state") == "VALIDATED_EDGE" or (
             report.get("edge_state") == "NO_EDGE"
             and report.get("dan_state") == "NULL_DAN"
