@@ -780,26 +780,61 @@ def load_industry_cache() -> dict:
         return {}
 
 def enrich_industries(codes, logger=None) -> dict:
-    ak = _ak()
+    # Preserve the exact requested denominator and provider/retry policy while
+    # overlapping independent read-only calls with a bounded worker pool.
+    requested = list(dict.fromkeys(map(str, codes)))
     cache = load_industry_cache()
-    changed = False
-    for code in map(str,codes):
-        if code in cache and cache[code] not in {"","nan","未知"}:
-            continue
+    pending = [c for c in requested if c not in cache or cache[c] in {"","nan","未知"}]
+    network = (load_config().get("network", {}) or {})
+    workers = min(4, max(1, int(network.get("industry_workers", 4))))
+    ak = _ak()
+    progress = ROOT / "state" / "industry_progress.json"
+    started = time.monotonic()
+    completed = 0
+    failed = []
+
+    def record(status, code=None):
+        write_json(progress, {
+            "status": status, "phase": "industry_enrichment",
+            "total": len(requested), "pending": len(pending),
+            "completed": completed, "failed_count": len(failed),
+            "failed": failed, "last_code": code, "workers": workers,
+            "elapsed_seconds": time.monotonic() - started, "updated_at": now_iso(),
+        })
+
+    def fetch(code):
         try:
             df = ak.stock_individual_info_em(symbol=code)
             ic = "item" if "item" in df.columns else df.columns[0]
             vc = "value" if "value" in df.columns else df.columns[1]
-            m = df[df[ic].astype(str).str.contains("行业",na=False)]
-            cache[code] = str(m.iloc[0][vc]) if not m.empty else "未知"
-            changed = True
-        except Exception as e:
-            cache[code] = "未知"
-            if logger:
-                logger.warning("行业信息 %s 获取失败: %s", code, e)
-        time.sleep(0.01)
+            m = df[df[ic].astype(str).str.contains("行业", na=False)]
+            return str(m.iloc[0][vc]) if not m.empty else "未知", None
+        except Exception as exc:
+            return "未知", str(exc)
+        finally:
+            time.sleep(0.01)
+
+    record("RUNNING")
+    changed = False
+    if pending:
+        with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="stock-industry") as pool:
+            futures = {pool.submit(fetch, code): code for code in pending}
+            for future in as_completed(futures):
+                code = futures[future]
+                industry, error = future.result()
+                cache[code] = industry
+                changed = True
+                completed += 1
+                if error is not None:
+                    failed.append({"code": code, "error": error})
+                    if logger:
+                        logger.warning("行业信息 %s 获取失败: %s", code, error)
+                record("COMPLETE" if completed == len(pending) else "RUNNING", code)
+    else:
+        record("COMPLETE")
+
     if changed:
         pd.DataFrame(
-            [{"code":k,"industry":v} for k,v in cache.items()]
+            [{"code": k, "industry": v} for k, v in cache.items()]
         ).to_csv(ROOT/"cache"/"industry_cache.csv", index=False, encoding="utf-8-sig")
-    return {str(c):cache.get(str(c),"未知") for c in codes}
+    return {c: cache.get(c, "未知") for c in requested}
