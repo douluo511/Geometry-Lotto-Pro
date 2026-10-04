@@ -63,6 +63,9 @@ jobs:
       - name: Real production network gate
         run: python -m tests.real_network_gate
 
+      - name: Cost leakage walk-forward and statistical business qualification
+        run: python -m tests.business_qualification_gate
+
       - name: Windows native candidate build
         shell: pwsh
         run: ./build_windows.ps1
@@ -129,6 +132,7 @@ jobs:
             RealMoneyFinance/updater_contract_evidence.json
             RealMoneyFinance/real_network_evidence.json
             RealMoneyFinance/real_network_failure_evidence.json
+            RealMoneyFinance/business_qualification_evidence.json
             RealMoneyFinance/windows_build_evidence.json
             RealMoneyFinance/exact_exe_evidence.json
             RealMoneyFinance/updater_blocked_evidence.json
