@@ -17,8 +17,16 @@ def _ticker(symbol: str) -> str:
     return code + suffix
 
 
-def fetch_daily_bars_yahoo(client: NetClient, symbol: str, limit: int = 120) -> tuple[list[DailyBar], dict]:
-    ticker = _ticker(symbol)
+def fetch_daily_bars_yahoo(
+    client: NetClient,
+    symbol: str,
+    limit: int = 120,
+    *,
+    ticker_override: str | None = None,
+) -> tuple[list[DailyBar], dict]:
+    ticker = ticker_override or _ticker(symbol)
+    if ticker_override is not None and ticker_override != "000001.SS":
+        raise ValueError("only the frozen SSE Composite benchmark override is allowed")
     obj, meta = client.get_json(
         CHART_BASE + ticker,
         {
@@ -97,4 +105,5 @@ def fetch_daily_bars_yahoo(client: NetClient, symbol: str, limit: int = 120) -> 
         "price_adjustment": "unadjusted",
         "content_type": meta.content_type,
         "content_type_policy": meta.content_type_policy,
+        "instrument_role": "benchmark_sse_composite" if ticker_override else "security",
     }
