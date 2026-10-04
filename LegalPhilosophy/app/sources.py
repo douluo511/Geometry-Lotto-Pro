@@ -312,8 +312,8 @@ def fetch_primary_edition(client: NetClient) -> tuple[dict, str, bytes]:
         "identity_crosscheck": "PASS",
         "section_lineage": "NOT VERIFIED",
         "quotation_boundary": (
-            "Edition lineage is verified, but this gate does not authorize invented quotations or section claims; "
-            "quoted text still requires text/page-level evidence."
+            "Catalog/scan identity alone does not satisfy primary section lineage and cannot authorize quotations; "
+            "production PASS requires the exact PDF title-page plus frozen section-range evidence."
         ),
     }
     return evidence, catalog_text, scan
