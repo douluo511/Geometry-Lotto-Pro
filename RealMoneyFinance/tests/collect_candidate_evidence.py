@@ -170,9 +170,14 @@ def main():
         "regime_stability": qualified_business_gate("stability"),
         "multiple_testing_search_family": qualified_business_gate("multiple_testing_correction"),
         "baseline_comparison": baseline_comparison,
+        # This gate means the qualification decision was actually made from
+        # current evidence; it does not mean the signal itself qualified.
+        # A rigorous rejection (economic_signal_qualified=False) is a valid
+        # qualification decision and must remain distinct from model success.
         "economic_signal_qualification_decision": (
-            "PASS" if business_real.get("business_qualification_status") == "PASS"
+            "PASS" if business_real.get("method_execution_status") == "PASS"
             and isinstance(business_real.get("economic_signal_qualified"), bool)
+            and isinstance(business_real.get("diagnostic_thresholds_met"), bool)
             else "NOT VERIFIED"
         ),
         "capital_deployment_safety": (
