@@ -51,6 +51,9 @@ jobs:
       - name: Static compile
         run: python -m compileall -q app tests main.py updater_main.py
 
+      - name: Governance architecture and function inventory gate
+        run: python -m tests.governance_gate
+
       - name: Contract gate
         run: python -m tests.contract_gate
 
@@ -129,6 +132,8 @@ jobs:
             RealMoneyFinance/dist/RealMoneyFinance.exe
             RealMoneyFinance/dist/RealMoneyFinanceUpdater.exe
             RealMoneyFinance/ACCEPTANCE_CONTRACT.json
+            RealMoneyFinance/GOVERNANCE_SPEC.json
+            RealMoneyFinance/governance_evidence.json
             RealMoneyFinance/contract_evidence.json
             RealMoneyFinance/fault_injection_evidence.json
             RealMoneyFinance/updater_contract_evidence.json
