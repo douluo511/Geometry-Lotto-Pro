@@ -61,10 +61,11 @@ def check_windowed_worker_stream_contract() -> dict:
     import worker as worker_mod
 
     original_stdout, original_stderr = sys.stdout, sys.stderr
-    redirected = []
-    try:
-        with tempfile.TemporaryDirectory() as td:
-            old_root = os.environ.get("STOCK_AI_DATA_ROOT")
+    old_root = os.environ.get("STOCK_AI_DATA_ROOT")
+    result = None
+    with tempfile.TemporaryDirectory() as td:
+        redirected = []
+        try:
             os.environ["STOCK_AI_DATA_ROOT"] = td
             worker_mod.sys.stdout = None
             worker_mod.sys.stderr = None
@@ -73,7 +74,7 @@ def check_windowed_worker_stream_contract() -> dict:
                 stream = getattr(worker_mod.sys, name)
                 if stream is None or not hasattr(stream, "write"):
                     fail("windowed worker stream was not restored: " + name)
-                stream.write("stream-contract-" + name + "\\n")
+                stream.write("stream-contract-" + name + "\n")
                 stream.flush()
                 redirected.append(stream)
             log = Path(td) / "logs" / "worker_stdio.log"
@@ -81,22 +82,26 @@ def check_windowed_worker_stream_contract() -> dict:
                 fail("windowed worker stdio evidence log missing")
             if status.get("stdout") != str(log) or status.get("stderr") != str(log):
                 fail("windowed worker did not report file-backed streams")
+            result = {"stdio_restored": True, "log_name": log.name}
+        finally:
+            # Windows cannot remove an open redirected log. Restore/close before
+            # TemporaryDirectory.__exit__ attempts cleanup.
+            worker_mod.sys.stdout = original_stdout
+            worker_mod.sys.stderr = original_stderr
+            sys.stdout = original_stdout
+            sys.stderr = original_stderr
+            for stream in redirected:
+                try:
+                    stream.close()
+                except Exception:
+                    pass
             if old_root is None:
                 os.environ.pop("STOCK_AI_DATA_ROOT", None)
             else:
                 os.environ["STOCK_AI_DATA_ROOT"] = old_root
-            return {"stdio_restored": True, "log_name": log.name}
-    finally:
-        for stream in redirected:
-            try:
-                stream.close()
-            except Exception:
-                pass
-        worker_mod.sys.stdout = original_stdout
-        worker_mod.sys.stderr = original_stderr
-        sys.stdout = original_stdout
-        sys.stderr = original_stderr
-
+    if result is None:
+        fail("windowed worker stream contract produced no result")
+    return result
 
 def check_service_source_mode() -> dict:
     env = os.environ.copy()
