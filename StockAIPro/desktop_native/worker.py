@@ -37,7 +37,7 @@ def run_worker(action: str, package_root: Path) -> int:
             "active_version": version,
             "audit_trust": audit.get("trust") if isinstance(audit, dict) else None,
             "backtest": summary,
-        }, ensure_ascii=False, default=str))
+        }, ensure_ascii=True, default=str))
         return 0
 
     if action == "repair":
@@ -50,6 +50,12 @@ def run_worker(action: str, package_root: Path) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    for stream in (sys.stdout, sys.stderr):
+        if stream is not None:
+            try:
+                stream.reconfigure(encoding="utf-8", errors="replace")
+            except Exception:
+                pass
     args = list(sys.argv[1:] if argv is None else argv)
     if len(args) < 2 or args[0] != "--worker":
         print("usage: --worker <core|advanced|repair> [--package-root PATH]", file=sys.stderr)
