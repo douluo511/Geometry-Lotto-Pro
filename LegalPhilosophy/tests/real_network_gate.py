@@ -24,6 +24,7 @@ def main() -> int:
         assert advanced["legal_authority_lineage"]=="PASS"
         assert advanced["source_conflict_handling"]=="PASS"
         assert advanced["case_source_lineage"]=="PASS"
+        assert advanced["case_boundary"]=="PASS"
         # Edition/section-level Hegel primary text is deliberately not promoted by metadata or a scan identity alone.
         assert advanced["primary_source_lineage"]=="NOT VERIFIED"
         assert study["status"]=="PASS" and set(study["source_refs"])==expected_ids
