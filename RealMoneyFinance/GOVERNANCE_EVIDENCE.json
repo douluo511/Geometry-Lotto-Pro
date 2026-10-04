@@ -1,0 +1,197 @@
+{
+  "schema_version": 1,
+  "project": "RealMoneyFinance",
+  "source_of_scope": [
+    "Existing frozen product boundary in STATUS.md",
+    "Frozen required-gate denominator in ACCEPTANCE_CONTRACT.json",
+    "Independent updater contract in UPDATE_PROTOCOL.md"
+  ],
+  "requirements_purpose_model": {
+    "desktop_entries": [
+      "资金变化",
+      "一键更新",
+      "一键修复",
+      "高级分析"
+    ],
+    "requirements": [
+      "Windows desktop product exposes the four frozen entries through Service-layer behavior.",
+      "Core activity analysis uses real production market data and persists RAW/validated business evidence.",
+      "Public Level-1 data may describe observable price/volume/turnover activity but must not claim actor identity.",
+      "One-click update uses an independent updater and remains BLOCKED without trusted production Release N→N+1 context.",
+      "One-click repair protects user data and repairs configuration/storage/cache/index integrity without delete-all shortcuts.",
+      "Advanced analysis preserves the identity, advice and capital-deployment risk boundaries.",
+      "Capital deployment remains disabled until the complete frozen engineering and business acceptance contract passes."
+    ],
+    "business_purpose": "Provide reproducible, evidence-backed research on observable market activity while preventing public Level-1 data, unqualified models, candidate artifacts or partial tests from being represented as real-money readiness.",
+    "success_criteria": [
+      "Every frozen engineering and business gate is explicit and evidence-backed.",
+      "The same final Windows EXE passes real network, physical GUI and Same Hash.",
+      "A real signed independent Release N→N+1 update and rollback chain is verified.",
+      "No model or capital-deployment readiness is promoted without complete business qualification."
+    ],
+    "failure_criteria": [
+      "Any required gate is FAIL, NOT VERIFIED or BLOCKED.",
+      "Public Level-1 data is promoted to identity-grade capital attribution.",
+      "A candidate or historical artifact is treated as Final.",
+      "Update, GUI, real-network or Same-Hash evidence does not bind to the accepted product bytes."
+    ]
+  },
+  "five_why": [
+    {
+      "why": 1,
+      "question": "Why build the system?",
+      "answer": "To turn observable market activity into a reproducible research workflow instead of ad-hoc interpretation."
+    },
+    {
+      "why": 2,
+      "question": "Why require real sources, validation and evidence?",
+      "answer": "Because stale, malformed, cached or synthetic inputs can create false confidence while still allowing code to run."
+    },
+    {
+      "why": 3,
+      "question": "Why keep an identity boundary on public Level-1 data?",
+      "answer": "Because price, volume and turnover do not identify the actual actor, so identity-grade conclusions would be unsupported."
+    },
+    {
+      "why": 4,
+      "question": "Why require cost, leakage, survivorship and statistical qualification before capital deployment?",
+      "answer": "Because apparent historical gains can disappear after realistic execution, point-in-time controls and independent out-of-sample testing."
+    },
+    {
+      "why": 5,
+      "question": "Why require Exact EXE, physical GUI, Same Hash and real Release N→N+1 evidence?",
+      "answer": "Because source-level success does not prove that the exact delivered Windows product and updater perform the accepted behavior."
+    }
+  ],
+  "domain_model": {
+    "classes": [
+      "DailyBar",
+      "CapitalObservation"
+    ],
+    "invariants": [
+      "DailyBar provenance includes provider and raw payload SHA-256.",
+      "CapitalObservation exposes observable activity while true capital identity remains unavailable from public Level-1.",
+      "Validated storage is required before analysis; insufficient current data fails closed.",
+      "Capital-deployment readiness is outside a PASS path until full acceptance."
+    ]
+  },
+  "architecture": {
+    "layers": [
+      "Product",
+      "Governance",
+      "Domain",
+      "Source",
+      "NetClient",
+      "Storage",
+      "Engine",
+      "Validation",
+      "Evidence",
+      "Service",
+      "UI",
+      "Acceptance/Release"
+    ],
+    "mapping": {
+      "Product": [
+        "STATUS.md",
+        "ACCEPTANCE_CONTRACT.json"
+      ],
+      "Governance": [
+        "GOVERNANCE_EVIDENCE.json",
+        "UPDATE_PROTOCOL.md"
+      ],
+      "Domain": [
+        "app/domain.py"
+      ],
+      "Source": [
+        "app/source_market.py",
+        "app/source_eastmoney.py",
+        "app/source_tencent.py"
+      ],
+      "NetClient": [
+        "app/netclient.py"
+      ],
+      "Storage": [
+        "app/storage.py"
+      ],
+      "Engine": [
+        "app/engine.py",
+        "app/business_validation.py"
+      ],
+      "Validation": [
+        "tests/contract_gate.py",
+        "tests/fault_injection_gate.py",
+        "tests/business_qualification_gate.py"
+      ],
+      "Evidence": [
+        "tests/collect_candidate_evidence.py"
+      ],
+      "Service": [
+        "app/service.py",
+        "app/repair.py",
+        "app/update_runtime.py"
+      ],
+      "UI": [
+        "app/ui.py"
+      ],
+      "Acceptance/Release": [
+        "ACCEPTANCE_CONTRACT.json",
+        "tests/gui_physical_click_gate.py",
+        "build_windows.ps1",
+        "UPDATE_PROTOCOL.md",
+        "app/updater.py"
+      ]
+    }
+  },
+  "function_inventory": [
+    {
+      "feature": "核心功能/资金变化",
+      "module": "app/service.py",
+      "class": "FinanceService",
+      "method": "capital_change",
+      "input": "six-digit symbol with validated current stored bars",
+      "output": "CapitalObservation plus reverse-validation evidence",
+      "exception_behavior": "raises when validated current data is insufficient; never substitutes mock/cache as a fresh success",
+      "acceptance": "core GUI physical click invokes real refresh then Service analysis and produces source-bound evidence"
+    },
+    {
+      "feature": "核心真实数据刷新",
+      "module": "app/service.py",
+      "class": "FinanceService",
+      "method": "refresh_real_data",
+      "input": "six-digit symbol",
+      "output": "validated/stored production bars, source metadata and observation evidence",
+      "exception_behavior": "all production sources failing propagates failure; no fabricated success",
+      "acceptance": "real production source -> storage -> engine -> evidence chain succeeds"
+    },
+    {
+      "feature": "一键更新",
+      "module": "app/service.py",
+      "class": "FinanceService",
+      "method": "software_update",
+      "input": "trusted independent updater executable and production release context",
+      "output": "BLOCKED, FAIL or RESTART_REQUIRED structured result",
+      "exception_behavior": "missing/untrusted production context remains BLOCKED; updater mismatch remains FAIL",
+      "acceptance": "signed N→N+1 download, verify, backup, atomic replace, health, GUI acknowledgment, rollback and re-download Same Hash"
+    },
+    {
+      "feature": "一键修复",
+      "module": "app/service.py",
+      "class": "FinanceService",
+      "method": "repair",
+      "input": "user data root",
+      "output": "structured repair result",
+      "exception_behavior": "protect user data and surface failed repair rather than delete-all success",
+      "acceptance": "repair contract/fault paths plus physical GUI invocation pass on the accepted EXE"
+    },
+    {
+      "feature": "高级分析",
+      "module": "app/service.py",
+      "class": "FinanceService",
+      "method": "advanced_analysis",
+      "input": "six-digit symbol",
+      "output": "observable activity result plus explicit risk boundary",
+      "exception_behavior": "inherits fail-closed current-data requirements",
+      "acceptance": "physical GUI advanced click produces structured evidence without identity/advice/capital-deployment promotion"
+    }
+  ]
+}
