@@ -1,0 +1,117 @@
+{
+  "schema": "ai-music-acceptance-contract-v1",
+  "lineage": "REAUTHORED_STAGING",
+  "historical_candidate_source_lineage": "NOT VERIFIED",
+  "product": {
+    "name": "AI Music Production System",
+    "purpose": "Turn a simple music idea into listenable, editable/reviewable, exportable music with provenance and replayable evidence.",
+    "recovered_pipeline": [
+      "idea",
+      "lyrics",
+      "structure",
+      "chords",
+      "melody",
+      "arrangement",
+      "vocal",
+      "mix",
+      "master",
+      "versions",
+      "review",
+      "revise",
+      "final",
+      "evidence_replay"
+    ],
+    "desktop_entries": [
+      "AI创作",
+      "一键更新",
+      "一键修复",
+      "高级制作"
+    ]
+  },
+  "five_why": [
+    {
+      "why": 1,
+      "question": "Why build the system?",
+      "answer": "A prompt alone is not a production workflow; the user needs an auditable path to playable output."
+    },
+    {
+      "why": 2,
+      "question": "Why require project/evidence storage?",
+      "answer": "Without provenance and frozen output hashes, a generated track cannot be reproduced or reviewed."
+    },
+    {
+      "why": 3,
+      "question": "Why fail closed on providers/licenses?",
+      "answer": "Unidentified model/provider/license state can make output legally or operationally unusable."
+    },
+    {
+      "why": 4,
+      "question": "Why require real audio and GUI evidence?",
+      "answer": "A UI or text plan without audible bytes is not a music-production result."
+    },
+    {
+      "why": 5,
+      "question": "Why preserve gaps instead of simulating AI-provider success?",
+      "answer": "A procedural local synthesizer is not evidence that an external AI model/provider chain works."
+    }
+  ],
+  "risk_boundaries": {
+    "copyright_and_license": "No external samples/models are bundled in the local procedural path. Any future external model/provider must record identity, terms, request provenance and output policy before qualification.",
+    "source_recovery": "Historical candidate identity is preserved, but missing source/build lineage is never inherited by the re-authored implementation.",
+    "updater": "Positive production update remains blocked until an independent repository, release manifest, trusted signing key, rollback and real N->N+1 evidence exist.",
+    "user_data": "Repair and update must never silently delete user projects.",
+    "claims": "Local procedural generation may be described as generated audio, not as proof of an external AI model."
+  },
+  "domain": {
+    "entities": [
+      "MusicProject",
+      "CompositionSpec",
+      "AudioMaster",
+      "GenerationEvidence",
+      "UpdateReceipt",
+      "RepairReceipt",
+      "AnalysisReceipt"
+    ],
+    "project_fields": [
+      "project_id",
+      "prompt",
+      "seed",
+      "provider",
+      "pipeline",
+      "audio",
+      "asset_provenance",
+      "implemented_boundaries"
+    ],
+    "audio_contract": "PCM WAV, deterministic for same prompt+seed+version, non-silent, hashed",
+    "evidence_contract": "Every generated master records prompt hash, seed, provider, WAV SHA-256 and project SHA-256."
+  },
+  "interfaces": {
+    "core_generate": "create_project(root,prompt,seed,duration_seconds)->PASS + project/evidence",
+    "repair": "repair(root)->PASS/WARN; never automatic user-project deletion",
+    "advanced": "advanced_analysis(root)->PASS + explicit business gaps",
+    "netclient": "network_probe(https_url)->PASS/FAIL with status, bytes, payload hash and bounded retries",
+    "updater": "independent AIMusicUpdater.exe; missing production context => BLOCKED rc=3",
+    "exact_self_test": "AIMusicPro.exe --self-test --health-report --health-nonce"
+  },
+  "success_criteria": {
+    "engineering_final": "All frozen hard gates literal PASS in independent repository, including positive updater N->N+1 and formal release re-download Same Hash.",
+    "business_final": "Full recovered music-production scope qualified with real audio, provider/model/license evidence where used, output integrity, review/edit flow and counterexample/reversal evidence.",
+    "final_gate": "engineering=100 AND business=100 AND all hard gates PASS"
+  },
+  "expected_current_candidate_boundary": {
+    "local_real_audio": "TARGET PASS",
+    "deterministic_audio": "TARGET PASS",
+    "source_reference_real_network": "TARGET PASS",
+    "windows_build": "TARGET PASS",
+    "exact_exe": "TARGET PASS",
+    "physical_gui": "TARGET PASS",
+    "same_hash_current_bytes": "TARGET PASS",
+    "external_ai_provider": "NOT VERIFIED",
+    "lyrics": "NOT IMPLEMENTED",
+    "vocal": "NOT VERIFIED",
+    "independent_repository": "BLOCKED",
+    "positive_production_update": "BLOCKED",
+    "formal_release_redownload_same_hash": "NOT VERIFIED",
+    "final_gate": "FAIL"
+  }
+}
