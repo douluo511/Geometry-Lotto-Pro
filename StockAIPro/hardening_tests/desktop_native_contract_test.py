@@ -42,6 +42,12 @@ def check_ast_contracts() -> dict:
         fail("updater must expose missing production release context as BLOCKED")
     if "from stock_ai.pipeline import run as pipeline_run" not in worker or "pipeline_run(" not in worker:
         fail("frozen core worker must bypass CLI argparse main and call pipeline.run")
+    if "qualify_research_pool_coverage" in worker:
+        fail("interactive Advanced Analysis must not launch multi-hour full-corpus qualification")
+    if "_current_research_coverage" not in worker or '"interactive_network_bootstrap": "NOT RUN"' not in worker:
+        fail("advanced analysis must expose current research qualification without fake network PASS")
+    if '"refresh_passes": 1' not in worker:
+        fail("interactive valuation refresh must be explicitly bounded to one pass")
 
     for path in DESKTOP.glob("*.py"):
         ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
@@ -53,6 +59,7 @@ def check_ast_contracts() -> dict:
         "bounded_subprocess_contract": True,
         "independent_updater_contract": True,
         "non_destructive_repair_contract": True,
+        "advanced_interactive_qualification_boundary": True,
     }
 
 
