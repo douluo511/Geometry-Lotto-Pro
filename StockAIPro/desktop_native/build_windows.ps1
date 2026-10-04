@@ -23,6 +23,8 @@ if (Test-Path $build) { Remove-Item -Recurse -Force $build }
   --hidden-import numpy `
   --collect-all numpy `
   --collect-all pandas `
+  --collect-all scipy `
+  --hidden-import scipy._lib._ccallback_c `
   --hidden-import sklearn `
   --hidden-import joblib `
   --hidden-import requests `
