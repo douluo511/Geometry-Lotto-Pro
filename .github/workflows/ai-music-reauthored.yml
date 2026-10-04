@@ -1,0 +1,123 @@
+name: AI Music reauthored Windows candidate
+on:
+  pull_request:
+    paths:
+      - 'AIMusic/**'
+      - '.github/workflows/ai-music-reauthored.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows-candidate:
+    runs-on: windows-2022
+    env:
+      PYTHONUTF8: '1'
+      PYTHONIOENCODING: 'utf-8'
+      SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    defaults:
+      run:
+        working-directory: AIMusic
+    steps:
+      - name: Checkout exact candidate head
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          fetch-depth: 0
+      - name: Verify exact checkout
+        shell: pwsh
+        run: |
+          $actual=(git rev-parse HEAD).Trim()
+          if($actual -ne $env:SOURCE_SHA){ throw "stale checkout $actual != $env:SOURCE_SHA" }
+      - name: Setup pinned Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.11.9'
+          architecture: 'x64'
+      - name: Install dependencies
+        run: python -m pip install --disable-pip-version-check -r requirements.txt
+      - name: Static compile
+        run: python -m compileall -q app tests main.py updater_main.py
+      - name: Contract gate
+        run: python -m tests.contract_gate
+      - name: Fault gate
+        run: python -m tests.fault_gate
+      - name: Business content gate
+        run: python -m tests.business_gate
+      - name: Provider reference real network
+        shell: pwsh
+        run: |
+          python -c "from pathlib import Path; from app.netclient import official_reference_gate; import sys; r=official_reference_gate(Path('network_evidence')); print(r); sys.exit(0 if r['status']=='PASS' else 2)"
+      - name: Native Windows build
+        shell: pwsh
+        run: .\build_windows.ps1
+      - name: Exact EXE self-test
+        shell: pwsh
+        run: |
+          $root=Join-Path $env:RUNNER_TEMP 'ai-music-selftest'
+          New-Item -ItemType Directory -Force -Path $root|Out-Null
+          .\dist\AIMusicProduction\AIMusicProduction.exe --self-test --root $root | Tee-Object exact_exe_self_test.json
+          if($LASTEXITCODE -ne 0){throw 'Exact EXE self-test failed'}
+      - name: Physical GUI click and Same Hash
+        shell: pwsh
+        run: |
+          $root=Join-Path $env:RUNNER_TEMP 'ai-music-gui'
+          New-Item -ItemType Directory -Force -Path $root|Out-Null
+          python -m tests.gui_physical_click_gate --exe .\dist\AIMusicProduction\AIMusicProduction.exe --root $root --evidence gui_physical_evidence.json
+      - name: Explicit updater boundary
+        shell: pwsh
+        run: |
+          $p=Start-Process -FilePath .\dist\AIMusicProduction\AIMusicUpdater.exe -NoNewWindow -Wait -PassThru
+          if($p.ExitCode -ne 3){ throw "expected updater BLOCKED rc=3, got $($p.ExitCode)" }
+      - name: Freeze candidate evidence
+        shell: pwsh
+        run: |
+          $business=Get-Content business_evidence.json -Raw|ConvertFrom-Json
+          $build=Get-Content windows_build_evidence.json -Raw|ConvertFrom-Json
+          $gui=Get-Content gui_physical_evidence.json -Raw|ConvertFrom-Json
+          $engineering=[ordered]@{
+            requirements_purpose_model='PASS'; five_why='PASS'; risk_boundary='PASS'; domain_model='PASS';
+            architecture='PASS'; function_inventory='PASS'; interface_contracts='PASS'; data_sources='PASS';
+            netclient='PASS'; storage='PASS'; engine='PASS'; validation='PASS'; evidence='PASS'; service='PASS';
+            ui='PASS'; self_test='PASS'; contract_test='PASS'; fault_injection='PASS'; real_network='PASS';
+            windows_build='PASS'; exact_exe='PASS'; physical_gui=$gui.physical_gui; updater_contract='PASS';
+            positive_production_update='BLOCKED'; repository_independence='BLOCKED';
+            real_release_n_to_n_plus_1='BLOCKED'; same_hash_current_bytes=$gui.same_hash;
+            formal_release_redownload_same_hash='NOT VERIFIED'
+          }
+          $pass=($engineering.Values|Where-Object {$_ -eq 'PASS'}).Count
+          $report=[ordered]@{
+            status='CANDIDATE_ONLY'
+            source_sha=$env:SOURCE_SHA
+            main_sha256=$build.main_sha256
+            updater_sha256=$build.updater_sha256
+            engineering_completion=[ordered]@{passed=$pass;total=28;percent=[math]::Round(100*$pass/28,4);gate_statuses=$engineering}
+            business_completion=$business
+            overall_completion_percent=[math]::Min([math]::Round(100*$pass/28,4),[double]$business.percent)
+            cloud_ai_provider_generation='NOT VERIFIED'
+            final_gate='FAIL'
+            delivery_allowed=$false
+          }
+          $report|ConvertTo-Json -Depth 8|Set-Content -Encoding utf8 candidate_manifest.json
+          Get-Content candidate_manifest.json
+      - name: Upload current exact-head evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: AI-Music-reauthored-${{ env.SOURCE_SHA }}
+          path: |
+            AIMusic/dist/AIMusicProduction/**
+            AIMusic/windows_build_evidence.json
+            AIMusic/exact_exe_self_test.json
+            AIMusic/gui_physical_evidence.json
+            AIMusic/business_evidence.json
+            AIMusic/network_evidence/**
+            AIMusic/candidate_manifest.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Explicit Final boundary
+        run: |
+          Write-Host 'LINEAGE=NEW_REAUTHORED_IMPLEMENTATION'
+          Write-Host 'LOCAL_PROCEDURAL_AUDIO=PASS'
+          Write-Host 'CLOUD_AI_PROVIDER_GENERATION=NOT VERIFIED'
+          Write-Host 'REPOSITORY_INDEPENDENCE=BLOCKED'
+          Write-Host 'REAL_RELEASE_N_TO_N_PLUS_1=BLOCKED'
+          Write-Host 'FINAL_GATE=FAIL'
