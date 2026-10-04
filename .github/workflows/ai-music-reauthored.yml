@@ -124,6 +124,8 @@ jobs:
           public static class MouseNative {
             [DllImport("user32.dll")] public static extern bool SetCursorPos(int X, int Y);
             [DllImport("user32.dll")] public static extern void mouse_event(uint flags, uint dx, uint dy, uint data, UIntPtr extra);
+            [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
+            [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
           }
           "@
 
@@ -146,21 +148,49 @@ jobs:
           $guiPid=[int]$geo.pid
           $guiProcess=Get-Process -Id $guiPid -ErrorAction Stop
 
-          function Click-Entry([string]$label,[int]$sleepMs){
+          $actionsPath=Join-Path $root "state/gui_actions.json"
+          $hwnd=[IntPtr]([long]$geo.hwnd)
+
+          function Click-Entry([string]$label,[string[]]$allowedStatuses,[int]$timeoutSeconds){
             $entry=$geo.buttons.PSObject.Properties[$label].Value
             if($null -eq $entry){ throw "missing button geometry: $label" }
+
+            [MouseNative]::ShowWindow($hwnd,9) | Out-Null
+            [MouseNative]::SetForegroundWindow($hwnd) | Out-Null
+            Start-Sleep -Milliseconds 250
             [MouseNative]::SetCursorPos([int]$entry.center_x,[int]$entry.center_y) | Out-Null
             [MouseNative]::mouse_event(0x0002,0,0,0,[UIntPtr]::Zero)
             [MouseNative]::mouse_event(0x0004,0,0,0,[UIntPtr]::Zero)
-            Start-Sleep -Milliseconds $sleepMs
+
+            $actionDeadline=(Get-Date).AddSeconds($timeoutSeconds)
+            while((Get-Date) -lt $actionDeadline){
+              if(Test-Path $actionsPath){
+                try {
+                  $state=Get-Content -Raw $actionsPath | ConvertFrom-Json
+                  $prop=$state.PSObject.Properties[$label]
+                  if($null -ne $prop){
+                    $observed=[string]$prop.Value.status
+                    if($allowedStatuses -contains $observed){
+                      Write-Host "GUI_ACTION=$label STATUS=$observed"
+                      return
+                    }
+                    if($observed){
+                      throw "GUI action $label returned unexpected status=$observed payload=$($prop.Value.payload | ConvertTo-Json -Compress -Depth 8)"
+                    }
+                  }
+                } catch {
+                  if($_.Exception.Message -like "GUI action * returned unexpected*"){ throw }
+                }
+              }
+              Start-Sleep -Milliseconds 250
+            }
+            throw "GUI action receipt timeout: $label"
           }
 
-          Click-Entry "AI创作" 5500
-          Click-Entry "一键更新" 2200
-          Click-Entry "一键修复" 1600
-          Click-Entry "高级制作" 1600
-
-          $actionsPath=Join-Path $root "state/gui_actions.json"
+          Click-Entry "AI创作" @("PASS") 45
+          Click-Entry "一键更新" @("BLOCKED") 30
+          Click-Entry "一键修复" @("PASS","WARN") 30
+          Click-Entry "高级制作" @("PASS") 30
           if(!(Test-Path $actionsPath)){ throw "GUI actions evidence missing" }
           $actions=Get-Content -Raw $actionsPath | ConvertFrom-Json
           if($actions."AI创作".status -ne "PASS"){ throw "AI创作 physical click failed" }
