@@ -23,8 +23,8 @@ def run_worker(action: str, package_root: Path) -> int:
     sys.path.insert(0, str(version_root))
 
     if action == "core":
-        from stock_ai.pipeline import main as pipeline_main
-        pipeline_main()
+        from stock_ai.pipeline import run as pipeline_run
+        pipeline_run(force=False, run_maintenance=True)
         return 0
 
     if action == "advanced":
