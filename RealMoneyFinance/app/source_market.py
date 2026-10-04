@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from .freshness import qualify_source_freshness
 from .netclient import NetClient
 from .source_eastmoney import fetch_daily_bars as fetch_eastmoney
 from .source_tencent import fetch_daily_bars_tencent
@@ -69,7 +70,19 @@ def fetch_daily_bars_failover(client: NetClient, symbol: str, limit: int = 120):
                 "latest_date_secondary": d2,
             }
 
+    source_freshness = qualify_source_freshness(
+        rows[-1].trade_date,
+        cross_source,
+        retrieved_at_unix=meta.get("retrieved_at_unix"),
+    )
+    if source_freshness["status"] != "PASS":
+        raise RuntimeError(
+            "production source freshness is not PASS: "
+            + __import__("json").dumps(source_freshness, ensure_ascii=True, sort_keys=True)
+        )
+
     meta = dict(meta)
+    meta["source_freshness"] = source_freshness
     meta["provider_attempts"] = attempts
     meta["cross_source_validation"] = cross_source
     meta["selected_provider"] = chosen_provider
