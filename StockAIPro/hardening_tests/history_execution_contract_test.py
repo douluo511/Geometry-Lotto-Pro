@@ -175,7 +175,11 @@ def test_full_history_workload(folder):
     assert update["total"] == 300 and update["ok"] == 300
     assert update["provider_counts"] == {"tencent": 300}
     assert bootstrap["downloaded"] == 60 and not bootstrap["failed"]
-    assert len(primary) == 3 * 360, "proxy must be the only retry owner"
+    # Each admitted primary call still owns exactly the configured three
+    # NetClient attempts, but repeated transient source failure is circuit-broken
+    # at batch scope instead of multiplying 3 retries across all 360 symbols.
+    assert len(primary) % 3 == 0
+    assert 3 * 8 <= len(primary) < 3 * 100
     assert len(fallback) == 360
     assert {symbol[-6:] for symbol, _, _ in fallback} == set(live + extra)
     assert all(start == "20180101" for _, start, _ in primary + fallback)
@@ -185,10 +189,58 @@ def test_full_history_workload(folder):
         state = json.loads((data / "state" / f"{phase}_progress.json").read_text(encoding="utf-8"))
         assert state["status"] == "COMPLETE" and state["completed"] == state["total"] == total
         assert state["failed_count"] == 0
+        health = state["source_health"]
+        assert health["primary_opened_total"] >= 1
+        assert health["primary_skipped_total"] > 0
+        assert health["primary_probe_total"] > 0
+        assert health["primary_nontransient_failures"] == 0
     # Same target submitted twice cannot race on the atomic CSV temporary file.
     with patch.object(data_source, "ROOT", data), patch.object(data_source, "_ak", return_value=proxy), \
             patch.object(requests.sessions.Session, "request", new=transport):
         assert len(list(data_source._run_history_batch([live[0], live[0]], cfg, "dedup"))) == 1
+
+
+def test_history_circuit_does_not_hide_nontransport_primary_failure(folder):
+    cfg = json.loads((VERSION / "config.default.json").read_text(encoding="utf-8"))
+    cfg["network"].update({
+        "retry_backoff_seconds": 0, "retry_jitter_seconds": 0,
+        "request_delay_seconds": 0, "history_workers": 4,
+        "history_primary_circuit_failures": 2, "history_primary_probe_every": 4,
+    })
+    primary, fallback = [], []
+
+    class Provider:
+        def stock_zh_a_hist(self, symbol, start_date, end_date, **kwargs):
+            primary.append(symbol)
+            return pd.DataFrame({
+                "日期": pd.date_range("2026-09-21", periods=4),
+                "开盘": [9, 10, 11, 12], "收盘": [9, -1, 11, 12],
+                "最高": [10, 11, 12, 13], "最低": [8, 9, 10, 11],
+                "成交量": [100] * 4, "成交额": [1000] * 4, "换手率": [1] * 4,
+            })
+
+        def stock_zh_a_hist_tx(self, symbol, start_date, end_date, **kwargs):
+            fallback.append(symbol)
+            return pd.DataFrame({
+                "date": pd.date_range("2026-09-21", periods=4),
+                "close": [9, 10, 11, 12], "open": [9, 10, 11, 12],
+                "high": [10, 11, 12, 13], "low": [8, 9, 10, 11],
+                "volume": [100] * 4, "amount": [1000] * 4,
+                "turnover": [0.01] * 4,
+            })
+
+    data = folder / "nontransport-circuit"
+    (data / "data" / "history").mkdir(parents=True)
+    proxy = AkShareProxy(Provider(), cfg["network"], data / "evidence" / "requests.jsonl")
+    codes = [str(i).zfill(6) for i in range(1, 9)]
+    with patch.object(data_source, "ROOT", data), patch.object(data_source, "_ak", return_value=proxy):
+        results = list(data_source._run_history_batch(codes, cfg, "nontransport"))
+    assert len(results) == len(codes)
+    assert len(primary) == len(codes), "schema/data failures must not open transport circuit"
+    assert len(fallback) == len(codes)
+    state = json.loads((data / "state" / "nontransport_progress.json").read_text(encoding="utf-8"))
+    assert state["source_health"]["primary_opened_total"] == 0
+    assert state["source_health"]["primary_nontransient_failures"] == len(codes)
 
 
 def test_unavailable_sources_fail_closed(folder):
