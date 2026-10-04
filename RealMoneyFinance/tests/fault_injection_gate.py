@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import json
 import tempfile
 
 from app.netclient import NetClient
@@ -13,7 +14,7 @@ class Resp:
         self.headers={"content-type":ctype}
         self._obj=obj if obj is not None else {}
         self.url=url
-        self.content=b"{}"
+        self.content=json.dumps(self._obj, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
 
     def raise_for_status(self):
         if self.status_code >= 400:
