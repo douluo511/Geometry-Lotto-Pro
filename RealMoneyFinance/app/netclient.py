@@ -19,6 +19,7 @@ class ResponseMeta:
     retrieved_at_unix: float
     payload_sha256: str
     attempts: int
+    content_type_policy: str = "header-json"
 
 
 class NetClient:
@@ -37,7 +38,13 @@ class NetClient:
         with self.evidence_path.open("a", encoding="utf-8") as f:
             f.write(json.dumps(row, ensure_ascii=False, sort_keys=True) + "\n")
 
-    def get_json(self, url: str, params: dict[str, Any], headers: dict[str, str] | None = None) -> tuple[dict[str, Any], ResponseMeta]:
+    def get_json(
+        self,
+        url: str,
+        params: dict[str, Any],
+        headers: dict[str, str] | None = None,
+        allow_mislabeled_json: bool = False,
+    ) -> tuple[dict[str, Any], ResponseMeta]:
         if not str(url).lower().startswith("https://"):
             raise ValueError("production network requests require HTTPS")
         last_error: Exception | None = None
@@ -60,21 +67,42 @@ class NetClient:
                 if not body:
                     raise ValueError("empty response")
                 digest = hashlib.sha256(body).hexdigest()
-                if "json" not in ctype and "javascript" not in ctype and "text/plain" not in ctype:
+                header_json = (
+                    "json" in ctype or "javascript" in ctype or "text/plain" in ctype
+                )
+                content_type_policy = "header-json"
+                if not header_json:
                     prefix = body[:240].decode("utf-8", errors="replace")
+                    if not allow_mislabeled_json:
+                        raise ValueError(
+                            f"unexpected Content-Type: {ctype}; payload_sha256={digest}; "
+                            f"body_prefix={prefix!r}"
+                        )
+                    stripped = body.lstrip()
+                    if not stripped.startswith((b"{", b"[")):
+                        raise ValueError(
+                            f"mislabelled response is not JSON-shaped: {ctype}; "
+                            f"payload_sha256={digest}; body_prefix={prefix!r}"
+                        )
+                    content_type_policy = "provider-mislabeled-strict-json-body"
+                try:
+                    obj = json.loads(body.decode("utf-8-sig"))
+                except Exception as json_exc:
                     raise ValueError(
-                        f"unexpected Content-Type: {ctype}; payload_sha256={digest}; "
-                        f"body_prefix={prefix!r}"
-                    )
-                obj = r.json()
+                        f"JSON parse failed: content_type={ctype}; payload_sha256={digest}; "
+                        f"error={json_exc!r}"
+                    ) from json_exc
                 if not isinstance(obj, dict):
                     raise ValueError("JSON root must be an object")
-                meta = ResponseMeta(str(r.url), status, ctype, time.time(), digest, attempt)
+                meta = ResponseMeta(
+                    str(r.url), status, ctype, time.time(), digest, attempt, content_type_policy
+                )
                 self._record({
                     "status": "PASS",
                     "url": str(r.url),
                     "http_status": status,
                     "content_type": ctype,
+                    "content_type_policy": content_type_policy,
                     "payload_sha256": digest,
                     "attempt": attempt,
                     "elapsed_seconds": round(time.time() - started, 6),
