@@ -154,7 +154,11 @@ def main() -> int:
             "four_entries": ["核心功能", "一键更新", "一键修复", "高级分析"],
         }
         if sys.stdout is not None:
-            print(json.dumps(checks, ensure_ascii=False))
+            try:
+                sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+            except Exception:
+                pass
+            print(json.dumps(checks, ensure_ascii=True))
         return 0 if checks["package_root_exists"] and checks["version_root_exists"] else 1
     service = StockAIService()
     app = StockAIDesktop(service)
