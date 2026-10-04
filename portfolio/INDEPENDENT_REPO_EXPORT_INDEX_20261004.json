@@ -14,8 +14,8 @@
   },
   "aggregate": {
     "projects_total": 18,
-    "export_verification_pass": 18,
-    "export_verification_nonpass": 0,
+    "export_verification_pass": 17,
+    "export_verification_nonpass": 1,
     "real_independent_repository_pass": 0,
     "final_delivery_allowed": 0
   },
@@ -129,16 +129,14 @@
       "id": 11,
       "project": "Real-Money Finance System",
       "export_pr": 97,
-      "export_head": "4a39ce1433d35a9de3ed4661ff13d261220e9397",
-      "export_run": 37220641108,
-      "export_status": "PASS",
+      "export_head": "768213aecd86a5e76f3fbbfd4776841cbc723db1",
+      "export_run": null,
+      "export_status": "NOT VERIFIED",
       "repository_independence": "BLOCKED",
       "final_gate": "FAIL",
       "source_product_pr": 95,
-      "source_product_head": "76a1cf236f46270c352e24605ea045f38764014c",
-      "source_product_status": "NOT VERIFIED",
-      "export_artifact_id": 11310058431,
-      "export_artifact_digest": "sha256:e0eaef25bf854230a45b67853ab40f0a3b2c6ff7f972e6b3f5be4ca8ec799eee"
+      "source_product_head": "d02d2752b55efa0df6d2cbc8b64ddcbcced17e60",
+      "source_product_status": "NOT VERIFIED"
     },
     {
       "id": 12,
@@ -212,5 +210,5 @@
     }
   ],
   "next_resume_condition": "As soon as a dedicated repository becomes visible to the connected installation, seed it from the matching verified export and rerun the full frozen acceptance chain on that dedicated repository exact commit before any PASS inheritance.",
-  "latest_delta": "RMF migration export revalidated on coverage-aware failover head 4a39ce1. Product acceptance continues on PR #95 head 76a1cf23."
+  "latest_delta": "RMF real-network holdout qualification expanded from 800 to 1200 rows after exact evidence showed 718 OOS versus 990 required, without changing alpha/power/MDE. Prior RMF exact-head evidence invalidated."
 }
