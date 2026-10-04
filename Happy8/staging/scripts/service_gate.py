@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 import tempfile
 from pathlib import Path
@@ -75,6 +76,25 @@ def main() -> int:
 
         update = service.update_data()
         checks["update_commit"] = {"status": update.get("status")}
+
+        saved_manifest = os.environ.pop("HAPPY8_UPDATE_MANIFEST_URL", None)
+        saved_hosts = os.environ.pop("HAPPY8_UPDATE_TRUSTED_HOSTS", None)
+        try:
+            one_click = service.one_click_update()
+        finally:
+            if saved_manifest is not None:
+                os.environ["HAPPY8_UPDATE_MANIFEST_URL"] = saved_manifest
+            if saved_hosts is not None:
+                os.environ["HAPPY8_UPDATE_TRUSTED_HOSTS"] = saved_hosts
+        checks["one_click_update_negative_boundary"] = {
+            "status": "PASS"
+            if (
+                one_click.get("status") == "BLOCKED"
+                and one_click.get("data_update", {}).get("status") == "PASS"
+                and one_click.get("software_update", {}).get("status") == "BLOCKED"
+            )
+            else "FAIL"
+        }
         current_before = service.status()
         checks["status_after_update"] = {"status": current_before.get("status")}
 
