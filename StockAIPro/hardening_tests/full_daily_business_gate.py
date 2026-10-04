@@ -125,6 +125,8 @@ def main() -> int:
         decision = load(latest / "decision.json")
         chain = load(DATA_ROOT / "state" / "prediction_chain.json")
         maintenance = load(DATA_ROOT / "state" / "maintenance.json")
+        backtest_summary = load(DATA_ROOT / "reports" / "backtest_summary.json")
+        frozen_cfg = load(VERSION / "config.default.json")
         update = load(DATA_ROOT / "cache" / "last_update_status.json")
 
         if int(summary.get("live_universe_size", 0)) != 300:
@@ -154,6 +156,14 @@ def main() -> int:
         if str(maintenance_result.get("audit", "")).startswith("FAIL") or not maintenance_result.get("audit"):
             raise RuntimeError(f"automatic audit not complete: {maintenance_result}")
 
+        valuation_cfg = frozen_cfg.get("valuation", {}) or {}
+        if valuation_cfg.get("enabled", True) and not bool(backtest_summary.get("value_baseline_validated")):
+            raise RuntimeError(
+                "historical PIT valuation baseline did not satisfy frozen "
+                f"backtest_min_coverage={valuation_cfg.get('backtest_min_coverage', 0.4)}: "
+                f"{backtest_summary}"
+            )
+
         report.update({
             "status": "PASS",
             "asof": summary.get("asof"),
@@ -167,6 +177,9 @@ def main() -> int:
             "decision": decision,
             "data_quality_good_ratio": quality.get("good_ratio"),
             "valuation_history_coverage": summary.get("valuation_history_coverage"),
+            "valuation_backtest_min_coverage": valuation_cfg.get("backtest_min_coverage", 0.4),
+            "valuation_value_baseline_validated": backtest_summary.get("value_baseline_validated"),
+            "valuation_value_valid_points": backtest_summary.get("value_valid_points"),
             "history_provider_counts": summary.get("history_provider_counts"),
             "spot_provider": summary.get("spot_provider"),
             "expected_trade_date": summary.get("expected_trade_date"),
