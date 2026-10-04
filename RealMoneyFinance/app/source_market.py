@@ -25,7 +25,10 @@ def fetch_daily_bars_failover(client: NetClient, symbol: str, limit: int = 120):
             attempts.append({"provider": provider, "status": "FAIL", "error": repr(exc)})
 
     if not successes:
-        raise RuntimeError("all configured production market-data providers failed")
+        raise RuntimeError(
+            "all configured production market-data providers failed: "
+            + __import__("json").dumps(attempts, ensure_ascii=True, sort_keys=True)
+        )
 
     chosen_provider, rows, meta = successes[0]
     cross_source = {
