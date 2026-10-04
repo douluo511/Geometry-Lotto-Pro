@@ -45,6 +45,18 @@ class Storage:
             (json.dumps(obj, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode("utf-8"),
         )
 
+    def persist_binary_artifact(self, name: str, data: bytes, expected_sha256: str) -> Path:
+        if not name or "/" in name or "\\" in name:
+            raise ValueError("binary artifact name must be a simple filename")
+        actual = self.sha256_bytes(data)
+        if actual != expected_sha256 or len(expected_sha256) != 64:
+            raise ValueError("binary artifact SHA-256 mismatch")
+        path = self.raw / name
+        self.atomic_bytes(path, data)
+        if self.sha256_bytes(path.read_bytes()) != expected_sha256:
+            raise ValueError("binary artifact post-write integrity mismatch")
+        return path
+
     def persist_source(self, doc: SourceDocument, text: str) -> None:
         validate_source(doc)
         raw_bytes = text.encode("utf-8")
