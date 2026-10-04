@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from bisect import bisect_right
 from dataclasses import asdict, dataclass
 import math
 import random
@@ -43,6 +44,7 @@ FROZEN_METHOD_THRESHOLDS = {
     "bootstrap_samples": 1000,
     "regime_windows": 3,
     "min_regime_observations": 30,
+    "regime_benchmark_lookback": 20,
     # Frozen before the next exact-head real-network qualification. This is a
     # decision target, not a claim that the observed signal has enough power.
     "holdout_alpha": 0.05,
@@ -207,6 +209,71 @@ def _bonferroni(p_values: dict[str, float], family_size: int) -> dict[str, float
     return {name: min(1.0, value * family_size) for name, value in p_values.items()}
 
 
+def _independent_benchmark_regimes(
+    base_points: list[dict],
+    oos_values: list[float],
+    benchmark_rows: Iterable[DailyBar] | None,
+    benchmark_meta: dict | None,
+) -> dict:
+    """Evaluate OOS outcomes in ex-ante SSE benchmark trend regimes."""
+    rows = list(benchmark_rows or [])
+    meta = dict(benchmark_meta or {})
+    lookback = int(FROZEN_METHOD_THRESHOLDS["regime_benchmark_lookback"])
+    minimum = int(FROZEN_METHOD_THRESHOLDS["min_regime_observations"])
+    if (
+        meta.get("qualification_scope") != "production_real_network_benchmark"
+        or meta.get("instrument_role") != "benchmark_sse_composite"
+    ):
+        return {"status": "NOT VERIFIED", "reason": "independent live benchmark evidence unavailable"}
+    if len(rows) < lookback + 2 or not _strict_dates(rows):
+        return {"status": "NOT VERIFIED", "reason": "benchmark history is insufficient or not chronological"}
+    if len(oos_values) == 0 or len(oos_values) > len(base_points):
+        return {"status": "NOT VERIFIED", "reason": "OOS alignment is unavailable"}
+
+    dates = [row.trade_date for row in rows]
+    closes = [float(row.close) for row in rows]
+    if any(not math.isfinite(x) or x <= 0 for x in closes):
+        return {"status": "NOT VERIFIED", "reason": "benchmark contains invalid closes"}
+
+    oos_points = base_points[-len(oos_values):]
+    buckets: dict[str, list[float]] = {"BULL": [], "BEAR": []}
+    missing = 0
+    for point, value in zip(oos_points, oos_values):
+        idx = bisect_right(dates, point["feature_date"]) - 1
+        if idx < lookback:
+            missing += 1
+            continue
+        trailing = closes[idx] / closes[idx - lookback] - 1.0
+        label = "BULL" if trailing >= 0 else "BEAR"
+        buckets[label].append(float(value))
+
+    regimes = {
+        name: {
+            "count": len(values),
+            "mean_net_return": mean(values) if values else None,
+        }
+        for name, values in buckets.items()
+    }
+    coverage = missing == 0 and all(
+        item["count"] >= minimum
+        and isinstance(item["mean_net_return"], (int, float))
+        and math.isfinite(item["mean_net_return"])
+        for item in regimes.values()
+    )
+    return {
+        "status": "PASS" if coverage else "NOT VERIFIED",
+        "definition": "SSE Composite trailing-20-session return >= 0 => BULL; otherwise BEAR",
+        "lookback_sessions": lookback,
+        "minimum_observations_per_regime": minimum,
+        "missing_oos_labels": missing,
+        "regimes": regimes,
+        "benchmark_provider": meta.get("provider"),
+        "benchmark_payload_sha256": meta.get("payload_sha256"),
+        "benchmark_asof": rows[-1].trade_date if rows else None,
+        "reason": None if coverage else "independent benchmark regime coverage is insufficient",
+    }
+
+
 def _holdout_power_analysis(values: list[float]) -> dict:
     """Evaluate the frozen holdout-power target without promoting signal success."""
     if len(values) < 20 or any(not math.isfinite(float(x)) for x in values):
@@ -242,6 +309,9 @@ def qualify_research(
     rows: Iterable[DailyBar],
     source_meta: dict,
     assumptions: CostAssumptions | None = None,
+    *,
+    benchmark_rows: Iterable[DailyBar] | None = None,
+    benchmark_meta: dict | None = None,
 ) -> dict:
     ordered = list(rows)
     assumptions = assumptions or CostAssumptions()
@@ -355,6 +425,10 @@ def qualify_research(
             "mean_net_return": mean(chunk) if chunk else None,
         })
 
+    independent_regime_analysis = _independent_benchmark_regimes(
+        base_points, oos_values, benchmark_rows, benchmark_meta
+    )
+
     base = results[base_name]
     base_corrected = float(base.get("bonferroni_p_value", 1.0))
     diagnostic_thresholds_met = (
@@ -426,9 +500,10 @@ def qualify_research(
             source_meta.get("qualification_scope") == "production_real_network"
             and ablation_coverage
         ) else "NOT VERIFIED",
-        # Chronological windows are useful diagnostics but are not independently
-        # defined market regimes, so the business regime-stability gate stays closed.
-        "stability": "NOT VERIFIED",
+        "stability": "PASS" if (
+            source_meta.get("qualification_scope") == "production_real_network"
+            and independent_regime_analysis.get("status") == "PASS"
+        ) else "NOT VERIFIED",
         "multiple_testing_correction": method_gates["multiple_testing_correction"],
     }
     gaps = {
@@ -439,7 +514,7 @@ def qualify_research(
         "survivorship_selection_control": "User-selected single symbol lacks a precommitted survivorship-safe investable universe.",
         "oos_walk_forward": "Frozen holdout-power target was not executed on current production real-network evidence.",
         "ablation": "Frozen leave-one-feature-out replication was not executed with complete field coverage on current production real-network evidence.",
-        "stability": "Chronological windows are diagnostics only; independently defined market-regime labels and coverage are not verified.",
+        "stability": "Independent SSE Composite BULL/BEAR regime labels lack complete current real-network OOS coverage.",
     }
     gaps = {name: reason for name, reason in gaps.items() if gates.get(name) != "PASS"}
     return {
@@ -461,6 +536,7 @@ def qualify_research(
         "feature_results": results,
         "stability": stability,
         "regime_windows": regime_windows,
+        "independent_regime_analysis": independent_regime_analysis,
         "frozen_search_family": {name: list(fields) for name, fields in FROZEN_SEARCH_FAMILY.items()},
         "frozen_ablation_family": {name: list(fields) for name, fields in FROZEN_ABLATION_FAMILY.items()},
         "ablation_results": ablation_results,
