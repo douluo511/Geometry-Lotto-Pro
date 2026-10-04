@@ -5,6 +5,7 @@ from .domain import DecisionInput
 from .engine import train, process_metrics
 from .netclient import NetClient
 from .storage import Storage
+from .content import corpus_metrics, frozen_bundle_status, search_corpus
 
 OFFICIAL_REFERENCES={
     "health_authority":"https://www.who.int/about",
@@ -30,7 +31,19 @@ class MasterService:
     def repair(self)->dict: return self.storage.repair()
     def advanced(self)->dict:
         m=process_metrics(self.storage.records())
-        m.update({"fact_interpretation_separation":"PASS","five_why_hypothesis_boundary":"PASS","reversal_falsifiability":"PASS","high_risk_escalation":"PASS","frozen_1500_content_bundle":"NOT VERIFIED","content_boundary":"Private V10 corpus not uploaded to public GitHub."})
+        bundle=frozen_bundle_status()
+        m.update({
+          "status":"PASS" if bundle=="PASS" else "FAIL",
+          "fact_interpretation_separation":"PASS","five_why_hypothesis_boundary":"PASS",
+          "reversal_falsifiability":"PASS","high_risk_escalation":"PASS",
+          "frozen_1500_content_bundle":bundle,
+          "corpus_metrics":corpus_metrics(),
+          "sample_content_search":search_corpus("逆转验证",2),
+          "content_boundary":"Owned V10 frozen corpus is bundled; 30/90-day effectiveness still requires elapsed real evidence."
+        })
         self.storage.atomic_json(self.storage.evidence/"advanced_analysis.json",m); return m
     def self_test(self)->dict:
-        r=self.repair(); return {"status":"PASS","product":"BeYourOwnMaster","storage_integrity":"ok" if r.get("status")=="PASS" else "fail","network":"NOT EXECUTED"}
+        r=self.repair(); bundle=frozen_bundle_status()
+        return {"status":"PASS" if r.get("status")=="PASS" and bundle=="PASS" else "FAIL",
+                "product":"BeYourOwnMaster","storage_integrity":"ok" if r.get("status")=="PASS" else "fail",
+                "frozen_1500_content_bundle":bundle,"network":"NOT EXECUTED"}
