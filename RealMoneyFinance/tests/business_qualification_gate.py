@@ -43,7 +43,17 @@ def synthetic_contract() -> dict:
     for key in required:
         if got["method_gates"].get(key) != "PASS":
             raise AssertionError(f"synthetic methodological control did not PASS: {key}={got['method_gates'].get(key)}")
-    if any(value == "PASS" for value in got["gates"].values()):
+    # Synthetic data may prove methodological mechanics such as dependence-aware
+    # bootstrap or frozen search-family correction, but it must never promote
+    # evidence-dependent production gates or full business qualification.
+    for key in (
+        "cost_slippage_model", "liquidity_capacity", "corporate_action_adjustment",
+        "leakage_safe_time_split", "survivorship_selection_control", "ablation",
+        "stability", "oos_walk_forward",
+    ):
+        if got["gates"].get(key) == "PASS":
+            raise AssertionError(f"synthetic data must not promote production business gate: {key}")
+    if got["business_qualification_status"] == "PASS":
         raise AssertionError("synthetic method execution cannot promote full business qualification")
     if got["gates"]["survivorship_selection_control"] != "NOT VERIFIED":
         raise AssertionError("single-symbol selection must not claim survivorship-safe universe")
