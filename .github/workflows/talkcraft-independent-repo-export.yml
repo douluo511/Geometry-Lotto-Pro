@@ -1,0 +1,61 @@
+name: TalkCraft Independent Repository Export Verification
+
+on:
+  pull_request:
+    paths:
+      - ".github/migration/talkcraft_export.py"
+      - ".github/workflows/talkcraft-independent-repo-export.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.11"
+      - name: Build project-only export
+        run: python .github/migration/talkcraft_export.py --out "$RUNNER_TEMP/export"
+      - name: Verify every manifest hash and size
+        run: |
+          python - <<'PY'
+          import hashlib,json,os
+          from pathlib import Path
+          root=Path(os.environ["RUNNER_TEMP"])/"export"
+          m=json.loads((root/"MIGRATION_MANIFEST.json").read_text(encoding="utf-8"))
+          assert m["repository_independence"]=="NOT VERIFIED"
+          assert m["file_count"]==len(m["files"]) and m["file_count"]>0
+          for x in m["files"]:
+              p=root/x["path"]; assert p.is_file(); assert p.stat().st_size==x["size"]
+              assert hashlib.sha256(p.read_bytes()).hexdigest()==x["sha256"]
+          print("SECOND_PASS_VERIFY=PASS",m["file_count"])
+          PY
+      - name: Deliberate tamper counterexample must fail
+        run: |
+          python - <<'PY'
+          import hashlib,json,os
+          from pathlib import Path
+          root=Path(os.environ["RUNNER_TEMP"])/"export"
+          m=json.loads((root/"MIGRATION_MANIFEST.json").read_text(encoding="utf-8"))
+          x=m["files"][0]; p=root/x["path"]; p.write_bytes(p.read_bytes()+b"\nTAMPER")
+          assert hashlib.sha256(p.read_bytes()).hexdigest()!=x["sha256"]
+          print("TAMPER_REJECTION=PASS")
+          PY
+      - name: Rebuild clean export after counterexample
+        run: python .github/migration/talkcraft_export.py --out "$RUNNER_TEMP/export"
+      - name: Explicit boundary
+        run: |
+          echo "PROJECT_ONLY_EXPORT=PASS"
+          echo "REPOSITORY_INDEPENDENCE=NOT VERIFIED"
+          echo "REAL_RELEASE_N_TO_N_PLUS_1=NOT VERIFIED"
+          echo "FINAL_GATE=FAIL"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: talkcraft-independent-repo-seed-${{ github.sha }}
+          path: ${{ runner.temp }}/export
+          if-no-files-found: error
+          retention-days: 30
