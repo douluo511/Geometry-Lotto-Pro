@@ -105,6 +105,7 @@ def main() -> int:
     parser.add_argument("--data-root", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--build-evidence", type=Path, required=True)
+    parser.add_argument("--artifact-exe", type=Path, required=True)
     args = parser.parse_args()
 
     exe = args.exe.resolve()
@@ -118,7 +119,13 @@ def main() -> int:
     expected_hash = str(build_evidence.get("exe_sha256") or "").lower()
     if len(expected_hash) != 64:
         raise RuntimeError("build evidence does not contain a valid Exact EXE SHA-256")
+    artifact_exe = args.artifact_exe.resolve()
+    artifact_hash = file_sha256(artifact_exe)
     before_hash = file_sha256(exe)
+    if artifact_hash != expected_hash:
+        raise RuntimeError(
+            f"candidate artifact copy is not the Exact EXE: expected={expected_hash} actual={artifact_hash}"
+        )
     if before_hash != expected_hash:
         raise RuntimeError(
             f"physical GUI target is not the Exact EXE: expected={expected_hash} actual={before_hash}"
@@ -244,6 +251,7 @@ def main() -> int:
         and len(clicks) == 4
         and before_hash == expected_hash
         and after_hash == expected_hash
+        and file_sha256(artifact_exe) == expected_hash
         and all(
             operation_evidence.get(name, {}).get("status", "").startswith("PASS")
             for name in ("update", "predict", "repair", "advanced")
@@ -254,6 +262,8 @@ def main() -> int:
         "status": "PASS" if method_pass else "FAIL",
         "exe": str(exe),
         "build_exact_exe_sha256": expected_hash,
+        "artifact_exe": str(artifact_exe),
+        "artifact_exe_sha256": artifact_hash,
         "exe_sha256_before": before_hash,
         "exe_sha256_after": after_hash,
         "same_hash_after_physical_gui": before_hash == after_hash,
