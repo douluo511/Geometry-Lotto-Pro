@@ -4,6 +4,7 @@ from pathlib import Path
 import json
 import tempfile
 from datetime import date, timedelta
+from types import SimpleNamespace
 
 from app.domain import DailyBar
 from app.engine import analyze_observable_activity, reverse_validation
