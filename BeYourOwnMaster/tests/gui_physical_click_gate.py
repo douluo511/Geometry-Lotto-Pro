@@ -51,7 +51,8 @@ def main():
       except Exception:pass
     after=digest(exe);assert before==after
     assert out["核心训练"]["status"]=="PASS";assert out["一键更新"]["status"]=="BLOCKED";assert out["一键修复"]["status"]=="PASS";assert out["高级分析"]["status"]=="PASS"
-    assert out["一键更新"]["payload"]["independent_process_returncode"]==3\n    assert out["高级分析"]["payload"].get("frozen_1500_content_bundle")=="PASS"
+    assert out["一键更新"]["payload"]["independent_process_returncode"]==3
+    assert out["高级分析"]["payload"].get("frozen_1500_content_bundle")=="PASS"
     report={"status":"PASS","physical_gui":"PASS","same_hash":"PASS","exe_sha256_before":before,"exe_sha256_after":after,"actions":out,"positive_production_update":"BLOCKED","click_method":"OS physical mouse coordinates from exact process-published screen geometry"}
     Path(a.evidence).write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding="utf-8");print(json.dumps(report,ensure_ascii=True));return 0
 if __name__=="__main__":raise SystemExit(main())
