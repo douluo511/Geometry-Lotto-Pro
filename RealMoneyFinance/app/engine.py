@@ -29,7 +29,8 @@ def analyze_observable_activity(rows: list[DailyBar]) -> CapitalObservation:
         raise ValueError("at least 30 validated daily bars are required")
     amount_ratio = _ratio_recent(rows, "amount")
     turnover_ratio = _ratio_recent(rows, "turnover_rate")
-    drivers = [x for x in (amount_ratio, turnover_ratio) if x is not None]
+    volume_ratio = _ratio_recent(rows, "volume")
+    drivers = [x for x in (amount_ratio, turnover_ratio, volume_ratio) if x is not None]
     avg_ratio = mean(drivers) if drivers else 1.0
     if avg_ratio >= 1.35:
         state = "ELEVATED_OBSERVABLE_ACTIVITY"
@@ -44,6 +45,7 @@ def analyze_observable_activity(rows: list[DailyBar]) -> CapitalObservation:
         price_return_20d=_return(rows, 20),
         amount_ratio_5d_vs_20d=amount_ratio,
         turnover_ratio_5d_vs_20d=turnover_ratio,
+        volume_ratio_5d_vs_20d=volume_ratio,
         activity_state=state,
         true_capital_identity="UNAVAILABLE_FROM_PUBLIC_LEVEL1",
         conclusion_boundary=(
