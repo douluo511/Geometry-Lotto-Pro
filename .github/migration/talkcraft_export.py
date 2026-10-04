@@ -36,8 +36,9 @@ def main():
         rel=src.relative_to(PROJECT) if src.is_relative_to(PROJECT) else src.relative_to(ROOT)
         dst=out/rel; dst.parent.mkdir(parents=True,exist_ok=True); shutil.copy2(src,dst)
         rows.append({"path":rel.as_posix(),"size":dst.stat().st_size,"sha256":sha(dst)})
-    manifest={"schema":"talkcraft-independent-export-v1","source_commit":os.environ.get("GITHUB_SHA","unknown"),"file_count":len(rows),"repository_independence":"NOT VERIFIED","files":rows}
+    source_sha=os.environ.get("SOURCE_SHA") or os.environ.get("GITHUB_SHA","unknown")
+    manifest={"schema":"talkcraft-independent-export-v1","source_commit":source_sha,"file_count":len(rows),"repository_independence":"NOT VERIFIED","files":rows}
     mp=out/"MIGRATION_MANIFEST.json"; mp.write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
-    print(json.dumps({"file_count":len(rows),"manifest_sha256":sha(mp),"repository_independence":"NOT VERIFIED"}))
+    print(json.dumps({"source_commit":source_sha,"file_count":len(rows),"manifest_sha256":sha(mp),"repository_independence":"NOT VERIFIED"}))
 
 if __name__=="__main__": main()
