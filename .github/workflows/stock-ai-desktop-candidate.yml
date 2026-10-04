@@ -112,6 +112,8 @@ jobs:
             Copy-Item -Force $workerEvidence ./desktop_core_worker_evidence.json
             Get-Content -Raw $workerEvidence | Write-Host
           }
+          $stdioLog = Join-Path $data "logs/worker_stdio.log"
+          if (Test-Path $stdioLog) { Copy-Item -Force $stdioLog ./desktop_worker_stdio.log }
           if ($proc.ExitCode -ne 0) { throw "frozen core worker failed rc=$($proc.ExitCode)" }
           $lastRun = Join-Path $data "state/last_run.json"
           if (!(Test-Path $lastRun)) { throw "frozen core produced no last_run.json" }
@@ -178,6 +180,7 @@ jobs:
             StockAIPro/desktop_exact_exe_evidence.json
             StockAIPro/desktop_frozen_core_evidence.json
             StockAIPro/desktop_core_worker_evidence.json
+            StockAIPro/desktop_worker_stdio.log
             StockAIPro/desktop_frozen_advanced_evidence.json
             StockAIPro/desktop_repair_worker_evidence.json
             StockAIPro/desktop_gui_click_evidence.json
