@@ -17,6 +17,7 @@ from core import (
     read_json,
     repair,
     self_test,
+    sha256_file,
     write_json,
 )
 
@@ -165,6 +166,8 @@ def launch_gui(root_path: Path) -> int:
             "status": "PASS",
             "pid": os.getpid(),
             "window_title": window.title(),
+            "executable": str(Path(sys.executable).resolve()) if getattr(sys, "frozen", False) else str(Path(__file__).resolve()),
+            "exe_sha256": sha256_file(Path(sys.executable).resolve()) if getattr(sys, "frozen", False) else "SOURCE_MODE",
             "window": {
                 "x": window.winfo_rootx(),
                 "y": window.winfo_rooty(),
