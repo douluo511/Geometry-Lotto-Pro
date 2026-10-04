@@ -39,8 +39,12 @@ Desktop entries remain:
 The first re-authored network chain intentionally starts with sources that can be independently verified now:
 
 - Stanford Encyclopedia of Philosophy: Hegel social/political philosophy — authoritative scholarship.
+- Internet Encyclopedia of Philosophy: Hegel social/political thought — independent scholarship used for explicit conflict/tension preservation.
 - United Nations: Universal Declaration of Human Rights — official international legal/institutional authority.
+- U.S. National Archives: Brown v. Board of Education — validated archival case-source layer.
 
-A verified primary-edition Hegel text with edition/section lineage is **not yet integrated**. The business gate for primary-source lineage therefore remains NOT VERIFIED until that evidence exists.
+The current runtime binds every admitted source to a fresh HTTPS receipt, payload hash, semantic markers and canonical-text hash. Two independent scholarship sources are required before source-conflict handling can PASS, and their disagreement is preserved rather than auto-resolved.
+
+A helper for identifying an 1896 English edition/scan exists, but edition/section-level primary-text lineage is **not yet integrated into the production evidence chain**. Metadata or scan identity alone does not satisfy the frozen primary-source business gate. Likewise one archival case proves the case-source layer, not the required historical/modern case-corpus boundary; that gate remains NOT VERIFIED.
 
 No network or candidate workflow success may be promoted to Final while repository independence, real Release N→N+1, formal re-download Same Hash, or any frozen business gate remains non-PASS.
