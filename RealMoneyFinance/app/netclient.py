@@ -89,4 +89,4 @@ class NetClient:
                     break
                 sleep_s = self.backoff_base * (2 ** (attempt - 1)) + random.uniform(0, self.backoff_base)
                 time.sleep(sleep_s)
-        raise RuntimeError(f"network request failed after {self.max_attempts} attempts") from last_error
+        raise RuntimeError(f"network request failed after {self.max_attempts} attempts; last_error={last_error!r}") from last_error
