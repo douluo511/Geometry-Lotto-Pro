@@ -1,11 +1,12 @@
 from __future__ import annotations
 from pathlib import Path
-import json, os, subprocess, sys
+import json, subprocess, sys
 from .domain import DecisionInput
 from .engine import analyze, reversal_score
-from .storage import append_record, list_records, health, data_root
+from .storage import append_record, list_records, health
 from .evidence import record
 from .netclient import official_reference_gate
+from .content import corpus_metrics, content_import_status, search_corpus
 
 def sample_input()->DecisionInput:
     return DecisionInput(
@@ -32,9 +33,10 @@ class Service:
     def repair(self)->dict:
         out=health(); out["user_data_deleted"]=False; record("service_repair.json",out); return out
     def advanced(self)->dict:
-        records=list_records(); inp=sample_input()
-        out={"status":"PASS","record_count":len(records),"reversal":reversal_score(inp),
-             "business_content_import":"NOT VERIFIED","full_corpus_required":True}
+        records=list_records(); inp=sample_input(); metrics=corpus_metrics(); imported=content_import_status()
+        out={"status":"PASS" if imported=="PASS" else "FAIL","record_count":len(records),"reversal":reversal_score(inp),
+             "business_content_import":imported,"corpus_metrics":metrics,
+             "sample_content_search":search_corpus("逆转验证",limit=2)}
         record("service_advanced.json",out); return out
     def update(self)->dict:
         if getattr(sys,"frozen",False):
