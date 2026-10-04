@@ -46,6 +46,6 @@ The first re-authored network chain intentionally starts with sources that can b
 
 The current runtime binds every admitted source to a fresh HTTPS receipt, payload hash, semantic markers and canonical-text hash. Two independent scholarship sources are required before source-conflict handling can PASS, and their disagreement is preserved rather than auto-resolved. The case boundary requires the full four-source Plessy/Barnette/Brown/Obergefell corpus so a single famous case cannot manufacture a business PASS.
 
-A helper for identifying an 1896 English edition/scan exists, but edition/section-level primary-text lineage is **not yet integrated into the production evidence chain**. Metadata or scan identity alone does not satisfy the frozen primary-source business gate.
+The production primary-source gate uses the exact public-domain 1896 S. W. Dyde scan. It is fail-closed: the PDF must be 410 pages, the title page must identify the work/translator/publisher/year, and the table of contents must map all eight frozen sections to their required paragraph ranges before `primary_source_lineage` can PASS. Catalog metadata or scan identity alone is explicitly non-qualifying, and quotation-level claims remain a separate evidence obligation.
 
 No network or candidate workflow success may be promoted to Final while repository independence, real Release N→N+1, formal re-download Same Hash, or any frozen business gate remains non-PASS.
