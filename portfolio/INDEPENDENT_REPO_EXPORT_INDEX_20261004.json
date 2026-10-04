@@ -10,7 +10,23 @@
     ],
     "dedicated_target_repositories_visible": 0,
     "status": "BLOCKED",
-    "note": "Current GitHub App installation exposes only the monorepo. Account-level repository creation remains unavailable in the connected integration identity. Reversible probes separately verified existing-repository Release create/upload/re-download Same Hash/delete mechanics."
+    "note": "Current GitHub App installation exposes only the monorepo. Account-level repository creation remains unavailable in the connected integration identity. Reversible probes separately verified existing-repository Release create/upload/re-download Same Hash/delete mechanics.",
+    "existing_repository_release_mechanics": {
+      "status": "PASS",
+      "probe_pr": 128,
+      "run": 37216404138,
+      "create_draft_release": "PASS",
+      "upload_asset": "PASS",
+      "redownload_same_hash": "PASS",
+      "delete_release": "PASS",
+      "boundary": "Existing-repository mechanics only; not production N->N+1 and not repository independence."
+    },
+    "repository_creation_capability": {
+      "status": "BLOCKED",
+      "probe_pr": 127,
+      "run": 37215392817,
+      "boundary": "Repository-scoped integration cannot perform account-level user repository creation."
+    }
   },
   "aggregate": {
     "projects_total": 18,
@@ -72,16 +88,16 @@
       "id": 5,
       "project": "Investment Finance Pro",
       "export_pr": 112,
-      "export_head": "9226ad477c7c71b7b0461b3c7dfc6e7e9c5c13d1",
-      "export_run": 37221394437,
+      "export_head": "ff4b0c1e11215fba47d361754f8e7a6365c529e5",
+      "export_run": 37221784521,
       "export_status": "PASS",
       "repository_independence": "BLOCKED",
       "final_gate": "FAIL",
       "source_product_pr": 129,
-      "source_product_head": "cf05dd33139843c0fc6a4058f6e7e4a86cf1d374",
-      "source_product_status": "NOT VERIFIED",
-      "export_artifact_id": 11310033316,
-      "export_artifact_digest": "sha256:c3e14ca901da7d425fbd99cc4394810f09d200a1e01ce6adbaa4cc1dfb08dde1"
+      "source_product_head": "66480e4961d1b848c8a293ccbe0f0c0aa7010359",
+      "source_product_status": "CANDIDATE_ONLY",
+      "export_artifact_id": 11310417175,
+      "export_artifact_digest": "sha256:1c6f6bf8f754d724a125640d2dbe127e271906d617ff551ef500f69fcea16a73"
     },
     {
       "id": 6,
@@ -131,16 +147,26 @@
       "id": 10,
       "project": "Stock AI Pro",
       "export_pr": 99,
-      "export_head": "b7be7adfe5ea70c39f1e3496e72f47411e11c14b",
-      "export_run": 37221040195,
+      "export_head": "8b2ebd1a01e0f9eef536f0b462c825ed19f69a7d",
+      "export_run": 37244537955,
       "export_status": "PASS",
       "repository_independence": "BLOCKED",
       "final_gate": "FAIL",
       "source_product_pr": 126,
-      "source_product_head": "d1e04a1fc3c6d60a8d830388644c0fae38750985",
-      "source_product_status": "NOT VERIFIED",
-      "export_artifact_id": 11309533237,
-      "export_artifact_digest": "sha256:ad7fa1d3c42f27cb3c73ba91caea4048294eadcea3f19ae1d1c36feea4b379b2"
+      "source_product_head": "9d1e6112b58a308011c88677f6a23e59d9a40917",
+      "source_product_status": "PARTIAL_CURRENT_HEAD_VALIDATION",
+      "export_artifact_id": 11318059051,
+      "export_artifact_digest": "sha256:cfb4cf2f2d01e710dfccc388683ae6b79246af2bfc59a574d5128a65878c08fd",
+      "source_current_head_evidence": {
+        "source_offline_real_network": "PASS",
+        "source_run": 37244348130,
+        "source_artifact_id": 11318353303,
+        "source_artifact_digest": "sha256:3d84d61ebd87ae51169bef849f3d90a4219e8dba1bfb0acacc87b9574ce13d04",
+        "full_business": "IN_PROGRESS",
+        "full_business_run": 37244348120,
+        "native_desktop": "IN_PROGRESS",
+        "native_desktop_run": 37244348122
+      }
     },
     {
       "id": 11,
@@ -232,5 +258,5 @@
     }
   ],
   "next_resume_condition": "As soon as a dedicated repository becomes visible to the connected installation, seed it from the matching verified export and rerun the full frozen acceptance chain on that dedicated repository exact commit before any PASS inheritance.",
-  "latest_delta": "Strict freshness audit found SSQ, DLT and Guoxue migration seeds had diverged behind their current product branches. All three were rebased and freshly export-verified: SSQ run 37221678544, DLT 37221710805, Guoxue 37221730787. 18/18 migration readiness is restored on current product lineages; repository independence remains 0/18."
+  "latest_delta": "Current exact migration freshness audit: all 18 export PR heads have completed SUCCESS export verification. Investment Finance export #112 is now ff4b0c1... / run 37221784521 on product #129 head 66480e4.... Stock AI export #99 is now 8b2ebd1... / run 37244537955 stacked one commit over product #126 head 9d1e611...; source/offline/real-network run 37244348130 PASS while full business 37244348120 and native desktop 37244348122 remain IN_PROGRESS. Repository independence remains 0/18."
 }
