@@ -153,9 +153,14 @@ jobs:
         if: success()
         shell: pwsh
         run: |
+          $manifest=Get-Content -Raw ./candidate_manifest.json | ConvertFrom-Json
+          $business=Get-Content -Raw ./business_qualification_evidence.json | ConvertFrom-Json
           Write-Host "NEW_REAUTHORED_LINEAGE=TRUE"
           Write-Host "HISTORICAL_EXE_ACCEPTANCE_INHERITED=FALSE"
-          Write-Host "PRIMARY_SOURCE_LINEAGE=NOT_VERIFIED"
-          Write-Host "REPOSITORY_INDEPENDENCE=BLOCKED"
-          Write-Host "REAL_RELEASE_N_TO_N_PLUS_1=BLOCKED"
-          Write-Host "FINAL_GATE=FAIL"
+          Write-Host "PRIMARY_SOURCE_LINEAGE=$($business.gate_statuses.primary_source_lineage)"
+          Write-Host "BUSINESS_QUALIFICATION=$($manifest.business_qualification_status)"
+          Write-Host "BUSINESS_COMPLETION_PERCENT=$($manifest.business_completion.percent)"
+          Write-Host "ENGINEERING_COMPLETION_PERCENT=$($manifest.engineering_completion.percent)"
+          Write-Host "REPOSITORY_INDEPENDENCE=$($manifest.engineering_completion.gate_statuses.repository_independence)"
+          Write-Host "REAL_RELEASE_N_TO_N_PLUS_1=$($manifest.engineering_completion.gate_statuses.real_release_n_to_n_plus_1)"
+          Write-Host "FINAL_GATE=$($manifest.final_gate)"
