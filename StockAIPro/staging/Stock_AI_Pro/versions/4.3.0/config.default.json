@@ -107,7 +107,9 @@
       503,
       504
     ],
-    "https_only": true
+    "https_only": true,
+    "history_primary_circuit_failures": 4,
+    "history_primary_probe_every": 24
   },
   "cost": {
     "order_size_cny": 100000,
