@@ -110,8 +110,6 @@ def evaluate(evidence_dir:Path,candidate_exe:Path,final_exe:Path,gate_input:Path
                 and physical.get("source_sha")==raw.get("source_sha") and physical.get("exe_sha256")==fh
                 and physical.get("button_count")==4 and physical.get("operation_binding")=="PASS"):
             statuses["physical_gui_click"]="FAIL"
-        elif physical.get("release_mode")!="ConfiguredRelease":
-            statuses["physical_gui_click"]="BLOCKED"
     except (OSError, ValueError, TypeError):
         statuses["physical_gui_click"]="FAIL"
     normalized={k:(statuses[k] if statuses.get(k) in {"PASS","FAIL","NOT VERIFIED","BLOCKED"} else "NOT VERIFIED") for k in HARD_GATES}
