@@ -102,7 +102,7 @@ def _normalize_text(text: str) -> str:
 
 
 def _plain_text(markup: str) -> str:
-    without_scripts = re.sub(r"(?is)<(script|style).*?>.*?</\\1>", " ", markup)
+    without_scripts = re.sub(r"(?is)<(script|style).*?>.*?</\1>", " ", markup)
     without_tags = re.sub(r"(?s)<[^>]+>", " ", without_scripts)
     normalized = _normalize_text(html.unescape(without_tags))
     if len(normalized) < 500:
