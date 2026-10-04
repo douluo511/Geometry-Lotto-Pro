@@ -9,6 +9,9 @@ import json
 import os
 
 
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+
 def read(name):
     try:
         return json.loads(Path(name).read_text(encoding="utf-8-sig"))
@@ -44,7 +47,8 @@ def coverage(required, statuses):
 
 def main():
     source_sha = os.environ["SOURCE_SHA"]
-    acceptance = read("ACCEPTANCE_CONTRACT.json")
+    acceptance_path = PROJECT_ROOT / "ACCEPTANCE_CONTRACT.json"
+    acceptance = read(acceptance_path)
     if acceptance.get("schema_version") != 1:
         raise RuntimeError("missing or unsupported frozen acceptance contract")
 
@@ -180,7 +184,7 @@ def main():
         "status": "CANDIDATE_ONLY" if final_gate != "PASS" else "FINAL_ELIGIBLE_PENDING_FORMAL_RELEASE",
         "source_sha": source_sha,
         "workflow_run_id": os.environ.get("GITHUB_RUN_ID"),
-        "acceptance_contract_sha256": file_hash("ACCEPTANCE_CONTRACT.json"),
+        "acceptance_contract_sha256": file_hash(acceptance_path),
         "main_sha256": main_hash,
         "updater_sha256": file_hash("dist/RealMoneyFinanceUpdater.exe"),
         "diagnostic_gates": diagnostic_gates,
