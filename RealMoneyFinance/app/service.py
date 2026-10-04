@@ -11,7 +11,7 @@ import time
 from .engine import analyze_observable_activity, reverse_validation
 from .netclient import NetClient
 from .repair import repair_user_state
-from .source_eastmoney import fetch_daily_bars
+from .source_market import fetch_daily_bars_failover
 from .storage import Storage
 
 
@@ -41,7 +41,7 @@ class FinanceService:
         return result
 
     def refresh_real_data(self, symbol: str) -> dict[str, Any]:
-        bars, meta = fetch_daily_bars(self.client, symbol, 160)
+        bars, meta = fetch_daily_bars_failover(self.client, symbol, 160)
         self.storage.persist_raw_metadata(meta)
         stored = self.storage.upsert_bars(bars)
         obs = analyze_observable_activity(self.storage.load_bars(bars[-1].symbol, 160))
