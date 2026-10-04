@@ -59,6 +59,77 @@ class NetClient:
     def _https(url: str) -> bool:
         return urlparse(url).scheme.lower() == "https"
 
+    def get_bytes(
+        self,
+        url: str,
+        *,
+        allowed_content_types: tuple[str, ...],
+        max_bytes: int | None = None,
+        accept: str | None = None,
+    ) -> tuple[bytes, NetReceipt]:
+        if not self._https(url):
+            raise ValueError("HTTPS-only source policy")
+        limit = int(max_bytes or self.max_bytes)
+        last_error: Exception | None = None
+        retryable_status = {429, 500, 502, 503, 504}
+        for attempt in range(1, self.max_attempts + 1):
+            now = datetime.now(timezone.utc).isoformat()
+            try:
+                headers = {"Accept": accept} if accept else None
+                response = self.session.get(
+                    url,
+                    headers=headers,
+                    timeout=(self.connect_timeout, self.read_timeout),
+                    allow_redirects=True,
+                )
+                chain = [item.url for item in response.history] + [response.url]
+                if any(not self._https(item) for item in chain):
+                    raise RuntimeError("HTTPS downgrade/redirect rejected")
+                content_type = (response.headers.get("Content-Type") or "").split(";", 1)[0].strip().lower()
+                if response.status_code in retryable_status:
+                    raise requests.HTTPError(f"retryable HTTP {response.status_code}", response=response)
+                if response.status_code != 200:
+                    raise RuntimeError(f"HTTP {response.status_code}")
+                if content_type not in allowed_content_types:
+                    raise RuntimeError(f"unexpected Content-Type {content_type!r}")
+                raw = response.content
+                if not raw or len(raw) > limit:
+                    raise RuntimeError(f"invalid payload size {len(raw)}")
+                receipt = NetReceipt(
+                    url=url,
+                    final_url=response.url,
+                    status=response.status_code,
+                    retrieved_at=now,
+                    content_type=content_type,
+                    payload_sha256=hashlib.sha256(raw).hexdigest(),
+                    bytes=len(raw),
+                    attempt=attempt,
+                    result="PASS",
+                    error=None,
+                )
+                self._record(receipt)
+                return raw, receipt
+            except Exception as exc:
+                last_error = exc
+                status = getattr(getattr(exc, "response", None), "status_code", None)
+                self._record(NetReceipt(
+                    url=url,
+                    final_url=None,
+                    status=status,
+                    retrieved_at=now,
+                    content_type=None,
+                    payload_sha256=None,
+                    bytes=None,
+                    attempt=attempt,
+                    result="FAIL",
+                    error=repr(exc),
+                ))
+                retryable = isinstance(exc, (requests.ConnectionError, requests.Timeout, requests.HTTPError))
+                if attempt >= self.max_attempts or not retryable:
+                    break
+                time.sleep(min(2.0, 0.25 * (2 ** (attempt - 1))) + random.uniform(0.0, 0.15))
+        raise RuntimeError(f"binary network request failed after {self.max_attempts} bounded attempts: {last_error!r}")
+
     def get_text(self, url: str, *, allowed_content_types: tuple[str, ...] = ("text/html", "text/plain", "application/xhtml+xml")) -> tuple[str, NetReceipt]:
         if not self._https(url):
             raise ValueError("HTTPS-only source policy")
