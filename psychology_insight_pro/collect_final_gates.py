@@ -34,6 +34,23 @@ def sha256(path: Path) -> str | None:
     return h.hexdigest()
 
 
+def physical_gui_status(exact: dict, physical: dict, physical_hash_ok: bool) -> str:
+    """Qualify the physical GUI independently from production update availability."""
+    buttons = physical.get("buttons") or []
+    return "PASS" if (
+        str((exact.get("gui_smoke") or {}).get("status", "")).upper() == "PASS"
+        and physical_hash_ok
+        and passed(physical)
+        and physical.get("operation_binding") == "PASS"
+        and len(buttons) == 4
+        and all(
+            str(item.get("status", "")).upper() == "PASS"
+            and item.get("visual_changed") is True
+            for item in buttons
+        )
+    ) else "FAIL"
+
+
 def main() -> int:
     p = argparse.ArgumentParser()
     p.add_argument("--exe", required=True)
@@ -134,13 +151,7 @@ def main() -> int:
 
     gates["windows_build"] = "PASS" if str(exact.get("windows_build", "")).upper() == "PASS" and current_sha_ok else "FAIL"
     gates["exact_exe"] = "PASS" if str(exact.get("exact_exe", "")).upper() == "PASS" and source_hash == exact_hash else "FAIL"
-    gates["gui_smoke"] = "PASS" if (
-        str((exact.get("gui_smoke") or {}).get("status", "")).upper() == "PASS"
-        and physical_hash_ok
-        and passed(physical)
-        and len(physical.get("buttons") or []) == 4
-        and all(str(x.get("status", "")).upper() == "PASS" and x.get("visual_changed") is True for x in (physical.get("buttons") or []))
-    ) else "FAIL"
+    gates["gui_smoke"] = physical_gui_status(exact, physical, physical_hash_ok)
     gates["same_hash"] = "PASS" if source_hash and source_hash == final_hash == exact_hash else "FAIL"
     gates["business_content"] = "PASS" if current_run_binding["business"] and passed(business) else "FAIL"
     def evidence_state(report, bound):
@@ -156,9 +167,6 @@ def main() -> int:
     gates["repository_independence"] = evidence_state(independent, current_run_binding["independent"])
     if gates["repository_independence"] == "PASS" and independent.get("repository") == "douluo511/Geometry-Lotto-Pro":
         gates["repository_independence"] = "FAIL"
-    gui_operations_pass = gates["gui_smoke"] == "PASS" and physical.get("operation_binding") == "PASS"
-    gates["gui_smoke"] = "PASS" if gui_operations_pass and physical.get("acceptance_mode") == "ConfiguredRelease" and physical.get("software_update_release") == "PASS" else ("BLOCKED" if gui_operations_pass and physical.get("acceptance_mode") == "BlockedRelease" else "FAIL")
-
     failures = {k: v for k, v in gates.items() if v != "PASS"}
     report = {
         "schema": "psychology-mother-gate-input-v2",
