@@ -43,14 +43,22 @@ jobs:
         run: python -m pip install --disable-pip-version-check pyinstaller==6.11.1 pywinauto==0.6.9 pillow==11.3.0
 
       - name: Compile and contracts
+        shell: pwsh
         run: |
           python -m compileall -q .
-          python tests/contract_gate.py
-          python tests/fault_injection_gate.py
-          python tests/business_content_gate.py
+          if($LASTEXITCODE -ne 0){ exit $LASTEXITCODE }
+          python -m tests.contract_gate
+          if($LASTEXITCODE -ne 0){ exit $LASTEXITCODE }
+          python -m tests.fault_injection_gate
+          if($LASTEXITCODE -ne 0){ exit $LASTEXITCODE }
+          python -m tests.business_content_gate
+          if($LASTEXITCODE -ne 0){ exit $LASTEXITCODE }
 
       - name: Real Network source-reference gate
-        run: python tests/real_network_gate.py
+        shell: pwsh
+        run: |
+          python -m tests.real_network_gate
+          if($LASTEXITCODE -ne 0){ exit $LASTEXITCODE }
 
       - name: Native Windows build
         shell: pwsh
