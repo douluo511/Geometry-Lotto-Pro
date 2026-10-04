@@ -43,10 +43,13 @@ class LegalPhilosophyService:
             docs.append(SourceDocument(**meta))
         return docs
 
-    def study(self, question: str) -> dict:
+    def study(self, question: str, *, refresh_if_missing: bool = False) -> dict:
         docs = self._docs()
+        if not docs and refresh_if_missing:
+            self.update()
+            docs = self._docs()
         if not docs:
-            raise RuntimeError("no validated current sources; run one-click update first")
+            raise RuntimeError("no validated current sources; refresh authoritative sources first")
         result = build_study_result(question, docs).to_dict()
         self.storage.atomic_json(self.storage.evidence / "last_study_result.json", result)
         return result
