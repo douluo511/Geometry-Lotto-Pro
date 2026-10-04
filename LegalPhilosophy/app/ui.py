@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import json
 from pathlib import Path
+import subprocess
+import sys
 import tkinter as tk
 from tkinter import messagebox, ttk
 import traceback
@@ -74,10 +76,34 @@ class LegalPhilosophyUI:
             self.status_var.set(f"{action}: FAIL")
 
     def on_study(self) -> None:
-        self._run("核心研习", lambda: self.service.study(self.question.get()))
+        self._run("核心研习", lambda: self.service.study(self.question.get(), refresh_if_missing=True))
+
+    def _software_update(self) -> dict:
+        if getattr(sys, "frozen", False):
+            updater = Path(sys.executable).with_name("LegalPhilosophyUpdater.exe")
+            cmd = [str(updater), "--root", str(self.service.root)]
+        else:
+            updater = Path(__file__).resolve().parents[1] / "updater_main.py"
+            cmd = [sys.executable, str(updater), "--root", str(self.service.root)]
+        if not updater.is_file():
+            return {"status": "FAIL", "reason": "independent updater executable/script is missing"}
+        proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=90)
+        result_path = self.service.root / "updater_result.json"
+        if not result_path.is_file():
+            return {
+                "status": "FAIL",
+                "reason": "independent updater produced no evidence",
+                "returncode": proc.returncode,
+            }
+        result = json.loads(result_path.read_text(encoding="utf-8"))
+        result["independent_process_returncode"] = proc.returncode
+        result["independent_updater_path"] = str(updater)
+        if result.get("status") == "BLOCKED" and proc.returncode != 3:
+            raise RuntimeError("BLOCKED updater must return rc=3")
+        return result
 
     def on_update(self) -> None:
-        self._run("一键更新", self.service.update)
+        self._run("一键更新", self._software_update)
 
     def on_repair(self) -> None:
         self._run("一键修复", self.service.repair)
