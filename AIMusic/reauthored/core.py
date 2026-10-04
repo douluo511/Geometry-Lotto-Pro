@@ -287,13 +287,15 @@ def network_probe(url: str, report_path: Path | None = None) -> dict:
     last = None
     for attempt in range(1, 4):
         try:
-            req = urllib.request.Request(
-                url,
-                headers={
-                    "User-Agent": "AI-Music-Production-System/reauthored-candidate",
-                    "Accept": "application/vnd.github+json, application/json;q=0.9, */*;q=0.1",
-                },
-            )
+            headers = {
+                "User-Agent": "AI-Music-Production-System/reauthored-candidate",
+                "Accept": "application/vnd.github+json, application/json;q=0.9, */*;q=0.1",
+            }
+            token = os.environ.get("GITHUB_TOKEN", "").strip()
+            if token:
+                headers["Authorization"] = "Bearer " + token
+                headers["X-GitHub-Api-Version"] = "2022-11-28"
+            req = urllib.request.Request(url, headers=headers)
             started = time.monotonic()
             with urllib.request.urlopen(req, timeout=15) as response:
                 data = response.read(1024 * 1024)
@@ -312,6 +314,7 @@ def network_probe(url: str, report_path: Path | None = None) -> dict:
                 "attempt": attempt,
                 "elapsed_seconds": round(time.monotonic() - started, 6),
                 "scope": "authoritative GitHub project-control/source-reference connectivity; not external AI generation-provider acceptance",
+                "authenticated_request": bool(token),
                 "generated_at": now_iso(),
             }
             if report_path:
