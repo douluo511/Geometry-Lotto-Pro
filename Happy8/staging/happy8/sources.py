@@ -19,6 +19,11 @@ NATIONAL_LANDING_URL = "https://www.cwl.gov.cn/ygkj/wqkjgg/kl8/"
 SHANGHAI_HISTORY_URL = "https://www.swlc.net.cn/lottery/kl8.html"
 HAPPY8_HISTORY_START_ISSUE = "2020001"
 HAPPY8_HISTORY_START_DATE = "2020-10-28"
+# Official Jiangsu conflict anchors prove its visible index date is a local
+# publication/republication date: observed lag to the independently derived draw
+# date is 0, 1 or 2 days. CWL /c/YYYY/MM/DD/ path dates are CMS metadata and have
+# been observed before the draw, so they are never promoted to business dates.
+JIANGSU_INDEX_PUBLICATION_MAX_LAG_DAYS = 2
 JIANGSU_URL = "https://www.jslottery.com/"
 JIANGSU_HISTORY_URL = "https://www.jslottery.com/winning_history_a"
 FUZHOU_HISTORY_URL = "https://www.jxfzfc.cn/lottery.php"
@@ -607,16 +612,32 @@ def _parse_fuzhou_number_rows(markup: str) -> dict[str, tuple[int, ...]]:
     return rows
 
 
-def _parse_jiangsu_issue_dates(markup: str) -> dict[str, str]:
-    pairs: dict[str, str] = {}
+def _validate_jiangsu_index_publication_date(issue: str, publication_day: str) -> int:
+    expected_day = _market_calendar_date_for_issue(issue)
+    try:
+        draw_date = datetime.strptime(expected_day, "%Y-%m-%d").date()
+        local_date = datetime.strptime(publication_day, "%Y-%m-%d").date()
+    except ValueError as exc:
+        raise RuntimeError(
+            f"Jiangsu index publication date invalid for {issue}: {publication_day}"
+        ) from exc
+    lag_days = (local_date - draw_date).days
+    if lag_days < 0 or lag_days > JIANGSU_INDEX_PUBLICATION_MAX_LAG_DAYS:
+        raise RuntimeError(
+            f"official market-calendar/Jiangsu index publication lag invalid for {issue}: "
+            f"draw={expected_day} publication={publication_day} lag_days={lag_days}"
+        )
+    return lag_days
 
-    # The Jiangsu official index republishes national CWL draw-announcement
-    # links. Its local articleDate can lag the actual draw announcement (for
-    # example 2020001 is listed locally as 2020-10-30 while the bound CWL
-    # announcement path is /2020/10/28/). Canonical event dates therefore
-    # come only from the date encoded in the exact CWL announcement URL that
-    # is bound to the same Happy8 issue title. The Jiangsu page itself is the
-    # HTTPS provenance container; the linked URL is parsed as metadata only.
+
+def _parse_jiangsu_issue_dates(markup: str) -> dict[str, str]:
+    """Return visible Jiangsu index publication dates bound to official CWL issue links.
+
+    The visible articleDate is local index publication metadata, not the draw date.
+    The date embedded in a CWL CMS URL path is retained only as provenance metadata
+    and is never used as a business date because current official counterexamples
+    place it before the independently derived draw date.
+    """
     visible_dates: dict[str, str] = {}
     plain = _plain(markup)
     for match in re.finditer(
@@ -624,11 +645,19 @@ def _parse_jiangsu_issue_dates(markup: str) -> dict[str, str]:
         plain,
     ):
         issue, day = match.group(1), match.group(2)
+        try:
+            datetime.strptime(day, "%Y-%m-%d")
+        except ValueError as exc:
+            raise RuntimeError(
+                f"Jiangsu local article date invalid for issue {issue}: {day}"
+            ) from exc
         previous = visible_dates.get(issue)
         if previous is not None and previous != day:
             raise RuntimeError(f"Jiangsu local article-date conflict for issue {issue}")
         visible_dates[issue] = day
 
+    linked_issues: set[str] = set()
+    cms_path_dates: dict[str, str] = {}
     for href, body in re.findall(
         r"(?is)<a\b[^>]*href\s*=\s*['\"]([^'\"]+)['\"][^>]*>(.*?)</a>",
         markup,
@@ -646,28 +675,31 @@ def _parse_jiangsu_issue_dates(markup: str) -> dict[str, str]:
             "cwl.gov.cn",
         }:
             continue
-        date_match = re.search(r"/c/(20\d{2})/(\d{2})/(\d{2})/", parsed.path)
-        if not date_match:
-            continue
         issue = issue_match.group(1)
-        day = f"{date_match.group(1)}-{date_match.group(2)}-{date_match.group(3)}"
-        try:
-            canonical_day = datetime.strptime(day, "%Y-%m-%d").date()
-        except ValueError as exc:
-            raise RuntimeError(f"Jiangsu CWL announcement date invalid for issue {issue}: {day}") from exc
-        local_day = visible_dates.get(issue)
-        if local_day:
-            local_date = datetime.strptime(local_day, "%Y-%m-%d").date()
-            if local_date < canonical_day:
+        linked_issues.add(issue)
+
+        # URL-date consistency remains a provenance check only; it is not
+        # promoted to draw or publication evidence.
+        date_match = re.search(r"/c/(20\d{2})/(\d{2})/(\d{2})/", parsed.path)
+        if date_match:
+            cms_day = f"{date_match.group(1)}-{date_match.group(2)}-{date_match.group(3)}"
+            try:
+                datetime.strptime(cms_day, "%Y-%m-%d")
+            except ValueError as exc:
                 raise RuntimeError(
-                    f"Jiangsu local article date precedes CWL announcement date for {issue}: "
-                    f"local={local_day} cwl={day}"
-                )
-        previous = pairs.get(issue)
-        if previous is not None and previous != day:
-            raise RuntimeError(f"Jiangsu CWL announcement-date conflict for issue {issue}")
-        pairs[issue] = day
-    return pairs
+                    f"Jiangsu CWL CMS path date invalid for issue {issue}: {cms_day}"
+                ) from exc
+            previous = cms_path_dates.get(issue)
+            if previous is not None and previous != cms_day:
+                raise RuntimeError(f"Jiangsu CWL CMS path-date conflict for issue {issue}")
+            cms_path_dates[issue] = cms_day
+
+    # A naked visible date cannot satisfy production crosscheck. The same issue
+    # must also be bound to an official CWL announcement link on Jiangsu index.
+    return {
+        issue: visible_dates[issue]
+        for issue in sorted(linked_issues & set(visible_dates))
+    }
 
 
 def fetch_provincial_composite_full_history() -> tuple[
@@ -847,21 +879,7 @@ def fetch_provincial_composite_full_history() -> tuple[
             observed_date_map[issue] = day
             expected_day = date_map.get(issue)
             if expected_day is not None:
-                draw_day = datetime.strptime(expected_day, "%Y-%m-%d").date()
-                announcement_day = datetime.strptime(day, "%Y-%m-%d").date()
-                publication_lag_days = (announcement_day - draw_day).days
-                # Jiangsu binds each issue to the corresponding CWL announcement
-                # URL.  That URL date is the publication date, not necessarily
-                # the draw date: a late-night draw can be published after
-                # midnight on the following calendar day.  Keep this
-                # cross-check fail-closed by rejecting announcements before the
-                # draw or more than one day after it.
-                if publication_lag_days < 0 or publication_lag_days > 1:
-                    raise RuntimeError(
-                        f"official market-calendar/Jiangsu publication lag invalid for {issue}: "
-                        f"draw={expected_day} announcement={day} "
-                        f"lag_days={publication_lag_days}"
-                    )
+                _validate_jiangsu_index_publication_date(issue, day)
         filename = f"jiangsu_history_page_{page_no:03d}.html"
         raw_sources[filename] = raw
         manifest.append({
@@ -875,7 +893,7 @@ def fetch_provincial_composite_full_history() -> tuple[
             "row_count": len(rows),
             "first_issue": min(rows),
             "last_issue": max(rows),
-            "date_contract": "issue_bound_cwl_announcement_publication_date_with_0_or_1_day_lag",
+            "date_contract": "jiangsu_visible_index_publication_bound_to_cwl_issue_link_with_0_to_2_day_lag",
         })
 
     observed_issues = set(observed_date_map)
@@ -923,7 +941,7 @@ def fetch_provincial_composite_full_history() -> tuple[
         "row_count": len(crosschecked_issues),
         "first_issue": min(crosschecked_issues),
         "last_issue": max(crosschecked_issues),
-        "date_contract": "mof_calendar_must_equal_issue_bound_cwl_announcement_date",
+        "date_contract": "mof_calendar_draw_date_crosschecked_by_issue_bound_jiangsu_index_publication",
         "missing_index_count": len(missing_index_issues),
         "missing_index_issues": missing_index_issues,
     })
