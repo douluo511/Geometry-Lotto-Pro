@@ -75,6 +75,7 @@ def fetch_daily_bars_tencent(client: NetClient, symbol: str, limit: int = 120) -
         "payload_sha256": meta.payload_sha256,
         "retrieved_at_unix": meta.retrieved_at_unix,
         "row_count": len(rows),
+        "price_adjustment": "qfq",
         "content_type": meta.content_type,
         "content_type_policy": meta.content_type_policy,
     }
