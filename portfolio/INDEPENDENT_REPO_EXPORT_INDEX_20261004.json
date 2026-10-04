@@ -114,11 +114,16 @@
       "id": 10,
       "project": "Stock AI Pro",
       "export_pr": 99,
-      "export_head": "b4ca7845ebe86a3b2d8e539d55dfe5613bbedb1a",
-      "export_run": 37206927311,
+      "export_head": "286d8625335d0203c36bad76e5caf4f88ddadb70",
+      "export_run": 37214910136,
       "export_status": "PASS",
       "repository_independence": "BLOCKED",
-      "final_gate": "FAIL"
+      "final_gate": "FAIL",
+      "export_artifact_id": 11308046220,
+      "export_artifact_digest": "sha256:070dd48913e4304ad8dc4d0f836848be959090b3287e6ab54fb3e0112dbb20c4",
+      "source_product_pr": 126,
+      "source_product_head": "698f46b3cdc60f5078bcfb76727ec6810e501ad5",
+      "source_product_status": "IN_PROGRESS"
     },
     {
       "id": 11,
@@ -201,5 +206,6 @@
       "final_gate": "FAIL"
     }
   ],
-  "next_resume_condition": "As soon as a dedicated repository becomes visible to the connected installation, seed it from the matching verified export and rerun the full frozen acceptance chain on that dedicated repository exact commit before any PASS inheritance."
+  "next_resume_condition": "As soon as a dedicated repository becomes visible to the connected installation, seed it from the matching verified export and rerun the full frozen acceptance chain on that dedicated repository exact commit before any PASS inheritance.",
+  "latest_delta": "Stock AI export revalidated after rebasing onto PR #126 strict single-full-chain-3300s product lineage; product acceptance remains in progress and is not inherited from export PASS."
 }
