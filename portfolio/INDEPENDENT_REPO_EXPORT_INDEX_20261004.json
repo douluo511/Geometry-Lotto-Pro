@@ -64,11 +64,16 @@
       "id": 5,
       "project": "Investment Finance Pro",
       "export_pr": 112,
-      "export_head": "2ff6b7dd1b8795cf3b992da46d274ba1b6aee7ad",
-      "export_run": 37205127967,
+      "export_head": "9226ad477c7c71b7b0461b3c7dfc6e7e9c5c13d1",
+      "export_run": 37221394437,
       "export_status": "PASS",
       "repository_independence": "BLOCKED",
-      "final_gate": "FAIL"
+      "final_gate": "FAIL",
+      "source_product_pr": 129,
+      "source_product_head": "cf05dd33139843c0fc6a4058f6e7e4a86cf1d374",
+      "source_product_status": "NOT VERIFIED",
+      "export_artifact_id": 11310033316,
+      "export_artifact_digest": "sha256:c3e14ca901da7d425fbd99cc4394810f09d200a1e01ce6adbaa4cc1dfb08dde1"
     },
     {
       "id": 6,
@@ -215,5 +220,5 @@
     }
   ],
   "next_resume_condition": "As soon as a dedicated repository becomes visible to the connected installation, seed it from the matching verified export and rerun the full frozen acceptance chain on that dedicated repository exact commit before any PASS inheritance.",
-  "latest_delta": "Stock AI migration seed rebased to PR #126 product head d1e04a1f after PIT valuation qualification change; current product business/desktop remain in progress. RMF product head d02d2752 closed holdout-power gap with 1118 observed vs 895 required OOS observations; engineering 85.7143%, business 68.75%, migration seed revalidated. Release asset mechanics on existing repository are PASS, while account-level repository creation remains blocked by available integration capability."
+  "latest_delta": "Investment Finance migration seed rebased to PR #129 product head cf05dd33 after adding the independent software-Updater implementation; export run 37221394437 PASS. Product current-head acceptance remains in progress. Stock AI current-head business/desktop remain in progress; RMF current product head d02d2752 is candidate-valid with business 68.75%."
 }
