@@ -15,7 +15,19 @@ def main() -> int:
     with tempfile.TemporaryDirectory() as td:
         root = Path(td)
         client = NetClient(root / "evidence" / "network.jsonl", max_attempts=3)
-        bars, meta = fetch_daily_bars_failover(client, "600000", 90)
+        try:
+            bars, meta = fetch_daily_bars_failover(client, "600000", 90)
+        except Exception as exc:
+            failure = {
+                "status": "FAIL",
+                "error": repr(exc),
+                "network_receipts": str(root / "evidence" / "network.jsonl"),
+            }
+            Path("real_network_failure_evidence.json").write_text(
+                json.dumps(failure, ensure_ascii=True, indent=2), encoding="utf-8"
+            )
+            print(json.dumps(failure, ensure_ascii=True))
+            raise
         if meta["http_status"] != 200:
             raise AssertionError("real source did not return HTTP 200")
         if len(bars) < 30:
