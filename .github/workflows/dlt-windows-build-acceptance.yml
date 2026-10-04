@@ -1,3 +1,4 @@
+# exact-head revalidation trigger 2026-10-04 after repository-admin capability probe
 name: Windows build and exact-package acceptance
 
 on:
