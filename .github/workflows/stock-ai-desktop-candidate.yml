@@ -11,6 +11,7 @@ on:
       - 'StockAIPro/hardening_tests/desktop_native_contract_test.py'
       - 'StockAIPro/hardening_tests/desktop_gui_physical_click_gate.py'
       - 'StockAIPro/hardening_tests/collect_worker_diagnostics.py'
+      - 'StockAIPro/hardening_tests/qualify_research_corpus_gate.py'
       - '.github/workflows/stock-ai-desktop-candidate.yml'
 
 concurrency:
@@ -130,6 +131,15 @@ jobs:
             prediction_summary = $latest
           } | ConvertTo-Json -Depth 5 | Set-Content -Encoding UTF8 ./desktop_frozen_core_evidence.json
 
+      - name: Exact-head real-network research corpus qualification prerequisite
+        shell: pwsh
+        timeout-minutes: 150
+        run: |
+          $root = Resolve-Path ./dist/StockAIPro/_internal/Stock_AI_Pro
+          $data = Join-Path $env:RUNNER_TEMP "stock-ai-frozen-business"
+          python hardening_tests/qualify_research_corpus_gate.py --package-root $root --data-root $data --output desktop_research_corpus_evidence.json
+          if ($LASTEXITCODE -ne 0) { throw "research corpus qualification did not reach frozen >=90% current + delisted coverage" }
+
       - name: Frozen EXE advanced analysis
         shell: pwsh
         run: |
@@ -179,6 +189,7 @@ jobs:
             StockAIPro/desktop_exact_exe_evidence.json
             StockAIPro/desktop_frozen_core_evidence.json
             StockAIPro/desktop_frozen_advanced_evidence.json
+            StockAIPro/desktop_research_corpus_evidence.json
             StockAIPro/desktop_repair_worker_evidence.json
             StockAIPro/desktop_gui_click_evidence.json
             StockAIPro/desktop_gui_click_evidence.png
