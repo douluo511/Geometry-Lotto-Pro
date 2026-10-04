@@ -1,0 +1,70 @@
+name: Repository creation capability probe
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/repository-creation-capability-probe.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    env:
+      TARGET_REPO: Geometry-Lotto-Pro-SSQ
+    steps:
+      - name: Probe account-level repository creation with current GitHub job token
+        id: probe
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          body="$RUNNER_TEMP/create-response.json"
+          headers="$RUNNER_TEMP/create-headers.txt"
+          payload=$(jq -nc --arg n "$TARGET_REPO" '{name:$n,private:false,auto_init:false,description:"Independent SSQ production repository created by authorized portfolio migration probe"}')
+          code=$(curl -sS -D "$headers" -o "$body" -w '%{http_code}'             -X POST             -H "Accept: application/vnd.github+json"             -H "Authorization: Bearer $GH_TOKEN"             -H "X-GitHub-Api-Version: 2022-11-28"             https://api.github.com/user/repos             -d "$payload")
+          message=$(jq -r '.message // ""' "$body" 2>/dev/null || true)
+          html_url=$(jq -r '.html_url // ""' "$body" 2>/dev/null || true)
+          accepted=$(grep -i '^x-accepted-github-permissions:' "$headers" | sed 's/$//' || true)
+          {
+            echo "{"
+            echo "  \"schema\": \"repository-creation-capability-probe-v1\","
+            echo "  \"target\": \"$OWNER/$TARGET_REPO\","
+            echo "  \"http_status\": $code,"
+            printf '  \"message\": %s,\n' "$(jq -Rn --arg v "$message" '$v')"
+            printf '  \"html_url\": %s,\n' "$(jq -Rn --arg v "$html_url" '$v')"
+            printf '  \"accepted_permissions_header\": %s,\n' "$(jq -Rn --arg v "$accepted" '$v')"
+            if [ "$code" = "201" ]; then
+              echo '  "capability_status": "PASS",'
+              echo '  "repository_created": true'
+            elif [ "$code" = "422" ] && curl -fsS -H "Authorization: Bearer $GH_TOKEN" "https://api.github.com/repos/$OWNER/$TARGET_REPO" >/dev/null 2>&1; then
+              echo '  "capability_status": "PASS_ALREADY_EXISTS",'
+              echo '  "repository_created": false'
+            else
+              echo '  "capability_status": "BLOCKED",'
+              echo '  "repository_created": false'
+            fi
+            echo "}"
+          } > repository_creation_probe.json
+          cat repository_creation_probe.json
+      - name: Upload raw sanitized probe evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: repository-creation-capability-probe-${{ github.event.pull_request.head.sha || github.sha }}
+          path: repository_creation_probe.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Preserve capability boundary
+        shell: bash
+        run: |
+          status=$(jq -r '.capability_status' repository_creation_probe.json)
+          echo "REPOSITORY_CREATION_CAPABILITY=$status"
+          if [ "$status" = "PASS" ] || [ "$status" = "PASS_ALREADY_EXISTS" ]; then
+            echo "TARGET_REPOSITORY_AVAILABLE=YES"
+          else
+            echo "TARGET_REPOSITORY_AVAILABLE=NO"
+          fi
