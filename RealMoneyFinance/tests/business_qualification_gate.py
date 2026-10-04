@@ -8,6 +8,7 @@ import tempfile
 from app.business_validation import CostAssumptions, qualify_research
 from app.domain import DailyBar
 from app.netclient import NetClient
+from app.source_eastmoney import fetch_daily_bars as fetch_daily_bars_eastmoney
 from app.source_market import fetch_daily_bars_failover
 from app.source_yahoo import fetch_daily_bars_yahoo
 from tests.business_failclosed_contract import run_contract
@@ -63,6 +64,65 @@ def synthetic_contract() -> dict:
     return {"status": "PASS", "method_gates": got["method_gates"], "business_gates": got["gates"]}
 
 
+def _field_complete_ablation_replication(client: NetClient, reference_rows: list[DailyBar]) -> dict:
+    """Try a dedicated real-network path; never fabricate fields or fail open."""
+    try:
+        rows, meta = fetch_daily_bars_eastmoney(client, "600000", 260)
+    except Exception as exc:
+        return {"status": "NOT VERIFIED", "reason": "field-complete Eastmoney fetch failed", "error": repr(exc)}
+    if not rows or not reference_rows:
+        return {"status": "NOT VERIFIED", "reason": "field-complete or reference rows missing"}
+    latest = rows[-1]
+    reference = reference_rows[-1]
+    if latest.trade_date != reference.trade_date:
+        return {
+            "status": "NOT VERIFIED",
+            "reason": "field-complete source as-of date does not match primary qualification date",
+            "field_complete_asof": latest.trade_date,
+            "reference_asof": reference.trade_date,
+        }
+    rel = abs(float(latest.close) - float(reference.close)) / max(
+        abs(float(latest.close)), abs(float(reference.close)), 1e-9
+    )
+    if rel > 0.02:
+        return {
+            "status": "NOT VERIFIED",
+            "reason": "field-complete source close differs from primary by more than 2%",
+            "relative_close_difference": rel,
+        }
+    amount_ok = all(float(row.amount or 0.0) > 0 for row in rows)
+    turnover_ok = all(
+        row.turnover_rate is not None and float(row.turnover_rate) > 0 for row in rows
+    )
+    volume_ok = all(float(row.volume or 0.0) > 0 for row in rows)
+    if not (amount_ok and turnover_ok and volume_ok):
+        return {
+            "status": "NOT VERIFIED",
+            "reason": "field-complete source lacks required amount/turnover/volume coverage",
+            "amount_complete": amount_ok,
+            "turnover_complete": turnover_ok,
+            "volume_complete": volume_ok,
+        }
+    scoped_meta = dict(meta)
+    scoped_meta["qualification_scope"] = "production_real_network"
+    dedicated = qualify_research(rows, scoped_meta, CostAssumptions())
+    gate = dedicated.get("gates", {}).get("ablation", "NOT VERIFIED")
+    return {
+        "status": "PASS" if gate == "PASS" else "NOT VERIFIED",
+        "provider": meta.get("provider"),
+        "payload_sha256": meta.get("payload_sha256"),
+        "asof": latest.trade_date,
+        "rows": len(rows),
+        "relative_close_difference": rel,
+        "price_adjustment": meta.get("price_adjustment"),
+        "amount_complete": amount_ok,
+        "turnover_complete": turnover_ok,
+        "volume_complete": volume_ok,
+        "ablation_gate": gate,
+        "ablation_results": dedicated.get("ablation_results", {}),
+    }
+
+
 def real_network_qualification() -> dict:
     with tempfile.TemporaryDirectory() as td:
         root = Path(td)
@@ -94,6 +154,11 @@ def real_network_qualification() -> dict:
             benchmark_meta=benchmark_meta,
         )
         got["benchmark_fetch_error"] = benchmark_error
+        field_complete_ablation = _field_complete_ablation_replication(client, bars)
+        got["field_complete_ablation_replication"] = field_complete_ablation
+        if field_complete_ablation.get("status") == "PASS":
+            got["gates"]["ablation"] = "PASS"
+            got["qualification_gaps"].pop("ablation", None)
         if got["status"] != "PASS":
             raise AssertionError("qualification execution did not PASS")
         if got["capital_deployment_ready"] is not False:
