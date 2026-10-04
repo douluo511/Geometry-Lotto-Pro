@@ -12,7 +12,49 @@ permissions:
 jobs:
   create-repository:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
+      - name: Diagnose current token and API quota
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          rate="$RUNNER_TEMP/rate.json"
+          user="$RUNNER_TEMP/user.json"
+          rate_code="$(curl -sS -o "$rate" -w '%{http_code}' \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            https://api.github.com/rate_limit)"
+          user_code="$(curl -sS -o "$user" -w '%{http_code}' \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            https://api.github.com/user)"
+          python - "$rate" "$rate_code" "$user" "$user_code" <<'PY'
+          import json, sys, time
+          rate_path, rate_code, user_path, user_code = sys.argv[1:]
+          try: rate = json.load(open(rate_path, encoding="utf-8"))
+          except Exception: rate = {}
+          try: user = json.load(open(user_path, encoding="utf-8"))
+          except Exception: user = {}
+          core = (rate.get("resources") or {}).get("core") or {}
+          out = {
+              "rate_http_status": int(rate_code),
+              "core_limit": core.get("limit"),
+              "core_remaining": core.get("remaining"),
+              "core_reset": core.get("reset"),
+              "core_reset_in_seconds": max(0, int(core.get("reset",0) or 0)-int(time.time())) if core.get("reset") else None,
+              "user_http_status": int(user_code),
+              "user_login": user.get("login"),
+              "user_type": user.get("type"),
+              "user_message": user.get("message"),
+          }
+          open("token_diagnostics.json","w",encoding="utf-8").write(json.dumps(out,indent=2))
+          print(json.dumps(out))
+          PY
+
       - name: Attempt exact independent repository creation
         id: create
         shell: bash
@@ -20,7 +62,6 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          target="Psychology-Insight-Pro"
           response="$RUNNER_TEMP/create-repo-response.json"
           code="$(
             curl -sS -o "$response" -w '%{http_code}' \
@@ -34,10 +75,8 @@ jobs:
           python - "$response" "$code" <<'PY'
           import json, sys
           path, code = sys.argv[1], sys.argv[2]
-          try:
-              data = json.load(open(path, encoding="utf-8"))
-          except Exception:
-              data = {}
+          try: data = json.load(open(path, encoding="utf-8"))
+          except Exception: data = {}
           safe = {
               "http_status": int(code),
               "message": data.get("message"),
@@ -62,6 +101,8 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: psychology-independent-repo-create-evidence-${{ github.event.pull_request.head.sha || github.sha }}
-          path: repository_creation_evidence.json
-          if-no-files-found: error
+          path: |
+            token_diagnostics.json
+            repository_creation_evidence.json
+          if-no-files-found: warn
           retention-days: 30
