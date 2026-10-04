@@ -73,12 +73,26 @@ def main(argv: list[str] | None = None) -> int:
     try:
         return run_worker(action, Path(package_root))
     except Exception as exc:
-        print(json.dumps({
+        failure = {
             "status": "FAIL",
             "action": action,
             "error": repr(exc),
             "traceback": traceback.format_exc(),
-        }, ensure_ascii=False), file=sys.stderr)
+            "package_root": str(package_root),
+            "frozen": bool(getattr(sys, "frozen", False)),
+            "executable": str(sys.executable),
+        }
+        try:
+            data_root = Path(os.environ.get("STOCK_AI_DATA_ROOT") or Path.cwd() / "userdata")
+            evidence_dir = data_root / "evidence"
+            evidence_dir.mkdir(parents=True, exist_ok=True)
+            target = evidence_dir / f"worker_{action}.json"
+            tmp = target.with_suffix(".json.tmp")
+            tmp.write_text(json.dumps(failure, ensure_ascii=True, indent=2), encoding="utf-8")
+            os.replace(tmp, target)
+        except Exception as evidence_exc:
+            failure["evidence_write_error"] = repr(evidence_exc)
+        print(json.dumps(failure, ensure_ascii=True), file=sys.stderr)
         return 1
 
 
