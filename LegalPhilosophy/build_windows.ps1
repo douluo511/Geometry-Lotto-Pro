@@ -11,8 +11,8 @@ try {
 }
 $main=Resolve-Path dist/LegalPhilosophy.exe
 $up=Resolve-Path dist/LegalPhilosophyUpdater.exe
-$dirty=(git status --porcelain -- app main.py updater_main.py)
-if($dirty){ throw "tracked source changed during build: $dirty" }
+git diff --exit-code -- app main.py updater_main.py
+if($LASTEXITCODE -ne 0){ throw "tracked source changed during build" }
 $evidence=[ordered]@{
   status='PASS'
   source_sha=$source
