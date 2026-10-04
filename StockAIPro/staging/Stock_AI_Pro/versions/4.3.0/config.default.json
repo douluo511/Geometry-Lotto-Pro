@@ -109,7 +109,8 @@
     ],
     "https_only": true,
     "history_primary_circuit_failures": 4,
-    "history_primary_probe_every": 24
+    "history_primary_probe_every": 24,
+    "industry_workers": 4
   },
   "cost": {
     "order_size_cny": 100000,
