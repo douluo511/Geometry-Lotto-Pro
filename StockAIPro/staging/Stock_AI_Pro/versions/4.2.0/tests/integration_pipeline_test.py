@@ -1,0 +1,20 @@
+import sys,tempfile
+from pathlib import Path
+from unittest.mock import patch
+import numpy as np,pandas as pd
+ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT));import stock_ai.pipeline as pl
+
+def syn(code,n=420,seed=1):
+ rng=np.random.default_rng(seed);d=pd.bdate_range("2023-01-02",periods=n);r=rng.normal(.0004,.013,n);c=20*np.exp(np.cumsum(r));return pd.DataFrame({"date":d,"code":code,"open":c,"close":c,"high":c*1.01,"low":c*.99,"volume":rng.integers(1e6,1e7,n),"amount":rng.integers(3e7,4e8,n)})
+codes=[f"{i:06d}" for i in range(1,61)];hist={c:syn(c,420,i+1) for i,c in enumerate(codes)};extra=[f"{i:06d}" for i in range(61,81)];hist.update({c:syn(c,420,100+i) for i,c in enumerate(extra)})
+snap=pd.DataFrame({"code":codes,"name":codes,"price":10.,"pct_chg":0.,"amount":np.linspace(5e7,5e8,len(codes)),"turnover_rate":.02,"pe_dynamic":20.,"pb":2.,"market_cap":1e10,"spot_provider":"eastmoney"});master=pd.DataFrame({"code":codes+extra,"name":codes+extra,"status":["current"]*60+["delisted"]*20})
+cfg={"universe":{"min_turnover_cny":0},"model":{"horizon_days":5,"ensemble_mode":"validation_dynamic","min_history_days":240,"validation_days":40,"max_train_rows":100000,"top_k":20,"random_state":42,"target":"target_excess","research_training_extra_symbols":20,"min_research_extra_symbols":5},"weights":{"ml":.32,"momentum":.15,"liquidity":.07,"risk":.08,"robustness":.08,"cost":.12,"valuation":.18},"portfolio":{"balanced_size":20,"offense_size":15,"defense_size":20,"max_per_industry":4},"cost":{"order_size_cny":100000,"commission_rate":.00025,"minimum_commission_cny":5,"stamp_duty_sell_rate":.0005,"transfer_fee_rate_each_side":.00001,"base_slippage_bps_each_side":1,"impact_coefficient_bps":100,"range_slippage_fraction":.02,"max_dynamic_slippage_bps_each_side":30},"valuation":{"enabled":True,"pe_weight":.6,"pb_weight":.4,"loss_company_score":15,"missing_score":50,"extreme_pe":100,"extreme_pb":10,"extreme_penalty_points":12,"industry_relative":True},"decision":{"min_positive_net_alpha_count":0,"min_topk_mean_net_alpha":-1,"risk_off_min_topk_mean_net_alpha":-1},"safety":{"min_live_update_ratio":.7,"abort_on_low_data_quality":True,"stale_lock_hours":4},"automation":{"auto_rnd":False},"drift":{"enabled":False},"backup":{"enabled":False}}
+with tempfile.TemporaryDirectory() as td:
+ tmp=Path(td);[ (tmp/d).mkdir(parents=True,exist_ok=True) for d in ["logs","state","cache","models","predictions","reports"] ];capt={}
+ def freeze(asof,scored,ports,summary,metrics,regime,quality,force,*extra):capt.update(summary=summary,scored=scored,ports=ports);p=tmp/"predictions"/asof;p.mkdir(parents=True);return p
+ patches=[patch.object(pl,"ROOT",tmp),patch.object(pl,"load_config",return_value=cfg),patch.object(pl,"ensure_dirs",lambda:None),patch.object(pl,"fetch_full_universe",return_value=master),patch.object(pl,"fetch_market_snapshot",return_value=snap),patch.object(pl,"update_live_histories",return_value={"ok":60,"total":60,"latest_date":"2024-08-09","provider_counts":{"eastmoney":60}}),patch.object(pl,"fetch_expected_trade_date",return_value="2024-08-09"),patch.object(pl,"bootstrap_research_pool",return_value={"coverage":.8,"delisted_coverage":.5}),patch.object(pl,"load_histories",side_effect=lambda cs=None:hist if cs is None else {c:hist[c] for c in cs}),patch.object(pl,"enrich_industries",side_effect=lambda cs,logger=None:{c:f"I{int(c)%5}" for c in cs}),patch.object(pl,"refresh_valuation_histories",return_value={"coverage":.5}),patch.object(pl,"persist_model",return_value=tmp/"models"/"x"),patch.object(pl,"freeze_prediction",side_effect=freeze),patch.object(pl,"maybe_run_maintenance",return_value={}),patch.object(pl,"maybe_snapshot",return_value={})]
+ [p.start() for p in patches]
+ try:pl.run(False,True)
+ finally:[p.stop() for p in reversed(patches)]
+assert len(capt["scored"])==60;assert "expected_net_alpha" in capt["scored"];assert capt["summary"]["validation_embargo_days"]==5;assert capt["summary"]["version"].startswith("4.2")
+print("INTEGRATION PIPELINE TEST PASS")

@@ -1,0 +1,27 @@
+{
+  "version": "4.2.0-deliverable",
+  "generated_at": "2026-09-10T06:48:27.921225+00:00",
+  "source_functional_regression": "PASS",
+  "updater_transaction_security": "PASS",
+  "config_schema_migration": "PASS",
+  "prediction_cross_period_hash_chain": "PASS",
+  "rnd_reproducible_evidence": "PASS",
+  "offline_healthcheck": "PASS",
+  "auto_promote": false,
+  "new_release_gates": [
+    "CONFIG_SCHEMA_MIGRATION",
+    "CONFIG_FUTURE_SCHEMA_REJECT",
+    "PREDICTION_CROSS_PERIOD_HASH_CHAIN",
+    "RND_REPRODUCIBLE_EVIDENCE",
+    "UPDATER_TRANSACTION_JOURNAL",
+    "UPDATER_FAILED_RELEASE_REPLAY_BLOCK",
+    "UPDATER_VERSION_MATCH",
+    "UPDATER_ZIP_BOMB_GUARD",
+    "INTERRUPTED_UPDATE_RECOVERY"
+  ],
+  "target_environment_not_executed_here": [
+    "Windows BAT/PowerShell/Task Scheduler",
+    "fresh Windows online dependency install",
+    "live AkShare prediction on user machine"
+  ]
+}

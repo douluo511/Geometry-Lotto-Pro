@@ -1,0 +1,9 @@
+{
+  "product": "Stock AI Pro",
+  "version": "4.0.1",
+  "mandatory": false,
+  "package_url": "relative://acceptance_tests/fixtures/4.0.1.zip",
+  "size": 645,
+  "sha256": "ba1c5fc1fad495b455ce7e2b3b0cad8fdd75c68e1f917f28653f7b4f87f4df41",
+  "signature": "B/nexVyAmx+bq+Mffvq/J0wXXaIRNm+Gk4JHjpIx81rwff+17+1j4dgmCW1AiiSlQ2lt8B1C/cg8RPkqyHaCAg=="
+}

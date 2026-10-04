@@ -1,0 +1,15 @@
+Stock AI Pro 4.2 Deliverable
+
+唯一正常入口：ONE_CLICK_START.bat
+目标电脑首次真机验收：WINDOWS_FIRST_RUN_ACCEPTANCE.bat
+
+4.2 重点升级：
+1. 配置 Schema 5→6 自动迁移，迁移/损坏前先备份，未来 Schema 拒绝旧程序降级读取。
+2. 每期预测 Manifest 链接上一期 SHA-256，形成跨期冻结证据链。
+3. R&D 生成可复核 evidence_id 与候选注册表，不自动晋级生产模型。
+4. Updater 1.1 增加事务日志、坏 release 阻止重试、VERSION 一致性、HTTPS 强制、ZIP Bomb 防护和中断恢复。
+
+Windows 用户数据：%APPDATA%\StockAIPro
+评分不是上涨概率；软件不保证收益，不自动下单。
+
+交付标准：唯一 ZIP；封包前全验收；封包后必须在新空目录重新解压并二次验收通过。
