@@ -10,7 +10,7 @@
     ],
     "dedicated_target_repositories_visible": 0,
     "status": "BLOCKED",
-    "note": "Current GitHub App installation exposes only the monorepo. Account-level repository creation is unavailable in the connected identity."
+    "note": "Current GitHub App installation exposes only the monorepo. Account-level repository creation remains unavailable in the connected integration identity. Reversible probes separately verified existing-repository Release create/upload/re-download Same Hash/delete mechanics."
   },
   "aggregate": {
     "projects_total": 18,
@@ -114,31 +114,34 @@
       "id": 10,
       "project": "Stock AI Pro",
       "export_pr": 99,
-      "export_head": "915ec7545e0be744414c056cdb9aea00fe84990a",
-      "export_run": 37219365703,
+      "export_head": "b7be7adfe5ea70c39f1e3496e72f47411e11c14b",
+      "export_run": 37221040195,
       "export_status": "PASS",
       "repository_independence": "BLOCKED",
       "final_gate": "FAIL",
       "source_product_pr": 126,
       "source_product_head": "d1e04a1fc3c6d60a8d830388644c0fae38750985",
       "source_product_status": "NOT VERIFIED",
-      "export_artifact_id": 11309073797,
-      "export_artifact_digest": "sha256:b7e0c9ed0791d8720d5e7a138941524592bc8edca8ea2f8e59383aa9d80b62d3"
+      "export_artifact_id": 11309533237,
+      "export_artifact_digest": "sha256:ad7fa1d3c42f27cb3c73ba91caea4048294eadcea3f19ae1d1c36feea4b379b2"
     },
     {
       "id": 11,
       "project": "Real-Money Finance System",
       "export_pr": 97,
-      "export_head": "768213aecd86a5e76f3fbbfd4776841cbc723db1",
-      "export_run": 37220857387,
+      "export_head": "b63289c6498aa0ebacaa55a193f52aefaaf98749",
+      "export_run": 37221168271,
       "export_status": "PASS",
       "repository_independence": "BLOCKED",
       "final_gate": "FAIL",
       "source_product_pr": 95,
       "source_product_head": "d02d2752b55efa0df6d2cbc8b64ddcbcced17e60",
-      "source_product_status": "NOT VERIFIED",
-      "export_artifact_id": 11309869062,
-      "export_artifact_digest": "sha256:10eae9e593396bf7c2d2b462af9db395612b396f7044accab0a96fccdc6c3635"
+      "source_product_status": "CANDIDATE_ONLY",
+      "export_artifact_id": 11309628356,
+      "export_artifact_digest": "sha256:0926a5740123a3948c89b5e422299e27a8903b49b9c68f99f9df989b71958189",
+      "engineering_completion_percent": 85.7143,
+      "business_completion_percent": 68.75,
+      "overall_completion_percent": 68.75
     },
     {
       "id": 12,
@@ -212,5 +215,5 @@
     }
   ],
   "next_resume_condition": "As soon as a dedicated repository becomes visible to the connected installation, seed it from the matching verified export and rerun the full frozen acceptance chain on that dedicated repository exact commit before any PASS inheritance.",
-  "latest_delta": "RMF 1200-row migration export revalidated on head 768213a. Product acceptance continues on PR #95 head d02d2752."
+  "latest_delta": "Stock AI migration seed rebased to PR #126 product head d1e04a1f after PIT valuation qualification change; current product business/desktop remain in progress. RMF product head d02d2752 closed holdout-power gap with 1118 observed vs 895 required OOS observations; engineering 85.7143%, business 68.75%, migration seed revalidated. Release asset mechanics on existing repository are PASS, while account-level repository creation remains blocked by available integration capability."
 }
