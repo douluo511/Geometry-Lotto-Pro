@@ -1,0 +1,40 @@
+{
+  "schema": "be-your-own-master-governance-v1",
+  "lineage": "NEW_REAUTHORED_LINEAGE",
+  "historical_source_recovered": false,
+  "purpose": "Turn evidence-based self-management into repeatable real-world decision training; never substitute stories or motivational claims for evidence.",
+  "frozen_business_source": "User-owned V10 frozen corpus/workbook requirements; source document bytes remain outside this public repository.",
+  "five_why": [
+    "Reading alone is insufficient because the frozen goal is behavior and decision change, not page count.",
+    "Pre-registered predictions separate real judgment quality from hindsight explanation.",
+    "Reversal makes important conclusions falsifiable by counterevidence.",
+    "Stop-loss and reversible actions bound downside while learning from real decisions.",
+    "30/90-day effectiveness cannot be pre-declared because it requires observed longitudinal data."
+  ],
+  "risk_boundary": {
+    "high_risk_categories": [
+      "health",
+      "legal",
+      "physical_safety",
+      "large_financial_commitment"
+    ],
+    "rule": "High-risk cases must escalate to qualified/current authority or professional verification; stories and model output never replace it.",
+    "personal_effectiveness": "No growth/effectiveness claim before 30/90-day observable evidence."
+  },
+  "ui_entries": [
+    "核心训练",
+    "一键更新",
+    "一键修复",
+    "高级分析"
+  ],
+  "frozen_method": [
+    "separate facts from interpretation",
+    "5 Why layers are hypotheses, not causal proof",
+    "state strongest reversal/counterexample and falsifier",
+    "pre-register prediction/confidence/max-loss/stop-line",
+    "choose smallest reversible action",
+    "record outcome and attribution",
+    "update one observable behavior rule",
+    "audit 30/90-day evidence without score gaming"
+  ]
+}
