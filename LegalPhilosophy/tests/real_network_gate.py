@@ -4,7 +4,7 @@ from pathlib import Path
 import tempfile
 
 from app.service import LegalPhilosophyService
-from app.sources import SOURCE_SPECS
+from app.sources import PRIMARY_REQUIRED_PREFIXES, PRIMARY_SOURCE_ID, SOURCE_SPECS
 
 
 def main() -> int:
@@ -25,8 +25,11 @@ def main() -> int:
         assert advanced["source_conflict_handling"]=="PASS"
         assert advanced["case_source_lineage"]=="PASS"
         assert advanced["case_boundary"]=="PASS"
-        # Edition/section-level Hegel primary text is deliberately not promoted by metadata or a scan identity alone.
-        assert advanced["primary_source_lineage"]=="NOT VERIFIED"
+        assert advanced["primary_source_lineage"]=="PASS"
+        primary=[item for item in update["sources"] if item["source_id"]==PRIMARY_SOURCE_ID]
+        assert len(primary)==1 and primary[0]["role"]=="PRIMARY_TEXT"
+        primary_hits=tuple(primary[0].get("marker_hits") or ())
+        assert all(any(str(hit).startswith(prefix) for hit in primary_hits) for prefix in PRIMARY_REQUIRED_PREFIXES)
         assert study["status"]=="PASS" and set(study["source_refs"])==expected_ids
 
         receipt_lines=(service.storage.evidence/"network.jsonl").read_text(encoding="utf-8").splitlines()
@@ -47,7 +50,8 @@ def main() -> int:
             "advanced_analysis":"PASS",
             "source_conflict_handling":advanced["source_conflict_handling"],
             "case_source_lineage":advanced["case_source_lineage"],
-            "primary_source_lineage":"NOT VERIFIED",
+            "primary_source_lineage":advanced["primary_source_lineage"],
+            "primary_marker_hits":list(primary_hits),
             "verified_network_receipts":verified_receipts,
             "network_receipts":parsed,
         }
