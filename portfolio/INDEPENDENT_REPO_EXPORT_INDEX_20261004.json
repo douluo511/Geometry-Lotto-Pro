@@ -24,21 +24,29 @@
       "id": 1,
       "project": "SSQ",
       "export_pr": 114,
-      "export_head": "e71297f4291cc9a6fbd32e5ef262ba703731de86",
-      "export_run": 37205068870,
+      "export_head": "2845cdec7cb4fcfcf2c6b68948093ba29d267c9a",
+      "export_run": 37221678544,
       "export_status": "PASS",
       "repository_independence": "BLOCKED",
-      "final_gate": "FAIL"
+      "final_gate": "FAIL",
+      "source_product_pr": 76,
+      "source_product_head": "2845cdec7cb4fcfcf2c6b68948093ba29d267c9a",
+      "export_artifact_id": 11310725681,
+      "export_artifact_digest": "sha256:aa4a2dea769516d919b5b546225f78592a474583689d83331eea7ed25487c1df"
     },
     {
       "id": 2,
       "project": "DLT",
       "export_pr": 115,
-      "export_head": "43d1d9184db918fc7f0d60eac74fe930fed111e8",
-      "export_run": 37205071672,
+      "export_head": "15b891f6953e6d9db236e8ea282c3543597c654a",
+      "export_run": 37221710805,
       "export_status": "PASS",
       "repository_independence": "BLOCKED",
-      "final_gate": "FAIL"
+      "final_gate": "FAIL",
+      "source_product_pr": 79,
+      "source_product_head": "d44142e0d22b4817aae12d04b1519a8f7947f5d3",
+      "export_artifact_id": 11309539207,
+      "export_artifact_digest": "sha256:bb2922f56617d535954bbcd2c727d4bd8a6cd5b64f3b6a74a5a44df446a8af50"
     },
     {
       "id": 3,
@@ -89,11 +97,15 @@
       "id": 7,
       "project": "Guoxue Zhice",
       "export_pr": 113,
-      "export_head": "5492b11f2af1fd625348d2fa6062cd498e5aa76f",
-      "export_run": 37205525335,
+      "export_head": "28d83df7d5d6c2fb9ed7fd77ff8897d5529cc4a3",
+      "export_run": 37221730787,
       "export_status": "PASS",
       "repository_independence": "BLOCKED",
-      "final_gate": "FAIL"
+      "final_gate": "FAIL",
+      "source_product_pr": 91,
+      "source_product_head": "598b2c9cb2f8eb6d96ad7285edc7613c6391f6eb",
+      "export_artifact_id": 11310665893,
+      "export_artifact_digest": "sha256:536cfbc3be4cd418d21878d94091e2ab9e6af3112ebafbbf215db972d5993196"
     },
     {
       "id": 8,
@@ -220,5 +232,5 @@
     }
   ],
   "next_resume_condition": "As soon as a dedicated repository becomes visible to the connected installation, seed it from the matching verified export and rerun the full frozen acceptance chain on that dedicated repository exact commit before any PASS inheritance.",
-  "latest_delta": "Investment Finance migration seed rebased to PR #129 product head cf05dd33 after adding the independent software-Updater implementation; export run 37221394437 PASS. Product current-head acceptance remains in progress. Stock AI current-head business/desktop remain in progress; RMF current product head d02d2752 is candidate-valid with business 68.75%."
+  "latest_delta": "Strict freshness audit found SSQ, DLT and Guoxue migration seeds had diverged behind their current product branches. All three were rebased and freshly export-verified: SSQ run 37221678544, DLT 37221710805, Guoxue 37221730787. 18/18 migration readiness is restored on current product lineages; repository independence remains 0/18."
 }
