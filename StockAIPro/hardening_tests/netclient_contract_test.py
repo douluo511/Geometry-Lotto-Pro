@@ -12,6 +12,7 @@ sys.path.insert(0, str(VERSION))
 
 import requests
 from stock_ai.netclient import AkShareProxy, NetClientError, NetClientPolicyError
+from stock_ai import data_source as data_source_mod
 
 
 class FakeResponse:
@@ -140,6 +141,53 @@ def run():
             raise AssertionError("non-allowlisted POST must be rejected")
         except NetClientPolicyError:
             pass
+
+        # Regression: NetClient owns retries. The history source selector must
+        # call a failing primary provider only once before falling back; it
+        # must not multiply retry_attempts in a second outer loop.
+        history_root = Path(td) / "history_retry_case"
+        (history_root / "data" / "history").mkdir(parents=True, exist_ok=True)
+        original_root = data_source_mod.ROOT
+        original_ak = data_source_mod._ak
+        original_primary = data_source_mod._fetch_history_primary
+        original_fallback = data_source_mod._fetch_history_fallback
+        history_calls = {"primary": 0, "fallback": 0}
+        try:
+            data_source_mod.ROOT = history_root
+            data_source_mod._ak = lambda: object()
+
+            def primary(*args, **kwargs):
+                history_calls["primary"] += 1
+                raise NetClientError("primary exhausted its own bounded retries")
+
+            def fallback(*args, **kwargs):
+                history_calls["fallback"] += 1
+                return data_source_mod.pd.DataFrame([{
+                    "date": data_source_mod.pd.Timestamp("2026-10-03"),
+                    "code": "000001",
+                    "close": 10.0,
+                    "provider": "tencent",
+                    "schema_version": 3,
+                }])
+
+            data_source_mod._fetch_history_primary = primary
+            data_source_mod._fetch_history_fallback = fallback
+            history_cfg = {
+                "universe": {"history_adjust": "hfq", "history_start": "20180101"},
+                "network": {
+                    "retry_attempts": 3,
+                    "timeout_seconds": 15,
+                    "retry_backoff_seconds": 0.8,
+                },
+            }
+            got = data_source_mod.update_symbol_history("000001", history_cfg)
+            assert not got.empty and got.iloc[-1]["provider"] == "tencent"
+            assert history_calls == {"primary": 1, "fallback": 1}, history_calls
+        finally:
+            data_source_mod.ROOT = original_root
+            data_source_mod._ak = original_ak
+            data_source_mod._fetch_history_primary = original_primary
+            data_source_mod._fetch_history_fallback = original_fallback
 
         rows = [json.loads(x) for x in evidence.read_text(encoding="utf-8").splitlines() if x.strip()]
         assert rows and any(x["status"] == "PASS" for x in rows)
