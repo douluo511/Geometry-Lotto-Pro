@@ -98,7 +98,7 @@ def main() -> int:
             seen_titles=[w.window_text() for w in windows if w.window_text()]
             matches=[w for w in windows if w.window_text()==TITLE]
             if matches:
-                win=matches[0]
+                win=desktop.window(title=TITLE)
                 break
         except Exception:
             pass
