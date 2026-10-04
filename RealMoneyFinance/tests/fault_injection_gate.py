@@ -59,6 +59,16 @@ def main() -> int:
         bad_type.session=SequenceSession([Resp(200, ctype="text/html", obj={"x": 1})])
         expect_fail(lambda: bad_type.get_json("https://example.invalid/data", {}), "content-type")
 
+        mislabeled=NetClient(Path(td)/"mislabeled.jsonl", max_attempts=1, backoff_base=0)
+        good_json = Resp(200, ctype="text/html", obj={"x": 1})
+        good_json.content = b'{"x":1}'
+        mislabeled.session=SequenceSession([good_json])
+        obj, meta = mislabeled.get_json(
+            "https://example.invalid/data", {}, allow_mislabeled_json=True
+        )
+        assert obj == {"x": 1}
+        assert meta.content_type_policy == "provider-mislabeled-strict-json-body"
+
         empty_schema=NetClient(Path(td)/"schema.jsonl", max_attempts=1, backoff_base=0)
         empty_schema.session=SequenceSession([Resp(200, obj={"data": {"klines": []}})])
         expect_fail(lambda: fetch_daily_bars(empty_schema, "600000", 40), "schema")
