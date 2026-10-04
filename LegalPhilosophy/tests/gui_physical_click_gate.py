@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import argparse
+import ctypes
+from ctypes import wintypes
 import hashlib
 import json
+import os
 from pathlib import Path
 import time
 
@@ -36,13 +39,32 @@ def wait_layout(app: Application, path: Path, timeout: float=40.0) -> dict:
     while time.time()<end:
         if path.is_file():
             obj=json.loads(path.read_text(encoding="utf-8"))
-            if obj.get("status")=="PASS" and int(obj.get("pid",-1))==int(app.process):
+            pid=int(obj.get("pid",-1))
+            if obj.get("status")=="PASS" and pid>0:
                 return obj
-        if not app.is_process_running():
-            raise RuntimeError("Exact EXE exited before publishing GUI layout evidence")
         time.sleep(.25)
-    windows=Desktop(backend="win32").windows(process=app.process,visible_only=True)
-    raise TimeoutError(f"GUI layout timeout; pid={app.process}; visible_windows={len(windows)}")
+    starter_running=app.is_process_running()
+    starter_windows=Desktop(backend="win32").windows(process=app.process,visible_only=True) if starter_running else []
+    raise TimeoutError(
+        f"GUI layout timeout; starter_pid={app.process}; "
+        f"starter_running={starter_running}; starter_visible_windows={len(starter_windows)}"
+    )
+
+
+def process_image_path(pid: int) -> str:
+    PROCESS_QUERY_LIMITED_INFORMATION=0x1000
+    kernel32=ctypes.WinDLL("kernel32",use_last_error=True)
+    handle=kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION,False,int(pid))
+    if not handle:
+        raise ctypes.WinError(ctypes.get_last_error())
+    try:
+        size=wintypes.DWORD(32768)
+        buf=ctypes.create_unicode_buffer(size.value)
+        if not kernel32.QueryFullProcessImageNameW(handle,0,buf,ctypes.byref(size)):
+            raise ctypes.WinError(ctypes.get_last_error())
+        return buf.value
+    finally:
+        kernel32.CloseHandle(handle)
 
 
 def main() -> int:
@@ -59,9 +81,13 @@ def main() -> int:
     layout_path=root/"evidence"/"ui_layout.json"
     audit=root/"evidence"/"gui_actions.jsonl"
     layout=wait_layout(app,layout_path)
-    windows=Desktop(backend="win32").windows(process=app.process,visible_only=True)
+    gui_pid=int(layout["pid"])
+    image_path=Path(process_image_path(gui_pid)).resolve()
+    if os.path.normcase(str(image_path)) != os.path.normcase(str(exe)):
+        raise RuntimeError(f"GUI process image mismatch: {image_path} != {exe}")
+    windows=Desktop(backend="win32").windows(process=gui_pid,visible_only=True)
     if not windows:
-        raise RuntimeError(f"no visible process-bound top-level window for pid={app.process}")
+        raise RuntimeError(f"no visible exact-EXE top-level window for gui_pid={gui_pid}")
     win=windows[0]
     win.set_focus()
     time.sleep(.5)
@@ -99,7 +125,9 @@ def main() -> int:
         "status":"PASS",
         "physical_gui":"PASS",
         "click_method":"OS physical mouse coordinates from exact process-published screen geometry",
-        "process_id":app.process,
+        "starter_process_id":app.process,
+        "gui_process_id":gui_pid,
+        "gui_process_image":str(image_path),
         "layout":layout,
         "same_hash":"PASS",
         "exe_sha256_before":before,
