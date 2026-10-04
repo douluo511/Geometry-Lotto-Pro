@@ -122,10 +122,14 @@ def test_full_history_workload(folder):
     assert cfg["universe"]["bootstrap_batch"] == 60
     assert cfg["universe"]["history_start"] == "20180101"
     assert cfg["model"]["extra_trees_n_estimators"] == 320
-    cfg["network"].update({"retry_backoff_seconds": 0, "retry_jitter_seconds": 0, "request_delay_seconds": 0})
+    cfg["network"].update({"retry_backoff_seconds": 0, "retry_jitter_seconds": 0, "request_delay_seconds": 0, "history_workers": 4})
     primary, fallback = [], []
     active, peak = 0, 0
     lock = threading.Lock()
+    # Deterministically prove the configured four-worker history batch really
+    # overlaps provider I/O. A millisecond sleep is scheduler-sensitive on
+    # Windows runners and can report peak=1 even when the executor is parallel.
+    first_wave = threading.Barrier(4)
 
     class Provider:
         def stock_zh_a_hist(self, symbol, start_date, end_date, **kwargs):
@@ -139,8 +143,10 @@ def test_full_history_workload(folder):
                 fallback.append((symbol, start_date, end_date))
                 active += 1
                 peak = max(peak, active)
+                synchronize_first_wave = len(fallback) <= 4
             try:
-                time.sleep(0.002)
+                if synchronize_first_wave:
+                    first_wave.wait(timeout=5)
                 requests.get("https://example.invalid/fallback")
                 return pd.DataFrame({"date": pd.date_range("2026-09-21", periods=4),
                                      "close": [9, 10, 11, 12], "open": [9, 10, 11, 12],
@@ -173,7 +179,7 @@ def test_full_history_workload(folder):
     assert len(fallback) == 360
     assert {symbol[-6:] for symbol, _, _ in fallback} == set(live + extra)
     assert all(start == "20180101" for _, start, _ in primary + fallback)
-    assert 1 < peak <= 4
+    assert peak == 4
     assert len(list((data / "data" / "history").glob("*.csv"))) == 360
     for phase, total in (("live_history", 300), ("bootstrap_history", 60)):
         state = json.loads((data / "state" / f"{phase}_progress.json").read_text(encoding="utf-8"))
