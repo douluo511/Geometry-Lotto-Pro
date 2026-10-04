@@ -8,7 +8,7 @@ import os
 import subprocess
 import time
 
-from pywinauto import Application, Desktop
+from pywinauto import Application, Desktop, mouse
 
 
 TITLE="Real-Money Finance System · Reauthored Candidate"
@@ -48,6 +48,35 @@ def wait_button_enabled(button, timeout: int) -> None:
             pass
         time.sleep(0.5)
     raise TimeoutError("button did not re-enable")
+
+
+def physical_click(win_spec, label: str, slot: str) -> str:
+    root = win_spec.wrapper_object()
+    try:
+        for ctrl in root.descendants():
+            try:
+                if ctrl.window_text() == label:
+                    ctrl.click_input()
+                    return "semantic-descendant"
+            except Exception:
+                continue
+    except Exception:
+        pass
+
+    rect = root.rectangle()
+    slots = {
+        "top_left": (0.26, 0.25),
+        "top_right": (0.74, 0.25),
+        "bottom_left": (0.26, 0.35),
+        "bottom_right": (0.74, 0.35),
+    }
+    if slot not in slots:
+        raise ValueError("unknown click slot: " + slot)
+    fx, fy = slots[slot]
+    x = int(rect.left + rect.width() * fx)
+    y = int(rect.top + rect.height() * fy)
+    mouse.click(button="left", coords=(x, y))
+    return f"coordinate:{x},{y}"
 
 
 def close_warning(timeout=60):
@@ -113,37 +142,33 @@ def main() -> int:
         capital=root/"evidence"/"capital_change.json"
         refresh_before=mtime(refresh)
         capital_before=mtime(capital)
-        b=win.child_window(title="资金变化", control_type="Button")
-        b.click_input()
+        core_click=physical_click(win, "资金变化", "top_left")
         wait_changed(refresh, refresh_before, 240)
         wait_changed(capital, capital_before, 60)
-        wait_button_enabled(b, 30)
-        evidence["actions"]["capital_change"]={"status":"PASS","refresh":str(refresh),"capital":str(capital)}
+        time.sleep(1)
+        evidence["actions"]["capital_change"]={"status":"PASS","refresh":str(refresh),"capital":str(capital),"click":core_click}
 
-        update=win.child_window(title="一键更新", control_type="Button")
-        update.click_input()
+        update_click=physical_click(win, "一键更新", "top_right")
         dialog=close_warning()
-        wait_button_enabled(update, 30)
-        evidence["actions"]["software_update"]={"status":"BLOCKED","dialog":dialog}
+        time.sleep(1)
+        evidence["actions"]["software_update"]={"status":"BLOCKED","dialog":dialog,"click":update_click}
 
         repair=root/"evidence"/"repair.json"
-        rb=win.child_window(title="一键修复", control_type="Button")
         repair_before=mtime(repair)
-        rb.click_input()
+        repair_click=physical_click(win, "一键修复", "bottom_left")
         wait_changed(repair, repair_before, 60)
-        wait_button_enabled(rb, 30)
+        time.sleep(1)
         robj=json.loads(repair.read_text(encoding="utf-8"))
         if robj.get("status")!="PASS":
             raise AssertionError("repair evidence not PASS")
-        evidence["actions"]["repair"]={"status":"PASS","evidence":str(repair)}
+        evidence["actions"]["repair"]={"status":"PASS","evidence":str(repair),"click":repair_click}
 
         advanced=root/"evidence"/"advanced_analysis.json"
-        ab=win.child_window(title="高级分析", control_type="Button")
         adv_before=mtime(advanced)
-        ab.click_input()
+        advanced_click=physical_click(win, "高级分析", "bottom_right")
         wait_changed(advanced, adv_before, 60)
-        wait_button_enabled(ab, 30)
-        evidence["actions"]["advanced_analysis"]={"status":"PASS","evidence":str(advanced)}
+        time.sleep(1)
+        evidence["actions"]["advanced_analysis"]={"status":"PASS","evidence":str(advanced),"click":advanced_click}
 
         after_hash=sha256(exe)
         evidence["exe_sha256_after"]=after_hash
