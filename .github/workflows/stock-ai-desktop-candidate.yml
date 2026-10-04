@@ -86,6 +86,11 @@ jobs:
           $env:STOCK_AI_DATA_ROOT = Join-Path $env:RUNNER_TEMP "stock-ai-repair-worker"
           $before = (Get-FileHash -Algorithm SHA256 $exe).Hash.ToLowerInvariant()
           $proc = Start-Process -FilePath $exe -ArgumentList @('--worker','repair','--package-root',"$root") -Wait -PassThru
+          $workerEvidence = Join-Path $env:STOCK_AI_DATA_ROOT "evidence/worker_repair.json"
+          if (Test-Path $workerEvidence) {
+            Copy-Item -Force $workerEvidence ./desktop_repair_worker_evidence.json
+            Get-Content -Raw $workerEvidence | Write-Host
+          }
           if ($proc.ExitCode -ne 0) { throw "frozen repair worker failed rc=$($proc.ExitCode)" }
           $after = (Get-FileHash -Algorithm SHA256 $exe).Hash.ToLowerInvariant()
           if ($before -ne $after) { throw "EXE changed after repair worker: $before != $after" }
@@ -166,6 +171,7 @@ jobs:
             StockAIPro/desktop_exact_exe_evidence.json
             StockAIPro/desktop_frozen_core_evidence.json
             StockAIPro/desktop_frozen_advanced_evidence.json
+            StockAIPro/desktop_repair_worker_evidence.json
             StockAIPro/desktop_gui_click_evidence.json
             StockAIPro/desktop_gui_click_evidence.png
           if-no-files-found: warn
