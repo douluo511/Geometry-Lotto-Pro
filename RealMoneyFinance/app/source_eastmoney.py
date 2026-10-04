@@ -65,4 +65,5 @@ def fetch_daily_bars(client: NetClient, symbol: str, limit: int = 120) -> tuple[
         "payload_sha256": meta.payload_sha256,
         "retrieved_at_unix": meta.retrieved_at_unix,
         "row_count": len(rows),
+        "price_adjustment": "qfq",
     }
