@@ -46,6 +46,15 @@ class ReleaseGateTests(unittest.TestCase):
             self.assertEqual(result["failures"]["oos_validation"],"WARNING")
             self.assertEqual(result["failures"]["physical_gui_click"],"FAIL")
 
+    def test_blocked_production_updater_cannot_be_final_pass(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            ed,tested,final,payload=self.fixture(pathlib.Path(td))
+            payload["gates"]["updater_real_network"]="BLOCKED"
+            result=evaluate(payload,ed,tested,final)
+            self.assertEqual(result["final_gate"],"FAIL")
+            self.assertEqual(result["failures"]["updater_real_network"],"BLOCKED")
+
 
 if __name__=="__main__":
     unittest.main()
