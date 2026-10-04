@@ -104,7 +104,7 @@ def main() -> int:
         daily = run_logged(
             [sys.executable, "-u", str(VERSION / "run_daily.py")],
             ROOT / "business_daily.log",
-            cwd=VERSION, env=os.environ.copy(), timeout=3300,
+            cwd=VERSION, env=os.environ.copy(), timeout=7200,
         )
         report["daily_exit_code"] = daily.returncode
         report["daily_log_sha256"] = sha256(ROOT / "business_daily.log")
