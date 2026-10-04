@@ -60,12 +60,18 @@ jobs:
 
       - name: Real source-reference network gate
         shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           $root=Join-Path $env:RUNNER_TEMP "ai_music_network"
           $report=Join-Path $pwd "AIMusic/reauthored/real_network_evidence.json"
           python AIMusic/reauthored/app.py --root "$root" --network-probe --network-report "$report"
-          if($LASTEXITCODE -ne 0){ throw "real network probe failed" }
+          if($LASTEXITCODE -ne 0){
+            if(Test-Path $report){ Get-Content -Raw $report | Write-Host }
+            throw "real network probe failed"
+          }
           $obj=Get-Content -Raw $report | ConvertFrom-Json
+          if(-not $obj.authenticated_request){ throw "real network probe was not authenticated" }
           if($obj.status -ne "PASS" -or $obj.http_status -lt 200 -or $obj.http_status -ge 300){ throw "network evidence invalid" }
 
       - name: Bind exact source SHA and build native Windows EXEs
