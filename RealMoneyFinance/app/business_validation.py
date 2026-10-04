@@ -215,7 +215,6 @@ def _holdout_power_analysis(values: list[float]) -> dict:
     z_power = NormalDist().inv_cdf(target_power)
     required_n = math.ceil(((z_alpha + z_power) * sigma / mde) ** 2)
     observed_n = len(values)
-    gaps = {name: reason for name, reason in gaps.items() if gates.get(name) != "PASS"}
 
     return {
         "status": "PASS",
