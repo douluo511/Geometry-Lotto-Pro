@@ -1,0 +1,37 @@
+name: Release capability probe
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/release-capability-probe.yml'
+      - '.github/scripts/probe_release_capability.py'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
+      PROBE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ env.PROBE_HEAD_SHA }}
+          fetch-depth: 0
+      - name: Create and delete temporary draft Release
+        run: python .github/scripts/probe_release_capability.py
+      - name: Upload sanitized evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: release-capability-probe-${{ env.PROBE_HEAD_SHA }}
+          path: release_capability_probe.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Explicit boundary
+        run: |
+          python - <<'PY'
+          import json
+          x=json.load(open("release_capability_probe.json"))
+          print("RELEASE_CREATE_DELETE_CAPABILITY="+x["capability_status"])
+          print("PRODUCTION_RELEASE_N_TO_N_PLUS_1=NOT VERIFIED")
+          PY
