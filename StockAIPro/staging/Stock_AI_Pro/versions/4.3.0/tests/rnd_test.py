@@ -46,6 +46,11 @@ with tempfile.TemporaryDirectory() as td:
     assert report['production_change_applied'] is False and report['auto_promote'] is False
     gates={g['challenger']:g for g in report['promotion_gates']}
     assert gates['equal_ensemble']['status']=='PROMOTABLE_REVIEW',gates['equal_ensemble']
+    assert gates['equal_ensemble']['tests']['seed_window_stability'] is True
+    assert gates['equal_ensemble']['tests']['multiple_testing_correction'] is True
+    assert gates['equal_ensemble']['tests']['reality_check'] is True
+    assert gates['equal_ensemble']['holm_adjusted_p'] <= .05
+    assert gates['equal_ensemble']['reality_check']['p_value'] <= .05
     assert gates['ridge_only']['status']=='REJECT'
     assert (tmp/'reports'/'rnd_shadow_history.csv').exists()
     assert report.get('evidence_id') and len(report['evidence_id'])==64
