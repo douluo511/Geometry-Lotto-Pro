@@ -101,10 +101,15 @@ def main() -> int:
         if doctor.returncode != 0:
             raise RuntimeError("Doctor failed")
 
+        # Preserve the frozen 3300s bound per critical subsystem. The prior
+        # current-head failure completed live/bootstrap history but entered
+        # maintenance with only the residual single-process budget. Validate the
+        # source/model/freeze chain and required maintenance separately on the
+        # exact same fresh data root rather than weakening the timeout standard.
         daily = run_logged(
-            [sys.executable, "-u", str(VERSION / "run_daily.py")],
+            [sys.executable, "-u", str(VERSION / "run_daily.py"), "--no-maintenance"],
             ROOT / "business_daily.log",
-            cwd=VERSION, env=os.environ.copy(), timeout=7200,
+            cwd=VERSION, env=os.environ.copy(), timeout=3300,
         )
         report["daily_exit_code"] = daily.returncode
         report["daily_log_sha256"] = sha256(ROOT / "business_daily.log")
@@ -124,6 +129,28 @@ def main() -> int:
         valuation = load(latest / "valuation_status.json")
         decision = load(latest / "decision.json")
         chain = load(DATA_ROOT / "state" / "prediction_chain.json")
+        maintenance_command = [
+            sys.executable, "-u", "-c",
+            (
+                "import json;"
+                "from stock_ai.config import load_config;"
+                "from stock_ai.maintenance import maybe_run_maintenance;"
+                "result=maybe_run_maintenance(load_config(),force=True);"
+                "print(json.dumps(result,ensure_ascii=False));"
+                "raise SystemExit(0 if result.get('backtest')=='PASS' and "
+                "result.get('audit') and not str(result.get('audit')).startswith('FAIL') else 2)"
+            ),
+        ]
+        maintenance_proc = run_logged(
+            maintenance_command,
+            ROOT / "business_maintenance.log",
+            cwd=VERSION, env=os.environ.copy(), timeout=3300,
+        )
+        report["maintenance_exit_code"] = maintenance_proc.returncode
+        report["maintenance_log_sha256"] = sha256(ROOT / "business_maintenance.log")
+        if maintenance_proc.returncode != 0:
+            raise RuntimeError(f"maintenance failed exit={maintenance_proc.returncode}")
+
         maintenance = load(DATA_ROOT / "state" / "maintenance.json")
         update = load(DATA_ROOT / "cache" / "last_update_status.json")
 
@@ -187,6 +214,10 @@ def main() -> int:
     if log_path.is_file():
         report["daily_log_sha256"] = sha256(log_path)
         report["daily_log_bytes"] = log_path.stat().st_size
+    maintenance_log = ROOT / "business_maintenance.log"
+    if maintenance_log.is_file():
+        report["maintenance_log_sha256"] = sha256(maintenance_log)
+        report["maintenance_log_bytes"] = maintenance_log.stat().st_size
     report["runtime_checkpoints"] = {}
     for name in ("daily_progress.json", "live_history_progress.json", "bootstrap_history_progress.json", "last_run.json"):
         path = DATA_ROOT / "state" / name
