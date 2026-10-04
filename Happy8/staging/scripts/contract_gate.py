@@ -17,6 +17,7 @@ from happy8.sources import (
     _official_host,
     _parse_fuzhou_number_rows,
     _parse_jiangsu_issue_dates,
+    _validate_jiangsu_index_publication_date,
 )
 
 
@@ -135,9 +136,9 @@ def main() -> int:
     </body></html>
     """
     parsed_dates = _parse_jiangsu_issue_dates(jiangsu_html)
-    if parsed_dates != {"2021001": "2021-01-01"}:
-        raise AssertionError(f"Jiangsu CWL announcement-date parser drifted: {parsed_dates!r}")
-    checks["jiangsu_cwl_announcement_date_contract"] = {"status": "PASS"}
+    if parsed_dates != {"2021001": "2021-01-03"}:
+        raise AssertionError(f"Jiangsu bound visible-publication parser drifted: {parsed_dates!r}")
+    checks["jiangsu_bound_visible_publication_date_contract"] = {"status": "PASS"}
 
     visible_only_jiangsu = """
     <div>中国福利彩票快乐8第2021001期开奖公告 2021-01-03</div>
@@ -146,19 +147,46 @@ def main() -> int:
         raise AssertionError("Jiangsu local articleDate was incorrectly accepted as canonical draw date")
     checks["jiangsu_local_article_date_rejected"] = {"status": "PASS"}
 
+    cms_path_precedes_draw = """
+    <li>
+      <a href="http://www.cwl.gov.cn/c/2023/06/05/542939.shtml">
+        中国福利彩票"快乐8"第2023148期开奖公告
+      </a>
+      <span class="articleDate">2023-06-07</span>
+    </li>
+    """
+    if _parse_jiangsu_issue_dates(cms_path_precedes_draw) != {"2023148": "2023-06-07"}:
+        raise AssertionError("CWL CMS path date was incorrectly promoted over visible Jiangsu date")
+    if _validate_jiangsu_index_publication_date("2023148", "2023-06-07") != 0:
+        raise AssertionError("same-day Jiangsu index publication lag contract drifted")
+    if _validate_jiangsu_index_publication_date("2020001", "2020-10-30") != 2:
+        raise AssertionError("launch issue two-day Jiangsu index publication lag contract drifted")
+    for issue, invalid_day in (("2023148", "2023-06-05"), ("2020001", "2020-10-31")):
+        try:
+            _validate_jiangsu_index_publication_date(issue, invalid_day)
+            raise AssertionError(
+                f"invalid Jiangsu index publication lag accepted: issue={issue} day={invalid_day}"
+            )
+        except RuntimeError:
+            pass
+    checks["jiangsu_cms_path_not_business_date_and_lag_fail_closed"] = {"status": "PASS"}
+
     conflicting_jiangsu = """
-    <a href="http://www.cwl.gov.cn/c/2021/01/01/123.shtml">
-      中国福利彩票"快乐8"第2021001期开奖公告
-    </a>
-    <a href="http://www.cwl.gov.cn/c/2021/01/02/124.shtml">
-      中国福利彩票"快乐8"第2021001期开奖公告
-    </a>
+    <div>
+      <a href="http://www.cwl.gov.cn/c/2021/01/01/123.shtml">
+        中国福利彩票"快乐8"第2021001期开奖公告
+      </a>
+      <span class="articleDate">2021-01-03</span>
+      <a href="http://www.cwl.gov.cn/c/2021/01/02/124.shtml">
+        中国福利彩票"快乐8"第2021001期开奖公告
+      </a>
+    </div>
     """
     try:
         _parse_jiangsu_issue_dates(conflicting_jiangsu)
-        raise AssertionError("Jiangsu CWL announcement-date conflict accepted")
+        raise AssertionError("Jiangsu CWL CMS path-date conflict accepted")
     except RuntimeError:
-        checks["jiangsu_date_conflict_fail_closed"] = {"status": "PASS"}
+        checks["jiangsu_cms_path_conflict_fail_closed"] = {"status": "PASS"}
 
     cells_a = "".join(f"<td>{n:02d}</td>" for n in range(1, 21))
     cells_b = "".join(f"<td>{n:02d}</td>" for n in range(2, 22))
