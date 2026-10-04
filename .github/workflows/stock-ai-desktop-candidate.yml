@@ -1,5 +1,5 @@
 name: Stock AI native Windows desktop candidate
-# exact-head retrigger marker after heavy-gate path narrowing
+# exact-head retrigger marker after strict research-corpus qualification wiring
 
 on:
   workflow_dispatch:
