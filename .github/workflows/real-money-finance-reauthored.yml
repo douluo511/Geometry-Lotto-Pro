@@ -70,8 +70,8 @@ jobs:
           $exe=Resolve-Path ./dist/RealMoneyFinance.exe
           $before=(Get-FileHash -Algorithm SHA256 $exe).Hash.ToLowerInvariant()
           $env:REAL_MONEY_FINANCE_ROOT=Join-Path $env:RUNNER_TEMP "rmf-selftest"
-          & $exe --self-test
-          if($LASTEXITCODE -ne 0){throw "Exact EXE self-test failed rc=$LASTEXITCODE"}
+          $proc=Start-Process -FilePath $exe -ArgumentList '--self-test' -Wait -PassThru
+          if($proc.ExitCode -ne 0){throw "Exact EXE self-test failed rc=$($proc.ExitCode)"}
           $after=(Get-FileHash -Algorithm SHA256 $exe).Hash.ToLowerInvariant()
           if($before -ne $after){throw "EXE changed after self-test"}
           [ordered]@{
