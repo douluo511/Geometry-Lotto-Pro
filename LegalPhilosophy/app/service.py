@@ -8,7 +8,7 @@ from pathlib import Path
 from .domain import SourceDocument
 from .engine import build_study_result
 from .netclient import NetClient
-from .sources import fetch_current_sources
+from .sources import build_conflict_registry, fetch_current_sources
 from .storage import Storage
 
 
@@ -23,12 +23,23 @@ class LegalPhilosophyService:
         docs, texts = fetch_current_sources(self.net)
         for doc in docs:
             self.storage.persist_source(doc, texts[doc.source_id])
+        conflict = build_conflict_registry(docs)
+        self.storage.atomic_json(self.storage.evidence / "conflict_registry.json", conflict)
         result = {
             "status": "PASS",
             "source_count": len(docs),
             "sources": [doc.to_dict() for doc in docs],
+            "source_conflict_handling": conflict.get("status", "NOT VERIFIED"),
+            "case_source_lineage": (
+                "PASS"
+                if any(doc.source_id == "nara_brown_v_board" and doc.role == "CASE" for doc in docs)
+                else "NOT VERIFIED"
+            ),
             "primary_source_lineage": "NOT VERIFIED",
-            "note": "network update validates scholarship and legal authority only; no primary Hegel edition is fabricated",
+            "note": (
+                "current network update validates scholarship, legal authority, and an archival case source; "
+                "primary-edition section/text lineage remains NOT VERIFIED"
+            ),
         }
         self.storage.atomic_json(self.storage.evidence / "update_result.json", result)
         return result
@@ -60,13 +71,21 @@ class LegalPhilosophyService:
     def advanced(self) -> dict:
         docs = self._docs()
         roles = {doc.role for doc in docs}
+        source_ids = {doc.source_id for doc in docs}
+        conflict = build_conflict_registry(docs)
         result = {
             "status": "PASS",
             "frozen_scope_sections": 8,
             "source_roles_present": sorted(roles),
             "scholarship_lineage": "PASS" if "AUTHORITATIVE_SCHOLARSHIP" in roles else "NOT VERIFIED",
             "legal_authority_lineage": "PASS" if "LEGAL_AUTHORITY" in roles else "NOT VERIFIED",
-            "primary_source_lineage": "PASS" if "PRIMARY_TEXT" in roles else "NOT VERIFIED",
+            "primary_source_lineage": "NOT VERIFIED",
+            "source_conflict_handling": conflict.get("status", "NOT VERIFIED"),
+            "case_source_lineage": (
+                "PASS"
+                if "nara_brown_v_board" in source_ids and "CASE" in roles
+                else "NOT VERIFIED"
+            ),
             "claim_layer_separation": "PASS",
             "educational_not_legal_advice": "PASS",
             "final_business_qualification": "NOT VERIFIED",
