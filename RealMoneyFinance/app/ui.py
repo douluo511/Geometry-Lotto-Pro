@@ -47,7 +47,24 @@ class FinanceDesktop(tk.Tk):
         self.output = scrolledtext.ScrolledText(self, wrap=tk.WORD, font=("Consolas", 9))
         self.output.pack(fill="both", expand=True, padx=24, pady=(8, 20))
         self.output.insert(tk.END, "Final Gate = FAIL until all current acceptance gates pass.\n")
+        self.bind("<Configure>", lambda event: self.after_idle(self._record_layout))
+        self.after_idle(self._record_layout)
         self.after(150, self._poll)
+
+    def _record_layout(self):
+        """Record live widget geometry; acceptance still requires physical input."""
+        self.service._write_evidence("ui_layout.json", {
+            "busy": self.busy,
+            "window_title": self.title(),
+            "buttons": {
+                str(button.cget("text")): {
+                    "x": button.winfo_rootx() + button.winfo_width() // 2,
+                    "y": button.winfo_rooty() + button.winfo_height() // 2,
+                    "state": str(button.cget("state")),
+                }
+                for button in self.buttons
+            },
+        })
 
     def _button(self, parent, label, fn, row, column):
         b = tk.Button(parent, text=label, font=("Segoe UI", 13, "bold"), height=2,
@@ -76,6 +93,7 @@ class FinanceDesktop(tk.Tk):
         state = tk.DISABLED if value else tk.NORMAL
         for b in self.buttons:
             b.configure(state=state)
+        self.after_idle(self._record_layout)
 
     def _start(self, label, fn):
         if self.busy:
@@ -111,3 +129,4 @@ class FinanceDesktop(tk.Tk):
         except queue.Empty:
             pass
         self.after(150, self._poll)
+

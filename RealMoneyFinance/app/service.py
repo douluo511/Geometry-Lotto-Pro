@@ -66,12 +66,17 @@ class FinanceService:
     def software_update(self) -> dict[str, Any]:
         updater = Path(sys.executable).resolve().parent / "RealMoneyFinanceUpdater.exe"
         if not getattr(sys, "frozen", False) or not updater.exists():
-            return {
+            result = {
                 "status": "BLOCKED",
                 "reason": "independent production updater executable/release context is not available",
             }
+            self._write_evidence("software_update.json", result)
+            return result
         p = subprocess.run([str(updater), "--root", str(self.root)], capture_output=True, text=True, timeout=300)
         status = "PASS" if p.returncode == 0 else ("BLOCKED" if p.returncode == 3 else "FAIL")
-        return {"status": status, "returncode": p.returncode,
+        result = {"status": status, "returncode": p.returncode,
                 "stdout": p.stdout[-10000:], "stderr": p.stderr[-10000:],
                 "reason": "signed production release endpoint is not configured" if p.returncode == 3 else None}
+        self._write_evidence("software_update.json", result)
+        return result
+
