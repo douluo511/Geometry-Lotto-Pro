@@ -9,6 +9,7 @@ from app.business_validation import CostAssumptions, qualify_research
 from app.domain import DailyBar
 from app.netclient import NetClient
 from app.source_market import fetch_daily_bars_failover
+from app.source_yahoo import fetch_daily_bars_yahoo
 from tests.business_failclosed_contract import run_contract
 
 
@@ -67,7 +68,32 @@ def real_network_qualification() -> dict:
         root = Path(td)
         client = NetClient(root / "network.jsonl", max_attempts=3)
         bars, meta = fetch_daily_bars_failover(client, "600000", 260)
-        got = qualify_research(bars, meta, CostAssumptions())
+        benchmark_rows = []
+        benchmark_meta = {
+            "qualification_scope": "NOT VERIFIED",
+            "instrument_role": "benchmark_sse_composite",
+        }
+        benchmark_error = None
+        try:
+            benchmark_rows, benchmark_meta = fetch_daily_bars_yahoo(
+                client, "000001", 260, ticker_override="000001.SS"
+            )
+            benchmark_meta = dict(benchmark_meta)
+            if benchmark_rows and benchmark_rows[-1].trade_date == bars[-1].trade_date:
+                benchmark_meta["qualification_scope"] = "production_real_network_benchmark"
+            else:
+                benchmark_meta["qualification_scope"] = "NOT VERIFIED"
+                benchmark_error = "benchmark as-of date does not match primary qualification date"
+        except Exception as exc:
+            benchmark_error = repr(exc)
+        got = qualify_research(
+            bars,
+            meta,
+            CostAssumptions(),
+            benchmark_rows=benchmark_rows,
+            benchmark_meta=benchmark_meta,
+        )
+        got["benchmark_fetch_error"] = benchmark_error
         if got["status"] != "PASS":
             raise AssertionError("qualification execution did not PASS")
         if got["capital_deployment_ready"] is not False:
