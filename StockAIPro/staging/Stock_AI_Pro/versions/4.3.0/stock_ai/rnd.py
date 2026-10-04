@@ -197,28 +197,102 @@ def _degradation(hist,cfg):
     degraded=(recent<0 and recent<prior-thr)
     return {"status":"DEGRADED" if degraded else "STABLE","recent_mean_excess":recent,"prior_mean_excess":prior,"threshold":thr}
 
+def _positive_bootstrap_p(diff, trials, seed=42):
+    """One-sided centered-bootstrap p-value for mean improvement > 0."""
+    a=np.asarray(pd.Series(diff).dropna(),dtype=float)
+    if len(a)<2:return 1.0
+    observed=float(a.mean()); centered=a-observed
+    rng=np.random.default_rng(int(seed)); n=len(a); exceed=0
+    for _ in range(int(trials)):
+        stat=float(centered[rng.integers(0,n,n)].mean())
+        if stat>=observed: exceed+=1
+    return float((exceed+1)/(int(trials)+1))
+
+def _holm_adjust(raw: dict[str,float]):
+    """Holm-Bonferroni family-wise correction; deterministic and conservative."""
+    items=sorted(((k,float(v)) for k,v in raw.items()),key=lambda kv:kv[1])
+    m=len(items); out={}; running=0.0
+    for i,(name,p) in enumerate(items):
+        adjusted=min(1.0,(m-i)*p);running=max(running,adjusted);out[name]=running
+    return out
+
+def _reality_check(hist: pd.DataFrame, trials: int, seed=4242):
+    """Max-challenger centered bootstrap reality check across frozen paired dates."""
+    pivot=hist.pivot_table(index="signal_date",columns="strategy",values="excess_vs_universe",aggfunc="mean")
+    if "production" not in pivot.columns:return {"status":"NOT VERIFIED","p_value":None,"paired_points":0}
+    challengers=[x for x in STRATEGIES if x!="production" and x in pivot.columns]
+    if not challengers:return {"status":"NOT VERIFIED","p_value":None,"paired_points":0}
+    diff=pivot[challengers].subtract(pivot["production"],axis=0).dropna()
+    if len(diff)<2:return {"status":"NOT VERIFIED","p_value":None,"paired_points":int(len(diff))}
+    arr=diff.to_numpy(dtype=float); observed=float(np.nanmax(np.nanmean(arr,axis=0)))
+    centered=arr-np.nanmean(arr,axis=0,keepdims=True)
+    rng=np.random.default_rng(int(seed)); exceed=0;n=len(centered)
+    for _ in range(int(trials)):
+        sample=centered[rng.integers(0,n,n),:]
+        stat=float(np.nanmax(np.nanmean(sample,axis=0)))
+        if stat>=observed:exceed+=1
+    return {"status":"PASS","p_value":float((exceed+1)/(int(trials)+1)),"paired_points":int(n),"observed_max_mean_improvement":observed}
+
+def _seed_window_stability(diff, trials, minpts, seeds, windows):
+    a=pd.Series(diff).dropna().astype(float)
+    checks=[]
+    for window in windows:
+        w=int(window)
+        sample=a.tail(min(len(a),w)) if w>0 else a
+        if len(sample)<minpts:
+            checks.append({"window":w,"status":"WAITING","n":int(len(sample))})
+            continue
+        for seed in seeds:
+            lo,hi=_bootstrap_ci(sample,trials,int(seed))
+            checks.append({"window":w,"seed":int(seed),"n":int(len(sample)),"ci":[lo,hi],"status":"PASS" if lo is not None and lo>0 else "FAIL"})
+    evaluated=[x for x in checks if x["status"]!="WAITING"]
+    return {"status":"PASS" if evaluated and all(x["status"]=="PASS" for x in evaluated) else "FAIL","checks":checks}
+
 def _promotion_gates(hist,summary,cfg,audit):
-    rcfg=cfg.get("rnd",{}) or {};minpts=int(rcfg.get("min_eval_points",12));minimp=float(rcfg.get("min_mean_improvement",.001));minwin=float(rcfg.get("min_win_rate",.55));ddtol=float(rcfg.get("max_drawdown_tolerance",.03));trials=int(rcfg.get("bootstrap_trials",1000));require_ci=bool(rcfg.get("require_positive_ci_lower",True))
+    rcfg=cfg.get("rnd",{}) or {}
+    minpts=int(rcfg.get("min_eval_points",12));minimp=float(rcfg.get("min_mean_improvement",.001))
+    minwin=float(rcfg.get("min_win_rate",.55));ddtol=float(rcfg.get("max_drawdown_tolerance",.03))
+    trials=int(rcfg.get("bootstrap_trials",1000));require_ci=bool(rcfg.get("require_positive_ci_lower",True))
+    alpha=float(rcfg.get("multiple_testing_alpha",.05))
+    seeds=[int(x) for x in rcfg.get("stability_seeds",[42,1042,2042])]
+    windows=[int(x) for x in rcfg.get("stability_windows",[12,24,36])]
     prod=hist[hist.strategy=="production"][["signal_date","excess_vs_universe"]].rename(columns={"excess_vs_universe":"production"})
     prod_dd=(summary.get("production") or {}).get("max_drawdown")
-    gates=[]
+    gates=[];raw_p={}
     for challenger in STRATEGIES:
         if challenger=="production":continue
-        c=hist[hist.strategy==challenger][["signal_date","excess_vs_universe"]].rename(columns={"excess_vs_universe":"challenger"})
-        m=prod.merge(c,on="signal_date",how="inner");diff=m["challenger"]-m["production"] if not m.empty else pd.Series(dtype=float)
-        n=int(len(diff));mean=float(diff.mean()) if n else None;win=float((diff>0).mean()) if n else None;lo,hi=_bootstrap_ci(diff,trials)
+        ch=hist[hist.strategy==challenger][["signal_date","excess_vs_universe"]].rename(columns={"excess_vs_universe":"challenger"})
+        m=prod.merge(ch,on="signal_date",how="inner");diff=m["challenger"]-m["production"] if not m.empty else pd.Series(dtype=float)
+        n=int(len(diff));mean_imp=float(diff.mean()) if n else None;win=float((diff>0).mean()) if n else None;lo,hi=_bootstrap_ci(diff,trials)
+        raw_p[challenger]=_positive_bootstrap_p(diff,trials,42)
         ch_dd=(summary.get(challenger) or {}).get("max_drawdown")
+        stability=_seed_window_stability(diff,trials,minpts,seeds,windows)
         tests={
             "sample_size": n>=minpts,
-            "mean_improvement": mean is not None and mean>=minimp,
+            "mean_improvement": mean_imp is not None and mean_imp>=minimp,
             "win_rate": win is not None and win>=minwin,
             "bootstrap_ci": (not require_ci) or (lo is not None and lo>0),
+            "seed_window_stability": stability["status"]=="PASS",
             "drawdown": prod_dd is not None and ch_dd is not None and ch_dd>=prod_dd-ddtol,
             "audit_trust": str((audit or {}).get("trust","MEDIUM")).upper()!="LOW",
             "production_mode_supported": challenger in PROMOTABLE_MODES,
         }
-        status="PROMOTABLE_REVIEW" if all(tests.values()) else ("WAITING" if n<minpts else "REJECT")
-        gates.append({"challenger":challenger,"status":status,"paired_points":n,"mean_excess_improvement":mean,"win_rate_vs_production":win,"bootstrap_90_ci":[lo,hi],"challenger_max_drawdown":ch_dd,"production_max_drawdown":prod_dd,"tests":tests,"proposed_config_patch":{"model":{"ensemble_mode":PROMOTABLE_MODES[challenger]}} if challenger in PROMOTABLE_MODES else None})
+        gates.append({"challenger":challenger,"paired_points":n,"mean_excess_improvement":mean_imp,"win_rate_vs_production":win,
+            "bootstrap_90_ci":[lo,hi],"raw_positive_bootstrap_p":raw_p[challenger],
+            "seed_window_stability":stability,"challenger_max_drawdown":ch_dd,"production_max_drawdown":prod_dd,
+            "tests":tests,"proposed_config_patch":{"model":{"ensemble_mode":PROMOTABLE_MODES[challenger]}} if challenger in PROMOTABLE_MODES else None})
+    adjusted=_holm_adjust(raw_p)
+    reality=_reality_check(hist,trials,int(rcfg.get("reality_check_seed",4242)))
+    reality_pass=reality.get("status")=="PASS" and reality.get("p_value") is not None and float(reality["p_value"])<=alpha
+    for g in gates:
+        challenger=g["challenger"]
+        g["holm_adjusted_p"]=adjusted.get(challenger,1.0)
+        g["multiple_testing_alpha"]=alpha
+        g["reality_check"]=reality
+        g["tests"]["multiple_testing_correction"]=g["holm_adjusted_p"]<=alpha
+        g["tests"]["reality_check"]=reality_pass
+        n=g["paired_points"]
+        g["status"]="PROMOTABLE_REVIEW" if all(g["tests"].values()) else ("WAITING" if n<minpts else "REJECT")
     return gates
 
 def _five_why(degradation,gates):
@@ -244,7 +318,7 @@ def run_rnd_cycle(cfg=None, logger=None):
     except Exception:audit={}
     degradation=_degradation(hist,cfg);gates=_promotion_gates(hist,summary,cfg,audit);promotable=[g for g in gates if g["status"]=="PROMOTABLE_REVIEW"]
     evidence_id,stable=_build_evidence(cfg,hist,audit,degradation,gates)
-    report={"generated_at":now_iso(),"status":"PROMOTABLE_REVIEW" if promotable else "RESEARCH_ONLY","evaluation_rule":"Only pre-outcome frozen shadow predictions are evaluated; realized returns use next-open to horizon-close and frozen estimated costs.","strategy_summary":summary,"degradation":degradation,"promotion_gates":gates,"promotable_candidates":promotable,"five_why":_five_why(degradation,gates),"reverse_validation":["Champion-vs-Challenger paired dates","Bootstrap confidence interval","Win-rate threshold","Drawdown non-inferiority","Audit trust gate","Frozen-before-outcome integrity","Reproducible evidence fingerprint"],"evidence_id":evidence_id,"auto_promote":False,"production_change_applied":False,"note":"系统可以自动研究和提出候选，但不会因为短期结果自动改生产模型。晋级必须先通过冻结样本 Gate，再进入人工复核/正式版本验收。"}
+    report={"generated_at":now_iso(),"status":"PROMOTABLE_REVIEW" if promotable else "RESEARCH_ONLY","evaluation_rule":"Only pre-outcome frozen shadow predictions are evaluated; realized returns use next-open to horizon-close and frozen estimated costs.","strategy_summary":summary,"degradation":degradation,"promotion_gates":gates,"promotable_candidates":promotable,"five_why":_five_why(degradation,gates),"reverse_validation":["Champion-vs-Challenger paired dates","Bootstrap confidence interval","Multiple bootstrap seeds/windows","Holm-Bonferroni multiple-testing correction","Max-challenger bootstrap reality check","Win-rate threshold","Drawdown non-inferiority","Audit trust gate","Frozen-before-outcome integrity","Reproducible evidence fingerprint"],"evidence_id":evidence_id,"auto_promote":False,"production_change_applied":False,"note":"系统可以自动研究和提出候选，但不会因为短期结果自动改生产模型。晋级必须先通过冻结样本 Gate，再进入人工复核/正式版本验收。"}
     registry=_update_candidate_registry(evidence_id,gates,stable)
     report["candidate_registry_count"]=len(registry.get("candidates",[]))
     write_json(ROOT/"reports"/"rnd_report.json",report)
