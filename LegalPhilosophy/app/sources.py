@@ -48,7 +48,35 @@ SOURCE_SPECS = (
         "role": "CASE",
         "markers": ("Brown v. Board of Education", "347 U.S. 483", "Record Group 267"),
     },
+    {
+        "source_id": "loc_plessy_v_ferguson",
+        "title": "Plessy v. Ferguson, 163 U.S. 537 (1896) — U.S. Reports / Library of Congress",
+        "url": "https://www.loc.gov/item/usrep163537/",
+        "role": "CASE",
+        "markers": ("Plessy v. Ferguson", "163 U.S. 537", "Separate but equal"),
+    },
+    {
+        "source_id": "loc_barnette",
+        "title": "West Virginia State Board of Education v. Barnette, 319 U.S. 624 (1943) — U.S. Reports / Library of Congress",
+        "url": "https://www.loc.gov/item/usrep319624/",
+        "role": "CASE",
+        "markers": ("Board of Education et al. v. Barnette", "319 U.S. 624", "First Amendment"),
+    },
+    {
+        "source_id": "loc_obergefell_v_hodges",
+        "title": "Obergefell v. Hodges, 576 U.S. 644 (2015) — U.S. Reports / Library of Congress",
+        "url": "https://www.loc.gov/item/usrep576644/",
+        "role": "CASE",
+        "markers": ("Obergefell v. Hodges", "576 U.S. 644", "Fourteenth Amendment"),
+    },
 )
+
+CASE_CORPUS_IDS = frozenset({
+    "loc_plessy_v_ferguson",
+    "loc_barnette",
+    "nara_brown_v_board",
+    "loc_obergefell_v_hodges",
+})
 
 PRIMARY_EDITION = {
     "catalog_url": "https://openlibrary.org/books/OL14055643M/Hegel%27s_Philosophy_of_right",
