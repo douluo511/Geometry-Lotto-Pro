@@ -4,6 +4,7 @@ from pathlib import Path
 import tempfile
 
 from app.service import LegalPhilosophyService
+from app.sources import SOURCE_SPECS
 
 
 def main() -> int:
@@ -13,23 +14,40 @@ def main() -> int:
         study=service.study("国家与自由之间有什么关系？")
         advanced=service.advanced()
         index=service.storage.load_index(validate_raw=True)
-        assert update["status"]=="PASS" and len(index)==2
+
+        expected_ids={spec["source_id"] for spec in SOURCE_SPECS}
+        expected_urls={spec["url"] for spec in SOURCE_SPECS}
+        assert update["status"]=="PASS"
+        assert set(index)==expected_ids
+        assert update["source_count"]==len(expected_ids)
         assert advanced["scholarship_lineage"]=="PASS"
         assert advanced["legal_authority_lineage"]=="PASS"
+        assert advanced["source_conflict_handling"]=="PASS"
+        assert advanced["case_source_lineage"]=="PASS"
+        # Edition/section-level Hegel primary text is deliberately not promoted by metadata or a scan identity alone.
         assert advanced["primary_source_lineage"]=="NOT VERIFIED"
-        assert study["status"]=="PASS" and len(study["source_refs"])==2
-        receipts=(service.storage.evidence/"network.jsonl").read_text(encoding="utf-8").splitlines()
-        assert len(receipts)>=2
-        parsed=[json.loads(line) for line in receipts]
-        assert all(item["result"]=="PASS" for item in parsed[-2:])
+        assert study["status"]=="PASS" and set(study["source_refs"])==expected_ids
+
+        receipt_lines=(service.storage.evidence/"network.jsonl").read_text(encoding="utf-8").splitlines()
+        parsed=[json.loads(line) for line in receipt_lines]
+        verified_receipts=[]
+        for url in sorted(expected_urls):
+            successes=[item for item in parsed if item.get("url")==url and item.get("result")=="PASS"]
+            assert successes, f"missing successful current network receipt for {url}"
+            verified_receipts.append(successes[-1])
+
         result={
             "status":"PASS",
-            "source_count":2,
+            "source_count":len(expected_ids),
+            "expected_source_ids":sorted(expected_ids),
             "sources":update["sources"],
             "raw_canonical_integrity":"PASS",
             "study_service":"PASS",
             "advanced_analysis":"PASS",
+            "source_conflict_handling":advanced["source_conflict_handling"],
+            "case_source_lineage":advanced["case_source_lineage"],
             "primary_source_lineage":"NOT VERIFIED",
+            "verified_network_receipts":verified_receipts,
             "network_receipts":parsed,
         }
     Path("real_network_evidence.json").write_text(json.dumps(result,ensure_ascii=False,indent=2),encoding="utf-8")
