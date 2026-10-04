@@ -1,4 +1,4 @@
-# Investment Finance Pro — Engineering Freeze v2.0
+# Investment Finance Pro — Engineering Freeze v2.1
 
 This file freezes the non-degradable delivery line for Investment Finance Pro.
 
@@ -75,6 +75,8 @@ UI
     -> Repair
     -> Validation
 
+Software update is a separate release subsystem from the business/data refresh action. The existing UI `一键更新` remains the frozen market-data refresh flow; it must not be relabeled as software replacement evidence. Software replacement is executed only by the independent Updater process.
+
 Release path:
 Source
   -> Self-Test
@@ -86,6 +88,9 @@ Source
   -> Exact EXE Real Network
   -> GUI Smoke
   -> Same Hash
+  -> Independent Updater Contract/Fault
+  -> Updater Windows Build / Exact Updater EXE / Rollback / Same Hash
+  -> Real independent Release N→N+1 software-update network
   -> Final Gate
   -> Unique Artifact
 
@@ -264,11 +269,13 @@ PASS only when current-run evidence derives explicit PASS for:
 - gui_smoke / physical_gui_click
 - same_hash
 - business_content
+- updater_process / updater_exact_exe / updater_atomic_rollback / updater_real_network / updater_same_hash
+- repository_independence
 
 The workflow must never write a pre-filled all-PASS gate input. Missing, PARTIAL, PENDING, WARNING, SKIPPED, UNAVAILABLE, UNKNOWN, CANCELLED or FAIL evidence is Final Gate FAIL.
 
 ## 24. 唯一成品
 
-Only final/InvestmentFinancePro.exe is the releasable executable.
+The releasable application identity is `final/InvestmentFinancePro.exe`; its independent software replacement worker is `final/InvestmentFinanceProUpdater.exe`. Both exact hashes must be frozen in release evidence. Neither file may be substituted by an alternate build after acceptance.
 
 No alternate "final", "fixed", "new", "v2-final-final" binaries are allowed in the release artifact.
