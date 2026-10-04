@@ -14,8 +14,8 @@
   },
   "aggregate": {
     "projects_total": 18,
-    "export_verification_pass": 18,
-    "export_verification_nonpass": 0,
+    "export_verification_pass": 17,
+    "export_verification_nonpass": 1,
     "real_independent_repository_pass": 0,
     "final_delivery_allowed": 0
   },
@@ -129,11 +129,14 @@
       "id": 11,
       "project": "Real-Money Finance System",
       "export_pr": 97,
-      "export_head": "1c0908c82cabd8ccc27daeb6f3db6511d1525d03",
-      "export_run": 37194704283,
-      "export_status": "PASS",
+      "export_head": "6a4417d5eb25a1121754c2097e689c952db1314b",
+      "export_run": null,
+      "export_status": "NOT VERIFIED",
       "repository_independence": "BLOCKED",
-      "final_gate": "FAIL"
+      "final_gate": "FAIL",
+      "source_product_pr": 95,
+      "source_product_head": "ed1bfd7228a9a28d0a1e99b53edf684d7c605717",
+      "source_product_status": "NOT VERIFIED"
     },
     {
       "id": 12,
@@ -207,5 +210,5 @@
     }
   ],
   "next_resume_condition": "As soon as a dedicated repository becomes visible to the connected installation, seed it from the matching verified export and rerun the full frozen acceptance chain on that dedicated repository exact commit before any PASS inheritance.",
-  "latest_delta": "Stock AI migration export revalidated after deterministic historical PIT valuation qualification fix. Product acceptance on PR #126 head d1e04a1 remains under fresh exact-head verification."
+  "latest_delta": "Real-Money Finance expanded real-network research history from harness-capped 260 to 800 rows without lowering frozen statistical thresholds. Prior RMF product/export evidence invalidated pending exact-head revalidation."
 }
