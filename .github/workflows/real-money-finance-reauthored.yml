@@ -49,13 +49,16 @@ jobs:
         run: python -m pip install --disable-pip-version-check -r requirements.txt
 
       - name: Static compile
-        run: python -m compileall -q app tests main.py
+        run: python -m compileall -q app tests main.py updater_main.py
 
       - name: Contract gate
         run: python -m tests.contract_gate
 
       - name: Fault injection gate
         run: python -m tests.fault_injection_gate
+
+      - name: Independent updater contract and rollback fault gate
+        run: python -m tests.updater_contract_gate
 
       - name: Real production network gate
         run: python -m tests.real_network_gate
@@ -70,12 +73,18 @@ jobs:
           $exe=Resolve-Path ./dist/RealMoneyFinance.exe
           $before=(Get-FileHash -Algorithm SHA256 $exe).Hash.ToLowerInvariant()
           $env:REAL_MONEY_FINANCE_ROOT=Join-Path $env:RUNNER_TEMP "rmf-selftest"
-          $proc=Start-Process -FilePath $exe -ArgumentList '--self-test' -Wait -PassThru
+          $health=Join-Path $env:RUNNER_TEMP "rmf-selftest-health.json"
+          $nonce=[guid]::NewGuid().ToString('N')
+          $proc=Start-Process -FilePath $exe -ArgumentList @('--self-test','--health-report',"$health",'--health-nonce',$nonce) -Wait -PassThru
           if($proc.ExitCode -ne 0){throw "Exact EXE self-test failed rc=$($proc.ExitCode)"}
+          $obj=Get-Content -Raw -LiteralPath $health|ConvertFrom-Json
+          if($obj.status -ne 'PASS' -or $obj.product -ne 'RealMoneyFinance' -or $obj.source_sha -ne $env:SOURCE_SHA -or $obj.exe_sha256 -ne $before -or $obj.nonce -ne $nonce -or $obj.storage_integrity -ne 'ok'){throw "Exact EXE health identity failed"}
           $after=(Get-FileHash -Algorithm SHA256 $exe).Hash.ToLowerInvariant()
           if($before -ne $after){throw "EXE changed after self-test"}
           [ordered]@{
             status="PASS"
+            source_sha=$env:SOURCE_SHA
+            health=$obj
             exact_exe="PASS"
             exe_sha256_before=$before
             exe_sha256_after=$after
@@ -105,23 +114,8 @@ jobs:
           python -m tests.gui_physical_click_gate --exe $exe --root $root --evidence gui_click_evidence.json
 
       - name: Freeze candidate manifest
-        shell: pwsh
-        run: |
-          $main=Resolve-Path ./dist/RealMoneyFinance.exe
-          $updater=Resolve-Path ./dist/RealMoneyFinanceUpdater.exe
-          [ordered]@{
-            status="CANDIDATE_ONLY"
-            source_sha=$env:SOURCE_SHA
-            main_sha256=(Get-FileHash -Algorithm SHA256 $main).Hash.ToLowerInvariant()
-            updater_sha256=(Get-FileHash -Algorithm SHA256 $updater).Hash.ToLowerInvariant()
-            real_network="PASS_IF_PRIOR_STEP_PASSED"
-            windows_build="PASS_IF_PRIOR_STEP_PASSED"
-            exact_exe="PASS_IF_PRIOR_STEP_PASSED"
-            physical_gui_core_repair_advanced="PASS_IF_PRIOR_STEP_PASSED"
-            software_update_positive="BLOCKED"
-            repository_independence="BLOCKED"
-            final_gate="FAIL"
-          }|ConvertTo-Json -Depth 5|Set-Content -Encoding UTF8 candidate_manifest.json
+        if: always()
+        run: python -m tests.collect_candidate_evidence
 
       - name: Upload diagnostic candidate evidence
         if: always()
@@ -132,6 +126,7 @@ jobs:
             RealMoneyFinance/dist/RealMoneyFinance.exe
             RealMoneyFinance/dist/RealMoneyFinanceUpdater.exe
             RealMoneyFinance/contract_evidence.json
+            RealMoneyFinance/updater_contract_evidence.json
             RealMoneyFinance/real_network_evidence.json
             RealMoneyFinance/real_network_failure_evidence.json
             RealMoneyFinance/windows_build_evidence.json
@@ -151,3 +146,4 @@ jobs:
           Write-Host "REAL_RELEASE_N_TO_N_PLUS_1=BLOCKED"
           Write-Host "CAPITAL_DEPLOYMENT_READY=FALSE"
           Write-Host "FINAL_GATE=FAIL"
+

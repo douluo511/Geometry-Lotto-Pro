@@ -136,6 +136,13 @@ def main() -> int:
         core_click=physical_click(win, "资金变化", root)
         wait_changed(refresh, refresh_before, 240)
         wait_changed(capital, capital_before, 60)
+        refreshed=json.loads(refresh.read_text(encoding="utf-8"))
+        capital_result=json.loads(capital.read_text(encoding="utf-8"))
+        if refreshed.get("status") != "PASS" or capital_result.get("status") != "PASS":
+            raise AssertionError("Exact EXE core evidence did not pass")
+        if capital_result["observation"]["true_capital_identity"] != "UNAVAILABLE_FROM_PUBLIC_LEVEL1":
+            raise AssertionError("public data was promoted to capital identity")
+        evidence["exact_exe_real_network"]={"status":"PASS", "source":refreshed["source"]}
         time.sleep(1)
         evidence["actions"]["capital_change"]={"status":"PASS","refresh":str(refresh),"capital":str(capital),"click":core_click}
 
@@ -164,6 +171,9 @@ def main() -> int:
         adv_before=mtime(advanced)
         advanced_click=physical_click(win, "高级分析", root)
         wait_changed(advanced, adv_before, 60)
+        advanced_result=json.loads(advanced.read_text(encoding="utf-8"))
+        if advanced_result.get("status") != "PASS" or advanced_result["risk_boundary"]["capital_deployment_ready"] is not False:
+            raise AssertionError("advanced-analysis risk boundary failed")
         time.sleep(1)
         evidence["actions"]["advanced_analysis"]={"status":"PASS","evidence":str(advanced),"click":advanced_click}
 
@@ -173,6 +183,7 @@ def main() -> int:
         if before_hash!=after_hash:
             raise AssertionError("EXE hash changed after physical GUI use")
         evidence["physical_gui_core_repair_advanced"]="PASS"
+        evidence["physical_gui_update_negative"]="PASS"
         evidence["physical_gui_update_positive"]="BLOCKED"
         evidence["status"]="PASS_WITH_EXTERNAL_UPDATE_BLOCKER"
         try:

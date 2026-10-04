@@ -122,7 +122,10 @@ class FinanceDesktop(tk.Tk):
                     status = payload["payload"].get("status") if isinstance(payload["payload"], dict) else None
                     if status == "BLOCKED":
                         self.status.set("BLOCKED: " + payload["label"])
-                        messagebox.showwarning("Real-Money Finance", str(payload["payload"].get("reason")))
+                        messagebox.showwarning("Real-Money Finance", "BLOCKED: " + str(payload["payload"].get("reason")))
+                    elif status == "RESTART_REQUIRED":
+                        self.status.set("RESTART_REQUIRED")
+                        self.after_idle(self.destroy)
                     else:
                         self.status.set("PASS: " + payload["label"])
                 self._set_busy(False)
