@@ -28,6 +28,14 @@ FROZEN_SEARCH_FAMILY = {
     "amount_only": ("amount",),
     "turnover_only": ("turnover_rate",),
 }
+# Frozen leave-one-feature-out replication family. These exclusions are structural,
+# not selected from observed performance, so current real-network evidence can
+# execute the ablation gate without post-hoc model shopping.
+FROZEN_ABLATION_FAMILY = {
+    "without_amount": ("turnover_rate", "volume"),
+    "without_turnover_rate": ("amount", "volume"),
+    "without_volume": ("amount", "turnover_rate"),
+}
 FROZEN_METHOD_THRESHOLDS = {
     "min_oos_observations": 120,
     "min_walk_forward_folds": 6,
@@ -308,6 +316,31 @@ def qualify_research(
 
     oos_values = list(base_wf["oos_net_returns"])
     holdout_power = _holdout_power_analysis(oos_values)
+
+    ablation_results: dict[str, dict] = {}
+    for name, fields in FROZEN_ABLATION_FAMILY.items():
+        points = _observations(ordered, fields)
+        if len(points) < 80:
+            ablation_results[name] = {
+                "status": "NOT VERIFIED",
+                "fields": list(fields),
+                "reason": "insufficient usable lagged feature observations",
+            }
+            continue
+        wf = _walk_forward(points, one_way_cost_bps)
+        ci = _moving_block_bootstrap_ci(
+            wf["oos_net_returns"],
+            samples=FROZEN_METHOD_THRESHOLDS["bootstrap_samples"],
+            block_length=FROZEN_METHOD_THRESHOLDS["moving_block_length"],
+        )
+        ablation_results[name] = {
+            "status": "PASS",
+            "fields": list(fields),
+            "walk_forward": {k: v for k, v in wf.items() if k not in {"oos_net_returns", "oos_gross_returns"}},
+            "bootstrap": ci,
+            "mean_net_return": wf["mean_net_return"],
+        }
+
     window_count = FROZEN_METHOD_THRESHOLDS["regime_windows"]
     regime_windows: list[dict] = []
     for index in range(window_count):
@@ -355,13 +388,23 @@ def qualify_research(
         and len(feature_sets) == len(FROZEN_SEARCH_FAMILY)
         and all(name in results for name in FROZEN_SEARCH_FAMILY)
     )
+    ablation_coverage = (
+        all(results.get(name, {}).get("status") == "PASS" for name in FROZEN_SEARCH_FAMILY)
+        and set(ablation_results) == set(FROZEN_ABLATION_FAMILY)
+        and all(
+            item.get("status") == "PASS"
+            and item.get("walk_forward", {}).get("oos_count", 0) >= FROZEN_METHOD_THRESHOLDS["min_oos_observations"]
+            and len(item.get("walk_forward", {}).get("folds", [])) >= FROZEN_METHOD_THRESHOLDS["min_walk_forward_folds"]
+            for item in ablation_results.values()
+        )
+    )
 
     method_gates = {
         "cost_slippage_model": "PASS",
         "leakage_safe_time_split": "PASS",
         "oos_walk_forward": "PASS" if walk_forward_coverage else "NOT VERIFIED",
         "bootstrap": "PASS" if bootstrap_coverage else "NOT VERIFIED",
-        "ablation": "PASS" if all(x.get("status") == "PASS" for x in results.values()) else "NOT VERIFIED",
+        "ablation": "PASS" if ablation_coverage else "NOT VERIFIED",
         "stability": "PASS" if regime_coverage else "NOT VERIFIED",
         "multiple_testing_correction": "PASS" if search_family_coverage else "NOT VERIFIED",
     }
@@ -379,7 +422,10 @@ def qualify_research(
             and holdout_power.get("status") == "PASS"
         ) else "NOT VERIFIED",
         "bootstrap": method_gates["bootstrap"],
-        "ablation": "NOT VERIFIED",
+        "ablation": "PASS" if (
+            source_meta.get("qualification_scope") == "production_real_network"
+            and ablation_coverage
+        ) else "NOT VERIFIED",
         # Chronological windows are useful diagnostics but are not independently
         # defined market regimes, so the business regime-stability gate stays closed.
         "stability": "NOT VERIFIED",
@@ -392,9 +438,10 @@ def qualify_research(
         "leakage_safe_time_split": "Lagged execution is implemented, but historical point-in-time source availability is unverified.",
         "survivorship_selection_control": "User-selected single symbol lacks a precommitted survivorship-safe investable universe.",
         "oos_walk_forward": "Frozen holdout-power target was not executed on current production real-network evidence.",
-        "ablation": "Provider field coverage is insufficient to execute every frozen feature ablation on the same real dataset.",
+        "ablation": "Frozen leave-one-feature-out replication was not executed with complete field coverage on current production real-network evidence.",
         "stability": "Chronological windows are diagnostics only; independently defined market-regime labels and coverage are not verified.",
     }
+    gaps = {name: reason for name, reason in gaps.items() if gates.get(name) != "PASS"}
     return {
         "status": "PASS",
         "scope": "method execution diagnostics; full business qualification is NOT VERIFIED",
@@ -415,6 +462,8 @@ def qualify_research(
         "stability": stability,
         "regime_windows": regime_windows,
         "frozen_search_family": {name: list(fields) for name, fields in FROZEN_SEARCH_FAMILY.items()},
+        "frozen_ablation_family": {name: list(fields) for name, fields in FROZEN_ABLATION_FAMILY.items()},
+        "ablation_results": ablation_results,
         "frozen_method_thresholds": dict(FROZEN_METHOD_THRESHOLDS),
         "holdout_power_analysis": holdout_power,
         "multiple_testing_family_size": len(FROZEN_SEARCH_FAMILY),
