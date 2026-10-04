@@ -128,6 +128,68 @@ class BusinessBoundaries(unittest.TestCase):
                 os.chdir(previous)
 
 
+    def test_explicit_rejection_counts_as_completed_qualification_decision(self):
+        acceptance_text = (Path(__file__).resolve().parents[1] / "ACCEPTANCE_CONTRACT.json").read_text(
+            encoding="utf-8"
+        )
+        with tempfile.TemporaryDirectory() as td, patch.dict(os.environ, {"SOURCE_SHA": "a"*40}):
+            previous = Path.cwd()
+            try:
+                os.chdir(td)
+                Path("ACCEPTANCE_CONTRACT.json").write_text(acceptance_text, encoding="utf-8")
+                Path("business_qualification_evidence.json").write_text(json.dumps({
+                    "status": "PASS",
+                    "real_market_research_qualification": {
+                        "method_execution_status": "PASS",
+                        "business_qualification_status": "NOT VERIFIED",
+                        "diagnostic_thresholds_met": False,
+                        "economic_signal_qualified": False,
+                        "capital_deployment_ready": False,
+                        "gates": {},
+                        "feature_results": {},
+                    },
+                }))
+                with redirect_stdout(io.StringIO()):
+                    collect()
+                evidence = json.loads(Path("candidate_manifest.json").read_text())
+                self.assertEqual(
+                    evidence["business_completion"]["gate_statuses"]["economic_signal_qualification_decision"],
+                    "PASS",
+                )
+                self.assertFalse(evidence["economic_signal_qualified"])
+                self.assertEqual(evidence["final_gate"], "FAIL")
+            finally:
+                os.chdir(previous)
+
+    def test_missing_explicit_signal_decision_stays_not_verified(self):
+        acceptance_text = (Path(__file__).resolve().parents[1] / "ACCEPTANCE_CONTRACT.json").read_text(
+            encoding="utf-8"
+        )
+        with tempfile.TemporaryDirectory() as td, patch.dict(os.environ, {"SOURCE_SHA": "a"*40}):
+            previous = Path.cwd()
+            try:
+                os.chdir(td)
+                Path("ACCEPTANCE_CONTRACT.json").write_text(acceptance_text, encoding="utf-8")
+                Path("business_qualification_evidence.json").write_text(json.dumps({
+                    "status": "PASS",
+                    "real_market_research_qualification": {
+                        "method_execution_status": "PASS",
+                        "capital_deployment_ready": False,
+                        "gates": {},
+                        "feature_results": {},
+                    },
+                }))
+                with redirect_stdout(io.StringIO()):
+                    collect()
+                evidence = json.loads(Path("candidate_manifest.json").read_text())
+                self.assertEqual(
+                    evidence["business_completion"]["gate_statuses"]["economic_signal_qualification_decision"],
+                    "NOT VERIFIED",
+                )
+            finally:
+                os.chdir(previous)
+
+
 def run_contract() -> dict:
     result = unittest.TextTestRunner(verbosity=2).run(unittest.defaultTestLoader.loadTestsFromTestCase(BusinessBoundaries))
     if not result.wasSuccessful():
