@@ -14,8 +14,8 @@
   },
   "aggregate": {
     "projects_total": 18,
-    "export_verification_pass": 17,
-    "export_verification_nonpass": 1,
+    "export_verification_pass": 18,
+    "export_verification_nonpass": 0,
     "real_independent_repository_pass": 0,
     "final_delivery_allowed": 0
   },
@@ -115,13 +115,15 @@
       "project": "Stock AI Pro",
       "export_pr": 99,
       "export_head": "915ec7545e0be744414c056cdb9aea00fe84990a",
-      "export_run": null,
-      "export_status": "NOT VERIFIED",
+      "export_run": 37219365703,
+      "export_status": "PASS",
       "repository_independence": "BLOCKED",
       "final_gate": "FAIL",
       "source_product_pr": 126,
       "source_product_head": "d1e04a1fc3c6d60a8d830388644c0fae38750985",
-      "source_product_status": "NOT VERIFIED"
+      "source_product_status": "NOT VERIFIED",
+      "export_artifact_id": 11309073797,
+      "export_artifact_digest": "sha256:b7e0c9ed0791d8720d5e7a138941524592bc8edca8ea2f8e59383aa9d80b62d3"
     },
     {
       "id": 11,
@@ -205,5 +207,5 @@
     }
   ],
   "next_resume_condition": "As soon as a dedicated repository becomes visible to the connected installation, seed it from the matching verified export and rerun the full frozen acceptance chain on that dedicated repository exact commit before any PASS inheritance.",
-  "latest_delta": "Stock AI production now backfills historical PIT valuation deterministically to the existing frozen 0.4 coverage threshold before backtest. Prior Stock product/export evidence invalidated; fresh exact-head runs required."
+  "latest_delta": "Stock AI migration export revalidated after deterministic historical PIT valuation qualification fix. Product acceptance on PR #126 head d1e04a1 remains under fresh exact-head verification."
 }
