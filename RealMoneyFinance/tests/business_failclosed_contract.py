@@ -56,12 +56,17 @@ class BusinessBoundaries(unittest.TestCase):
             {"provider": "synthetic_contract_only", "qualification_scope": "offline_contract"},
         )
         power = got["holdout_power_analysis"]
-        self.assertEqual(power["status"], "PASS")
-        self.assertIn(power["decision"], {"SUFFICIENT", "INSUFFICIENT"})
-        self.assertGreater(power["minimum_detectable_mean_return"], 0)
+        # This fixture intentionally produces a degenerate all-cash OOS path.
+        # The method must fail closed instead of fabricating power evidence.
+        self.assertEqual(power["status"], "NOT VERIFIED")
+        self.assertIn("holdout", power["reason"])
         self.assertEqual(got["gates"]["oos_walk_forward"], "NOT VERIFIED")
+        # Independently verify the frozen power calculation on finite,
+        # non-degenerate returns; executing the method is not signal promotion.
         direct = _holdout_power_analysis([(-1 if i % 2 else 1) * 0.01 for i in range(160)])
         self.assertEqual(direct["status"], "PASS")
+        self.assertIn(direct["decision"], {"SUFFICIENT", "INSUFFICIENT"})
+        self.assertGreater(direct["minimum_detectable_mean_return"], 0)
         self.assertIsInstance(direct["power_sufficient"], bool)
 
     def test_high_amount_and_qfq_label_do_not_prove_capacity_or_actions(self):
