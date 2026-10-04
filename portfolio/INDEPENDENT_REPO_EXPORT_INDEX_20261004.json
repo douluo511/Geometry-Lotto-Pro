@@ -1,0 +1,205 @@
+{
+  "schema": "portfolio-independent-repo-export-index-v1",
+  "generated_date": "2026-10-04",
+  "repository": "douluo511/Geometry-Lotto-Pro",
+  "control_pr": 84,
+  "strict_rule": "Export verification PASS is migration-readiness evidence only. It never satisfies repository_independence, production release, updater N→N+1, or Final Gate.",
+  "installation_inventory": {
+    "visible_repositories": [
+      "douluo511/Geometry-Lotto-Pro"
+    ],
+    "dedicated_target_repositories_visible": 0,
+    "status": "BLOCKED",
+    "note": "Current GitHub App installation exposes only the monorepo. Account-level repository creation is unavailable in the connected identity."
+  },
+  "aggregate": {
+    "projects_total": 18,
+    "export_verification_pass": 18,
+    "export_verification_nonpass": 0,
+    "real_independent_repository_pass": 0,
+    "final_delivery_allowed": 0
+  },
+  "projects": [
+    {
+      "id": 1,
+      "project": "SSQ",
+      "export_pr": 114,
+      "export_head": "e71297f4291cc9a6fbd32e5ef262ba703731de86",
+      "export_run": 37205068870,
+      "export_status": "PASS",
+      "repository_independence": "BLOCKED",
+      "final_gate": "FAIL"
+    },
+    {
+      "id": 2,
+      "project": "DLT",
+      "export_pr": 115,
+      "export_head": "43d1d9184db918fc7f0d60eac74fe930fed111e8",
+      "export_run": 37205071672,
+      "export_status": "PASS",
+      "repository_independence": "BLOCKED",
+      "final_gate": "FAIL"
+    },
+    {
+      "id": 3,
+      "project": "Psychology Insight Pro",
+      "export_pr": 100,
+      "export_head": "d6730391879048deabd9b9e6f1088a9d25e5a7d2",
+      "export_run": 37199887078,
+      "export_status": "PASS",
+      "repository_independence": "BLOCKED",
+      "final_gate": "FAIL"
+    },
+    {
+      "id": 4,
+      "project": "Human Nature System",
+      "export_pr": 109,
+      "export_head": "867ac19a62c3aa9de51401047cdb5e76d520e5d0",
+      "export_run": 37205374903,
+      "export_status": "PASS",
+      "repository_independence": "BLOCKED",
+      "final_gate": "FAIL"
+    },
+    {
+      "id": 5,
+      "project": "Investment Finance Pro",
+      "export_pr": 112,
+      "export_head": "2ff6b7dd1b8795cf3b992da46d274ba1b6aee7ad",
+      "export_run": 37205127967,
+      "export_status": "PASS",
+      "repository_independence": "BLOCKED",
+      "final_gate": "FAIL"
+    },
+    {
+      "id": 6,
+      "project": "English Root Intelligence",
+      "export_pr": 111,
+      "export_head": "4b05c8e7ae21a6639194c15008b92c60a1263bff",
+      "export_run": 37205384083,
+      "export_status": "PASS",
+      "repository_independence": "BLOCKED",
+      "final_gate": "FAIL"
+    },
+    {
+      "id": 7,
+      "project": "Guoxue Zhice",
+      "export_pr": 113,
+      "export_head": "5492b11f2af1fd625348d2fa6062cd498e5aa76f",
+      "export_run": 37205525335,
+      "export_status": "PASS",
+      "repository_independence": "BLOCKED",
+      "final_gate": "FAIL"
+    },
+    {
+      "id": 8,
+      "project": "Head Intelligence",
+      "export_pr": 101,
+      "export_head": "d3a02f60bd1b29dbdfdd18ae0fd0424733c6c7b0",
+      "export_run": 37199934460,
+      "export_status": "PASS",
+      "repository_independence": "BLOCKED",
+      "final_gate": "FAIL"
+    },
+    {
+      "id": 9,
+      "project": "TalkCraft / Expression Training",
+      "export_pr": 110,
+      "export_head": "535f7a01192ae196073d4f1032bbd85f3b5d5311",
+      "export_run": 37205379788,
+      "export_status": "PASS",
+      "repository_independence": "BLOCKED",
+      "final_gate": "FAIL"
+    },
+    {
+      "id": 10,
+      "project": "Stock AI Pro",
+      "export_pr": 99,
+      "export_head": "b4ca7845ebe86a3b2d8e539d55dfe5613bbedb1a",
+      "export_run": 37206927311,
+      "export_status": "PASS",
+      "repository_independence": "BLOCKED",
+      "final_gate": "FAIL"
+    },
+    {
+      "id": 11,
+      "project": "Real-Money Finance System",
+      "export_pr": 97,
+      "export_head": "1c0908c82cabd8ccc27daeb6f3db6511d1525d03",
+      "export_run": 37194704283,
+      "export_status": "PASS",
+      "repository_independence": "BLOCKED",
+      "final_gate": "FAIL"
+    },
+    {
+      "id": 12,
+      "project": "Passive Income Pipeline OS",
+      "export_pr": 116,
+      "export_head": "0f0f6bcb331766a21b8c74f171f2cd5bc2a03b17",
+      "export_run": 37204800619,
+      "export_status": "PASS",
+      "repository_independence": "BLOCKED",
+      "final_gate": "FAIL"
+    },
+    {
+      "id": 13,
+      "project": "Earth Online / Life Base",
+      "export_pr": 118,
+      "export_head": "712c6d01ab7b83bd2163527f821bbc8f4a853a35",
+      "export_run": 37208447196,
+      "export_status": "PASS",
+      "repository_independence": "BLOCKED",
+      "final_gate": "FAIL"
+    },
+    {
+      "id": 14,
+      "project": "AI Music Production System",
+      "export_pr": 125,
+      "export_head": "9274c28590e6f8b3dbebebe60caa7f9d81b04553",
+      "export_run": 37213534368,
+      "export_status": "PASS",
+      "repository_independence": "BLOCKED",
+      "final_gate": "FAIL"
+    },
+    {
+      "id": 15,
+      "project": "Legal Philosophy Study",
+      "export_pr": 98,
+      "export_head": "3fba3f4bcd1cd87ce207044bd99873d2ff210e0d",
+      "export_run": 37194953022,
+      "export_status": "PASS",
+      "repository_independence": "BLOCKED",
+      "final_gate": "FAIL"
+    },
+    {
+      "id": 16,
+      "project": "Non-Hard-Work OS",
+      "export_pr": 108,
+      "export_head": "9b7f47537d7bda9047a5f497503425d4eeed0a1f",
+      "export_run": 37203220423,
+      "export_status": "PASS",
+      "repository_independence": "BLOCKED",
+      "final_gate": "FAIL"
+    },
+    {
+      "id": 17,
+      "project": "Be Your Own Master",
+      "export_pr": 105,
+      "export_head": "64189060e074e191e36b522c341288d0f3fa0731",
+      "export_run": 37209398722,
+      "export_status": "PASS",
+      "repository_independence": "BLOCKED",
+      "final_gate": "FAIL"
+    },
+    {
+      "id": 18,
+      "project": "Happy8",
+      "export_pr": 102,
+      "export_head": "ac0ee01024516538b10accd036d2507a470222ca",
+      "export_run": 37200050417,
+      "export_status": "PASS",
+      "repository_independence": "BLOCKED",
+      "final_gate": "FAIL"
+    }
+  ],
+  "next_resume_condition": "As soon as a dedicated repository becomes visible to the connected installation, seed it from the matching verified export and rerun the full frozen acceptance chain on that dedicated repository exact commit before any PASS inheritance."
+}
