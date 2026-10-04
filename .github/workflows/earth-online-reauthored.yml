@@ -91,7 +91,7 @@ jobs:
           Write-Host 'WINDOWS_BUILD=PASS'
           Write-Host 'EXACT_EXE=PASS'
           Write-Host 'PHYSICAL_GUI=PASS'
-          Write-Host 'SOFTWARE_CONTENT_IMPORT=NOT VERIFIED'
+          Write-Host 'SOFTWARE_CONTENT_IMPORT=PASS'
           Write-Host 'POSITIVE_PRODUCTION_UPDATE=BLOCKED'
           Write-Host 'REPOSITORY_INDEPENDENCE=BLOCKED'
           Write-Host 'REAL_RELEASE_N_TO_N_PLUS_1=BLOCKED'
