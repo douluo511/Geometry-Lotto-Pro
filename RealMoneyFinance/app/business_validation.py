@@ -333,10 +333,13 @@ def qualify_research(
         "corporate_action_adjustment": "NOT VERIFIED",
         "leakage_safe_time_split": "NOT VERIFIED",
         "survivorship_selection_control": "NOT VERIFIED",
-        "oos_walk_forward": method_gates["oos_walk_forward"],
+        # Execution coverage alone is not a formal holdout-power analysis.
+        "oos_walk_forward": "NOT VERIFIED",
         "bootstrap": method_gates["bootstrap"],
         "ablation": "NOT VERIFIED",
-        "stability": method_gates["stability"],
+        # Chronological windows are useful diagnostics but are not independently
+        # defined market regimes, so the business regime-stability gate stays closed.
+        "stability": "NOT VERIFIED",
         "multiple_testing_correction": method_gates["multiple_testing_correction"],
     }
     gaps = {
@@ -345,7 +348,9 @@ def qualify_research(
         "corporate_action_adjustment": "Provider qfq label lacks verified action factors/dates and point-in-time lineage.",
         "leakage_safe_time_split": "Lagged execution is implemented, but historical point-in-time source availability is unverified.",
         "survivorship_selection_control": "User-selected single symbol lacks a precommitted survivorship-safe investable universe.",
+        "oos_walk_forward": "Walk-forward execution is covered, but no frozen minimum detectable effect/power target was precommitted.",
         "ablation": "Provider field coverage is insufficient to execute every frozen feature ablation on the same real dataset.",
+        "stability": "Chronological windows are diagnostics only; independently defined market-regime labels and coverage are not verified.",
     }
     return {
         "status": "PASS",
