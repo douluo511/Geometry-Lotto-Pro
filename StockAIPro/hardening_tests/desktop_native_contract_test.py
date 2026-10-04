@@ -56,6 +56,48 @@ def check_ast_contracts() -> dict:
     }
 
 
+def check_windowed_worker_stream_contract() -> dict:
+    sys.path.insert(0, str(DESKTOP.resolve()))
+    import worker as worker_mod
+
+    original_stdout, original_stderr = sys.stdout, sys.stderr
+    redirected = []
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            old_root = os.environ.get("STOCK_AI_DATA_ROOT")
+            os.environ["STOCK_AI_DATA_ROOT"] = td
+            worker_mod.sys.stdout = None
+            worker_mod.sys.stderr = None
+            status = worker_mod._ensure_standard_streams()
+            for name in ("stdout", "stderr"):
+                stream = getattr(worker_mod.sys, name)
+                if stream is None or not hasattr(stream, "write"):
+                    fail("windowed worker stream was not restored: " + name)
+                stream.write("stream-contract-" + name + "\\n")
+                stream.flush()
+                redirected.append(stream)
+            log = Path(td) / "logs" / "worker_stdio.log"
+            if not log.exists() or "stream-contract-stdout" not in log.read_text(encoding="utf-8"):
+                fail("windowed worker stdio evidence log missing")
+            if status.get("stdout") != str(log) or status.get("stderr") != str(log):
+                fail("windowed worker did not report file-backed streams")
+            if old_root is None:
+                os.environ.pop("STOCK_AI_DATA_ROOT", None)
+            else:
+                os.environ["STOCK_AI_DATA_ROOT"] = old_root
+            return {"stdio_restored": True, "log_name": log.name}
+    finally:
+        for stream in redirected:
+            try:
+                stream.close()
+            except Exception:
+                pass
+        worker_mod.sys.stdout = original_stdout
+        worker_mod.sys.stderr = original_stderr
+        sys.stdout = original_stdout
+        sys.stderr = original_stderr
+
+
 def check_service_source_mode() -> dict:
     env = os.environ.copy()
     env["STOCK_AI_PACKAGE_ROOT"] = str(PACKAGE.resolve())
@@ -126,6 +168,7 @@ def main() -> int:
     evidence = {
         "ast_contracts": check_ast_contracts(),
         "service_source_mode": check_service_source_mode(),
+        "windowed_worker_streams": check_windowed_worker_stream_contract(),
         "isolated_repair": check_repair_isolated_data(),
         "desktop_final_boundary": {
             "windows_native_build": "NOT VERIFIED",
