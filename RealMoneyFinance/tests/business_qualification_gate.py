@@ -14,7 +14,7 @@ from app.source_tencent_full import fetch_daily_bars_tencent_full
 from app.source_yahoo import fetch_daily_bars_yahoo
 from tests.business_failclosed_contract import run_contract
 
-QUALIFICATION_HISTORY_ROWS = 800
+QUALIFICATION_HISTORY_ROWS = 1200
 
 
 def synthetic_contract() -> dict:
