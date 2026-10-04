@@ -88,6 +88,7 @@ class StockAIService:
     def _env(self) -> dict[str, str]:
         env = os.environ.copy()
         env["PYTHONUTF8"] = "1"
+        env["PYTHONIOENCODING"] = "utf-8"
         env["STOCK_AI_PACKAGE_ROOT"] = str(self.package_root)
         return env
 
