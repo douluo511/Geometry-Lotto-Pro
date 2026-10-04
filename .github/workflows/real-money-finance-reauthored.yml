@@ -132,6 +132,7 @@ jobs:
             RealMoneyFinance/dist/RealMoneyFinanceUpdater.exe
             RealMoneyFinance/contract_evidence.json
             RealMoneyFinance/real_network_evidence.json
+            RealMoneyFinance/real_network_failure_evidence.json
             RealMoneyFinance/windows_build_evidence.json
             RealMoneyFinance/exact_exe_evidence.json
             RealMoneyFinance/updater_blocked_evidence.json
