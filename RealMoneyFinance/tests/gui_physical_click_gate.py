@@ -86,9 +86,26 @@ def main() -> int:
     before_hash=sha256(exe)
 
     p=subprocess.Popen([str(exe)], cwd=str(exe.parent), env=env)
-    app=Application(backend="uia").connect(process=p.pid, timeout=45)
-    win=app.window(title=TITLE)
-    win.wait("visible enabled ready", timeout=45)
+    desktop=Desktop(backend="uia")
+    deadline=time.time()+45
+    win=None
+    seen_titles=[]
+    while time.time()<deadline:
+        if p.poll() is not None:
+            raise RuntimeError(f"Exact EXE exited before GUI appeared: rc={p.returncode}")
+        try:
+            windows=desktop.windows()
+            seen_titles=[w.window_text() for w in windows if w.window_text()]
+            matches=[w for w in windows if w.window_text()==TITLE]
+            if matches:
+                win=matches[0]
+                break
+        except Exception:
+            pass
+        time.sleep(0.5)
+    if win is None:
+        raise TimeoutError(f"GUI title not found; expected={TITLE!r}; seen_titles={seen_titles[-40:]!r}")
+    win.wait("visible enabled", timeout=15)
 
     evidence={"status":"FAIL","exe_sha256_before":before_hash,"actions":{}}
     try:
