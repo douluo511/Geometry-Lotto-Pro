@@ -166,6 +166,7 @@ def launch_gui(root_path: Path) -> int:
             "status": "PASS",
             "pid": os.getpid(),
             "window_title": window.title(),
+            "hwnd": int(window.winfo_id()),
             "executable": str(Path(sys.executable).resolve()) if getattr(sys, "frozen", False) else str(Path(__file__).resolve()),
             "exe_sha256": sha256_file(Path(sys.executable).resolve()) if getattr(sys, "frozen", False) else "SOURCE_MODE",
             "window": {
