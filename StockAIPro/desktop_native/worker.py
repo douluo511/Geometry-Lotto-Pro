@@ -40,6 +40,43 @@ def _version_root(package_root: Path) -> tuple[str, Path]:
     return version, root
 
 
+def _current_research_coverage(master, root: Path) -> dict:
+    """Measure persisted research coverage without starting a multi-hour bootstrap.
+
+    Interactive Advanced Analysis must analyze the current production corpus and
+    expose missing qualification as NOT VERIFIED. Full >=90% corpus qualification
+    remains a separate business/research gate; it must never be hidden behind one
+    GUI click or turned into a fake PASS.
+    """
+    m = master.copy()
+    m["code"] = m["code"].astype(str)
+    existing = {p.stem for p in (root / "data" / "history").glob("*.csv")}
+    all_codes = set(m["code"])
+    if "status" in m:
+        current_codes = set(m.loc[m["status"] == "current", "code"])
+        delisted_codes = set(m.loc[m["status"] == "delisted", "code"])
+    else:
+        current_codes, delisted_codes = all_codes, set()
+    coverage = len(all_codes & existing) / max(1, len(all_codes))
+    delisted_coverage = (
+        len(delisted_codes & existing) / max(1, len(delisted_codes))
+        if delisted_codes else 1.0
+    )
+    return {
+        "covered_symbols": len(all_codes & existing),
+        "target_symbols": len(all_codes),
+        "coverage": coverage,
+        "current_coverage": len(current_codes & existing) / max(1, len(current_codes)),
+        "delisted_coverage": delisted_coverage,
+        "qualification_target": 0.90,
+        "qualification_delisted_target": 0.90,
+        "qualification_status": "PASS"
+        if coverage >= 0.90 and delisted_coverage >= 0.90
+        else "NOT VERIFIED",
+        "interactive_network_bootstrap": "NOT RUN",
+    }
+
+
 def run_worker(action: str, package_root: Path) -> int:
     package_root = package_root.resolve()
     os.environ["STOCK_AI_PACKAGE_ROOT"] = str(package_root)
@@ -52,26 +89,24 @@ def run_worker(action: str, package_root: Path) -> int:
         return 0
 
     if action == "advanced":
-        import math
         import pandas as pd
         from stock_ai.audit import run_audit
         from stock_ai.backtest import run_backtest
         from stock_ai.config import ROOT, load_config
-        from stock_ai.data_source import qualify_research_pool_coverage
         from stock_ai.valuation import refresh_valuation_histories, valuation_history_coverage
 
         cfg = load_config()
         master_path = ROOT / "cache" / "universe_master.csv"
         predictions_path = ROOT / "predictions" / "latest" / "predictions.csv"
         if not master_path.is_file() or not predictions_path.is_file():
-            raise RuntimeError("advanced qualification requires a completed current core run")
+            raise RuntimeError("advanced analysis requires a completed current core run")
 
         master = pd.read_csv(master_path, dtype={"code": str})
-        research_coverage = qualify_research_pool_coverage(master, cfg)
+        research_coverage = _current_research_coverage(master, ROOT)
 
         predictions = pd.read_csv(predictions_path, dtype={"code": str})
         if "code" not in predictions or predictions.empty:
-            raise RuntimeError("advanced qualification has no current prediction universe")
+            raise RuntimeError("advanced analysis has no current prediction universe")
         valuation_codes = list(dict.fromkeys(predictions["code"].dropna().astype(str).tolist()))[:120]
         valuation_target = max(
             0.40, float((cfg.get("valuation", {}) or {}).get("backtest_min_coverage", 0.40))
@@ -79,16 +114,14 @@ def run_worker(action: str, package_root: Path) -> int:
         valuation_status = {
             "coverage": valuation_history_coverage(valuation_codes),
             "target": valuation_target,
+            "refresh_passes": 0,
         }
-        batch = max(1, int((cfg.get("valuation", {}) or {}).get("history_refresh_batch", 20)))
-        max_passes = math.ceil(len(valuation_codes) / batch) + 2
-        for _ in range(max_passes):
-            if float(valuation_status.get("coverage", 0) or 0) >= valuation_target:
-                break
-            before = float(valuation_status.get("coverage", 0) or 0)
-            valuation_status = refresh_valuation_histories(valuation_codes, cfg)
-            if float(valuation_status.get("coverage", 0) or 0) <= before and not valuation_status.get("due"):
-                break
+        # One bounded real-network refresh pass is allowed on an interactive click.
+        # It preserves real-data behavior without silently launching the separate
+        # full research-corpus qualification workload (which can run for hours).
+        if float(valuation_status.get("coverage", 0) or 0) < valuation_target:
+            refreshed = refresh_valuation_histories(valuation_codes, cfg)
+            valuation_status = {**refreshed, "target": valuation_target, "refresh_passes": 1}
 
         preparation = {
             "status": "PASS" if (
@@ -98,6 +131,10 @@ def run_worker(action: str, package_root: Path) -> int:
             ) else "NOT VERIFIED",
             "research_coverage": research_coverage,
             "valuation_coverage": valuation_status,
+            "boundary": (
+                "Advanced Analysis executes audit/backtest on the current persisted corpus. "
+                "Full >=90% research-corpus qualification remains a separate business gate."
+            ),
         }
         evidence_path = ROOT / "evidence" / "advanced_preparation.json"
         evidence_path.parent.mkdir(parents=True, exist_ok=True)
@@ -111,7 +148,7 @@ def run_worker(action: str, package_root: Path) -> int:
         audit = run_audit()
         print(json.dumps({
             "execution_status": "PASS",
-            "business_qualification": "NOT VERIFIED",
+            "business_qualification": preparation["status"],
             "active_version": version,
             "audit_trust": audit.get("trust") if isinstance(audit, dict) else None,
             "backtest": summary,
