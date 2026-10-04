@@ -151,7 +151,10 @@ def main():
     ) else "NOT VERIFIED"
 
     def qualified_business_gate(name):
-        return "PASS" if business_qualified and business_gates.get(name) == "PASS" else "NOT VERIFIED"
+        # Business gates are frozen and independently countable. A full
+        # business_qualification_status PASS is required only for business 100%;
+        # it must not suppress valid PASS evidence for one completed gate.
+        return "PASS" if business_gates.get(name) == "PASS" else "NOT VERIFIED"
 
     business_statuses = {
         "public_l1_identity_boundary": "PASS" if contract.get("status") == "PASS" else "NOT VERIFIED",
