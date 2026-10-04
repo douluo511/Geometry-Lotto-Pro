@@ -8,7 +8,7 @@ from pathlib import Path
 from .domain import SourceDocument
 from .engine import build_study_result
 from .netclient import NetClient
-from .sources import CASE_CORPUS_IDS, build_conflict_registry, fetch_current_sources
+from .sources import CASE_CORPUS_IDS, build_conflict_registry, fetch_current_sources, primary_lineage_status
 from .storage import Storage
 
 
@@ -24,6 +24,7 @@ class LegalPhilosophyService:
         for doc in docs:
             self.storage.persist_source(doc, texts[doc.source_id])
         conflict = build_conflict_registry(docs)
+        primary_status = primary_lineage_status(docs)
         self.storage.atomic_json(self.storage.evidence / "conflict_registry.json", conflict)
         result = {
             "status": "PASS",
@@ -35,10 +36,10 @@ class LegalPhilosophyService:
                 if CASE_CORPUS_IDS.issubset({doc.source_id for doc in docs if doc.role == "CASE"})
                 else "NOT VERIFIED"
             ),
-            "primary_source_lineage": "NOT VERIFIED",
+            "primary_source_lineage": primary_status,
             "note": (
-                "current network update validates scholarship, legal authority, and an archival case source; "
-                "primary-edition section/text lineage remains NOT VERIFIED"
+                "primary lineage requires the exact Dyde 1896 PDF title-page identity and all frozen section-range "
+                "markers; quotation-level claims remain separately fail-closed"
             ),
         }
         self.storage.atomic_json(self.storage.evidence / "update_result.json", result)
@@ -73,13 +74,14 @@ class LegalPhilosophyService:
         roles = {doc.role for doc in docs}
         source_ids = {doc.source_id for doc in docs}
         conflict = build_conflict_registry(docs)
+        primary_status = primary_lineage_status(docs)
         result = {
             "status": "PASS",
             "frozen_scope_sections": 8,
             "source_roles_present": sorted(roles),
             "scholarship_lineage": "PASS" if "AUTHORITATIVE_SCHOLARSHIP" in roles else "NOT VERIFIED",
             "legal_authority_lineage": "PASS" if "LEGAL_AUTHORITY" in roles else "NOT VERIFIED",
-            "primary_source_lineage": "NOT VERIFIED",
+            "primary_source_lineage": primary_status,
             "source_conflict_handling": conflict.get("status", "NOT VERIFIED"),
             "case_source_lineage": (
                 "PASS"
