@@ -18,7 +18,7 @@ jobs:
         with:
           ref: ${{ env.PROBE_HEAD_SHA }}
           fetch-depth: 0
-      - name: Create and delete temporary draft Release
+      - name: Create draft Release, upload asset, re-download Same Hash, delete
         run: python .github/scripts/probe_release_capability.py
       - name: Upload sanitized evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
