@@ -52,8 +52,61 @@ def run_worker(action: str, package_root: Path) -> int:
         return 0
 
     if action == "advanced":
+        import math
+        import pandas as pd
         from stock_ai.audit import run_audit
         from stock_ai.backtest import run_backtest
+        from stock_ai.config import ROOT, load_config
+        from stock_ai.data_source import qualify_research_pool_coverage
+        from stock_ai.valuation import refresh_valuation_histories, valuation_history_coverage
+
+        cfg = load_config()
+        master_path = ROOT / "cache" / "universe_master.csv"
+        predictions_path = ROOT / "predictions" / "latest" / "predictions.csv"
+        if not master_path.is_file() or not predictions_path.is_file():
+            raise RuntimeError("advanced qualification requires a completed current core run")
+
+        master = pd.read_csv(master_path, dtype={"code": str})
+        research_coverage = qualify_research_pool_coverage(master, cfg)
+
+        predictions = pd.read_csv(predictions_path, dtype={"code": str})
+        if "code" not in predictions or predictions.empty:
+            raise RuntimeError("advanced qualification has no current prediction universe")
+        valuation_codes = list(dict.fromkeys(predictions["code"].dropna().astype(str).tolist()))[:120]
+        valuation_target = max(
+            0.40, float((cfg.get("valuation", {}) or {}).get("backtest_min_coverage", 0.40))
+        )
+        valuation_status = {
+            "coverage": valuation_history_coverage(valuation_codes),
+            "target": valuation_target,
+        }
+        batch = max(1, int((cfg.get("valuation", {}) or {}).get("history_refresh_batch", 20)))
+        max_passes = math.ceil(len(valuation_codes) / batch) + 2
+        for _ in range(max_passes):
+            if float(valuation_status.get("coverage", 0) or 0) >= valuation_target:
+                break
+            before = float(valuation_status.get("coverage", 0) or 0)
+            valuation_status = refresh_valuation_histories(valuation_codes, cfg)
+            if float(valuation_status.get("coverage", 0) or 0) <= before and not valuation_status.get("due"):
+                break
+
+        preparation = {
+            "status": "PASS" if (
+                float(research_coverage.get("coverage", 0) or 0) >= 0.90
+                and float(research_coverage.get("delisted_coverage", 0) or 0) >= 0.90
+                and float(valuation_status.get("coverage", 0) or 0) >= valuation_target
+            ) else "NOT VERIFIED",
+            "research_coverage": research_coverage,
+            "valuation_coverage": valuation_status,
+        }
+        evidence_path = ROOT / "evidence" / "advanced_preparation.json"
+        evidence_path.parent.mkdir(parents=True, exist_ok=True)
+        evidence_path.write_text(
+            json.dumps(preparation, ensure_ascii=True, indent=2, default=str) + "\n",
+            encoding="utf-8",
+        )
+        print(json.dumps({"advanced_preparation": preparation}, ensure_ascii=True, default=str))
+
         _, summary = run_backtest()
         audit = run_audit()
         print(json.dumps({
@@ -62,6 +115,7 @@ def run_worker(action: str, package_root: Path) -> int:
             "active_version": version,
             "audit_trust": audit.get("trust") if isinstance(audit, dict) else None,
             "backtest": summary,
+            "advanced_preparation": preparation,
         }, ensure_ascii=True, default=str))
         return 0
 
