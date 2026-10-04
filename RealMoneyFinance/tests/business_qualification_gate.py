@@ -10,6 +10,7 @@ from app.domain import DailyBar
 from app.netclient import NetClient
 from app.source_eastmoney import fetch_daily_bars as fetch_daily_bars_eastmoney
 from app.source_market import fetch_daily_bars_failover
+from app.source_tencent_full import fetch_daily_bars_tencent_full
 from app.source_yahoo import fetch_daily_bars_yahoo
 from tests.business_failclosed_contract import run_contract
 
@@ -65,63 +66,98 @@ def synthetic_contract() -> dict:
 
 
 def _field_complete_ablation_replication(client: NetClient, reference_rows: list[DailyBar]) -> dict:
-    """Try a dedicated real-network path; never fabricate fields or fail open."""
-    try:
-        rows, meta = fetch_daily_bars_eastmoney(client, "600000", 260)
-    except Exception as exc:
-        return {"status": "NOT VERIFIED", "reason": "field-complete Eastmoney fetch failed", "error": repr(exc)}
-    if not rows or not reference_rows:
-        return {"status": "NOT VERIFIED", "reason": "field-complete or reference rows missing"}
-    latest = rows[-1]
-    reference = reference_rows[-1]
-    if latest.trade_date != reference.trade_date:
-        return {
-            "status": "NOT VERIFIED",
-            "reason": "field-complete source as-of date does not match primary qualification date",
-            "field_complete_asof": latest.trade_date,
-            "reference_asof": reference.trade_date,
-        }
-    rel = abs(float(latest.close) - float(reference.close)) / max(
-        abs(float(latest.close)), abs(float(reference.close)), 1e-9
-    )
-    if rel > 0.02:
-        return {
-            "status": "NOT VERIFIED",
-            "reason": "field-complete source close differs from primary by more than 2%",
+    """Use only real field-complete providers; every mismatch remains fail-closed."""
+    attempts = []
+    for provider_name, fetcher in (
+        ("eastmoney_public_l1", fetch_daily_bars_eastmoney),
+        ("tencent_public_full_kline", fetch_daily_bars_tencent_full),
+    ):
+        try:
+            rows, meta = fetcher(client, "600000", 260)
+        except Exception as exc:
+            attempts.append({
+                "provider": provider_name,
+                "status": "FAIL",
+                "reason": "field-complete production fetch failed",
+                "error": repr(exc),
+            })
+            continue
+        if not rows or not reference_rows:
+            attempts.append({
+                "provider": provider_name,
+                "status": "NOT VERIFIED",
+                "reason": "field-complete or reference rows missing",
+            })
+            continue
+
+        latest = rows[-1]
+        reference = reference_rows[-1]
+        if latest.trade_date != reference.trade_date:
+            attempts.append({
+                "provider": provider_name,
+                "status": "NOT VERIFIED",
+                "reason": "field-complete source as-of date does not match primary qualification date",
+                "field_complete_asof": latest.trade_date,
+                "reference_asof": reference.trade_date,
+            })
+            continue
+        rel = abs(float(latest.close) - float(reference.close)) / max(
+            abs(float(latest.close)), abs(float(reference.close)), 1e-9
+        )
+        if rel > 0.02:
+            attempts.append({
+                "provider": provider_name,
+                "status": "NOT VERIFIED",
+                "reason": "field-complete source close differs from primary by more than 2%",
+                "relative_close_difference": rel,
+            })
+            continue
+
+        amount_ok = all(float(row.amount or 0.0) > 0 for row in rows)
+        turnover_ok = all(
+            row.turnover_rate is not None and float(row.turnover_rate) > 0 for row in rows
+        )
+        volume_ok = all(float(row.volume or 0.0) > 0 for row in rows)
+        if not (amount_ok and turnover_ok and volume_ok):
+            attempts.append({
+                "provider": provider_name,
+                "status": "NOT VERIFIED",
+                "reason": "field-complete source lacks required amount/turnover/volume coverage",
+                "amount_complete": amount_ok,
+                "turnover_complete": turnover_ok,
+                "volume_complete": volume_ok,
+            })
+            continue
+
+        scoped_meta = dict(meta)
+        scoped_meta["qualification_scope"] = "production_real_network"
+        dedicated = qualify_research(rows, scoped_meta, CostAssumptions())
+        gate = dedicated.get("gates", {}).get("ablation", "NOT VERIFIED")
+        result = {
+            "status": "PASS" if gate == "PASS" else "NOT VERIFIED",
+            "provider": meta.get("provider"),
+            "payload_sha256": meta.get("payload_sha256"),
+            "asof": latest.trade_date,
+            "rows": len(rows),
             "relative_close_difference": rel,
-        }
-    amount_ok = all(float(row.amount or 0.0) > 0 for row in rows)
-    turnover_ok = all(
-        row.turnover_rate is not None and float(row.turnover_rate) > 0 for row in rows
-    )
-    volume_ok = all(float(row.volume or 0.0) > 0 for row in rows)
-    if not (amount_ok and turnover_ok and volume_ok):
-        return {
-            "status": "NOT VERIFIED",
-            "reason": "field-complete source lacks required amount/turnover/volume coverage",
+            "price_adjustment": meta.get("price_adjustment"),
             "amount_complete": amount_ok,
             "turnover_complete": turnover_ok,
             "volume_complete": volume_ok,
+            "ablation_gate": gate,
+            "ablation_results": dedicated.get("ablation_results", {}),
+            "provider_attempts": attempts + [{
+                "provider": provider_name,
+                "status": "PASS" if gate == "PASS" else "NOT VERIFIED",
+            }],
         }
-    scoped_meta = dict(meta)
-    scoped_meta["qualification_scope"] = "production_real_network"
-    dedicated = qualify_research(rows, scoped_meta, CostAssumptions())
-    gate = dedicated.get("gates", {}).get("ablation", "NOT VERIFIED")
-    return {
-        "status": "PASS" if gate == "PASS" else "NOT VERIFIED",
-        "provider": meta.get("provider"),
-        "payload_sha256": meta.get("payload_sha256"),
-        "asof": latest.trade_date,
-        "rows": len(rows),
-        "relative_close_difference": rel,
-        "price_adjustment": meta.get("price_adjustment"),
-        "amount_complete": amount_ok,
-        "turnover_complete": turnover_ok,
-        "volume_complete": volume_ok,
-        "ablation_gate": gate,
-        "ablation_results": dedicated.get("ablation_results", {}),
-    }
+        return result
 
+    return {
+        "status": "NOT VERIFIED",
+        "reason": "no production provider produced verified field-complete ablation evidence",
+        "provider_attempts": attempts,
+    }
 
 def real_network_qualification() -> dict:
     with tempfile.TemporaryDirectory() as td:

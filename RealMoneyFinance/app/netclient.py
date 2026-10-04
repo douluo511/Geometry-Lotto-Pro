@@ -122,3 +122,112 @@ class NetClient:
                 sleep_s = self.backoff_base * (2 ** (attempt - 1)) + random.uniform(0, self.backoff_base)
                 time.sleep(sleep_s)
         raise RuntimeError(f"network request failed after {self.max_attempts} attempts; last_error={last_error!r}") from last_error
+
+
+    def get_jsonp_object(
+        self,
+        url: str,
+        params: dict[str, Any],
+        expected_variable: str,
+        headers: dict[str, str] | None = None,
+    ) -> tuple[dict[str, Any], ResponseMeta]:
+        """Fetch one strict JavaScript assignment whose payload is valid JSON.
+
+        This is intentionally narrower than a generic JSONP parser: the exact
+        assignment variable is caller-supplied and no arbitrary JavaScript is
+        evaluated.
+        """
+        if not str(url).lower().startswith("https://"):
+            raise ValueError("production network requests require HTTPS")
+        if not expected_variable or any(
+            not (ch.isalnum() or ch == "_") for ch in expected_variable
+        ):
+            raise ValueError("expected JSONP variable must be alphanumeric/underscore")
+
+        last_error: Exception | None = None
+        for attempt in range(1, self.max_attempts + 1):
+            started = time.time()
+            try:
+                r = self.session.get(
+                    url,
+                    params=params,
+                    headers=headers,
+                    timeout=(self.connect_timeout, self.read_timeout),
+                    allow_redirects=True,
+                )
+                status = int(r.status_code)
+                ctype = str(r.headers.get("content-type", "")).lower()
+                if status == 429 or 500 <= status <= 599:
+                    raise requests.HTTPError(f"retryable HTTP {status}", response=r)
+                r.raise_for_status()
+                body = r.content
+                if not body:
+                    raise ValueError("empty response")
+                digest = hashlib.sha256(body).hexdigest()
+                if not any(token in ctype for token in (
+                    "javascript", "json", "text/plain", "text/html"
+                )):
+                    raise ValueError(
+                        f"unexpected JSONP Content-Type: {ctype}; payload_sha256={digest}"
+                    )
+                try:
+                    text = body.decode("utf-8-sig").strip()
+                except Exception as decode_exc:
+                    raise ValueError(
+                        f"JSONP decode failed: payload_sha256={digest}; error={decode_exc!r}"
+                    ) from decode_exc
+                prefix = expected_variable + "="
+                if not text.startswith(prefix):
+                    raise ValueError(
+                        f"JSONP assignment variable mismatch: expected={expected_variable!r}; "
+                        f"payload_sha256={digest}"
+                    )
+                payload = text[len(prefix):].strip()
+                if payload.endswith(";"):
+                    payload = payload[:-1].rstrip()
+                if not payload.startswith("{") or not payload.endswith("}"):
+                    raise ValueError(
+                        f"JSONP payload is not one object assignment; payload_sha256={digest}"
+                    )
+                try:
+                    obj = json.loads(payload)
+                except Exception as json_exc:
+                    raise ValueError(
+                        f"JSONP JSON parse failed: payload_sha256={digest}; error={json_exc!r}"
+                    ) from json_exc
+                if not isinstance(obj, dict):
+                    raise ValueError("JSONP root must be an object")
+                meta = ResponseMeta(
+                    str(r.url), status, ctype, time.time(), digest, attempt,
+                    "strict-assignment-json"
+                )
+                self._record({
+                    "status": "PASS",
+                    "url": str(r.url),
+                    "http_status": status,
+                    "content_type": ctype,
+                    "content_type_policy": "strict-assignment-json",
+                    "payload_sha256": digest,
+                    "attempt": attempt,
+                    "jsonp_variable": expected_variable,
+                    "elapsed_seconds": round(time.time() - started, 6),
+                })
+                return obj, meta
+            except Exception as exc:
+                last_error = exc
+                self._record({
+                    "status": "FAIL",
+                    "url": url,
+                    "attempt": attempt,
+                    "jsonp_variable": expected_variable,
+                    "error": repr(exc),
+                    "elapsed_seconds": round(time.time() - started, 6),
+                })
+                if attempt >= self.max_attempts:
+                    break
+                sleep_s = self.backoff_base * (2 ** (attempt - 1)) + random.uniform(0, self.backoff_base)
+                time.sleep(sleep_s)
+        raise RuntimeError(
+            f"network JSONP request failed after {self.max_attempts} attempts; "
+            f"last_error={last_error!r}"
+        ) from last_error

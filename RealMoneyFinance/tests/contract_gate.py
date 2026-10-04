@@ -10,6 +10,7 @@ from app.domain import DailyBar
 from app.engine import analyze_observable_activity, reverse_validation
 from app.source_eastmoney import fetch_daily_bars
 from app.source_tencent import fetch_daily_bars_tencent
+from app.source_tencent_full import fetch_daily_bars_tencent_full
 from app.source_yahoo import fetch_daily_bars_yahoo
 from app.storage import Storage
 
@@ -50,6 +51,27 @@ class FakeTencentClient:
         return {"data": {"sh600000": {"qfqday": rows}}}, meta
 
 
+class FakeTencentFullClient:
+    def get_jsonp_object(self, url, params, expected_variable, headers=None):
+        meta = SimpleNamespace(
+            status=200,
+            payload_sha256="d" * 64,
+            retrieved_at_unix=4.0,
+            url=url,
+            content_type="application/javascript; charset=utf-8",
+            content_type_policy="strict-assignment-json",
+        )
+        rows = []
+        start = date(2026, 7, 1)
+        for i in range(40):
+            day = (start + timedelta(days=i)).isoformat()
+            rows.append([
+                day, "10", "10.1", "10.2", "9.9", str(1000+i),
+                "unused", "2.5", str(20+i),
+            ])
+        return {"data": {"sh600000": {"qfqday": rows}}}, meta
+
+
 class FakeYahooClient:
     def get_json(self, url, params, headers=None):
         meta = SimpleNamespace(
@@ -81,6 +103,15 @@ def main() -> int:
     assert all(x.amount == 0.0 for x in tencent_bars)
     assert all(x.raw_sha256 == "b" * 64 for x in tencent_bars)
     assert tmeta["provider"] == "tencent_public_kline"
+
+    tfull_bars, tfull_meta = fetch_daily_bars_tencent_full(FakeTencentFullClient(), "600000", 40)
+    assert len(tfull_bars) == 40
+    assert all(x.amount > 0 for x in tfull_bars)
+    assert all(x.turnover_rate is not None and x.turnover_rate > 0 for x in tfull_bars)
+    assert all(x.volume > 0 for x in tfull_bars)
+    assert all(x.raw_sha256 == "d" * 64 for x in tfull_bars)
+    assert tfull_meta["provider"] == "tencent_public_full_kline"
+    assert tfull_meta["unit_contract"] == "volume=shares; turnover_rate=fraction; amount=CNY"
 
     yahoo_bars, ymeta = fetch_daily_bars_yahoo(FakeYahooClient(), "600000", 40)
     assert len(yahoo_bars) == 40

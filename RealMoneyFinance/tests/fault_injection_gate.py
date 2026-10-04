@@ -74,6 +74,41 @@ def main() -> int:
         assert meta.content_type_policy == "provider-mislabeled-strict-json-body"
         cases.append({"name":"provider_mislabeled_strict_json_body","status":"PASS"})
 
+        jsonp=NetClient(Path(td)/"jsonp.jsonl", max_attempts=1, backoff_base=0)
+        good_assignment=Resp(200, ctype="application/javascript", obj={})
+        good_assignment.content=b'kline_dayqfq2025={"data":{"ok":true}};'
+        jsonp.session=SequenceSession([good_assignment])
+        obj, meta=jsonp.get_jsonp_object(
+            "https://example.invalid/data", {}, "kline_dayqfq2025"
+        )
+        assert obj["data"]["ok"] is True
+        assert meta.content_type_policy == "strict-assignment-json"
+        cases.append({"name":"strict_jsonp_assignment","status":"PASS"})
+
+        wrong_prefix=NetClient(Path(td)/"jsonp-prefix.jsonl", max_attempts=1, backoff_base=0)
+        prefix_resp=Resp(200, ctype="application/javascript", obj={})
+        prefix_resp.content=b'evil={"data":{"ok":true}};'
+        wrong_prefix.session=SequenceSession([prefix_resp])
+        expect_fail(
+            lambda: wrong_prefix.get_jsonp_object(
+                "https://example.invalid/data", {}, "kline_dayqfq2025"
+            ),
+            "jsonp-prefix",
+        )
+        cases.append({"name":"jsonp_wrong_variable_fail_closed","status":"PASS"})
+
+        trailing_script=NetClient(Path(td)/"jsonp-script.jsonl", max_attempts=1, backoff_base=0)
+        script_resp=Resp(200, ctype="application/javascript", obj={})
+        script_resp.content=b'kline_dayqfq2025={"data":{"ok":true}};alert(1)'
+        trailing_script.session=SequenceSession([script_resp])
+        expect_fail(
+            lambda: trailing_script.get_jsonp_object(
+                "https://example.invalid/data", {}, "kline_dayqfq2025"
+            ),
+            "jsonp-trailing-script",
+        )
+        cases.append({"name":"jsonp_trailing_script_fail_closed","status":"PASS"})
+
         empty_schema=NetClient(Path(td)/"schema.jsonl", max_attempts=1, backoff_base=0)
         empty_schema.session=SequenceSession([Resp(200, obj={"data": {"klines": []}})])
         expect_fail(lambda: fetch_daily_bars(empty_schema, "600000", 40), "schema")
