@@ -110,7 +110,12 @@ def repair(package_root: Path) -> dict:
     tmp.write_text(json.dumps(evidence, ensure_ascii=False, indent=2), encoding="utf-8")
     os.replace(tmp, out)
     if doctor.returncode != 0:
-        raise RuntimeError("repair completed protective actions but doctor self-check still failed")
+        raise RuntimeError(
+            "repair completed protective actions but doctor self-check still failed; "
+            f"doctor_returncode={doctor.returncode}; "
+            f"doctor_stdout={doctor.stdout[-12000:]!r}; "
+            f"doctor_stderr={doctor.stderr[-12000:]!r}"
+        )
     return evidence
 
 
