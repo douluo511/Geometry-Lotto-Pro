@@ -11,7 +11,11 @@
     "bootstrap_batch": 60,
     "bootstrap_max_symbols": 0,
     "include_delisted_research": true,
-    "delisted_bootstrap_fraction": 0.25
+    "delisted_bootstrap_fraction": 0.25,
+    "qualification_coverage_target": 0.9,
+    "qualification_delisted_target": 0.9,
+    "qualification_bootstrap_chunk": 384,
+    "qualification_bootstrap_max_seconds": 7200
   },
   "model": {
     "horizon_days": 5,
@@ -110,7 +114,8 @@
     "https_only": true,
     "history_primary_circuit_failures": 4,
     "history_primary_probe_every": 24,
-    "industry_workers": 4
+    "industry_workers": 4,
+    "qualification_history_workers": 12
   },
   "cost": {
     "order_size_cny": 100000,
