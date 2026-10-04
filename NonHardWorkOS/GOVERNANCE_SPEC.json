@@ -1,0 +1,67 @@
+{
+  "schema": "non-hard-work-os-governance-v1",
+  "lineage": "NEW_REAUTHORED_LINEAGE",
+  "historical_source_recovered": false,
+  "purpose": "Reduce long-term dependence of income on repeated personal labor by validating real demand, unit economics, repeatability, systemization and asset accumulation. No profit guarantee.",
+  "frozen_business_source": "User-owned V9/V8 operating-system corpus; source document bytes remain outside this public repository.",
+  "validation_chain": [
+    "V-A logic",
+    "V-B reversal/red-team",
+    "V-C real demand behavior",
+    "V-D real payment",
+    "V-E unit economics/cash flow",
+    "V-F repeat purchase/delivery",
+    "V-G SOP/outsource/AI systemization",
+    "V-H asset accumulation",
+    "V-I scale stress"
+  ],
+  "five_why": [
+    "Why can a project make money? Identify the profit mechanism as a hypothesis.",
+    "Why might that mechanism fail? Attack dependencies and single points of failure.",
+    "Why would a real customer act now? Require behavior, not compliments.",
+    "Why does revenue become durable cash? Require costs, cash timing and repeat transactions.",
+    "Why can income decouple from repeated owner labor? Require SOP/automation/assets that continue to work."
+  ],
+  "risk_boundary": {
+    "no_income_guarantee": true,
+    "real_money_gate": "No scale-up until real payment and finance evidence exist.",
+    "cash_guard": "Net profit and cash flow outrank gross revenue.",
+    "stop_rule": "Each project must predefine max loss, timebox and stop condition."
+  },
+  "ui_entries": [
+    "项目验证",
+    "一键更新",
+    "一键修复",
+    "高级分析"
+  ],
+  "operating_rhythm": {
+    "daily": [
+      "leads",
+      "qualified conversations",
+      "quotes",
+      "payments",
+      "cash"
+    ],
+    "weekly": [
+      "revenue",
+      "net profit",
+      "CAC",
+      "conversion",
+      "rejection reasons"
+    ],
+    "monthly": [
+      "LTV",
+      "repeat rate",
+      "refunds",
+      "cash",
+      "owner hours"
+    ],
+    "quarterly": [
+      "demand shifts",
+      "competition",
+      "AI change",
+      "concentration risk",
+      "SOP independence"
+    ]
+  }
+}
