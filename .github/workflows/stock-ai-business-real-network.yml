@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - 'StockAIPro/staging/**'
+      - 'StockAIPro/desktop_native/**'
+      - 'StockAIPro/hardening_tests/desktop_native_contract_test.py'
       - 'StockAIPro/hardening_tests/full_daily_business_gate.py'
       - '.github/workflows/stock-ai-business-real-network.yml'
 concurrency:
