@@ -52,6 +52,9 @@ def main():
     if acceptance.get("schema_version") != 1:
         raise RuntimeError("missing or unsupported frozen acceptance contract")
 
+    governance = read("governance_evidence.json")
+    governance_ok = governance.get("status") == "PASS" and governance.get("source_sha") == source_sha
+    governance_gates = governance.get("gates", {}) if governance_ok else {}
     contract = read("contract_evidence.json")
     fault = read("fault_injection_evidence.json")
     network = read("real_network_evidence.json")
@@ -94,6 +97,7 @@ def main():
     }
 
     evidence_present = all_evidence_present([
+        "governance_evidence.json",
         "contract_evidence.json",
         "fault_injection_evidence.json",
         "updater_contract_evidence.json",
@@ -105,12 +109,12 @@ def main():
     ])
 
     engineering_statuses = {
-        "requirements_purpose_model": "NOT VERIFIED",
-        "five_why": "NOT VERIFIED",
+        "requirements_purpose_model": governance_gates.get("requirements_purpose_model", "NOT VERIFIED"),
+        "five_why": governance_gates.get("five_why", "NOT VERIFIED"),
         "risk_boundary": "PASS" if contract.get("status") == "PASS" else "NOT VERIFIED",
-        "domain_model": "NOT VERIFIED",
-        "architecture": "NOT VERIFIED",
-        "function_inventory": "NOT VERIFIED",
+        "domain_model": governance_gates.get("domain_model", "NOT VERIFIED"),
+        "architecture": governance_gates.get("architecture", "NOT VERIFIED"),
+        "function_inventory": governance_gates.get("function_inventory", "NOT VERIFIED"),
         "interface_contracts": contract.get("status", "NOT VERIFIED"),
         "data_sources": network.get("status", "NOT VERIFIED"),
         "netclient": "PASS" if fault.get("status") == "PASS" and network.get("status") == "PASS" else "NOT VERIFIED",
