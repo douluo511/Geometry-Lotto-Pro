@@ -6,8 +6,10 @@ on:
   pull_request:
     paths:
       - 'StockAIPro/desktop_native/**'
+      - 'StockAIPro/staging/**'
       - 'StockAIPro/hardening_tests/desktop_native_contract_test.py'
       - 'StockAIPro/hardening_tests/desktop_gui_physical_click_gate.py'
+      - 'StockAIPro/hardening_tests/netclient_contract_test.py'
       - '.github/workflows/stock-ai-desktop-candidate.yml'
 
 concurrency:
@@ -105,6 +107,11 @@ jobs:
           $env:STOCK_AI_DATA_ROOT = $data
           $before = (Get-FileHash -Algorithm SHA256 $exe).Hash.ToLowerInvariant()
           $proc = Start-Process -FilePath $exe -ArgumentList @('--worker','core','--package-root',"$root") -Wait -PassThru
+          $workerEvidence = Join-Path $data "evidence/worker_core.json"
+          if (Test-Path $workerEvidence) {
+            Copy-Item -Force $workerEvidence ./desktop_core_worker_evidence.json
+            Get-Content -Raw $workerEvidence | Write-Host
+          }
           if ($proc.ExitCode -ne 0) { throw "frozen core worker failed rc=$($proc.ExitCode)" }
           $lastRun = Join-Path $data "state/last_run.json"
           if (!(Test-Path $lastRun)) { throw "frozen core produced no last_run.json" }
@@ -170,6 +177,7 @@ jobs:
             StockAIPro/desktop_windows_build_evidence.json
             StockAIPro/desktop_exact_exe_evidence.json
             StockAIPro/desktop_frozen_core_evidence.json
+            StockAIPro/desktop_core_worker_evidence.json
             StockAIPro/desktop_frozen_advanced_evidence.json
             StockAIPro/desktop_repair_worker_evidence.json
             StockAIPro/desktop_gui_click_evidence.json
