@@ -1,0 +1,30 @@
+{
+  "schema": "passive-income-pipeline-governance-v1",
+  "lineage": "NEW_REAUTHORED_LINEAGE",
+  "historical_candidate": {
+    "artifact": "Passive_Income_Pipeline_OS_v0.2.exe",
+    "sha256": "b92a37e886028fb270faceab4efe4673848686b835c49211a82cabd2db55d8fb",
+    "acceptance_inherited": false
+  },
+  "purpose": "Build observable, fail-closed, repeatable income pipelines whose economics and dependence on owner labor can be measured. No sample, projection, or network success may be presented as real income.",
+  "five_why": [
+    "Why is an income pipeline useful? It should turn a repeatable value-delivery process into observable cash-flow opportunities.",
+    "Why can it fail? A connector, customer source, delivery step, cost assumption, or dependency may break.",
+    "Why require real evidence? Activity and projected revenue are not payment.",
+    "Why require cost/time accounting? Gross receipts can hide negative economics or owner overwork.",
+    "Why require reversibility? A pipeline must be stoppable before losses, compliance risk, or dependency failure compound."
+  ],
+  "risk_boundary": {
+    "no_income_guarantee": true,
+    "real_revenue_requires_external_payment_evidence": true,
+    "credentials": "Never embed user secrets in evidence or repository.",
+    "compliance": "User-configured production connectors remain NOT VERIFIED until authorized and exercised.",
+    "stop_rule": "Every pipeline requires max loss/time/attempt limits and a reversible disable switch."
+  },
+  "ui_entries": [
+    "收益总览",
+    "一键更新",
+    "一键修复",
+    "高级分析"
+  ]
+}
