@@ -94,11 +94,60 @@ def bounded_row(row):
     )
     return {k: row.get(k) for k in wanted if k in row}
 
+
+def trade_day_probe(session, biz_date: str):
+    params = {
+        "sqlId": "GW_PL_JYTS_TFPXX_TRADEDAY",
+        "bizDate": biz_date,
+        "jsonCallBack": "jsonpCallback",
+    }
+    r, meta = fetch(session, ENDPOINT, params=params, attempts=3)
+    payload, parsed_as = parse_json_or_jsonp(decode(r))
+    rows = payload.get("result") if isinstance(payload, dict) else None
+    if not isinstance(rows, list):
+        raise RuntimeError(f"trade-day result is not a list for {biz_date}")
+    return {
+        "bizDate": biz_date,
+        "status": r.status_code,
+        "url": r.url,
+        "sha256": sha256(r.content),
+        "attempt": meta["attempt"],
+        "parsed_as": parsed_as,
+        "row_count": len(rows),
+        "rows": rows[:5],
+    }
+
 def main():
     s = requests.Session()
 
     source_report = {}
     texts = {}
+
+    trade_day_dates = [
+        "20260924",  # last regular day before 2026 Mid-Autumn closure
+        "20260925",  # official closure
+        "20260927",  # weekend / official closure
+        "20260928",  # reopen
+        "20260930",  # last regular day before National Day closure
+        "20261001",  # official closure
+        "20261005",  # official closure
+        "20261008",  # reopen
+        "20260223",  # Spring Festival closure
+        "20260224",  # reopen
+    ]
+    trade_day_contract = {
+        d: trade_day_probe(s, d)
+        for d in trade_day_dates
+    }
+    trade_day_before_values = {}
+    for d, item in trade_day_contract.items():
+        rows = item.get("rows") or []
+        row = rows[0] if rows and isinstance(rows[0], dict) else {}
+        trade_day_before_values[d] = row.get("beforeTradeDay")
+    trade_day_endpoint_supported = all(
+        isinstance(v, str) and len(v) == 8 and v.isdigit()
+        for v in trade_day_before_values.values()
+    )
     for label, url in [
         ("suspension_page", SUSPENSION_PAGE),
         ("suspension_script", SUSPENSION_SCRIPT),
@@ -181,6 +230,13 @@ def main():
         "frontend_semantics": frontend_semantics,
         "discovered_script_urls": discovered,
         "candidate_scripts": candidate_scripts,
+        "trade_day_contract": {
+            "sqlId": "GW_PL_JYTS_TFPXX_TRADEDAY",
+            "probe_dates": trade_day_dates,
+            "beforeTradeDay": trade_day_before_values,
+            "responses": trade_day_contract,
+            "endpoint_supported": trade_day_endpoint_supported,
+        },
         "suspension_sample": {
             "endpoint": rr.url,
             "status": rr.status_code,
@@ -195,7 +251,8 @@ def main():
         "adjudication": {
             "official_sources_reached": True,
             "frontend_endStopDate_semantics": "SUPPORTED" if frontend_semantics["endStopDate"] else "NOT VERIFIED",
-            "independent_sse_trading_calendar_contract": "SUPPORTED_CANDIDATE_ONLY" if candidate_scripts else "NOT VERIFIED",
+            "sse_trade_day_endpoint": "SUPPORTED" if trade_day_endpoint_supported else "NOT VERIFIED",
+            "independent_sse_trading_calendar_contract": "SUPPORTED_ENDPOINT_ONLY" if trade_day_endpoint_supported else "NOT VERIFIED",
             "historical_daily_suspension_state": "NOT VERIFIED",
             "shanghai_historical_st_pit": "NOT VERIFIED",
             "full_historical_st_pit": "NOT VERIFIED",
@@ -212,6 +269,8 @@ def main():
         "frontend_endStopDate_fragments": len(frontend_semantics["endStopDate"]),
         "resume_term_fragments": len(frontend_semantics["resume_terms"]),
         "candidate_script_count": len(candidate_scripts),
+        "trade_day_endpoint_supported": trade_day_endpoint_supported,
+        "trade_day_before_values": trade_day_before_values,
         "sample_rows_with_endStopDate": len(with_end),
         "historical_daily_suspension_state": "NOT VERIFIED",
         "advanced_business": "NOT VERIFIED",
