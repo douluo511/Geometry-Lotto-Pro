@@ -4,6 +4,10 @@ on:
   push:
     branches:
       - diagnostic/stock-bse-company-removal-history-20261006
+  pull_request:
+    paths:
+      - ".github/stock_diag/stock_bse_company_removal_history.py"
+      - ".github/workflows/stock-bse-company-removal-history.yml"
   workflow_dispatch:
 
 permissions:
@@ -16,16 +20,19 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
 
       - name: Verify exact checkout and unchanged Stock product bytes
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
-          git merge-base --is-ancestor 6c5a3c9d079b2ef3665d45ebaf3305cfe802547d HEAD
-          test -z "$(git diff --name-only 6c5a3c9d079b2ef3665d45ebaf3305cfe802547d..HEAD -- StockAIPro)"
+          exact="${{ github.event.pull_request.head.sha || github.sha }}"
+          test "$(git rev-parse HEAD)" = "$exact"
+          authoritative="7f270b9ab58e11fd8129053a65e000c90ff9d8c1"
+          git merge-base --is-ancestor "$authoritative" HEAD
+          test -z "$(git diff --name-only "$authoritative"..HEAD -- StockAIPro)"
+          echo "STOCK_PRODUCT_TREE_BYTE_IDENTITY=PASS"
 
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
@@ -40,7 +47,7 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
-          name: STOCK-BSE-COMPANY-REMOVAL-HISTORY-${{ github.sha }}
+          name: STOCK-BSE-COMPANY-REMOVAL-HISTORY-${{ github.event.pull_request.head.sha || github.sha }}
           path: stock_bse_company_removal_history.json
           if-no-files-found: warn
           retention-days: 30
