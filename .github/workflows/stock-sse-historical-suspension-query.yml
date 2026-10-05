@@ -71,14 +71,14 @@ jobs:
           x=json.loads(p.read_text(encoding="utf-8"))
           a=x["adjudication"]
           assert a["shanghai_historical_suspension_intervals_2018_to_20260930"] == "SUPPORTED"
-          assert a["historical_daily_suspension_state"] == "SUPPORTED_SHANGHAI_ONLY"
+          assert a["historical_daily_suspension_state"] == "NOT VERIFIED"
           assert a["shanghai_historical_st_pit"] == "NOT VERIFIED"
           assert a["beijing_historical_st_pit"] == "NOT VERIFIED"
           assert a["full_historical_st_pit"] == "NOT VERIFIED"
           assert a["advanced_business"] == "NOT VERIFIED"
           assert a["final_gate"] == "FAIL"
           print("SHANGHAI_HISTORICAL_SUSPENSION_INTERVALS=SUPPORTED")
-          print("HISTORICAL_DAILY_SUSPENSION_STATE=SUPPORTED_SHANGHAI_ONLY")
+          print("HISTORICAL_DAILY_SUSPENSION_STATE=NOT VERIFIED")
           print("SHANGHAI_HISTORICAL_ST_PIT=NOT VERIFIED")
           print("BEIJING_HISTORICAL_ST_PIT=NOT VERIFIED")
           print("FULL_HISTORICAL_ST_PIT=NOT VERIFIED")
