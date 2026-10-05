@@ -26,7 +26,8 @@ def parse_official_cost_rules(sse_html: str, stamp_base_html: str, stamp_half_ht
 
     sse_rate_ok = ("0.00341%" in sse) or ("0.0341‰" in sse)
     stamp_base_ok = ("千分之一" in base) or ("0.1%" in base)
-    stamp_half_ok = "减半征收" in half and ("2023年8月28日" in half or "2023-08-28" in half)
+    stamp_half_date_ok = bool(re.search(r"2023\\s*年\\s*8\\s*月\\s*28\\s*日|2023-0?8-28", half))
+    stamp_half_ok = "减半征收" in half and stamp_half_date_ok
 
     checks = {
         "sse_a_share_handling_fee_0_00341_percent_each_side": sse_rate_ok,
