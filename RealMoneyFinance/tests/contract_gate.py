@@ -107,6 +107,26 @@ class FakeTencentFullPagedClient:
         return {"data": {"sh600000": {key: rows}}}, meta
 
 
+class FakeTencentFullPagedMismatchClient(FakeTencentFullPagedClient):
+    def __init__(self):
+        self.calls = 0
+
+    def get_jsonp_object(self, url, params, expected_variable, headers=None):
+        self.calls += 1
+        obj, meta = super().get_jsonp_object(
+            url, params, expected_variable, headers=headers
+        )
+        if self.calls == 2:
+            code = "sh600000"
+            key = "qfqday" if "qfq" in expected_variable else "day"
+            overlap_start = date(date.today().year, 1, 1).isoformat()
+            for row in obj["data"][code][key]:
+                if row[0] >= overlap_start:
+                    row[2] = f"{float(row[2]) + 1.0:.4f}"
+                    break
+        return obj, meta
+
+
 class FakeYahooClient:
     def get_json(self, url, params, headers=None):
         meta = SimpleNamespace(
@@ -165,6 +185,15 @@ def main() -> int:
     assert paged_meta["price_adjustment"] == "qfq"
     assert len(paged_meta["source_payload_sha256s"]) == paged_meta["history_window_count"]
     assert len(paged_meta["payload_sha256"]) == 64
+
+    try:
+        fetch_daily_bars_tencent_full(
+            FakeTencentFullPagedMismatchClient(), "600000", 1200
+        )
+    except ValueError as exc:
+        assert "overlapping history disagrees" in str(exc)
+    else:
+        raise AssertionError("cross-window qfq mismatch must fail closed")
 
     yahoo_bars, ymeta = fetch_daily_bars_yahoo(FakeYahooClient(), "600000", 40)
     assert len(yahoo_bars) == 40
