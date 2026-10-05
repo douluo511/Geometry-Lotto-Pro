@@ -16,6 +16,12 @@ END = "2026-09-30"
 START8 = "20180101"
 END8 = "20260930"
 SSE_A_PREFIXES = ("600", "601", "603", "605", "688")
+FROZEN_CROSS_SOURCE_DATE_COUNT = 2123
+FROZEN_CROSS_SOURCE_DATE_SHA256 = "45215343b187e337bc2b1ca3edbfc3055cdc77c0130b46c707bfe84ccf5513c9"
+FROZEN_CROSS_SOURCE_FIRST = "2018-01-02"
+FROZEN_CROSS_SOURCE_LAST = "2026-09-30"
+FROZEN_CROSS_SOURCE_SOURCE_HEAD = "51d8dd5819a63248cae3911c286feaf345495e07"
+FROZEN_CROSS_SOURCE_RUN = 37314906853
 
 
 def load(path: Path) -> dict:
@@ -105,20 +111,51 @@ def main() -> int:
     )
     semantic_status = semantic_evidence.get("end_stop_date_semantics")
 
-    em, em_fetch = bounded_fetch(
-        "eastmoney",
-        lambda: ak.stock_zh_index_daily_em(
-            symbol="sh000001", start_date=START8, end_date=END8
-        ),
-    )
+    em = None
+    em_dates = []
+    em_fetch = None
+    em_error = None
+    try:
+        em, em_fetch = bounded_fetch(
+            "eastmoney",
+            lambda: ak.stock_zh_index_daily_em(
+                symbol="sh000001", start_date=START8, end_date=END8
+            ),
+        )
+        em_dates = normalize_dates(em, "eastmoney")
+    except Exception as exc:
+        em_error = f"{type(exc).__name__}: {exc}"
+
     tx, tx_fetch = bounded_fetch(
         "tencent",
         lambda: ak.stock_zh_index_daily_tx(symbol="sh000001"),
     )
-    em_dates = normalize_dates(em, "eastmoney")
     tx_dates = normalize_dates(tx, "tencent")
-    calendar_equal = em_dates == tx_dates
-    trading_dates = em_dates if calendar_equal else []
+
+    tx_sha = date_sha(tx_dates)
+    frozen_anchor_match = (
+        len(tx_dates) == FROZEN_CROSS_SOURCE_DATE_COUNT
+        and tx_dates[0] == FROZEN_CROSS_SOURCE_FIRST
+        and tx_dates[-1] == FROZEN_CROSS_SOURCE_LAST
+        and tx_sha == FROZEN_CROSS_SOURCE_DATE_SHA256
+    )
+    live_dual_equal = bool(em_dates) and em_dates == tx_dates
+    live_dual_anchor_match = (
+        live_dual_equal
+        and len(em_dates) == FROZEN_CROSS_SOURCE_DATE_COUNT
+        and date_sha(em_dates) == FROZEN_CROSS_SOURCE_DATE_SHA256
+    )
+    calendar_supported = live_dual_anchor_match or frozen_anchor_match
+    calendar_mode = (
+        "LIVE_DUAL_PROVIDER_EXACT_MATCH"
+        if live_dual_anchor_match
+        else (
+            "TENCENT_REPLAY_MATCHES_FROZEN_DUAL_PROVIDER_IDENTITY"
+            if frozen_anchor_match
+            else "NOT_VERIFIED"
+        )
+    )
+    trading_dates = tx_dates if calendar_supported else []
     trading_compact = [x.replace("-", "") for x in trading_dates]
 
     intervals = flatten_intervals(intervals_evidence)
@@ -186,13 +223,20 @@ def main() -> int:
     prerequisites = {
         "official_interval_corpus": interval_status,
         "end_stop_date_semantics": semantic_status,
-        "calendar_provider_exact_equality": calendar_equal,
+        "calendar_evidence_mode": calendar_mode,
+        "calendar_provider_exact_equality_live": live_dual_equal,
+        "calendar_frozen_cross_source_anchor_match": frozen_anchor_match,
+        "calendar_frozen_source_head": FROZEN_CROSS_SOURCE_SOURCE_HEAD,
+        "calendar_frozen_source_run": FROZEN_CROSS_SOURCE_RUN,
+        "calendar_frozen_expected_rows": FROZEN_CROSS_SOURCE_DATE_COUNT,
+        "calendar_frozen_expected_sha256": FROZEN_CROSS_SOURCE_DATE_SHA256,
         "calendar_fetch_eastmoney": em_fetch,
+        "calendar_fetch_eastmoney_error": em_error,
         "calendar_fetch_tencent": tx_fetch,
         "calendar_rows_eastmoney": len(em_dates),
         "calendar_rows_tencent": len(tx_dates),
-        "calendar_sha256_eastmoney": date_sha(em_dates),
-        "calendar_sha256_tencent": date_sha(tx_dates),
+        "calendar_sha256_eastmoney": date_sha(em_dates) if em_dates else None,
+        "calendar_sha256_tencent": tx_sha,
         "a_share_interval_count": len(a_share),
         "missing_end_count": len(missing_end),
         "invalid_range_count": len(invalid_range),
@@ -202,7 +246,7 @@ def main() -> int:
     supported = (
         interval_status == "SUPPORTED"
         and semantic_status == "FINAL_SUSPENDED_DATE_SUPPORTED"
-        and calendar_equal
+        and calendar_supported
         and len(trading_dates) > 0
         and len(a_share) > 0
         and not missing_end
@@ -231,7 +275,8 @@ def main() -> int:
             "max_interval_trading_days": max(interval_trade_day_counts) if interval_trade_day_counts else None,
         },
         "adjudication": {
-            "research_trading_date_sequence": "SUPPORTED" if calendar_equal else "NOT VERIFIED",
+            "research_trading_date_sequence": "SUPPORTED" if calendar_supported else "NOT VERIFIED",
+            "research_trading_date_evidence_mode": calendar_mode,
             "shanghai_historical_suspension_intervals": interval_status or "NOT VERIFIED",
             "end_stop_date_semantics": semantic_status or "NOT VERIFIED",
             "historical_daily_suspension_state": (
