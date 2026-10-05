@@ -913,3 +913,14 @@ This checkpoint supersedes older in-progress wording for the items below only. I
 - Artifact `11344858920`, digest `sha256:1feccf434d6e59d9477292861dcaab07c120ec87c3569f64721af321ddb7175e`.
 - RMF remains Engineering **24/28 = 85.7%**, Business **12/16 = 75.0%**, Overall **75.0%**, Final **FAIL**.
 - Portfolio boundary unchanged: migration/export readiness **18/18 PASS**; dedicated repositories **0/18**; Final/Delivery **0/18**.
+
+## 2026-10-05 Stock SSE historical suspension corpus replay
+
+- Diagnostic authority: PR #195 exact branch head `2be2a1a29b3481e53cb4a7656857ac6d7889a450`, stacked from PR #193; authoritative Stock product remains PR #155 @ `43168d9e75c70ab55be808d8a51f0c0eb14d83d5`.
+- Exact-head push run `37311940770` / job `111769207242` = **SUCCESS** and PR-triggered run `37311976231` / job `111769327374` = **SUCCESS**. Both exact-checkout logs resolve to the same branch head and both prove `STOCK_PRODUCT_BYTES_CHANGED=FALSE`.
+- Both runs independently reproduce the same canonical results: pagination replay **PASS**; frozen window **60 months** (2021-10 through 2026-09); **2,893** unique official SSE suspension-event rows; **1,056** SSE A-share event rows; **311** ST-named SSE A-share event rows.
+- Reproducible corpus hashes are identical across both runs: all-product SHA-256 `c36cf257a20c3326240338edaa3454e914d37aa108a50997a336ef8972507c04`; SSE A-share SHA-256 `0d23b02f72a13c9c4a9cc0d738645f8b4296b89ba59ef34b1cfbcff544d9b550`.
+- Push-run evidence artifact `11345697878`, digest `sha256:c07339237d80565f0b78c6db0674b2a4d5a4686e10bfb3d8dc3ec7f0c5867b94`; PR-run evidence artifact `11346521529`, digest `sha256:da99430aa79294a9c0faff78408ee13a2fca7c1cb959561ce765dc0eae9f4423`.
+- Strict adjudication: official SSE historical suspension **event corpus = PASS**. This does **not** prove trading-calendar/resumption-day state semantics or a complete daily market-state replay; therefore historical daily suspension state = **NOT VERIFIED**, Shanghai historical ST/PIT = **NOT VERIFIED**, full A-share `HISTORICAL_ST_PIT` = **NOT VERIFIED**, Advanced Business = **NOT VERIFIED**, Final Gate = **FAIL**.
+- No denominator, threshold, repository-independence requirement, production Release requirement, or Final criterion changed. Portfolio aggregate remains migration/export readiness **18/18 PASS**, dedicated repositories **0/18**, Final/Delivery **0/18**.
+
