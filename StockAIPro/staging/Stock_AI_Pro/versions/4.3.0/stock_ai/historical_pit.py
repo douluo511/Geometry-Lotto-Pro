@@ -216,3 +216,106 @@ def evaluate_historical_st_pit(root: Path, expected_trade_date=None):
         f"历史ST/停牌逐日PIT证据完整且字节哈希绑定；SSE/SZSE/BSE；"
         f"{obj.get('window_start')}..{obj.get('window_end')}"
     ), meta
+
+def load_historical_st_pit_subset(root: Path, required_keys, expected_trade_date=None):
+    """Load only required (date, code) daily PIT states after full evidence qualification.
+
+    The claim/evidence bundle must first pass evaluate_historical_st_pit().  The
+    canonical JSONL is then streamed and validated.  Missing requested keys,
+    malformed rows, conflicting duplicate keys, or invalid state types fail
+    closed instead of silently treating a stock as non-ST/tradable.
+    """
+    root = Path(root)
+    required = set()
+    for item in required_keys:
+        if not isinstance(item, (tuple, list)) or len(item) != 2:
+            raise RuntimeError(f"invalid historical PIT key: {item!r}")
+        day = _parse_day(item[0])
+        code = str(item[1] or "").strip()
+        if day is None or not code:
+            raise RuntimeError(f"invalid historical PIT key: {item!r}")
+        required.add((day.isoformat(), code))
+
+    if not required:
+        raise RuntimeError("historical PIT subset request is empty")
+
+    status, detail, meta = evaluate_historical_st_pit(root, expected_trade_date)
+    if status != PASS:
+        raise RuntimeError(f"historical ST/PIT evidence not qualified: {detail}")
+
+    canonical_binding = (meta.get("bindings") or {}).get("canonical") or {}
+    canonical_meta = canonical_binding.get("meta") or {}
+    canonical_path_raw = canonical_meta.get("path")
+    if not isinstance(canonical_path_raw, str) or not canonical_path_raw:
+        raise RuntimeError("qualified canonical historical PIT path is unavailable")
+    canonical_path = Path(canonical_path_raw)
+    if not canonical_path.is_file():
+        raise RuntimeError("qualified canonical historical PIT file disappeared")
+
+    claim_path = root / "cache" / "historical_st_pit.json"
+    claim = json.loads(claim_path.read_text(encoding="utf-8"))
+    window_start = _parse_day(claim.get("window_start"))
+    window_end = _parse_day(claim.get("window_end"))
+    if window_start is None or window_end is None:
+        raise RuntimeError("qualified historical PIT window is invalid")
+
+    found = {}
+    scanned_rows = 0
+    market_row_counts = {market: 0 for market in REQUIRED_MARKETS}
+    with canonical_path.open("r", encoding="utf-8") as handle:
+        for lineno, raw in enumerate(handle, 1):
+            text = raw.strip()
+            if not text:
+                continue
+            scanned_rows += 1
+            try:
+                row = json.loads(text)
+            except Exception as exc:
+                raise RuntimeError(
+                    f"malformed historical PIT JSONL at line {lineno}: {type(exc).__name__}"
+                ) from exc
+            if not isinstance(row, dict):
+                raise RuntimeError(f"historical PIT row is not an object at line {lineno}")
+
+            day = _parse_day(row.get("date"))
+            market = str(row.get("market") or "").strip().upper()
+            code = str(row.get("code") or "").strip()
+            st = row.get("st")
+            suspended = row.get("suspended")
+            if day is None or day < window_start or day > window_end:
+                raise RuntimeError(f"historical PIT date outside qualified window at line {lineno}")
+            if market not in REQUIRED_MARKETS:
+                raise RuntimeError(f"historical PIT market invalid at line {lineno}: {market!r}")
+            if not code or not code.isdigit():
+                raise RuntimeError(f"historical PIT security code invalid at line {lineno}: {code!r}")
+            if type(st) is not bool or type(suspended) is not bool:
+                raise RuntimeError(f"historical PIT state types invalid at line {lineno}")
+            market_row_counts[market] += 1
+
+            key = (day.isoformat(), code)
+            if key not in required:
+                continue
+            state = {"market": market, "st": st, "suspended": suspended}
+            if key in found:
+                raise RuntimeError(f"duplicate historical PIT state for requested key: {key}")
+            found[key] = state
+
+    missing = sorted(required - set(found))
+    if missing:
+        raise RuntimeError(
+            f"historical PIT state missing for {len(missing)}/{len(required)} required keys; "
+            f"sample={missing[:8]}"
+        )
+
+    return found, {
+        "status": PASS,
+        "required_key_count": len(required),
+        "found_key_count": len(found),
+        "scanned_rows": scanned_rows,
+        "market_row_counts": market_row_counts,
+        "canonical_sha256": meta.get("canonical_sha256"),
+        "window_start": claim.get("window_start"),
+        "window_end": claim.get("window_end"),
+        "expected_trade_date": str(expected_trade_date) if expected_trade_date else None,
+    }
+
