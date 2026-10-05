@@ -1,0 +1,65 @@
+name: Stock SSE suspension field semantics diagnostic
+
+on:
+  pull_request:
+    paths:
+      - ".github/stock_diag/sse_suspension_field_semantics.py"
+      - ".github/workflows/stock-sse-suspension-field-semantics.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    env:
+      AUTHORITATIVE_STOCK_HEAD: 43168d9e75c70ab55be808d8a51f0c0eb14d83d5
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - name: Checkout exact diagnostic head
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ env.EXPECTED_HEAD }}
+          fetch-depth: 0
+
+      - name: Verify exact checkout and product-byte non-drift
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git diff --name-only "$AUTHORITATIVE_STOCK_HEAD"..HEAD -- StockAIPro \
+            | grep -v '^StockAIPro/hardening_tests/' > "$RUNNER_TEMP/product-diff.txt" || true
+          test ! -s "$RUNNER_TEMP/product-diff.txt"
+          echo "STOCK_PRODUCT_BYTES_CHANGED=FALSE"
+
+      - name: Setup Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.11"
+
+      - name: Install diagnostic dependency
+        run: python -m pip install --disable-pip-version-check requests==2.32.5
+
+      - name: Probe official SSE field semantics
+        run: python .github/stock_diag/sse_suspension_field_semantics.py
+
+      - name: Assert strict non-promotion
+        shell: python
+        run: |
+          import json
+          x=json.load(open("stock_sse_suspension_field_semantics.json",encoding="utf-8"))
+          assert x["daily_state_boundary"] == "NOT VERIFIED"
+          assert x["shanghai_historical_st_pit"] == "NOT VERIFIED"
+          assert x["full_historical_st_pit"] == "NOT VERIFIED"
+          assert x["final_gate"] == "FAIL"
+          print("DAILY_STATE_BOUNDARY=NOT VERIFIED")
+          print("FINAL_GATE=FAIL")
+
+      - name: Upload diagnostic evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: STOCK-SSE-SUSPENSION-FIELD-SEMANTICS-${{ env.EXPECTED_HEAD }}
+          path: stock_sse_suspension_field_semantics.json
+          if-no-files-found: error
+          retention-days: 30
