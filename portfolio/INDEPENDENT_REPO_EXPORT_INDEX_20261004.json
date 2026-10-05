@@ -158,13 +158,15 @@
       "export_artifact_id": 11323165672,
       "export_artifact_digest": "sha256:1c6c1f34a149e7d9bdf02969ee06a6216a92c1b4236cf031cb0a8d680f28e8c6",
       "source_current_head_evidence": {
-        "source_offline_real_network": "IN_PROGRESS",
+        "source_offline_real_network": "PASS",
         "source_run": 37256385039,
+        "source_artifact_id": 11322832915,
+        "source_artifact_digest": "sha256:04651bb2e591daaeb262dea894ae0b10c96b6ccd4b14fde90cbfa122133bece8",
         "full_business": "IN_PROGRESS",
         "full_business_run": 37256385026,
         "native_desktop": "IN_PROGRESS",
         "native_desktop_run": 37256385030,
-        "note": "Behavior-affecting qualification concurrency/cache change invalidated prior current-head product PASS. Fresh exact-head runs only."
+        "note": "Current exact-head source/offline/network chain closed PASS. Business and desktop remain fresh in-progress gates; no Final promotion."
       }
     },
     {
