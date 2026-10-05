@@ -848,3 +848,16 @@ This checkpoint supersedes older in-progress wording for the items below only. I
 - **Shanghai official-source boundary:** current public-source review found SSE technical specifications for daily security-information files carrying short name and security status (including suspension), but no reproducibly fetchable public historical bulk archive was verified in the current execution environment across the frozen research window. This is treated as source-availability/access NOT VERIFIED, not converted into a code PASS and not substituted with third-party history.
 - **RMF liquidity/capacity sub-evidence:** PR #189 diagnostic run `37304767691` / job `111745682462` SUCCESS with no validated RMF product-byte drift. Public-L1 1200-day amount-based 5% participation capacity is SUPPORTED: median CNY 17,208,295; CNY 5m feasible on 1177/1200 days; CNY 10m on 868/1200. Historical spread, observed market impact, broker slippage, and limit-up/down fillability remain NOT VERIFIED, so the full `liquidity_capacity` gate remains NOT VERIFIED. RMF Business remains 12/16 = 75.0%; Overall 75.0%; Final Gate FAIL.
 - **Portfolio boundary unchanged:** current-product migration/export readiness remains 18/18 PASS; visible dedicated product repositories remain 0/18; Final Gate PASS remains 0/18; delivery allowed remains 0/18. No migration or candidate PASS is promoted into repository independence or Final.
+
+
+## 2026-10-05 RMF public-L1 stale-quote fail-closed boundary
+
+- Diagnostic authority: PR #189 exact head `4b40f9abe29417ae952961637fef384a34bf47c4`.
+- Run `37308199899` / job `111756898577` = **SUCCESS**; validated RMF product-byte drift against `62f75def60c16d5768110901890d05edbabe7b34` = **FALSE**.
+- Eastmoney public-L1 request returned HTTP 200, but quote time was `2026-09-30T16:11:37+08:00` while retrieval was `2026-10-05T20:15:16+08:00`; machine classification = **STALE_OR_MARKET_CLOSED**.
+- Therefore current bid/ask spread = **NOT VERIFIED** and current limit-price evidence = **NOT VERIFIED**. The last-quoted-session limit prices (10.10 / 8.26 for 600000) are **SUPPORTED** only as stale-session snapshot evidence.
+- Historical bid/ask spread, observed market impact, broker execution slippage, limit-up/down fillability, full cost/slippage calibration and full liquidity-capacity gate remain **NOT VERIFIED**.
+- The workflow now executes fail-closed assertions that reject any promotion of a stale/single-session L1 snapshot into those full gates.
+- Artifact `11344686371`, digest `sha256:d87d93ec2a77285baea175b31e9da105a18d555b33af0a98e57170409e8a25e6`.
+- RMF remains Engineering **24/28 = 85.7%**, Business **12/16 = 75.0%**, Overall **75.0%**, Final **FAIL**.
+- Portfolio boundary unchanged: migration/export readiness **18/18 PASS**; dedicated repositories **0/18**; Final/Delivery **0/18**.
