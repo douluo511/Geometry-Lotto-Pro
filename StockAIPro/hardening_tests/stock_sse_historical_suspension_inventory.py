@@ -4,6 +4,7 @@ import hashlib
 import json
 import re
 import time
+from collections import Counter, defaultdict
 from pathlib import Path
 
 from stock_sse_historical_suspension_query import ENDPOINT, get, parse_json_or_jsonp
@@ -108,6 +109,35 @@ def main():
             failures.append(f"{year}: {type(exc).__name__}: {exc}")
             years.append({"year": year, "error": f"{type(exc).__name__}: {exc}", "pagination_complete": False})
 
+    field_counts = Counter()
+    code_field_counts = Counter()
+    code_samples = defaultdict(list)
+    for row in all_rows:
+        if not isinstance(row, dict):
+            continue
+        for key, value in row.items():
+            field_counts[str(key)] += 1
+            if "code" in str(key).lower() and value not in (None, ""):
+                code_field_counts[str(key)] += 1
+                if len(code_samples[str(key)]) < 12:
+                    code_samples[str(key)].append(repr(value))
+
+    product_code_values = [
+        str(row.get("productCode") or "").strip()
+        for row in all_rows if isinstance(row, dict)
+    ]
+    product_code_nonempty = [x for x in product_code_values if x]
+    product_code_equity_matches = [x for x in product_code_nonempty if EQUITY_CODE.fullmatch(x)]
+    schema_audit = {
+        "top_fields": field_counts.most_common(40),
+        "code_fields": code_field_counts.most_common(20),
+        "code_samples": {k: v for k, v in sorted(code_samples.items())},
+        "product_code_nonempty_count": len(product_code_nonempty),
+        "product_code_equity_match_count": len(product_code_equity_matches),
+        "product_code_samples": product_code_nonempty[:30],
+        "product_code_equity_samples": product_code_equity_matches[:30],
+    }
+
     unique = {}
     for row in all_rows:
         if not isinstance(row, dict):
@@ -118,7 +148,7 @@ def main():
 
     stock_rows = [
         row for row in unique.values()
-        if EQUITY_CODE.fullmatch(str(row.get("productCode") or ""))
+        if EQUITY_CODE.fullmatch(str(row.get("productCode") or "").strip())
     ]
     stock_rows.sort(key=lambda r: (
         compact(r.get("startStopDate")),
@@ -145,6 +175,7 @@ def main():
         "page_size": PAGE_SIZE,
         "year_reports": years,
         "failures": failures,
+        "schema_audit": schema_audit,
         "counts": {
             "raw_rows": len(all_rows),
             "unique_rows": len(unique),
@@ -175,6 +206,7 @@ def main():
     print(json.dumps({
         "query_range": report["query_range"],
         "failures": failures,
+        "schema_audit": report["schema_audit"],
         "counts": report["counts"],
         "date_range": report["date_range"],
         "adjudication": report["adjudication"],
