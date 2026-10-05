@@ -60,6 +60,7 @@ def _historical_candidate_pool(ds,cfg,research_calendar):
     signal_suspended_excluded=int(signal_suspended.sum())
     rows_before_signal_pit=len(x)
     x=x.loc[allowed_signal].copy()
+    rows_after_signal_pit=len(x)
     if x.empty:
         raise RuntimeError("historical PIT policy removed all rows at signal date")
 
@@ -114,7 +115,7 @@ def _historical_candidate_pool(ds,cfg,research_calendar):
         "liquidity_ranking_after_signal_pit":True,
         "exclude_st":exclude_st,
         "rows_before_signal_pit":rows_before_signal_pit,
-        "rows_after_signal_pit":rows_before_signal_pit-signal_st_excluded-signal_suspended_excluded,
+        "rows_after_signal_pit":rows_after_signal_pit,
         "rows_after_liquidity_rank":rows_after_liquidity_rank,
         "rows_after_entry_pit":len(x),
         "entry_calendar_gap_excluded":entry_calendar_gap_count,
