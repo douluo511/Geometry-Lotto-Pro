@@ -27,6 +27,14 @@ _PROVIDER_FAMILY = {
 }
 
 
+def _independent_successes(successes, chosen_provider: str):
+    chosen_family = _PROVIDER_FAMILY.get(chosen_provider, chosen_provider)
+    return [
+        item for item in successes
+        if _PROVIDER_FAMILY.get(item[0], item[0]) != chosen_family
+    ]
+
+
 def _select_success(successes, requested_limit: int):
     """Select acquisition evidence without consulting returns, labels or model output."""
     requested = max(30, int(requested_limit))
@@ -74,13 +82,7 @@ def fetch_daily_bars_failover(client: NetClient, symbol: str, limit: int = 120):
     }
 
     if len(successes) >= 2:
-        chosen_family = _PROVIDER_FAMILY.get(chosen_provider, chosen_provider)
-        remaining = [
-            item for item in successes
-            if _PROVIDER_FAMILY.get(item[0], item[0]) != chosen_family
-        ]
-        if not remaining:
-            remaining = []
+        remaining = _independent_successes(successes, chosen_provider)
         if remaining:
             _, rows2, meta2 = _select_success(remaining, limit)
         if remaining:
@@ -142,7 +144,7 @@ def fetch_daily_bars_failover(client: NetClient, symbol: str, limit: int = 120):
         "coverage_first": True,
         "prefer_qfq_after_coverage": True,
         "then_row_count": True,
-        "provider_priority_tiebreak": ["eastmoney_public_l1", "tencent_public_kline", "yahoo_public_chart"],
+        "provider_priority_tiebreak": ["tencent_public_full_kline", "eastmoney_public_l1", "tencent_public_kline", "yahoo_public_chart"],
         "outcome_fields_used": False,
     }
     return rows, meta
