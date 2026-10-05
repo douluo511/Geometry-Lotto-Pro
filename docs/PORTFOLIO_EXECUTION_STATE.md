@@ -1,5 +1,18 @@
 # Portfolio Execution State — 18 Windows EXE Projects
 
+## 2026-10-06 Stock PR #210 behavior change — acceptance/export invalidation + suspension corroboration boundary
+
+- **Current Stock product candidate is now PR #210**, exact head `847511a4fa98f5b1869687eabd9bf7fe43808994`, based on former PR #155 head `43168d9e75c70ab55be808d8a51f0c0eb14d83d5`.
+- This is a real behavior change: `HISTORICAL_ST_PIT` is no longer hard-coded WARN; the product now consumes a hash-bound, fail-closed historical ST/suspension PIT evidence contract.
+- Therefore prior #155 source/business/Windows/GUI/Same-Hash evidence is **HISTORICAL ONLY** for the new head and MUST NOT be inherited. Fresh #210 runs are required.
+- Fresh exact-head runs currently scheduled/executing: source `37342188797`, full business `37342188784`, native desktop `37342188844`. Exact checkout and immutable restore have already passed on the source line; downstream active steps remain NOT VERIFIED until terminal.
+- **Migration/export invalidation:** Stock export PR #181 is bound to the superseded #155 product bytes, so current-product-bound portfolio migration/export readiness is temporarily **17/18 PASS**, not 18/18. It may return to 18/18 only after a deterministic export is rebuilt and independently verified against the terminal #210 product head.
+- Shanghai suspension sub-evidence remains useful input evidence, not inherited runtime acceptance: PR #209 exact head `4663ac4cb3943c23f8f51626ee2c536d852f3b45`, run `37341509787` = SUCCESS, official-SSE-derived `historical_daily_suspension_state=SUPPORTED_SHANGHAI_ONLY`, daily-state SHA-256 `0a614254deb282111393b858f9264bb64c05c12a1c3c3eec4abb714d8774fb08`.
+- **Independent corroboration remains NOT VERIFIED:** PR #208 run `37341613509` completed successfully as a diagnostic but machine-adjudicated `open_ended_interval_resolution=NOT VERIFIED`. Tencent supports all five SSE open intervals; Eastmoney exhausted bounded retries; Yahoo reports post-start bars for all five targets. Artifact `11358941627`, digest `sha256:431c30d645175194f4ab5ab367ef5e26af24245802dd9bcea2dc460aa48e37ae`.
+- The #208 disagreement does not erase the stronger first-party exact-record SSE re-query in #207/#209, but it blocks any claim that the five open intervals have independent cross-provider corroboration.
+- Shanghai historical ST/PIT = **NOT VERIFIED**; Beijing historical ST/PIT = **NOT VERIFIED**; full `HISTORICAL_ST_PIT` = **NOT VERIFIED**; Advanced Business = **NOT VERIFIED** until the new product gate is supplied with complete qualifying evidence and fresh runtime acceptance proves it.
+- Dedicated repositories remain **0/18**; production Release N→N+1 remains non-PASS; Portfolio Final/Delivery remains **0/18**.
+
 ## 2026-10-06 Stock Shanghai daily-suspension sub-gate closure
 
 - **Authoritative Stock product remains unchanged:** PR #155 exact head `43168d9e75c70ab55be808d8a51f0c0eb14d83d5`.
