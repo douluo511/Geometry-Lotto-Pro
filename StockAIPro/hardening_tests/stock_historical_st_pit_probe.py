@@ -28,12 +28,37 @@ def norm_code(value):
 
 def fetch_sz_change_name(max_attempts: int = 3):
     errors = []
+    raw_http = []
+    original_request = requests.sessions.Session.request
+
+    def capture_request(session, method, url, *args, **kwargs):
+        response = original_request(session, method, url, *args, **kwargs)
+        try:
+            payload = response.content or b""
+            raw_http.append({
+                "method": str(method).upper(),
+                "url": str(response.url),
+                "http_status": int(response.status_code),
+                "payload_sha256": hashlib.sha256(payload).hexdigest() if payload else None,
+                "payload_bytes": len(payload),
+                "content_type": str(response.headers.get("Content-Type", "")),
+            })
+        except Exception:
+            pass
+        return response
+
     for attempt in range(1, max_attempts + 1):
         try:
+            requests.sessions.Session.request = capture_request
             df = ak.stock_info_sz_change_name(symbol="简称变更")
             if df is None or df.empty:
                 raise RuntimeError("SZSE short-name change feed returned empty")
-            return df, {"attempts": attempt, "errors": errors}
+            official = [
+                item for item in raw_http
+                if item.get("payload_sha256")
+                and any(host in item.get("url", "") for host in ("szse.cn", "reportdocs.static.szse.cn"))
+            ]
+            return df, {"attempts": attempt, "errors": errors, "raw_http": raw_http, "official_raw_http": official}
         except Exception as exc:
             errors.append({
                 "attempt": attempt,
@@ -48,6 +73,8 @@ def fetch_sz_change_name(max_attempts: int = 3):
             # Finite exponential backoff. This is a read-only diagnostic and the
             # upstream AkShare wrapper does not expose its own retry controls.
             time.sleep(1.25 * (2 ** (attempt - 1)))
+        finally:
+            requests.sessions.Session.request = original_request
 
 
 BSE_INTERFACE_NOTICE_URL = "https://www.bse.cn/class_b/200028461.html"
@@ -312,8 +339,17 @@ def main():
             "transport": "AkShare wrapper around exchange endpoint",
             "akshare_version": package_version("akshare"),
             "transport_wrapper_source_sha256": hashlib.sha256(wrapper_source).hexdigest(),
-            "raw_official_payload_sha256": "NOT AVAILABLE VIA THIS WRAPPER",
-            "official_exchange_source_lineage": "SUPPORTED VIA PINNED WRAPPER; DIRECT RAW PAYLOAD NOT CAPTURED",
+            "raw_official_payload_sha256": (
+                fetch_meta["official_raw_http"][-1]["payload_sha256"]
+                if fetch_meta.get("official_raw_http") else "NOT VERIFIED"
+            ),
+            "raw_official_http_evidence": fetch_meta.get("official_raw_http", []),
+            "all_http_evidence": fetch_meta.get("raw_http", []),
+            "official_exchange_source_lineage": (
+                "SUPPORTED WITH DIRECT RAW HTTP PAYLOAD"
+                if fetch_meta.get("official_raw_http")
+                else "SUPPORTED VIA PINNED WRAPPER; DIRECT RAW PAYLOAD NOT VERIFIED"
+            ),
             "dated_change_records": True,
             "fetch_attempts": fetch_meta["attempts"],
             "prior_attempt_errors": fetch_meta["errors"],
