@@ -584,7 +584,7 @@ def _run_history_batch(codes, cfg: dict, phase: str, logger=None):
     codes = list(dict.fromkeys(map(str, codes)))
     nc = cfg.get("network", {}) or {}
     if str(phase).startswith("qualification_history"):
-        workers = min(12, max(1, int(nc.get("qualification_history_workers", 12))))
+        workers = min(24, max(1, int(nc.get("qualification_history_workers", 24))))
     else:
         workers = min(4, max(1, int(nc.get("history_workers", 4))))
     ak = _ak()
