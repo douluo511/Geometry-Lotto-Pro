@@ -97,6 +97,60 @@ def main():
         if ss:
             page_matches[kw] = ss
 
+    # Extract bounded endpoint-construction hints from the live official page/scripts.
+    # Discovery remains read-only: a literal or config key is only a candidate
+    # until a separate request-validation step proves endpoint semantics.
+    target_key = "bond_14526_js_suspension_stock"
+    endpoint_hints = []
+    source_texts = [(PAGE, html)]
+    for row in scanned:
+        source_url = row.get("url")
+        if row.get("status") == "FAIL" or not source_url:
+            continue
+        try:
+            rr, _ = fetch(s, source_url, attempts=2)
+            source_text = rr.content.decode(rr.encoding or "utf-8", errors="replace")
+            source_texts.append((source_url, source_text))
+        except Exception:
+            continue
+
+    for source_url, source_text in source_texts:
+        relevant = (
+            target_key in source_text
+            or "suspension" in source_text.lower()
+            or "sseQueryURL" in source_text
+            or "commonQuery.do" in source_text
+        )
+        if not relevant:
+            continue
+        do_literals = sorted(set(
+            re.findall(r'["\\\']([^"\\\']*?\\.do(?:\\?[^"\\\']*)?)["\\\']', source_text)
+        ))
+        sql_ids = sorted(set(
+            re.findall(r'sqlId\\s*[:=]\\s*["\\\']([^"\\\']+)["\\\']', source_text, flags=re.I)
+        ))
+        target_contexts = [
+            " ".join(x.split())[:6000]
+            for x in snippets(source_text, target_key, radius=3200)[:4]
+        ]
+        query_contexts = []
+        for kw in ("sseQueryURL", "commonQuery.do", "commonSoaQuery.do", "sqlId", "tableData", "tableFun"):
+            for x in snippets(source_text, kw, radius=2200)[:3]:
+                query_contexts.append({
+                    "keyword": kw,
+                    "context": " ".join(x.split())[:5000],
+                })
+        if do_literals or sql_ids or target_contexts or query_contexts:
+            endpoint_hints.append({
+                "source": source_url,
+                "do_literals": do_literals[:40],
+                "sql_ids": sql_ids[:80],
+                "target_key_contexts": target_contexts,
+                "query_contexts": query_contexts[:24],
+            })
+        if len(endpoint_hints) >= 24:
+            break
+
     report = {
         "schema": "stock-sse-suspension-endpoint-discovery-v1",
         "status": "PASS",
@@ -109,7 +163,8 @@ def main():
         "same_origin_scripts_scanned": len(scanned),
         "page_matches": page_matches,
         "script_hits": hits,
-        "discovery_status": "CANDIDATE_FOUND" if hits or page_matches else "NOT FOUND",
+        "endpoint_hints": endpoint_hints,
+        "discovery_status": "CANDIDATE_FOUND" if hits or page_matches or endpoint_hints else "NOT FOUND",
         "boundary": {
             "historical_sse_suspension_endpoint_verified": False,
             "historical_suspension_daily_state": "NOT VERIFIED",
@@ -222,6 +277,7 @@ def main():
         "hit_scripts": [x["script"]["url"] for x in hits],
         "page_keywords": sorted(page_matches),
         "public_candidates": public_candidates,
+        "endpoint_hints": endpoint_hints,
         "targeted_context": targeted_context,
         "page_query_context": page_query_context,
         "loader_context": loader_context,
