@@ -32,6 +32,7 @@ RESUME_PATTERNS=[
     ("resume_date_label",re.compile(rf"(?:复牌|恢复交易)(?:时间|日期|起始日|开始日)[：:\s]*{DATE}")),
 ]
 PROSPECTIVE_PREFIX=re.compile(r"(可能|拟|计划|预计|申请)")
+ACTION_TERM_RE=re.compile(r"(停牌|暂停交易|复牌|恢复交易)")
 
 def load(name,path):
     spec=importlib.util.spec_from_file_location(name,path)
@@ -90,17 +91,61 @@ def strong_matches(text,patterns,action_word):
             local=compact[max(0,m.start()-18):m.start()]
             if PROSPECTIVE_PREFIX.search(local):
                 continue
+            matched=m.group(0)
+            full_dates=list(re.finditer(DATE,matched))
+            # A broad clause spanning multiple complete dates cannot prove
+            # which date governs the action. Keep it unresolved.
+            if len(full_dates) != 1:
+                continue
+            date_match=full_dates[0]
+            after_date=matched[date_match.end():]
+            if action_word=="复牌":
+                positions=[p for p in (after_date.find("复牌"),after_date.find("恢复交易")) if p>=0]
+                if not positions:
+                    continue
+                before_action=after_date[:min(positions)]
+                if "停牌" in before_action or "暂停交易" in before_action:
+                    continue
+            elif action_word=="停牌":
+                positions=[p for p in (after_date.find("停牌"),after_date.find("暂停交易")) if p>=0]
+                if not positions:
+                    continue
+                before_action=after_date[:min(positions)]
+                if "披露" in before_action:
+                    continue
             try:
                 value=iso(m.groups()[:3])
             except Exception:
                 continue
             lo=max(0,m.start()-120); hi=min(len(compact),m.end()+160)
             ctx=compact[lo:hi]
-            out.append({"pattern_id":pid,"date":value,"matched_text":m.group(0)[:320],"context_sha256":hashlib.sha256(ctx.encode()).hexdigest()})
+            out.append({"pattern_id":pid,"date":value,"matched_text":matched[:320],"context_sha256":hashlib.sha256(ctx.encode()).hexdigest()})
     dedup={}
     for x in out:
         dedup[(x["pattern_id"],x["date"],x["matched_text"])]=x
     return [dedup[k] for k in sorted(dedup)]
+
+def action_contexts(text,limit=48):
+    compact=re.sub(r"\s+","",text or "")
+    out=[]
+    for m in ACTION_TERM_RE.finditer(compact):
+        lo=max(0,m.start()-180); hi=min(len(compact),m.end()+220)
+        snippet=compact[lo:hi]
+        dates=[]
+        for d in re.finditer(DATE,snippet):
+            try:
+                dates.append(iso(d.groups()[:3]))
+            except Exception:
+                pass
+        out.append({
+            "action":m.group(1),
+            "dates":sorted(set(dates)),
+            "snippet":snippet[:420],
+            "snippet_sha256":hashlib.sha256(snippet.encode()).hexdigest(),
+        })
+        if len(out)>=limit:
+            break
+    return out
 
 def main():
     corpusmod=load("bsec",CORPUS_PATH)
@@ -144,7 +189,9 @@ def main():
             rec["parse_error"]=f"{type(exc).__name__}: {exc}"
             records.append(rec); continue
         rec["pages"]=pages
+        rec["text_chars"]=len(text)
         rec["text_sha256"]=hashlib.sha256(text.encode()).hexdigest()
+        rec["action_contexts"]=action_contexts(text)
         stops=strong_matches(text,STOP_PATTERNS,"停牌")
         resumes=strong_matches(text,RESUME_PATTERNS,"复牌")
         stop_dates=sorted({x["date"] for x in stops})
