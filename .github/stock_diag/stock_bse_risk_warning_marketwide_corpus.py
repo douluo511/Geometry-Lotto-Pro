@@ -208,6 +208,7 @@ def main() -> int:
         "per_keyword": per_keyword,
         "combined_unique_title_event_count": len(combined_rows),
         "combined_canonical_sha256": canonical_sha(combined_rows),
+        "combined_events": combined_rows,
         "combined_event_sample": combined_rows[:20],
         "adjudication": adjudication,
         "boundary": (
