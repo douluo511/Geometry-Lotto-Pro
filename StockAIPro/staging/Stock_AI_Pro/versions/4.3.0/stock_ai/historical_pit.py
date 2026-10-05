@@ -24,6 +24,19 @@ def _hex64(value) -> bool:
     return isinstance(value, str) and HEX64.fullmatch(value.lower()) is not None
 
 
+def _market_for_code(code: str):
+    code = str(code)
+    if re.fullmatch(r"\d{6}", code) is None:
+        return None
+    if code.startswith(("6", "9")):
+        return "SSE"
+    if code.startswith(("0", "3")):
+        return "SZSE"
+    if code.startswith(("4", "8")):
+        return "BSE"
+    return None
+
+
 def _sha256_file(path: Path) -> str:
     h = hashlib.sha256()
     with path.open("rb") as f:
@@ -262,6 +275,7 @@ def load_historical_st_pit_subset(root: Path, required_keys, expected_trade_date
     found = {}
     scanned_rows = 0
     market_row_counts = {market: 0 for market in REQUIRED_MARKETS}
+    market_dates = {market: set() for market in REQUIRED_MARKETS}
     with canonical_path.open("r", encoding="utf-8") as handle:
         for lineno, raw in enumerate(handle, 1):
             text = raw.strip()
@@ -286,11 +300,18 @@ def load_historical_st_pit_subset(root: Path, required_keys, expected_trade_date
                 raise RuntimeError(f"historical PIT date outside qualified window at line {lineno}")
             if market not in REQUIRED_MARKETS:
                 raise RuntimeError(f"historical PIT market invalid at line {lineno}: {market!r}")
-            if not code or not code.isdigit():
+            expected_market = _market_for_code(code)
+            if expected_market is None:
                 raise RuntimeError(f"historical PIT security code invalid at line {lineno}: {code!r}")
+            if market != expected_market:
+                raise RuntimeError(
+                    f"historical PIT market/code mismatch at line {lineno}: "
+                    f"{market}/{code} expected={expected_market}"
+                )
             if type(st) is not bool or type(suspended) is not bool:
                 raise RuntimeError(f"historical PIT state types invalid at line {lineno}")
             market_row_counts[market] += 1
+            market_dates[market].add(day.isoformat())
 
             key = (day.isoformat(), code)
             if key not in required:
@@ -313,6 +334,7 @@ def load_historical_st_pit_subset(root: Path, required_keys, expected_trade_date
         "found_key_count": len(found),
         "scanned_rows": scanned_rows,
         "market_row_counts": market_row_counts,
+        "market_dates": {market: sorted(days) for market, days in market_dates.items()},
         "canonical_sha256": meta.get("canonical_sha256"),
         "window_start": claim.get("window_start"),
         "window_end": claim.get("window_end"),
