@@ -27,10 +27,21 @@ jobs:
     env:
       PYTHONUTF8: '1'
       PYTHONIOENCODING: 'utf-8'
+      SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
 
     steps:
-      - name: Checkout exact commit
+      - name: Checkout exact candidate head
         uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+
+      - name: Verify exact checkout identity
+        shell: pwsh
+        run: |
+          $actual=(git rev-parse HEAD).Trim()
+          if ($actual -ne $env:SOURCE_SHA) { throw "exact checkout mismatch: $actual != $env:SOURCE_SHA" }
+          @{schema='investment-finance-exact-checkout-v1';status='PASS';source_sha=$actual;github_run_id=$env:GITHUB_RUN_ID;github_run_attempt=$env:GITHUB_RUN_ATTEMPT} | ConvertTo-Json | Set-Content exact_checkout.json -Encoding utf8
+          Write-Host "EXACT_SOURCE_SHA=$actual"
 
       - name: Setup Python x64
         uses: actions/setup-python@v5
@@ -92,6 +103,28 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           New-Item evidence/fault_injection.pass -ItemType File | Out-Null
 
+      - name: Independent Updater Contract and Rollback Fault Gate
+        shell: pwsh
+        run: |
+          $env:PYTHONPATH=(Resolve-Path investment_finance_pro).Path
+          python -m unittest discover -s investment_finance_pro/tests -p "test_updater_contract.py" -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          @{
+            schema='investment-finance-updater-contract-v1'
+            status='PASS'
+            source_sha=$env:SOURCE_SHA
+            github_run_id=$env:GITHUB_RUN_ID
+            suite='test_updater_contract.py'
+            signature_tamper='PASS'
+            corrupt_download_fail_closed='PASS'
+            backup_atomic_replace='PASS'
+            health_failure_rollback='PASS'
+            interrupted_recovery='PASS'
+            missing_or_monorepo_config_blocked='PASS'
+            real_production_release_n_to_n_plus_1='BLOCKED'
+          } | ConvertTo-Json | Set-Content updater_contract_evidence.json -Encoding utf8
+          New-Item evidence/updater_contract.pass -ItemType File | Out-Null
+
       - name: Business Validation
         shell: pwsh
         run: |
@@ -137,7 +170,9 @@ jobs:
         shell: pwsh
         run: |
           pyinstaller --noconfirm --clean --onefile --windowed --name InvestmentFinancePro --paths investment_finance_pro investment_finance_pro/app.py
-          if (-not (Test-Path .\dist\InvestmentFinancePro.exe)) { throw "EXE missing" }
+          if (-not (Test-Path .\dist\InvestmentFinancePro.exe)) { throw "main EXE missing" }
+          pyinstaller --noconfirm --clean --onefile --console --name InvestmentFinanceProUpdater --paths investment_finance_pro investment_finance_pro/updater_main.py
+          if (-not (Test-Path .\dist\InvestmentFinanceProUpdater.exe)) { throw "independent updater EXE missing" }
           New-Item evidence/windows_build.pass -ItemType File | Out-Null
 
       - name: Exact EXE Self-Test
@@ -168,6 +203,42 @@ jobs:
             throw "Exact EXE OOS firewall did not fail closed"
           }
 
+      - name: Exact Updater EXE and Fail-Closed Production Context
+        shell: pwsh
+        run: |
+          $updater=".\dist\InvestmentFinanceProUpdater.exe"
+          $before=(Get-FileHash $updater -Algorithm SHA256).Hash.ToLower()
+          $p=Start-Process $updater -ArgumentList @("--self-test","--report","updater_self_test.json") -Wait -PassThru -NoNewWindow
+          if ($p.ExitCode -ne 0) { throw "Exact updater self-test failed: $($p.ExitCode)" }
+          $self=Get-Content updater_self_test.json -Raw | ConvertFrom-Json
+          if ($self.status -ne "PASS") { throw "Exact updater self-test status=$($self.status)" }
+
+          $updaterRoot=Join-Path $env:RUNNER_TEMP "investment-finance-updater-negative"
+          New-Item -ItemType Directory -Force $updaterRoot | Out-Null
+          $p=Start-Process $updater -ArgumentList @("--root",$updaterRoot,"--target",(Resolve-Path ".\dist\InvestmentFinancePro.exe").Path,"--current-version","0.4.0","--current-source",$env:SOURCE_SHA) -Wait -PassThru -NoNewWindow
+          if ($p.ExitCode -ne 3) { throw "missing production context must return BLOCKED rc=3, got $($p.ExitCode)" }
+          $blocked=Get-Content (Join-Path $updaterRoot "evidence\updater_result.json") -Raw | ConvertFrom-Json
+          if ($blocked.status -ne "BLOCKED") { throw "missing production context did not fail closed" }
+
+          $after=(Get-FileHash $updater -Algorithm SHA256).Hash.ToLower()
+          if ($before -ne $after) { throw "updater bytes changed during exact acceptance" }
+          if (-not (Test-Path evidence/updater_contract.pass)) { throw "updater rollback contract evidence missing" }
+
+          @{
+            schema='investment-finance-updater-windows-v1'
+            status='PASS'
+            source_sha=$env:SOURCE_SHA
+            github_run_id=$env:GITHUB_RUN_ID
+            process='PASS'
+            exact_exe='PASS'
+            atomic_rollback='PASS'
+            real_network='BLOCKED'
+            same_hash='PASS'
+            updater_sha256=$before
+            final_updater_sha256=$before
+            production_context_reason=$blocked.reason
+          } | ConvertTo-Json -Depth 8 | Set-Content updater_windows_gate.json -Encoding utf8
+
       - name: GUI Smoke
         shell: pwsh
         run: |
@@ -175,19 +246,28 @@ jobs:
           if ($p.ExitCode -ne 0) { throw "GUI smoke failed: $($p.ExitCode)" }
           New-Item evidence/gui_smoke.pass -ItemType File | Out-Null
 
-      - name: Stage unique final EXE
+      - name: Stage exact application and updater
         shell: pwsh
-        run: Copy-Item .\dist\InvestmentFinancePro.exe .\final\InvestmentFinancePro.exe -Force
+        run: |
+          Copy-Item .\dist\InvestmentFinancePro.exe .\final\InvestmentFinancePro.exe -Force
+          Copy-Item .\dist\InvestmentFinanceProUpdater.exe .\final\InvestmentFinanceProUpdater.exe -Force
 
       - name: Same Hash
         shell: pwsh
         run: |
           $tested=(Get-FileHash .\dist\InvestmentFinancePro.exe -Algorithm SHA256).Hash.ToLower()
           $final=(Get-FileHash .\final\InvestmentFinancePro.exe -Algorithm SHA256).Hash.ToLower()
-          if ($tested -ne $final) { throw "Same Hash failed" }
+          if ($tested -ne $final) { throw "main Same Hash failed" }
+          $updaterTested=(Get-FileHash .\dist\InvestmentFinanceProUpdater.exe -Algorithm SHA256).Hash.ToLower()
+          $updaterFinal=(Get-FileHash .\final\InvestmentFinanceProUpdater.exe -Algorithm SHA256).Hash.ToLower()
+          if ($updaterTested -ne $updaterFinal) { throw "updater Same Hash failed" }
+          $u=Get-Content updater_windows_gate.json -Raw | ConvertFrom-Json
+          $u.final_updater_sha256=$updaterFinal
+          $u | ConvertTo-Json -Depth 8 | Set-Content updater_windows_gate.json -Encoding utf8
           New-Item evidence/same_hash.pass -ItemType File | Out-Null
           "sha256=$final" | Out-File .\final\BUILD_HASH.txt -Encoding ascii
-          "commit=$env:GITHUB_SHA" | Add-Content .\final\BUILD_HASH.txt
+          "updater_sha256=$updaterFinal" | Add-Content .\final\BUILD_HASH.txt
+          "commit=$env:SOURCE_SHA" | Add-Content .\final\BUILD_HASH.txt
           "workflow_run=$env:GITHUB_RUN_ID" | Add-Content .\final\BUILD_HASH.txt
 
       - name: Final EXE Self-Test
@@ -209,7 +289,7 @@ jobs:
       - name: Evidence-derived Final Gate
         shell: pwsh
         run: |
-          python investment_finance_pro/collect_final_gates.py --evidence-dir evidence --architecture investment_finance_pro/architecture_gate.json --business investment_finance_pro/business_gate.json --source-science source_science.json --exe-science exe_science.json --candidate-exe dist/InvestmentFinancePro.exe --final-exe final/InvestmentFinancePro.exe --physical-gui physical_gui_click.json --repository-independent FAIL --out gate_input.json
+          python investment_finance_pro/collect_final_gates.py --evidence-dir evidence --architecture investment_finance_pro/architecture_gate.json --business investment_finance_pro/business_gate.json --source-science source_science.json --exe-science exe_science.json --candidate-exe dist/InvestmentFinancePro.exe --final-exe final/InvestmentFinancePro.exe --physical-gui physical_gui_click.json --updater-evidence updater_windows_gate.json --updater-exe dist/InvestmentFinanceProUpdater.exe --final-updater-exe final/InvestmentFinanceProUpdater.exe --repository-independent BLOCKED --out gate_input.json
           $collectorExit=$LASTEXITCODE
           python investment_finance_pro/release_gate.py --input gate_input.json --evidence-dir evidence --tested-exe dist/InvestmentFinancePro.exe --final-exe final/InvestmentFinancePro.exe --report final_gate.json
           $releaseExit=$LASTEXITCODE
@@ -220,18 +300,21 @@ jobs:
         shell: pwsh
         run: |
           $hash=(Get-FileHash .\final\InvestmentFinancePro.exe -Algorithm SHA256).Hash.ToLower()
+          $updaterHash=(Get-FileHash .\final\InvestmentFinanceProUpdater.exe -Algorithm SHA256).Hash.ToLower()
           @{
             project='Investment Finance Pro'
             version='0.4.0'
             artifact='InvestmentFinancePro.exe'
             sha256=$hash
-            source_commit=$env:GITHUB_SHA
+            updater_sha256=$updaterHash
+            source_commit=$env:SOURCE_SHA
             workflow_run=$env:GITHUB_RUN_ID
             final_gate=$r.final_gate
             repository_independence='FAIL'
             model_status='UNVALIDATED'
           } | ConvertTo-Json | Set-Content FINAL_ACCEPTANCE.json -Encoding utf8
           Write-Host "FINAL_EXE_SHA256=$hash"
+          Write-Host "FINAL_UPDATER_SHA256=$updaterHash"
           Write-Host "FINAL_RELEASE_GATE=$($r.final_gate)"
 
       - name: Upload Unique Final Product
@@ -240,6 +323,7 @@ jobs:
           name: Investment_Finance_Pro_FINAL_v0.4.0
           path: |
             final/InvestmentFinancePro.exe
+            final/InvestmentFinanceProUpdater.exe
             final/BUILD_HASH.txt
             FINAL_ACCEPTANCE.json
             final_gate.json
@@ -253,7 +337,10 @@ jobs:
         with:
           name: Investment_Finance_Pro_AUDIT_v0.4.0
           path: |
+            exact_checkout.json
             gate_input.json
+            final_gate.json
+            final/BUILD_HASH.txt
             source_self_test.json
             source_real_network.log
             source_science.json
@@ -261,6 +348,9 @@ jobs:
             exe_network_smoke.json
             exe_science.json
             physical_gui_click.json
+            updater_contract_evidence.json
+            updater_self_test.json
+            updater_windows_gate.json
             investment_finance_pro/architecture_gate.json
             investment_finance_pro/business_gate.json
             investment_finance_pro/BUSINESS_SPEC.md

@@ -6,6 +6,7 @@ ROOT=Path(__file__).resolve().parent
 REQUIRED=[
     "ENGINEERING_FREEZE.md","BUSINESS_SPEC.md","domain.py","contracts.py","net_client.py",
     "storage.py","engine.py","evidence.py","service.py","app.py","release_gate.py","real_network_check.py",
+    "updater_runtime.py","updater_main.py",
 ]
 
 def main()->int:
@@ -19,6 +20,7 @@ def main()->int:
     checks["service_no_legacy_bypass"]="legacy_backend" not in service
     checks["storage_no_legacy_bypass"]="legacy_backend" not in storage
     checks["engine_no_legacy_bypass"]="legacy_backend" not in engine
+    checks["independent_updater_present"]=(ROOT/"updater_runtime.py").is_file() and (ROOT/"updater_main.py").is_file()
     sections={
       "purpose_model":"需求 / 目的建模",
       "five_why":"5 Why",
