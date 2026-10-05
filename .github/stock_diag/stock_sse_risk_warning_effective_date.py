@@ -19,7 +19,9 @@ BEGIN = "2026-01-01"
 END = "2026-10-06"
 KEYWORD = "风险警示"
 STATIC_BASE = "https://static.sse.com.cn"
+STATIC_HTTP_BASE = "http://static.sse.com.cn"
 WWW_BASE = "https://www.sse.com.cn"
+BIG5_BASE = "https://big5.sse.com.cn/site/cht/www.sse.com.cn"
 
 DATE_RE = re.compile(r"(20\d{2})年(\d{1,2})月(\d{1,2})日")
 TERM_RE = re.compile(r"(实施退市风险警示|实施其他风险警示|撤销退市风险警示|撤销其他风险警示|风险警示|证券简称|股票简称)")
@@ -84,7 +86,27 @@ def row_url(row):
 def pdf_candidates(path):
     if path.startswith("http://") or path.startswith("https://"):
         return [path]
-    return [urljoin(STATIC_BASE,path),urljoin(WWW_BASE,path)]
+    return [
+        urljoin(STATIC_BASE,path),
+        urljoin(STATIC_HTTP_BASE,path),
+        urljoin(WWW_BASE,path),
+        urljoin(BIG5_BASE + "/", path.lstrip("/")),
+    ]
+
+
+def html_diagnostic(raw, content_type, final_url):
+    text=raw.decode("utf-8",errors="replace")
+    compact=" ".join(text[:6000].split())
+    urls=sorted(set(re.findall(r"https?://[^\\s\"'<>]+",text,re.I)))[:20]
+    hrefs=sorted(set(re.findall(r"(?:href|src)=[\"']([^\"']+)",text,re.I)))[:30]
+    return {
+        "content_type":content_type,
+        "final_url":final_url,
+        "bytes":len(raw),
+        "prefix":compact[:1800],
+        "absolute_urls":urls,
+        "href_src_candidates":hrefs,
+    }
 
 def extract_pdf_text(raw):
     reader=PdfReader(io.BytesIO(raw))
@@ -169,6 +191,9 @@ def main():
                     raw=rr.content; meta=mm; chosen=url
                     break
                 attempts[-1]["status"]="NOT_PDF"
+                attempts[-1]["html_diagnostic"]=html_diagnostic(
+                    rr.content,rr.headers.get("Content-Type"),rr.url
+                )
             except Exception as exc:
                 attempts.append({"url":url,"status":"FAIL","error":f"{type(exc).__name__}: {exc}"})
         record={**item,"download_attempts":attempts}
