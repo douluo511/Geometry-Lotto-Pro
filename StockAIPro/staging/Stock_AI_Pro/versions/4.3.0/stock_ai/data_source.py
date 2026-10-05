@@ -710,12 +710,63 @@ def bootstrap_research_pool(master: pd.DataFrame, cfg: dict, live_codes=None, lo
     return status
 
 
-def _research_coverage_snapshot(master: pd.DataFrame) -> dict:
-    """Measure persisted real-history coverage against the frozen research master."""
+def _history_cache_entry_valid(path: Path, code: str) -> bool:
+    """Accept only persisted histories that are safe to count toward coverage."""
+    try:
+        frame = pd.read_csv(path, parse_dates=["date"], dtype={"code": str})
+        frame = _upgrade_legacy_history(frame)
+        required = {"date", "open", "high", "low", "close"}
+        if len(frame) < 30 or not required.issubset(frame.columns):
+            return False
+        if frame["date"].isna().any() or frame["date"].duplicated().any():
+            return False
+        prices = frame[["open", "high", "low", "close"]].apply(
+            pd.to_numeric, errors="coerce"
+        )
+        if prices.isna().any().any() or (prices <= 0).any().any():
+            return False
+        if "code" in frame.columns:
+            symbols = {
+                _clean_code(value)
+                for value in frame["code"].dropna().astype(str)
+                if str(value).strip()
+            }
+            if symbols and symbols != {str(code)}:
+                return False
+        schema = pd.to_numeric(
+            frame.get("schema_version", pd.Series([3])), errors="coerce"
+        )
+        if schema.isna().any() or (schema < 3).any():
+            return False
+        return True
+    except Exception:
+        return False
+
+
+def _validated_history_codes(target_codes: set[str]) -> set[str]:
+    folder = ROOT / "data" / "history"
+    valid: set[str] = set()
+    if not folder.is_dir():
+        return valid
+    for path in folder.glob("*.csv"):
+        code = str(path.stem)
+        if code in target_codes and _history_cache_entry_valid(path, code):
+            valid.add(code)
+    return valid
+
+
+def _research_coverage_snapshot(
+    master: pd.DataFrame, validated_existing: set[str] | None = None
+) -> dict:
+    """Measure only validated persisted history coverage against the frozen master."""
     m = master.copy()
     m["code"] = m["code"].astype(str)
-    existing = {p.stem for p in (ROOT / "data" / "history").glob("*.csv")}
     all_codes = set(m["code"])
+    existing = (
+        set(validated_existing) & all_codes
+        if validated_existing is not None
+        else _validated_history_codes(all_codes)
+    )
     if "status" in m:
         current_codes = set(m.loc[m["status"] == "current", "code"])
         delisted_codes = set(m.loc[m["status"] == "delisted", "code"])
@@ -738,7 +789,6 @@ def _research_coverage_snapshot(master: pd.DataFrame) -> dict:
         "_current_codes": current_codes,
         "_delisted_codes": delisted_codes,
     }
-
 
 def qualify_research_pool_coverage(master: pd.DataFrame, cfg: dict, logger=None) -> dict:
     """Build a mature research corpus without weakening the >=90% audit gate.
@@ -771,6 +821,7 @@ def qualify_research_pool_coverage(master: pd.DataFrame, cfg: dict, logger=None)
     failed_once: set[str] = set()
     failures: list[dict] = []
     downloaded = 0
+    validated_existing = _validated_history_codes(set(m["code"]))
 
     def persist(snapshot: dict, status: str) -> dict:
         clean = {k: v for k, v in snapshot.items() if not k.startswith("_")}
@@ -789,7 +840,7 @@ def qualify_research_pool_coverage(master: pd.DataFrame, cfg: dict, logger=None)
         return clean
 
     while True:
-        snap = _research_coverage_snapshot(m)
+        snap = _research_coverage_snapshot(m, validated_existing)
         if snap["coverage"] >= target and snap["delisted_coverage"] >= delisted_target:
             return persist(snap, "PASS")
         if time.monotonic() - started >= max_seconds:
@@ -832,11 +883,20 @@ def qualify_research_pool_coverage(master: pd.DataFrame, cfg: dict, logger=None)
             selected, cfg, "qualification_history", logger
         ):
             if error is None:
-                downloaded += 1
+                persisted = ROOT / "data" / "history" / f"{code}.csv"
+                if _history_cache_entry_valid(persisted, code):
+                    validated_existing.add(code)
+                    downloaded += 1
+                else:
+                    failed_once.add(code)
+                    failures.append({
+                        "code": code,
+                        "error": "persisted canonical history failed validation",
+                    })
             else:
                 failed_once.add(code)
                 failures.append({"code": code, "error": error})
-        after = _research_coverage_snapshot(m)
+        after = _research_coverage_snapshot(m, validated_existing)
         persist(after, "RUNNING")
         if after["covered_symbols"] <= before and all(code in failed_once for code in selected):
             # No-progress batches remain explicit NOT VERIFIED; never spin/retry
