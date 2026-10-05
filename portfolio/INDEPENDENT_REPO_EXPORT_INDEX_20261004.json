@@ -400,6 +400,31 @@
             "daily_state_boundary": "NOT VERIFIED",
             "artifact_id": 11346094910,
             "artifact_digest": "sha256:d89cdcf370e0274dda94818ee31f982b23cb9dd1b9d0408a06ec7398522d65bd"
+          },
+          "sse_risk_warning_bulletin_surface": {
+            "status": "SUPPORTED_SOURCE_SURFACE_ONLY",
+            "diagnostic_pr": 211,
+            "diagnostic_head": "6de21ed9ff5ef7f294a78b7e7a9a5a7b83829e7b",
+            "diagnostic_run": 37342169436,
+            "diagnostic_job": 111871675272,
+            "endpoint": "https://query.sse.com.cn/security/stock/queryCompanyBulletin.do",
+            "machine_parse_contract": "SUPPORTED",
+            "risk_warning_bulletin_history_surface": "SUPPORTED",
+            "sample_code": "688496",
+            "observed_name_sequence": [
+              "清越科技",
+              "ST清越",
+              "*ST清越"
+            ],
+            "observed_dates": [
+              "2026-04-29",
+              "2026-05-09",
+              "2026-09-02"
+            ],
+            "artifact_id": 11359281478,
+            "artifact_digest": "sha256:dce3a8fbb49e7005941480d0d4b981c631251e758f357508191240f5e6e07d65",
+            "shanghai_historical_st_pit": "NOT VERIFIED",
+            "full_historical_st_pit": "NOT VERIFIED"
           }
         },
         "source_offline": "PASS",
@@ -448,7 +473,7 @@
         "product_head": "f9d610aafe910cb73b036701a688329d9899399b",
         "status": "PASS"
       },
-      "note": "PR #155 exact head 43168d9e retains fresh source/full-business/native-desktop SUCCESS and migration binding PASS. New official-SSE combination diagnostic PR #209 closes Shanghai historical daily suspension state as SUPPORTED_SHANGHAI_ONLY by resolving all 5 open intervals through 2026-09-30, but Shanghai historical ST-name PIT, Beijing historical ST/PIT and full HISTORICAL_ST_PIT remain NOT VERIFIED. Advanced Business therefore remains non-PASS; production Release/repository independence remain BLOCKED; Final remains FAIL.",
+      "note": "Stock current head remains 43168d9e with source/business/desktop and migration PASS at candidate scope. Shanghai daily suspension state is SUPPORTED_SHANGHAI_ONLY. Official SSE company-bulletin endpoint is now machine-query SUPPORTED on PR #211 with dated risk-warning/name evidence, but full Shanghai historical ST-name PIT is still NOT VERIFIED pending market-wide historical event/effective-state reconstruction. Beijing/full HISTORICAL_ST_PIT, production Release, repository independence and Final remain non-PASS.",
       "exact_head_checkout_required": true,
       "current_windows_run": 37289727787,
       "current_windows_status": "SUCCESS_CANDIDATE_ONLY_FINAL_BLOCKED",
