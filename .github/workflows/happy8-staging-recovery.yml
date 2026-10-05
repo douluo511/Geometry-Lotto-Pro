@@ -90,6 +90,11 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
+          # PyInstaller reproducible-build inputs are frozen explicitly.
+          # PYTHONHASHSEED removes Python hash-order nondeterminism and
+          # SOURCE_DATE_EPOCH normalizes the Windows PE build timestamp.
+          $env:PYTHONHASHSEED = '1'
+          $env:SOURCE_DATE_EPOCH = '1704067200'
           New-Item -ItemType Directory -Force -Path evidence | Out-Null
           Remove-Item -Recurse -Force dist1,dist2,build1,build2,spec1,spec2 -ErrorAction SilentlyContinue
           New-Item -ItemType Directory -Force -Path spec1,spec2 | Out-Null
@@ -128,6 +133,8 @@ jobs:
             rebuild_sha256 = $hash2
             updater_sha256 = $updaterHash1
             updater_rebuild_sha256 = $updaterHash2
+            python_hash_seed = $env:PYTHONHASHSEED
+            source_date_epoch = $env:SOURCE_DATE_EPOCH
             same_hash = $true
             updater_same_hash = $true
             exact_exe_self_test = 'PASS'
