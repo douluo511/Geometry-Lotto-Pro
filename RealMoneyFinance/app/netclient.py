@@ -154,7 +154,9 @@ class NetClient:
                 if not any(token in ctype for token in ("text/", "html", "xml")):
                     raise ValueError(f"unexpected text Content-Type: {ctype}")
                 digest = hashlib.sha256(body).hexdigest()
-                encoding = r.encoding or r.apparent_encoding or "utf-8"
+                encoding = r.encoding
+                if not encoding or str(encoding).lower() in {"iso-8859-1", "latin-1"}:
+                    encoding = r.apparent_encoding or "utf-8"
                 try:
                     text = body.decode(encoding, errors="strict")
                 except (LookupError, UnicodeDecodeError):
