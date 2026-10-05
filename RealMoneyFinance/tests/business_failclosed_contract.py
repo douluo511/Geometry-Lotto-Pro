@@ -16,7 +16,7 @@ from app.business_validation import CostAssumptions, _holdout_power_analysis, _o
 from app.domain import DailyBar, validate_market_rows
 from app.source_tencent import fetch_daily_bars_tencent
 from app.source_tencent_full import fetch_daily_bars_tencent_full
-from app.source_corporate_actions import verify_corporate_action_lineage
+from app.source_corporate_actions import fetch_share_bonus_events, verify_corporate_action_lineage
 from app.source_eastmoney import fetch_daily_bars as fetch_daily_bars_eastmoney
 from app.source_yahoo import fetch_daily_bars_yahoo
 from tests.contract_gate import FakeClient, FakeTencentClient, FakeTencentFullClient, FakeYahooClient
@@ -92,7 +92,7 @@ class BusinessBoundaries(unittest.TestCase):
             with self.subTest(provider=kind), self.assertRaises(ValueError):
                 fetcher(client, "600000", 40)
 
-    def test_full_tencent_raw_fallback_cannot_claim_qfq(self):
+    def test_full_tencent_adjustment_identity_fails_closed_on_wrong_key(self):
         client = FakeTencentFullClient()
         original = client.get_jsonp_object
         def raw_response(*args, **kwargs):
@@ -101,8 +101,8 @@ class BusinessBoundaries(unittest.TestCase):
             stock["day"] = stock.pop("qfqday")
             return obj, meta
         client.get_jsonp_object = raw_response
-        _, meta = fetch_daily_bars_tencent_full(client, "600000", 40)
-        self.assertEqual(meta["price_adjustment"], "unadjusted")
+        with self.assertRaises(ValueError):
+            fetch_daily_bars_tencent_full(client, "600000", 40, adjustment="qfq")
 
     def test_final_close_features_cannot_trade_that_close(self):
         rows = bars()
@@ -156,6 +156,38 @@ class BusinessBoundaries(unittest.TestCase):
         self.assertFalse(got["economic_signal_qualified"])
         self.assertFalse(got["capital_deployment_ready"])
         self.assertEqual(got["business_qualification_status"], "NOT VERIFIED")
+
+    def test_corporate_action_source_schema_and_notice_lineage(self):
+        class FakeCorporateClient:
+            def get_json(self, url, params, headers=None):
+                self.url = url
+                self.params = params
+                meta = SimpleNamespace(
+                    status=200,
+                    payload_sha256="e" * 64,
+                    retrieved_at_unix=5.0,
+                    url=url,
+                )
+                return {
+                    "result": {
+                        "data": [{
+                            "SECURITY_CODE": "600000",
+                            "PLAN_NOTICE_DATE": "2026-05-01 00:00:00",
+                            "EX_DIVIDEND_DATE": "2026-06-01 00:00:00",
+                            "PRETAX_BONUS_RMB": 1.5,
+                            "BONUS_RATIO": 0,
+                            "TRANSFER_RATIO": 0,
+                            "ASSIGN_PROGRESS": "实施",
+                        }]
+                    }
+                }, meta
+        client = FakeCorporateClient()
+        events, meta = fetch_share_bonus_events(client, "600000")
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["plan_notice_date"], "2026-05-01")
+        self.assertEqual(events[0]["ex_dividend_date"], "2026-06-01")
+        self.assertEqual(meta["payload_sha256"], "e" * 64)
+        self.assertEqual(client.params["reportName"], "RPT_SHAREBONUS_DET")
 
     def _valid_corporate_action_evidence(self):
         raw = bars(150)
