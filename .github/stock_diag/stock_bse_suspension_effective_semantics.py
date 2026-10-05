@@ -43,13 +43,19 @@ def same_bse(url:str)->bool:
     host=(urlparse(url).hostname or "").lower()
     return host=="bse.cn" or host.endswith(".bse.cn")
 
-def fetch_pdf(session,url,attempts=3):
+def fetch_pdf(session,url,attempts=2):
     errors=[]
     for attempt in range(1,attempts+1):
         try:
             r=session.get(url,headers={"User-Agent":UA,"Referer":"https://www.bse.cn/disclosure/announcement.html","Accept":"application/pdf,application/octet-stream,*/*"},timeout=(8,35),allow_redirects=True)
             meta={"attempt":attempt,"http_status":r.status_code,"resolved_url":r.url,"bytes":len(r.content),"sha256":hashlib.sha256(r.content).hexdigest(),"same_official_host":same_bse(r.url),"pdf_magic":r.content.startswith(b"%PDF")}
-            if r.status_code in {403,429} or r.status_code>=500:
+            if r.status_code in {403,429}:
+                errors.append({**meta,"rate_limited":True})
+                if attempt==attempts:
+                    return None,{"attempts":errors,"selected_attempt":None,"rate_limit_exhausted":True}
+                time.sleep(75.0)
+                continue
+            if r.status_code>=500:
                 raise RuntimeError(f"retryable HTTP {r.status_code}")
             r.raise_for_status()
             if not r.content.startswith(b"%PDF") or not same_bse(r.url):
@@ -59,7 +65,7 @@ def fetch_pdf(session,url,attempts=3):
             errors.append({"attempt":attempt,"error":f"{type(exc).__name__}: {exc}"})
             if attempt==attempts:
                 return None,{"attempts":errors,"selected_attempt":None}
-            time.sleep(1.5*attempt)
+            time.sleep(3.0*attempt)
     return None,{"attempts":errors,"selected_attempt":None}
 
 def extract_text(raw):
@@ -105,7 +111,14 @@ def main():
     events=corpus.get("combined_events") or []
     session=requests.Session()
     records=[]
+    cooldowns=[]
     for i,event in enumerate(events,1):
+        if i > 1 and (i - 1) % 20 == 0:
+            session.close()
+            cooldown={"after_ordinal":i-1,"seconds":75,"reason":"proactive official BSE PDF rate-limit cooldown"}
+            cooldowns.append(cooldown)
+            time.sleep(cooldown["seconds"])
+            session=requests.Session()
         path=str(event.get("destFilePath") or "").strip()
         url=urljoin(BSE_ROOT+"/",path.lstrip("/"))
         rec={
@@ -175,6 +188,7 @@ def main():
         "unresolved_count":len(unresolved),
         "unresolved_sample":unresolved[:40],
       },
+      "rate_limit_control":{"batch_size":20,"cooldown_seconds":75,"cooldowns":cooldowns},
       "records":records,
       "adjudication":{
         "full_primary_pdf_transport_and_text":"PASS" if total>0 and transport==total else "NOT VERIFIED",
