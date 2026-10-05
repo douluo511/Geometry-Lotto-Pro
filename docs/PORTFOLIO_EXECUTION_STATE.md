@@ -531,3 +531,14 @@ Portfolio boundary remains unchanged: migration-seed readiness does not satisfy 
 - Non-Hard-Work remains engineering 24/28=85.7143%, business 4/12=33.3333%. Remaining commercial gates require real demand/payment/cash/economics/repeatability/systemization/assets/scale observations.
 - Be Your Own Master remains engineering 24/28=85.7143%, business 11/13=84.6154%. The only business gaps are 30-day and 90-day effectiveness, which require elapsed real-world evidence.
 - These external/elapsed business gaps are intentionally not converted to PASS through fixtures, projections, wording changes or additional software-only runs.
+
+
+## 2026-10-05 exact-state checkpoint — current-product export readiness restored
+
+- Current-product-bound migration/export verification: **18/18 PASS**.
+- Real dedicated independent repositories visible/writable to the current GitHub integration: **0/18 PASS**.
+- Portfolio Final Gate / delivery allowed: **0/18**.
+- SSQ current product head: `3b61bb59ed0da6f7c7717b6840fe95a00d58a2ad`; migration PR #141 run `37263066966` PASS. Its Windows full-chain run `37262758839` is still in progress; no old PASS is inherited.
+- Stock current product head: `dfa07c51fffdaa7736147cd49e39a274a745e363`; stricter product-byte-neutral migration PR #140 run `37262978618` PASS. Product business/desktop runs `37259832083` / `37259832040` remain in progress.
+- Real-Money current product head: `573e07d57e3f3249e2ec03778559e439c007d64b`; migration PR #139 run `37262871456` PASS. Candidate Engineering 85.7%, Business 68.8%, Overall 68.8%; Final remains FAIL.
+- Migration readiness is not repository independence, not a formal Release, and not a Final product.
