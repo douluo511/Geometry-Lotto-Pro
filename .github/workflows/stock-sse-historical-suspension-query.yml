@@ -59,10 +59,29 @@ jobs:
           path: StockAIPro/stock_sse_historical_suspension_query.json
           if-no-files-found: error
           retention-days: 30
-      - name: Preserve strict boundary
+      - name: Validate reconstruction boundary and preserve strict non-promotion
+        working-directory: StockAIPro
+        shell: bash
         run: |
-          echo "HISTORICAL_DAILY_SUSPENSION_STATE=NOT VERIFIED"
-          echo "SHANGHAI_HISTORICAL_ST_PIT=NOT VERIFIED"
-          echo "FULL_HISTORICAL_ST_PIT=NOT VERIFIED"
-          echo "ADVANCED_BUSINESS=NOT VERIFIED"
-          echo "FINAL_GATE=FAIL"
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path("stock_sse_historical_suspension_query.json")
+          x=json.loads(p.read_text(encoding="utf-8"))
+          a=x["adjudication"]
+          assert a["shanghai_historical_suspension_intervals_2018_to_20260930"] == "SUPPORTED"
+          assert a["historical_daily_suspension_state"] == "SUPPORTED_SHANGHAI_ONLY"
+          assert a["shanghai_historical_st_pit"] == "NOT VERIFIED"
+          assert a["beijing_historical_st_pit"] == "NOT VERIFIED"
+          assert a["full_historical_st_pit"] == "NOT VERIFIED"
+          assert a["advanced_business"] == "NOT VERIFIED"
+          assert a["final_gate"] == "FAIL"
+          print("SHANGHAI_HISTORICAL_SUSPENSION_INTERVALS=SUPPORTED")
+          print("HISTORICAL_DAILY_SUSPENSION_STATE=SUPPORTED_SHANGHAI_ONLY")
+          print("SHANGHAI_HISTORICAL_ST_PIT=NOT VERIFIED")
+          print("BEIJING_HISTORICAL_ST_PIT=NOT VERIFIED")
+          print("FULL_HISTORICAL_ST_PIT=NOT VERIFIED")
+          print("ADVANCED_BUSINESS=NOT VERIFIED")
+          print("FINAL_GATE=FAIL")
+          PY
