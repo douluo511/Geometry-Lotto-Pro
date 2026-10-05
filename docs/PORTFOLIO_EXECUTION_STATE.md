@@ -1,3 +1,14 @@
+<!-- exact-checkpoint-stock-bse-removal-20261006 -->
+## 2026-10-06 Stock BSE removal-history bounded negative evidence
+
+- PR #248 exact head `abc789771e031c003697bbea0068460ae05a8fa0`; run `37365202352` / job `111948556719` = **SUCCESS** as a diagnostic workflow.
+- Exact Stock product byte identity check = PASS.
+- Official BSE `disclosureType=5` pagination across the five companies with validated initial risk-warning implementations = PASS, including first-party old-code aliases.
+- Combined official announcement rows = **2,647**; removal candidates = **0** within this exact company/type/window denominator.
+- Artifact `11367774934`; ZIP digest `sha256:80892e4c0856b01d93005f55b6c0165e6954567ee6f6f7ccc0e73e1236d0df3f`.
+- Strict adjudication remains: `bse_removal_event_history_complete=NOT VERIFIED`; `bse_effective_state_reconstruction=NOT VERIFIED`; `bse_historical_st_pit=NOT VERIFIED`; full `HISTORICAL_ST_PIT=NOT VERIFIED`; Advanced Business = NOT VERIFIED; Final Gate = FAIL.
+- Reason: a zero-removal result is supported only inside the frozen company / disclosureType=5 / 2018-01-01..2026-09-30 scope; it is not proof that every possible BSE removal disclosure surface or vocabulary has been exhausted.
+
 <!-- exact-checkpoint-20261006-stock-attempt2 -->
 ## 2026-10-06 exact checkpoint — Stock #210 attempt 2 / portfolio hard boundary
 
