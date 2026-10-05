@@ -1,5 +1,17 @@
 # Portfolio Execution State — 18 Windows EXE Projects
 
+## 2026-10-06 Stock Shanghai daily-suspension sub-gate closure
+
+- **Authoritative Stock product remains unchanged:** PR #155 exact head `43168d9e75c70ab55be808d8a51f0c0eb14d83d5`.
+- **Daily-suspension combination evidence:** PR #205 exact head `4d105982aa193deb130020920ff0c4f3c0fe8da7`; run `37341614747` / job `111869809429` = **SUCCESS**.
+- Fresh combined proof binds the official SSE 2018-01-01 → 2026-09-30 interval corpus, first-party `endStopDate` final-suspended-date semantics, PR #203 frozen dual-provider 2,123-date identity (SHA-256 `45215343b187e337bc2b1ca3edbfc3055cdc77c0130b46c707bfe84ccf5513c9`) and PR #207 open-interval evidence.
+- Open intervals: expected 5 / observed 5 / missing 0 / extra 0 / unresolved 0; invalid ranges 0; zero trading-day intersections 0; future-end invariance = true.
+- Derived Shanghai daily suspension state: 2,333 A-share intervals → **23,894** (trade_date, code) pairs, **852** unique suspended codes, **2,026** suspended research dates; daily-state SHA-256 `0a614254deb282111393b858f9264bb64c05c12a1c3c3eec4abb714d8774fb08`.
+- Evidence artifact `11357529756`; ZIP digest `sha256:73251fa0d499186eea78ae9ceef45e6b663bf840543c1918c76cd175c50197c8`.
+- Adjudication: `historical_daily_suspension_state=SUPPORTED_SHANGHAI_ONLY`.
+- Strict remaining boundary: Shanghai historical ST/PIT = NOT VERIFIED; Beijing historical ST/PIT = NOT VERIFIED; full `HISTORICAL_ST_PIT` = NOT VERIFIED; Advanced Business = NOT VERIFIED; production updater/repository/Release/Final remain non-PASS.
+- Portfolio aggregate remains migration/export 18/18 PASS; dedicated repositories 0/18; Final PASS 0/18; delivery 0/18.
+
 ## 2026-10-05 Stock trading dates + suspension-interface reversal
 
 - **PR #203 trading-date cross-source:** exact head `51d8dd5819a63248cae3911c286feaf345495e07`, run `37314906853` = **SUCCESS**. Eastmoney and Tencent Shanghai Composite frozen-window date sequences are exactly equal: **2,123 dates**, 2018-01-02 → 2026-09-30, zero one-sided differences, common SHA-256 `45215343b187e337bc2b1ca3edbfc3055cdc77c0130b46c707bfe84ccf5513c9`. Research trading-date sequence = **SUPPORTED**.
