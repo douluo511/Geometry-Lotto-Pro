@@ -11,10 +11,10 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from happy8.domain import Draw
-from happy8.science import validate_history
+from happy8.science import MIN_TRAIN, validate_history
 
 
-def build_synthetic_history(count: int = 500) -> list[Draw]:
+def build_synthetic_history(count: int = 720) -> list[Draw]:
     rng = random.Random(20261003)
     start = date(2020, 1, 1)
     draws: list[Draw] = []
@@ -69,24 +69,45 @@ def main() -> int:
         raise SystemExit(f"scientific protocol contract failed: {failed}")
 
     pool = report.get("candidate_pool")
-    if not isinstance(pool, list) or len(pool) != 7:
+    if not isinstance(pool, dict):
+        raise SystemExit("candidate pool must be an evidence object")
+    candidates = pool.get("candidates")
+    if not isinstance(candidates, dict) or len(candidates) != 7 or pool.get("candidate_count") != 7:
         raise SystemExit("candidate pool must contain exactly seven frozen candidates")
-    if any(int(row.get("oos_n", -1)) != 260 for row in pool):
+    expected_oos = len(draws) - MIN_TRAIN
+    if any(int(row.get("oos_n", -1)) != expected_oos for row in candidates.values()):
         raise SystemExit("candidate pool OOS alignment drifted")
+    if any(
+        int(row.get("development_n", 0)) <= 0 or int(row.get("holdout_n", 0)) <= 0
+        for row in candidates.values()
+    ):
+        raise SystemExit("candidate development/independent-holdout split is empty")
 
-    lopo = report.get("leave_one_period_out")
-    if not isinstance(lopo, list) or len(lopo) != 6:
-        raise SystemExit("leave-one-period-out denominator must contain six periods")
-    if any(int(row.get("holdout_n", 0)) <= 0 for row in lopo):
-        raise SystemExit("leave-one-period-out emitted an empty period")
+    selected = pool.get("selected_by_development")
+    if selected not in candidates:
+        raise SystemExit("development-only model selection did not select a frozen candidate")
+    if "final third" not in str(pool.get("selection_rule", "")):
+        raise SystemExit("independent chronological final-third selection boundary missing")
 
-    reality = report.get("reality_check", {})
+    for name, row in candidates.items():
+        lopo = row.get("leave_one_period_out")
+        if not isinstance(lopo, dict) or lopo.get("status") != "PASS" or int(lopo.get("periods", 0)) != 6:
+            raise SystemExit(f"leave-one-period-out contract failed for {name}")
+        windows = lopo.get("windows")
+        if (
+            not isinstance(windows, list)
+            or len(windows) != 6
+            or any(int(x.get("n", 0)) <= 0 for x in windows)
+        ):
+            raise SystemExit(f"leave-one-period-out denominator drifted for {name}")
+
+    reality = pool.get("reality_check", {})
     reality_p = float(reality.get("p_value", -1))
-    if not 0.0 <= reality_p <= 1.0:
-        raise SystemExit("Reality Check p-value outside [0,1]")
+    if reality.get("status") != "PASS" or not 0.0 <= reality_p <= 1.0:
+        raise SystemExit("Reality Check evidence invalid")
 
-    adjusted = report.get("multiple_testing", {}).get("adjusted_p", {})
-    if set(adjusted) != {row["model"] for row in pool}:
+    adjusted = pool.get("holm_adjusted_holdout_p", {})
+    if set(adjusted) != set(candidates):
         raise SystemExit("Holm family does not match candidate pool")
     if any(not 0.0 <= float(value) <= 1.0 for value in adjusted.values()):
         raise SystemExit("Holm adjusted p-value outside [0,1]")
@@ -94,23 +115,25 @@ def main() -> int:
     if report.get("leakage_challenge", {}).get("status") != "PASS":
         raise SystemExit("future-mutation leakage challenge did not pass")
     if report.get("edge_state") != "NO_EDGE":
-        raise SystemExit("short synthetic history must not be promoted to VALIDATED_EDGE")
+        raise SystemExit("synthetic history must not be promoted to VALIDATED_EDGE")
     if report.get("dan_state") != "NULL_DAN" or report.get("formal_dan"):
         raise SystemExit("NO_EDGE synthetic history emitted formal dan")
     if report.get("production_model") != "uniform_baseline":
         raise SystemExit("non-qualified synthetic history escaped to a production candidate")
 
     summary = {
-        "schema": "happy8-scientific-protocol-contract-v1",
+        "schema": "happy8-scientific-protocol-contract-v2",
         "status": "PASS",
         "synthetic_only": True,
         "draw_count": len(draws),
         "oos_n": report["oos"]["n"],
         "protocol_gates": protocol,
         "canonical_hash_reversal": "PASS",
+        "candidate_count": len(candidates),
+        "selection_rule": pool.get("selection_rule"),
         "edge_state": report["edge_state"],
         "dan_state": report["dan_state"],
-        "candidate_models": [row["model"] for row in pool],
+        "candidate_models": sorted(candidates),
     }
     print(json.dumps(summary, ensure_ascii=False, indent=2))
     return 0
