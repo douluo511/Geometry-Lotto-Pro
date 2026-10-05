@@ -185,6 +185,64 @@ def _prospective_survivorship_contract() -> dict:
                 ),
             )
 
+    class DriftingTotalClient:
+        def __init__(self):
+            self.calls = []
+
+        def get_json(self, url, params, **kwargs):
+            self.calls.append((url, dict(params)))
+            if url in UNIVERSE_URLS:
+                page = int(params.get("pn", "1"))
+                start = (page - 1) * 500
+                rows = [
+                    {
+                        "f12": f"{600000 + i:06d}",
+                        "f13": 1,
+                        "f14": f"eastmoney-{i:04d}",
+                    }
+                    for i in range(start, start + 500)
+                ]
+                total = 1000 if page == 1 else 900
+                return (
+                    {"data": {"total": total, "diff": rows}},
+                    SimpleNamespace(
+                        payload_sha256=("1" if page == 1 else "2") * 64,
+                        retrieved_at_unix=1791172800.0 + page,
+                        url=url,
+                    ),
+                )
+            if url != SSE_UNIVERSE_URL:
+                raise RuntimeError(f"unexpected fixture URL: {url}")
+            stock_type = str(params.get("STOCK_TYPE"))
+            if stock_type == "1":
+                rows = [
+                    {
+                        "A_STOCK_CODE": f"{600000 + i:06d}",
+                        "SEC_NAME_CN": f"main-{i:03d}",
+                    }
+                    for i in range(250)
+                ]
+                digest = "3" * 64
+            elif stock_type == "8":
+                rows = [
+                    {
+                        "A_STOCK_CODE": f"{688000 + i:06d}",
+                        "SEC_NAME_CN": f"star-{i:03d}",
+                    }
+                    for i in range(250)
+                ]
+                digest = "4" * 64
+            else:
+                raise RuntimeError(f"unexpected stock type: {stock_type}")
+            return (
+                {"result": rows},
+                SimpleNamespace(
+                    payload_sha256=digest,
+                    retrieved_at_unix=1791172803.0,
+                    url=url,
+                ),
+            )
+
     previous_source_sha = os.environ.get("SOURCE_SHA")
     os.environ["SOURCE_SHA"] = "a" * 40
     try:
@@ -230,6 +288,36 @@ def _prospective_survivorship_contract() -> dict:
             raise AssertionError("official SSE precommit must bind both raw board payload hashes")
         if official_shape["historical_survivorship_gate"] != "NOT VERIFIED":
             raise AssertionError("official current universe must not backfill historical survivorship")
+        drifting_shape = fetch_current_shanghai_universe_precommit(
+            DriftingTotalClient(),
+            page_size=500,
+            max_pages=3,
+            min_symbols=500,
+        )
+        if drifting_shape["source_provider"] != "sse_official_current_shanghai_equity_universe":
+            raise AssertionError(
+                "pagination-total drift must restart from the official SSE provider"
+            )
+        if drifting_shape["symbol_count"] != 500:
+            raise AssertionError(
+                "SSE restart after pagination drift did not produce the frozen broad universe"
+            )
+        if drifting_shape["host_failover_used"] is not True:
+            raise AssertionError(
+                "pagination-total drift must be recorded as an explicit provider failure"
+            )
+        if drifting_shape["historical_survivorship_gate"] != "NOT VERIFIED":
+            raise AssertionError(
+                "pagination-drift failover must not promote historical survivorship"
+            )
+        if not any(
+            item.get("failure_kind") == "pagination_total_changed"
+            for item in drifting_shape["host_attempts"]
+        ):
+            raise AssertionError(
+                "pagination-total drift reason was not retained in precommit evidence"
+            )
+
         try:
             fetch_current_shanghai_universe_precommit(
                 OfficialFallbackClient(partial=True),
