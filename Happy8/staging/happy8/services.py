@@ -14,6 +14,7 @@ from .science import PICK_SIZE, build_prefix_state, rank_prefix, validate_histor
 from .sources import build_official_snapshot
 from .storage import Store, canonical_json, sha256_json
 
+
 SOFTWARE_VERSION = "0.2.0"
 
 
@@ -49,6 +50,8 @@ class Happy8Service:
         data_root: Path,
         *,
         snapshot_builder: Callable[[], tuple[dict[str, Any], dict[str, bytes]]] = build_official_snapshot,
+        science_validator: Callable[..., dict[str, Any]] = validate_history,
+        software_update_launcher: Callable[[], dict[str, Any]] | None = None,
         repair_environment_probe: Callable[[], dict[str, Any]] | None = None,
     ):
         self.data_root = Path(data_root).resolve()
@@ -57,6 +60,8 @@ class Happy8Service:
         self.results = self.data_root / "results"
         self.evidence = self.data_root / "evidence"
         self.snapshot_builder = snapshot_builder
+        self.science_validator = science_validator
+        self.software_update_launcher = software_update_launcher
         self.repair_environment_probe = repair_environment_probe
         self.cache = self.data_root / "cache"
 
@@ -84,6 +89,14 @@ class Happy8Service:
                 "draw_count": snapshot["canonical"]["draw_count"],
                 "latest_issue": snapshot["canonical"]["draws"][-1]["issue"],
             })
+        return result
+
+    def software_update(self) -> dict[str, Any]:
+        if self.software_update_launcher is None:
+            raise RuntimeError("independent software Updater is not configured")
+        result = self.software_update_launcher()
+        if result.get("status") != "PASS" or result.get("action") != "UPDATER_HANDOFF":
+            raise RuntimeError("independent software Updater handoff failed")
         return result
 
     def one_click_update(self) -> dict[str, Any]:
@@ -225,13 +238,29 @@ class Happy8Service:
     def predict_next(self) -> dict[str, Any]:
         snapshot = self.store.read_current_snapshot()
         draws = self._draws(snapshot)
-        science = validate_history(
+        science = self.science_validator(
             draws,
             canonical_hash=str(snapshot["canonical"]["canonical_hash"]),
         )
         state = build_prefix_state(draws)
         ranking = rank_prefix(draws, state, len(draws))
+        ranking80 = [
+            {
+                "rank": int(row["rank"]),
+                "number": int(row["number"]),
+                "score": float(row["score"]),
+                "consensus": float(row["consensus"]),
+                "stability": float(row["stability"]),
+                "seed_support": float(row["seed_support"]),
+                "frequency_signal": float(row["frequency_signal"]),
+                "transition_signal": float(row["transition_signal"]),
+                "geometry_signal": float(row["geometry_signal"]),
+            }
+            for row in ranking
+        ]
         candidate10 = sorted(int(row["number"]) for row in ranking[:PICK_SIZE])
+        candidate20 = sorted(int(row["number"]) for row in ranking[:20])
+        observed_core = sorted(int(row["number"]) for row in ranking[:4])
         latest_issue = draws[-1].issue
         target_issue = str(int(latest_issue) + 1)
 
@@ -254,7 +283,14 @@ class Happy8Service:
             "source_latest_issue": latest_issue,
             "canonical_hash": snapshot["canonical"]["canonical_hash"],
             "generation_id": snapshot["generation_id"],
+            "ranking80_research_only": ranking80,
             "candidate10_research_only": candidate10,
+            "candidate20_research_only": candidate20,
+            "observed_core_research_only": observed_core,
+            "baseline": {
+                "single_number_probability": 0.25,
+                "pick10_expected_hits": 2.5,
+            },
             "formal_dan": formal_dan,
             "edge_state": edge_state,
             "dan_state": dan_state,
@@ -456,7 +492,7 @@ class Happy8Service:
     def advanced_analysis(self) -> dict[str, Any]:
         snapshot = self.store.read_current_snapshot()
         draws = self._draws(snapshot)
-        report = validate_history(
+        report = self.science_validator(
             draws,
             canonical_hash=str(snapshot["canonical"]["canonical_hash"]),
         )
