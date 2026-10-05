@@ -571,3 +571,12 @@ Portfolio boundary remains unchanged: migration-seed readiness does not satisfy 
 - SSQ current product head `3b61bb59ed0da6f7c7717b6840fe95a00d58a2ad`, run `37262758839`: all current internal/Windows/Exact/reproducible/GUI/hash gates pass; Final FAIL is exactly business_content=PENDING (B05-derived), updater_real_network=PENDING, repository_independence=FAIL, release_context=FAIL.
 - DLT current head `88809643fe3841879f4c038b9bbffb86026629f5`, run `37258239532`: current internal/official-network/reproducible Windows/Exact/Updater/GUI/hash gates pass; Final has the same four release-chain non-PASS states.
 - Stock current exact head `dfa07c51fffdaa7736147cd49e39a274a745e363`: full default-production business run `37259832083` is PASS; desktop run `37259832040` is still executing the frozen >=90% current+delisted research-corpus gate.
+
+
+## 2026-10-05 RMF current-main migration seed refresh
+
+- RMF migration PR #156 exact head `e0859d9cc8ef40ec630036d794122f2aa3fa1efc`, product base `c79666888aed8fe8b28ff4f165be06e9eef1884e`.
+- Export verification run `37268484244` / job `111630236519` = SUCCESS: product-tree byte identity PASS, deterministic export PASS, independent second-pass hash verification PASS, deliberate mutation fail-closed PASS.
+- Export manifest: 41 files; SHA256 `49b9f836ec187654edc4c2a916e3db7c5c0c8fe0b4358903375e2af6646f8316`; artifact ID `11327253113`.
+- The workflow explicitly records repository_independence=NOT VERIFIED, real_release_n_to_n_plus_1=NOT VERIFIED and final_gate=FAIL. Migration/export readiness is not a final product.
+- With this refresh, current-product-bound migration/export verification is again 18/18 PASS; visible real independent repositories remain 0/18 and portfolio Final remains 0/18.
