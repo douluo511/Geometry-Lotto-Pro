@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from bisect import bisect_right
 from dataclasses import asdict, dataclass
+from datetime import date
 import math
 import random
 import re
@@ -119,9 +120,13 @@ def _corporate_action_evidence_qualified(source_meta: dict, evidence: dict) -> b
         return False
     if factor_window_sessions < 3:
         return False
+    price_tick = evidence.get("price_tick")
+    if not isinstance(price_tick, (int, float)) or not math.isfinite(float(price_tick)) or abs(float(price_tick) - 0.01) > 1e-12:
+        return False
     tolerance = evidence.get("factor_change_tolerance")
     if not isinstance(tolerance, (int, float)) or not math.isfinite(float(tolerance)) or float(tolerance) <= 0:
         return False
+    seen_events = set()
     for item in matched:
         if not isinstance(item, dict):
             return False
@@ -132,17 +137,49 @@ def _corporate_action_evidence_qualified(source_meta: dict, evidence: dict) -> b
         notice = str(event.get("plan_notice_date") or "")
         ex_date = str(event.get("ex_dividend_date") or "")
         trade_date = str(change.get("trade_date") or "")
-        if not all(re.fullmatch(r"\d{4}-\d{2}-\d{2}", x) for x in (notice, ex_date, trade_date)):
+        previous_trade_date = str(change.get("previous_trade_date") or "")
+        if not all(re.fullmatch(r"\d{4}-\d{2}-\d{2}", x) for x in (notice, ex_date, previous_trade_date, trade_date)):
             return False
-        if notice > ex_date or trade_date < ex_date:
+        try:
+            notice_day = date.fromisoformat(notice)
+            ex_day = date.fromisoformat(ex_date)
+            previous_day = date.fromisoformat(previous_trade_date)
+            trade_day = date.fromisoformat(trade_date)
+        except Exception:
+            return False
+        if notice_day > ex_day or previous_day >= trade_day or trade_day < ex_day:
             return False
         days_after = item.get("calendar_days_after_ex_date")
-        if not isinstance(days_after, int) or not 0 <= days_after <= 7:
+        actual_days_after = (trade_day - ex_day).days
+        if not isinstance(days_after, int) or days_after != actual_days_after or not 0 <= days_after <= 7:
             return False
+
+        event_symbol = str(event.get("symbol") or "")
+        if event_symbol != evidence_symbol:
+            return False
+        try:
+            payout_positive = any(float(event.get(k) or 0) > 0 for k in ("pretax_bonus_rmb", "bonus_ratio", "transfer_ratio"))
+        except Exception:
+            return False
+        if not payout_positive:
+            return False
+        event_key = (event_symbol, notice, ex_date)
+        if event_key in seen_events:
+            return False
+        seen_events.add(event_key)
+
         relative = change.get("relative_change")
-        if not isinstance(relative, (int, float)) or not math.isfinite(float(relative)):
+        effective_threshold = change.get("effective_threshold")
+        rounding_bound = change.get("rounding_error_bound")
+        local_noise = change.get("local_mad_ratio")
+        values = (relative, effective_threshold, rounding_bound, local_noise)
+        if any(not isinstance(x, (int, float)) or not math.isfinite(float(x)) for x in values):
             return False
-        if float(relative) <= float(tolerance):
+        if float(effective_threshold) < float(tolerance):
+            return False
+        if float(rounding_bound) < 0 or float(local_noise) < 0:
+            return False
+        if float(relative) <= float(effective_threshold):
             return False
     return True
 
