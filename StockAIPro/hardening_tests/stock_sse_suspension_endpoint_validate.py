@@ -312,4 +312,37 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except SystemExit:
+        raise
+    except Exception as exc:
+        failure = {
+            "schema": "stock-sse-suspension-endpoint-validation-v1",
+            "status": "FAIL",
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "authoritative_product_head": "43168d9e75c70ab55be808d8a51f0c0eb14d83d5",
+            "product_bytes_changed": False,
+            "official_candidate": {
+                "endpoint": ENDPOINT,
+                "sql_id": SQL_ID,
+                "referer": REFERER,
+            },
+            "error_type": type(exc).__name__,
+            "error": str(exc),
+            "adjudication": {
+                "official_sse_candidate_endpoint_callable": "NOT VERIFIED",
+                "historical_suspension_interval_source": "NOT VERIFIED",
+                "historical_daily_suspension_state": "NOT VERIFIED",
+                "shanghai_historical_st_name_state": "NOT VERIFIED",
+                "shanghai_historical_st_pit": "NOT VERIFIED",
+                "full_historical_st_pit": "NOT VERIFIED",
+            },
+            "final_gate": "FAIL",
+        }
+        Path("stock_sse_suspension_endpoint_validation.json").write_text(
+            json.dumps(failure, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        print(json.dumps(failure, ensure_ascii=True, sort_keys=True))
+        raise
