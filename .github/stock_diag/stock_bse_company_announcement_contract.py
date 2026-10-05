@@ -179,6 +179,25 @@ def collect_values(obj, wanted_keys):
     return list(dict.fromkeys(out))
 
 
+def list_info_meta(obj):
+    found={}
+    def walk(x):
+        nonlocal found
+        if found:
+            return
+        if isinstance(x,dict):
+            if "content" in x and any(k in x for k in ("totalPages","totalElements","number")):
+                found={k:x.get(k) for k in ("number","numberOfElements","size","totalElements","totalPages") if k in x}
+                return
+            for v in x.values():
+                walk(v)
+        elif isinstance(x,list):
+            for v in x:
+                walk(v)
+    walk(obj)
+    return found
+
+
 def main():
     session=requests.Session()
     # Reconstruct the page's classification inputs from the same first-party
@@ -271,20 +290,95 @@ def main():
                     })
             item={
                 "transport":meta,
+                "page_meta":list_info_meta(obj) if obj is not None else {},
                 "record_count":len(records),
                 "exact_code_record_count":len(exact),
                 "matching_count":len(matching),
                 "matching_sample":matching[:10],
+                "exact_code_sample":[{
+                    "companyCd":r.get("companyCd"),
+                    "companyName":r.get("companyName"),
+                    "title":(str(r.get("disclosureTitle") or "")+str(r.get("disclosurePostTitle") or "")),
+                    "publishDate":r.get("publishDate"),
+                    "destFilePath":r.get("destFilePath"),
+                } for r in exact[:10]],
             }
             variants.append(item)
             if winning is None and matching:
                 winning=item
+
+        # If an official-derived disclosure type returns the target company but
+        # the target historical event is not on page 0, follow the server's own
+        # totalPages denominator.  This closes the pagination blind spot without
+        # changing sample dates/titles or treating unrelated rows as a match.
+        if winning is None:
+            productive=[]
+            for item in variants:
+                label=item["transport"].get("variant","")
+                m_idx=re.fullmatch(r"official_discovered_type_(\d+)_post",label)
+                if m_idx and item["exact_code_record_count"]>0:
+                    productive.append((int(m_idx.group(1)),item))
+            for idx,first_item in productive:
+                dtype=disclosure_type_candidates[idx]
+                total_pages=int(first_item.get("page_meta",{}).get("totalPages") or 1)
+                for page_no in range(1,min(total_pages,60)):
+                    paged_base={k:v for k,v in category_base.items() if k!="page"}
+                    paged_base["page"]=page_no
+                    pairs=list(paged_base.items())
+                    pairs += [("disclosureType[]",dtype),("xxfcbj[]","2")]
+                    pairs += [("needFields[]",field) for field in NEED_FIELDS]
+                    obj,meta=request_variant(
+                        session,f"official_discovered_type_{idx}_page_{page_no}_post","POST",pairs
+                    )
+                    records=find_records(obj) if obj is not None else []
+                    exact=[r for r in records if str(r.get("companyCd","")).strip()==sample["code"]]
+                    matching=[]
+                    for r in exact:
+                        title=(str(r.get("disclosureTitle") or "")+str(r.get("disclosurePostTitle") or ""))
+                        date=str(r.get("publishDate") or "")
+                        path=str(r.get("destFilePath") or "")
+                        if (
+                            all(tok in title for tok in sample["expected_title_tokens"])
+                            and date.startswith(sample["expected_date_prefix"])
+                            and path
+                            and (path.startswith("/") or same_bse(path))
+                        ):
+                            matching.append({
+                                "companyCd":r.get("companyCd"),
+                                "companyName":r.get("companyName"),
+                                "title":title,
+                                "publishDate":r.get("publishDate"),
+                                "destFilePath":path,
+                                "fileExt":r.get("fileExt"),
+                                "xxzrlx":r.get("xxzrlx"),
+                            })
+                    item={
+                        "transport":meta,
+                        "page_meta":list_info_meta(obj) if obj is not None else {},
+                        "record_count":len(records),
+                        "exact_code_record_count":len(exact),
+                        "matching_count":len(matching),
+                        "matching_sample":matching[:10],
+                        "exact_code_sample":[{
+                            "companyCd":r.get("companyCd"),
+                            "companyName":r.get("companyName"),
+                            "title":(str(r.get("disclosureTitle") or "")+str(r.get("disclosurePostTitle") or "")),
+                            "publishDate":r.get("publishDate"),
+                            "destFilePath":r.get("destFilePath"),
+                        } for r in exact[:10]],
+                    }
+                    variants.append(item)
+                    if matching:
+                        winning=item
+                        break
+                if winning is not None:
+                    break
         status="PASS" if winning is not None else "NOT VERIFIED"
         all_sample_pass=all_sample_pass and status=="PASS"
         results.append({"sample":sample,"status":status,"variants":variants})
 
     report={
-        "schema":"stock-bse-company-announcement-contract-v3",
+        "schema":"stock-bse-company-announcement-contract-v4",
         "endpoint":ENDPOINT,
         "endpoint_discovered_from":{
             "pr":219,
@@ -297,7 +391,7 @@ def main():
             "official_ajax_type":"post",
             "official_data_type":"jsonp",
             "array_fields":["xxfcbj","needFields"],
-            "array_encoding_under_test":"jquery bracket-suffixed keys plus live official disclosure_type.do values",
+            "array_encoding_under_test":"jquery bracket-suffixed keys plus live official disclosure_type.do values and server-denominated pagination",
             "no_gate_reduction":True,
         },
         "classification_controls":{
