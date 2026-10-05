@@ -1,0 +1,88 @@
+name: Stock SSE primary transition semantics sample
+
+on:
+  push:
+    branches:
+      - diagnostic/stock-sse-primary-transition-semantics-sample-20261006
+    paths:
+      - ".github/stock_diag/stock_sse_primary_transition_semantics_sample.py"
+      - ".github/workflows/stock-sse-primary-transition-semantics-sample.yml"
+  pull_request:
+    paths:
+      - ".github/stock_diag/stock_sse_primary_transition_semantics_sample.py"
+      - ".github/workflows/stock-sse-primary-transition-semantics-sample.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sample:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Checkout exact diagnostic head
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Verify exact checkout and unchanged Stock product bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected="${{ github.event.pull_request.head.sha || github.sha }}"
+          authoritative="7f270b9ab58e11fd8129053a65e000c90ff9d8c1"
+          test "$(git rev-parse HEAD)" = "$expected"
+          test -z "$(git diff --name-only "$authoritative"..HEAD -- StockAIPro)"
+          echo "STOCK_PRODUCT_TREE_BYTE_IDENTITY=PASS"
+          echo "STOCK_PRODUCT_BYTES_CHANGED=FALSE"
+
+      - name: Setup Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.11.9"
+          check-latest: false
+
+      - name: Install pinned dependencies
+        shell: bash
+        run: python -m pip install --disable-pip-version-check --no-input "requests==2.34.2" "pypdf==5.4.0"
+
+      - name: Sample primary SSE transition documents
+        id: sample
+        continue-on-error: true
+        shell: bash
+        run: python .github/stock_diag/stock_sse_primary_transition_semantics_sample.py
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: STOCK-SSE-PRIMARY-TRANSITION-SEMANTICS-SAMPLE-${{ github.event.pull_request.head.sha || github.sha }}
+          path: stock_sse_primary_transition_semantics_sample.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Preserve strict boundary
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f stock_sse_primary_transition_semantics_sample.json
+          python - <<'PY'
+          import json
+          x=json.load(open("stock_sse_primary_transition_semantics_sample.json",encoding="utf-8"))
+          a=x["adjudication"]
+          assert a["primary_document_semantics_complete"] == "NOT VERIFIED"
+          assert a["effective_state_reconstruction"] == "NOT VERIFIED"
+          assert a["shanghai_historical_st_pit"] == "NOT VERIFIED"
+          assert a["full_historical_st_pit"] == "NOT VERIFIED"
+          assert a["advanced_business"] == "NOT VERIFIED"
+          assert a["final_gate"] == "FAIL"
+          print("PRIMARY_DOCUMENT_SAMPLING_FEASIBILITY="+a["primary_document_sampling_feasibility"])
+          print("SAMPLE_SEMANTICS="+a["sample_semantics_supported"])
+          print("SHANGHAI_HISTORICAL_ST_PIT=NOT VERIFIED")
+          print("FULL_HISTORICAL_ST_PIT=NOT VERIFIED")
+          print("FINAL_GATE=FAIL")
+          PY
+          test "${{ steps.sample.outcome }}" = "success"
