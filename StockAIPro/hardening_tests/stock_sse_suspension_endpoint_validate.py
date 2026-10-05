@@ -60,8 +60,10 @@ def params(start: str, end: str) -> dict[str, str]:
         "pageHelp.endPage": "1",
         "productCode": "",
         "keyWords": "",
-        "startStopDate": start,
-        "endStopDate": end,
+        # Official search_tradeTip_2021.js strips '-' before submission.
+        # The live SOA service rejects YYYY-MM-DD with a parameter-format error.
+        "startStopDate": start.replace("-", ""),
+        "endStopDate": end.replace("-", ""),
     }
 
 
