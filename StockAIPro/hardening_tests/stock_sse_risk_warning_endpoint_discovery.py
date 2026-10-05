@@ -10,9 +10,15 @@ from urllib.parse import urljoin
 import requests
 from bs4 import BeautifulSoup
 
-PAGES = [
-    "https://www.sse.com.cn/assortment/stock/list/info/company/index.shtml?COMPANY_CODE=603070",
-    "https://www.sse.com.cn/assortment/stock/list/info/company/index.shtml?COMPANY_CODE=603388",
+PAGE_GROUPS = [
+    [
+        "https://www.sse.com.cn/assortment/stock/list/info/company/index.shtml?COMPANY_CODE=603070",
+        "https://big5.sse.com.cn/site/cht/www.sse.com.cn/assortment/stock/list/info/company/index.shtml?COMPANY_CODE=603070",
+    ],
+    [
+        "https://www.sse.com.cn/assortment/stock/list/info/company/index.shtml?COMPANY_CODE=603388",
+        "https://big5.sse.com.cn/site/cht/www.sse.com.cn/assortment/stock/list/info/company/index.shtml?COMPANY_CODE=603388",
+    ],
 ]
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/154.0 Safari/537.36"
 TOKENS = (
@@ -63,8 +69,19 @@ def main():
     s=requests.Session()
     pages=[]
     script_urls=set()
-    for url in PAGES:
-        r,meta=fetch(s,url)
+    for candidates in PAGE_GROUPS:
+        failures=[]
+        chosen=None
+        for url in candidates:
+            try:
+                r,meta=fetch(s,url,attempts=2)
+                chosen=(url,r,meta)
+                break
+            except Exception as exc:
+                failures.append({"url":url,"error":f"{type(exc).__name__}: {exc}"})
+        if chosen is None:
+            raise RuntimeError(f"all official SSE company-page variants failed: {failures}")
+        url,r,meta=chosen
         text=r.content.decode(r.encoding or "utf-8",errors="replace")
         soup=BeautifulSoup(text,"html.parser")
         scripts=[]
@@ -78,14 +95,15 @@ def main():
                 script_urls.add(full)
         pages.append({
             "url":url,
+            "candidate_failures":failures,
             "status":r.status_code,
             "sha256":hashlib.sha256(r.content).hexdigest(),
             "fetch_attempt":meta["attempt"],
             "script_count":len(scripts),
             "scripts":scripts,
             "inline_matches":bounded_matches(text,url)["matches"],
-            "has_risk_warning_label":"风险警示" in text,
-            "has_company_announcements_label":"公司公告" in text,
+            "has_risk_warning_label":"风险警示" in text or "風險警示" in text,
+            "has_company_announcements_label":"公司公告" in text or "公司公告" in text,
         })
 
     scripts=[]
