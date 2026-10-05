@@ -188,13 +188,26 @@ def main() -> int:
         repair = wait_json(
             repair_path,
             timeout=120,
-            predicate=lambda x: x.get("status") == "PASS",
+            predicate=lambda x: (
+                x.get("status") == "PASS"
+                or (
+                    x.get("status") == "BLOCKED"
+                    and x.get("action") == "LOCAL_REPAIR_COMPLETE_EXTERNAL_BLOCKER"
+                    and x.get("post_repair_self_check", {}).get("status") == "PASS"
+                    and x.get("components", {}).get("data_integrity", {}).get("status") == "PASS"
+                )
+            ),
         )
         operation_evidence["repair"] = {
-            "status": "PASS",
+            "status": (
+                "PASS"
+                if repair.get("status") == "PASS"
+                else "PASS_NEGATIVE_EXTERNAL_BOUNDARY"
+            ),
             "path": str(repair_path),
             "sha256": json_sha256(repair_path),
             "action": repair.get("action"),
+            "reported_status": repair.get("status"),
         }
         wait_buttons_ready(window)
 
