@@ -803,3 +803,15 @@ This checkpoint supersedes older in-progress wording for the items below only. I
 - Strict boundary: `historical_pit_availability=NOT VERIFIED`; `survivorship_selection_control=NOT VERIFIED`; `capital_deployment_ready=false`; RMF Final Gate remains **FAIL**. This diagnostic changes no `RealMoneyFinance/**` product bytes and does not itself change the formal RMF Business 12/16 denominator result.
 - Duplicate draft diagnostic PR #186 was closed as superseded; its historical evidence remains preserved.
 - Repository Independence remains **0/18 PASS** and portfolio Final/Delivery remains **0/18**.
+
+
+## 2026-10-05 Stock AI exact-head desktop terminal acceptance
+
+- Product authority: PR #155 exact head `43168d9e75c70ab55be808d8a51f0c0eb14d83d5`.
+- Current-head source run `37289727792` = **SUCCESS**; business run `37289727888` = **SUCCESS** with honest decision `NO_TRADE`, model trust LOW, Rank IC `-0.10273510698284655`.
+- Native desktop run `37289727787` / job `111697036718` = **SUCCESS as candidate execution**: Windows Build PASS, Exact EXE self-test PASS, frozen repair PASS, Exact-EXE real-network core PASS, frozen advanced execution PASS, physical GUI entry invocations PASS, physical GUI core/repair/advanced PASS.
+- Main EXE SHA-256 `50cb95cde7c258252a2b9f4dfe0761f46f8adac569d81efafb4553d157127141`; independent Updater EXE SHA-256 `365049c764b7b13dc1a220885acfd09fdaa582e04c509737948886c50689be29`.
+- Frozen real-history corpus gate = **PASS**: 4886/5362 = 91.1227154%; current coverage 90.9996170%; delisted coverage 95.7142857%; remaining 476; corpus master SHA-256 `6ea8cfb49bfc493c3bef98423e63dd12e206bd9bffd71b79445fc8d4de91ec42`; history manifest SHA-256 `4fbd3b26cbc8f24bd12eec6b89fc4393d62e76d4bff241144066f1f9624c73d6`.
+- Advanced business qualification remains **NOT VERIFIED** because `HISTORICAL_ST_PIT=WARN`; production positive update / real Release update = **BLOCKED**; Repository Independence = **BLOCKED**; Final Gate = **FAIL**.
+- Desktop artifact `11341383365`; digest `sha256:a8373dfd187b08b878b5304fdd9426d725ec2d5f6c37a6f0acba76bc6745c7ec`.
+- Current deterministic export = PR #181 head `a567dae423d0e015d06107ca3e99db696fa5e65b`, run `37289868886` SUCCESS, artifact `11335343870`, digest `sha256:920e575d88eef56a5af90f27ed9a293b8a643a4f330a6b13a73029937a114d8d`; this is migration readiness only, not repository independence.
