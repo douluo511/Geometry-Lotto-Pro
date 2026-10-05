@@ -66,13 +66,18 @@ jobs:
           import json
           x=json.load(open("stock_sse_marketwide_risk_warning_history.json",encoding="utf-8"))
           a=x["adjudication"]
+          assert a["pagination_integrity"] == "PASS"
           assert a["marketwide_risk_warning_query_surface"] == "SUPPORTED"
+          assert a["exhaustive_marketwide_event_corpus"] == "SUPPORTED"
+          assert a["event_semantics_complete"] == "NOT VERIFIED"
           assert a["shanghai_historical_st_pit"] == "NOT VERIFIED"
           assert a["effective_state_reconstruction"] == "NOT VERIFIED"
           assert a["full_historical_st_pit"] == "NOT VERIFIED"
           assert a["advanced_business"] == "NOT VERIFIED"
           assert a["final_gate"] == "FAIL"
+          print("PAGINATION_INTEGRITY=PASS")
           print("MARKETWIDE_RISK_WARNING_QUERY_SURFACE=SUPPORTED")
+          print("EXHAUSTIVE_MARKETWIDE_EVENT_CORPUS=SUPPORTED")
           print("SHANGHAI_HISTORICAL_ST_PIT=NOT VERIFIED")
           print("FINAL_GATE=FAIL")
           PY
