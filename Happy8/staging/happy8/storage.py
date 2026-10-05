@@ -81,24 +81,41 @@ def _validate_raw_bundle(report: dict[str, Any], raw_sources: dict[str, bytes]) 
             safe = re.fullmatch(r"national_page_\d{4}\.json", filename)
         elif history_source == "shanghai_welfare_lottery":
             safe = re.fullmatch(r"shanghai_20\d{5}_20\d{5}\.html", filename)
-        elif history_source == "jiangxi_fuzhou_plus_jiangsu_official":
+        elif history_source == "jiangxi_fuzhou_numbers_plus_mof_calendar_crosschecked_jiangsu":
             item_source = str(item.get("source") or "")
+            raw_required = True
             if item_source == "jiangxi_fuzhou_welfare_lottery":
                 safe = re.fullmatch(r"fuzhou_page_\d{3}\.html", filename)
+            elif item_source == "ministry_of_finance_lottery_market_calendar":
+                safe = filename == "mof_market_calendar_contract.json"
             elif item_source == "jiangsu_welfare_lottery":
-                safe = re.fullmatch(
-                    r"(?:jiangsu_history_page_\d{3}|jiangsu_issue_20\d{5})\.html",
-                    filename,
+                safe = re.fullmatch(r"jiangsu_history_page_\d{3}\.html", filename)
+            elif item_source == "jiangsu_welfare_lottery_crosscheck":
+                # Derived metadata only: its raw inputs are the Jiangsu pages
+                # already bound in this same manifest. Never accept arbitrary
+                # zero-byte pseudo-files as raw evidence.
+                missing = item.get("missing_index_issues")
+                safe = (
+                    filename == "derived_from_jiangsu_history_pages"
+                    and int(item.get("bytes") or 0) == 0
+                    and isinstance(missing, list)
+                    and int(item.get("missing_index_count") or 0) == len(missing)
+                    and int(item.get("row_count") or 0) > 0
+                    and re.fullmatch(r"[0-9a-f]{64}", str(item.get("sha256") or ""))
                 )
+                raw_required = False
             else:
                 safe = None
         else:
             safe = None
+            raw_required = True
         if not safe:
             raise ValueError(f"unsafe history raw filename/source: {history_source} {filename!r}")
         if filename in seen_files:
             raise ValueError(f"duplicate history raw filename: {filename}")
         seen_files.add(filename)
+        if not raw_required:
+            continue
         raw = raw_sources.get(filename)
         if raw is None:
             raise ValueError(f"missing history raw response: {filename}")
