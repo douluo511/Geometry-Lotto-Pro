@@ -1,5 +1,16 @@
 # Portfolio Execution State — 18 Windows EXE Projects
 
+## 2026-10-05 Stock SSE risk-warning machine-contract diagnostic — terminal negative evidence
+
+- Diagnostic PR #196 current exact head `382903bfdd8fc4ee92d3d85fb3deb37531ff3096`.
+- Run `37313670415` / job `111774958371` = **FAIL** at discovery, after exact checkout and Stock product-byte drift=FALSE both PASS.
+- The repaired diagnostic now scans official SSE company pages + official risk-warning board, uses official Big5 fallbacks, and extracts query endpoints/sqlIds from both inline HTML and external JS.
+- Reproduced result: `endpoint_candidates=[]`; `relevant_sql_ids=[]`; machine query contract = **NOT VERIFIED**.
+- This is accepted as negative evidence; the workflow must remain red until literal first-party machine-readable contract evidence exists.
+- Shanghai historical ST/PIT = **NOT VERIFIED**; full HISTORICAL_ST_PIT = **NOT VERIFIED**; Advanced Business = **NOT VERIFIED**; Final Gate = **FAIL**.
+- Artifact `11346783919`, digest `sha256:45478b4cec764c63eb27ef46cc2400b56bcac49f7cdf4ca5c0fec358a96c4a84`.
+- No Stock product/runtime byte or frozen denominator/threshold changed.
+
 ## 2026-10-05 Stock AI exact-head desktop terminal PASS — 43168d9e / run 37289727787
 
 - **Authoritative Stock AI product:** PR #155 exact head `43168d9e75c70ab55be808d8a51f0c0eb14d83d5`.
