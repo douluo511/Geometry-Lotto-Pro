@@ -1,5 +1,15 @@
 # Portfolio Execution State — 18 Windows EXE Projects
 
+## 2026-10-05 Stock AI fresh business exact-head PASS — 43168d9e / run 37289727888
+
+- **Authoritative Stock AI product:** PR #155 exact head `43168d9e75c70ab55be808d8a51f0c0eb14d83d5`.
+- Fresh full-business run `37289727888` / job `111697037232` = **SUCCESS**.
+- Production daily source→engine→business chain PASS: live universe 300; research master 5461; research training symbols 353; validation rows 13,387; production train rows 180,000; data quality good ratio 1.0; valuation qualification 120/300 = 40% PASS.
+- Validation Rank IC = **-0.10273510698284655**. Fail-safe decision remains **NO_TRADE**, model trust **LOW**; negative validation evidence is not promoted into a trading claim.
+- Prediction manifest SHA-256 `1d70d689e3be29396892c80c2ce0a054b3bc7c86b77275719bab22e491a862ac`.
+- Business artifact `11337726197`, digest `sha256:903e3cedce66697e9b8429b7bcb45c18c43e1df9e75033af26bd432f52b7b78a`.
+- This workflow explicitly keeps Desktop EXE / Physical GUI / Same Hash = **NOT VERIFIED** and Final Gate = **FAIL**. Fresh desktop run `37289727787` remains separate and active; no downstream PASS is inherited.
+
 ## 2026-10-05 Happy8 terminal exact-head acceptance — correct fail-closed
 
 - **Authoritative product:** Happy8 PR #176 exact head `10763ef098a653ba8c81f399d335a85486e31642`.
