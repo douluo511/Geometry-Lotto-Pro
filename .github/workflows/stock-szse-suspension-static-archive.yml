@@ -72,7 +72,8 @@ jobs:
           assert a["advanced_business"] == "NOT VERIFIED"
           assert a["final_gate"] == "FAIL"
           print("SZSE_STATIC_ARCHIVE_PAGINATION="+a["official_static_archive_pagination"])
-          print("SZSE_SUSPENSION_EVENT_ARCHIVE="+a["frozen_window_suspension_event_archive"])
+          print("SZSE_SUSPENSION_NOTICE_LINK_ARCHIVE="+a["frozen_window_suspension_notice_link_archive"])
+          print("SZSE_ARCHIVE_TITLE_SEMANTICS="+a["archive_title_semantics"])
           print("SHENZHEN_HISTORICAL_SUSPENSION_STATE=NOT VERIFIED")
           print("FULL_HISTORICAL_ST_PIT=NOT VERIFIED")
           print("FINAL_GATE=FAIL")
