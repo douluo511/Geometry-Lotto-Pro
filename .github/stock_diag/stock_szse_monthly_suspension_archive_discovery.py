@@ -21,6 +21,8 @@ MONTH_LINK_RE=re.compile(r'''(?:href|src)=["']([^"']*(?:docs\.static\.szse\.cn)?
 ABS_MONTH_RE=re.compile(r'''https://docs\.static\.szse\.cn/www/market/periodical/month/W\d+\.html''',re.I)
 MONTH_TEXT_RE=re.compile(r"(20\d{2})[.年/-](0?[1-9]|1[0-2])(?:月)?")
 TABLE_MARKERS=("证券停牌情况","SUSPENDED","停牌时间","复牌时间")
+SCRIPT_SRC_RE=re.compile(r'''<script[^>]+src=["']([^"']+)["']''',re.I)
+API_TOKEN_RE=re.compile(r'''(?i)(?:https?:)?//[^"'\s<>]+|/api/[^"'\s<>]+|CATALOGID[^"'\s<>]{0,120}|catalogId[^"'\s<>]{0,120}|componentId[^"'\s<>]{0,120}|monthlyReport[^"'\s<>]{0,160}|GEMmsb[^"'\s<>]{0,160}''')
 
 def official(url:str)->bool:
     host=(urlparse(url).hostname or "").lower()
@@ -52,6 +54,8 @@ def main():
     session=requests.Session()
     index_receipts=[]
     links={}
+    script_urls=set()
+    api_contexts=[]
     for root in INDEX_ROOTS:
         for page in range(0,8):
             suffix="index.html" if page==0 else f"index_{page}.html"
@@ -68,10 +72,41 @@ def main():
                 u=urljoin(r.url,rel)
                 if official(u) and "/www/market/periodical/month/" in u:
                     found.add(u.split("#",1)[0].split("?",1)[0])
+            scripts=[]
+            for rel in SCRIPT_SRC_RE.findall(text):
+                su=urljoin(r.url,rel)
+                if official(su):
+                    scripts.append(su)
+                    script_urls.add(su)
+            tokens=[]
+            for m in API_TOKEN_RE.finditer(text):
+                token=m.group(0)[:300]
+                if token not in tokens:
+                    tokens.append(token)
             rec["month_link_count"]=len(found)
+            rec["script_urls"]=scripts
+            rec["api_tokens"]=tokens[:80]
+            api_contexts.extend({"source":url,"token":t} for t in tokens[:80])
             index_receipts.append(rec)
             for u in found:
                 links[u]={"discovered_from":url}
+
+    script_receipts=[]
+    for su in sorted(script_urls):
+        r,errors=get(session,su)
+        rec={"url":su,"errors":errors,"status":"NOT VERIFIED"}
+        if r is None:
+            script_receipts.append(rec)
+            continue
+        text=r.text
+        tokens=[]
+        for m in API_TOKEN_RE.finditer(text):
+            token=m.group(0)[:300]
+            if token not in tokens:
+                tokens.append(token)
+        rec.update({"status":"PASS","http_status":r.status_code,"bytes":len(r.content),"sha256":hashlib.sha256(r.content).hexdigest(),"api_tokens":tokens[:120]})
+        script_receipts.append(rec)
+        api_contexts.extend({"source":su,"token":t} for t in tokens[:120])
 
     pages=[]
     month_map={}
@@ -109,10 +144,13 @@ def main():
       "schema":"stock-szse-monthly-suspension-archive-discovery-v1",
       "index_receipts":index_receipts,
       "discovered_month_page_count":len(links),
+      "script_receipts":script_receipts,
+      "api_contexts":api_contexts[:500],
       "month_pages":pages,
       "frozen_window":{"start":"2021-10","end":"2026-09","expected_months":len(expected),"covered_months":len(covered),"coverage":len(covered)/len(expected),"missing_months":missing,"month_map":month_map},
       "canonical_sha256":canonical_sha(pages),
       "adjudication":{
+        "index_shell_fetch":"PASS" if any(x.get("status")=="PASS" for x in index_receipts) else "NOT VERIFIED",
         "official_szse_monthly_suspension_archive_surface":"SUPPORTED" if any(x.get("suspension_table_detected") for x in pages) else "NOT VERIFIED",
         "frozen_monthly_archive_coverage":"SUPPORTED" if len(covered)==len(expected) else "PARTIAL_SUPPORTED",
         "shenzhen_historical_suspension_state":"NOT VERIFIED",
@@ -122,11 +160,11 @@ def main():
         "product_bytes_changed":False,
         "final_gate":"FAIL",
       },
-      "boundary":"This discovers only official SZSE monthly suspension tables and measures frozen-month archive coverage. It does not yet parse every row or replay daily suspension state. Missing months remain fail-closed."
+      "boundary":"This first inspects official SZSE monthly-report HTML and official scripts for the real data contract, then measures any discovered official static month pages. Dynamic-shell HTML with zero direct links is a discovery result, not evidence that the monthly archive is absent. No daily-state promotion is allowed."
     }
     OUT.write_text(json.dumps(report,ensure_ascii=False,sort_keys=True,indent=2)+"\n",encoding="utf-8")
     print(json.dumps({"schema":report["schema"],"discovered_month_page_count":len(links),"frozen_window":report["frozen_window"],"adjudication":report["adjudication"]},ensure_ascii=True,sort_keys=True))
-    return 0 if any(x.get("suspension_table_detected") for x in pages) else 2
+    return 0 if any(x.get("status")=="PASS" for x in index_receipts) else 2
 
 if __name__=="__main__":
     raise SystemExit(main())
