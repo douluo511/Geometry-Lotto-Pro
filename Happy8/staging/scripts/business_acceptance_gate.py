@@ -134,7 +134,18 @@ def main() -> int:
     }
     oos = science.get("oos") if isinstance(science.get("oos"), dict) else {}
     ablations = science.get("ablations") if isinstance(science.get("ablations"), list) else []
-    candidate_pool = science.get("candidate_pool") if isinstance(science.get("candidate_pool"), list) else []
+    candidate_pool_raw = science.get("candidate_pool")
+    if isinstance(candidate_pool_raw, dict):
+        candidate_pool_entries = candidate_pool_raw.get("candidates")
+        candidate_pool = (
+            list(candidate_pool_entries.values())
+            if isinstance(candidate_pool_entries, dict)
+            else []
+        )
+    elif isinstance(candidate_pool_raw, list):
+        candidate_pool = candidate_pool_raw
+    else:
+        candidate_pool = []
     science_baseline = science.get("baseline") if isinstance(science.get("baseline"), dict) else {}
     b04_ok = (
         science.get("status") == "PASS"
