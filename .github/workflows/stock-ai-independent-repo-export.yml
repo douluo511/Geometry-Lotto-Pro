@@ -1,0 +1,96 @@
+# product-base: dfa07c51fffdaa7736147cd49e39a274a745e363
+name: Stock AI Independent Repository Export Verification
+
+on:
+  pull_request:
+    paths:
+      - "StockAIPro/**"
+      - ".github/workflows/stock-ai-source-recovery.yml"
+      - ".github/workflows/stock-ai-business-real-network.yml"
+      - ".github/workflows/stock-ai-desktop-candidate.yml"
+      - ".github/workflows/stock-ai-independent-repo-export.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact source head
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Exact checkout identity
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+
+      - name: Setup Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.11"
+
+      - name: Deterministic project-only export
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          EXPORT_DIR: ${{ runner.temp }}/stock-ai-independent
+        run: |
+          set -euo pipefail
+          python StockAIPro/hardening_tests/export_independent_repo.py \
+            --destination "$EXPORT_DIR" \
+            --source-commit "$SOURCE_SHA" | tee "$RUNNER_TEMP/STOCK_AI_EXPORT.json"
+
+      - name: Independent second-pass verification
+        shell: bash
+        env:
+          EXPORT_DIR: ${{ runner.temp }}/stock-ai-independent
+        run: |
+          set -euo pipefail
+          python StockAIPro/hardening_tests/export_independent_repo.py \
+            --destination "$EXPORT_DIR" \
+            --verify-only | tee "$RUNNER_TEMP/STOCK_AI_VERIFY.json"
+          grep -q '"status": "PASS"' "$RUNNER_TEMP/STOCK_AI_VERIFY.json"
+
+      - name: Mutation must fail closed
+        shell: bash
+        env:
+          EXPORT_DIR: ${{ runner.temp }}/stock-ai-independent
+        run: |
+          set -euo pipefail
+          cp -a "$EXPORT_DIR" "$RUNNER_TEMP/stock-ai-tampered"
+          printf '\n# tampered\n' >> "$RUNNER_TEMP/stock-ai-tampered/StockAIPro/RECOVERY_STATUS.md"
+          set +e
+          python StockAIPro/hardening_tests/export_independent_repo.py \
+            --destination "$RUNNER_TEMP/stock-ai-tampered" \
+            --verify-only > "$RUNNER_TEMP/STOCK_AI_TAMPER_VERIFY.json"
+          rc=$?
+          set -e
+          test "$rc" -ne 0
+          grep -q '"status": "FAIL"' "$RUNNER_TEMP/STOCK_AI_TAMPER_VERIFY.json"
+
+      - name: Upload reproducible export candidate
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: STOCK-AI-INDEPENDENT-REPO-EXPORT-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            ${{ runner.temp }}/stock-ai-independent
+            ${{ runner.temp }}/STOCK_AI_EXPORT.json
+            ${{ runner.temp }}/STOCK_AI_VERIFY.json
+            ${{ runner.temp }}/STOCK_AI_TAMPER_VERIFY.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Explicit boundary
+        run: |
+          echo "PROJECT_ONLY_EXPORT=PASS"
+          echo "REPOSITORY_INDEPENDENCE=NOT VERIFIED"
+          echo "REAL_RELEASE_N_TO_N_PLUS_1=NOT VERIFIED"
+          echo "FINAL_GATE=FAIL"
