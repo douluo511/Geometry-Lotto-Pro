@@ -13,6 +13,7 @@ from .netclient import NetClient
 UNIVERSE_URLS = (
     "https://push2.eastmoney.com/api/qt/clist/get",
     "https://82.push2.eastmoney.com/api/qt/clist/get",
+    "https://push2delay.eastmoney.com/api/qt/clist/get",
 )
 UNIVERSE_URL = UNIVERSE_URLS[0]
 UNIVERSE_FILTER = "m:1+t:2,m:1+t:23"
