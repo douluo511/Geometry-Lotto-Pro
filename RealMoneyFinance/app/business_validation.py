@@ -312,6 +312,7 @@ def qualify_research(
     *,
     benchmark_rows: Iterable[DailyBar] | None = None,
     benchmark_meta: dict | None = None,
+    corporate_action_evidence: dict | None = None,
 ) -> dict:
     ordered = list(rows)
     validate_market_rows(ordered)
@@ -326,9 +327,22 @@ def qualify_research(
         raise ValueError("bars must be unique and strictly chronological")
 
     adjustment = str(source_meta.get("price_adjustment", "")).lower()
-    # A provider's adjustment label is lineage, not independently verified
-    # corporate-action factors, dates or point-in-time availability.
-    corporate_action = "NOT VERIFIED"
+    # A provider qfq label alone is never enough. Corporate-action PASS requires
+    # independent event dates plus observed qfq/raw factor changes and source hashes.
+    corporate_evidence = dict(corporate_action_evidence or {})
+    hash_fields = (
+        corporate_evidence.get("qfq_payload_sha256"),
+        corporate_evidence.get("raw_payload_sha256"),
+        corporate_evidence.get("event_payload_sha256"),
+    )
+    corporate_action = "PASS" if (
+        source_meta.get("qualification_scope") == "production_real_network"
+        and corporate_evidence.get("status") == "PASS"
+        and corporate_evidence.get("point_in_time_lineage") == "PASS"
+        and int(corporate_evidence.get("verified_event_count", 0) or 0) >= 1
+        and int(corporate_evidence.get("unexplained_factor_changes", 1) or 1) == 0
+        and all(isinstance(x, str) and len(x) == 64 for x in hash_fields)
+    ) else "NOT VERIFIED"
     positive_amount = sum(1 for x in ordered if float(x.amount or 0.0) > 0)
     amount_coverage = positive_amount / len(ordered)
     # Positive daily amount neither states an order size nor proves executable
@@ -486,7 +500,7 @@ def qualify_research(
     gates = {
         "cost_slippage_model": "NOT VERIFIED",
         "liquidity_capacity": "NOT VERIFIED",
-        "corporate_action_adjustment": "NOT VERIFIED",
+        "corporate_action_adjustment": corporate_action,
         "leakage_safe_time_split": "NOT VERIFIED",
         "survivorship_selection_control": "NOT VERIFIED",
         # Computing an INSUFFICIENT decision completes a method diagnostic but
@@ -511,7 +525,7 @@ def qualify_research(
     gaps = {
         "cost_slippage_model": "Illustrative basis-point assumptions lack current exchange/broker calibration and observed execution slippage.",
         "liquidity_capacity": "No order notional, executable participation, spread/impact or limit/suspension fill evidence.",
-        "corporate_action_adjustment": "Provider qfq label lacks verified action factors/dates and point-in-time lineage.",
+        "corporate_action_adjustment": "Provider qfq label alone is insufficient; PASS requires independently hashed action dates plus matched qfq/raw factor changes with no unexplained changes.",
         "leakage_safe_time_split": "Lagged execution is implemented, but historical point-in-time source availability is unverified.",
         "survivorship_selection_control": "User-selected single symbol lacks a precommitted survivorship-safe investable universe.",
         "oos_walk_forward": "Frozen holdout-power target lacks sufficient current real-network OOS evidence; computing an INSUFFICIENT decision is not a power PASS.",
@@ -532,6 +546,7 @@ def qualify_research(
         "amount_coverage": amount_coverage,
         "liquidity_capacity_status": liquidity,
         "corporate_action_status": corporate_action,
+        "corporate_action_evidence": corporate_evidence,
         "cost_assumptions": asdict(assumptions),
         "round_trip_cost_bps_assumption": assumptions.round_trip_bps(),
         "base_feature_set": base_name,
