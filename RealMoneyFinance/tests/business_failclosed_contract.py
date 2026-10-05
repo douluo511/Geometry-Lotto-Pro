@@ -262,6 +262,8 @@ class BusinessBoundaries(unittest.TestCase):
             {**evidence, "unexplained_changes": [{"trade_date": "2026-01-01"}]},
             {**evidence, "significant_factor_changes": evidence["verified_event_count"] + 1},
             {**evidence, "overlap_rows": 59},
+            {**evidence, "factor_detection_method": "legacy_daily_ratio"},
+            {**evidence, "factor_window_sessions": 1},
         ]
         for forged in forged_cases:
             with self.subTest(forged=forged):
@@ -288,6 +290,54 @@ class BusinessBoundaries(unittest.TestCase):
             corporate_action_evidence=evidence,
         )
         self.assertEqual(got["gates"]["corporate_action_adjustment"], "NOT VERIFIED")
+
+    def test_corporate_action_rounding_jitter_is_not_a_persistent_shift(self):
+        raw = bars(150)
+        qfq = []
+        for row in raw:
+            factor = 0.90
+            # Model provider cent rounding independently on adjusted prices.
+            qfq.append(replace(
+                row,
+                open=round(row.open * factor, 2),
+                close=round(row.close * factor, 2),
+                high=round(row.high * factor, 2),
+                low=round(row.low * factor, 2),
+                raw_sha256="b" * 64,
+            ))
+        evidence = verify_corporate_action_lineage(
+            qfq, raw, [],
+            {"provider": "tencent_public_full_kline", "price_adjustment": "qfq", "payload_sha256": "b" * 64},
+            {"provider": "tencent_public_full_kline", "price_adjustment": "unadjusted", "payload_sha256": "c" * 64},
+            {"provider": "eastmoney_share_bonus_datacenter", "payload_sha256": "d" * 64},
+        )
+        self.assertEqual(evidence["significant_factor_changes"], 0)
+        self.assertEqual(evidence["unexplained_factor_changes"], 0)
+        self.assertEqual(evidence["status"], "NOT VERIFIED")
+        self.assertEqual(evidence["factor_detection_method"], "persistent_median_regime_shift_v1")
+
+    def test_corporate_action_unexplained_persistent_shift_stays_nonpass(self):
+        raw = bars(150)
+        qfq = []
+        for i, row in enumerate(raw):
+            factor = 0.90 if i < 80 else 0.93
+            qfq.append(replace(
+                row,
+                open=round(row.open * factor, 2),
+                close=round(row.close * factor, 2),
+                high=round(row.high * factor, 2),
+                low=round(row.low * factor, 2),
+                raw_sha256="b" * 64,
+            ))
+        evidence = verify_corporate_action_lineage(
+            qfq, raw, [],
+            {"provider": "tencent_public_full_kline", "price_adjustment": "qfq", "payload_sha256": "b" * 64},
+            {"provider": "tencent_public_full_kline", "price_adjustment": "unadjusted", "payload_sha256": "c" * 64},
+            {"provider": "eastmoney_share_bonus_datacenter", "payload_sha256": "d" * 64},
+        )
+        self.assertGreaterEqual(evidence["significant_factor_changes"], 1)
+        self.assertGreaterEqual(evidence["unexplained_factor_changes"], 1)
+        self.assertEqual(evidence["status"], "NOT VERIFIED")
 
     def test_missing_turnover_cannot_pass_complete_ablation(self):
         got = qualify_research([replace(x, turnover_rate=None) for x in bars()], {})
