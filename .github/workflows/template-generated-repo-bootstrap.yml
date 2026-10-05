@@ -1,0 +1,36 @@
+name: Template-generated SSQ repository bootstrap
+on:
+  pull_request:
+    paths:
+      - '.github/scripts/bootstrap_repo_from_public_template.py'
+      - '.github/workflows/template-generated-repo-bootstrap.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Attempt actual SSQ repository generation from public template
+        run: python .github/scripts/bootstrap_repo_from_public_template.py
+      - name: Upload sanitized evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: template-repo-bootstrap-${{ github.event.pull_request.head.sha || github.sha }}
+          path: template_repo_bootstrap.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Explicit boundary
+        run: |
+          python - <<'PY'
+          import json
+          x=json.load(open("template_repo_bootstrap.json"))
+          print("TEMPLATE_REPO_BOOTSTRAP="+x["status"])
+          print("REPOSITORY_CREATED="+str(x["repository_created"]).upper())
+          PY
