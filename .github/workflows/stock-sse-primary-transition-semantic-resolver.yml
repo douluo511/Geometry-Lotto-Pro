@@ -1,0 +1,66 @@
+name: Stock SSE primary transition semantic resolver
+
+on:
+  push:
+    branches:
+      - diagnostic/stock-sse-semantic-resolver-current-product-20261006
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  semantic-resolver:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Verify exact checkout and unchanged Stock product bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          git merge-base --is-ancestor 140ce9d859304326b4ee32d960b7274732b9af94 HEAD
+          test -z "$(git diff --name-only 7f270b9ab58e11fd8129053a65e000c90ff9d8c1..HEAD -- StockAIPro)"
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.11.9"
+          check-latest: false
+      - run: python -m pip install --disable-pip-version-check --no-input "requests==2.34.2" "pypdf==5.4.0"
+      - name: Run class-specific primary-document semantic resolver
+        run: python .github/stock_diag/stock_sse_primary_transition_semantic_resolver.py
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: STOCK-SSE-PRIMARY-TRANSITION-SEMANTIC-RESOLVER-${{ github.sha }}
+          path: stock_sse_primary_transition_semantic_resolver.json
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 6
+      - name: Preserve strict adjudication boundary
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f stock_sse_primary_transition_semantic_resolver.json
+          python - <<'PY'
+          import json
+          x=json.load(open("stock_sse_primary_transition_semantic_resolver.json",encoding="utf-8"))
+          a=x["adjudication"]
+          s=x["summary"]
+          assert a["effective_state_reconstruction"] == "NOT VERIFIED"
+          assert a["shanghai_historical_st_pit"] == "NOT VERIFIED"
+          assert a["full_historical_st_pit"] == "NOT VERIFIED"
+          assert a["advanced_business"] == "NOT VERIFIED"
+          assert a["final_gate"] == "FAIL"
+          print("SELECTED_DOCUMENTS="+str(s["selected_documents"]))
+          print("STRONG_UNIQUE_NEAR_PUBLICATION="+str(s["strong_unique_near_publication"]))
+          print("STRONG_UNIQUE_ANYWHERE="+str(s["strong_unique_anywhere"]))
+          print("UNRESOLVED="+str(s["unresolved"]))
+          print("CLASS_SPECIFIC_SEMANTIC_DISAMBIGUATION="+a["class_specific_semantic_disambiguation"])
+          print("HISTORICAL_ST_PIT=NOT VERIFIED")
+          print("FINAL_GATE=FAIL")
+          PY
