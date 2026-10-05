@@ -1710,16 +1710,69 @@ def _verify_updater_release_network(evidence: Path, updater_hash: str, main_exe_
     }
 
 def _verify_checkout_identity(evidence: Path) -> dict[str, Any]:
+    path = evidence / "CHECKOUT_IDENTITY_GATE.json"
+    report = _read(path)
+    if not isinstance(report, dict) or not report:
+        raise ValueError("CHECKOUT_IDENTITY_GATE.json is missing or malformed")
+
+    event = report.get("event")
+    actual = report.get("actual_checkout_sha")
+    sha_re = re.compile(r"[0-9a-f]{40}")
+    if (report.get("status") != "PASS"
+            or report.get("github_run_id") != os.environ.get("GITHUB_RUN_ID")):
+        raise ValueError("CHECKOUT_IDENTITY_GATE.json is not a PASS bound to the current run")
+    if not isinstance(actual, str) or sha_re.fullmatch(actual) is None:
+        raise ValueError("checkout identity has no valid actual SHA")
+
+    schema = report.get("schema")
+    if schema == "ssq-checkout-identity-v2":
+        expected_source = report.get("expected_source_sha")
+        event_head = report.get("event_head_sha")
+        event_sha = report.get("github_event_sha")
+        if report.get("exact_head_required") is not True:
+            raise ValueError("exact-head checkout requirement was not asserted")
+        if event_sha != os.environ.get("GITHUB_SHA"):
+            raise ValueError("checkout report is not bound to the current GitHub event SHA")
+        if (not isinstance(expected_source, str)
+                or sha_re.fullmatch(expected_source) is None):
+            raise ValueError("checkout identity has no valid expected source SHA")
+
+        if event == "pull_request":
+            if (not isinstance(event_head, str)
+                    or sha_re.fullmatch(event_head) is None
+                    or expected_source != event_head
+                    or actual != expected_source):
+                raise ValueError("pull-request checkout is not the exact current PR head")
+        elif event in {"push", "workflow_dispatch"}:
+            current_sha = os.environ.get("GITHUB_SHA")
+            if expected_source != current_sha or actual != current_sha:
+                raise ValueError("push/dispatch checkout does not equal GITHUB_SHA")
+        else:
+            raise ValueError(f"unsupported checkout identity event: {event}")
+
+        return {
+            "report": str(path),
+            "report_sha256": _hash(path),
+            "schema": schema,
+            "event": event,
+            "actual_checkout_sha": actual,
+            "expected_source_sha": expected_source,
+            "event_head_sha": event_head,
+            "github_event_sha": event_sha,
+            "exact_head_required": True,
+        }
+
+    if schema != "ssq-checkout-identity-v1":
+        raise ValueError("CHECKOUT_IDENTITY_GATE.json has the wrong schema")
+
+    # Legacy v1 support remains strict for historical fixtures/evidence.  It
+    # allows a PR merge commit only when the current PR head is one of its
+    # parents.  New workflows emit v2 and require exact-head checkout.
     report = _require_current_report(
         evidence, "CHECKOUT_IDENTITY_GATE.json", "ssq-checkout-identity-v1"
     )
-    event = report.get("event")
-    actual = report.get("actual_checkout_sha")
     expected_head = report.get("event_head_sha")
     parents = report.get("parent_shas")
-    sha_re = re.compile(r"[0-9a-f]{40}")
-    if not isinstance(actual, str) or sha_re.fullmatch(actual) is None:
-        raise ValueError("checkout identity has no valid actual SHA")
     if not isinstance(parents, list) or any(
         not isinstance(value, str) or sha_re.fullmatch(value) is None for value in parents
     ):
@@ -1735,8 +1788,9 @@ def _verify_checkout_identity(evidence: Path) -> dict[str, Any]:
     else:
         raise ValueError(f"unsupported checkout identity event: {event}")
     return {
-        "report": str(evidence / "CHECKOUT_IDENTITY_GATE.json"),
-        "report_sha256": _hash(evidence / "CHECKOUT_IDENTITY_GATE.json"),
+        "report": str(path),
+        "report_sha256": _hash(path),
+        "schema": schema,
         "event": event,
         "actual_checkout_sha": actual,
         "event_head_sha": expected_head,
