@@ -15,6 +15,7 @@ SUSPENSION_SCRIPT = "https://www.sse.com.cn/xhtml/home/2021public/querySearch/se
 CALENDAR_PAGE = "https://www.sse.com.cn/disclosure/dealinstruc/calendar/index.shtml"
 CLOSED_LIST = "https://www.sse.com.cn/disclosure/dealinstruc/closed/list/"
 ENDPOINT = "https://query.sse.com.cn/commonSoaQuery.do"
+DAILY_ENDPOINT = "https://query.sse.com.cn/sseQuery/commonQuery.do"
 
 def fetch(session, url, *, params=None, attempts=3):
     errors = []
@@ -125,6 +126,46 @@ def bounded_row(row):
     return {k: row.get(k) for k in wanted if k in row}
 
 
+def daily_suspension_probe(session, search_date: str):
+    params = {
+        "isPagination": "true",
+        "sqlId": "COMMON_SSE_XXPL_JYTS_TFPXX_L",
+        "SEARCH_DATE": search_date,
+        "pageHelp.pageSize": "200",
+        "pageHelp.pageNo": "1",
+        "pageHelp.beginPage": "1",
+        "pageHelp.cacheSize": "1",
+        "pageHelp.endPage": "1",
+        "jsonCallBack": "jsonpCallback",
+    }
+    r, meta = post_fetch(session, DAILY_ENDPOINT, data=params, attempts=3)
+    payload, parsed_as = parse_json_or_jsonp(decode(r))
+    rows = payload.get("result") if isinstance(payload, dict) else None
+    if not isinstance(rows, list):
+        raise RuntimeError(f"daily suspension result is not a list for {search_date}")
+    bounded = []
+    for row in rows[:200]:
+        if isinstance(row, dict):
+            bounded.append({
+                k: row.get(k)
+                for k in (
+                    "PRODUCT_CODE", "PRODUCT_NAME", "STOP_DATE", "STOP_TIME",
+                    "STOP_REASON", "CONTROLTYPE", "SEC_CODE", "SEC_NAME_CN",
+                )
+                if k in row
+            })
+    return {
+        "searchDate": search_date,
+        "status": r.status_code,
+        "url": r.url,
+        "sha256": sha256(r.content),
+        "attempt": meta["attempt"],
+        "parsed_as": parsed_as,
+        "row_count": len(rows),
+        "rows": bounded[:50],
+    }
+
+
 def trade_day_probe(session, biz_date: str):
     params = {
         "sqlId": "GW_PL_JYTS_TFPXX_TRADEDAY",
@@ -169,6 +210,20 @@ def main():
         d: trade_day_probe(s, d)
         for d in trade_day_dates
     }
+
+    daily_probe_dates = [
+        "20260924",
+        "20260930",
+        "20240104",
+        "20220104",
+    ]
+    daily_suspension_contract = {}
+    daily_suspension_errors = {}
+    for d in daily_probe_dates:
+        try:
+            daily_suspension_contract[d] = daily_suspension_probe(s, d)
+        except Exception as exc:
+            daily_suspension_errors[d] = f"{type(exc).__name__}: {exc}"
     trade_day_before_values = {}
     for d, item in trade_day_contract.items():
         rows = item.get("rows") or []
@@ -260,6 +315,14 @@ def main():
         "frontend_semantics": frontend_semantics,
         "discovered_script_urls": discovered,
         "candidate_scripts": candidate_scripts,
+        "daily_suspension_contract": {
+            "endpoint": DAILY_ENDPOINT,
+            "sqlId": "COMMON_SSE_XXPL_JYTS_TFPXX_L",
+            "probe_dates": daily_probe_dates,
+            "responses": daily_suspension_contract,
+            "errors": daily_suspension_errors,
+            "endpoint_supported": bool(daily_suspension_contract) and not daily_suspension_errors,
+        },
         "trade_day_contract": {
             "sqlId": "GW_PL_JYTS_TFPXX_TRADEDAY",
             "probe_dates": trade_day_dates,
@@ -281,6 +344,11 @@ def main():
         "adjudication": {
             "official_sources_reached": True,
             "frontend_endStopDate_semantics": "SUPPORTED" if frontend_semantics["endStopDate"] else "NOT VERIFIED",
+            "sse_daily_suspension_snapshot_endpoint": (
+                "SUPPORTED"
+                if bool(daily_suspension_contract) and not daily_suspension_errors
+                else "NOT VERIFIED"
+            ),
             "sse_trade_day_endpoint": "SUPPORTED" if trade_day_endpoint_supported else "NOT VERIFIED",
             "independent_sse_trading_calendar_contract": "SUPPORTED_ENDPOINT_ONLY" if trade_day_endpoint_supported else "NOT VERIFIED",
             "historical_daily_suspension_state": "NOT VERIFIED",
@@ -299,6 +367,12 @@ def main():
         "frontend_endStopDate_fragments": len(frontend_semantics["endStopDate"]),
         "resume_term_fragments": len(frontend_semantics["resume_terms"]),
         "candidate_script_count": len(candidate_scripts),
+        "daily_suspension_snapshot_supported": bool(daily_suspension_contract) and not daily_suspension_errors,
+        "daily_suspension_row_counts": {
+            d: item.get("row_count")
+            for d, item in daily_suspension_contract.items()
+        },
+        "daily_suspension_errors": daily_suspension_errors,
         "trade_day_endpoint_supported": trade_day_endpoint_supported,
         "trade_day_before_values": trade_day_before_values,
         "sample_rows_with_endStopDate": len(with_end),
