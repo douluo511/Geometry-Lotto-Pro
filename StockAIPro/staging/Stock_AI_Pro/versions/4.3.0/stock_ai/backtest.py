@@ -8,6 +8,7 @@ from .model import rank_ic,train_validated_ensemble,predict_ensemble
 from .utils import write_json,now_iso
 from .cost import historical_roundtrip_cost_rate
 from .valuation import merge_historical_valuation,add_historical_valuation_score,qualify_backtest_valuation_histories
+from .historical_pit import load_historical_st_pit_subset
 
 def _max_drawdown(returns):
     eq=(1+pd.Series(returns).fillna(0)).cumprod(); return float((eq/eq.cummax()-1).min())
@@ -19,12 +20,74 @@ def _tradable_next_open(row):
         return low<prev*(1+_limit_pct(row["code"])*.985)
     except Exception:return False
 
-def _historical_candidate_pool(ds,cfg):
+def _historical_candidate_pool(ds,cfg,research_calendar):
     min_amt=float(cfg["universe"].get("min_turnover_cny",0)); top_n=int(cfg["universe"].get("live_top_n",300)); x=ds[ds["log_amount20"].notna()].copy()
     if min_amt>0:x=x[x["log_amount20"]>=np.log1p(min_amt)]
     if top_n>0 and not x.empty:
         x["liq_rank"]=x.groupby("date")["log_amount20"].rank(method="first",ascending=False);x=x[x["liq_rank"]<=top_n]
-    return x
+    if x.empty:
+        return x,{"status":"NOT VERIFIED","reason":"empty_after_liquidity_filter"}
+
+    calendar=sorted({pd.Timestamp(d).normalize() for d in research_calendar if pd.notna(d)})
+    if len(calendar)<2:
+        raise RuntimeError("historical PIT policy requires at least two research trading dates")
+    next_day={calendar[i].strftime("%Y-%m-%d"):calendar[i+1].strftime("%Y-%m-%d") for i in range(len(calendar)-1)}
+    signal_day=pd.to_datetime(x["date"],errors="coerce").dt.strftime("%Y-%m-%d")
+    actual_entry_day=pd.to_datetime(x["entry_date"],errors="coerce").dt.strftime("%Y-%m-%d")
+    expected_entry_day=signal_day.map(next_day)
+    aligned=actual_entry_day.notna() & expected_entry_day.notna() & actual_entry_day.eq(expected_entry_day)
+    entry_calendar_gap_count=int((~aligned).sum())
+    x=x.loc[aligned].copy()
+    signal_day=signal_day.loc[aligned]
+    actual_entry_day=actual_entry_day.loc[aligned]
+    if x.empty:
+        raise RuntimeError("historical PIT policy removed all rows: no true next-market-open entries")
+
+    codes=x["code"].astype(str)
+    signal_keys=list(zip(signal_day.tolist(),codes.tolist()))
+    entry_keys=list(zip(actual_entry_day.tolist(),codes.tolist()))
+    required=set(signal_keys)|set(entry_keys)
+    states,evidence=load_historical_st_pit_subset(
+        ROOT,required,expected_trade_date=calendar[-1].strftime("%Y-%m-%d")
+    )
+    signal_states=[states[k] for k in signal_keys]
+    entry_states=[states[k] for k in entry_keys]
+    signal_st=np.array([bool(v["st"]) for v in signal_states],dtype=bool)
+    signal_suspended=np.array([bool(v["suspended"]) for v in signal_states],dtype=bool)
+    entry_suspended=np.array([bool(v["suspended"]) for v in entry_states],dtype=bool)
+    exclude_st=bool((cfg.get("universe",{}) or {}).get("exclude_st",True))
+
+    allowed=~signal_suspended & ~entry_suspended
+    if exclude_st:
+        allowed &= ~signal_st
+
+    before=len(x)
+    excluded_signal_st=int(signal_st.sum()) if exclude_st else 0
+    excluded_signal_suspended=int(signal_suspended.sum())
+    excluded_entry_suspended=int(entry_suspended.sum())
+    x=x.loc[allowed].copy()
+    if x.empty:
+        raise RuntimeError("historical PIT policy removed all candidate rows")
+
+    policy={
+        "status":"PASS",
+        "point_in_time_only":True,
+        "selection_state_date":"signal_date",
+        "execution_state_date":"next_market_open",
+        "exclude_st":exclude_st,
+        "rows_before_pit_state_filter":before,
+        "rows_after_pit_state_filter":len(x),
+        "entry_calendar_gap_excluded":entry_calendar_gap_count,
+        "signal_st_excluded":excluded_signal_st,
+        "signal_suspended_excluded":excluded_signal_suspended,
+        "entry_suspended_excluded":excluded_entry_suspended,
+        "required_state_keys":evidence.get("required_key_count"),
+        "canonical_sha256":evidence.get("canonical_sha256"),
+        "window_start":evidence.get("window_start"),
+        "window_end":evidence.get("window_end"),
+        "future_safety":"ST selection uses signal-date state only; next-day suspension is used only for execution feasibility",
+    }
+    return x,policy
 
 def _net_mean(frame,cfg,order_size=None):
     if frame.empty:return float('nan')
@@ -42,8 +105,9 @@ def _qualification_target(ds,dates,eval_dates,h,topk,min_test,min_train):
     return None,[]
 
 def run_backtest():
-    cfg=load_config();h=int(cfg["model"]["horizon_days"]); ds=build_dataset(load_histories(),h,int(cfg["model"]["min_history_days"])); target=cfg["model"].get("target","target_excess")
-    ds=ds[ds[target].notna()&ds["target_return"].notna()].copy(); ds=_historical_candidate_pool(ds,cfg)
+    cfg=load_config();h=int(cfg["model"]["horizon_days"]); raw_ds=build_dataset(load_histories(),h,int(cfg["model"]["min_history_days"])); target=cfg["model"].get("target","target_excess")
+    research_calendar=sorted(pd.to_datetime(raw_ds["date"],errors="coerce").dropna().unique())
+    ds=raw_ds[raw_ds[target].notna()&raw_ds["target_return"].notna()].copy(); ds,pit_policy=_historical_candidate_pool(ds,cfg,research_calendar)
     if ds.empty:raise RuntimeError("没有可回测数据")
     dates=sorted(ds["date"].unique()); lookback=int(cfg["backtest"]["lookback_eval_days"]); step=int(cfg["backtest"]["rebalance_every_days"]); eval_dates=dates[-lookback::step]
     max_eval=int(cfg["backtest"].get("max_eval_points",24) or 0)
@@ -93,5 +157,5 @@ def run_backtest():
     if out["value_return"].notna().any():out["value_equity"]=(1+out["value_return"].fillna(0)).cumprod()
     out.to_csv(ROOT/"reports"/"backtest.csv",index=False,encoding="utf-8-sig")
     capacity={str(size):float(out[f"strategy_return_cap_{size}"].mean()) for size in cap_sizes}; base=capacity.get(str(cap_sizes[0]),float('nan')); cap_limit=max([s for s in cap_sizes if np.isfinite(capacity[str(s)]) and (not np.isfinite(base) or capacity[str(s)]>0)],default=0)
-    summary={"generated_at":now_iso(),"software_version":"4.3.0-deliverable","eval_points":len(out),"mean_strategy_return":float(out.strategy_return.mean()),"mean_random_return":float(out.random_return.mean()),"mean_market_return":float(out.market_median_return.mean()),"mean_momentum_return":float(out.momentum_return.mean()),"mean_value_return":float(out.value_return.mean()) if out.value_return.notna().any() else None,"value_baseline_validated":bool(value_valid_points>0),"value_valid_points":value_valid_points,"valuation_qualification":qualification,"mean_excess_vs_random":float(out.excess_vs_random.mean()),"mean_excess_vs_market":float(out.excess_vs_market.mean()),"positive_excess_rate":float((out.excess_vs_random>0).mean()),"mean_rank_ic":float(out.rank_ic.mean()),"mean_validation_rank_ic":float(pd.to_numeric(out.validation_rank_ic,errors='coerce').mean()),"max_drawdown":_max_drawdown(out.strategy_return),"dynamic_cost_model":True,"production_model_parity":True,"model_stack":["ridge","hgb","extra_trees"],"capacity_mean_net_returns":capacity,"capacity_limit_cny":cap_limit,"entry_assumption":"信号日收盘后生成；下一交易日开盘入场；第horizon交易日收盘退出。","universe_note":"历史候选池按历史成交额门槛及流动性排名重建，不使用今天股票池倒推。","valuation_note":"Value Baseline 仅使用估值日期<=信号日期的历史PIT缓存；资格补齐按最新合格评估日、股票代码固定顺序执行，不按收益/预测挑样本；覆盖不足时标记未验证。","model_note":"每个回测点只使用该日以前的数据，并在历史训练区内部再次使用 horizon embargo 的验证窗口学习集成权重。"}
+    summary={"generated_at":now_iso(),"software_version":"4.3.0-deliverable","eval_points":len(out),"mean_strategy_return":float(out.strategy_return.mean()),"mean_random_return":float(out.random_return.mean()),"mean_market_return":float(out.market_median_return.mean()),"mean_momentum_return":float(out.momentum_return.mean()),"mean_value_return":float(out.value_return.mean()) if out.value_return.notna().any() else None,"value_baseline_validated":bool(value_valid_points>0),"value_valid_points":value_valid_points,"valuation_qualification":qualification,"mean_excess_vs_random":float(out.excess_vs_random.mean()),"mean_excess_vs_market":float(out.excess_vs_market.mean()),"positive_excess_rate":float((out.excess_vs_random>0).mean()),"mean_rank_ic":float(out.rank_ic.mean()),"mean_validation_rank_ic":float(pd.to_numeric(out.validation_rank_ic,errors='coerce').mean()),"max_drawdown":_max_drawdown(out.strategy_return),"dynamic_cost_model":True,"production_model_parity":True,"model_stack":["ridge","hgb","extra_trees"],"capacity_mean_net_returns":capacity,"capacity_limit_cny":cap_limit,"entry_assumption":"信号日收盘后生成；下一交易日开盘入场；第horizon交易日收盘退出。","historical_pit_policy":pit_policy,"universe_note":"历史候选池按历史成交额门槛、流动性排名及哈希绑定的逐日ST/停牌PIT状态重建；ST筛选只使用信号日状态，次交易日停牌仅用于执行可行性，不使用今天股票池倒推。","valuation_note":"Value Baseline 仅使用估值日期<=信号日期的历史PIT缓存；资格补齐按最新合格评估日、股票代码固定顺序执行，不按收益/预测挑样本；覆盖不足时标记未验证。","model_note":"每个回测点只使用该日以前的数据，并在历史训练区内部再次使用 horizon embargo 的验证窗口学习集成权重。"}
     write_json(ROOT/"reports"/"backtest_summary.json",summary);return out,summary
