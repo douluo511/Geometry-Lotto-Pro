@@ -24,7 +24,16 @@ jobs:
       - name: Checkout exact diagnostic head
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
+
+      - name: Verify exact diagnostic checkout
+        shell: pwsh
+        run: |
+          $actual = (& git rev-parse HEAD).Trim()
+          $expected = '${{ github.event.pull_request.head.sha || github.sha }}'
+          if ($actual -ne $expected) { throw "checkout identity mismatch: actual=$actual expected=$expected" }
+          Write-Host "EXACT_DIAGNOSTIC_HEAD=$actual"
 
       - name: Verify Stock product bytes unchanged
         shell: pwsh
