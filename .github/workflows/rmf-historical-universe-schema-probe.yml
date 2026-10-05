@@ -6,6 +6,7 @@ on:
       - "diagnostic/rmf-sse-historical-universe-schema-20261005"
     paths:
       - ".github/rmf/historical_universe_schema_probe.py"
+      - ".github/rmf/historical_universe_membership_probe.py"
       - ".github/workflows/rmf-historical-universe-schema-probe.yml"
   workflow_dispatch:
 
@@ -36,6 +37,10 @@ jobs:
         with:
           python-version: "3.11.9"
 
+      - name: Install minimal RMF diagnostic dependency
+        shell: bash
+        run: python -m pip install --disable-pip-version-check requests==2.34.2
+
       - name: Probe official SSE universe schema
         shell: bash
         run: |
@@ -43,11 +48,22 @@ jobs:
           python .github/rmf/historical_universe_schema_probe.py \
             --output "$RUNNER_TEMP/rmf_sse_historical_universe_schema.json"
 
+      - name: Reconstruct historical membership on exact RMF research window
+        shell: bash
+        run: |
+          set -euo pipefail
+          python .github/rmf/historical_universe_membership_probe.py \
+            --output "$RUNNER_TEMP/rmf_sse_historical_membership.json" \
+            --network-evidence "$RUNNER_TEMP/rmf_membership_network.jsonl"
+
       - name: Upload schema evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: RMF-SSE-HISTORICAL-UNIVERSE-SCHEMA-${{ env.SOURCE_SHA }}
-          path: ${{ runner.temp }}/rmf_sse_historical_universe_schema.json
+          path: |
+            ${{ runner.temp }}/rmf_sse_historical_universe_schema.json
+            ${{ runner.temp }}/rmf_sse_historical_membership.json
+            ${{ runner.temp }}/rmf_membership_network.jsonl
           if-no-files-found: error
           retention-days: 30
 
