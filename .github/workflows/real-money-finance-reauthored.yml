@@ -6,6 +6,12 @@ on:
     paths:
       - 'RealMoneyFinance/**'
       - '.github/workflows/real-money-finance-reauthored.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'RealMoneyFinance/**'
+      - '.github/workflows/real-money-finance-reauthored.yml'
 
 concurrency:
   group: real-money-finance-${{ github.event.pull_request.number || github.ref }}
