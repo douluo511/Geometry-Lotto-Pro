@@ -33,7 +33,7 @@ def main() -> int:
 
     console_report = dict(report)
     console_report["draws"] = f"<{len(report.get('draws', []))} canonical draws omitted from console>"
-    print(json.dumps(console_report, ensure_ascii=False, indent=2))
+    # GitHub Windows runners may expose a legacy console encoding (for example cp1252).\n    # Keep the evidence file UTF-8/human-readable, but escape non-ASCII only for console output\n    # so valid official-source evidence cannot be turned into a false network FAIL by stdout encoding.\n    print(json.dumps(console_report, ensure_ascii=True, indent=2))
     ok = report.get("status") == "PASS" and integrity.get("status") == "PASS"
     return 0 if ok else 2
 
