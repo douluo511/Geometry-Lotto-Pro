@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import re
 from collections import Counter
 from pathlib import Path
 
@@ -23,6 +24,7 @@ KNOWN_ACTIONS = {
     "continuation_notice",
     "actual_cancel",
     "mixed_cancel_continue",
+    "mixed_cancel_implement",
     "cancel_application",
     "descriptive_nontransition",
     "trigger_condition_notice",
@@ -32,7 +34,12 @@ DATE_REQUIRED_ACTIONS = {
     "overlay_implementation",
     "actual_cancel",
     "mixed_cancel_continue",
+    "mixed_cancel_implement",
 }
+
+MIXED_CANCEL_IMPLEMENT_RE = re.compile(
+    r"(?:撤销|取消|终止实施|不再实施).*(?:及|并|暨|同时)(?:被)?(?:叠加)?实施.*风险(?:警示)?"
+)
 
 def load_module(path: Path, name: str):
     spec = importlib.util.spec_from_file_location(name, path)
@@ -51,6 +58,8 @@ def classify_title(title: str) -> str:
     if any(token in text for token in ("撤销", "取消", "终止实施", "不再实施")):
         if "继续" in text or "叠加" in text:
             return "mixed_cancel_continue"
+        if MIXED_CANCEL_IMPLEMENT_RE.search(text):
+            return "mixed_cancel_implement"
         return "actual_cancel"
     if "预审计" in text or "专项说明" in text:
         return "descriptive_nontransition"
