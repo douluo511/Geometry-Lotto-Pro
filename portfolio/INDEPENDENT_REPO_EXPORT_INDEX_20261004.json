@@ -14,30 +14,34 @@
   },
   "aggregate": {
     "projects_total": 18,
-    "export_verification_pass": 17,
-    "export_verification_nonpass": 1,
+    "export_verification_pass": 18,
+    "export_verification_nonpass": 0,
     "real_independent_repository_pass": 0,
     "final_delivery_allowed": 0,
-    "current_product_bound_export_pass": 17,
-    "current_product_bound_export_not_verified": 1
+    "current_product_bound_export_pass": 18,
+    "current_product_bound_export_not_verified": 0
   },
   "projects": [
     {
       "id": 1,
       "project": "SSQ",
-      "export_pr": 132,
-      "export_head": "228171b098a7aa11c57a03dcdd65eabaa4e90480",
-      "export_run": 37258412224,
+      "export_pr": 141,
+      "export_head": "98b26cd00ee2675c394d9088b4ceb2f24c853ece",
+      "export_run": 37263066966,
       "export_status": "PASS",
       "repository_independence": "BLOCKED",
       "final_gate": "FAIL",
       "source_product_pr": 76,
-      "source_product_head": "fae399b80914fb992a42d6841ebe9fd77e19983d",
-      "export_artifact_id": 11324205121,
-      "export_artifact_digest": "sha256:fef58228985bd6bfaf46af637317264bec7a435d5d77c93fb3d78cb7ba698d5b",
-      "source_product_status": "REVALIDATING",
+      "source_product_head": "3b61bb59ed0da6f7c7717b6840fe95a00d58a2ad",
+      "export_artifact_id": 11325575415,
+      "export_artifact_digest": "sha256:c7d59fd4658a603f838f2eb54bc0ee19a42c72b07a9abbf468daab6833732a75",
+      "source_product_status": "REVALIDATING_WINDOWS_CHAIN",
       "exact_head_checkout_required": true,
-      "superseded_export_pr": 114
+      "superseded_export_prs": [
+        114,
+        132
+      ],
+      "note": "Current product head includes exact-head checkout-evidence v2 verifier repair. Export verification is PASS; Windows full-chain rerun 37262758839 remains in progress and no Final PASS is inherited."
     },
     {
       "id": 2,
@@ -149,17 +153,17 @@
     {
       "id": 10,
       "project": "Stock AI Pro",
-      "export_pr": 138,
-      "export_head": "f3dd6b4ad9832aab7b0f54aeaaa0ab3d6bc1000e",
-      "export_run": 37262857331,
+      "export_pr": 140,
+      "export_head": "2b8af2bdbd3425d624e3a0bb066aada0e8358eca",
+      "export_run": 37262978618,
       "export_status": "PASS",
       "repository_independence": "BLOCKED",
       "final_gate": "FAIL",
       "source_product_pr": 126,
       "source_product_head": "dfa07c51fffdaa7736147cd49e39a274a745e363",
       "source_product_status": "IN_PROGRESS",
-      "export_artifact_id": 11324493517,
-      "export_artifact_digest": "sha256:1980efa7570b5a9d0a61e7ef26487d69e2e70720f00df54fca195548402fbf7f",
+      "export_artifact_id": 11324663165,
+      "export_artifact_digest": "sha256:bb64ac81aa4532dd5b798d42f3492c725ae25500ac53d7a384d85e4e18752999",
       "source_current_head_evidence": {
         "source_offline_real_network": "PASS",
         "source_run": 37259832034,
@@ -167,31 +171,38 @@
         "full_business_run": 37259832083,
         "native_desktop": "IN_PROGRESS",
         "native_desktop_run": 37259832040,
-        "note": "Migration seed is current-product-bound and PASS. Product business/desktop acceptance remains in progress and is not inherited by the seed."
+        "note": "Migration tooling is outside StockAIPro and the workflow asserts byte identity to exact product base. Product business/desktop runs remain in progress and are not inherited by the seed."
       },
-      "superseded_export_pr": 99
+      "product_tree_byte_identity": "PASS",
+      "superseded_export_prs": [
+        99,
+        138
+      ]
     },
     {
       "id": 11,
       "project": "Real-Money Finance System",
-      "export_pr": 131,
-      "export_head": "deb5f1af5b5fcfeaff8b198d67d806ad6a975c2f",
-      "export_run": 37257714230,
-      "export_status": "NOT VERIFIED",
+      "export_pr": 139,
+      "export_head": "08564343fd1499283478547d922ff113cf94029a",
+      "export_run": 37262871456,
+      "export_status": "PASS",
       "repository_independence": "BLOCKED",
       "final_gate": "FAIL",
-      "source_product_pr": 95,
-      "source_product_head": "e3ae5134146fdb336f3f8075f26bf8d2cc275ae5",
-      "source_product_status": "ACTIVE_HARDENING_REVALIDATING",
-      "export_artifact_id": 11323905183,
-      "export_artifact_digest": "sha256:0e2642047ffe86735897cef95318be90a12f09d6c1cc3aec1ea521d605ddf522",
-      "engineering_completion_percent": 85.7143,
-      "business_completion_percent": 68.75,
-      "overall_completion_percent": 68.75,
+      "source_product_pr": 137,
+      "source_product_head": "573e07d57e3f3249e2ec03778559e439c007d64b",
+      "source_product_status": "CANDIDATE_VALIDATED_FINAL_FAIL",
+      "export_artifact_id": 11324884467,
+      "export_artifact_digest": "sha256:1e7fa976794bc71becffd3414bb981018db73596b6fc406ea72f8484831e0ca3",
+      "engineering_completion_percent": 85.7,
+      "business_completion_percent": 68.8,
+      "overall_completion_percent": 68.8,
       "product_tree_byte_identity": "PASS",
-      "superseded_export_pr": 97,
-      "stale_reason": "Export #131 is bound to stable base e3ae5134. Active RMF business hardening #136/#137 modifies product behavior/evidence and must be integrated, fully revalidated, then rebound before current-product migration PASS can be restored.",
-      "current_product_head": "78083c001a76d5696bf93d30c4d8b06a3e959754"
+      "current_product_head": "573e07d57e3f3249e2ec03778559e439c007d64b",
+      "superseded_export_prs": [
+        97,
+        131
+      ],
+      "note": "PR #137 run 37262214746 is SUCCESS as candidate validation only. Five business qualification gaps remain; repository independence, production N→N+1 and formal release redownload remain non-PASS."
     },
     {
       "id": 12,
@@ -284,8 +295,8 @@
       "export_artifact_digest": "sha256:da83e27d36dbb390e3375d453b5fcc390cbcd7f2fe1ce6d40fa37fb53ff986a8"
     }
   ],
-  "next_resume_condition": "When an independent target repository becomes visible to the connected GitHub installation or an account-level repository-creation credential/action becomes available, seed only from the indexed verified exact-head export and rerun the full frozen acceptance chain there before any PASS inheritance.",
-  "latest_delta": "Current-product-bound migration readiness is 17/18. Stock AI #138 exact head f3dd6b4... run 37262857331 PASS restores Stock migration binding to product head dfa07c51.... RMF remains the sole current-product-bound export NOT VERIFIED because active business hardening #136/#137 must first be integrated and revalidated.",
+  "next_resume_condition": "Continue current exact-head product validation. Do not promote migration readiness to Final. Repository-independence work can resume only when dedicated target repositories are actually visible/writable to the integration; then seed each verified export and rerun the complete chain from independent main.",
+  "latest_delta": "Current-product-bound migration readiness is 18/18. SSQ #141 run 37263066966 PASS binds export to product head 3b61bb59... after the checkout-evidence v2 verifier repair. Stock #140 run 37262978618 PASS uses product-byte-neutral migration tooling bound to dfa07c51.... RMF #139 run 37262871456 PASS binds export to #137 head 573e07d5.... This is migration readiness only: real independent repositories remain 0/18 and Final/Delivery remain 0/18. SSQ Windows run 37262758839 and Stock business/desktop runs 37259832083/37259832040 are still in progress.",
   "infrastructure_capability": {
     "repository_creation": "BLOCKED",
     "repository_creation_evidence": "PR #127: Actions integration token cannot act as user-level repository creator; connector exposes no create-repository mutation.",
@@ -296,6 +307,6 @@
   "audit": {
     "exact_seed_audit_date": "2026-10-05",
     "status": "PASS",
-    "note": "Historical migration seed coverage exists for all 18 lines, but current-product-bound readiness is 17/18. Stock #138 is rebound and PASS; RMF remains NOT VERIFIED until active hardening branches are integrated and a fresh exact-head export is verified."
+    "note": "All 18 migration lines now have current-product-bound exact-head export verification PASS. This does not satisfy repository independence: visible real dedicated repositories remain 0/18, so real Release N→N+1 and portfolio Final remain blocked."
   }
 }
