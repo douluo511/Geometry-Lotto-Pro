@@ -176,6 +176,27 @@ def main():
         if len(loader_context) >= 20:
             break
 
+    common_table_context = []
+    for url in urls:
+        if "common_table.js" not in url:
+            continue
+        rr, _ = fetch(s, url, attempts=2)
+        tt = rr.content.decode(rr.encoding or "utf-8", errors="replace")
+        for kw in (
+            "sseQueryURL", "commonQuery.do", "commonQuery", "sqlId",
+            "queryParams", "tableData", "tableFun", "ajax", ".do",
+        ):
+            for item in snippets(tt, kw, radius=2600)[:6]:
+                common_table_context.append({
+                    "source": url,
+                    "keyword": kw,
+                    "context": " ".join(item.split())[:5500],
+                })
+                if len(common_table_context) >= 36:
+                    break
+            if len(common_table_context) >= 36:
+                break
+
     public_candidates = []
     for hit in hits:
         for keyword, items in hit["matches"].items():
@@ -204,6 +225,7 @@ def main():
         "targeted_context": targeted_context,
         "page_query_context": page_query_context,
         "loader_context": loader_context,
+        "common_table_context": common_table_context,
         "boundary": report["boundary"],
     }, ensure_ascii=True, sort_keys=True))
     return 0
