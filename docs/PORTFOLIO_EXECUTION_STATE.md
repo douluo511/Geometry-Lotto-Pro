@@ -607,3 +607,12 @@ Portfolio boundary remains unchanged: migration-seed readiness does not satisfy 
 - Commit `6f3d7a2d...` changes only console serialization to ASCII-escaped JSON; the UTF-8 evidence file and all source/scientific admission rules remain unchanged.
 - Separate diagnostics remain fail-closed: Jiangsu/Fuzhou reconciliation cannot independently bind issue 2021016 to a visible Jiangsu date; Sichuan is `SICHUAN_HISTORY_CONTRACT_INCOMPLETE` and is not production-admitted.
 - Until run `37269650912` reaches downstream gates, Science/Windows/GUI/Same Hash on this exact head remain NOT VERIFIED.
+
+
+## 2026-10-05 continuation — Stock export refreshed / Happy8 reproducible-build repair
+
+- **Stock AI current-product migration/export restored**: PR #158 head `9e2bc7c2177a7621da3365b1cce9485b699f1948`, bound to product head `f9d610aafe910cb73b036701a688329d9899399b`. Run `37271886175` = SUCCESS: product-tree byte identity PASS, deterministic export PASS, independent second-pass verification PASS, deliberate tamper fail-closed PASS. Export: 406 files, manifest SHA256 `816fb86307881832f084fda206a97d3f895d2744441fdfd313b0dfe19667d535`, artifact `11328543634`, ZIP digest `sha256:52735175dacf7c7706680d957a0ed22661387044d822df23d5b7bd9bdb76898c`. Old PR #140 closed as superseded.
+- Therefore **current-product-bound migration/export readiness = 18/18 PASS** again. This does not change Stock runtime acceptance: #155 business run `37268369291` and desktop run `37268369332` remain IN_PROGRESS.
+- **Happy8** exact head `6f3d7a2dc82a3dfc7e06d98f0758c3e90875f795`, run `37269650912`: Live official network PASS, scientific validation PASS with explicit `NO_EDGE / NULL_DAN / prospective=PENDING`; Windows build itself completed twice but reproducible Same Hash failed (`9cea4bdf... != 6ff3875e...`), so Physical GUI was correctly skipped and Final remained FAIL.
+- PyInstaller official reproducibility inputs were then frozen without removing the dual-build gate: current Happy8 exact head `8de39dcfd4c3c6a0070eb6506e5ad56cb859eaba` sets `PYTHONHASHSEED=1` and `SOURCE_DATE_EPOCH=1704067200` and records them in Windows evidence. Fresh run `37271743611` is authoritative and IN_PROGRESS.
+- Real independent repositories remain **0/18**. Portfolio Final Gate PASS remains **0/18**. Final delivery remains **0/18**.
