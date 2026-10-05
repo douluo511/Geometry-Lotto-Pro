@@ -70,7 +70,8 @@ class FakeTencentFullClient:
                 day, "10", "10.1", "10.2", "9.9", str(1000+i),
                 "unused", "2.5", str(20+i),
             ])
-        return {"data": {"sh600000": {"qfqday": rows}}}, meta
+        key = "qfqday" if "qfq" in expected_variable else "day"
+        return {"data": {"sh600000": {key: rows}}}, meta
 
 
 class FakeYahooClient:
@@ -112,7 +113,15 @@ def main() -> int:
     assert all(x.volume > 0 for x in tfull_bars)
     assert all(x.raw_sha256 == "d" * 64 for x in tfull_bars)
     assert tfull_meta["provider"] == "tencent_public_full_kline"
+    assert tfull_meta["price_adjustment"] == "qfq"
     assert tfull_meta["unit_contract"] == "volume=shares; turnover_rate=fraction; amount=CNY"
+
+    raw_full_bars, raw_full_meta = fetch_daily_bars_tencent_full(
+        FakeTencentFullClient(), "600000", 40, adjustment="raw"
+    )
+    assert len(raw_full_bars) == 40
+    assert raw_full_meta["price_adjustment"] == "unadjusted"
+    assert raw_full_meta["requested_adjustment"] == "none"
 
     yahoo_bars, ymeta = fetch_daily_bars_yahoo(FakeYahooClient(), "600000", 40)
     assert len(yahoo_bars) == 40

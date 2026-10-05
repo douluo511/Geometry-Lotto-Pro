@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import date
-import hashlib
 
 from .domain import DailyBar, validate_market_rows
 from .netclient import NetClient
@@ -15,19 +14,27 @@ def fetch_daily_bars_tencent_full(
     client: NetClient,
     symbol: str,
     limit: int = 260,
+    adjustment: str = "qfq",
 ) -> tuple[list[DailyBar], dict]:
-    """Tencent production K-line path with explicit amount + turnover fields.
+    """Tencent field-complete K-line path with explicit adjustment identity."""
+    mode = str(adjustment).strip().lower()
+    if mode in {"none", "raw", "unadjusted"}:
+        fq = "none"
+        expected_key = "day"
+        adjustment_label = "unadjusted"
+    elif mode == "qfq":
+        fq = "qfq"
+        expected_key = "qfqday"
+        adjustment_label = "qfq"
+    else:
+        raise ValueError("adjustment must be qfq or raw/none/unadjusted")
 
-    The field mapping and unit normalization mirror the currently published
-    AKShare stock_zh_a_hist_tx adapter, but transport remains inside this
-    project's audited NetClient and no third-party runtime dependency is added.
-    """
     code = _code(symbol)
     year = date.today().year - 1
-    variable = f"kline_dayqfq{year}"
+    variable = f"kline_dayqfq{year}" if fq == "qfq" else f"kline_day{year}"
     params = {
         "_var": variable,
-        "param": f"{code},day,{year}-01-01,{year + 2}-01-01,640,qfq",
+        "param": f"{code},day,{year}-01-01,{year + 2}-01-01,640,{fq}",
         "r": "0.8205512681390605",
     }
     obj, meta = client.get_jsonp_object(
@@ -46,9 +53,9 @@ def fetch_daily_bars_tencent_full(
     stock = root.get(code)
     if not isinstance(stock, dict):
         raise ValueError("Tencent full response missing symbol object")
-    rows_raw = stock.get("qfqday") or stock.get("day")
+    rows_raw = stock.get(expected_key)
     if not isinstance(rows_raw, list) or len(rows_raw) < 30:
-        raise ValueError("Tencent full response has insufficient kline rows")
+        raise ValueError(f"Tencent full response missing required {expected_key} rows")
 
     by_date: dict[str, DailyBar] = {}
     for row in rows_raw:
@@ -93,10 +100,10 @@ def fetch_daily_bars_tencent_full(
         "payload_sha256": meta.payload_sha256,
         "retrieved_at_unix": meta.retrieved_at_unix,
         "row_count": len(rows),
-        "price_adjustment": "qfq" if stock.get("qfqday") else "unadjusted",
+        "price_adjustment": adjustment_label,
+        "requested_adjustment": fq,
         "content_type": meta.content_type,
         "content_type_policy": meta.content_type_policy,
         "field_contract": "date/open/close/high/low/volume/turnover/amount",
         "unit_contract": "volume=shares; turnover_rate=fraction; amount=CNY",
     }
-

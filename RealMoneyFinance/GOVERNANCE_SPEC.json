@@ -6,6 +6,7 @@
     "Four desktop entries are required: 资金变化, 一键更新, 一键修复, 高级分析.",
     "Production market data must be retrieved through a bounded fail-closed NetClient and persisted with source lineage and hashes.",
     "Public Level-1 data may describe observable activity but must not be presented as verified institution/main-force capital identity.",
+    "Corporate-action adjustment evidence must bind independently retrieved announcement/ex-dividend dates to observed adjusted-vs-raw price-factor changes; an adjustment label alone cannot pass.",
     "Analysis and prediction-style research must remain fail-closed unless independent validation demonstrates real gain beyond baselines without leakage or overfit.",
     "A Windows native candidate must be validated as the exact EXE by self-test, physical GUI input, and matching SHA-256.",
     "Production update acceptance requires an independent updater plus a real signed Release N to N+1 lineage, rollback, restart health, and same-hash evidence.",
@@ -53,7 +54,9 @@
       "app/source_eastmoney.py",
       "app/source_tencent.py",
       "app/source_yahoo.py",
-      "app/source_cost_rules.py"
+      "app/source_cost_rules.py",
+      "app/source_tencent_full.py",
+      "app/source_corporate_actions.py"
     ],
     "NetClient": [
       "app/netclient.py"

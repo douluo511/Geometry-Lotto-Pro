@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from bisect import bisect_right
 from dataclasses import asdict, dataclass
+from datetime import date
 import math
 import random
+import re
 from statistics import NormalDist, mean, median, pstdev
 from typing import Iterable
 
@@ -56,6 +58,148 @@ FROZEN_METHOD_THRESHOLDS = {
 def _strict_dates(rows: list[DailyBar]) -> bool:
     dates = [x.trade_date for x in rows]
     return len(dates) == len(set(dates)) and dates == sorted(dates)
+
+
+def _corporate_action_evidence_qualified(source_meta: dict, evidence: dict) -> bool:
+    if source_meta.get("qualification_scope") != "production_real_network":
+        return False
+    if str(source_meta.get("price_adjustment", "")).lower() != "qfq":
+        return False
+    if evidence.get("status") != "PASS" or evidence.get("point_in_time_lineage") != "PASS":
+        return False
+
+    providers = evidence.get("source_providers")
+    if providers != {
+        "qfq": "tencent_public_full_kline",
+        "raw": "tencent_public_full_kline",
+        "events": "eastmoney_share_bonus_datacenter",
+    }:
+        return False
+
+    hashes = [
+        evidence.get("qfq_payload_sha256"),
+        evidence.get("raw_payload_sha256"),
+        evidence.get("event_payload_sha256"),
+    ]
+    if any(not isinstance(x, str) or not re.fullmatch(r"[0-9a-f]{64}", x) for x in hashes):
+        return False
+    if hashes[0] == hashes[1]:
+        return False
+
+    try:
+        verified = int(evidence.get("verified_event_count"))
+        unexplained_count = int(evidence.get("unexplained_factor_changes"))
+        significant = int(evidence.get("significant_factor_changes"))
+        overlap_rows = int(evidence.get("overlap_rows"))
+    except Exception:
+        return False
+    source_symbol = str(source_meta.get("symbol") or "")
+    evidence_symbol = str(evidence.get("symbol") or "")
+    if overlap_rows < 60:
+        return False
+    if source_symbol and evidence_symbol != source_symbol:
+        return False
+    matched = evidence.get("matched_events")
+    unexplained = evidence.get("unexplained_changes")
+    if (
+        verified < 1
+        or unexplained_count != 0
+        or not isinstance(matched, list)
+        or len(matched) != verified
+        or not isinstance(unexplained, list)
+        or len(unexplained) != 0
+        or significant != verified + unexplained_count
+    ):
+        return False
+
+    if evidence.get("factor_detection_method") != "persistent_median_regime_shift_v1":
+        return False
+    if evidence.get("factor_estimator") != "quantized_ohlc_interval_v2":
+        return False
+    try:
+        factor_window_sessions = int(evidence.get("factor_window_sessions"))
+    except Exception:
+        return False
+    if factor_window_sessions < 3:
+        return False
+    price_tick = evidence.get("price_tick")
+    if not isinstance(price_tick, (int, float)) or not math.isfinite(float(price_tick)) or abs(float(price_tick) - 0.01) > 1e-12:
+        return False
+    tolerance = evidence.get("factor_change_tolerance")
+    if not isinstance(tolerance, (int, float)) or not math.isfinite(float(tolerance)) or float(tolerance) <= 0:
+        return False
+    seen_events = set()
+    for item in matched:
+        if not isinstance(item, dict):
+            return False
+        event = item.get("event")
+        change = item.get("factor_change")
+        if not isinstance(event, dict) or not isinstance(change, dict):
+            return False
+        notice = str(event.get("plan_notice_date") or "")
+        ex_date = str(event.get("ex_dividend_date") or "")
+        trade_date = str(change.get("trade_date") or "")
+        previous_trade_date = str(change.get("previous_trade_date") or "")
+        if not all(re.fullmatch(r"\d{4}-\d{2}-\d{2}", x) for x in (notice, ex_date, previous_trade_date, trade_date)):
+            return False
+        try:
+            notice_day = date.fromisoformat(notice)
+            ex_day = date.fromisoformat(ex_date)
+            previous_day = date.fromisoformat(previous_trade_date)
+            trade_day = date.fromisoformat(trade_date)
+        except Exception:
+            return False
+        if notice_day > ex_day or previous_day >= trade_day or trade_day < ex_day:
+            return False
+        days_after = item.get("calendar_days_after_ex_date")
+        actual_days_after = (trade_day - ex_day).days
+        if not isinstance(days_after, int) or days_after != actual_days_after or not 0 <= days_after <= 7:
+            return False
+
+        event_symbol = str(event.get("symbol") or "")
+        if event_symbol != evidence_symbol:
+            return False
+        try:
+            payout_positive = any(float(event.get(k) or 0) > 0 for k in ("pretax_bonus_rmb", "bonus_ratio", "transfer_ratio"))
+        except Exception:
+            return False
+        if not payout_positive:
+            return False
+        event_key = (event_symbol, notice, ex_date)
+        if event_key in seen_events:
+            return False
+        seen_events.add(event_key)
+
+        relative = change.get("relative_change")
+        effective_threshold = change.get("effective_threshold")
+        rounding_bound = change.get("rounding_error_bound")
+        local_noise = change.get("local_mad_ratio")
+        interval_gap = change.get("quantization_interval_gap")
+        before_interval = change.get("before_factor_interval")
+        after_interval = change.get("after_factor_interval")
+        if (
+            not isinstance(interval_gap, (int, float))
+            or not math.isfinite(float(interval_gap))
+            or float(interval_gap) <= float(tolerance)
+            or not isinstance(before_interval, list) or len(before_interval) != 2
+            or not isinstance(after_interval, list) or len(after_interval) != 2
+            or not all(isinstance(x, (int, float)) and math.isfinite(float(x)) for x in before_interval + after_interval)
+            or float(before_interval[0]) > float(before_interval[1])
+            or float(after_interval[0]) > float(after_interval[1])
+            or not (float(before_interval[1]) < float(after_interval[0])
+                    or float(after_interval[1]) < float(before_interval[0]))
+        ):
+            return False
+        values = (relative, effective_threshold, rounding_bound, local_noise)
+        if any(not isinstance(x, (int, float)) or not math.isfinite(float(x)) for x in values):
+            return False
+        if float(effective_threshold) < float(tolerance):
+            return False
+        if float(rounding_bound) < 0 or float(local_noise) < 0:
+            return False
+        if float(relative) <= float(effective_threshold):
+            return False
+    return True
 
 
 def _safe_ratio(values: list[float], recent: int, base: int) -> float | None:
@@ -312,6 +456,7 @@ def qualify_research(
     *,
     benchmark_rows: Iterable[DailyBar] | None = None,
     benchmark_meta: dict | None = None,
+    corporate_action_evidence: dict | None = None,
 ) -> dict:
     ordered = list(rows)
     validate_market_rows(ordered)
@@ -326,9 +471,24 @@ def qualify_research(
         raise ValueError("bars must be unique and strictly chronological")
 
     adjustment = str(source_meta.get("price_adjustment", "")).lower()
-    # A provider's adjustment label is lineage, not independently verified
-    # corporate-action factors, dates or point-in-time availability.
-    corporate_action = "NOT VERIFIED"
+    # A provider qfq label alone is never enough. Corporate-action PASS requires
+    # independent event dates plus observed qfq/raw factor changes and source hashes.
+    research_symbol = str(ordered[0].symbol)
+    if any(str(row.symbol) != research_symbol for row in ordered):
+        raise ValueError("qualification rows must belong to one research symbol")
+    corporate_evidence = dict(corporate_action_evidence or {})
+    # Preserve an explicit source symbol if the adapter supplied one. Overwriting
+    # it with the row symbol would erase cross-symbol provenance mismatches and
+    # allow forged evidence to qualify. Only backfill the symbol when source
+    # metadata is genuinely silent.
+    corporate_source_meta = dict(source_meta)
+    if not str(corporate_source_meta.get("symbol") or "").strip():
+        corporate_source_meta["symbol"] = research_symbol
+    corporate_action = (
+        "PASS"
+        if _corporate_action_evidence_qualified(corporate_source_meta, corporate_evidence)
+        else "NOT VERIFIED"
+    )
     positive_amount = sum(1 for x in ordered if float(x.amount or 0.0) > 0)
     amount_coverage = positive_amount / len(ordered)
     # Positive daily amount neither states an order size nor proves executable
@@ -486,7 +646,7 @@ def qualify_research(
     gates = {
         "cost_slippage_model": "NOT VERIFIED",
         "liquidity_capacity": "NOT VERIFIED",
-        "corporate_action_adjustment": "NOT VERIFIED",
+        "corporate_action_adjustment": corporate_action,
         "leakage_safe_time_split": "NOT VERIFIED",
         "survivorship_selection_control": "NOT VERIFIED",
         # Computing an INSUFFICIENT decision completes a method diagnostic but
@@ -511,7 +671,7 @@ def qualify_research(
     gaps = {
         "cost_slippage_model": "Illustrative basis-point assumptions lack current exchange/broker calibration and observed execution slippage.",
         "liquidity_capacity": "No order notional, executable participation, spread/impact or limit/suspension fill evidence.",
-        "corporate_action_adjustment": "Provider qfq label lacks verified action factors/dates and point-in-time lineage.",
+        "corporate_action_adjustment": "Provider qfq label alone is insufficient; PASS requires independently hashed action dates plus matched qfq/raw factor changes with no unexplained changes.",
         "leakage_safe_time_split": "Lagged execution is implemented, but historical point-in-time source availability is unverified.",
         "survivorship_selection_control": "User-selected single symbol lacks a precommitted survivorship-safe investable universe.",
         "oos_walk_forward": "Frozen holdout-power target lacks sufficient current real-network OOS evidence; computing an INSUFFICIENT decision is not a power PASS.",
@@ -532,6 +692,7 @@ def qualify_research(
         "amount_coverage": amount_coverage,
         "liquidity_capacity_status": liquidity,
         "corporate_action_status": corporate_action,
+        "corporate_action_evidence": corporate_evidence,
         "cost_assumptions": asdict(assumptions),
         "round_trip_cost_bps_assumption": assumptions.round_trip_bps(),
         "base_feature_set": base_name,
