@@ -4,7 +4,10 @@ import hashlib
 import json
 import math
 import tempfile
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.netclient import NetClient
 from app.source_market import fetch_daily_bars_failover
