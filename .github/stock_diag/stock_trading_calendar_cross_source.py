@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import time
 from pathlib import Path
 
 import pandas as pd
@@ -32,9 +33,30 @@ def digest(values):
     return hashlib.sha256(payload).hexdigest()
 
 
+def bounded_provider_call(label, fn, attempts=3):
+    errors=[]
+    for attempt in range(1, attempts+1):
+        try:
+            value=fn()
+            return value, {"attempt":attempt,"prior_errors":errors}
+        except Exception as exc:
+            errors.append(f"{type(exc).__name__}: {exc}")
+            if attempt == attempts:
+                raise RuntimeError(
+                    f"{label}: failed after {attempts} bounded attempts: " + " | ".join(errors)
+                ) from exc
+            time.sleep(2 ** (attempt-1))
+
+
 def main():
-    em=ak.stock_zh_index_daily_em(symbol=SYMBOL,start_date=START,end_date=END)
-    tx=ak.stock_zh_index_daily_tx(symbol=SYMBOL)
+    em,em_fetch=bounded_provider_call(
+        "eastmoney",
+        lambda: ak.stock_zh_index_daily_em(symbol=SYMBOL,start_date=START,end_date=END),
+    )
+    tx,tx_fetch=bounded_provider_call(
+        "tencent",
+        lambda: ak.stock_zh_index_daily_tx(symbol=SYMBOL),
+    )
     em_dates=normalize_dates(em,"eastmoney")
     tx_dates=normalize_dates(tx,"tencent")
 
@@ -49,8 +71,14 @@ def main():
         "symbol":SYMBOL,
         "frozen_window":{"start":"2018-01-01","end":"2026-09-30"},
         "providers":{
-            "eastmoney":{"rows":len(em_dates),"first":em_dates[0],"last":em_dates[-1],"date_sha256":digest(em_dates)},
-            "tencent":{"rows":len(tx_dates),"first":tx_dates[0],"last":tx_dates[-1],"date_sha256":digest(tx_dates)},
+            "eastmoney":{
+                "rows":len(em_dates),"first":em_dates[0],"last":em_dates[-1],
+                "date_sha256":digest(em_dates),"fetch":em_fetch
+            },
+            "tencent":{
+                "rows":len(tx_dates),"first":tx_dates[0],"last":tx_dates[-1],
+                "date_sha256":digest(tx_dates),"fetch":tx_fetch
+            },
         },
         "comparison":{
             "exact_date_sequence_equal":exact_equal,
