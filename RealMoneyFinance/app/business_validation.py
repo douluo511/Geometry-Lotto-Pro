@@ -459,7 +459,13 @@ def qualify_research(
     if any(str(row.symbol) != research_symbol for row in ordered):
         raise ValueError("qualification rows must belong to one research symbol")
     corporate_evidence = dict(corporate_action_evidence or {})
-    corporate_source_meta = {**source_meta, "symbol": research_symbol}
+    # Preserve an explicit source symbol if the adapter supplied one. Overwriting
+    # it with the row symbol would erase cross-symbol provenance mismatches and
+    # allow forged evidence to qualify. Only backfill the symbol when source
+    # metadata is genuinely silent.
+    corporate_source_meta = dict(source_meta)
+    if not str(corporate_source_meta.get("symbol") or "").strip():
+        corporate_source_meta["symbol"] = research_symbol
     corporate_action = (
         "PASS"
         if _corporate_action_evidence_qualified(corporate_source_meta, corporate_evidence)
