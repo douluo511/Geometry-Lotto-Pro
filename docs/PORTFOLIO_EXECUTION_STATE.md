@@ -1,5 +1,18 @@
 # Portfolio Execution State — 18 Windows EXE Projects
 
+## 2026-10-06 Stock current-head deterministic export restored — PR #216
+
+- Stock product candidate remains PR #210 exact head `7f270b9ab58e11fd8129053a65e000c90ff9d8c1`.
+- Current-product migration PR #216 exact head `3180c5ae518a4ff62016adeff2044892aaa1df3d`, base exactly `7f270b9a...`.
+- Run `37343378422` / job `111875768476` = **SUCCESS**.
+- Exact checkout / product-tree byte identity / base ancestry = PASS.
+- Deterministic export = PASS; independent second-pass verification = PASS; deliberate mutation rejection = PASS.
+- Export file count = **408**; manifest SHA-256 `3d5d0af681e3452eb5afb85c290c9842b534eb453c72cc70b6568804cc6a506b`.
+- Artifact `11358729281`; ZIP digest `sha256:c4c5bd37aaae253be4197d484b92c8c4a38c8a18096954fafbe1267e4a29318b`.
+- Therefore current-product-bound migration/export readiness returns to **18/18 PASS** at this exact state.
+- This remains migration preparation only: Repository Independence = NOT VERIFIED; real production Release N→N+1 = NOT VERIFIED; formal Release re-download Same Hash = NOT VERIFIED; Final Gate = FAIL.
+- If PR #210 changes product head again, PR #216 becomes stale immediately and migration readiness must drop again until rebound.
+
 ## 2026-10-06 Stock PR #210 real-byte evidence binding hardening — new exact head
 
 - **Supersedes PR #210 head `847511a4...`: current exact head is `7f270b9ab58e11fd8129053a65e000c90ff9d8c1`.**
