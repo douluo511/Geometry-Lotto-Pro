@@ -1,5 +1,14 @@
 # Portfolio Execution State — 18 Windows EXE Projects
 
+## 2026-10-05 Stock trading dates + suspension-interface reversal
+
+- **PR #203 trading-date cross-source:** exact head `51d8dd5819a63248cae3911c286feaf345495e07`, run `37314906853` = **SUCCESS**. Eastmoney and Tencent Shanghai Composite frozen-window date sequences are exactly equal: **2,123 dates**, 2018-01-02 → 2026-09-30, zero one-sided differences, common SHA-256 `45215343b187e337bc2b1ca3edbfc3055cdc77c0130b46c707bfe84ccf5513c9`. Research trading-date sequence = **SUPPORTED**.
+- **PR #204 independent reversal:** repaired exact head `1fc5c7ecf99a322151c0cd25f6f04600138136ff`, run `37314881015` = **FAIL** at semantic equality after successfully loading **4,815** official interval rows / **2,333** canonical Shanghai A-share intervals.
+- PR #204 comparisons: 2022-01-04 **3=3 exact**, 2024-01-04 **3=3 exact**, 2026-09-24 **expected 6 vs snapshot 11**, 2026-09-30 **expected 5 vs snapshot 11**. Therefore global interval↔daily-snapshot equivalence is **NOT VERIFIED**.
+- #204 artifact `11347616859`, digest `sha256:6d8bf5057b13cc25af7f186d0baaa4c82a7f8185abd1d724af0a4ccf4af2c09d`; PR #204 is closed as diagnostic-complete / superseded by stronger #200 semantic work.
+- Resulting boundary: research trading dates **SUPPORTED**; Shanghai historical daily suspension state **NOT VERIFIED**; Shanghai historical ST/PIT **NOT VERIFIED**; full HISTORICAL_ST_PIT **NOT VERIFIED**; Advanced Business **NOT VERIFIED**; Final Gate **FAIL**.
+- No Stock product/runtime byte, frozen denominator, threshold, repository-independence criterion, or Release criterion changed.
+
 ## 2026-10-05 Stock SSE risk-warning machine-contract diagnostic — terminal negative evidence
 
 - Diagnostic PR #196 current exact head `382903bfdd8fc4ee92d3d85fb3deb37531ff3096`.
