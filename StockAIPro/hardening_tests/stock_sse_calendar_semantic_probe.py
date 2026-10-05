@@ -303,6 +303,11 @@ def main():
         "20260930",
         "20240104",
         "20220104",
+        "20220105",
+        "20220112",
+        "20220113",
+        "20220117",
+        "20220118",
     ]
     daily_suspension_contract = {}
     daily_suspension_errors = {}
@@ -343,6 +348,48 @@ def main():
     )
     crosscheck_exact_exclusive = bool(daily_crosscheck) and all(
         x["exclusive_exact_match"] for x in daily_crosscheck.values()
+    )
+
+    end_semantic_expectations = {
+        "20220104": {"605090": True},
+        "20220105": {"605090": False},
+        "20220112": {"600072": True},
+        "20220113": {"600072": False},
+        "20220117": {"603227": True},
+        "20220118": {"603227": False},
+    }
+    end_semantic_checks = []
+    for d, code_expectations in end_semantic_expectations.items():
+        x = daily_crosscheck.get(d)
+        if not x:
+            end_semantic_checks.append({"date": d, "status": "MISSING"})
+            continue
+        snapshot = set(x["snapshot_active_stock_codes"])
+        inclusive = set(x["event_active_inclusive_end_codes"])
+        exclusive = set(x["event_active_exclusive_end_codes"])
+        for code, expected_active in code_expectations.items():
+            item = {
+                "date": d,
+                "code": code,
+                "expected_active": expected_active,
+                "snapshot_active": code in snapshot,
+                "event_inclusive_active": code in inclusive,
+                "event_exclusive_active": code in exclusive,
+            }
+            item["snapshot_matches_expected"] = item["snapshot_active"] == expected_active
+            item["inclusive_matches_expected"] = item["event_inclusive_active"] == expected_active
+            end_semantic_checks.append(item)
+    end_semantic_inclusive_supported = bool(end_semantic_checks) and all(
+        x.get("snapshot_matches_expected") is True
+        and x.get("inclusive_matches_expected") is True
+        for x in end_semantic_checks
+        if x.get("status") != "MISSING"
+    ) and not any(x.get("status") == "MISSING" for x in end_semantic_checks)
+    end_semantic_exclusive_counterexample = any(
+        x.get("expected_active") is True
+        and x.get("event_exclusive_active") is False
+        and x.get("snapshot_active") is True
+        for x in end_semantic_checks
     )
 
     trade_day_before_values = {}
@@ -436,6 +483,12 @@ def main():
         "frontend_semantics": frontend_semantics,
         "discovered_script_urls": discovered,
         "candidate_scripts": candidate_scripts,
+        "event_interval_end_semantics": {
+            "expectations": end_semantic_expectations,
+            "checks": end_semantic_checks,
+            "inclusive_supported": end_semantic_inclusive_supported,
+            "exclusive_counterexample_found": end_semantic_exclusive_counterexample,
+        },
         "daily_interval_crosscheck": {
             "scope": "SSE_A_SHARE_CONTROLTYPE_TR_SAMPLE_DATES",
             "sample_dates": sorted(daily_crosscheck),
@@ -473,6 +526,11 @@ def main():
         "adjudication": {
             "official_sources_reached": True,
             "frontend_endStopDate_semantics": "SUPPORTED" if frontend_semantics["endStopDate"] else "NOT VERIFIED",
+            "event_interval_end_semantics": (
+                "SUPPORTED_INCLUSIVE_EDGE_SAMPLE"
+                if end_semantic_inclusive_supported and end_semantic_exclusive_counterexample
+                else "NOT VERIFIED"
+            ),
             "daily_suspension_interval_crosscheck": (
                 "SUPPORTED_SAMPLE"
                 if crosscheck_exact_inclusive or crosscheck_exact_exclusive
@@ -508,6 +566,9 @@ def main():
         "frontend_endStopDate_fragments": len(frontend_semantics["endStopDate"]),
         "resume_term_fragments": len(frontend_semantics["resume_terms"]),
         "candidate_script_count": len(candidate_scripts),
+        "event_interval_end_semantics_inclusive_supported": end_semantic_inclusive_supported,
+        "event_interval_end_semantics_exclusive_counterexample": end_semantic_exclusive_counterexample,
+        "event_interval_end_semantic_checks": end_semantic_checks,
         "daily_interval_crosscheck_inclusive_exact": crosscheck_exact_inclusive,
         "daily_interval_crosscheck_exclusive_exact": crosscheck_exact_exclusive,
         "daily_interval_crosscheck": {
