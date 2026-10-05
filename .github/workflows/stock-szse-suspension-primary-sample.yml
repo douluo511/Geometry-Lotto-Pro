@@ -3,6 +3,10 @@ on:
   push:
     branches:
       - diagnostic/stock-szse-suspension-primary-sample-20261006
+  pull_request:
+    paths:
+      - ".github/stock_diag/stock_szse_suspension_primary_sample.py"
+      - ".github/workflows/stock-szse-suspension-primary-sample.yml"
   workflow_dispatch:
 permissions:
   contents: read
@@ -13,13 +17,13 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
       - name: Verify current Stock product byte identity
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
           authoritative="7f270b9ab58e11fd8129053a65e000c90ff9d8c1"
           test -z "$(git diff --name-only "$authoritative"..HEAD -- StockAIPro)"
           echo "STOCK_PRODUCT_TREE_BYTE_IDENTITY=PASS"
@@ -33,7 +37,7 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
-          name: STOCK-SZSE-SUSPENSION-PRIMARY-SAMPLE-${{ github.sha }}
+          name: STOCK-SZSE-SUSPENSION-PRIMARY-SAMPLE-${{ github.event.pull_request.head.sha || github.sha }}
           path: |
             stock_szse_suspension_static_archive.json
             stock_szse_suspension_primary_sample.json
