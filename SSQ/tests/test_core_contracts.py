@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "SSQ"))
 
 import glp.sources as sources
+import glp.util as util
 from glp.domain import CanonicalDataset, Draw, SourceReceipt
 from glp.net_client import NetClient
 from glp.sources import (
@@ -29,7 +30,9 @@ from glp.sources import (
     parse_shanghai_history,
 )
 from glp.storage import Store
-from glp.constants import HEBEI_ANNOUNCE_URL, HEBEI_URL, NATIONAL_URL, SHANGHAI_URL
+from glp.constants import (
+    HEBEI_ANNOUNCE_URL, HEBEI_URL, NATIONAL_URL, SHANGHAI_HISTORY_URL, SHANGHAI_URL,
+)
 from glp.util import sha256_bytes, sha256_json, utc_now
 
 
@@ -131,6 +134,65 @@ def dataset_pair(extra: bool = False):
         "_raw_response_payloads": payloads,
     }
     return ds, ev
+
+
+class AppDataIdentityContractTests(unittest.TestCase):
+    def test_native_windows_identity_wins_over_inherited_localappdata(self):
+        with (
+            patch.object(util, "_native_windows_local_appdata",
+                         return_value=Path("C:/Users/standard/AppData/Local")),
+            patch.dict("os.environ", {
+                "LOCALAPPDATA": "C:/Users/runneradmin/AppData/Local",
+            }, clear=False),
+        ):
+            self.assertEqual(
+                util.app_data_dir(),
+                Path("C:/Users/standard/AppData/Local/GeometryLottoPro/SSQ").resolve(),
+            )
+
+    def test_explicit_data_dir_override_remains_authoritative(self):
+        with (
+            tempfile.TemporaryDirectory() as td,
+            patch.object(util, "_native_windows_local_appdata",
+                         return_value=Path("C:/Users/standard/AppData/Local")),
+            patch.dict("os.environ", {"GLP_DATA_DIR": td}, clear=False),
+        ):
+            self.assertEqual(util.app_data_dir(), Path(td).resolve())
+
+
+class AcceptanceScriptContractTests(unittest.TestCase):
+    @staticmethod
+    def _gui_failure_script() -> str:
+        return (
+            ROOT.parent / ".github" / "scripts" / "ssq_physical_gui_failure_smoke.ps1"
+        ).read_text(encoding="utf-8")
+
+    def test_gui_failure_script_never_binds_reserved_powershell_pid(self):
+        script = self._gui_failure_script()
+        self.assertNotRegex(
+            script,
+            r"(?i)\$(?:pid)\b",
+            "PowerShell $PID is an automatic read-only variable; acceptance scripts must use processId/guiPid instead",
+        )
+
+    def test_gui_failure_script_blocks_the_actual_materialized_updater_path(self):
+        script = self._gui_failure_script()
+        self.assertIn(
+            '$materializedUpdaterDir = Join-Path (Join-Path $runDir "updater") $updaterHash',
+            script,
+        )
+        self.assertIn(
+            '$verifiedUpdaterHash = [string]$verifiedUpdate[0].backend_effect.updater_process.updater_exe_sha256',
+            script,
+        )
+        self.assertIn(
+            'New-NetFirewallRule -DisplayName $ruleUpdaterMaterialized -Direction Outbound -Program $materializedUpdater -Action Block',
+            script,
+        )
+        self.assertIn(
+            'materialized_updater_sha256=(Get-Sha256 $materializedUpdater)',
+            script,
+        )
 
 
 class DomainContractTests(unittest.TestCase):
@@ -251,6 +313,70 @@ class NetClientUnitTests(unittest.TestCase):
         self.assertTrue(meta["parser_version"])
         self.assertTrue(meta["fetched_at"].endswith("Z"))
         self.assertEqual(meta["final_url"], "https://example.invalid/data")
+
+
+class ShanghaiHistoryTransportRetryTests(unittest.TestCase):
+    @staticmethod
+    def _one_chunk_spec():
+        return [{
+            "sequence": "1", "view": "previous", "limit": "100",
+            "start_issue": "2026113", "end_issue": "2026999",
+        }]
+
+    @staticmethod
+    def _valid_response():
+        params = "view=previous&limit=100&start_issue=2026113&end_issue=2026999"
+        response = FakeResponse(
+            200,
+            b"2026113 2026-09-29 030420242930 11",
+            {"Content-Type": "text/html"},
+            url=f"{SHANGHAI_HISTORY_URL}?{params}",
+        )
+        response.glp_attempts = ({"attempt": 1, "outcome": "HTTP_RESPONSE"},)
+        return response
+
+    def test_full_history_retries_one_transient_transport_failure_and_records_it(self):
+        transient = requests.Timeout("deadline")
+        transient.glp_attempts = (
+            {"attempt": 1, "outcome": "OPERATION_DEADLINE"},
+        )
+        with (
+            patch.object(sources, "_shanghai_full_chunk_specs",
+                         return_value=self._one_chunk_spec()),
+            patch.object(sources, "_get_official",
+                         side_effect=[transient, self._valid_response()]) as get,
+            patch.object(sources, "_validate_history"),
+        ):
+            draws, receipt, manifest = sources.fetch_shanghai_full_history("2026113")
+        self.assertEqual(get.call_count, 2)
+        self.assertEqual(draws[-1].issue, "2026113")
+        self.assertEqual(receipt.status, "PASS")
+        attempts = manifest[0]["source_operation_attempts"]
+        self.assertEqual([row["status"] for row in attempts], ["FAIL", "PASS"])
+        self.assertEqual(attempts[0]["error_type"], "Timeout")
+        self.assertIn("source_retries=1", receipt.detail)
+
+    def test_full_history_does_not_retry_http_or_parser_failures(self):
+        with (
+            patch.object(sources, "_shanghai_full_chunk_specs",
+                         return_value=self._one_chunk_spec()),
+            patch.object(sources, "_get_official",
+                         side_effect=requests.HTTPError("HTTP 403")) as get,
+        ):
+            with self.assertRaises(requests.HTTPError):
+                sources.fetch_shanghai_full_history("2026113")
+            self.assertEqual(get.call_count, 1)
+
+        malformed = self._valid_response()
+        malformed.content = b"<html><tbody>schema drift</tbody></html>"
+        with (
+            patch.object(sources, "_shanghai_full_chunk_specs",
+                         return_value=self._one_chunk_spec()),
+            patch.object(sources, "_get_official", return_value=malformed) as get,
+        ):
+            with self.assertRaises(SourceError):
+                sources.fetch_shanghai_full_history("2026113")
+            self.assertEqual(get.call_count, 1)
 
 
 class SourceFailoverTests(unittest.TestCase):

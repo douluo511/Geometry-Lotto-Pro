@@ -9,7 +9,9 @@ HARD_GATES = [
     "function_contract","interface_contract","data_source","netclient","storage",
     "engine","evidence","service","ui","self_test","unit_test","contract_test","integration_test",
     "fault_injection","real_network","business_validation","counterexample_validation","reversal_validation",
-    "windows_build","exact_exe","gui_smoke","same_hash","business_content","repository_independence",
+    "windows_build","exact_exe","reproducible_build","release_version","gui_smoke","physical_gui_click","physical_gui_failure","same_hash","business_content","production_gui_payload",
+    "updater_process","updater_exact_exe","updater_atomic_rollback","updater_real_network","updater_same_hash",
+    "repository_independence","release_context","no_shell","physical_gui_repair_failure",
 ]
 
 def sha256(path: Path) -> str:
@@ -25,13 +27,12 @@ def main() -> int:
     p.add_argument("--acceptance", required=True)
     p.add_argument("--exe", required=True)
     p.add_argument("--report", required=True)
-    p.add_argument("--repository-independent", choices=["PASS", "FAIL"], required=True)
     a = p.parse_args()
     gate_input = json.loads(Path(a.gate_input).read_text(encoding="utf-8-sig"))
     # Never trust a caller-supplied list of PASS strings. Re-derive the result
     # from current-run artifacts and reject a stale or hand-authored manifest.
     from derive_gate_status import derive
-    expected = derive(Path(a.acceptance).parent, Path(a.exe), a.repository_independent)
+    expected = derive(Path(a.acceptance).parent, Path(a.exe))
     manifest_matches = (
         gate_input.get("schema") == expected["schema"]
         and gate_input.get("gates") == expected["gates"]
@@ -60,7 +61,7 @@ def main() -> int:
         "gate_input_integrity": "PASS" if manifest_matches else "FAIL",
     }
     Path(a.report).write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(json.dumps(report, ensure_ascii=False))
+    print(json.dumps(report, ensure_ascii=True))
     return 0 if not failures else 2
 
 if __name__ == "__main__":

@@ -5,7 +5,7 @@ import sys
 import tempfile
 import unittest
 from dataclasses import asdict
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
 
@@ -15,7 +15,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "SSQ"))
 
 from glp.constants import HEBEI_ANNOUNCE_URL, HEBEI_URL, NATIONAL_URL, SHANGHAI_URL  # noqa: E402
 from glp.domain import CanonicalDataset, Draw, SourceReceipt  # noqa: E402
-from glp.sources import SourceError, _date, _validate_history, build_canonical, fetch_national_page, parse_shanghai_history  # noqa: E402
+from glp.sources import (  # noqa: E402
+    SourceError, _date, _expected_latest_completed_draw_day, _validate_freshness,
+    _validate_history, build_canonical, fetch_national_page, parse_shanghai_history,
+)
 from glp.service import LottoService  # noqa: E402
 from glp.storage import Store  # noqa: E402
 from glp.util import sha256_bytes, sha256_json, utc_now  # noqa: E402
@@ -93,6 +96,26 @@ class SourceParsingTests(unittest.TestCase):
         old = Draw("2020001", "2020-01-01", (1, 2, 3, 4, 5, 6), (7,))
         with self.assertRaises(SourceError):
             _validate_history([old], "test")
+
+    def test_freshness_uses_2026_official_national_day_closure(self) -> None:
+        latest = Draw("2026113", "2026-09-29", (3, 4, 20, 24, 29, 30), (11,))
+        info = _validate_freshness([latest], "test", today=date(2026, 10, 1))
+        self.assertEqual(info["expected_latest_completed_draw_date"], "2026-09-29")
+        self.assertEqual(info["latest_date"], "2026-09-29")
+        self.assertEqual(info["policy_year"], 2026)
+        self.assertIn("mof.gov.cn", info["policy_sources"]["closure"])
+
+    def test_scheduled_draw_day_allows_prior_completed_draw_until_next_day(self) -> None:
+        prior = Draw("2026112", "2026-09-27", (1, 2, 3, 4, 5, 6), (7,))
+        info = _validate_freshness([prior], "test", today=date(2026, 9, 29))
+        self.assertEqual(info["expected_latest_completed_draw_date"], "2026-09-27")
+        stale = Draw("2026111", "2026-09-24", (1, 2, 3, 4, 5, 6), (7,))
+        with self.assertRaises(SourceError):
+            _validate_history([stale], "test", today=date(2026, 9, 29))
+
+    def test_unknown_freshness_calendar_year_fails_closed(self) -> None:
+        with self.assertRaisesRegex(SourceError, "updater required"):
+            _expected_latest_completed_draw_day(date(2027, 1, 2))
 
 
 class RawEvidenceStorageTests(unittest.TestCase):

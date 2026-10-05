@@ -9,6 +9,7 @@ from typing import Any, Callable
 
 from glp.constants import APP_NAME, APP_VERSION
 from glp.service import LottoService
+from glp.updater_client import UpdaterClient
 
 # Pure Win32 UI: no tkinter/Tcl dependency.  The original app used the same
 # native approach; this module keeps the four-entry interface while binding it
@@ -72,8 +73,9 @@ def _pretty(value: Any) -> str:
 
 
 class NativeApp:
-    def __init__(self, service: LottoService | None = None):
+    def __init__(self, service: LottoService | None = None, updater: UpdaterClient | None = None):
         self.service = service or LottoService()
+        self.updater = updater or UpdaterClient(self.service.store.root)
         self.events: queue.Queue[tuple[str, Any]] = queue.Queue()
         self.busy = False
         self.controls: dict[int, HWND] = {}
@@ -288,10 +290,10 @@ class NativeApp:
                 self._start("预测下一期", self.service.predict, self._render_prediction)
                 return 0
             if cid == BTN_UPDATE:
-                self._start("一键更新", self.service.update, self._render_update)
+                self._start("一键更新", self.updater.update, self._render_update)
                 return 0
             if cid == BTN_REPAIR:
-                self._start("一键修复", self.service.repair, self._render_repair)
+                self._start("一键修复", self.updater.repair, self._render_repair)
                 return 0
             if cid == BTN_AUDIT:
                 self._start("高级分析", self.service.audit, self._render_audit)
@@ -320,55 +322,38 @@ def run_gui() -> int:
     return NativeApp().run()
 
 
-def gui_self_test() -> dict[str, Any]:
-    """Windows-native smoke test including WM_COMMAND -> backend routing.
+def gui_self_test(service: LottoService) -> dict[str, Any]:
+    """Inspect the native surface using an isolated real service, not a double.
 
-    The backend is a spy, so this verifies the real Win32 message path without
-    touching network/data or creating a formal prediction Freeze.
+    This check deliberately does not invoke business actions. Routing unit
+    doubles live in tests only. Real actions and network effects require the
+    separate physical-click evidence from this exact executable.
     """
-    import time
-
-    class _Spy:
-        def __init__(self):
-            self.calls = []
-        def _hit(self, name, progress=None):
-            self.calls.append(name)
-            return {"status": "PASS", "final_gate": {"status": "PASS"}, "software_verdict": "PASS"}
-        def predict(self, progress=None): return self._hit("predict", progress)
-        def update(self, progress=None): return self._hit("update", progress)
-        def repair(self, progress=None): return self._hit("repair", progress)
-        def audit(self, progress=None): return self._hit("audit", progress)
-
     checks = {}
     app = None
+    result = {
+        "status": "FAIL",
+        "scope": "NATIVE_SURFACE_ONLY",
+        "business_actions_executed": False,
+        "real_network_tested": False,
+        "physical_click_status": "PENDING",
+        "full_no_shell_status": "PENDING",
+        "checks": checks,
+    }
     try:
-        spy = _Spy()
-        app = NativeApp(spy)
+        if type(service) is not LottoService:
+            raise TypeError("GUI surface check requires the real LottoService")
+        app = NativeApp(service)
         checks["native_window_created"] = bool(app.user32.IsWindow(app.hwnd))
         for cid in (BTN_PREDICT, BTN_UPDATE, BTN_REPAIR, BTN_AUDIT):
             checks[f"control_{cid}"] = bool(app.user32.IsWindow(app.controls[cid]))
-        app.user32.SendMessageW.argtypes = [HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
-        app.user32.SendMessageW.restype = LRESULT
-        routes = [(BTN_PREDICT, "predict"), (BTN_UPDATE, "update"), (BTN_REPAIR, "repair"), (BTN_AUDIT, "audit")]
-        for cid, expected in routes:
-            before = len(spy.calls)
-            app.user32.SendMessageW(app.hwnd, WM_COMMAND, cid, 0)
-            deadline = time.time() + 2.0
-            while time.time() < deadline:
-                app._drain()
-                if len(spy.calls) > before and not app.busy:
-                    break
-                time.sleep(0.01)
-            checks[f"route_{expected}"] = len(spy.calls) > before and spy.calls[-1] == expected
+        checks["real_service_bound"] = app.service is service
+        checks["real_updater_bound"] = type(app.updater) is UpdaterClient
+        result["status"] = "PASS" if checks and all(checks.values()) else "FAIL"
     except Exception as exc:
-        return {"status": "FAIL", "checks": checks, "error": str(exc), "scope": "Win32 window/control/WM_COMMAND routing"}
+        result["error"] = f"{type(exc).__name__}: {exc}"
     finally:
         if app is not None and app.hwnd and app.user32.IsWindow(app.hwnd):
             app.user32.DestroyWindow(app.hwnd)
-    return {
-        "status": "PASS" if checks and all(checks.values()) else "FAIL",
-        "checks": checks,
-        "scope": "native window + four controls + WM_COMMAND backend routing",
-        "physical_human_click": "UNAVAILABLE_IN_AUTOMATION",
-    }
+    return result
 

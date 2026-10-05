@@ -266,7 +266,7 @@ def _run_corrupt_repair_fault_injection(svc) -> dict:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument('--check', choices=[
-        'self', 'science', 'update', 'predict', 'audit', 'gui',
+        'self', 'science', 'update', 'predict', 'audit', 'gui', 'maintenance',
         'integrity-tamper', 'offline-failclosed', 'corrupt-repair',
         'random-world-101', 'random-world-202', 'random-world-303',
     ])
@@ -305,7 +305,19 @@ def main() -> int:
 
             if args.check == 'self':
                 r = svc.self_test()
+                if getattr(sys, 'frozen', False):
+                    from glp.updater_client import UpdaterClient
+                    bundle = UpdaterClient(svc.store.root).bundle_integrity()
+                    r['updater_bundle'] = bundle
+                    if bundle.get('status') != 'PASS':
+                        r['status'] = 'FAIL'
                 status = r.get('status', 'FAIL')
+                if getattr(sys, 'frozen', False):
+                    from glp.updater_client import UpdaterClient
+                    updater_bundle = UpdaterClient(root).bundle_integrity()
+                    r['updater_bundle'] = updater_bundle
+                    if updater_bundle.get('status') != 'PASS':
+                        status = 'FAIL'
 
             elif args.check == 'science':
                 from glp.evidence import run_evidence_court
@@ -315,16 +327,27 @@ def main() -> int:
                 status = r.get('software_verdict', 'FAIL')
 
             elif args.check == 'update':
-                try:
-                    r = svc.update()
-                except Exception:
-                    out['failed_network_evidence'] = _preserve_failed_network_evidence(svc.store, args.result_file)
-                    raise
+                r, update_error, update_attempts = svc.update_with_transient_retry()
+                out['update_attempts'] = update_attempts
+                if r is None:
+                    out['failed_network_evidence'] = _preserve_failed_network_evidence(
+                        svc.store, args.result_file
+                    )
+                    raise RuntimeError(update_error or 'official update failed')
+                r['update_attempts'] = update_attempts
                 status = 'PASS' if r.get('crosscheck_status') == 'PASS' else 'FAIL'
                 if status == 'PASS':
-                    r['preserved_live_evidence'] = _preserve_live_evidence(svc.store, args.result_file)
+                    r['preserved_live_evidence'] = _preserve_live_evidence(
+                        svc.store, args.result_file
+                    )
+                    if any(row.get('status') == 'FAIL' for row in update_attempts):
+                        r['transient_failed_network_evidence'] = _preserve_failed_network_evidence(
+                            svc.store, args.result_file
+                        )
                 else:
-                    out['failed_network_evidence'] = _preserve_failed_network_evidence(svc.store, args.result_file)
+                    out['failed_network_evidence'] = _preserve_failed_network_evidence(
+                        svc.store, args.result_file
+                    )
 
             elif args.check == 'predict':
                 from glp.engine import _next_target
@@ -364,7 +387,32 @@ def main() -> int:
                 if os.name != 'nt':
                     raise RuntimeError('Windows required')
                 from glp.gui import gui_self_test
-                r = gui_self_test()
+                r = gui_self_test(svc)
+                status = r.get('status', 'FAIL')
+
+            elif args.check == 'maintenance':
+                from glp.maintenance import maintenance_acceptance
+                live, update_error, update_attempts = svc.update_with_transient_retry()
+                out['update_attempts'] = update_attempts
+                if live is None:
+                    out['failed_network_evidence'] = _preserve_failed_network_evidence(
+                        svc.store, args.result_file
+                    )
+                    raise RuntimeError(update_error or 'official update failed before maintenance acceptance')
+                if live.get('crosscheck_status') != 'PASS':
+                    raise RuntimeError('maintenance acceptance requires a current official-source PASS')
+                preserved = _preserve_live_evidence(svc.store, args.result_file)
+                workspace = root / '长期维护验收'
+                r = maintenance_acceptance(svc.store, workspace)
+                r['real_network_status'] = 'PASS'
+                r['live_update'] = {
+                    'latest_issue': live.get('latest_issue'),
+                    'draw_count': live.get('draw_count'),
+                    'canonical_hash': live.get('canonical_hash'),
+                    'crosscheck_status': live.get('crosscheck_status'),
+                    'verification': live.get('verification'),
+                }
+                r['preserved_live_evidence'] = preserved
                 status = r.get('status', 'FAIL')
 
             elif args.check == 'integrity-tamper':

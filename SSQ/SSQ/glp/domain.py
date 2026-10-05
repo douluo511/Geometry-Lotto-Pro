@@ -1,5 +1,6 @@
 from __future__ import annotations
 from dataclasses import asdict, dataclass, field
+from datetime import date
 from typing import Any
 
 @dataclass(frozen=True)
@@ -9,8 +10,24 @@ class Draw:
     front: tuple[int, ...]
     back: tuple[int, ...]
     def validate(self) -> None:
+        if not isinstance(self.issue, str) or not self.issue.isascii():
+            raise ValueError('issue must be an ASCII string')
+        if not isinstance(self.draw_date, str):
+            raise ValueError('draw_date must be an ISO calendar date string')
+        try:
+            parsed_date = date.fromisoformat(self.draw_date)
+        except ValueError as exc:
+            raise ValueError('draw_date must be a real ISO calendar date') from exc
+        if parsed_date.isoformat() != self.draw_date:
+            raise ValueError('draw_date must use canonical YYYY-MM-DD format')
+        if not isinstance(self.front, tuple) or not isinstance(self.back, tuple):
+            raise ValueError('draw balls must be canonical tuples')
+        if any(type(number) is not int for number in (*self.front, *self.back)):
+            raise ValueError('draw balls must be integers, never booleans or coerced values')
         if len(self.issue) != 7 or not self.issue.isdigit() or not self.issue.startswith('20'):
             raise ValueError(f'非法双色球期号: {self.issue}')
+        if self.draw_date[:4] != self.issue[:4]:
+            raise ValueError('issue year and draw date year must agree')
         if len(self.front) != 6 or tuple(sorted(self.front)) != self.front or len(set(self.front)) != 6:
             raise ValueError(f'红球非法: {self.front}')
         if len(self.back) != 1 or len(set(self.back)) != 1:
@@ -23,8 +40,18 @@ class Draw:
         return {'issue': self.issue, 'draw_date': self.draw_date, 'front': list(self.front), 'back': list(self.back)}
     @classmethod
     def from_dict(cls, value: dict[str, Any]) -> 'Draw':
-        obj=cls(str(value['issue']), str(value['draw_date']), tuple(int(x) for x in value['front']), tuple(int(x) for x in value['back']))
-        obj.validate(); return obj
+        if not isinstance(value, dict):
+            raise ValueError('draw must be an object')
+        required = {'issue', 'draw_date', 'front', 'back'}
+        if not required.issubset(value):
+            raise ValueError('draw is missing required fields')
+        if not isinstance(value['front'], (list, tuple)) or not isinstance(value['back'], (list, tuple)):
+            raise ValueError('draw balls must be arrays')
+        # Parsing may normalize an official source explicitly; loading a canonical
+        # record must never silently repair/truncate its values before validation.
+        obj = cls(value['issue'], value['draw_date'], tuple(value['front']), tuple(value['back']))
+        obj.validate()
+        return obj
 
 @dataclass(frozen=True)
 class SourceReceipt:

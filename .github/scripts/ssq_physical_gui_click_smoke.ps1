@@ -56,6 +56,7 @@ $processName = [System.IO.Path]::GetFileNameWithoutExtension($exeResolved)
 $savedDataDir = $env:GLP_DATA_DIR
 $results = @()
 $failure = $null
+$verifiedUpdateDataDir = $null
 
 function Get-TextHash([string]$value){
   $sha = [System.Security.Cryptography.SHA256]::Create()
@@ -122,8 +123,8 @@ function Get-EditValue($control){
   return [string](Get-NativeText $control.hwnd)
 }
 
-function Read-BackendEffect([string]$dataDir,[string]$operation,[int]$afterId){
-  $json = & python -B $verifier --data-dir $dataDir --operation $operation --after-id $afterId
+function Read-BackendEffect([string]$dataDir,[string]$operation,[int]$afterId,[int]$parentPid){
+  $json = & python -B $verifier --data-dir $dataDir --operation $operation --after-id $afterId --parent-pid $parentPid
   if($LASTEXITCODE -ne 0 -or -not $json){ throw "Backend verifier failed" }
   return ($json | ConvertFrom-Json)
 }
@@ -162,6 +163,30 @@ try {
     $op = $operations[$i]
     $dataDir = Join-Path $evidenceDir ("physical-gui-run-" + [Guid]::NewGuid().ToString("N"))
     New-Item -ItemType Directory -Path $dataDir | Out-Null
+    $verifiedPrecondition = $null
+    if($op.name -eq "audit"){
+      if($null -eq $verifiedUpdateDataDir -or -not (Test-Path -LiteralPath $verifiedUpdateDataDir)){
+        throw "Audit requires the same-run physically verified update dataset"
+      }
+      foreach($name in @("canonical_history.json","source_evidence.json")){
+        $source = Join-Path $verifiedUpdateDataDir $name
+        if(-not (Test-Path -LiteralPath $source)){ throw "Verified update dataset missing $name" }
+        Copy-Item -LiteralPath $source -Destination (Join-Path $dataDir $name)
+      }
+      $rawSource = Join-Path $verifiedUpdateDataDir "raw_responses"
+      if(-not (Test-Path -LiteralPath $rawSource)){ throw "Verified update dataset missing raw_responses" }
+      Copy-Item -LiteralPath $rawSource -Destination (Join-Path $dataDir "raw_responses") -Recurse
+      if(Test-Path -LiteralPath (Join-Path $dataDir "ledger.sqlite3")){
+        throw "Audit precondition must not copy backend ledger state"
+      }
+      $verifiedPrecondition = [ordered]@{
+        source_operation="update"
+        source_data_dir=(Split-Path -Leaf $verifiedUpdateDataDir)
+        canonical_sha256=(Get-FileHash -LiteralPath (Join-Path $dataDir "canonical_history.json") -Algorithm SHA256).Hash.ToLowerInvariant()
+        evidence_sha256=(Get-FileHash -LiteralPath (Join-Path $dataDir "source_evidence.json") -Algorithm SHA256).Hash.ToLowerInvariant()
+        ledger_copied=$false
+      }
+    }
     $env:GLP_DATA_DIR = $dataDir
     $baselinePids = @(Get-Process -Name $processName -ErrorAction SilentlyContinue | ForEach-Object { $_.Id })
     $boot = $null
@@ -181,7 +206,7 @@ try {
       $beforeStatus = [string](Get-NativeText $status.hwnd)
       $beforeOutputPath = Join-Path $dataDir "gui_before.txt"
       Write-UiText $beforeOutputPath $beforeText
-      $before = Read-BackendEffect $dataDir $op.name 0
+      $before = Read-BackendEffect $dataDir $op.name 0 $guiPid
       if($before.latest_id -ne 0){ throw "Backend ledger was not empty before physical click" }
       $click = Click-Control $window.hwnd $button.hwnd
       if($SettleMs -gt 0){ Start-Sleep -Milliseconds $SettleMs }
@@ -193,8 +218,11 @@ try {
         if(-not (Get-Process -Id $guiPid -ErrorAction SilentlyContinue)){
           throw "Exact EXE GUI exited before backend effect was proved"
         }
-        $effect = Read-BackendEffect $dataDir $op.name 0
-        if($effect.status -eq "FAIL"){ throw "Backend $($op.name) FAIL: $($effect.reason)" }
+        $effect = Read-BackendEffect $dataDir $op.name 0 $guiPid
+        if($effect.status -eq "FAIL"){
+          $effectJson = $effect | ConvertTo-Json -Compress -Depth 12
+          throw "Backend $($op.name) FAIL: $($effect.reason); effect=$effectJson"
+        }
         if($effect.status -eq "PASS"){
           $afterText = Get-EditValue $output
           $afterStatus = [string](Get-NativeText $status.hwnd)
@@ -219,6 +247,9 @@ try {
       $afterOutputPath = Join-Path $dataDir "gui_after.txt"
       Write-UiText $afterOutputPath $afterText
       $dataLeaf = Split-Path -Leaf $dataDir
+      if($op.name -eq "update"){
+        $verifiedUpdateDataDir = $dataDir
+      }
       $results += [ordered]@{
         button_index=$i+1; status="PASS"; operation=$op.name; control_id=$op.id
         control_name=$button.name; control_class=$button.class; process_id=$guiPid
@@ -234,6 +265,7 @@ try {
         output_markers=@($op.marker1,$op.marker2)
         displayed_backend_token=$effect.display_token
         backend_effect=$effect
+        verified_precondition=$verifiedPrecondition
         data_dir=$dataLeaf
       }
     } finally {
