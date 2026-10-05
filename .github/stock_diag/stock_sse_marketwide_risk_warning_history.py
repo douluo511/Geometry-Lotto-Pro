@@ -136,8 +136,11 @@ def main():
                 for row in rows:
                     b=bounded(row)
                     code,name,dt,url=b["security_code"],b["security_name"],b["date"],b["url"]
+                    if B_SHARE_RE.fullmatch(code):
+                        skipped_b_share_rows += 1
+                        continue
                     if not CODE_RE.fullmatch(code):
-                        raise ValueError(f"invalid/non-Shanghai code: {code!r}")
+                        raise ValueError(f"unexpected non-A/non-B Shanghai code: {code!r}")
                     if not name:
                         missing_name_rows += 1
                     if not DATE_RE.fullmatch(dt) or int(dt[:4])!=year:
@@ -185,7 +188,7 @@ def main():
         "schema":"stock-sse-marketwide-risk-warning-surface-v3",
         "endpoint":ENDPOINT,
         "frozen_probe_years":YEARS,
-        "query_scope":"productId blank; bounded first-page probes only",
+        "query_scope":"productId blank; bounded first-page probes; Shanghai A-share target; recognized 900xxx B-share rows explicitly excluded",
         "probe_count":len(probes),
         "errors":errors,
         "summary":{
@@ -194,6 +197,7 @@ def main():
             "observed_unique_codes":len(observed_codes),
             "missing_name_rows":missing_name_rows,
             "name_field_complete":missing_name_rows == 0,
+            "skipped_known_b_share_rows":skipped_b_share_rows,
             "keyword_date_discrimination":keyword_date_discrimination,
         },
         "probes":probes,
