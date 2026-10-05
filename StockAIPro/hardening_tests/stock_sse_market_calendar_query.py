@@ -7,7 +7,7 @@ ENDPOINT="https://query.sse.com.cn/commonSoaQuery.do"
 PAGE="https://www.sse.com.cn/disclosure/dealinstruc/suspension/stock/"
 SQL="PL_SCRL_SCRLB"
 UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/154.0 Safari/537.36"
-WINDOWS=(("2019-12-01","2019-12-31"),("2024-12-01","2024-12-31"),("2026-09-01","2026-09-30"))
+WINDOWS=(("20191201","20191231"),("20241201","20241231"),("20260901","20260930"))
 
 def request_raw(params,attempts=4):
     s=requests.Session(); errors=[]
