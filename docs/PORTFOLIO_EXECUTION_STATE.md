@@ -1,5 +1,12 @@
 # Portfolio Execution State — 18 Windows EXE Projects
 
+## 2026-10-05 strict continuation checkpoint — terminal RMF / advanced Happy8 GUI
+
+- **RMF PR #177** exact head `d58a2a05239c59131551be4f9b238e73736692b4`, run `37286235028` is terminal **SUCCESS as a CANDIDATE workflow**, not Final. Current evidence: Engineering **24/28 = 85.7%**, Business **12/16 = 75.0%**, Overall **75.0%**, Final **FAIL**. Windows build, Exact EXE, current-byte Same Hash and physical GUI are PASS. Production update / repository independence / real Release N→N+1 remain BLOCKED; formal release redownload Same Hash remains NOT VERIFIED. Main EXE SHA-256 `6af229997318d138996cb9121bc3d3a0cd5cd25c0a9fb0ef916ff23fa02b7372`; Updater SHA-256 `e24b0134125d6c9352289308de6bf010798cdb8592c60f22ea6fe4b3de30f190`. Business non-PASS remains cost/slippage calibration, liquidity capacity, leakage point-in-time, and survivorship-precommitted universe.
+- **Happy8 PR #165** current-head run `37285586660` is terminal FAIL and is preserved; it is not promoted. **PR #176** head `deb0a09094b01b7c61d29882404eeea193917926` / run `37285191235` is the current main-based convergence path. Same-head live dual-official network, current-history science, business-before-Windows, reproducible Native Windows Exact EXE and first physical-GUI click gate are PASS; OS mouse-click acceptance on the Exact EXE is IN_PROGRESS.
+- **Stock AI PR #155** run `37268369332` remains IN_PROGRESS at physical GUI on the same Exact EXE after current-head corpus >=90%, cache save and Frozen EXE advanced analysis PASS.
+- Portfolio boundary is unchanged: migration/export **18/18 PASS**; dedicated repositories **0/18**; Final/Delivery **0/18**.
+
 ## 2026-10-05 strict continuation checkpoint — live GitHub reconciliation
 
 - **Portfolio boundary:** current-product migration/export readiness remains **18/18 PASS = 100%**; real dedicated repositories remain **0/18 PASS = 0%**; Portfolio Final / delivery remains **0/18**.
