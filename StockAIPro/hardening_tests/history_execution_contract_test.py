@@ -266,12 +266,14 @@ def test_qualification_bootstrap_reaches_frozen_coverage(folder):
     })
 
     def fake_update(code, cfg, logger=None, provider=None, source_health=None):
+        values = [9.0 + i * 0.01 for i in range(40)]
         frame = pd.DataFrame({
-            "date": pd.date_range("2026-09-21", periods=4),
-            "close": [9, 10, 11, 12], "open": [9, 10, 11, 12],
-            "high": [10, 11, 12, 13], "low": [8, 9, 10, 11],
-            "volume": [100] * 4, "amount": [1000] * 4,
-            "turnover_rate": [0.01] * 4, "provider": ["fixture"] * 4,
+            "date": pd.date_range("2026-08-01", periods=40),
+            "close": values, "open": values,
+            "high": [x + 0.1 for x in values], "low": [x - 0.1 for x in values],
+            "volume": [100] * 40, "amount": [1000] * 40,
+            "turnover_rate": [0.01] * 40, "provider": ["fixture"] * 40,
+            "schema_version": [3] * 40,
         })
         frame.to_csv(data / "data" / "history" / f"{code}.csv", index=False)
         return frame
@@ -289,6 +291,35 @@ def test_qualification_bootstrap_reaches_frozen_coverage(folder):
     progress = json.loads((data / "state" / "qualification_history_progress.json").read_text(encoding="utf-8"))
     assert progress["workers"] == 24
     assert progress["status"] == "COMPLETE"
+
+
+def test_qualification_cache_counts_only_valid_histories(folder):
+    data = folder / "qualification-cache-validation"
+    history = data / "data" / "history"
+    history.mkdir(parents=True)
+    master = pd.DataFrame({
+        "code": ["000001", "000002"],
+        "status": ["current", "delisted"],
+    })
+    (history / "000001.csv").write_text(
+        "date,close\n2026-09-30,10\n", encoding="utf-8"
+    )
+    values = [10.0 + i * 0.01 for i in range(40)]
+    pd.DataFrame({
+        "date": pd.date_range("2026-08-01", periods=40),
+        "code": ["000002"] * 40,
+        "open": values,
+        "high": [x + 0.1 for x in values],
+        "low": [x - 0.1 for x in values],
+        "close": values,
+        "schema_version": [3] * 40,
+    }).to_csv(history / "000002.csv", index=False)
+
+    with patch.object(data_source, "ROOT", data):
+        snap = data_source._research_coverage_snapshot(master)
+    assert snap["covered_symbols"] == 1
+    assert snap["coverage"] == 0.5
+    assert snap["_existing"] == {"000002"}
 
 
 def test_qualification_bootstrap_fails_closed_when_sources_unavailable(folder):
@@ -423,6 +454,7 @@ def main():
         test_retry_classification(folder)
         test_full_history_workload(folder)
         test_qualification_bootstrap_reaches_frozen_coverage(folder)
+        test_qualification_cache_counts_only_valid_histories(folder)
         test_qualification_bootstrap_fails_closed_when_sources_unavailable(folder)
         test_unavailable_sources_fail_closed(folder)
         test_timeout_retains_log(folder)
@@ -435,6 +467,7 @@ def main():
                          "300_live_plus_60_bootstrap_preserved", "eight_year_range_preserved", "models_unchanged",
                          "atomic_history_target_deduplicated", "progress_checkpoints_persisted",
                          "qualification_bootstrap_keeps_ninety_percent_floor", "qualification_24_worker_path_preserves_denominator",
+                         "qualification_cache_counts_only_valid_persisted_histories",
                          "qualification_bootstrap_unavailable_sources_not_verified",
                          "both_sources_unavailable_stop_prediction", "preserved_cache_not_counted_as_live_refresh", "timeout_retains_stdout",
                          "prediction_freeze_rejects_missing_empty_malformed_map", "prediction_freeze_requires_all_frozen_files",
