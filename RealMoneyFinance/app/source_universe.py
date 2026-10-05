@@ -6,6 +6,7 @@ import json
 import os
 import re
 from typing import Any
+from types import SimpleNamespace
 
 from .netclient import NetClient
 
@@ -15,6 +16,7 @@ UNIVERSE_URLS = (
     "https://82.push2.eastmoney.com/api/qt/clist/get",
 )
 UNIVERSE_URL = UNIVERSE_URLS[0]
+SSE_UNIVERSE_URL = "https://query.sse.com.cn/sseQuery/commonQuery.do"
 UNIVERSE_FILTER = "m:1+t:2,m:1+t:23"
 PUBLIC_UT = "bd1d9ddb04089700cf9c27f6f7426281"
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -53,6 +55,7 @@ def build_prospective_universe_precommit(
     source_payload_sha256s: list[str],
     code_source_sha: str,
     source_url: str = UNIVERSE_URL,
+    source_provider: str = "eastmoney_current_shanghai_equity_universe",
     source_filter: str = UNIVERSE_FILTER,
     declared_total: int | None = None,
     min_symbols: int = 500,
@@ -76,7 +79,7 @@ def build_prospective_universe_precommit(
     canonical = {
         "schema": "rmf-prospective-survivorship-precommit-v1",
         "asof_date": str(asof_date),
-        "source_provider": "eastmoney_current_shanghai_equity_universe",
+        "source_provider": str(source_provider),
         "source_url": str(source_url),
         "source_filter": str(source_filter),
         "code_source_sha": str(code_source_sha).lower(),
@@ -124,7 +127,98 @@ def build_prospective_universe_precommit(
     }
 
 
-def _fetch_universe_page(client: NetClient, params: dict[str, str]) -> tuple[dict[str, Any], Any, list[dict[str, Any]]]:
+def _fetch_official_sse_universe(
+    client: NetClient,
+) -> tuple[dict[str, Any], Any, list[dict[str, Any]]]:
+    attempts: list[dict[str, Any]] = []
+    rows: list[dict[str, Any]] = []
+    payload_hashes: list[str] = []
+    retrieved_times: list[float] = []
+    for stock_type, board in (("1", "main_a"), ("8", "star")):
+        params = {
+            "STOCK_TYPE": stock_type,
+            "REG_PROVINCE": "",
+            "CSRC_CODE": "",
+            "STOCK_CODE": "",
+            "sqlId": "COMMON_SSE_CP_GPJCTPZ_GPLB_GP_L",
+            "COMPANY_STATUS": "2,4,5,7,8",
+            "type": "inParams",
+            "isPagination": "true",
+            "pageHelp.cacheSize": "1",
+            "pageHelp.beginPage": "1",
+            "pageHelp.pageSize": "10000",
+            "pageHelp.pageNo": "1",
+            "pageHelp.endPage": "1",
+        }
+        try:
+            obj, meta = client.get_json(
+                SSE_UNIVERSE_URL,
+                params,
+                headers={
+                    "Host": "query.sse.com.cn",
+                    "Pragma": "no-cache",
+                    "Referer": "https://www.sse.com.cn/assortment/stock/list/share/",
+                    "User-Agent": (
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                        "AppleWebKit/537.36 Chrome/154 Safari/537.36"
+                    ),
+                    "Accept": "application/json,text/plain,*/*",
+                },
+                allow_mislabeled_json=True,
+            )
+        except Exception as exc:
+            attempts.append({
+                "url": SSE_UNIVERSE_URL,
+                "board": board,
+                "stock_type": stock_type,
+                "status": "FAIL",
+                "error": repr(exc),
+            })
+            raise RuntimeError(
+                "official SSE current-universe query failed: "
+                + json.dumps(attempts, ensure_ascii=True, sort_keys=True)
+            ) from exc
+        result = obj.get("result")
+        if not isinstance(result, list) or not result:
+            raise ValueError(f"official SSE {board} universe result is empty or malformed")
+        board_rows: list[dict[str, Any]] = []
+        for row in result:
+            if not isinstance(row, dict):
+                raise ValueError(f"official SSE {board} universe row must be an object")
+            symbol = str(row.get("A_STOCK_CODE", "")).strip()
+            name = str(row.get("SEC_NAME_CN") or row.get("COMPANY_ABBR") or "").strip()
+            if not _SYMBOL_RE.fullmatch(symbol) or not name:
+                raise ValueError(
+                    f"official SSE {board} row has invalid code/name: {symbol!r}/{name!r}"
+                )
+            board_rows.append({"f12": symbol, "f13": 1, "f14": name})
+        rows.extend(board_rows)
+        payload_hashes.append(meta.payload_sha256)
+        retrieved_times.append(meta.retrieved_at_unix)
+        attempts.append({
+            "url": SSE_UNIVERSE_URL,
+            "board": board,
+            "stock_type": stock_type,
+            "status": "PASS",
+            "row_count": len(board_rows),
+            "payload_sha256": meta.payload_sha256,
+        })
+
+    unique_count = len({str(row["f12"]) for row in rows})
+    if unique_count != len(rows):
+        raise ValueError("official SSE main/STAR universe contains duplicate A-share codes")
+    composite = hashlib.sha256(
+        "\n".join(payload_hashes).encode("ascii")
+    ).hexdigest()
+    meta = SimpleNamespace(
+        url=SSE_UNIVERSE_URL,
+        payload_sha256=composite,
+        retrieved_at_unix=max(retrieved_times),
+    )
+    return {"data": {"total": unique_count, "diff": rows}}, meta, attempts
+
+
+def _fetch_universe_page(client: NetClient, params: dict[str, str]) -> tuple[dict[str, Any], Any, list[dict[str, Any]], str]:
     attempts: list[dict[str, Any]] = []
     last_error: Exception | None = None
     for url in UNIVERSE_URLS:
@@ -147,7 +241,7 @@ def _fetch_universe_page(client: NetClient, params: dict[str, str]) -> tuple[dic
                 "status": "PASS",
                 "payload_sha256": meta.payload_sha256,
             })
-            return obj, meta, attempts
+            return obj, meta, attempts, "eastmoney_current_shanghai_equity_universe"
         except Exception as exc:
             last_error = exc
             attempts.append({
@@ -155,10 +249,20 @@ def _fetch_universe_page(client: NetClient, params: dict[str, str]) -> tuple[dic
                 "status": "FAIL",
                 "error": repr(exc),
             })
-    raise RuntimeError(
-        "all configured current-universe hosts failed: "
-        + json.dumps(attempts, ensure_ascii=True, sort_keys=True)
-    ) from last_error
+    try:
+        obj, meta, sse_attempts = _fetch_official_sse_universe(client)
+        attempts.extend(sse_attempts)
+        return obj, meta, attempts, "sse_official_current_shanghai_equity_universe"
+    except Exception as sse_exc:
+        attempts.append({
+            "url": SSE_UNIVERSE_URL,
+            "status": "FAIL",
+            "error": repr(sse_exc),
+        })
+        raise RuntimeError(
+            "all configured current-universe sources failed: "
+            + json.dumps(attempts, ensure_ascii=True, sort_keys=True)
+        ) from sse_exc
 
 
 def fetch_current_shanghai_universe_precommit(
@@ -175,6 +279,7 @@ def fetch_current_shanghai_universe_precommit(
     declared_total: int | None = None
     host_attempts: list[dict[str, Any]] = []
     selected_source_urls: list[str] = []
+    selected_source_providers: list[str] = []
 
     for page in range(1, int(max_pages) + 1):
         params = {
@@ -189,11 +294,12 @@ def fetch_current_shanghai_universe_precommit(
             "fs": UNIVERSE_FILTER,
             "fields": "f12,f13,f14",
         }
-        obj, meta, page_attempts = _fetch_universe_page(client, params)
+        obj, meta, page_attempts, source_provider = _fetch_universe_page(client, params)
         host_attempts.extend([
             {"page": page, **attempt} for attempt in page_attempts
         ])
         selected_source_urls.append(str(meta.url).split("?")[0])
+        selected_source_providers.append(source_provider)
         data = obj.get("data")
         if not isinstance(data, dict):
             raise ValueError("universe response missing data object")
@@ -241,6 +347,9 @@ def fetch_current_shanghai_universe_precommit(
             f"parsed universe count does not match provider total: {unique_count} != {declared_total}"
         )
 
+    providers = sorted(set(selected_source_providers))
+    if len(providers) != 1:
+        raise ValueError(f"mixed universe providers across pagination are not allowed: {providers}")
     latest_retrieval = max(retrieved_times)
     china_tz = timezone(timedelta(hours=8))
     asof_date = datetime.fromtimestamp(
@@ -255,10 +364,12 @@ def fetch_current_shanghai_universe_precommit(
         source_payload_sha256s=payload_hashes,
         code_source_sha=code_source_sha,
         source_url=selected_source_urls[0] if selected_source_urls else UNIVERSE_URL,
+        source_provider=providers[0],
         declared_total=declared_total,
         min_symbols=min_symbols,
     )
     result["selected_source_urls"] = sorted(set(selected_source_urls))
+    result["selected_source_providers"] = providers
     result["host_attempts"] = host_attempts
     result["host_failover_used"] = any(
         attempt.get("status") == "FAIL" for attempt in host_attempts
