@@ -13,7 +13,7 @@ OUT = Path("stock_bse_company_announcement_contract.json")
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) StockAI BSE contract validator"
 NEED_FIELDS = [
     "companyCd","companyName","disclosureTitle","disclosurePostTitle",
-    "destFilePath","publishDate","xxfcbj","fileExt","xxzrlx",
+    "destFilePath","publishDate","xxfcbj","destFilePath","fileExt","xxzrlx",
 ]
 SAMPLES = [
     {
@@ -88,7 +88,7 @@ def find_records(obj):
     return [unique[k] for k in sorted(unique)]
 
 
-def request_variant(session, method: str, params: dict):
+def request_variant(session, label: str, method: str, params):
     kwargs={
         "headers":{
             "User-Agent":UA,
@@ -103,6 +103,7 @@ def request_variant(session, method: str, params: dict):
     else:
         r=session.post(ENDPOINT,data=params,**kwargs)
     meta={
+        "variant":label,
         "method":method,
         "status":r.status_code,
         "resolved_url":r.url,
@@ -140,14 +141,29 @@ def main():
             "startTime":sample["start"],
             "endTime":sample["end"],
             "keyword":sample["keyword"],
-            "xxfcbj":"2",
             "hyType":"",
-            "needFields":",".join(NEED_FIELDS),
         }
+        # The official BSE page passes xxfcbj:["2"] and needFields:H into
+        # jQuery. Default jQuery serialization emits bracket-suffixed array
+        # keys. Test that exact contract first; scalar/repeated variants are
+        # controls only and cannot weaken any downstream gate.
+        jquery_pairs=list(base.items()) + [("xxfcbj[]","2")] + [
+            ("needFields[]",field) for field in NEED_FIELDS
+        ]
+        repeated_pairs=list(base.items()) + [("xxfcbj","2")] + [
+            ("needFields",field) for field in NEED_FIELDS
+        ]
+        legacy={**base,"xxfcbj":"2","needFields":",".join(NEED_FIELDS)}
+        request_variants=[
+            ("official_jquery_brackets_post","POST",jquery_pairs),
+            ("official_jquery_brackets_get","GET",jquery_pairs),
+            ("repeated_keys_post","POST",repeated_pairs),
+            ("legacy_scalar_post","POST",legacy),
+        ]
         variants=[]
         winning=None
-        for method in ("POST","GET"):
-            obj,meta=request_variant(session,method,base)
+        for label,method,params in request_variants:
+            obj,meta=request_variant(session,label,method,params)
             records=find_records(obj) if obj is not None else []
             exact=[r for r in records if str(r.get("companyCd","")).strip()==sample["code"]]
             matching=[]
@@ -185,13 +201,21 @@ def main():
         results.append({"sample":sample,"status":status,"variants":variants})
 
     report={
-        "schema":"stock-bse-company-announcement-contract-v1",
+        "schema":"stock-bse-company-announcement-contract-v2",
         "endpoint":ENDPOINT,
         "endpoint_discovered_from":{
             "pr":219,
             "artifact":11359927321,
             "script":"https://www.bse.cn/template/6/bluewise/_files/js/disclosure/list_company_2.min.js",
             "script_sha256":"bf39ce71871a21a785155f004a34c3b3f1c8eb412c568e3565c36f9eeadf0827",
+        },
+        "request_contract":{
+            "source":"official BSE list_company_2.min.js",
+            "official_ajax_type":"post",
+            "official_data_type":"jsonp",
+            "array_fields":["xxfcbj","needFields"],
+            "array_encoding_under_test":"jquery bracket-suffixed keys",
+            "no_gate_reduction":True,
         },
         "sample_results":results,
         "adjudication":{
