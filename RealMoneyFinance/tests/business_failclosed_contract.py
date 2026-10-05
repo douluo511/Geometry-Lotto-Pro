@@ -268,6 +268,7 @@ class BusinessBoundaries(unittest.TestCase):
             {**evidence, "significant_factor_changes": evidence["verified_event_count"] + 1},
             {**evidence, "overlap_rows": 59},
             {**evidence, "factor_detection_method": "legacy_daily_ratio"},
+            {**evidence, "factor_estimator": "close_only_ratio"},
             {**evidence, "factor_window_sessions": 1},
             {**evidence, "price_tick": 0.05},
         ]
@@ -347,6 +348,7 @@ class BusinessBoundaries(unittest.TestCase):
         self.assertEqual(evidence["unexplained_factor_changes"], 0)
         self.assertEqual(evidence["status"], "NOT VERIFIED")
         self.assertEqual(evidence["factor_detection_method"], "persistent_median_regime_shift_v1")
+        self.assertEqual(evidence["factor_estimator"], "median_ohlc_ratio_v1")
 
     def test_corporate_action_unexplained_persistent_shift_stays_nonpass(self):
         raw = bars(150)
