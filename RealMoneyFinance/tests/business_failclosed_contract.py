@@ -16,8 +16,10 @@ from app.business_validation import CostAssumptions, _holdout_power_analysis, _o
 from app.domain import DailyBar, validate_market_rows
 from app.source_tencent import fetch_daily_bars_tencent
 from app.source_tencent_full import fetch_daily_bars_tencent_full
+from app.source_corporate_actions import fetch_share_bonus_events, verify_corporate_action_lineage
 from app.source_eastmoney import fetch_daily_bars as fetch_daily_bars_eastmoney
 from app.source_yahoo import fetch_daily_bars_yahoo
+from app.source_cost_rules import parse_official_cost_rules
 from tests.contract_gate import FakeClient, FakeTencentClient, FakeTencentFullClient, FakeYahooClient
 from tests.collect_candidate_evidence import main as collect, final_acceptance
 
@@ -31,6 +33,36 @@ def bars(count=150):
 
 
 class BusinessBoundaries(unittest.TestCase):
+    def test_official_regulatory_cost_rules_are_partial_evidence_only(self):
+        parsed = parse_official_cost_rules(
+            "<html>A股 经手费 成交金额的0.00341%（双向）</html>",
+            "<html>证券交易，税率为成交金额的千分之一。</html>",
+            "<html>自2023年8月28日起，证券交易印花税实施减半征收。</html>",
+        )
+        self.assertEqual(parsed["status"], "PASS")
+        self.assertAlmostEqual(parsed["exchange_handling_fee_bps_each_side"], 0.341)
+        self.assertAlmostEqual(parsed["sell_stamp_tax_bps"], 5.0)
+        got = qualify_research(bars(), {"provider": "synthetic_contract_only"})
+        self.assertEqual(got["gates"]["cost_slippage_model"], "NOT VERIFIED")
+
+    def test_official_stamp_tax_date_allows_html_spacing(self):
+        parsed = parse_official_cost_rules(
+            "<html>0.00341%</html>",
+            "<html>千分之一</html>",
+            "<html>证券交易印花税实施减半征收，自 2023 年 8 月 28 日 起执行。</html>",
+        )
+        self.assertEqual(parsed["status"], "PASS")
+        self.assertEqual(parsed["sell_stamp_tax_bps"], 5.0)
+
+    def test_incomplete_official_cost_rule_page_fails_closed(self):
+        parsed = parse_official_cost_rules(
+            "<html>missing current rate</html>",
+            "<html>证券交易，税率为成交金额的千分之一。</html>",
+            "<html>自2023年8月28日起，证券交易印花税实施减半征收。</html>",
+        )
+        self.assertEqual(parsed["status"], "NOT VERIFIED")
+        self.assertFalse(parsed["checks"]["sse_a_share_handling_fee_0_00341_percent_each_side"])
+
     def test_insufficient_real_holdout_power_is_not_a_business_pass(self):
         rows = []
         for i, row in enumerate(bars(300)):
@@ -91,7 +123,7 @@ class BusinessBoundaries(unittest.TestCase):
             with self.subTest(provider=kind), self.assertRaises(ValueError):
                 fetcher(client, "600000", 40)
 
-    def test_full_tencent_raw_fallback_cannot_claim_qfq(self):
+    def test_full_tencent_adjustment_identity_fails_closed_on_wrong_key(self):
         client = FakeTencentFullClient()
         original = client.get_jsonp_object
         def raw_response(*args, **kwargs):
@@ -100,8 +132,8 @@ class BusinessBoundaries(unittest.TestCase):
             stock["day"] = stock.pop("qfqday")
             return obj, meta
         client.get_jsonp_object = raw_response
-        _, meta = fetch_daily_bars_tencent_full(client, "600000", 40)
-        self.assertEqual(meta["price_adjustment"], "unadjusted")
+        with self.assertRaises(ValueError):
+            fetch_daily_bars_tencent_full(client, "600000", 40, adjustment="qfq")
 
     def test_final_close_features_cannot_trade_that_close(self):
         rows = bars()
@@ -155,6 +187,237 @@ class BusinessBoundaries(unittest.TestCase):
         self.assertFalse(got["economic_signal_qualified"])
         self.assertFalse(got["capital_deployment_ready"])
         self.assertEqual(got["business_qualification_status"], "NOT VERIFIED")
+
+    def test_corporate_action_source_schema_and_notice_lineage(self):
+        class FakeCorporateClient:
+            def get_json(self, url, params, headers=None):
+                self.url = url
+                self.params = params
+                meta = SimpleNamespace(
+                    status=200,
+                    payload_sha256="e" * 64,
+                    retrieved_at_unix=5.0,
+                    url=url,
+                )
+                return {
+                    "result": {
+                        "data": [{
+                            "SECURITY_CODE": "600000",
+                            "PLAN_NOTICE_DATE": "2026-05-01 00:00:00",
+                            "EX_DIVIDEND_DATE": "2026-06-01 00:00:00",
+                            "PRETAX_BONUS_RMB": 1.5,
+                            "BONUS_RATIO": 0,
+                            "TRANSFER_RATIO": 0,
+                            "ASSIGN_PROGRESS": "实施",
+                        }]
+                    }
+                }, meta
+        client = FakeCorporateClient()
+        events, meta = fetch_share_bonus_events(client, "600000")
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["plan_notice_date"], "2026-05-01")
+        self.assertEqual(events[0]["ex_dividend_date"], "2026-06-01")
+        self.assertEqual(meta["payload_sha256"], "e" * 64)
+        self.assertEqual(client.params["reportName"], "RPT_SHAREBONUS_DET")
+
+    def _valid_corporate_action_evidence(self):
+        raw = bars(150)
+        change_index = 80
+        qfq = []
+        for i, row in enumerate(raw):
+            factor = 0.9 if i < change_index else 1.0
+            qfq.append(replace(
+                row,
+                open=row.open * factor,
+                close=row.close * factor,
+                high=row.high * factor,
+                low=row.low * factor,
+                raw_sha256="b" * 64,
+            ))
+        event = {
+            "symbol": "600000",
+            "plan_notice_date": raw[change_index - 10].trade_date,
+            "ex_dividend_date": raw[change_index].trade_date,
+            "pretax_bonus_rmb": 1.0,
+            "bonus_ratio": 0.0,
+            "transfer_ratio": 0.0,
+            "assign_progress": "implemented",
+        }
+        return verify_corporate_action_lineage(
+            qfq,
+            raw,
+            [event],
+            {"provider": "tencent_public_full_kline", "price_adjustment": "qfq", "payload_sha256": "b" * 64},
+            {"provider": "tencent_public_full_kline", "price_adjustment": "unadjusted", "payload_sha256": "c" * 64},
+            {"provider": "eastmoney_share_bonus_datacenter", "payload_sha256": "d" * 64},
+        )
+
+    def test_corporate_action_requires_independent_event_and_factor_lineage(self):
+        evidence = self._valid_corporate_action_evidence()
+        self.assertEqual(evidence["status"], "PASS")
+        self.assertEqual(evidence["point_in_time_lineage"], "PASS")
+        self.assertEqual(evidence["verified_event_count"], 1)
+        self.assertEqual(evidence["unexplained_factor_changes"], 0)
+        self.assertEqual(evidence["matched_events"][0]["calendar_days_after_ex_date"], 0)
+        self.assertEqual(
+            evidence["matched_events"][0]["factor_change"]["trade_date"],
+            evidence["matched_events"][0]["event"]["ex_dividend_date"],
+        )
+
+        got = qualify_research(
+            bars(300),
+            {"provider": "production_fixture", "qualification_scope": "production_real_network", "price_adjustment": "qfq"},
+            corporate_action_evidence=evidence,
+        )
+        self.assertEqual(got["gates"]["corporate_action_adjustment"], "PASS")
+        self.assertEqual(got["gates"]["leakage_safe_time_split"], "NOT VERIFIED")
+        self.assertFalse(got["capital_deployment_ready"])
+
+    def test_corporate_action_bad_or_missing_pit_evidence_fails_closed(self):
+        evidence = self._valid_corporate_action_evidence()
+        broken = {**evidence, "event_payload_sha256": "short"}
+        got = qualify_research(
+            bars(300),
+            {"provider": "production_fixture", "qualification_scope": "production_real_network", "price_adjustment": "qfq"},
+            corporate_action_evidence=broken,
+        )
+        self.assertEqual(got["gates"]["corporate_action_adjustment"], "NOT VERIFIED")
+
+        got = qualify_research(
+            bars(300),
+            {"provider": "production_fixture", "qualification_scope": "production_real_network", "price_adjustment": "qfq"},
+            corporate_action_evidence={**evidence, "unexplained_factor_changes": 1},
+        )
+        self.assertEqual(got["gates"]["corporate_action_adjustment"], "NOT VERIFIED")
+
+        forged_cases = [
+            {**evidence, "source_providers": {"qfq": "fake", "raw": "fake", "events": "fake"}},
+            {**evidence, "qfq_payload_sha256": "z" * 64},
+            {**evidence, "raw_payload_sha256": evidence["qfq_payload_sha256"]},
+            {**evidence, "matched_events": []},
+            {**evidence, "unexplained_changes": [{"trade_date": "2026-01-01"}]},
+            {**evidence, "significant_factor_changes": evidence["verified_event_count"] + 1},
+            {**evidence, "overlap_rows": 59},
+            {**evidence, "factor_detection_method": "legacy_daily_ratio"},
+            {**evidence, "factor_estimator": "close_only_ratio"},
+            {**evidence, "factor_window_sessions": 1},
+            {**evidence, "price_tick": 0.05},
+        ]
+        for forged in forged_cases:
+            with self.subTest(forged=forged):
+                got = qualify_research(
+                    bars(300),
+                    {"provider": "production_fixture", "qualification_scope": "production_real_network",
+                     "price_adjustment": "qfq"},
+                    corporate_action_evidence=forged,
+                )
+                self.assertEqual(got["gates"]["corporate_action_adjustment"], "NOT VERIFIED")
+
+        matched = evidence["matched_events"][0]
+        duplicate = {
+            **evidence,
+            "verified_event_count": 2,
+            "significant_factor_changes": 2,
+            "matched_events": [matched, matched],
+        }
+        forged_detail_cases = [
+            duplicate,
+            {**evidence, "matched_events": [{**matched, "calendar_days_after_ex_date": 7}]},
+            {**evidence, "matched_events": [{**matched, "event": {**matched["event"], "symbol": "000001"}}]},
+            {**evidence, "matched_events": [{**matched, "event": {**matched["event"], "pretax_bonus_rmb": 0.0,
+                                                                  "bonus_ratio": 0.0, "transfer_ratio": 0.0}}]},
+            {**evidence, "matched_events": [{**matched, "factor_change": {**matched["factor_change"],
+                                                                          "effective_threshold": matched["factor_change"]["relative_change"] + 0.01}}]},
+            {**evidence, "matched_events": [{**matched, "factor_change": {**matched["factor_change"],
+                                                                          "quantization_interval_gap": 0.0}}]},
+            {**evidence, "matched_events": [{**matched, "factor_change": {**matched["factor_change"],
+                                                                          "before_factor_interval": [1.0, 0.9]}}]},
+        ]
+        for forged in forged_detail_cases:
+            with self.subTest(detail_forged=forged):
+                got = qualify_research(
+                    bars(300),
+                    {"provider": "production_fixture", "qualification_scope": "production_real_network",
+                     "price_adjustment": "qfq"},
+                    corporate_action_evidence=forged,
+                )
+                self.assertEqual(got["gates"]["corporate_action_adjustment"], "NOT VERIFIED")
+
+        got = qualify_research(
+            bars(300),
+            {"provider": "production_fixture", "qualification_scope": "production_real_network",
+             "price_adjustment": "unadjusted"},
+            corporate_action_evidence=evidence,
+        )
+        self.assertEqual(got["gates"]["corporate_action_adjustment"], "NOT VERIFIED")
+
+        got = qualify_research(
+            bars(300),
+            {"provider": "production_fixture", "qualification_scope": "production_real_network",
+             "price_adjustment": "qfq", "symbol": "000001"},
+            corporate_action_evidence=evidence,
+        )
+        self.assertEqual(got["gates"]["corporate_action_adjustment"], "NOT VERIFIED")
+
+    def test_corporate_action_rounding_jitter_is_not_a_persistent_shift(self):
+        raw = bars(150)
+        qfq = []
+        for row in raw:
+            factor = 0.90
+            # Model provider cent rounding independently on adjusted prices.
+            qfq.append(replace(
+                row,
+                open=round(row.open * factor, 2),
+                close=round(row.close * factor, 2),
+                high=round(row.high * factor, 2),
+                low=round(row.low * factor, 2),
+                raw_sha256="b" * 64,
+            ))
+        evidence = verify_corporate_action_lineage(
+            qfq, raw, [],
+            {"provider": "tencent_public_full_kline", "price_adjustment": "qfq", "payload_sha256": "b" * 64},
+            {"provider": "tencent_public_full_kline", "price_adjustment": "unadjusted", "payload_sha256": "c" * 64},
+            {"provider": "eastmoney_share_bonus_datacenter", "payload_sha256": "d" * 64},
+        )
+        self.assertEqual(evidence["significant_factor_changes"], 0)
+        self.assertEqual(evidence["unexplained_factor_changes"], 0)
+        self.assertEqual(evidence["status"], "NOT VERIFIED")
+        self.assertEqual(evidence["factor_detection_method"], "persistent_median_regime_shift_v1")
+        self.assertEqual(evidence["factor_estimator"], "quantized_ohlc_interval_v2")
+
+    def test_corporate_action_unexplained_persistent_shift_stays_nonpass(self):
+        raw = bars(150)
+        qfq = []
+        for i, row in enumerate(raw):
+            factor = 0.90 if i < 80 else 0.93
+            qfq.append(replace(
+                row,
+                open=round(row.open * factor, 2),
+                close=round(row.close * factor, 2),
+                high=round(row.high * factor, 2),
+                low=round(row.low * factor, 2),
+                raw_sha256="b" * 64,
+            ))
+        evidence = verify_corporate_action_lineage(
+            qfq, raw, [],
+            {"provider": "tencent_public_full_kline", "price_adjustment": "qfq", "payload_sha256": "b" * 64},
+            {"provider": "tencent_public_full_kline", "price_adjustment": "unadjusted", "payload_sha256": "c" * 64},
+            {"provider": "eastmoney_share_bonus_datacenter", "payload_sha256": "d" * 64},
+        )
+        self.assertGreaterEqual(evidence["significant_factor_changes"], 1)
+        self.assertGreaterEqual(evidence["unexplained_factor_changes"], 1)
+        self.assertEqual(evidence["status"], "NOT VERIFIED")
+
+    def test_mixed_symbol_rows_fail_before_corporate_action_qualification(self):
+        rows = bars(150)
+        rows[80] = replace(rows[80], symbol="000001")
+        with self.assertRaises(ValueError):
+            qualify_research(
+                rows,
+                {"provider": "production_fixture", "qualification_scope": "production_real_network",
+                 "price_adjustment": "qfq"},
+                corporate_action_evidence=self._valid_corporate_action_evidence(),
+            )
 
     def test_missing_turnover_cannot_pass_complete_ablation(self):
         got = qualify_research([replace(x, turnover_rate=None) for x in bars()], {})

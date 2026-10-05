@@ -8,10 +8,12 @@ import tempfile
 from app.business_validation import CostAssumptions, qualify_research
 from app.domain import DailyBar
 from app.netclient import NetClient
+from app.source_corporate_actions import fetch_share_bonus_events, verify_corporate_action_lineage
 from app.source_eastmoney import fetch_daily_bars as fetch_daily_bars_eastmoney
 from app.source_market import fetch_daily_bars_failover
 from app.source_tencent_full import fetch_daily_bars_tencent_full
 from app.source_yahoo import fetch_daily_bars_yahoo
+from app.source_cost_rules import fetch_official_cost_rules
 from tests.business_failclosed_contract import run_contract
 
 QUALIFICATION_HISTORY_ROWS = 1200
@@ -161,6 +163,23 @@ def _field_complete_ablation_replication(client: NetClient, reference_rows: list
         "provider_attempts": attempts,
     }
 
+def _corporate_action_lineage(client: NetClient) -> dict:
+    try:
+        qfq_rows, qfq_meta = fetch_daily_bars_tencent_full(client, "600000", 500, adjustment="qfq")
+        raw_rows, raw_meta = fetch_daily_bars_tencent_full(client, "600000", 500, adjustment="raw")
+        events, event_meta = fetch_share_bonus_events(client, "600000", 100)
+        return verify_corporate_action_lineage(
+            qfq_rows, raw_rows, events, qfq_meta, raw_meta, event_meta
+        )
+    except Exception as exc:
+        return {
+            "status": "NOT VERIFIED",
+            "point_in_time_lineage": "NOT VERIFIED",
+            "reason": "corporate-action real-network evidence could not be completed",
+            "error": repr(exc),
+        }
+
+
 def real_network_qualification() -> dict:
     with tempfile.TemporaryDirectory() as td:
         root = Path(td)
@@ -184,14 +203,44 @@ def real_network_qualification() -> dict:
                 benchmark_error = "benchmark as-of date does not match primary qualification date"
         except Exception as exc:
             benchmark_error = repr(exc)
+        corporate_action_evidence = _corporate_action_lineage(client)
         got = qualify_research(
             bars,
             meta,
             CostAssumptions(),
             benchmark_rows=benchmark_rows,
             benchmark_meta=benchmark_meta,
+            corporate_action_evidence=corporate_action_evidence,
         )
+        got["corporate_action_real_network_evidence"] = corporate_action_evidence
         got["benchmark_fetch_error"] = benchmark_error
+        try:
+            official_cost_rules = fetch_official_cost_rules(client)
+        except Exception as exc:
+            official_cost_rules = {
+                "status": "NOT VERIFIED",
+                "error": repr(exc),
+                "scope": (
+                    "official regulatory fee/tax calibration unavailable; broker commission and "
+                    "observed execution slippage remain separately NOT VERIFIED"
+                ),
+            }
+        got["official_cost_rule_evidence"] = official_cost_rules
+        got["cost_calibration_components"] = {
+            "official_exchange_fee_and_stamp_tax": (
+                "PASS" if official_cost_rules.get("status") == "PASS" else "NOT VERIFIED"
+            ),
+            "broker_commission": "NOT VERIFIED",
+            "observed_execution_slippage": "NOT VERIFIED",
+        }
+        if official_cost_rules.get("status") == "PASS":
+            got["qualification_gaps"]["cost_slippage_model"] = (
+                "Official exchange handling fee and securities stamp-tax schedule are verified "
+                "from current authoritative pages, but broker commission and observed execution "
+                "slippage remain NOT VERIFIED."
+            )
+        if got["gates"].get("cost_slippage_model") == "PASS":
+            raise AssertionError("regulatory fee evidence alone must not promote full cost/slippage calibration")
         field_complete_ablation = _field_complete_ablation_replication(client, bars)
         got["field_complete_ablation_replication"] = field_complete_ablation
         if field_complete_ablation.get("status") == "PASS":

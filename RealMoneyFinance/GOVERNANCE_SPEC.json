@@ -9,7 +9,8 @@
     "Analysis and prediction-style research must remain fail-closed unless independent validation demonstrates real gain beyond baselines without leakage or overfit.",
     "A Windows native candidate must be validated as the exact EXE by self-test, physical GUI input, and matching SHA-256.",
     "Production update acceptance requires an independent updater plus a real signed Release N to N+1 lineage, rollback, restart health, and same-hash evidence.",
-    "Repository independence and complete release evidence are mandatory before Final Gate PASS."
+    "Repository independence and complete release evidence are mandatory before Final Gate PASS.",
+    "Corporate-action adjustment evidence must bind independently retrieved announcement/ex-dividend dates to observed adjusted-vs-raw price-factor changes; an adjustment label alone cannot pass."
   ],
   "five_why": [
     "Why analyze capital change? The user needs a repeatable way to study observable market activity for real financial decisions.",
@@ -52,7 +53,10 @@
       "app/source_market.py",
       "app/source_eastmoney.py",
       "app/source_tencent.py",
-      "app/source_yahoo.py"
+      "app/source_yahoo.py",
+      "app/source_cost_rules.py",
+      "app/source_tencent_full.py",
+      "app/source_corporate_actions.py"
     ],
     "NetClient": [
       "app/netclient.py"
