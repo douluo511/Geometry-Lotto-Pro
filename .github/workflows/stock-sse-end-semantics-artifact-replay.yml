@@ -1,0 +1,56 @@
+name: Stock SSE end semantics artifact replay
+
+on:
+  push:
+    branches:
+      - "diagnostic/stock-sse-calendar-semantic-probe-20261005"
+    paths:
+      - "StockAIPro/hardening_tests/stock_sse_end_semantics_from_artifact.py"
+      - ".github/workflows/stock-sse-end-semantics-artifact-replay.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  replay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact diagnostic head
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Verify authoritative Stock product bytes unchanged
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="43168d9e75c70ab55be808d8a51f0c0eb14d83d5"
+          git merge-base --is-ancestor "$base" HEAD
+          changed="$(git diff --name-only "$base..HEAD" -- StockAIPro | grep -v '^StockAIPro/hardening_tests/stock_sse_suspension_endpoint_discovery.py$' | grep -v '^StockAIPro/hardening_tests/stock_sse_historical_suspension_query.py$' | grep -v '^StockAIPro/hardening_tests/stock_sse_calendar_semantic_probe.py$' | grep -v '^StockAIPro/hardening_tests/stock_sse_end_semantics_from_artifact.py$' || true)"
+          test -z "$changed" || { echo "$changed"; exit 1; }
+          echo "STOCK_PRODUCT_BYTES_CHANGED=FALSE"
+      - name: Download frozen real-network evidence artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence_in
+          gh run download 37315009304             --repo "${{ github.repository }}"             --name "STOCK-SSE-CALENDAR-SEMANTIC-PROBE-b8627140029a73c5a6442acf054cf1474529cb3a"             --dir evidence_in
+          test -f evidence_in/stock_sse_calendar_semantic_probe.json
+          sha256sum evidence_in/stock_sse_calendar_semantic_probe.json
+      - name: Replay semantic adjudication from immutable evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python StockAIPro/hardening_tests/stock_sse_end_semantics_from_artifact.py             evidence_in/stock_sse_calendar_semantic_probe.json             stock_sse_end_semantics_replay.json
+      - name: Upload derived evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: STOCK-SSE-END-SEMANTICS-REPLAY-${{ github.sha }}
+          path: stock_sse_end_semantics_replay.json
+          if-no-files-found: error
+          retention-days: 30
