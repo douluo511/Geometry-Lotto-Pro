@@ -184,6 +184,8 @@ def _corporate_action_evidence_qualified(source_meta: dict, evidence: dict) -> b
             or not isinstance(before_interval, list) or len(before_interval) != 2
             or not isinstance(after_interval, list) or len(after_interval) != 2
             or not all(isinstance(x, (int, float)) and math.isfinite(float(x)) for x in before_interval + after_interval)
+            or float(before_interval[0]) > float(before_interval[1])
+            or float(after_interval[0]) > float(after_interval[1])
             or not (float(before_interval[1]) < float(after_interval[0])
                     or float(after_interval[1]) < float(before_interval[0]))
         ):

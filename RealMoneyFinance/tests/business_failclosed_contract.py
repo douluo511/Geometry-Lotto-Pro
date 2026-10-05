@@ -330,6 +330,8 @@ class BusinessBoundaries(unittest.TestCase):
                                                                           "effective_threshold": matched["factor_change"]["relative_change"] + 0.01}}]},
             {**evidence, "matched_events": [{**matched, "factor_change": {**matched["factor_change"],
                                                                           "quantization_interval_gap": 0.0}}]},
+            {**evidence, "matched_events": [{**matched, "factor_change": {**matched["factor_change"],
+                                                                          "before_factor_interval": [1.0, 0.9]}}]},
         ]
         for forged in forged_detail_cases:
             with self.subTest(detail_forged=forged):
