@@ -1,0 +1,60 @@
+name: RMF SSE historical-universe schema probe
+
+on:
+  push:
+    branches:
+      - "diagnostic/rmf-sse-historical-universe-schema-20261005"
+    paths:
+      - ".github/rmf/historical_universe_schema_probe.py"
+      - ".github/workflows/rmf-historical-universe-schema-probe.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SOURCE_SHA: ${{ github.sha }}
+    steps:
+      - name: Checkout exact diagnostic head
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          fetch-depth: 0
+
+      - name: Exact checkout identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+
+      - name: Setup pinned Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.11.9"
+
+      - name: Probe official SSE universe schema
+        shell: bash
+        run: |
+          set -euo pipefail
+          python .github/rmf/historical_universe_schema_probe.py \
+            --output "$RUNNER_TEMP/rmf_sse_historical_universe_schema.json"
+
+      - name: Upload schema evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: RMF-SSE-HISTORICAL-UNIVERSE-SCHEMA-${{ env.SOURCE_SHA }}
+          path: ${{ runner.temp }}/rmf_sse_historical_universe_schema.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Explicit non-qualification boundary
+        shell: bash
+        run: |
+          echo "SCHEMA_PROBE=PASS"
+          echo "BUSINESS_SURVIVORSHIP_GATE=NOT VERIFIED"
+          echo "HISTORICAL_PIT_AVAILABILITY=NOT VERIFIED"
+          echo "FINAL_GATE=FAIL"
