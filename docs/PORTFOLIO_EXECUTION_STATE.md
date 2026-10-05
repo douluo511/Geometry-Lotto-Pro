@@ -886,3 +886,16 @@ This checkpoint supersedes older in-progress wording for the items below only. I
 - Fail-closed assertions now enforce that source-file existence cannot promote Beijing PIT, full HISTORICAL_ST_PIT or Final.
 - Artifact `11344588057`, digest `sha256:b7188d73cc8cf3878f0af423bf66d1f9939f377c1d93f68fee669aa55f051094`.
 - Portfolio boundary unchanged: migration/export readiness **18/18 PASS**; dedicated repositories **0/18**; Final/Delivery **0/18**.
+
+
+## 2026-10-05 Stock SSE technical-spec source boundary
+
+- Diagnostic authority: PR #188 exact head `9ac7332faf0ad891a548b90ea873cd340dc6ba29`.
+- PR-triggered run `37309244997` / job `111760319419` = **SUCCESS**; authoritative Stock PR #155 product bytes at `43168d9e75c70ab55be808d8a51f0c0eb14d83d5` were unchanged.
+- One official SSE historicaldata PDF URL returned **HTTP 404 on all three bounded attempts** and remains **NOT VERIFIED**; no substitution or PASS was fabricated.
+- A second official SSE technical PDF returned **HTTP 200**, 134 pages; payload SHA-256 `7efb1df906a363aedbf5161b13ebeb1fb64d21cb7800a6a8afdef37403c69d1f`; extracted-text SHA-256 `0382cb918b4765befed3eaf5e4a7c00246f786d777a196988981398326db79d3`.
+- Its extracted specification contains `cpxx0201MMDD.txt`, Chinese short-name language and suspension-related product language. Therefore **SSE product-status / short-name / suspension specification = SUPPORTED**.
+- This does **not** establish a public historical bulk archive. SSE public historical bulk archive = **NOT VERIFIED**; Shanghai historical ST/PIT = **NOT VERIFIED**; historical daily suspension PIT = **NOT VERIFIED**; full A-share `HISTORICAL_ST_PIT` = **NOT VERIFIED**.
+- Workflow fail-closed assertions enforce that technical-spec existence cannot promote those gates or Final.
+- Artifact `11345162043`, digest `sha256:fa089dcfd87537f3677ddc88705966577ae3e7dc686299bce0cf2d76929b0a9f`.
+- Portfolio boundary unchanged: migration/export readiness **18/18 PASS**; dedicated repositories **0/18**; Final/Delivery **0/18**.
