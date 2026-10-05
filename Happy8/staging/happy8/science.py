@@ -24,6 +24,8 @@ CANDIDATE_CONFIGS = (
     ("remove_transition", {"transition": 0.0}),
     ("remove_geometry", {"geometry": 0.0}),
     ("frequency_only", {"frequency": 1.0, "transition": 0.0, "geometry": 0.0, "stability": 0.0}),
+    ("transition_only", {"frequency": 0.0, "transition": 1.0, "geometry": 0.0, "stability": 0.0}),
+    ("geometry_only", {"frequency": 0.0, "transition": 0.0, "geometry": 1.0, "stability": 0.0}),
 )
 ROBUST_WINDOW_SETS = {
     "default": DEFAULT_WINDOWS,
@@ -524,6 +526,16 @@ def validate_history(draws: list[Draw], *, canonical_hash: str) -> dict:
         raise ValueError("duplicate issue in scientific history")
     if not canonical_hash or len(canonical_hash) != 64:
         raise ValueError("scientific validation requires the current canonical SHA-256")
+    computed_canonical_hash = hashlib.sha256(
+        json.dumps(
+            [draw.to_dict() for draw in draws],
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+    if computed_canonical_hash != canonical_hash:
+        raise ValueError("canonical history hash mismatch")
 
     state = build_prefix_state(draws)
     candidate_validation = _candidate_pool_validation(draws, state)
@@ -590,6 +602,21 @@ def validate_history(draws: list[Draw], *, canonical_hash: str) -> dict:
         "false_gain_elimination",
     )
     methodology_complete = all(gates[k] == "PASS" for k in methodological_keys)
+    protocol_gates = {
+        "candidate_pool_independent_validation": gates["candidate_pool_independent_validation"],
+        "multi_window_perturbation": gates["multi_window_multi_seed"],
+        "multi_seed_perturbation": gates["multi_window_multi_seed"],
+        "reality_check_executed": gates["reality_check_max_model_null"],
+        "holm_correction_executed": gates["holm_multiple_testing"],
+        "leave_one_period_out_executed": gates["leave_one_period_out"],
+        "leakage_challenge": gates["leakage_future_mutation"],
+        "canonical_hash_bound": "PASS"
+        if computed_canonical_hash == canonical_hash.lower()
+        else "FAIL",
+    }
+    methodology_complete = methodology_complete and all(
+        value == "PASS" for value in protocol_gates.values()
+    )
     pre_prospective_edge = selected_qualified and methodology_complete
     edge_pass = pre_prospective_edge and gates["prospective"] == "PASS"
 
@@ -610,6 +637,7 @@ def validate_history(draws: list[Draw], *, canonical_hash: str) -> dict:
         "baseline": {
             "single_number_probability": DRAW_SIZE / UNIVERSE,
             "pick10_expected_hits": RANDOM_EXPECTATION,
+            "baseline_model": "uniform_random_without_replacement",
         },
         "oos": {
             "selected_model": selected_name,
@@ -621,7 +649,14 @@ def validate_history(draws: list[Draw], *, canonical_hash: str) -> dict:
             "era_excess": eras,
         },
         "gates": gates,
+        "protocol_gates": protocol_gates,
         "candidate_pool": candidate_validation,
+        "reality_check": reality,
+        "multiple_testing": {
+            "method": "Holm",
+            "adjusted_p": candidate_validation.get("holm_adjusted_holdout_p", {}),
+        },
+        "leave_one_period_out": selected_lopo.get("windows", []),
         "multi_window_seed_robustness": perturbation,
         "leakage_challenge": leakage,
         "pre_prospective_edge_qualified": pre_prospective_edge,

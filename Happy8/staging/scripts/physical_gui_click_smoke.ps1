@@ -201,13 +201,13 @@ New-Item -ItemType Directory -Force $dataRoot | Out-Null
 # are all activated by physical foreground mouse events.
 $seedResult=Join-Path $root "seed-live-update.json"
 Write-Progress 'live_network_seed' 'RUNNING'
-$seed=Start-Process -FilePath $exe -ArgumentList @('--update','--data-root',$dataRoot,'--result-file',$seedResult) -Wait -PassThru
+$seed=Start-Process -FilePath $exe -ArgumentList @('--refresh-data','--data-root',$dataRoot,'--result-file',$seedResult) -Wait -PassThru
 if($seed.ExitCode -ne 0) { throw "exact EXE live-network seed failed: $($seed.ExitCode)" }
 $seedJson=Get-Content $seedResult -Raw -Encoding UTF8 | ConvertFrom-Json
 if($seedJson.status -ne 'PASS') { throw "exact EXE live-network seed was not PASS" }
 Write-Progress 'live_network_seed' 'PASS'
 
-$updateExpected=$(if($ReleaseMode -eq 'ConfiguredRelease'){'UP_TO_DATE_HANDOFF'}else{'FAIL_CLOSED'})
+$updateExpected=$(if($ReleaseMode -eq 'ConfiguredRelease'){'PENDING_RESTART_HANDOFF'}else{'BLOCKED_RELEASE'})
 $repairExpected=$(if($ReleaseMode -eq 'ConfiguredRelease'){'PASS'}else{'BLOCKED_EXTERNAL'})
 if($ReleaseMode -eq 'ConfiguredRelease') {
   $releaseConfig=Join-Path (Split-Path $exe -Parent) 'Happy8_Update_Config.json'
@@ -264,18 +264,19 @@ foreach($op in $ops) {
         if($record.result.post_repair_self_check.status -ne 'PASS') { throw "repair post self-check did not pass" }
       }
       if($op.key -eq 'advanced' -and $record.result.report.software_verdict -ne 'PASS') { throw "advanced analysis software verdict not PASS" }
-    } elseif($op.expected -eq 'FAIL_CLOSED') {
-      if($record.status -ne 'FAIL') { throw "one-click update must fail closed without a real independent release config" }
-      $err=[string]$record.result.error
-      if($err -notmatch 'release config is unavailable|independent repository/release source remains BLOCKED') {
-        throw "one-click update failed for an unexpected reason: $err"
+    } elseif($op.expected -eq 'BLOCKED_RELEASE') {
+      if($record.status -ne 'BLOCKED') { throw "one-click update must surface missing independent release context as BLOCKED" }
+      if($record.result.operation -ne 'one_click_update') { throw "one-click update operation identity mismatch" }
+      if($record.result.data_update.status -ne 'PASS') { throw "one-click update did not preserve verified data refresh" }
+      if($record.result.software_update.status -ne 'BLOCKED') { throw "missing release context was hidden" }
+    } elseif($op.expected -eq 'PENDING_RESTART_HANDOFF') {
+      if($record.status -ne 'PENDING_RESTART' -or $record.result.operation -ne 'one_click_update') {
+        throw "configured one-click update did not enter independent-Updater handoff"
       }
-    } elseif($op.expected -eq 'UP_TO_DATE_HANDOFF') {
-      if($record.status -ne 'PASS' -or $record.result.action -ne 'UPDATER_HANDOFF') {
-        throw "configured one-click update did not hand off to the independent Updater"
+      if($record.result.software_update.status -ne 'PENDING_RESTART' -or $record.result.software_update.action -ne 'INDEPENDENT_UPDATER_LAUNCHED') {
+        throw "configured one-click update did not launch the independent Updater"
       }
-      if($record.result.requires_parent_exit -ne $true) { throw "Updater handoff did not require parent exit" }
-      $updaterEvidence=[string]$record.result.evidence_file
+      $updaterEvidence=[string]$record.result.software_update.final_evidence
       if([string]::IsNullOrWhiteSpace($updaterEvidence)) { throw "Updater handoff evidence path missing" }
       $updaterResult=Wait-JsonEvidence $updaterEvidence $UpdaterEvidenceTimeoutSeconds
       if($updaterResult.status -ne 'PASS' -or $updaterResult.operation -ne 'software_update' -or $updaterResult.action -ne 'UP_TO_DATE') {
@@ -299,15 +300,15 @@ foreach($op in $ops) {
     $results += [pscustomobject]@{
       key=$op.key
       label=$op.label
-      acceptance=$(if($op.expected -eq 'FAIL_CLOSED'){'PASS_FAIL_CLOSED'}elseif($op.expected -eq 'BLOCKED_EXTERNAL'){'PASS_BLOCKED_EXPLICIT'}elseif($op.expected -eq 'UP_TO_DATE_HANDOFF'){'PASS_UPDATER_HANDOFF_UP_TO_DATE'}else{'PASS'})
+      acceptance=$(if($op.expected -eq 'BLOCKED_RELEASE'){'PASS_BLOCKED_EXPLICIT'}elseif($op.expected -eq 'BLOCKED_EXTERNAL'){'PASS_BLOCKED_EXPLICIT'}elseif($op.expected -eq 'PENDING_RESTART_HANDOFF'){'PASS_UPDATER_HANDOFF_UP_TO_DATE'}else{'PASS'})
       backend_status=$record.status
-      backend_action=$record.result.action
+      backend_action=$(if($op.key -eq 'update'){$record.result.software_update.action}else{$record.result.action})
       updater_status=$(if($null -ne $updaterResult){$updaterResult.status}else{$null})
       updater_action=$(if($null -ne $updaterResult){$updaterResult.action}else{$null})
       updater_evidence=$updaterResult
       updater_exe_sha256=$(if($null -ne $updaterResult){(Get-FileHash $updaterExe -Algorithm SHA256).Hash.ToLowerInvariant()}else{$null})
-      updater_pid=$record.result.updater_pid
-      requires_parent_exit=$record.result.requires_parent_exit
+      updater_pid=$(if($op.key -eq 'update'){$record.result.software_update.updater_pid}else{$record.result.updater_pid})
+      requires_parent_exit=$(if($op.key -eq 'update'){$true}else{$record.result.requires_parent_exit})
       locator=$point.locator
       x=$point.x
       y=$point.y

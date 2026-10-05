@@ -10,6 +10,7 @@ from pathlib import Path
 from .domain import Draw
 from .net_client import NetClient
 from .services import Happy8Service, SOFTWARE_VERSION
+from .software_update import software_update_environment_status
 from .ui import Happy8Window, source_ui_contract, ui_contract
 
 APP_VERSION = SOFTWARE_VERSION
@@ -53,6 +54,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--ui-self-test", action="store_true")
     parser.add_argument("--status", action="store_true")
     parser.add_argument("--update", action="store_true")
+    # Acceptance-only precondition: refresh verified official data through the
+    # exact packaged EXE without pretending the software updater succeeded.
+    parser.add_argument("--refresh-data", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--predict", action="store_true")
     parser.add_argument("--repair", action="store_true")
     parser.add_argument("--advanced", action="store_true")
@@ -94,7 +98,13 @@ def main(argv: list[str] | None = None) -> int:
         return 0 if report["status"] == "PASS" else 2
 
     root = Path(args.data_root) if args.data_root else default_data_root()
-    service = Happy8Service(root)
+    service = Happy8Service(
+        root,
+        repair_environment_probe=lambda: software_update_environment_status(
+            main_exe=Path(sys.executable),
+            current_version=SOFTWARE_VERSION,
+        ),
+    )
 
     if args.ui_contract:
         report = source_ui_contract()
@@ -114,6 +124,7 @@ def main(argv: list[str] | None = None) -> int:
     operations = [
         (args.status, service.status),
         (args.update, service.one_click_update),
+        (args.refresh_data, service.update_data),
         (args.predict, service.predict_next),
         (args.repair, service.repair),
         (args.advanced, service.advanced_analysis),
