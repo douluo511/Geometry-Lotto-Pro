@@ -4,6 +4,15 @@ Updated: 2026-10-05
 Mode: STRICT ENGINEERING EXECUTION MODE
 Source of control: MASTER issue #11 plus exact current PR / Actions / artifact evidence.
 
+
+## Latest exact-state continuation — 2026-10-05
+
+- **Portfolio boundary remains unchanged:** migration/export readiness is distinct from repository independence and Final. Real dedicated repositories = **0/18**; Final/Delivery = **0/18**.
+- **Happy8:** product PR #39 was merged to monorepo main as `69890dcabb467dc2d7976f31fa9873e211c01666`. Main-bound migration PR #163 export run `37273503292` = SUCCESS. Its same-head staging run `37273503346` also completed SUCCESS through live official Real Network, current-history science, reproducible Native Windows Exact EXE, Physical GUI four-entry clicks and Same Hash. EXE SHA-256 remains `cfdadbb6b7a17a38161ae21c3258ee07b8e17d91f793cc2211c8e517000c0a9f`; runtime artifact `11330040064`, digest `sha256:7c4df6ee7bd499c2c5c6289dbef5b86916bfbd9cd0dc25c5596214f2c7f13846`. Subsequent main changes through `1f190393988774227fcc2371997199f203a11885` touch only `RealMoneyFinance/**`, so Happy8 product/runtime bytes are unaffected. Advanced convergence PR #165 is executing a stricter full-gate chain and remains IN_PROGRESS / NOT VERIFIED until terminal.
+- **Real-Money Finance:** PR #164 exact head `6b6720eafc6154a0fd3bee9b8b7ca295dce0480f` passed run `37274045669` with the frozen 1200-row primary research denominator preserved. Primary research source is now `tencent_public_full_kline` / qfq; `corporate_action_point_in_time=PASS`; business completion advanced from 11/16 = 68.8% to **12/16 = 75.0%**. Engineering remains **24/28 = 85.7%**. PR #164 merged to main as `1f190393988774227fcc2371997199f203a11885`. Main-bound migration PR #168 run `37274510008` = SUCCESS: 41 files, manifest `a59328a27bf94ce77dd228c992b6004d5e1565bb91aa8bfa2b78d9598c60db62`, artifact `11329748277`, digest `sha256:2daaa54002c031b4c725af8ae4361b05489085d97ac19598c14251cd6ae9d839`. Repository Independence remains NOT VERIFIED; Final remains FAIL.
+- **RMF hardening beyond #164:** current-main PR #170 converges overlap-consistency fail-closed, deliberate overlap-mismatch reversal, and provider-family-independent cross-source validation without changing the 1200-row denominator or any threshold. Its run `37274864785` is IN_PROGRESS / NOT VERIFIED.
+- **Stock AI:** current business run remains SUCCESS; desktop run `37268369332` remains IN_PROGRESS at the frozen >=90% real-history corpus prerequisite. No downstream GUI/Final PASS is promoted before that prerequisite terminates.
+
 ## Current continuation checkpoint — 2026-10-05
 
 Authoritative portfolio boundary at this checkpoint:
