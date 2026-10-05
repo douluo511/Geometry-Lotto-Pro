@@ -122,6 +122,30 @@ def main():
         json.dumps(report, ensure_ascii=False, sort_keys=True, indent=2) + "\n",
         encoding="utf-8",
     )
+    targeted_context = []
+    target_key = "bond_14526_js_suspension_stock"
+    for hit in hits:
+        if "table_config.js" not in hit["script"]["url"]:
+            continue
+        # Re-fetch the already identified public config script and emit a bounded
+        # context around the exact suspension-stock table key.
+        rr, _ = fetch(s, hit["script"]["url"], attempts=2)
+        tt = rr.content.decode(rr.encoding or "utf-8", errors="replace")
+        pos = tt.find(target_key)
+        if pos >= 0:
+            targeted_context.append({
+                "source": hit["script"]["url"],
+                "key": target_key,
+                "context": " ".join(tt[max(0, pos-250): min(len(tt), pos+5000)].split()),
+            })
+    page_query_context = []
+    for kw in ("query.sse.com.cn", "commonQuery.do", "sqlId"):
+        for item in snippets(html, kw, radius=1200)[:3]:
+            page_query_context.append({
+                "keyword": kw,
+                "context": " ".join(item.split())[:3000],
+            })
+
     public_candidates = []
     for hit in hits:
         for keyword, items in hit["matches"].items():
@@ -146,6 +170,8 @@ def main():
         "hit_scripts": [x["script"]["url"] for x in hits],
         "page_keywords": sorted(page_matches),
         "public_candidates": public_candidates,
+        "targeted_context": targeted_context,
+        "page_query_context": page_query_context,
         "boundary": report["boundary"],
     }, ensure_ascii=True, sort_keys=True))
     return 0
