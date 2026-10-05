@@ -216,3 +216,105 @@ def evaluate_historical_st_pit(root: Path, expected_trade_date=None):
         f"历史ST/停牌逐日PIT证据完整且字节哈希绑定；SSE/SZSE/BSE；"
         f"{obj.get('window_start')}..{obj.get('window_end')}"
     ), meta
+
+
+def normalize_stock_code(value) -> str:
+    raw = str(value).strip()
+    if raw.endswith(".0") and raw[:-2].isdigit():
+        raw = raw[:-2]
+    if not raw.isdigit():
+        raise ValueError(f"invalid stock code: {value!r}")
+    code = raw.zfill(6)
+    if len(code) != 6:
+        raise ValueError(f"invalid stock code width: {value!r}")
+    return code
+
+
+def market_for_code(value) -> str:
+    code = normalize_stock_code(value)
+    if code.startswith("6"):
+        return "SSE"
+    if code.startswith(("0", "3")):
+        return "SZSE"
+    if code.startswith(("4", "8")) or code.startswith("92"):
+        return "BSE"
+    raise ValueError(f"unsupported A-share market code: {code}")
+
+
+def load_historical_st_pit_daily_state(root: Path, expected_trade_date=None):
+    """Load the exact hash-bound daily PIT state after fail-closed verification.
+
+    The returned mapping is keyed by (date, market, code). No nearest-date,
+    forward-fill, backward-fill, or present-day fallback is permitted.
+    """
+    root = Path(root)
+    status, detail, meta = evaluate_historical_st_pit(root, expected_trade_date)
+    if status != PASS:
+        raise RuntimeError(f"historical ST/PIT evidence not PASS: {detail}")
+
+    claim_path = root / "cache" / "historical_st_pit.json"
+    claim = json.loads(claim_path.read_text(encoding="utf-8"))
+    base = root.resolve()
+    canonical = (base / str(claim["canonical_path"])).resolve()
+    try:
+        canonical.relative_to(base)
+    except ValueError as exc:
+        raise RuntimeError("historical ST/PIT canonical path escaped product root") from exc
+
+    window_start = _parse_day(claim.get("window_start"))
+    window_end = _parse_day(claim.get("window_end"))
+    if window_start is None or window_end is None:
+        raise RuntimeError("historical ST/PIT evidence has invalid window")
+
+    state = {}
+    with canonical.open("r", encoding="utf-8") as fh:
+        for line_no, raw in enumerate(fh, 1):
+            if not raw.strip():
+                continue
+            try:
+                row = json.loads(raw)
+            except Exception as exc:
+                raise RuntimeError(
+                    f"historical ST/PIT canonical JSONL invalid at line {line_no}"
+                ) from exc
+            day = _parse_day(row.get("date")) if isinstance(row, dict) else None
+            if day is None or day < window_start or day > window_end:
+                raise RuntimeError(
+                    f"historical ST/PIT canonical date outside verified window at line {line_no}"
+                )
+            market = str(row.get("market", "")).strip().upper()
+            if market not in REQUIRED_MARKETS:
+                raise RuntimeError(
+                    f"historical ST/PIT canonical market invalid at line {line_no}: {market!r}"
+                )
+            code = normalize_stock_code(row.get("code"))
+            if market_for_code(code) != market:
+                raise RuntimeError(
+                    f"historical ST/PIT market/code mismatch at line {line_no}: {market}/{code}"
+                )
+            st = row.get("st")
+            suspended = row.get("suspended")
+            if type(st) is not bool or type(suspended) is not bool:
+                raise RuntimeError(
+                    f"historical ST/PIT st/suspended must be booleans at line {line_no}"
+                )
+            key = (day.isoformat(), market, code)
+            if key in state:
+                raise RuntimeError(
+                    f"historical ST/PIT duplicate date/market/code at line {line_no}: {key}"
+                )
+            state[key] = (st, suspended)
+
+    if not state:
+        raise RuntimeError("historical ST/PIT canonical state is empty")
+
+    return state, {
+        "status": PASS,
+        "detail": detail,
+        "window_start": claim.get("window_start"),
+        "window_end": claim.get("window_end"),
+        "canonical_sha256": claim.get("canonical_sha256"),
+        "source_manifest_sha256": claim.get("source_manifest_sha256"),
+        "row_count": len(state),
+        "bindings": meta.get("bindings", {}),
+    }
