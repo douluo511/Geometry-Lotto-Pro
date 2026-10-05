@@ -88,3 +88,4 @@ jobs:
           echo "BUSINESS_SURVIVORSHIP_GATE=NOT VERIFIED"
           echo "HISTORICAL_PIT_AVAILABILITY=NOT VERIFIED"
           echo "FINAL_GATE=FAIL"
+# exact-head diagnostic retrigger: 2026-10-05; no gate or product behavior change
