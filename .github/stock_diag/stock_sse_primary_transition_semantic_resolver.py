@@ -324,3 +324,5 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
+# exact-head trigger after resilient source-load hardening: 2026-10-06
