@@ -104,7 +104,20 @@ def bounded_request(
                 raise RuntimeError(f"HTTP {response.status_code}")
             if not response.content:
                 raise RuntimeError("empty response")
-            value = parse_json_or_jsonp(response.content)
+            try:
+                value = parse_json_or_jsonp(response.content)
+            except Exception as parse_exc:
+                preview = response.content[:320].decode("utf-8", errors="replace")
+                preview = "".join(ch if ch.isprintable() else " " for ch in preview)
+                raise ValueError(
+                    "response parse failed; "
+                    f"content_type={response.headers.get('Content-Type')!r}; "
+                    f"final_url={response.url!r}; "
+                    f"raw_bytes={len(response.content)}; "
+                    f"raw_sha256={sha256_bytes(response.content)}; "
+                    f"prefix={preview!r}; "
+                    f"parse_error={type(parse_exc).__name__}: {parse_exc}"
+                ) from parse_exc
             return value, {
                 "method": method,
                 "attempt": attempt,
