@@ -9,32 +9,8 @@
       "douluo511/Geometry-Lotto-Pro"
     ],
     "dedicated_target_repositories_visible": 0,
-    "repository_creation_probe": {
-      "pr": 127,
-      "head": "e1a26a5223c85affd5cb26b3613a508e782f205a",
-      "run": 37215392817,
-      "artifact_id": 11308645366,
-      "artifact_digest": "sha256:a687cf84c6f7a71de2370c159e322e6fbeef1b9f4b1f188eb61be1fd0315bf4f",
-      "rate_limit_core_remaining": 4998,
-      "user_endpoint": "403 Resource not accessible by integration",
-      "create_repository_endpoint": "403",
-      "status": "BLOCKED"
-    },
-    "existing_repository_release_mechanics": {
-      "pr": 128,
-      "head": "812a84a7a9e6643915e1ec28b6a5e307ae0d4a7f",
-      "run": 37216404138,
-      "artifact_id": 11308322210,
-      "artifact_digest": "sha256:cd161b6a226036d8cc7bc74ab6b3568b24f349c2046b01f66d7a69123c610b72",
-      "draft_release_create": "PASS",
-      "asset_upload": "PASS",
-      "asset_redownload": "PASS",
-      "asset_same_hash": "PASS",
-      "cleanup": "PASS",
-      "production_release_n_to_n_plus_1": "NOT VERIFIED"
-    },
     "status": "BLOCKED",
-    "note": "Current integration can operate existing repositories and Release assets, but no available account-level create-repository mutation exists. Actions github.token cannot act as user-level repository creator."
+    "note": "Current GitHub connection still exposes only the monorepo. Real probes show POST /user/repos and public-template generation are blocked by integration identity; no conventional account-level PAT secret is configured. Existing-repository Release create/upload/re-download Same Hash/delete mechanics are verified PASS."
   },
   "aggregate": {
     "projects_total": 18,
@@ -179,7 +155,7 @@
       "final_gate": "FAIL",
       "source_product_pr": 126,
       "source_product_head": "c6e329d2a5059f296ee2303032b28b5a702a3600",
-      "source_product_status": "PARTIAL_CURRENT_HEAD_PASS",
+      "source_product_status": "IN_PROGRESS",
       "export_artifact_id": 11323165672,
       "export_artifact_digest": "sha256:1c6c1f34a149e7d9bdf02969ee06a6216a92c1b4236cf031cb0a8d680f28e8c6",
       "source_current_head_evidence": {
@@ -321,8 +297,8 @@
       "export_artifact_digest": "sha256:da83e27d36dbb390e3375d453b5fcc390cbcd7f2fe1ce6d40fa37fb53ff986a8"
     }
   ],
-  "next_resume_condition": "As soon as a dedicated repository becomes visible to the connected installation, seed it from the matching verified export and rerun the full frozen acceptance chain on that dedicated repository exact commit before any PASS inheritance.",
-  "latest_delta": "2026-10-05: SSQ and DLT acceptance workflows were corrected to require literal PR-head checkout, invalidating synthetic-merge product evidence. Replacement migration PRs #132/#133 PASS from exact new product bases; fresh Windows product runs are revalidating. Stock AI c6e329d2 remains active. Repository Independence remains 0/18.",
+  "next_resume_condition": "When an independent target repository becomes visible to the connected GitHub installation or an account-level repository-creation credential/action becomes available, seed only from the indexed verified exact-head export and rerun the full frozen acceptance chain there before any PASS inheritance.",
+  "latest_delta": "2026-10-05: migration readiness remains 18/18 at current indexed heads. Stock AI product exact head c6e329d2a5059f296ee2303032b28b5a702a3600 has source/offline/Real Network PASS; full production business and native desktop/research-corpus/GUI runs remain IN_PROGRESS. Repository creation remains blocked by integration identity; Release asset create/upload/re-download Same Hash mechanics on the existing repository are PASS.",
   "infrastructure_capability": {
     "repository_creation": "BLOCKED",
     "repository_creation_evidence": "PR #127: Actions integration token cannot act as user-level repository creator; connector exposes no create-repository mutation.",
