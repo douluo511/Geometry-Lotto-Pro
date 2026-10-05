@@ -227,6 +227,11 @@ class BusinessBoundaries(unittest.TestCase):
         self.assertEqual(evidence["point_in_time_lineage"], "PASS")
         self.assertEqual(evidence["verified_event_count"], 1)
         self.assertEqual(evidence["unexplained_factor_changes"], 0)
+        self.assertEqual(evidence["matched_events"][0]["calendar_days_after_ex_date"], 0)
+        self.assertEqual(
+            evidence["matched_events"][0]["factor_change"]["trade_date"],
+            evidence["matched_events"][0]["event"]["ex_dividend_date"],
+        )
 
         got = qualify_research(
             bars(300),
