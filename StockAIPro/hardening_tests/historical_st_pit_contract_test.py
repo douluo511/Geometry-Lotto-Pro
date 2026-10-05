@@ -1,3 +1,4 @@
+import hashlib
 import json
 import sys
 import tempfile
@@ -8,16 +9,56 @@ sys.path.insert(0, str(PACKAGE_ROOT))
 
 from stock_ai.historical_pit import evaluate_historical_st_pit
 
-H = "a" * 64
+
+def sha(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def write(root: Path, obj: dict):
+def make_file(root: Path, rel: str, payload: bytes) -> str:
+    p = root / rel
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_bytes(payload)
+    return sha(p)
+
+
+def write_claim(root: Path, obj: dict):
     p = root / "cache" / "historical_st_pit.json"
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(json.dumps(obj, ensure_ascii=False), encoding="utf-8")
 
 
-def complete():
+def complete(root: Path):
+    canonical_path = "cache/historical_st_pit_daily_state.jsonl"
+    source_manifest_path = "cache/historical_st_pit_sources.json"
+    canonical_sha = make_file(
+        root, canonical_path,
+        b'{"date":"2026-09-30","market":"SSE","code":"600000","st":false,"suspended":false}\n',
+    )
+    source_manifest_sha = make_file(
+        root, source_manifest_path,
+        b'{"sources":["SSE","SZSE","BSE"],"point_in_time_only":true}\n',
+    )
+
+    markets = {}
+    for market in ("SSE", "SZSE", "BSE"):
+        rel = f"cache/historical_st_pit_{market.lower()}.json"
+        evidence_sha = make_file(
+            root, rel,
+            json.dumps(
+                {"market": market, "st_identity": "PASS", "suspension_state": "PASS"},
+                sort_keys=True,
+            ).encode("utf-8") + b"\n",
+        )
+        markets[market] = {
+            "st_identity": "PASS",
+            "suspension_state": "PASS",
+            "trading_calendar": "PASS",
+            "daily_state": "PASS",
+            "evidence_path": rel,
+            "evidence_sha256": evidence_sha,
+            "source_count": 1,
+        }
+
     return {
         "schema": "stock-ai-historical-st-pit-v1",
         "status": "PASS",
@@ -27,19 +68,11 @@ def complete():
         "future_leakage_violations": 0,
         "window_start": "2018-01-01",
         "window_end": "2026-09-30",
-        "canonical_sha256": H,
-        "source_manifest_sha256": H,
-        "markets": {
-            market: {
-                "st_identity": "PASS",
-                "suspension_state": "PASS",
-                "trading_calendar": "PASS",
-                "daily_state": "PASS",
-                "evidence_sha256": H,
-                "source_count": 1,
-            }
-            for market in ("SSE", "SZSE", "BSE")
-        },
+        "canonical_path": canonical_path,
+        "canonical_sha256": canonical_sha,
+        "source_manifest_path": source_manifest_path,
+        "source_manifest_sha256": source_manifest_sha,
+        "markets": markets,
     }
 
 
@@ -50,39 +83,61 @@ with tempfile.TemporaryDirectory() as td:
     assert status == "WARN"
     assert meta["reason"] == "evidence_missing"
 
-    x = complete()
+    x = complete(root)
     del x["markets"]["BSE"]
-    write(root, x)
+    write_claim(root, x)
     status, _, meta = evaluate_historical_st_pit(root, "2026-09-30")
     assert status == "WARN"
     assert meta["market_failures"]["BSE"] == ["missing"]
 
-    x = complete()
+    x = complete(root)
     x["future_leakage_violations"] = 1
-    write(root, x)
+    write_claim(root, x)
     status, _, meta = evaluate_historical_st_pit(root, "2026-09-30")
     assert status == "WARN"
     assert "future_leakage_violations" in meta["failures"]
 
-    x = complete()
+    x = complete(root)
     x["window_end"] = "2026-09-29"
-    write(root, x)
+    write_claim(root, x)
     status, _, meta = evaluate_historical_st_pit(root, "2026-09-30")
     assert status == "WARN"
     assert "freshness" in meta["failures"]
 
-    x = complete()
-    x["canonical_sha256"] = "not-a-hash"
-    write(root, x)
+    # A syntactically valid but fabricated SHA-256 must not count as evidence.
+    x = complete(root)
+    x["canonical_sha256"] = "a" * 64
+    write_claim(root, x)
     status, _, meta = evaluate_historical_st_pit(root, "2026-09-30")
     assert status == "WARN"
-    assert "canonical_sha256" in meta["failures"]
+    assert "canonical_binding" in meta["failures"]
+    assert meta["bindings"]["canonical"]["reason"] == "hash_mismatch"
 
-    x = complete()
-    write(root, x)
+    # Evidence bytes changed after the claim was signed must fail closed.
+    x = complete(root)
+    write_claim(root, x)
+    (root / x["markets"]["SSE"]["evidence_path"]).write_text("tampered\n", encoding="utf-8")
+    status, _, meta = evaluate_historical_st_pit(root, "2026-09-30")
+    assert status == "WARN"
+    assert "evidence_binding" in meta["market_failures"]["SSE"]
+    assert meta["bindings"]["SSE"]["reason"] == "hash_mismatch"
+
+    # Paths must stay under the product evidence root.
+    x = complete(root)
+    x["canonical_path"] = "../escape.bin"
+    write_claim(root, x)
+    status, _, meta = evaluate_historical_st_pit(root, "2026-09-30")
+    assert status == "WARN"
+    assert "canonical_binding" in meta["failures"]
+    assert meta["bindings"]["canonical"]["reason"] == "path_escape"
+
+    x = complete(root)
+    write_claim(root, x)
     status, detail, meta = evaluate_historical_st_pit(root, "2026-09-30")
     assert status == "PASS"
     assert not meta["failures"]
+    assert all(v["status"] == "PASS" for v in meta["bindings"].values())
     assert "SSE/SZSE/BSE" in detail
+    assert "字节哈希绑定" in detail
 
-print("HISTORICAL ST PIT FAIL-CLOSED CONTRACT TEST PASS")
+print("HISTORICAL ST PIT REAL-BYTE HASH-BINDING CONTRACT TEST PASS")
