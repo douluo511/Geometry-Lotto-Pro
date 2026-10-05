@@ -264,9 +264,36 @@ class BusinessBoundaries(unittest.TestCase):
             {**evidence, "overlap_rows": 59},
             {**evidence, "factor_detection_method": "legacy_daily_ratio"},
             {**evidence, "factor_window_sessions": 1},
+            {**evidence, "price_tick": 0.05},
         ]
         for forged in forged_cases:
             with self.subTest(forged=forged):
+                got = qualify_research(
+                    bars(300),
+                    {"provider": "production_fixture", "qualification_scope": "production_real_network",
+                     "price_adjustment": "qfq"},
+                    corporate_action_evidence=forged,
+                )
+                self.assertEqual(got["gates"]["corporate_action_adjustment"], "NOT VERIFIED")
+
+        matched = evidence["matched_events"][0]
+        duplicate = {
+            **evidence,
+            "verified_event_count": 2,
+            "significant_factor_changes": 2,
+            "matched_events": [matched, matched],
+        }
+        forged_detail_cases = [
+            duplicate,
+            {**evidence, "matched_events": [{**matched, "calendar_days_after_ex_date": 7}]},
+            {**evidence, "matched_events": [{**matched, "event": {**matched["event"], "symbol": "000001"}}]},
+            {**evidence, "matched_events": [{**matched, "event": {**matched["event"], "pretax_bonus_rmb": 0.0,
+                                                                  "bonus_ratio": 0.0, "transfer_ratio": 0.0}}]},
+            {**evidence, "matched_events": [{**matched, "factor_change": {**matched["factor_change"],
+                                                                          "effective_threshold": matched["factor_change"]["relative_change"] + 0.01}}]},
+        ]
+        for forged in forged_detail_cases:
+            with self.subTest(detail_forged=forged):
                 got = qualify_research(
                     bars(300),
                     {"provider": "production_fixture", "qualification_scope": "production_real_network",
