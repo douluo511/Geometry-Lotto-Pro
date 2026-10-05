@@ -14,6 +14,8 @@ sys.path.insert(0, str(PRODUCT_ROOT))
 from app.netclient import NetClient
 
 URL = "https://query.sse.com.cn/commonQuery.do"
+CURRENT_DAILY_SQL_ID = "COMMON_SSE_SJ_GPSJ_CJGK_MRGK_C"
+CURRENT_DAILY_PRODUCT_CODE = "01,02,03,11,17"
 HEADERS = {
     "Host": "query.sse.com.cn",
     "Referer": "https://www.sse.com.cn/",
@@ -57,6 +59,32 @@ def main() -> int:
         )
         rows = obj.get("result")
         if not isinstance(rows, list):
+            fallback_obj, fallback_meta = client.get_json(
+                URL,
+                {
+                    "sqlId": CURRENT_DAILY_SQL_ID,
+                    "PRODUCT_CODE": CURRENT_DAILY_PRODUCT_CODE,
+                    "type": "inParams",
+                    "SEARCH_DATE": day,
+                },
+                headers=HEADERS,
+                allow_mislabeled_json=True,
+            )
+            fallback_result = fallback_obj.get("result") if isinstance(fallback_obj, dict) else None
+            fallback_shape = {
+                "top_level_type": type(fallback_obj).__name__,
+                "top_level_keys": sorted(fallback_obj.keys()) if isinstance(fallback_obj, dict) else [],
+                "result_type": type(fallback_result).__name__,
+                "result_keys": sorted(fallback_result.keys()) if isinstance(fallback_result, dict) else [],
+                "series_lengths": {
+                    str(k): len(v) for k, v in fallback_result.items()
+                    if isinstance(fallback_result, dict) and isinstance(v, list)
+                },
+                "listing_index_9_values": {
+                    str(k): v[9] for k, v in fallback_result.items()
+                    if isinstance(fallback_result, dict) and isinstance(v, list) and len(v) > 9
+                },
+            }
             rows_by_date[day] = {
                 "payload_sha256": meta.payload_sha256,
                 "retrieved_at_unix": meta.retrieved_at_unix,
@@ -66,11 +94,18 @@ def main() -> int:
                     "top_level_keys": sorted(obj.keys()) if isinstance(obj, dict) else [],
                     "result_type": type(rows).__name__,
                 },
+                "fallback_current_daily": {
+                    "sql_id": CURRENT_DAILY_SQL_ID,
+                    "payload_sha256": fallback_meta.payload_sha256,
+                    "retrieved_at_unix": fallback_meta.retrieved_at_unix,
+                    "shape": fallback_shape,
+                },
             }
             parsed[day] = {
                 "status": "NOT VERIFIED",
-                "reason": "official SSE daily summary result was not a row list",
+                "reason": "legacy SSE summary unavailable; current daily endpoint shape captured for exact parser binding",
                 "result_type": type(rows).__name__,
+                "fallback_result_type": fallback_shape["result_type"],
             }
             continue
         if not rows:
