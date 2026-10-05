@@ -4,6 +4,7 @@ import datetime as dt
 import hashlib
 import json
 import re
+import time
 from collections import Counter
 from pathlib import Path
 
@@ -82,9 +83,63 @@ def semantic_matches(text: str, klass: str, publication_date: object) -> list[di
     ))
     return out
 
+def build_corpus_resilient(session: requests.Session) -> tuple[list[dict], dict]:
+    combined = {}
+    receipts = []
+    for label, keyword in s.market.KEYWORDS:
+        item = None
+        errors = []
+        for attempt in range(1, 5):
+            try:
+                item = s.market.fetch_keyword(session, label, keyword)
+                receipts.append({"label": label, "keyword": keyword, "attempt": attempt, "status": "PASS", "prior_errors": errors})
+                break
+            except Exception as exc:
+                msg = f"{type(exc).__name__}: {exc}"
+                errors.append(msg)
+                retryable = any(token in msg for token in ("HTTP 403", "HTTP 429", "HTTP 500", "HTTP 502", "HTTP 503", "HTTP 504", "timeout", "Timeout"))
+                if not retryable or attempt == 4:
+                    receipts.append({"label": label, "keyword": keyword, "attempt": attempt, "status": "FAIL", "errors": errors})
+                    raise
+                time.sleep(4.0 * attempt)
+        if item is None:
+            raise RuntimeError(f"keyword fetch unresolved: {label}/{keyword}")
+        for row in item["records"]:
+            ident = s.market.identity(row)
+            if ident not in combined:
+                combined[ident] = dict(row)
+    return [combined[k] for k in sorted(combined)], {"keyword_receipts": receipts}
+
+
+def write_execution_failure(exc: Exception, stage: str) -> int:
+    report = {
+        "schema": "stock-sse-primary-transition-semantic-resolver-v1",
+        "execution_failure": {"stage": stage, "error_type": type(exc).__name__, "error": str(exc)},
+        "summary": {"selected_documents": 0, "pdf_downloaded": 0, "text_extractable": 0, "strong_unique_near_publication": 0, "strong_unique_anywhere": 0, "unresolved": 0, "status_counts": {}, "by_class": {}, "resolution_canonical_sha256": None},
+        "adjudication": {
+            "diagnostic_transport": "FAIL",
+            "class_specific_semantic_disambiguation": "NOT VERIFIED",
+            "effective_state_reconstruction": "NOT VERIFIED",
+            "shanghai_historical_st_pit": "NOT VERIFIED",
+            "full_historical_st_pit": "NOT VERIFIED",
+            "advanced_business": "NOT VERIFIED",
+            "product_bytes_changed": False,
+            "repository_independence": "NOT VERIFIED",
+            "final_gate": "FAIL",
+        },
+        "boundary": "Network or execution failure is preserved as evidence and cannot be promoted into semantic or PIT support.",
+    }
+    OUT.write_text(json.dumps(report, ensure_ascii=False, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+    print(json.dumps(report, ensure_ascii=True, sort_keys=True))
+    return 2
+
+
 def main() -> int:
     session = requests.Session()
-    corpus = s.build_corpus(session)
+    try:
+        corpus, fetch_evidence = build_corpus_resilient(session)
+    except Exception as exc:
+        return write_execution_failure(exc, "build_marketwide_corpus")
     candidates = []
     for row in corpus:
         klass = s.inventory.classify(row.get("title") or "")
@@ -219,6 +274,7 @@ def main() -> int:
     report = {
         "schema": "stock-sse-primary-transition-semantic-resolver-v1",
         "source_window": {"begin": s.market.BEGIN, "end": s.market.END},
+        "source_fetch_evidence": fetch_evidence,
         "method": {
             "title_classes": sorted(TARGET_CLASSES),
             "strong_pattern_count": len(IMPLEMENT_PATTERNS) + len(CANCEL_PATTERNS),
