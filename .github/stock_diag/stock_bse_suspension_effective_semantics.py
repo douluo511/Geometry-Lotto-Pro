@@ -88,10 +88,15 @@ def strong_matches(text,patterns,action_word):
     out=[]
     for pid,pat in patterns:
         for m in pat.finditer(compact):
-            local=compact[max(0,m.start()-18):m.start()]
-            if PROSPECTIVE_PREFIX.search(local):
-                continue
+            local=compact[max(0,m.start()-32):m.start()]
             matched=m.group(0)
+            # Reject genuinely prospective wording near the matched relation,
+            # but do not reject a definitive exchange-approved sentence merely
+            # because it is preceded by “经向北京证券交易所申请”.
+            if PROSPECTIVE_PREFIX.search(local[-16:] + matched):
+                continue
+            if "申请" in local[-16:] and "交易所申请" not in local[-24:]:
+                continue
             full_dates=list(re.finditer(DATE,matched))
             # A broad clause spanning multiple complete dates cannot prove
             # which date governs the action. Keep it unresolved.
