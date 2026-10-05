@@ -1,5 +1,18 @@
 # Portfolio Execution State — 18 Windows EXE Projects
 
+## 2026-10-06 Stock PR #210 real-byte evidence binding hardening — new exact head
+
+- **Supersedes PR #210 head `847511a4...`: current exact head is `7f270b9ab58e11fd8129053a65e000c90ff9d8c1`.**
+- Code review found that the first #210 evaluator only validated SHA fields as 64-hex strings; it did not recompute hashes from evidence bytes. The old positive contract fixture used a fabricated `"a"*64` hash and could therefore PASS a self-declared claim. That head is not accepted.
+- Repair now requires each canonical/source/per-market claim to bind to a real file under the product root, rejects absolute/path-escape references, recomputes SHA-256 from actual bytes, and rejects missing/tampered/hash-mismatched evidence.
+- Counterexample tests now explicitly prove: fabricated 64-hex hash => WARN; post-claim byte tamper => WARN; path traversal => WARN; only real matching evidence bytes may PASS.
+- Hardened `historical_pit.py` SHA-256: `e7a128f75662f0e440944d014742012156da108a32e35abc7283c198f8b5c54c`.
+- Updated nested package manifest SHA-256: `714f42dcf3f503ba5052c676ad5c791557c81c8316449ea4343be0d3fb612b34`.
+- Manifest commits: `36f60311afe2107f4fc4b1e3d013f9729271c18e` and `7f270b9ab58e11fd8129053a65e000c90ff9d8c1`.
+- Because behavior changed again, every earlier #210 runtime/Windows result is historical. Fresh exact-head runs: source `37342995675`, business `37342995570`, desktop `37342995652` are the only runs allowed to adjudicate the new head.
+- Current-product migration/export remains **17/18 PASS** until deterministic Stock export is rebuilt against the terminal `7f270b9a...` lineage (or a later repaired head).
+- Repository independence remains 0/18; real production Release N→N+1 remains non-PASS; Final/Delivery remains 0/18.
+
 ## 2026-10-06 Stock historical-state evidence advance
 
 - **Authoritative Stock product remains PR #155** @ `43168d9e75c70ab55be808d8a51f0c0eb14d83d5`; fresh source/business/desktop chains remain terminal SUCCESS and Final remains FAIL on business PIT + production repository/release boundaries.
