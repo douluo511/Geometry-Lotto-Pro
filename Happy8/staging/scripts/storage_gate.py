@@ -140,11 +140,18 @@ def composite_sample():
         "numbers": [2,7,16,19,21,25,30,31,33,35,42,45,50,52,53,55,56,60,63,72],
     }]
     fuzhou_name = "fuzhou_page_001.html"
+    calendar_name = "mof_market_calendar_contract.json"
     jiangsu_history_name = "jiangsu_history_page_001.html"
+    derived_name = "derived_from_jiangsu_history_pages"
     raw = {
         fuzhou_name: b"<html>fuzhou official fixture</html>" * 100,
+        calendar_name: b'{"schema":"happy8-market-calendar-contract-v1","fixture":true}',
         jiangsu_history_name: b"<html>jiangsu history fixture</html>" * 100,
         "jiangsu_welfare_lottery.html": b"<html>jiangsu current fixture</html>" * 100,
+    }
+    crosscheck_material = {
+        "crosschecked_issues": ["2026261"],
+        "missing_index_issues": [],
     }
     manifest = [
         {
@@ -155,6 +162,17 @@ def composite_sample():
             "http_status": 200,
             "sha256": sha256_bytes(raw[fuzhou_name]),
             "bytes": len(raw[fuzhou_name]),
+            "row_count": 1,
+            "first_issue": "2026261",
+            "last_issue": "2026261",
+        },
+        {
+            "source": "ministry_of_finance_lottery_market_calendar",
+            "filename": calendar_name,
+            "url": "https://www.mof.gov.cn/",
+            "http_status": None,
+            "sha256": sha256_bytes(raw[calendar_name]),
+            "bytes": len(raw[calendar_name]),
             "row_count": 1,
             "first_issue": "2026261",
             "last_issue": "2026261",
@@ -171,6 +189,19 @@ def composite_sample():
             "first_issue": "2026261",
             "last_issue": "2026261",
         },
+        {
+            "source": "jiangsu_welfare_lottery_crosscheck",
+            "filename": derived_name,
+            "url": "https://www.jslottery.com/winning_history_a",
+            "http_status": 200,
+            "sha256": sha256_json(crosscheck_material),
+            "bytes": 0,
+            "row_count": 1,
+            "first_issue": "2026261",
+            "last_issue": "2026261",
+            "missing_index_count": 0,
+            "missing_index_issues": [],
+        },
     ]
     report = {
         "schema": "happy8-staging-official-network-v4",
@@ -181,14 +212,14 @@ def composite_sample():
         "canonical_hash": sha256_json(draws),
         "crosscheck_count": 1,
         "crosscheck_status": "PASS",
-        "verification": "FUZHOU_NUMBERS_PLUS_JIANGSU_DATES_AND_CURRENT_NUMBERS",
-        "history_source": "jiangxi_fuzhou_plus_jiangsu_official",
+        "verification": "FUZHOU_NUMBERS_PLUS_MOF_MARKET_CALENDAR_CROSSCHECKED_JIANGSU_AND_CURRENT_NUMBERS",
+        "history_source": "jiangxi_fuzhou_numbers_plus_mof_calendar_crosschecked_jiangsu",
         "history_raw_manifest": manifest,
         "source_receipts": [
             {
-                "source": "jiangxi_fuzhou_plus_jiangsu_official",
+                "source": "jiangxi_fuzhou_numbers_plus_mof_calendar_crosschecked_jiangsu",
                 "raw_sha256": sha256_json(manifest),
-                "bytes": len(raw[fuzhou_name]) + len(raw[jiangsu_history_name]),
+                "bytes": len(raw[fuzhou_name]) + len(raw[calendar_name]) + len(raw[jiangsu_history_name]),
                 "status": "PASS",
             },
             {
@@ -291,6 +322,25 @@ def main() -> int:
             checks["composite_source_identity_fail_closed"] = {"status": "FAIL"}
         except ValueError:
             checks["composite_source_identity_fail_closed"] = {"status": "PASS"}
+
+        bad_calendar = copy.deepcopy(report)
+        bad_calendar["history_raw_manifest"][1]["filename"] = "calendar.json"
+        bad_calendar["source_receipts"][0]["raw_sha256"] = sha256_json(bad_calendar["history_raw_manifest"])
+        try:
+            store.commit_official_snapshot(bad_calendar, raw)
+            checks["composite_calendar_identity_fail_closed"] = {"status": "FAIL"}
+        except ValueError:
+            checks["composite_calendar_identity_fail_closed"] = {"status": "PASS"}
+
+        bad_derived = copy.deepcopy(report)
+        bad_derived["history_raw_manifest"][-1]["bytes"] = 1
+        bad_derived["source_receipts"][0]["raw_sha256"] = sha256_json(bad_derived["history_raw_manifest"])
+        bad_derived["source_receipts"][0]["bytes"] += 1
+        try:
+            store.commit_official_snapshot(bad_derived, raw)
+            checks["derived_crosscheck_pseudoraw_fail_closed"] = {"status": "FAIL"}
+        except ValueError:
+            checks["derived_crosscheck_pseudoraw_fail_closed"] = {"status": "PASS"}
 
     status = "PASS" if all(x["status"] == "PASS" for x in checks.values()) else "FAIL"
     value = {"schema":"happy8-storage-gate-v2","status":status,"checks":checks}
