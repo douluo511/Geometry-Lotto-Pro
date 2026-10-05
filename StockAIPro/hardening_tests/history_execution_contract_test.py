@@ -253,7 +253,7 @@ def test_qualification_bootstrap_reaches_frozen_coverage(folder):
         "qualification_bootstrap_max_seconds": 60,
     })
     cfg["network"].update({
-        "qualification_history_workers": 4,
+        "qualification_history_workers": 24,
         "retry_backoff_seconds": 0,
         "retry_jitter_seconds": 0,
         "request_delay_seconds": 0,
@@ -287,7 +287,7 @@ def test_qualification_bootstrap_reaches_frozen_coverage(folder):
     assert status["delisted_coverage"] >= 0.90
     assert status["covered_symbols"] >= 18
     progress = json.loads((data / "state" / "qualification_history_progress.json").read_text(encoding="utf-8"))
-    assert progress["workers"] == 4
+    assert progress["workers"] == 24
     assert progress["status"] == "COMPLETE"
 
 
@@ -434,7 +434,7 @@ def main():
                          "only_transient_failures_retry", "single_retry_owner_three_attempts",
                          "300_live_plus_60_bootstrap_preserved", "eight_year_range_preserved", "models_unchanged",
                          "atomic_history_target_deduplicated", "progress_checkpoints_persisted",
-                         "qualification_bootstrap_keeps_ninety_percent_floor",
+                         "qualification_bootstrap_keeps_ninety_percent_floor", "qualification_24_worker_path_preserves_denominator",
                          "qualification_bootstrap_unavailable_sources_not_verified",
                          "both_sources_unavailable_stop_prediction", "preserved_cache_not_counted_as_live_refresh", "timeout_retains_stdout",
                          "prediction_freeze_rejects_missing_empty_malformed_map", "prediction_freeze_requires_all_frozen_files",
