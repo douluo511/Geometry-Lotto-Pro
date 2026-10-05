@@ -14,12 +14,12 @@
   },
   "aggregate": {
     "projects_total": 18,
-    "export_verification_pass": 16,
-    "export_verification_nonpass": 2,
+    "export_verification_pass": 17,
+    "export_verification_nonpass": 1,
     "real_independent_repository_pass": 0,
     "final_delivery_allowed": 0,
-    "current_product_bound_export_pass": 16,
-    "current_product_bound_export_not_verified": 2
+    "current_product_bound_export_pass": 17,
+    "current_product_bound_export_not_verified": 1
   },
   "projects": [
     {
@@ -149,46 +149,27 @@
     {
       "id": 10,
       "project": "Stock AI Pro",
-      "export_pr": 99,
-      "export_head": "0e47649e2acee93aa56ea3c649ba345ea2ee1115",
-      "export_run": 37256423841,
-      "export_status": "NOT VERIFIED",
+      "export_pr": 138,
+      "export_head": "f3dd6b4ad9832aab7b0f54aeaaa0ab3d6bc1000e",
+      "export_run": 37262857331,
+      "export_status": "PASS",
       "repository_independence": "BLOCKED",
       "final_gate": "FAIL",
       "source_product_pr": 126,
-      "source_product_head": "c6e329d2a5059f296ee2303032b28b5a702a3600",
+      "source_product_head": "dfa07c51fffdaa7736147cd49e39a274a745e363",
       "source_product_status": "IN_PROGRESS",
-      "export_artifact_id": 11323165672,
-      "export_artifact_digest": "sha256:1c6c1f34a149e7d9bdf02969ee06a6216a92c1b4236cf031cb0a8d680f28e8c6",
+      "export_artifact_id": 11324493517,
+      "export_artifact_digest": "sha256:1980efa7570b5a9d0a61e7ef26487d69e2e70720f00df54fca195548402fbf7f",
       "source_current_head_evidence": {
         "source_offline_real_network": "PASS",
-        "source_run": 37256385039,
-        "source_artifact_id": 11322832915,
-        "source_artifact_digest": "sha256:04651bb2e591daaeb262dea894ae0b10c96b6ccd4b14fde90cbfa122133bece8",
+        "source_run": 37259832034,
         "full_business": "IN_PROGRESS",
-        "full_business_run": 37256385026,
+        "full_business_run": 37259832083,
         "native_desktop": "IN_PROGRESS",
-        "native_desktop_run": 37256385030,
-        "note": "Current exact-head source/offline/network chain closed PASS. Business and desktop remain fresh in-progress gates; no Final promotion."
+        "native_desktop_run": 37259832040,
+        "note": "Migration seed is current-product-bound and PASS. Product business/desktop acceptance remains in progress and is not inherited by the seed."
       },
-      "source_product_evidence": {
-        "source_offline_real_network": {
-          "run": 37256385039,
-          "status": "PASS",
-          "artifact_id": 11322832915,
-          "artifact_digest": "sha256:04651bb2e591daaeb262dea894ae0b10c96b6ccd4b14fde90cbfa122133bece8"
-        },
-        "full_production_business": {
-          "run": 37256385026,
-          "status": "IN_PROGRESS"
-        },
-        "native_windows_desktop": {
-          "run": 37256385030,
-          "status": "IN_PROGRESS"
-        }
-      },
-      "stale_reason": "Product head advanced to PR #126 exact dfa07c51fffdaa7736147cd49e39a274a745e363 after this seed was verified; seed must be rebound and reverified.",
-      "current_product_head": "dfa07c51fffdaa7736147cd49e39a274a745e363"
+      "superseded_export_pr": 99
     },
     {
       "id": 11,
@@ -201,7 +182,7 @@
       "final_gate": "FAIL",
       "source_product_pr": 95,
       "source_product_head": "e3ae5134146fdb336f3f8075f26bf8d2cc275ae5",
-      "source_product_status": "CANDIDATE_ONLY",
+      "source_product_status": "ACTIVE_HARDENING_REVALIDATING",
       "export_artifact_id": 11323905183,
       "export_artifact_digest": "sha256:0e2642047ffe86735897cef95318be90a12f09d6c1cc3aec1ea521d605ddf522",
       "engineering_completion_percent": 85.7143,
@@ -209,8 +190,8 @@
       "overall_completion_percent": 68.75,
       "product_tree_byte_identity": "PASS",
       "superseded_export_pr": 97,
-      "stale_reason": "Product head advanced to PR #136 exact ff2eaf505d7d3a4b7c31b6317be1cc8aff986698 after this seed was verified; seed must be rebound and reverified.",
-      "current_product_head": "ff2eaf505d7d3a4b7c31b6317be1cc8aff986698"
+      "stale_reason": "Export #131 is bound to stable base e3ae5134. Active RMF business hardening #136/#137 modifies product behavior/evidence and must be integrated, fully revalidated, then rebound before current-product migration PASS can be restored.",
+      "current_product_head": "78083c001a76d5696bf93d30c4d8b06a3e959754"
     },
     {
       "id": 12,
@@ -304,7 +285,7 @@
     }
   ],
   "next_resume_condition": "When an independent target repository becomes visible to the connected GitHub installation or an account-level repository-creation credential/action becomes available, seed only from the indexed verified exact-head export and rerun the full frozen acceptance chain there before any PASS inheritance.",
-  "latest_delta": "Current-product-bound migration readiness is 16/18, not 18/18. SSQ #132 and DLT #133 are rebound and PASS. Stock #99 is stale after PR #126 advanced to dfa07c51..., and RMF #131 is stale after PR #136 advanced to ff2eaf50.... Those two remain NOT VERIFIED until rebound and exact-head export verification reruns.",
+  "latest_delta": "Current-product-bound migration readiness is 17/18. Stock AI #138 exact head f3dd6b4... run 37262857331 PASS restores Stock migration binding to product head dfa07c51.... RMF remains the sole current-product-bound export NOT VERIFIED because active business hardening #136/#137 must first be integrated and revalidated.",
   "infrastructure_capability": {
     "repository_creation": "BLOCKED",
     "repository_creation_evidence": "PR #127: Actions integration token cannot act as user-level repository creator; connector exposes no create-repository mutation.",
@@ -315,6 +296,6 @@
   "audit": {
     "exact_seed_audit_date": "2026-10-05",
     "status": "PASS",
-    "note": "18/18 migration lines remain export-verification PASS. SSQ/DLT migration lines were replaced after checkout-identity hardening; old #114/#115 closed without merge."
+    "note": "Historical migration seed coverage exists for all 18 lines, but current-product-bound readiness is 17/18. Stock #138 is rebound and PASS; RMF remains NOT VERIFIED until active hardening branches are integrated and a fresh exact-head export is verified."
   }
 }
