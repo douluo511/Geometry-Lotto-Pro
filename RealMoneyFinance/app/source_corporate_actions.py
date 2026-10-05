@@ -219,7 +219,26 @@ def verify_corporate_action_lineage(
             clusters[-1].append(signal)
     changes = []
     for cluster in clusters:
-        strongest = max(cluster, key=lambda x: (x["relative_change"], -x["split_index"]))
+        # Rolling-median persistence intentionally creates several neighboring
+        # candidate splits around one real adjustment step. Selecting the
+        # earliest equal-strength split can move the evidence date *before* the
+        # actual ex-date. Anchor the persistent regime change to the largest
+        # adjacent qfq/raw factor jump inside the validated cluster, while using
+        # the rolling windows only to prove persistence/noise separation.
+        def _adjacent_jump(signal):
+            split = int(signal["split_index"])
+            if split <= 0 or split >= len(factor_points):
+                return -1.0
+            left = float(factor_points[split - 1]["factor"])
+            right = float(factor_points[split]["factor"])
+            if left <= 0 or right <= 0:
+                return -1.0
+            return abs(right / left - 1.0)
+
+        strongest = max(
+            cluster,
+            key=lambda x: (_adjacent_jump(x), x["relative_change"], -x["split_index"]),
+        )
         strongest = dict(strongest)
         strongest.pop("split_index", None)
         changes.append(strongest)
