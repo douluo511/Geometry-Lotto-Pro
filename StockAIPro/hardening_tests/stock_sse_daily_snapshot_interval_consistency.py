@@ -120,7 +120,7 @@ def page_numbers(payload: dict, page_size: int, row_count: int):
     return 1 if row_count < page_size else None
 
 
-def fetch_interval_corpus(session: requests.Session):
+def fetch_interval_window(session: requests.Session, start_date: str, end_date: str):
     page_size = 200
     all_rows = []
     page_hashes = []
@@ -134,15 +134,15 @@ def fetch_interval_corpus(session: requests.Session):
             "pageHelp.pageNo": str(page_no),
             "productCode": "",
             "keyWords": "",
-            "startStopDate": WINDOW_START,
-            "endStopDate": WINDOW_END,
+            "startStopDate": start_date,
+            "endStopDate": end_date,
             "jsonCallBack": "jsonpCallback",
         }
         r, meta = request(session, "GET", INTERVAL_ENDPOINT, params=params)
         obj, kind = parse_payload(r.content.decode(r.encoding or "utf-8", errors="replace"))
         rows = obj.get("result") if isinstance(obj, dict) else None
         if not isinstance(rows, list):
-            raise RuntimeError(f"interval page {page_no}: result is not a list")
+            raise RuntimeError(f"interval {start_date}-{end_date} page {page_no}: result is not a list")
         all_rows.extend(rows)
         page_hashes.append({
             "page": page_no,
@@ -159,19 +159,45 @@ def fetch_interval_corpus(session: requests.Session):
             break
         page_no += 1
         if page_no > 100:
-            raise RuntimeError("interval pagination exceeded 100 pages")
-    intervals = [x for x in (interval_of(r) for r in all_rows) if x]
+            raise RuntimeError(f"interval {start_date}-{end_date} pagination exceeded 100 pages")
+    return {"start": start_date, "end": end_date, "raw_rows": all_rows, "pages": page_hashes}
+
+
+def fetch_interval_corpus(session: requests.Session):
+    windows = []
+    raw_rows = []
+    page_hashes = []
+    for year in range(2018, 2027):
+        start_date = f"{year}0101"
+        end_date = "20260930" if year == 2026 else f"{year}1231"
+        w = fetch_interval_window(session, start_date, end_date)
+        windows.append({
+            "start": w["start"],
+            "end": w["end"],
+            "raw_row_count": len(w["raw_rows"]),
+            "page_count": len(w["pages"]),
+        })
+        raw_rows.extend(w["raw_rows"])
+        page_hashes.extend([
+            {**x, "window_start": start_date, "window_end": end_date}
+            for x in w["pages"]
+        ])
+    intervals = [x for x in (interval_of(r) for r in raw_rows) if x]
     canonical = sorted({(x["code"], x["start"], x["end"] or "") for x in intervals})
     corpus_bytes = json.dumps(canonical, separators=(",", ":"), ensure_ascii=True).encode()
+    if not raw_rows:
+        raise RuntimeError("official yearly suspension interval corpus returned zero rows")
+    if not canonical:
+        raise RuntimeError("official yearly suspension corpus contained no parsed Shanghai A-share intervals")
     return {
-        "raw_rows": len(all_rows),
+        "raw_rows": len(raw_rows),
         "a_share_intervals": len(canonical),
         "page_count": len(page_hashes),
+        "windows": windows,
         "pages": page_hashes,
         "canonical_sha256": hashlib.sha256(corpus_bytes).hexdigest(),
         "intervals": canonical,
     }
-
 
 def fetch_daily_snapshot(session: requests.Session, d: str):
     data = {
