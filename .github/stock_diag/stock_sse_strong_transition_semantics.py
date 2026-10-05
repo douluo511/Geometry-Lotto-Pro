@@ -23,7 +23,7 @@ DATE = r"(20\d{2})年(\d{1,2})月(\d{1,2})日"
 
 IMPLEMENTATION_PATTERNS = [
     ("impl_from_date", re.compile(rf"(?:自|从|于)?\s*{DATE}\s*(?:开市|交易|复牌)?\s*起[^。；]{{0,80}}?(?:被|将被|开始|正式|继续|叠加)?实施(?:退市|其他)?风险警示")),
-    ("impl_resume_and_apply", re.compile(rf"(?:于|自)?\s*{DATE}[^。；]{{0,50}}?(?:复牌|恢复交易)[^。；]{{0,60}}?(?:被|将被|开始|正式)?实施(?:退市|其他)?风险警示")),
+    ("impl_resume_and_apply", re.compile(rf"(?:于|自)?\s*{DATE}\s*(?:开市|交易)?\s*(?:起|开始)?\s*(?:复牌|恢复交易)(?:之日)?\s*(?:起|开始)?[^。；]{{0,60}}?(?:被|将被|开始|正式)?实施(?:退市|其他)?风险警示")),
     ("impl_apply_from", re.compile(rf"(?:实施(?:退市|其他)?风险警示|被实施(?:退市|其他)?风险警示)[^。；]{{0,80}}?(?:自|从|于)\s*{DATE}\s*(?:起|开始)")),
     ("impl_start_date_label", re.compile(rf"(?:实施|起始|开始)(?:退市|其他)?风险警示(?:的)?(?:起始日|开始日|实施日|日期)[：:]?\s*{DATE}")),
     ("impl_name_change_from", re.compile(rf"(?:股票简称|证券简称)[^。；]{{0,60}}?(?:自|从|于)\s*{DATE}\s*起[^。；]{{0,100}}?(?:\*ST|ST)[^。；]{{0,80}}?(?:实施|风险警示)")),
@@ -31,7 +31,7 @@ IMPLEMENTATION_PATTERNS = [
 
 CANCEL_PATTERNS = [
     ("cancel_from_date", re.compile(rf"(?:自|从|于)?\s*{DATE}\s*(?:开市|交易|复牌)?\s*起[^。；]{{0,100}}?(?:撤销|取消|终止实施)(?:股票)?(?:退市|其他)?风险警示")),
-    ("cancel_resume_and_remove", re.compile(rf"(?:于|自)?\s*{DATE}[^。；]{{0,50}}?(?:复牌|恢复交易)[^。；]{{0,80}}?(?:撤销|取消|终止实施)(?:股票)?(?:退市|其他)?风险警示")),
+    ("cancel_resume_and_remove", re.compile(rf"(?:于|自)?\s*{DATE}\s*(?:开市|交易)?\s*(?:起|开始)?\s*(?:复牌|恢复交易)(?:之日)?\s*(?:起|开始)?[^。；]{{0,80}}?(?:撤销|取消|终止实施)(?:股票)?(?:退市|其他)?风险警示")),
     ("cancel_action_from", re.compile(rf"(?:撤销|取消|终止实施)(?:股票)?(?:退市|其他)?风险警示[^。；]{{0,80}}?(?:自|从|于)\s*{DATE}\s*(?:起|开始)")),
     ("cancel_start_date_label", re.compile(rf"(?:撤销|取消)(?:股票)?(?:退市|其他)?风险警示(?:的)?(?:起始日|开始日|实施日|日期)[：:]?\s*{DATE}")),
     ("cancel_name_change_from", re.compile(rf"(?:股票简称|证券简称)[^。；]{{0,60}}?(?:自|从|于)\s*{DATE}\s*起[^。；]{{0,120}}?(?:由|变更为)[^。；]{{0,80}}?(?:撤销|取消|风险警示)")),
@@ -54,12 +54,18 @@ def strong_matches(text: str, klass: str):
                 value=iso(m.groups()[:3])
             except Exception:
                 continue
+            matched=m.group(0)
+            # Section headings such as “撤销风险警示的适用情形” / “实施风险警示的适用情形”
+            # introduce historical context. A later date in that same broad clause is not the
+            # current transition date, so fail closed instead of counting it as strong evidence.
+            if pid in {"impl_apply_from", "cancel_action_from"} and "适用情形" in matched:
+                continue
             lo=max(0,m.start()-100); hi=min(len(compact),m.end()+140)
             ctx=compact[lo:hi]
             out.append({
                 "pattern_id":pid,
                 "date":value,
-                "matched_text":m.group(0)[:320],
+                "matched_text":matched[:320],
                 "context_sha256":hashlib.sha256(ctx.encode("utf-8")).hexdigest(),
             })
     uniq={}
