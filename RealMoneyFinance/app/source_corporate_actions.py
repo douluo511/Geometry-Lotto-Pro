@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 import math
+import re
 from typing import Iterable
 
 from .domain import DailyBar, validate_market_rows
@@ -123,14 +124,28 @@ def verify_corporate_action_lineage(
         return {"status": "NOT VERIFIED", "reason": "qfq/raw symbol evidence is missing or mismatched"}
     if qfq_meta.get("price_adjustment") != "qfq" or raw_meta.get("price_adjustment") != "unadjusted":
         return {"status": "NOT VERIFIED", "reason": "qfq and raw adjustment identities are not independently present"}
+    providers = {
+        "qfq": qfq_meta.get("provider"),
+        "raw": raw_meta.get("provider"),
+        "events": event_meta.get("provider"),
+    }
+    if (
+        providers["qfq"] != "tencent_public_full_kline"
+        or providers["raw"] != "tencent_public_full_kline"
+        or providers["events"] != "eastmoney_share_bonus_datacenter"
+    ):
+        return {"status": "NOT VERIFIED", "reason": "corporate-action source provider identity mismatch",
+                "source_providers": providers}
 
     hashes = {
         "qfq_payload_sha256": str(qfq_meta.get("payload_sha256") or ""),
         "raw_payload_sha256": str(raw_meta.get("payload_sha256") or ""),
         "event_payload_sha256": str(event_meta.get("payload_sha256") or ""),
     }
-    if any(len(v) != 64 for v in hashes.values()):
-        return {"status": "NOT VERIFIED", "reason": "source payload hash lineage is incomplete", **hashes}
+    if any(not re.fullmatch(r"[0-9a-f]{64}", v) for v in hashes.values()):
+        return {"status": "NOT VERIFIED", "reason": "source payload hash lineage is incomplete or malformed", **hashes}
+    if hashes["qfq_payload_sha256"] == hashes["raw_payload_sha256"]:
+        return {"status": "NOT VERIFIED", "reason": "qfq/raw payloads are not independently distinguishable", **hashes}
 
     qmap = {x.trade_date: float(x.close) for x in qfq}
     rmap = {x.trade_date: float(x.close) for x in raw}
@@ -208,11 +223,7 @@ def verify_corporate_action_lineage(
         "matched_events": matched,
         "unexplained_changes": unexplained,
         "unmatched_valid_events": unmatched_events,
-        "source_providers": {
-            "qfq": qfq_meta.get("provider"),
-            "raw": raw_meta.get("provider"),
-            "events": event_meta.get("provider"),
-        },
+        "source_providers": providers,
         **hashes,
         "boundary": (
             "PASS proves observed Tencent qfq/raw factor changes are explained by independently retrieved "
