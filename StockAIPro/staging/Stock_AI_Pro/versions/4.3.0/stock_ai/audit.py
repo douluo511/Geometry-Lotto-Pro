@@ -40,6 +40,10 @@ def run_audit():
         historical_st_status=="PASS"
         and pit_policy.get("status")=="PASS"
         and pit_policy.get("point_in_time_only") is True
+        and pit_policy.get("selection_state_date")=="signal_date"
+        and pit_policy.get("execution_state_date")=="next_market_open"
+        and pit_policy.get("market_calendar_source")=="verified_canonical_daily_state"
+        and pit_policy.get("liquidity_ranking_after_signal_pit") is True
         and bool(pit_policy.get("canonical_sha256"))
         and pit_policy.get("canonical_sha256")==historical_st_meta.get("canonical_sha256")
     )
@@ -63,7 +67,7 @@ def run_audit():
       {"id":"RND_PREOUTCOME_FREEZE","name":"研发Challenger事前冻结","status":"PASS" if rnd_shadow_ok else "WARN","detail":"Champion/Challenger必须在真实结果出现前进入冻结manifest"},
       {"id":"RND_NO_AUTO_PROMOTE","name":"研发禁止静默晋级","status":"PASS" if not bool(rnd_cfg.get("auto_promote",False)) else "FAIL","detail":"候选通过Gate也只进入PROMOTABLE_REVIEW，不自动修改生产模型"},
       {"id":"HISTORICAL_ST_PIT","name":"历史ST逐日状态","status":historical_st_status,"detail":historical_st_detail},
-      {"id":"HISTORICAL_ST_PIT_CONSUMED","name":"历史ST/停牌PIT回测消费","status":"PASS" if pit_policy_ok else "WARN","detail":f"policy={pit_policy.get('status','缺失')}; canonical={pit_policy.get('canonical_sha256')}; evidence={historical_st_meta.get('canonical_sha256')}"}
+      {"id":"HISTORICAL_ST_PIT_CONSUMED","name":"历史ST/停牌PIT回测消费","status":"PASS" if pit_policy_ok else "WARN","detail":f"policy={pit_policy.get('status','缺失')}; selection={pit_policy.get('selection_state_date')}; execution={pit_policy.get('execution_state_date')}; calendar={pit_policy.get('market_calendar_source')}; pit_before_topn={pit_policy.get('liquidity_ranking_after_signal_pit')}; canonical={pit_policy.get('canonical_sha256')}; evidence={historical_st_meta.get('canonical_sha256')}"}
     ]
     fail=sum(c["status"]=="FAIL" for c in checks);warn=sum(c["status"]=="WARN" for c in checks);trust="LOW" if fail else ("MEDIUM" if warn else "HIGH")
     five=[{"check":c["name"],"status":c["status"],"why1":"验证未达到PASS。","why2":"数据覆盖、时间一致性或基准证据不足。","why3":"公开数据和样本外稳定性存在现实限制。","why4":"忽略会把偏差或Beta误认为Alpha。","why5":"处置：降低MODEL TRUST，继续积累冻结样本并重新验证。"} for c in checks if c["status"]!="PASS"]
