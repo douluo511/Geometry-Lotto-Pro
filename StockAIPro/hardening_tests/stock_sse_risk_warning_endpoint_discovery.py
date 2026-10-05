@@ -11,14 +11,27 @@ import requests
 from bs4 import BeautifulSoup
 
 PAGE_GROUPS = [
-    [
-        "https://www.sse.com.cn/assortment/stock/list/info/company/index.shtml?COMPANY_CODE=603070",
-        "https://big5.sse.com.cn/site/cht/www.sse.com.cn/assortment/stock/list/info/company/index.shtml?COMPANY_CODE=603070",
-    ],
-    [
-        "https://www.sse.com.cn/assortment/stock/list/info/company/index.shtml?COMPANY_CODE=603388",
-        "https://big5.sse.com.cn/site/cht/www.sse.com.cn/assortment/stock/list/info/company/index.shtml?COMPANY_CODE=603388",
-    ],
+    {
+        "kind": "company",
+        "urls": [
+            "https://www.sse.com.cn/assortment/stock/list/info/company/index.shtml?COMPANY_CODE=603070",
+            "https://big5.sse.com.cn/site/cht/www.sse.com.cn/assortment/stock/list/info/company/index.shtml?COMPANY_CODE=603070",
+        ],
+    },
+    {
+        "kind": "company",
+        "urls": [
+            "https://www.sse.com.cn/assortment/stock/list/info/company/index.shtml?COMPANY_CODE=603388",
+            "https://big5.sse.com.cn/site/cht/www.sse.com.cn/assortment/stock/list/info/company/index.shtml?COMPANY_CODE=603388",
+        ],
+    },
+    {
+        "kind": "riskplate",
+        "urls": [
+            "https://www.sse.com.cn/disclosure/listedinfo/riskplate/",
+            "https://big5.sse.com.cn/site/cht/www.sse.com.cn/disclosure/listedinfo/riskplate/",
+        ],
+    },
 ]
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/154.0 Safari/537.36"
 TOKENS = (
@@ -65,11 +78,30 @@ def bounded_matches(text, url):
     return {"url":url,"matches":out}
 
 
+
+
+def extract_contract(text):
+    sql_ids=set()
+    endpoints=[]
+    for m in re.finditer(r"sqlId[^A-Za-z0-9_]{0,20}([A-Za-z0-9_\\-]+)",text,re.I):
+        sql_ids.add(m.group(1))
+    for pat in (
+        r"https?://query\\.sse\\.com\\.cn/[A-Za-z0-9_./?=&%\\-]+",
+        r"commonSoaQuery\\.do",
+        r"commonQuery\\.do",
+    ):
+        endpoints.extend(m.group(0) for m in re.finditer(pat,text,re.I))
+    return endpoints, sql_ids
+
 def main():
     s=requests.Session()
     pages=[]
     script_urls=set()
-    for candidates in PAGE_GROUPS:
+    endpoint_candidates=[]
+    sql_ids=set()
+    for group in PAGE_GROUPS:
+        kind=group["kind"]
+        candidates=group["urls"]
         failures=[]
         chosen=None
         for url in candidates:
@@ -93,7 +125,11 @@ def main():
             if "sse.com.cn" in full:
                 scripts.append(full)
                 script_urls.add(full)
+        page_endpoints,page_sql_ids=extract_contract(text)
+        endpoint_candidates.extend(page_endpoints)
+        sql_ids.update(page_sql_ids)
         pages.append({
+            "kind":kind,
             "url":url,
             "candidate_failures":failures,
             "status":r.status_code,
@@ -102,13 +138,13 @@ def main():
             "script_count":len(scripts),
             "scripts":scripts,
             "inline_matches":bounded_matches(text,url)["matches"],
+            "inline_endpoint_candidates":sorted(set(page_endpoints)),
+            "inline_sql_ids":sorted(page_sql_ids),
             "has_risk_warning_label":"风险警示" in text or "風險警示" in text,
-            "has_company_announcements_label":"公司公告" in text or "公司公告" in text,
+            "has_company_announcements_label":"公司公告" in text,
         })
 
     scripts=[]
-    endpoint_candidates=[]
-    sql_ids=set()
     for url in sorted(script_urls):
         try:
             r,meta=fetch(s,url,attempts=2)
@@ -116,15 +152,9 @@ def main():
             matches=bounded_matches(text,url)["matches"]
             if not matches:
                 continue
-            for m in re.finditer(r"sqlId[^A-Za-z0-9_]{0,20}([A-Za-z0-9_\-]+)",text,re.I):
-                sql_ids.add(m.group(1))
-            for pat in (
-                r"https?://query\.sse\.com\.cn/[A-Za-z0-9_./?=&%-]+",
-                r"commonSoaQuery\.do",
-                r"commonQuery\.do",
-            ):
-                for m in re.finditer(pat,text,re.I):
-                    endpoint_candidates.append(m.group(0))
+            script_endpoints,script_sql_ids=extract_contract(text)
+            endpoint_candidates.extend(script_endpoints)
+            sql_ids.update(script_sql_ids)
             scripts.append({
                 "url":url,
                 "status":r.status_code,
@@ -150,8 +180,9 @@ def main():
         "sql_ids":sorted(sql_ids),
         "relevant_sql_ids":relevant_sql,
         "adjudication":{
-            "company_page_risk_warning_surface":"SUPPORTED" if any(x["has_risk_warning_label"] for x in pages) else "NOT VERIFIED",
-            "company_announcement_surface":"SUPPORTED" if all(x["has_company_announcements_label"] for x in pages) else "NOT VERIFIED",
+            "company_page_risk_warning_surface":"SUPPORTED" if any(x["kind"]=="company" and x["has_risk_warning_label"] for x in pages) else "NOT VERIFIED",
+            "company_announcement_surface":"SUPPORTED" if any(x["kind"]=="company" and x["has_company_announcements_label"] for x in pages) else "NOT VERIFIED",
+            "official_riskplate_surface":"SUPPORTED" if any(x["kind"]=="riskplate" and x["has_risk_warning_label"] for x in pages) else "NOT VERIFIED",
             "machine_query_contract_discovery":"SUPPORTED" if discovery_supported else "NOT VERIFIED",
             "shanghai_historical_st_pit":"NOT VERIFIED",
             "full_historical_st_pit":"NOT VERIFIED",
