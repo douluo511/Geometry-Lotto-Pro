@@ -315,9 +315,64 @@ def fetch_current_shanghai_universe_precommit(
         if declared_total is None:
             declared_total = total
         elif total != declared_total:
-            raise ValueError(
+            drift_error = (
                 f"universe total changed during pagination: {declared_total} -> {total}"
             )
+            host_attempts.append({
+                "page": page,
+                "provider": source_provider,
+                "status": "FAIL",
+                "failure_kind": "pagination_total_changed",
+                "error": drift_error,
+            })
+            try:
+                sse_obj, sse_meta, sse_attempts = _fetch_official_sse_universe(client)
+            except Exception as sse_exc:
+                raise RuntimeError(
+                    drift_error + "; official SSE restart fallback also failed: "
+                    + repr(sse_exc)
+                ) from sse_exc
+            host_attempts.extend([
+                {"page": "provider_restart", **attempt} for attempt in sse_attempts
+            ])
+            sse_data = sse_obj.get("data")
+            if not isinstance(sse_data, dict):
+                raise ValueError("official SSE restart response missing data object")
+            sse_total = int(sse_data.get("total") or 0)
+            sse_diff = sse_data.get("diff")
+            if sse_total <= 0 or not isinstance(sse_diff, list) or not sse_diff:
+                raise ValueError("official SSE restart response is empty or malformed")
+            restarted_entries: list[dict[str, Any]] = []
+            for row in sse_diff:
+                if not isinstance(row, dict):
+                    raise ValueError("official SSE restart universe row must be an object")
+                market = int(row.get("f13"))
+                if market != 1:
+                    raise ValueError(
+                        f"official SSE restart returned non-Shanghai market code: {market}"
+                    )
+                restarted_entries.append({
+                    "symbol": str(row.get("f12", "")).strip(),
+                    "name": str(row.get("f14", "")).strip(),
+                })
+            if len({item["symbol"] for item in restarted_entries}) != sse_total:
+                raise ValueError(
+                    "official SSE restart parsed count does not match provider total"
+                )
+            entries = restarted_entries
+            page_payload_hashes = getattr(sse_meta, "payload_sha256s", None)
+            payload_hashes = (
+                [str(value).lower() for value in page_payload_hashes]
+                if page_payload_hashes
+                else [str(sse_meta.payload_sha256).lower()]
+            )
+            retrieved_times = [sse_meta.retrieved_at_unix]
+            declared_total = sse_total
+            selected_source_urls = [str(sse_meta.url).split("?")[0]]
+            selected_source_providers = [
+                "sse_official_current_shanghai_equity_universe"
+            ]
+            break
 
         diff = data.get("diff")
         if isinstance(diff, dict):
