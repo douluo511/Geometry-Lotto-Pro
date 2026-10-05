@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from collections import Counter
 from pathlib import Path
 
@@ -13,6 +14,7 @@ KNOWN_ACTIONS = {
     "continuation_notice",
     "actual_cancel",
     "mixed_cancel_continue",
+    "mixed_cancel_implement",
     "cancel_application",
     "descriptive_nontransition",
     "trigger_condition_notice",
@@ -23,6 +25,7 @@ DATE_REQUIRED_ACTIONS = {
     "overlay_implementation",
     "actual_cancel",
     "mixed_cancel_continue",
+    "mixed_cancel_implement",
 }
 
 
@@ -35,6 +38,8 @@ def classify_title(title: str) -> str:
     if any(token in text for token in ("撤销", "取消", "终止实施", "不再实施")):
         if "继续" in text or "叠加" in text:
             return "mixed_cancel_continue"
+        if MIXED_CANCEL_IMPLEMENT_RE.search(text):
+            return "mixed_cancel_implement"
         return "actual_cancel"
 
     if "预审计" in text or "专项说明" in text:
