@@ -1,0 +1,88 @@
+name: Stock SSE suspension endpoint validation
+
+on:
+  push:
+    branches:
+      - "diagnostic/stock-sse-suspension-endpoint-validate-20261005"
+    paths:
+      - "StockAIPro/hardening_tests/stock_sse_suspension_endpoint_validate.py"
+      - ".github/workflows/stock-sse-suspension-endpoint-validation.yml"
+  pull_request:
+    paths:
+      - "StockAIPro/hardening_tests/stock_sse_suspension_endpoint_validate.py"
+      - ".github/workflows/stock-sse-suspension-endpoint-validation.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact diagnostic head
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Verify exact diagnostic checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual="$(git rev-parse HEAD)"
+          expected="${{ github.event.pull_request.head.sha || github.sha }}"
+          test "$actual" = "$expected" || { echo "checkout identity mismatch: actual=$actual expected=$expected"; exit 1; }
+          echo "EXACT_DIAGNOSTIC_HEAD=$actual"
+
+      - name: Verify Stock product/runtime bytes unchanged
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="43168d9e75c70ab55be808d8a51f0c0eb14d83d5"
+          git merge-base --is-ancestor "$base" HEAD
+          changed="$(git diff --name-only "$base..HEAD" -- StockAIPro | grep -Ev '^StockAIPro/hardening_tests/(stock_sse_suspension_endpoint_discovery|stock_sse_suspension_endpoint_validate)\.py$' || true)"
+          test -z "$changed" || { echo "$changed"; exit 1; }
+          echo "STOCK_PRODUCT_BYTES_CHANGED=FALSE"
+
+      - name: Setup pinned Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.11.9"
+
+      - name: Install pinned validation dependency
+        run: python -m pip install --disable-pip-version-check --no-input "requests==2.34.2"
+
+      - name: Validate official SSE historical suspension endpoint
+        id: endpoint_validate
+        working-directory: StockAIPro
+        continue-on-error: true
+        run: python hardening_tests/stock_sse_suspension_endpoint_validate.py
+
+      - name: Upload endpoint validation evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: STOCK-SSE-SUSPENSION-ENDPOINT-VALIDATION-${{ github.sha }}
+          path: StockAIPro/stock_sse_suspension_endpoint_validation.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Explicit frozen boundary
+        if: always()
+        run: |
+          echo "HISTORICAL_DAILY_SUSPENSION_STATE=NOT VERIFIED"
+          echo "SHANGHAI_HISTORICAL_ST_NAME_STATE=NOT VERIFIED"
+          echo "FULL_HISTORICAL_ST_PIT=NOT VERIFIED"
+          echo "FINAL_GATE=FAIL"
+
+      - name: Endpoint validation aggregate
+        if: always()
+        shell: bash
+        run: |
+          if [ "${{ steps.endpoint_validate.outcome }}" != "success" ]; then
+            echo "ENDPOINT_VALIDATION=NOT VERIFIED"
+            exit 2
+          fi
+          echo "ENDPOINT_VALIDATION=PASS"
