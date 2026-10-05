@@ -1,0 +1,223 @@
+from __future__ import annotations
+
+import hashlib
+import json
+import re
+import time
+from pathlib import Path
+from urllib.parse import urljoin, urlparse
+
+import requests
+
+UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/154.0 Safari/537.36"
+SUSPENSION_PAGE = "https://www.sse.com.cn/disclosure/dealinstruc/suspension/stock/"
+SUSPENSION_SCRIPT = "https://www.sse.com.cn/xhtml/home/2021public/querySearch/search_tradeTip_2021.js"
+CALENDAR_PAGE = "https://www.sse.com.cn/disclosure/dealinstruc/calendar/index.shtml"
+CLOSED_LIST = "https://www.sse.com.cn/disclosure/dealinstruc/closed/list/"
+ENDPOINT = "https://query.sse.com.cn/commonSoaQuery.do"
+
+def fetch(session, url, *, params=None, attempts=3):
+    errors = []
+    for attempt in range(1, attempts + 1):
+        try:
+            r = session.get(
+                url,
+                params=params,
+                headers={
+                    "User-Agent": UA,
+                    "Referer": SUSPENSION_PAGE,
+                    "Accept": "text/html,application/json,text/javascript,*/*;q=0.01",
+                },
+                timeout=(8, 30),
+                allow_redirects=True,
+            )
+            if r.status_code == 429 or r.status_code >= 500:
+                raise RuntimeError(f"retryable HTTP {r.status_code}")
+            r.raise_for_status()
+            if not r.content:
+                raise RuntimeError("empty payload")
+            return r, {"attempt": attempt, "prior_errors": errors}
+        except Exception as exc:
+            errors.append(f"{type(exc).__name__}: {exc}")
+            if attempt == attempts:
+                raise
+            time.sleep(1.0 * (2 ** (attempt - 1)))
+
+def sha256(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+def decode(resp) -> str:
+    return resp.content.decode(resp.encoding or "utf-8", errors="replace")
+
+def snippets(text: str, needle: str, radius: int = 420, limit: int = 12):
+    out = []
+    lower = text.lower()
+    n = needle.lower()
+    start = 0
+    while len(out) < limit:
+        i = lower.find(n, start)
+        if i < 0:
+            break
+        lo = max(0, i - radius)
+        hi = min(len(text), i + len(needle) + radius)
+        frag = re.sub(r"\s+", " ", text[lo:hi]).strip()
+        out.append(frag)
+        start = i + len(needle)
+    return out
+
+def script_urls(html: str, base: str):
+    urls = []
+    for m in re.finditer(r"<script[^>]+src=[\"']([^\"']+)[\"']", html, flags=re.I):
+        u = urljoin(base, m.group(1))
+        if urlparse(u).netloc.endswith("sse.com.cn"):
+            urls.append(u)
+    return sorted(set(urls))
+
+def parse_json_or_jsonp(text: str):
+    s = text.strip()
+    try:
+        return json.loads(s), "json"
+    except Exception:
+        pass
+    m = re.match(r"^[A-Za-z0-9_.$]+\((.*)\)\s*;?\s*$", s, flags=re.S)
+    if not m:
+        raise ValueError("not JSON/JSONP")
+    return json.loads(m.group(1)), "jsonp"
+
+def bounded_row(row):
+    if not isinstance(row, dict):
+        return row
+    wanted = (
+        "securityCode", "securityName", "productCode", "productName",
+        "startStopDate", "endStopDate", "startStopTime", "endStopTime",
+        "startStopReason", "endStopReason", "stopReason", "controlType",
+    )
+    return {k: row.get(k) for k in wanted if k in row}
+
+def main():
+    s = requests.Session()
+
+    source_report = {}
+    texts = {}
+    for label, url in [
+        ("suspension_page", SUSPENSION_PAGE),
+        ("suspension_script", SUSPENSION_SCRIPT),
+        ("calendar_page", CALENDAR_PAGE),
+        ("closed_list", CLOSED_LIST),
+    ]:
+        r, meta = fetch(s, url)
+        text = decode(r)
+        texts[label] = text
+        source_report[label] = {
+            "url": r.url,
+            "status": r.status_code,
+            "bytes": len(r.content),
+            "sha256": sha256(r.content),
+            "content_type": r.headers.get("Content-Type"),
+            "attempt": meta["attempt"],
+        }
+
+    frontend_semantics = {
+        "endStopDate": snippets(texts["suspension_script"], "endStopDate"),
+        "endStopReason": snippets(texts["suspension_script"], "endStopReason"),
+        "startStopDate": snippets(texts["suspension_script"], "startStopDate"),
+        "resume_terms": snippets(texts["suspension_script"], "复牌") + snippets(texts["suspension_script"], "恢复"),
+    }
+
+    discovered = {}
+    all_scripts = set()
+    for label in ("suspension_page", "calendar_page", "closed_list"):
+        urls = script_urls(texts[label], source_report[label]["url"])
+        discovered[label] = urls
+        all_scripts.update(urls)
+
+    candidate_scripts = []
+    for url in sorted(all_scripts):
+        lower = url.lower()
+        if not any(k in lower for k in ("calendar", "trade", "query", "closed", "dealinstruc", "public")):
+            continue
+        try:
+            r, meta = fetch(s, url, attempts=2)
+            txt = decode(r)
+            hits = {}
+            for term in ("sqlId", "commonSoaQuery", "calendar", "tradeDate", "tradeDay", "休市", "开市", "endStopDate"):
+                ss = snippets(txt, term, radius=260, limit=4)
+                if ss:
+                    hits[term] = ss
+            if hits:
+                candidate_scripts.append({
+                    "url": r.url,
+                    "status": r.status_code,
+                    "bytes": len(r.content),
+                    "sha256": sha256(r.content),
+                    "attempt": meta["attempt"],
+                    "hits": hits,
+                })
+        except Exception as exc:
+            candidate_scripts.append({"url": url, "error": f"{type(exc).__name__}: {exc}"})
+
+    params = {
+        "isPagination": "true",
+        "sqlId": "GW_PL_JYTS_TFPXX",
+        "pageHelp.pageSize": "100",
+        "pageHelp.pageNo": "1",
+        "productCode": "",
+        "keyWords": "",
+        "startStopDate": "20260101",
+        "endStopDate": "20260930",
+        "jsonCallBack": "jsonpCallback",
+    }
+    rr, rmeta = fetch(s, ENDPOINT, params=params)
+    payload, parsed_as = parse_json_or_jsonp(decode(rr))
+    rows = payload.get("result") if isinstance(payload, dict) else None
+    if not isinstance(rows, list):
+        raise RuntimeError("official suspension endpoint result is not a list")
+    with_end = [bounded_row(x) for x in rows if isinstance(x, dict) and x.get("endStopDate")]
+    with_end_reason = [x for x in with_end if x.get("endStopReason")]
+
+    report = {
+        "schema": "stock-sse-calendar-semantic-probe-v1",
+        "source_report": source_report,
+        "frontend_semantics": frontend_semantics,
+        "discovered_script_urls": discovered,
+        "candidate_scripts": candidate_scripts,
+        "suspension_sample": {
+            "endpoint": rr.url,
+            "status": rr.status_code,
+            "sha256": sha256(rr.content),
+            "attempt": rmeta["attempt"],
+            "parsed_as": parsed_as,
+            "row_count": len(rows),
+            "rows_with_endStopDate": len(with_end),
+            "rows_with_endStopReason": len(with_end_reason),
+            "sample_with_endStopDate": with_end[:20],
+        },
+        "adjudication": {
+            "official_sources_reached": True,
+            "frontend_endStopDate_semantics": "SUPPORTED" if frontend_semantics["endStopDate"] else "NOT VERIFIED",
+            "independent_sse_trading_calendar_contract": "SUPPORTED_CANDIDATE_ONLY" if candidate_scripts else "NOT VERIFIED",
+            "historical_daily_suspension_state": "NOT VERIFIED",
+            "shanghai_historical_st_pit": "NOT VERIFIED",
+            "full_historical_st_pit": "NOT VERIFIED",
+            "advanced_business": "NOT VERIFIED",
+            "product_bytes_changed": False,
+            "final_gate": "FAIL",
+        },
+    }
+    Path("stock_sse_calendar_semantic_probe.json").write_text(
+        json.dumps(report, ensure_ascii=False, sort_keys=True, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    print(json.dumps({
+        "frontend_endStopDate_fragments": len(frontend_semantics["endStopDate"]),
+        "resume_term_fragments": len(frontend_semantics["resume_terms"]),
+        "candidate_script_count": len(candidate_scripts),
+        "sample_rows_with_endStopDate": len(with_end),
+        "historical_daily_suspension_state": "NOT VERIFIED",
+        "advanced_business": "NOT VERIFIED",
+        "final_gate": "FAIL",
+    }, ensure_ascii=True, sort_keys=True))
+    return 0
+
+if __name__ == "__main__":
+    raise SystemExit(main())
