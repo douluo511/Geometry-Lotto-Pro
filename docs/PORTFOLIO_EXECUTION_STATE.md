@@ -1,5 +1,16 @@
 # Portfolio Execution State — 18 Windows EXE Projects
 
+## 2026-10-06 Stock SSE transition inventory + BSE machine-surface checkpoint
+
+- Stock product candidate remains PR #210 exact head `7f270b9ab58e11fd8129053a65e000c90ff9d8c1`; no diagnostic below changes `StockAIPro/**`.
+- PR #221 exact head `dfdfb7e45e5950bccd768e177621a102277b51f8`, push run `37351489807` / job `111903147312` = **SUCCESS**. Official-SSE frozen event corpus reproduced exactly: 2,994 unique A-share rows / 295 codes / 622 missing-name rows; corpus SHA-256 `30abbc602f8f10c5f2929a43dc8c5c2d6e68dccd84434b0b2dba064fe5fd9fac`. Title inventory: implementation candidates 406, cancellation candidates 261, application-to-cancel 353, prospective/risk 861, progress/reminder 1,081, ambiguous 32. Artifact `11362298517`, digest `sha256:32b8ec1c3fc4099848189880fad1136a41df2f2c2f8077bd831d4ea1d7c8e2bd`.
+- Strict SSE boundary: title semantics are effective dates = FALSE; primary-document semantics complete = NOT VERIFIED; effective-state reconstruction = NOT VERIFIED; Shanghai historical ST/PIT = NOT VERIFIED; full HISTORICAL_ST_PIT / Advanced Business = NOT VERIFIED.
+- PR #218 exact head `b8a7f48f82bd71d7cdc7fe95ebe1d872f23b5173`, run `37350359568` / job `111899377893` = **SUCCESS** after discovery-layer hardening only. BSE official disclosure surface and machine endpoint discovery are SUPPORTED; discovered endpoint is `https://www.bse.cn/disclosureInfoController/companyAnnouncement.do`; official JS source hash `bf39ce71871a21a785155f004a34c3b3f1c8eb412c568e3565c36f9eeadf0827`. Artifact `11362955227`, digest `sha256:564a4851092f693e69f9e1e289bdd356addfd6113fc671ea495faf8580d07ff5`.
+- BSE endpoint discovery is not historical PIT. BSE historical event completeness, daily ST state, full historical ST/PIT, Advanced Business and Final remain non-PASS.
+- PR #220 query-contract validation continues separately. Historical heads progressed 0/3 → 1/3 → 2/3 sample PASS; current branch now uses first-party old/new security-code mapping at exact head `0cd4c68ef30d2f68c3d806566b6a837902697429`, but its run is still IN_PROGRESS and no current-head PASS is claimed yet.
+- Portfolio structural boundary unchanged: current-product export readiness 18/18 only while #210 remains unchanged; dedicated repositories 0/18; Final PASS 0/18; delivery 0/18.
+
+
 ## 2026-10-06 Stock #210 current-head business + market-wide SSE evidence checkpoint
 
 - Current Stock product candidate remains PR #210 exact head `7f270b9ab58e11fd8129053a65e000c90ff9d8c1`; PR #216 export remains bound exactly to this product head.
