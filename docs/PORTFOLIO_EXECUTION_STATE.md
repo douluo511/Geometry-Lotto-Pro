@@ -1,5 +1,16 @@
 # Portfolio Execution State — 18 Windows EXE Projects
 
+## 2026-10-05 Stock AI exact-head desktop terminal PASS — 43168d9e / run 37289727787
+
+- **Authoritative Stock AI product:** PR #155 exact head `43168d9e75c70ab55be808d8a51f0c0eb14d83d5`.
+- Fresh source/offline run `37289727792` = **SUCCESS**; fresh full-business run `37289727888` = **SUCCESS**; fresh native desktop run `37289727787` / job `111697036718` = **SUCCESS**.
+- Windows native build / Exact EXE self-test / Frozen EXE Real Network core / >=90% research corpus qualification / Frozen EXE advanced technical validation / Physical GUI core+repair+advanced / updater expected-BLOCKED boundary / GUI-post Same Hash = **PASS**.
+- Main Exact EXE SHA-256 `50cb95cde7c258252a2b9f4dfe0761f46f8adac569d81efafb4553d157127141`; Updater SHA-256 `365049c764b7b13dc1a220885acfd09fdaa582e04c509737948886c50689be29`.
+- Research corpus: 4886/5362 = **91.1227%**, current **90.9996%**, delisted **95.7143%**.
+- Desktop artifact `11341383365`, digest `sha256:a8373dfd187b08b878b5304fdd9426d725ec2d5f6c37a6f0acba76bc6745c7ec`.
+- Advanced technical execution is PASS, but business qualification remains **NOT VERIFIED** because `HISTORICAL_ST_PIT = WARN`; this is not promoted to PASS.
+- Positive production software update / real Release / Repository Independence remain **BLOCKED**; Final Gate remains **FAIL**.
+
 ## 2026-10-05 terminal refresh — Happy8/Stock current heads
 
 - **Happy8 #176** exact head `10763ef098a653ba8c81f399d335a85486e31642`: run `37291272371` terminal aggregate FAIL by intended external boundary. Fresh PASS includes dual-official Real Network, current-history science, Business-before-Windows, reproducible Windows Exact EXE, both physical GUI gates, and post-GUI Same Hash. Main EXE SHA-256 `f43307f927739ce5866897cd01ff359ca993419c880e87fd8ee9ba74ba426e64`. Engineering **84.2105%**, Business **87.5%**, Overall **84.2105%**. Repository independence / real production Release N→N+1 / unique final artifact remain non-PASS. Artifact `11337865817`, digest `sha256:d10d86c243416a0384c128370abf7d98c6cc27c7f40814e713cc2044f745d8ab`.
