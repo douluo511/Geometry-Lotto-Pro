@@ -80,7 +80,7 @@ def build_prospective_universe_precommit(
     canonical = {
         "schema": "rmf-prospective-survivorship-precommit-v1",
         "asof_date": str(asof_date),
-        "retrieved_at_unix": canonical["retrieved_at_unix"],
+        "retrieved_at_unix": float(retrieved_at_unix),
         "source_provider": str(source_provider),
         "source_url": str(source_url),
         "source_filter": str(source_filter),
