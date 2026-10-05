@@ -44,6 +44,15 @@ class BusinessBoundaries(unittest.TestCase):
         got = qualify_research(bars(), {"provider": "synthetic_contract_only"})
         self.assertEqual(got["gates"]["cost_slippage_model"], "NOT VERIFIED")
 
+    def test_official_stamp_tax_date_allows_html_spacing(self):
+        parsed = parse_official_cost_rules(
+            "<html>0.00341%</html>",
+            "<html>千分之一</html>",
+            "<html>证券交易印花税实施减半征收，自 2023 年 8 月 28 日 起执行。</html>",
+        )
+        self.assertEqual(parsed["status"], "PASS")
+        self.assertEqual(parsed["sell_stamp_tax_bps"], 5.0)
+
     def test_incomplete_official_cost_rule_page_fails_closed(self):
         parsed = parse_official_cost_rules(
             "<html>missing current rate</html>",
