@@ -4,6 +4,10 @@ on:
   push:
     branches:
       - diagnostic/stock-sse-risk-warning-transition-inventory-20261006
+  pull_request:
+    paths:
+      - ".github/stock_diag/stock_sse_risk_warning_transition_inventory.py"
+      - ".github/workflows/stock-sse-risk-warning-transition-inventory.yml"
   workflow_dispatch:
 
 permissions:
