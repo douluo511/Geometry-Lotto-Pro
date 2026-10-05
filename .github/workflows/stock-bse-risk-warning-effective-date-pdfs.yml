@@ -83,7 +83,8 @@ jobs:
           assert a["full_historical_st_pit"] == "NOT VERIFIED"
           assert a["advanced_business"] == "NOT VERIFIED"
           assert a["final_gate"] == "FAIL"
-          print("BSE_IMPLEMENTATION_EFFECTIVE_DATE_EVIDENCE="+a["bse_implementation_effective_date_evidence"])
+          print("BSE_INITIAL_IMPLEMENTATION_EFFECTIVE_DATE_EVIDENCE="+a["bse_initial_implementation_effective_date_evidence"])
+          print("BSE_CONTINUATION_PRIMARY_DOCUMENT_EVIDENCE="+a["bse_continuation_primary_document_evidence"])
           print("BSE_HISTORICAL_ST_PIT=NOT VERIFIED")
           print("FINAL_GATE=FAIL")
           PY
