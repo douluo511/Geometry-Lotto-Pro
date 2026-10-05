@@ -523,3 +523,11 @@ Portfolio boundary remains unchanged: migration-seed readiness does not satisfy 
 - Human Nature branch `fix/human-nature-current-main-20260929` current head `b332109080d03cb4b15ac6d479782b48b1c6dcba`; run `37258744429` proves current architecture/business/tests/Real Network/Windows/Exact EXE/Physical GUI/Same Hash/business-content PASS. Candidate SHA256 `47052f1b844c917e6fd1a52c795fb51ba1c0ddfa4227144efd7930907083a319`. Sole hard failure is `repository_independence=FAIL`; Final FAIL.
 - TalkCraft branch `recover/talkcraft-fullcandidate-20260929` current head `8bbedccdeeb99e1b1c552442aa4584c6a3e57e00`; run `37258749730` proves current architecture/business/tests/Source+Exact EXE Real Network/Windows/Exact EXE/Physical GUI/Same Hash/business-content PASS. Candidate SHA256 `96e64cf8a83f29ff56d8b09a39f0c54f04026305ee2b202482f70cf68ea620d6`. Sole hard failure is `repository_independence=FAIL`; Final FAIL.
 - These current exact results supersede the stale 2026-09-29 issue-body hashes but do not change portfolio deliverability.
+
+
+## 2026-10-05 business-evidence triage
+
+- Passive Income current candidate remains engineering 24/28=85.7143%, business 5/11=45.4545%. Remaining business gates require external observed customer/payment/economics/repeatability/labor-reduction/production-resilience evidence and are not code-completable.
+- Non-Hard-Work remains engineering 24/28=85.7143%, business 4/12=33.3333%. Remaining commercial gates require real demand/payment/cash/economics/repeatability/systemization/assets/scale observations.
+- Be Your Own Master remains engineering 24/28=85.7143%, business 11/13=84.6154%. The only business gaps are 30-day and 90-day effectiveness, which require elapsed real-world evidence.
+- These external/elapsed business gaps are intentionally not converted to PASS through fixtures, projections, wording changes or additional software-only runs.
