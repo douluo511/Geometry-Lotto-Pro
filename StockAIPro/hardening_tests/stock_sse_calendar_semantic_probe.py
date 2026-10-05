@@ -9,7 +9,7 @@ from urllib.parse import urljoin, urlparse
 
 import requests
 
-from hardening_tests.stock_sse_historical_suspension_query import fetch_window_all_pages
+from stock_sse_historical_suspension_query import fetch_window_all_pages
 
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/154.0 Safari/537.36"
 SUSPENSION_PAGE = "https://www.sse.com.cn/disclosure/dealinstruc/suspension/stock/"
