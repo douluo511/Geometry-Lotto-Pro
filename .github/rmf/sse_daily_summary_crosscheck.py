@@ -76,14 +76,24 @@ def main() -> int:
                 "top_level_keys": sorted(fallback_obj.keys()) if isinstance(fallback_obj, dict) else [],
                 "result_type": type(fallback_result).__name__,
                 "result_keys": sorted(fallback_result.keys()) if isinstance(fallback_result, dict) else [],
-                "series_lengths": {
-                    str(k): len(v) for k, v in fallback_result.items()
-                    if isinstance(fallback_result, dict) and isinstance(v, list)
-                },
-                "listing_index_9_values": {
-                    str(k): v[9] for k, v in fallback_result.items()
-                    if isinstance(fallback_result, dict) and isinstance(v, list) and len(v) > 9
-                },
+                "result_length": len(fallback_result) if isinstance(fallback_result, (list, dict)) else None,
+                "result_item_types": (
+                    [type(v).__name__ for v in fallback_result[:5]]
+                    if isinstance(fallback_result, list) else []
+                ),
+                "result_sample": (
+                    fallback_result[:3] if isinstance(fallback_result, list)
+                    else {str(k): v for k, v in list(fallback_result.items())[:3]}
+                    if isinstance(fallback_result, dict) else None
+                ),
+                "series_lengths": (
+                    {str(k): len(v) for k, v in fallback_result.items() if isinstance(v, list)}
+                    if isinstance(fallback_result, dict) else {}
+                ),
+                "listing_index_9_values": (
+                    {str(k): v[9] for k, v in fallback_result.items() if isinstance(v, list) and len(v) > 9}
+                    if isinstance(fallback_result, dict) else {}
+                ),
             }
             rows_by_date[day] = {
                 "payload_sha256": meta.payload_sha256,
