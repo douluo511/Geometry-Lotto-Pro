@@ -1,5 +1,16 @@
 # Portfolio Execution State — 18 Windows EXE Projects
 
+## 2026-10-05 strict continuation — Stock terminal + RMF causal-invariance rerun
+
+- **Stock AI authoritative product:** PR #155 exact head `43168d9e75c70ab55be808d8a51f0c0eb14d83d5`.
+- Exact-head source run `37289727792` = **SUCCESS**; business run `37289727888` = **SUCCESS**; native desktop run `37289727787` = **SUCCESS as candidate execution**.
+- Stock Windows Build / Exact EXE / frozen real-network core / Physical GUI entry+core+repair+advanced / candidate Same-Hash chain are current-head PASS. Main EXE SHA-256 `50cb95cde7c258252a2b9f4dfe0761f46f8adac569d81efafb4553d157127141`; updater SHA-256 `365049c764b7b13dc1a220885acfd09fdaa582e04c509737948886c50689be29`.
+- Stock advanced-business qualification is still **NOT VERIFIED** because `HISTORICAL_ST_PIT=WARN`; positive production Release update and repository independence remain **BLOCKED**. Final Gate remains **FAIL**.
+- **RMF product bytes remain unchanged:** main `62f75def60c16d5768110901890d05edbabe7b34`; Engineering **24/28 = 85.7%**, Business **12/16 = 75.0%**, Overall **75.0%**, Final FAIL.
+- RMF diagnostic PR #187 previously proved exact-window historical membership reconstruction plus 4/4 comparable-date official SSE daily-count cross-check on head `0e6340774ee74ba004634f474f353c52273e480b`, run `37300980163` attempt 2 = SUCCESS; historical PIT source availability and ex-ante symbol selection remain NOT VERIFIED.
+- **New executable diagnostic:** PR #187 head `fcc5b3745b56371f7254e15a765d0f6c7d69e9ab` adds a fail-closed 1200-date causal-invariance test that hides all future-dated listing/delisting facts before recomputing membership. Run `37304305279` is **IN_PROGRESS / NOT VERIFIED**. This subcontrol may prove no future-event-date leakage in the reconstruction rule, but must not be promoted to historical-source-availability or survivorship-selection PASS.
+- Portfolio hard boundary remains **migration/export 18/18 PASS / dedicated repositories 0/18 / Final-Delivery 0/18**.
+
 ## 2026-10-05 RMF historical-membership evidence + Stock desktop advance
 
 - **RMF product bytes unchanged:** exact main remains `62f75def60c16d5768110901890d05edbabe7b34`; Engineering **24/28 = 85.7%**, Business **12/16 = 75.0%**, Overall **75.0%**, Final FAIL.
