@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 import json
+import os
 from pathlib import Path
+from types import SimpleNamespace
 import tempfile
 
 from app.business_validation import CostAssumptions, qualify_research
@@ -11,6 +13,7 @@ from app.netclient import NetClient
 from app.source_corporate_actions import fetch_share_bonus_events, verify_corporate_action_lineage
 from app.source_eastmoney import fetch_daily_bars as fetch_daily_bars_eastmoney
 from app.source_market import fetch_daily_bars_failover
+from app.source_universe import UNIVERSE_URLS, build_prospective_universe_precommit, fetch_current_shanghai_universe_precommit
 from app.source_tencent_full import fetch_daily_bars_tencent_full
 from app.source_yahoo import fetch_daily_bars_yahoo
 from app.source_cost_rules import fetch_official_cost_rules
@@ -66,7 +69,112 @@ def synthetic_contract() -> dict:
         raise AssertionError("single-symbol selection must not claim survivorship-safe universe")
     if got["capital_deployment_ready"] is not False:
         raise AssertionError("business qualification must not enable capital deployment")
-    return {"status": "PASS", "method_gates": got["method_gates"], "business_gates": got["gates"]}
+    prospective = _prospective_survivorship_contract()
+    return {
+        "status": "PASS",
+        "method_gates": got["method_gates"],
+        "business_gates": got["gates"],
+        "prospective_survivorship_contract": prospective,
+    }
+
+
+def _prospective_survivorship_contract() -> dict:
+    entries = [
+        {"symbol": f"{600000 + i:06d}", "name": f"fixture-{i:03d}"}
+        for i in range(500)
+    ]
+    kwargs = {
+        "asof_date": "2026-10-05",
+        "retrieved_at_unix": 1791172800.0,
+        "source_payload_sha256s": ["b" * 64],
+        "code_source_sha": "a" * 40,
+        "declared_total": 500,
+        "min_symbols": 500,
+    }
+    first = build_prospective_universe_precommit(entries, **kwargs)
+    second = build_prospective_universe_precommit(list(reversed(entries)), **kwargs)
+    if first["precommit_sha256"] != second["precommit_sha256"]:
+        raise AssertionError("prospective universe canonical hash depends on input order")
+    if first["historical_survivorship_gate"] != "NOT VERIFIED":
+        raise AssertionError("prospective snapshot must not promote historical survivorship gate")
+    if first["policy"]["no_outcome_selection"] is not True:
+        raise AssertionError("prospective universe must forbid outcome-based selection")
+    try:
+        build_prospective_universe_precommit(
+            entries[:1],
+            asof_date="2026-10-05",
+            retrieved_at_unix=1791172800.0,
+            source_payload_sha256s=["b" * 64],
+            code_source_sha="a" * 40,
+            declared_total=1,
+            min_symbols=500,
+        )
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("narrow one-symbol universe must fail the broad-universe precommit contract")
+
+    class FailoverClient:
+        def __init__(self, partial: bool = False):
+            self.partial = partial
+            self.calls = []
+
+        def get_json(self, url, params, **kwargs):
+            self.calls.append(url)
+            if url == UNIVERSE_URLS[0]:
+                raise RuntimeError("fixture primary host failure")
+            rows = [
+                {"f12": item["symbol"], "f13": 1, "f14": item["name"]}
+                for item in (entries[:1] if self.partial else entries)
+            ]
+            return (
+                {"data": {"total": 500, "diff": rows}},
+                SimpleNamespace(
+                    payload_sha256="c" * 64,
+                    retrieved_at_unix=1791172800.0,
+                    url=url,
+                ),
+            )
+
+    previous_source_sha = os.environ.get("SOURCE_SHA")
+    os.environ["SOURCE_SHA"] = "a" * 40
+    try:
+        live_shape = fetch_current_shanghai_universe_precommit(
+            FailoverClient(),
+            page_size=500,
+            max_pages=2,
+            min_symbols=500,
+        )
+        if live_shape["status"] != "PASS" or live_shape["host_failover_used"] is not True:
+            raise AssertionError("secondary-host fixture did not prove explicit failover")
+        if UNIVERSE_URLS[1] not in live_shape["selected_source_urls"]:
+            raise AssertionError("fallback host was not bound into precommit evidence")
+        if live_shape["historical_survivorship_gate"] != "NOT VERIFIED":
+            raise AssertionError("host failover must not promote historical survivorship gate")
+        try:
+            fetch_current_shanghai_universe_precommit(
+                FailoverClient(partial=True),
+                page_size=500,
+                max_pages=1,
+                min_symbols=500,
+            )
+        except (RuntimeError, ValueError):
+            pass
+        else:
+            raise AssertionError("partial fallback universe must fail closed")
+    finally:
+        if previous_source_sha is None:
+            os.environ.pop("SOURCE_SHA", None)
+        else:
+            os.environ["SOURCE_SHA"] = previous_source_sha
+
+    return {
+        "status": "PASS",
+        "precommit_sha256": first["precommit_sha256"],
+        "symbol_count": first["symbol_count"],
+        "historical_survivorship_gate": first["historical_survivorship_gate"],
+        "host_failover_contract": "PASS",
+    }
 
 
 def _field_complete_ablation_replication(client: NetClient, reference_rows: list[DailyBar]) -> dict:
@@ -214,6 +322,28 @@ def real_network_qualification() -> dict:
         )
         got["corporate_action_real_network_evidence"] = corporate_action_evidence
         got["benchmark_fetch_error"] = benchmark_error
+        try:
+            prospective_universe = fetch_current_shanghai_universe_precommit(client)
+        except Exception as exc:
+            prospective_universe = {
+                "status": "NOT VERIFIED",
+                "scope": "PROSPECTIVE_PRECOMMIT_ONLY",
+                "historical_survivorship_gate": "NOT VERIFIED",
+                "reason": "current broad-universe precommit could not be completed",
+                "error": repr(exc),
+            }
+        got["survivorship_prospective_precommit"] = prospective_universe
+        if prospective_universe.get("status") == "PASS":
+            got["qualification_gaps"]["survivorship_selection_control"] = (
+                "A broad current Shanghai-equity universe is now immutably precommitted for "
+                "prospective evaluation with source-payload and exact-commit binding, but the "
+                "historical pre-asof research period is still not survivorship-safe and remains "
+                "NOT VERIFIED."
+            )
+        if got["gates"].get("survivorship_selection_control") == "PASS":
+            raise AssertionError(
+                "prospective precommit alone must not promote historical survivorship qualification"
+            )
         try:
             official_cost_rules = fetch_official_cost_rules(client)
         except Exception as exc:
