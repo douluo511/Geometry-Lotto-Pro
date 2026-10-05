@@ -122,6 +122,21 @@ def main():
         json.dumps(report, ensure_ascii=False, sort_keys=True, indent=2) + "\n",
         encoding="utf-8",
     )
+    public_candidates = []
+    for hit in hits:
+        for keyword, items in hit["matches"].items():
+            for item in items[:3]:
+                public_candidates.append({
+                    "script": hit["script"]["url"],
+                    "keyword": keyword,
+                    "snippet": " ".join(item.split())[:700],
+                })
+                if len(public_candidates) >= 24:
+                    break
+            if len(public_candidates) >= 24:
+                break
+        if len(public_candidates) >= 24:
+            break
     print(json.dumps({
         "status": report["status"],
         "page_http_status": report["page_http_status"],
@@ -130,6 +145,7 @@ def main():
         "discovery_status": report["discovery_status"],
         "hit_scripts": [x["script"]["url"] for x in hits],
         "page_keywords": sorted(page_matches),
+        "public_candidates": public_candidates,
         "boundary": report["boundary"],
     }, ensure_ascii=True, sort_keys=True))
     return 0
