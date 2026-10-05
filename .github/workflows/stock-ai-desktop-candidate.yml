@@ -105,10 +105,12 @@ jobs:
           Write-Host "FROZEN_REPAIR_WORKER=PASS; EXE_SHA256=$after"
 
       - name: Restore resumable real-history qualification corpus
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
         with:
           path: ${{ runner.temp }}/stock-ai-frozen-business/data/history
-          key: stock-ai-research-history-v3-${{ runner.os }}-${{ hashFiles('StockAIPro/staging/Stock_AI_Pro/versions/4.3.0/stock_ai/data_source.py', 'StockAIPro/staging/Stock_AI_Pro/versions/4.3.0/stock_ai/netclient.py', 'StockAIPro/staging/Stock_AI_Pro/versions/4.3.0/config.default.json', 'StockAIPro/staging/Stock_AI_Pro/versions/4.3.0/requirements.txt') }}
+          key: stock-ai-research-history-v4-${{ runner.os }}-${{ hashFiles('StockAIPro/staging/Stock_AI_Pro/versions/4.3.0/stock_ai/data_source.py', 'StockAIPro/staging/Stock_AI_Pro/versions/4.3.0/stock_ai/netclient.py', 'StockAIPro/staging/Stock_AI_Pro/versions/4.3.0/config.default.json', 'StockAIPro/staging/Stock_AI_Pro/versions/4.3.0/requirements.txt') }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            stock-ai-research-history-v4-${{ runner.os }}-${{ hashFiles('StockAIPro/staging/Stock_AI_Pro/versions/4.3.0/stock_ai/data_source.py', 'StockAIPro/staging/Stock_AI_Pro/versions/4.3.0/stock_ai/netclient.py', 'StockAIPro/staging/Stock_AI_Pro/versions/4.3.0/config.default.json', 'StockAIPro/staging/Stock_AI_Pro/versions/4.3.0/requirements.txt') }}-
 
       - name: Frozen EXE real-network core function
         shell: pwsh
@@ -138,13 +140,30 @@ jobs:
           } | ConvertTo-Json -Depth 5 | Set-Content -Encoding UTF8 ./desktop_frozen_core_evidence.json
 
       - name: Exact-head real-network research corpus qualification prerequisite
+        id: corpus_qualification
         timeout-minutes: 130
+        continue-on-error: true
         shell: pwsh
         run: |
           $root = Resolve-Path ./dist/StockAIPro/_internal/Stock_AI_Pro
           $data = Join-Path $env:RUNNER_TEMP "stock-ai-frozen-business"
           python hardening_tests/qualify_research_corpus_gate.py --package-root $root --data-root $data --output desktop_research_corpus_evidence.json
           if ($LASTEXITCODE -ne 0) { throw "research corpus qualification did not reach frozen >=90% current + delisted coverage" }
+
+      - name: Persist resumable real-history qualification corpus
+        if: ${{ always() && steps.corpus_qualification.outcome != 'skipped' }}
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: ${{ runner.temp }}/stock-ai-frozen-business/data/history
+          key: stock-ai-research-history-v4-${{ runner.os }}-${{ hashFiles('StockAIPro/staging/Stock_AI_Pro/versions/4.3.0/stock_ai/data_source.py', 'StockAIPro/staging/Stock_AI_Pro/versions/4.3.0/stock_ai/netclient.py', 'StockAIPro/staging/Stock_AI_Pro/versions/4.3.0/config.default.json', 'StockAIPro/staging/Stock_AI_Pro/versions/4.3.0/requirements.txt') }}-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Enforce frozen research corpus qualification after cache persistence
+        if: ${{ always() && steps.corpus_qualification.outcome != 'skipped' }}
+        shell: pwsh
+        run: |
+          if ("${{ steps.corpus_qualification.outcome }}" -ne "success") {
+            throw "research corpus qualification did not reach frozen >=90% current + delisted coverage; this attempt was persisted for the next bounded rerun"
+          }
 
       - name: Frozen EXE advanced analysis
         shell: pwsh
