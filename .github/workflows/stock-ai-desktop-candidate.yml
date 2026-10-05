@@ -45,6 +45,14 @@ jobs:
           $actual=(git rev-parse HEAD).Trim()
           if ($actual -ne $env:STOCK_SOURCE_SHA) { throw "stale checkout: $actual != $env:STOCK_SOURCE_SHA" }
 
+      - name: Restore progressive real-history corpus cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: ${{ runner.temp }}\stock-ai-frozen-business\data\history
+          key: stock-ai-research-history-v1-${{ runner.os }}-${{ hashFiles('StockAIPro/staging/Stock_AI_Pro/versions/4.3.0/stock_ai/data_source.py') }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            stock-ai-research-history-v1-${{ runner.os }}-${{ hashFiles('StockAIPro/staging/Stock_AI_Pro/versions/4.3.0/stock_ai/data_source.py') }}-
+
       - name: Setup pinned Windows Python
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
