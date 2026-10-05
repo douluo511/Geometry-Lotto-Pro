@@ -1,5 +1,12 @@
 # Portfolio Execution State — 18 Windows EXE Projects
 
+## 2026-10-05 export reconciliation — Happy8 PR #185 supersedes closed #184
+
+- **Happy8 current migration/export:** PR #185 exact head `f8fd54146054e56627ca2a60919082b1d2f3e820`, run `37292380803` / job `111705566770` = **SUCCESS**. Exact checkout/product-byte identity, deterministic 52-file export, independent second-pass verification, deliberate tamper rejection and explicit non-Final boundary all PASS.
+- Artifact `11336683146`, ZIP digest `sha256:121d25a73bbe31ffa083fbcb2698a16671312c7567209b25953eb0243508645f`; manifest SHA-256 `c439970ddf6c8f6e777e09cf68e8527d602bf6e684c52e01cc40e89cba57d90e`.
+- Closed PR #184 is now explicitly **superseded as current export evidence**. Authoritative Happy8 product bytes remain PR #176 exact head `10763ef098a653ba8c81f399d335a85486e31642`; no product acceptance PASS is inherited from export verification.
+- Portfolio boundary remains migration/export **18/18 PASS**, dedicated repositories **0/18**, Final/Delivery **0/18**.
+
 ## 2026-10-05 strict continuation checkpoint — superseded Stock #126 closed / active exact heads preserved
 
 - **Control-plane cleanup executed:** Stock AI PR #126 is now CLOSED as superseded historical evidence. Its head `a410c905c6a1693cdefa46a0bc39390a3a053747` and run `37259832040` remain preserved as FAIL→FIX history; no historical FAIL was promoted to PASS.
