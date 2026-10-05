@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import date, datetime
 import math
 import re
+from statistics import median
 from typing import Iterable
 
 from .domain import DailyBar, validate_market_rows
@@ -153,25 +154,75 @@ def verify_corporate_action_lineage(
     if len(dates) < 60:
         return {"status": "NOT VERIFIED", "reason": "qfq/raw overlap is too short", "overlap_rows": len(dates), **hashes}
 
-    factors = []
+    factor_points = []
     for d in dates:
         raw_close = rmap[d]
         qfq_close = qmap[d]
         if raw_close <= 0 or qfq_close <= 0:
             return {"status": "FAIL", "reason": "non-positive close in factor verification", "trade_date": d, **hashes}
-        factors.append((d, qfq_close / raw_close))
+        factor_points.append({
+            "trade_date": d,
+            "qfq_close": qfq_close,
+            "raw_close": raw_close,
+            "factor": qfq_close / raw_close,
+        })
 
-    changes = []
-    for (prev_date, prev_factor), (cur_date, cur_factor) in zip(factors, factors[1:]):
-        relative = abs(cur_factor / prev_factor - 1.0) if prev_factor else float("inf")
-        if relative > factor_change_tolerance:
-            changes.append({
-                "previous_trade_date": prev_date,
-                "trade_date": cur_date,
-                "previous_factor": prev_factor,
-                "factor": cur_factor,
+    # qfq and raw closes are price-tick rounded. A day-to-day ratio therefore
+    # jitters even while the true adjustment factor is unchanged. Detect only
+    # persistent factor-regime shifts by comparing five-session medians. The
+    # threshold is bounded below by the caller's tolerance and raised only by
+    # an explicit 0.01-price-tick error bound plus local MAD noise.
+    window = 5
+    half_tick = 0.005
+    signals = []
+    for split in range(window, len(factor_points) - window + 1):
+        before = factor_points[split-window:split]
+        after = factor_points[split:split+window]
+        before_factor = median([x["factor"] for x in before])
+        after_factor = median([x["factor"] for x in after])
+        if before_factor <= 0 or after_factor <= 0:
+            continue
+        relative = abs(after_factor / before_factor - 1.0)
+
+        before_q = median([x["qfq_close"] for x in before])
+        before_r = median([x["raw_close"] for x in before])
+        after_q = median([x["qfq_close"] for x in after])
+        after_r = median([x["raw_close"] for x in after])
+        rounding_bound = (
+            half_tick / before_q + half_tick / before_r
+            + half_tick / after_q + half_tick / after_r
+        )
+        before_mad = median([abs(x["factor"] - before_factor) for x in before]) / before_factor
+        after_mad = median([abs(x["factor"] - after_factor) for x in after]) / after_factor
+        local_noise = max(before_mad, after_mad)
+        threshold = max(float(factor_change_tolerance), 2.0 * rounding_bound, 6.0 * local_noise)
+        if relative > threshold:
+            signals.append({
+                "split_index": split,
+                "previous_trade_date": before[-1]["trade_date"],
+                "trade_date": after[0]["trade_date"],
+                "previous_factor": before_factor,
+                "factor": after_factor,
                 "relative_change": relative,
+                "effective_threshold": threshold,
+                "rounding_error_bound": rounding_bound,
+                "local_mad_ratio": local_noise,
             })
+
+    # A single persistent step can trigger several neighboring rolling splits.
+    # Collapse those signals into one regime change and keep the strongest split.
+    clusters = []
+    for signal in signals:
+        if not clusters or signal["split_index"] > clusters[-1][-1]["split_index"] + window:
+            clusters.append([signal])
+        else:
+            clusters[-1].append(signal)
+    changes = []
+    for cluster in clusters:
+        strongest = max(cluster, key=lambda x: (x["relative_change"], -x["split_index"]))
+        strongest = dict(strongest)
+        strongest.pop("split_index", None)
+        changes.append(strongest)
 
     valid_events = []
     for event in events:
@@ -217,6 +268,9 @@ def verify_corporate_action_lineage(
         "overlap_end": dates[-1],
         "overlap_rows": len(dates),
         "factor_change_tolerance": factor_change_tolerance,
+        "factor_detection_method": "persistent_median_regime_shift_v1",
+        "factor_window_sessions": window,
+        "price_tick": 0.01,
         "significant_factor_changes": len(changes),
         "verified_event_count": len(matched),
         "unexplained_factor_changes": len(unexplained),
@@ -226,11 +280,11 @@ def verify_corporate_action_lineage(
         "source_providers": providers,
         **hashes,
         "boundary": (
-            "PASS proves observed Tencent qfq/raw factor changes are explained by independently retrieved "
+            "PASS proves observed persistent Tencent qfq/raw factor-regime shifts are explained by independently retrieved "
             "Eastmoney announced corporate-action dates in the overlapping window. It does not prove "
             "historical point-in-time availability of every research feature or execution-cost calibration."
         ),
         "reason": None if point_in_time else (
-            "requires at least one announced event matched to an observed qfq/raw factor change and no unexplained factor changes"
+            "requires at least one announced event matched to an observed persistent qfq/raw factor-regime shift and no unexplained persistent shifts"
         ),
     }
