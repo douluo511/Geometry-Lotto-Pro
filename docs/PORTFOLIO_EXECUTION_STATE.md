@@ -1,5 +1,15 @@
 # Portfolio Execution State — 18 Windows EXE Projects
 
+## 2026-10-05 Happy8 terminal exact-head acceptance — correct fail-closed
+
+- **Authoritative product:** Happy8 PR #176 exact head `10763ef098a653ba8c81f399d335a85486e31642`.
+- **Terminal run:** `37291272371` / job `111702455072` = workflow FAILURE because the frozen Final boundary correctly remains non-PASS.
+- **Exact-head PASS:** Real Network, scientific validation/protocol, Windows reproducible Exact EXE, both physical GUI gates including OS-mouse, post-GUI Same Hash, updater handoff/rollback contract, fault injection, service/storage/UI contracts.
+- **Engineering:** **16/19 = 84.2105%**. E01-E16 PASS; E17 BLOCKED = dedicated Happy8 repository unavailable; E18 BLOCKED = real independent Release N→N+1 unavailable; E19 BLOCKED = upstream release gates not all PASS.
+- **Business:** **7/8 = 87.5%**. B01-B06 and B08 PASS; B07 BLOCKED = real independent production Release N→N+1 unavailable.
+- **Final Gate:** **FAIL**. Unique final artifact = **NOT VERIFIED**. No rerun is justified merely to make the workflow green.
+- **Current migration/export remains separately PASS** at PR #185 / run `37292380803`; this does not change repository independence or Final.
+
 ## 2026-10-05 Happy8 exact-head terminal acceptance — 10763ef / run 37291272371
 
 - **Authoritative Happy8 product:** PR #176 exact head `10763ef098a653ba8c81f399d335a85486e31642`.
