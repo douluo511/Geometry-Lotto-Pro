@@ -77,6 +77,11 @@ def _validate_raw_bundle(report: dict[str, Any], raw_sources: dict[str, bytes]) 
     seen_files: set[str] = set()
     for item in manifest:
         filename = str(item.get("filename") or "")
+        # Every manifest row is raw-backed unless the source-specific branch
+        # below explicitly proves it is derived metadata. Initializing this
+        # before source dispatch keeps national/Shanghai rows raw-required
+        # and prevents a derived-row decision from leaking across iterations.
+        raw_required = True
         if history_source == "national_welfare_lottery":
             safe = re.fullmatch(r"national_page_\d{4}\.json", filename)
         elif history_source == "shanghai_welfare_lottery":
