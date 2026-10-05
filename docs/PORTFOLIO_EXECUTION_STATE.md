@@ -636,3 +636,12 @@ Portfolio boundary remains unchanged: migration-seed readiness does not satisfy 
 - **Authoritative Stock current-product migration seed = PR #157**, exact head `e27586e82fa1187fb85e43076302d8ce54021430`, run `37271777113` SUCCESS, artifact `11328389116`, digest `sha256:23303ef27bc779140722c2ab2e11974dbfa277d1ebf56d2fd1130e307f358da7`.
 - Portfolio migration/export readiness remains **18/18 PASS**; this correction changes only which duplicate control branch is authoritative.
 - Repository independence remains **0/18**; Final/Delivery remain **0/18**.
+
+
+## 2026-10-05 strict invalidation — Happy8 current-product export refresh pending
+
+- Old Happy8 migration PR #102 is bound to product baseline `9b82e317f789b357604e6e8546a10fd0b49b626d`; current Happy8 product is PR #39 head `8de39dcfd4c3c6a0070eb6506e5ad56cb859eaba`.
+- Because product/workflow behavior changed, old Happy8 migration evidence is invalid for current-product counting.
+- Current-product-bound migration/export readiness is therefore **17/18** until the new Happy8 seed verifies.
+- Fresh migration PR #160 head `4c2b721b103b0409b254755ae435425f119bb05e` is based directly on `8de39dcf...` and changes only the deterministic exporter and export-verification workflow.
+- Real independent repositories remain **0/18**; Final/Delivery remain **0/18**.
