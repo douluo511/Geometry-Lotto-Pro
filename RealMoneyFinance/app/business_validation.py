@@ -340,7 +340,10 @@ def qualify_research(
         and corporate_evidence.get("status") == "PASS"
         and corporate_evidence.get("point_in_time_lineage") == "PASS"
         and int(corporate_evidence.get("verified_event_count", 0) or 0) >= 1
-        and int(corporate_evidence.get("unexplained_factor_changes", 1) or 1) == 0
+        and int(
+            corporate_evidence.get("unexplained_factor_changes")
+            if corporate_evidence.get("unexplained_factor_changes") is not None else 1
+        ) == 0
         and all(isinstance(x, str) and len(x) == 64 for x in hash_fields)
     ) else "NOT VERIFIED"
     positive_amount = sum(1 for x in ordered if float(x.amount or 0.0) > 0)
