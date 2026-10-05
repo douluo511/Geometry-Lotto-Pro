@@ -1,5 +1,15 @@
 # Portfolio Execution State — 18 Windows EXE Projects
 
+## 2026-10-05 authoritative correction — Stock current line advanced to #155
+
+- **Stock AI authoritative current product** is now PR #155 exact head `43168d9e75c70ab55be808d8a51f0c0eb14d83d5`, not #126 `a410c905...`. Compare `f9d610aa... → 43168d9e...` is exactly one commit / one workflow-only file: the updater BLOCKED rc=3 acceptance step now captures the child process exit code without PowerShell exit leakage. Product bytes are unchanged by this commit, but the acceptance workflow changed, so downstream acceptance is rerunning and old workflow PASS is not inherited.
+- Current #155 source/offline/Real Network run `37289727792` = **SUCCESS**; artifact `11335583263`, digest `sha256:c0533289337680617c947fa58e98c01a9dd290c28373d009585d46f55eeb6ea1`.
+- Current #155 business run `37289727888` and desktop run `37289727787` are **IN_PROGRESS**; no pending downstream PASS is promoted.
+- Current-product migration PR #181 head `a567dae423d0e015d06107ca3e99db696fa5e65b`, run `37289868886` = **SUCCESS** with product-byte identity, deterministic export, independent second-pass verification and deliberate-mutation fail-closed PASS. Artifact `11335343870`, digest `sha256:920e575d88eef56a5af90f27ed9a293b8a643a4f330a6b13a73029937a114d8d`.
+- The completed `a410c905...` business run is retained as exact-head evidence for that parallel/base line only; it is historical relative to current #155 and is not inherited.
+- Repository Independence remains **0/18**, portfolio Final/Delivery remains **0/18**.
+
+
 ## 2026-10-05 strict continuation checkpoint — exact-main RMF / active Stock+Happy8
 
 - **RMF exact main**: `main@9deaaa0dd579444ed0e5ddfeed7e1d8a2b6cda17`, push run `37287536096` / job `111689905792` = SUCCESS as candidate validation. Engineering **24/28 = 85.7%**, Business **12/16 = 75.0%**, Overall **75.0%**. Real Network / cross-source / freshness / Windows / Exact EXE / physical GUI / current-byte Same Hash / corporate-action PIT are PASS. Main EXE SHA-256 `82a294b37589a9c0dbd69799c71293a82f166e727791c5165b4fd8a2d19ac1e6`; updater `78d952a1d7a73e0c8afefc4940ad199e022accdc8f5c3231d2a7b3f4fb34096c`; artifact `11335425797`, digest `sha256:a0447de47b93f0772709291d5b49c5be93cacb5e51d42a2b35c88b18ae25b27c`. Remaining business non-PASS: cost/slippage calibration, liquidity capacity, leakage PIT, historical survivorship-safe/precommitted universe. Final remains FAIL.
