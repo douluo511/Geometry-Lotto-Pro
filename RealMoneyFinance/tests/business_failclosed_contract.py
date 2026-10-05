@@ -16,6 +16,7 @@ from app.business_validation import CostAssumptions, _holdout_power_analysis, _o
 from app.domain import DailyBar, validate_market_rows
 from app.source_tencent import fetch_daily_bars_tencent
 from app.source_tencent_full import fetch_daily_bars_tencent_full
+from app.source_corporate_actions import verify_corporate_action_lineage
 from app.source_eastmoney import fetch_daily_bars as fetch_daily_bars_eastmoney
 from app.source_yahoo import fetch_daily_bars_yahoo
 from tests.contract_gate import FakeClient, FakeTencentClient, FakeTencentFullClient, FakeYahooClient
@@ -155,6 +156,71 @@ class BusinessBoundaries(unittest.TestCase):
         self.assertFalse(got["economic_signal_qualified"])
         self.assertFalse(got["capital_deployment_ready"])
         self.assertEqual(got["business_qualification_status"], "NOT VERIFIED")
+
+    def _valid_corporate_action_evidence(self):
+        raw = bars(150)
+        change_index = 80
+        qfq = []
+        for i, row in enumerate(raw):
+            factor = 0.9 if i < change_index else 1.0
+            qfq.append(replace(
+                row,
+                open=row.open * factor,
+                close=row.close * factor,
+                high=row.high * factor,
+                low=row.low * factor,
+                raw_sha256="b" * 64,
+            ))
+        event = {
+            "symbol": "600000",
+            "plan_notice_date": raw[change_index - 10].trade_date,
+            "ex_dividend_date": raw[change_index].trade_date,
+            "pretax_bonus_rmb": 1.0,
+            "bonus_ratio": 0.0,
+            "transfer_ratio": 0.0,
+            "assign_progress": "implemented",
+        }
+        return verify_corporate_action_lineage(
+            qfq,
+            raw,
+            [event],
+            {"provider": "tencent_qfq", "price_adjustment": "qfq", "payload_sha256": "b" * 64},
+            {"provider": "tencent_raw", "price_adjustment": "unadjusted", "payload_sha256": "c" * 64},
+            {"provider": "eastmoney_events", "payload_sha256": "d" * 64},
+        )
+
+    def test_corporate_action_requires_independent_event_and_factor_lineage(self):
+        evidence = self._valid_corporate_action_evidence()
+        self.assertEqual(evidence["status"], "PASS")
+        self.assertEqual(evidence["point_in_time_lineage"], "PASS")
+        self.assertEqual(evidence["verified_event_count"], 1)
+        self.assertEqual(evidence["unexplained_factor_changes"], 0)
+
+        got = qualify_research(
+            bars(300),
+            {"provider": "production_fixture", "qualification_scope": "production_real_network"},
+            corporate_action_evidence=evidence,
+        )
+        self.assertEqual(got["gates"]["corporate_action_adjustment"], "PASS")
+        self.assertEqual(got["gates"]["leakage_safe_time_split"], "NOT VERIFIED")
+        self.assertFalse(got["capital_deployment_ready"])
+
+    def test_corporate_action_bad_or_missing_pit_evidence_fails_closed(self):
+        evidence = self._valid_corporate_action_evidence()
+        broken = {**evidence, "event_payload_sha256": "short"}
+        got = qualify_research(
+            bars(300),
+            {"provider": "production_fixture", "qualification_scope": "production_real_network"},
+            corporate_action_evidence=broken,
+        )
+        self.assertEqual(got["gates"]["corporate_action_adjustment"], "NOT VERIFIED")
+
+        got = qualify_research(
+            bars(300),
+            {"provider": "production_fixture", "qualification_scope": "production_real_network"},
+            corporate_action_evidence={**evidence, "unexplained_factor_changes": 1},
+        )
+        self.assertEqual(got["gates"]["corporate_action_adjustment"], "NOT VERIFIED")
 
     def test_missing_turnover_cannot_pass_complete_ablation(self):
         got = qualify_research([replace(x, turnover_rate=None) for x in bars()], {})
