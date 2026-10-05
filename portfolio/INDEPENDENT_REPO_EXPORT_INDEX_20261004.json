@@ -206,20 +206,22 @@
     {
       "id": 11,
       "project": "Real-Money Finance System",
-      "export_pr": 97,
-      "export_head": "b63289c6498aa0ebacaa55a193f52aefaaf98749",
-      "export_run": 37221168271,
+      "export_pr": 131,
+      "export_head": "deb5f1af5b5fcfeaff8b198d67d806ad6a975c2f",
+      "export_run": 37257714230,
       "export_status": "PASS",
       "repository_independence": "BLOCKED",
       "final_gate": "FAIL",
       "source_product_pr": 95,
-      "source_product_head": "d02d2752b55efa0df6d2cbc8b64ddcbcced17e60",
+      "source_product_head": "e3ae5134146fdb336f3f8075f26bf8d2cc275ae5",
       "source_product_status": "CANDIDATE_ONLY",
-      "export_artifact_id": 11309628356,
-      "export_artifact_digest": "sha256:0926a5740123a3948c89b5e422299e27a8903b49b9c68f99f9df989b71958189",
+      "export_artifact_id": 11323905183,
+      "export_artifact_digest": "sha256:0e2642047ffe86735897cef95318be90a12f09d6c1cc3aec1ea521d605ddf522",
       "engineering_completion_percent": 85.7143,
       "business_completion_percent": 68.75,
-      "overall_completion_percent": 68.75
+      "overall_completion_percent": 68.75,
+      "product_tree_byte_identity": "PASS",
+      "superseded_export_pr": 97
     },
     {
       "id": 12,
@@ -307,7 +309,7 @@
     }
   ],
   "next_resume_condition": "As soon as a dedicated repository becomes visible to the connected installation, seed it from the matching verified export and rerun the full frozen acceptance chain on that dedicated repository exact commit before any PASS inheritance.",
-  "latest_delta": "2026-10-05 exact-head migration verification sweep: all 18 current migration PR heads have successful export verification and current artifact digests recorded. Repository Independence remains 0/18. Stock AI product PR #126 head c6e329d2 has source/offline/real-network PASS while business/desktop are still running.",
+  "latest_delta": "2026-10-05: RMF stale/diverged export PR #97 was replaced by PR #131 from exact product e3ae513; run 37257714230 PASS proves product-tree byte identity, deterministic export, second-pass verification and tamper rejection. Stock AI PR #126 c6e329d2 source/offline/network PASS; business and desktop remain in progress. Repository Independence remains 0/18.",
   "infrastructure_capability": {
     "repository_creation": "BLOCKED",
     "repository_creation_evidence": "PR #127: Actions integration token cannot act as user-level repository creator; connector exposes no create-repository mutation.",
@@ -318,6 +320,6 @@
   "audit": {
     "exact_seed_audit_date": "2026-10-05",
     "status": "PASS",
-    "note": "All 18 migration PR exact heads were re-read and each latest Independent Repository Export Verification workflow was completed SUCCESS with current artifact id/digest recorded here."
+    "note": "All 18 migration lines remain exact-head export-verification PASS; RMF was rebound to current product bytes via PR #131 after stale #97 divergence was detected and closed."
   }
 }
