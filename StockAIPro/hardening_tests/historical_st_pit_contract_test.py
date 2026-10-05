@@ -7,7 +7,7 @@ from pathlib import Path
 PACKAGE_ROOT = Path(__file__).resolve().parents[1] / "staging" / "Stock_AI_Pro" / "versions" / "4.3.0"
 sys.path.insert(0, str(PACKAGE_ROOT))
 
-from stock_ai.historical_pit import evaluate_historical_st_pit
+from stock_ai.historical_pit import evaluate_historical_st_pit, load_historical_st_pit_subset
 
 
 def sha(path: Path) -> str:
@@ -140,4 +140,23 @@ with tempfile.TemporaryDirectory() as td:
     assert "SSE/SZSE/BSE" in detail
     assert "字节哈希绑定" in detail
 
-print("HISTORICAL ST PIT REAL-BYTE HASH-BINDING CONTRACT TEST PASS")
+    states, subset = load_historical_st_pit_subset(
+        root, {("2026-09-30", "600000")}, "2026-09-30"
+    )
+    assert states[("2026-09-30", "600000")] == {
+        "market": "SSE", "st": False, "suspended": False
+    }
+    assert subset["status"] == "PASS"
+    assert subset["required_key_count"] == 1
+    assert subset["found_key_count"] == 1
+
+    try:
+        load_historical_st_pit_subset(
+            root, {("2026-09-30", "600001")}, "2026-09-30"
+        )
+    except RuntimeError as exc:
+        assert "state missing" in str(exc)
+    else:
+        raise AssertionError("missing historical PIT key did not fail closed")
+
+print("HISTORICAL ST PIT REAL-BYTE HASH-BINDING + CONSUMPTION CONTRACT TEST PASS")
