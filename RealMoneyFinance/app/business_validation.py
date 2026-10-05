@@ -111,6 +111,14 @@ def _corporate_action_evidence_qualified(source_meta: dict, evidence: dict) -> b
     ):
         return False
 
+    if evidence.get("factor_detection_method") != "persistent_median_regime_shift_v1":
+        return False
+    try:
+        factor_window_sessions = int(evidence.get("factor_window_sessions"))
+    except Exception:
+        return False
+    if factor_window_sessions < 3:
+        return False
     tolerance = evidence.get("factor_change_tolerance")
     if not isinstance(tolerance, (int, float)) or not math.isfinite(float(tolerance)) or float(tolerance) <= 0:
         return False
