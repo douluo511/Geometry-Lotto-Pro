@@ -300,7 +300,7 @@
       "export_head": "ad089474522595b6c561087ec8f4dbaa688b9d74",
       "export_run": 37274774271,
       "export_status": "PASS",
-      "repository_independence": "BLOCKED",
+      "repository_independence": "NOT VERIFIED",
       "final_gate": "FAIL",
       "source_product_pr": 164,
       "source_product_head": "1f190393988774227fcc2371997199f203a11885",
@@ -311,7 +311,7 @@
       "business_completion_percent": 75,
       "overall_completion_percent": 75,
       "product_tree_byte_identity": "PASS",
-      "current_product_head": "1f190393988774227fcc2371997199f203a11885",
+      "current_product_head": "9f7b0e99da70957a65adbeda2a8c784466d850c7",
       "superseded_export_prs": [
         97,
         131,
@@ -335,7 +335,13 @@
       "updater_sha256": "421e75cbf917854bad51d461be405224e83287d921cf25636605379774bf5995",
       "primary_research_rows": 1200,
       "primary_research_provider": "tencent_public_full_kline",
-      "primary_research_price_adjustment": "qfq"
+      "primary_research_price_adjustment": "qfq",
+      "validated_source_head": "152f9bfb31e8beb592fb230902fac86de1ec2c40",
+      "migration_pr": 174,
+      "migration_head": "8b3974e0d0d13c45f1f8f2257c42cac61e6a18a4",
+      "migration_run": 37276164095,
+      "migration_export_status": "PASS",
+      "delivery_allowed": false
     },
     {
       "id": 12,
@@ -438,7 +444,7 @@
     }
   ],
   "next_resume_condition": "Continue current exact-head product validation. Do not promote migration readiness to Final. Repository-independence work can resume only when dedicated target repositories are actually visible/writable to the integration; then seed each verified export and rerun the complete chain from independent main.",
-  "latest_delta": "Current-product-bound migration/export readiness is 18/18 PASS. Stock PR #155 exact product head f9d610aafe910cb73b036701a688329d9899399b has current-product migration/export PR #157 run 37271777113 PASS; its native desktop run 37268369332 remains IN_PROGRESS at the frozen >=90% real-history corpus qualification and is not promoted to desktop/Final PASS. RMF current main 1f190393988774227fcc2371997199f203a11885 has exact validation run 37274045669 PASS with Engineering 24/28=85.7%, Business 12/16=75.0%, Overall 75.0%; current-product migration PR #169 run 37274774271 PASS. RMF successor hardening PRs #170/#171 are revalidation candidates only and do not replace current main unless their full exact-head chain passes and they merge. Real independent repositories remain 0/18; Final/Delivery remain 0/18.",
+  "latest_delta": "Current-product-bound migration/export readiness is 18/18 PASS. RMF behavior-bearing main is 9f7b0e99da70957a65adbeda2a8c784466d850c7; validated product source head 152f9bfb31e8beb592fb230902fac86de1ec2c40 has zero RMF product/workflow byte diff to that merge. RMF migration v9 PR #174 head 8b3974e0d0d13c45f1f8f2257c42cac61e6a18a4 run 37276164095 PASS with deterministic export, independent second-pass verification, and deliberate mutation fail-closed. Happy8 PR #165 head cc20a8a5c37228a30ccc27f3a9b8d4605b8533f6 is active revalidation after restoring frozen baselines and separating exact-EXE data refresh from one-click software update. Stock PR #155 desktop run 37268369332 remains IN_PROGRESS at frozen >=90% real-history corpus qualification. Real independent repositories remain 0/18; Final/Delivery remain 0/18.",
   "infrastructure_capability": {
     "repository_creation": "BLOCKED",
     "repository_creation_evidence": "PR #127: Actions integration token cannot act as user-level repository creator; connector exposes no create-repository mutation.",
@@ -448,7 +454,7 @@
   },
   "audit": {
     "exact_seed_audit_date": "2026-10-05",
-    "status": "CURRENT_PRODUCT_EXPORTS_18_OF_18_PASS_PRODUCT_REVALIDATIONS_ACTIVE",
-    "note": "All 18 current-product-bound migration/export seeds are PASS. This is migration readiness only. Stock desktop run 37268369332, RMF hardening runs 37274864785/37274881957 and Happy8 convergence run 37274058082 remain active revalidations; no in-progress run is counted as Final PASS. Independent repositories remain 0/18 and Final/Delivery remain 0/18."
+    "status": "CURRENT_PRODUCT_EXPORTS_18_OF_18_PASS_ACTIVE_PRODUCT_REVALIDATIONS",
+    "note": "All 18 current-product-bound migration/export seeds are PASS. RMF current export is v9 PR #174 run 37276164095. Happy8 run 37275917431 and Stock desktop run 37268369332 remain active exact-head revalidations; no in-progress run is counted as Final PASS. Independent repositories remain 0/18 and Final/Delivery remain 0/18."
   }
 }
