@@ -263,8 +263,8 @@ def main() -> int:
         "boundary": (
             "This proves that the current official SSE payload exposes listing/delisting records "
             "sufficient to reconstruct a historical membership set across the exact 1200-row "
-            "research window, and whether 600000 belonged to that set. It does not prove that these "
-            "membership is invariant when all future-dated listing/delisting facts are hidden, "
+            "research window, and whether 600000 belonged to that set. "
+            "Membership is invariant when all future-dated listing/delisting facts are hidden, "
             "which proves this reconstruction rule does not use future event dates to change pre-event "
             "membership. It still does not prove the SSE fields were historically available/knowable "
             "at each past date, nor that 600000 was selected ex ante from a frozen investable universe. "
