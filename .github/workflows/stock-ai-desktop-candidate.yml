@@ -181,8 +181,9 @@ jobs:
         shell: pwsh
         run: |
           $root = Resolve-Path ./dist/StockAIPro/_internal/Stock_AI_Pro
-          & ./dist/StockAIPro/StockAIUpdater.exe --package-root $root
-          $rc = $LASTEXITCODE
+          $updater = Resolve-Path ./dist/StockAIPro/StockAIUpdater.exe
+          $proc = Start-Process -FilePath $updater -ArgumentList @('--package-root', "$root") -Wait -PassThru -NoNewWindow
+          $rc = $proc.ExitCode
           if ($rc -ne 3) { throw "expected updater BLOCKED rc=3 without production release config, got $rc" }
           Write-Host "UPDATER_REAL_RELEASE=BLOCKED; reason=production signed manifest/release context absent"
 
