@@ -516,3 +516,10 @@ Portfolio boundary remains unchanged: migration-seed readiness does not satisfy 
 - Official regulatory-cost sub-evidence is current-head PASS through real NetClient receipts and payload hashes: SSE A-share handling fee `0.00341%` each side (`0.341 bps`), statutory securities stamp-tax base, and the 2023-08-28 halving policy (derived current sell-side tax evidence `5.0 bps`).
 - This sub-evidence does **not** promote the frozen `cost_slippage_calibration` gate: broker commission and observed execution slippage remain NOT VERIFIED. RMF business remains 11/16=68.8%; engineering remains 24/28=85.7%; Final FAIL.
 - Current main EXE SHA256 `5be3cc0e33eebd9256c93aee114cf7613b871639dc1cfa312aaca2c31dc54354`; updater SHA256 `1f9a5f599c9af940821e30cf624f7e7a5e2c31565b67fa15675ba4ec2fa29868`.
+
+
+## 2026-10-05 Human Nature / TalkCraft current-head refresh
+
+- Human Nature branch `fix/human-nature-current-main-20260929` current head `b332109080d03cb4b15ac6d479782b48b1c6dcba`; run `37258744429` proves current architecture/business/tests/Real Network/Windows/Exact EXE/Physical GUI/Same Hash/business-content PASS. Candidate SHA256 `47052f1b844c917e6fd1a52c795fb51ba1c0ddfa4227144efd7930907083a319`. Sole hard failure is `repository_independence=FAIL`; Final FAIL.
+- TalkCraft branch `recover/talkcraft-fullcandidate-20260929` current head `8bbedccdeeb99e1b1c552442aa4584c6a3e57e00`; run `37258749730` proves current architecture/business/tests/Source+Exact EXE Real Network/Windows/Exact EXE/Physical GUI/Same Hash/business-content PASS. Candidate SHA256 `96e64cf8a83f29ff56d8b09a39f0c54f04026305ee2b202482f70cf68ea620d6`. Sole hard failure is `repository_independence=FAIL`; Final FAIL.
+- These current exact results supersede the stale 2026-09-29 issue-body hashes but do not change portfolio deliverability.
