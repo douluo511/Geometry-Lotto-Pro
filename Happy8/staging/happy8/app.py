@@ -53,6 +53,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--ui-self-test", action="store_true")
     parser.add_argument("--status", action="store_true")
     parser.add_argument("--update", action="store_true")
+    # Acceptance-only precondition: refresh verified official data through the
+    # exact packaged EXE without pretending the software updater succeeded.
+    parser.add_argument("--refresh-data", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--predict", action="store_true")
     parser.add_argument("--repair", action="store_true")
     parser.add_argument("--advanced", action="store_true")
@@ -114,6 +117,7 @@ def main(argv: list[str] | None = None) -> int:
     operations = [
         (args.status, service.status),
         (args.update, service.one_click_update),
+        (args.refresh_data, service.update_data),
         (args.predict, service.predict_next),
         (args.repair, service.repair),
         (args.advanced, service.advanced_analysis),
