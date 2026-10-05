@@ -215,10 +215,18 @@ def verify_corporate_action_lineage(
         # windows are disjoint. This prevents a close-only/near-threshold ratio
         # wiggle from being labelled a corporate-action shift merely because it
         # is a few basis points above a heuristic noise estimate.
+        # A quantization interval is evidence only when each session admits
+        # at least one common OHLC factor and each robust window interval is
+        # itself non-empty. An inverted interval (lower > upper) is
+        # contradictory evidence, never proof of separation.
+        if not all(x["factor_interval_consistent"] for x in before + after):
+            continue
         before_lower = median([x["factor_interval_lower"] for x in before])
         before_upper = median([x["factor_interval_upper"] for x in before])
         after_lower = median([x["factor_interval_lower"] for x in after])
         after_upper = median([x["factor_interval_upper"] for x in after])
+        if before_lower > before_upper or after_lower > after_upper:
+            continue
         intervals_separated = before_upper < after_lower or after_upper < before_lower
         if before_upper < after_lower:
             interval_gap = after_lower / before_upper - 1.0
@@ -328,6 +336,8 @@ def verify_corporate_action_lineage(
         "factor_estimator": "quantized_ohlc_interval_v2",
         "factor_window_sessions": window,
         "price_tick": 0.01,
+        "factor_interval_consistent_sessions": sum(1 for x in factor_points if x["factor_interval_consistent"]),
+        "factor_interval_inconsistent_sessions": sum(1 for x in factor_points if not x["factor_interval_consistent"]),
         "significant_factor_changes": len(changes),
         "verified_event_count": len(matched),
         "unexplained_factor_changes": len(unexplained),
