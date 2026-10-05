@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -11,6 +12,7 @@ import requests
 ENDPOINT = "https://www.bse.cn/disclosureInfoController/companyAnnouncement.do"
 TYPE_ENDPOINT = "https://www.bse.cn/disclosureInfoController/disclosure_type.do"
 HY_ENDPOINT = "https://www.bse.cn/disclosureInfoController/disclosure_hy.do"
+CODE_MAPPING_URL = "https://www.bse.cn/service/code_mapping.html"
 OUT = Path("stock_bse_company_announcement_contract.json")
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) StockAI BSE contract validator"
 NEED_FIELDS = [
@@ -179,6 +181,149 @@ def collect_values(obj, wanted_keys):
     return list(dict.fromkeys(out))
 
 
+class TableCollector(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.rows=[]
+        self.row=None
+        self.cell=None
+
+    def handle_starttag(self, tag, attrs):
+        tag=tag.lower()
+        if tag=="tr":
+            self.row=[]
+        elif tag in ("td","th") and self.row is not None:
+            self.cell=[]
+
+    def handle_data(self, data):
+        if self.cell is not None:
+            self.cell.append(data)
+
+    def handle_endtag(self, tag):
+        tag=tag.lower()
+        if tag in ("td","th") and self.row is not None and self.cell is not None:
+            self.row.append(" ".join("".join(self.cell).split()))
+            self.cell=None
+        elif tag=="tr" and self.row is not None:
+            if self.row:
+                self.rows.append(self.row)
+            self.row=None
+            self.cell=None
+
+
+def fetch_code_mapping(session):
+    r=session.get(
+        CODE_MAPPING_URL,
+        headers={
+            "User-Agent":UA,
+            "Accept":"text/html,*/*;q=0.8",
+            "Referer":"https://www.bse.cn/",
+        },
+        timeout=(10,30),
+        allow_redirects=True,
+    )
+    meta={
+        "status":r.status_code,
+        "resolved_url":r.url,
+        "content_type":r.headers.get("content-type"),
+        "bytes":len(r.content),
+        "sha256":sha256(r.content),
+        "same_official_host":same_bse(r.url),
+    }
+    if r.status_code != 200 or not r.content or not same_bse(r.url):
+        meta["parse"]="FAIL"
+        return {},meta
+    encodings=[]
+    if r.encoding and r.encoding.lower() not in ("iso-8859-1","latin-1"):
+        encodings.append(r.encoding)
+    encodings.extend(["utf-8","gb18030"])
+    try:
+        if r.apparent_encoding:
+            encodings.append(r.apparent_encoding)
+    except Exception:
+        pass
+    best=None
+    best_rows=[]
+    for enc in dict.fromkeys(encodings):
+        try:
+            text=r.content.decode(enc,errors="replace")
+        except Exception:
+            continue
+        p=TableCollector()
+        try:
+            p.feed(text)
+        except Exception:
+            continue
+        code_rows=[]
+        for row in p.rows:
+            codes=[x.strip() for x in row if re.fullmatch(r"\d{6}",x.strip())]
+            if len(codes)>=2:
+                code_rows.append((codes[-2],codes[-1],row))
+        if len(code_rows)>len(best_rows):
+            best=text
+            best_rows=code_rows
+    mapping={}
+    examples=[]
+    for old_code,new_code,row in best_rows:
+        if old_code==new_code:
+            continue
+        mapping.setdefault(new_code,[])
+        if old_code not in mapping[new_code]:
+            mapping[new_code].append(old_code)
+        if len(examples)<12:
+            examples.append({"old_code":old_code,"new_code":new_code,"row":row})
+    meta["parse"]="PASS" if mapping else "FAIL"
+    meta["mapping_pair_count"]=sum(len(v) for v in mapping.values())
+    meta["new_code_count"]=len(mapping)
+    meta["examples"]=examples
+    return mapping,meta
+
+
+def build_item(obj, meta, query_code, sample):
+    records=find_records(obj) if obj is not None else []
+    if obj is not None and not records:
+        meta["parsed_preview"]=json.dumps(
+            obj,ensure_ascii=False,sort_keys=True,separators=(",",":")
+        )[:800]
+    exact=[r for r in records if str(r.get("companyCd","")).strip()==query_code]
+    matching=[]
+    for r in exact:
+        title=(str(r.get("disclosureTitle") or "")+str(r.get("disclosurePostTitle") or ""))
+        date=str(r.get("publishDate") or "")
+        path=str(r.get("destFilePath") or "")
+        if (
+            all(tok in title for tok in sample["expected_title_tokens"])
+            and date.startswith(sample["expected_date_prefix"])
+            and path
+            and (path.startswith("/") or same_bse(path))
+        ):
+            matching.append({
+                "companyCd":r.get("companyCd"),
+                "companyName":r.get("companyName"),
+                "title":title,
+                "publishDate":r.get("publishDate"),
+                "destFilePath":path,
+                "fileExt":r.get("fileExt"),
+                "xxzrlx":r.get("xxzrlx"),
+            })
+    return {
+        "transport":meta,
+        "query_company_code":query_code,
+        "page_meta":list_info_meta(obj) if obj is not None else {},
+        "record_count":len(records),
+        "exact_code_record_count":len(exact),
+        "matching_count":len(matching),
+        "matching_sample":matching[:10],
+        "exact_code_sample":[{
+            "companyCd":r.get("companyCd"),
+            "companyName":r.get("companyName"),
+            "title":(str(r.get("disclosureTitle") or "")+str(r.get("disclosurePostTitle") or "")),
+            "publishDate":r.get("publishDate"),
+            "destFilePath":r.get("destFilePath"),
+        } for r in exact[:10]],
+    }
+
+
 def list_info_meta(obj):
     found={}
     def walk(x):
@@ -206,6 +351,7 @@ def main():
     # result set with HTTP 200.
     type_obj,type_meta=get_control_json(session,TYPE_ENDPOINT,{"type":6})
     hy_obj,hy_meta=get_control_json(session,HY_ENDPOINT,{"type":1})
+    code_mapping,code_mapping_meta=fetch_code_mapping(session)
     disclosure_type_candidates=collect_values(
         type_obj,{"distype","dvalue","disclosureType","value"}
     )[:40]
@@ -290,6 +436,7 @@ def main():
                     })
             item={
                 "transport":meta,
+                "query_company_code":sample["code"],
                 "page_meta":list_info_meta(obj) if obj is not None else {},
                 "record_count":len(records),
                 "exact_code_record_count":len(exact),
@@ -373,12 +520,64 @@ def main():
                         break
                 if winning is not None:
                     break
+        # Historical BSE announcements can retain the pre-920 security code.
+        # Accept an alias only when the live first-party code-mapping table maps
+        # that old code to this exact current sample code.  Never hard-code or
+        # infer aliases from company names.
+        historical_aliases=code_mapping.get(sample["code"],[])
+        if winning is None and historical_aliases:
+            for alias in historical_aliases:
+                alias_base={k:v for k,v in category_base.items() if k!="companyCd"}
+                alias_base["companyCd"]=alias
+                for idx,dtype in enumerate(disclosure_type_candidates):
+                    page0={k:v for k,v in alias_base.items() if k!="page"}
+                    page0["page"]=0
+                    pairs=list(page0.items())
+                    pairs += [("disclosureType[]",dtype),("xxfcbj[]","2")]
+                    pairs += [("needFields[]",field) for field in NEED_FIELDS]
+                    obj,meta=request_variant(
+                        session,f"official_mapped_alias_{alias}_type_{idx}_page_0_post","POST",pairs
+                    )
+                    item=build_item(obj,meta,alias,sample)
+                    variants.append(item)
+                    if item["matching_count"]:
+                        winning=item
+                        break
+                    if item["exact_code_record_count"]<=0:
+                        continue
+                    total_pages=int(item.get("page_meta",{}).get("totalPages") or 1)
+                    for page_no in range(1,min(total_pages,60)):
+                        paged={k:v for k,v in alias_base.items() if k!="page"}
+                        paged["page"]=page_no
+                        pairs=list(paged.items())
+                        pairs += [("disclosureType[]",dtype),("xxfcbj[]","2")]
+                        pairs += [("needFields[]",field) for field in NEED_FIELDS]
+                        obj,meta=request_variant(
+                            session,
+                            f"official_mapped_alias_{alias}_type_{idx}_page_{page_no}_post",
+                            "POST",pairs
+                        )
+                        item=build_item(obj,meta,alias,sample)
+                        variants.append(item)
+                        if item["matching_count"]:
+                            winning=item
+                            break
+                    if winning is not None:
+                        break
+                if winning is not None:
+                    break
+
         status="PASS" if winning is not None else "NOT VERIFIED"
         all_sample_pass=all_sample_pass and status=="PASS"
-        results.append({"sample":sample,"status":status,"variants":variants})
+        results.append({
+            "sample":sample,
+            "official_historical_aliases":historical_aliases,
+            "status":status,
+            "variants":variants,
+        })
 
     report={
-        "schema":"stock-bse-company-announcement-contract-v4",
+        "schema":"stock-bse-company-announcement-contract-v5",
         "endpoint":ENDPOINT,
         "endpoint_discovered_from":{
             "pr":219,
@@ -391,7 +590,7 @@ def main():
             "official_ajax_type":"post",
             "official_data_type":"jsonp",
             "array_fields":["xxfcbj","needFields"],
-            "array_encoding_under_test":"jquery bracket-suffixed keys plus live official disclosure_type.do values and server-denominated pagination",
+            "array_encoding_under_test":"jquery bracket-suffixed keys plus live official disclosure_type.do values, server-denominated pagination, and first-party old/new code mapping",
             "no_gate_reduction":True,
         },
         "classification_controls":{
@@ -401,6 +600,9 @@ def main():
             "hy_endpoint":HY_ENDPOINT,
             "hy_transport":hy_meta,
             "hy_type_candidates":hy_type_candidates,
+            "code_mapping_url":CODE_MAPPING_URL,
+            "code_mapping_transport":code_mapping_meta,
+            "code_mapping_for_samples":{s["code"]:code_mapping.get(s["code"],[]) for s in SAMPLES},
             "prior_empty_contract_root_cause":"v2 used disclosureType='' even though the official page derives disclosureType from disclosure_type.do",
         },
         "sample_results":results,
