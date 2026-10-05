@@ -21,9 +21,12 @@ cfg={"universe":{"min_turnover_cny":2e7,"live_top_n":80,"exclude_st":True},
      "valuation":{"backtest_min_coverage":.4,"loss_company_score":15,"missing_score":50,"pe_weight":.6,"pb_weight":.4}}
 def fake_pit(root,required_keys,expected_trade_date=None):
     states={}
-    days=sorted({str(day) for day,_ in required_keys})
     for day,code in required_keys:
         states[(str(day),str(code))]={"market":"SZSE","st":False,"suspended":False}
+    # The production loader returns the full verified canonical per-market
+    # trading calendar, not only the requested state keys.  Keep this generic
+    # unit stub faithful to that contract; hardening tests exercise real bytes.
+    days=[d.strftime("%Y-%m-%d") for d in pd.bdate_range("2022-01-03",periods=520)]
     return states,{"status":"PASS","required_key_count":len(states),"canonical_sha256":"f"*64,"window_start":"2022-01-03","window_end":str(expected_trade_date),"market_dates":{m:days for m in ("SSE","SZSE","BSE")}}
 
 with tempfile.TemporaryDirectory() as td:
