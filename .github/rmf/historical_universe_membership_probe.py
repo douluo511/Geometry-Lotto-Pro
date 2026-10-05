@@ -99,9 +99,23 @@ def _fetch_board(client: NetClient, stock_type: str) -> tuple[list[dict], dict]:
 def _eligible(item: dict, asof: date) -> bool:
     listed = date.fromisoformat(item["list_date"])
     delisted = date.fromisoformat(item["delist_date"]) if item["delist_date"] else None
-    # Conservative historical membership rule: security must already be listed,
-    # and a recorded delisting date ends membership before that date.
+    # Historical state derived from event dates.
     return listed <= asof and (delisted is None or asof < delisted)
+
+
+def _eligible_with_future_events_hidden(item: dict, asof: date) -> bool:
+    """Recompute membership after hiding facts that occur strictly after asof.
+
+    A future listing is unknown and therefore cannot make the symbol eligible.
+    A future delisting date is replaced by unknown/None; before that event this
+    must not change membership. Equality on delist day remains non-member.
+    """
+    listed = date.fromisoformat(item["list_date"])
+    if listed > asof:
+        return False
+    raw_delisted = date.fromisoformat(item["delist_date"]) if item["delist_date"] else None
+    known_delisted = raw_delisted if raw_delisted is not None and raw_delisted <= asof else None
+    return known_delisted is None or asof < known_delisted
 
 
 def main() -> int:
@@ -141,8 +155,31 @@ def main() -> int:
     previous_count = None
     change_dates = []
     target_missing_dates = []
+    causal_invariance_mismatches = []
+    future_list_records_hidden_total = 0
+    future_delist_records_hidden_total = 0
     for d in research_dates:
         members = [item for item in by_symbol.values() if _eligible(item, d)]
+        baseline_symbols = {item["symbol"] for item in members}
+        causal_symbols = {
+            item["symbol"]
+            for item in by_symbol.values()
+            if _eligible_with_future_events_hidden(item, d)
+        }
+        if baseline_symbols != causal_symbols:
+            causal_invariance_mismatches.append({
+                "date": d.isoformat(),
+                "baseline_only": sorted(baseline_symbols - causal_symbols)[:20],
+                "causal_only": sorted(causal_symbols - baseline_symbols)[:20],
+            })
+        future_list_records_hidden_total += sum(
+            1 for item in by_symbol.values()
+            if date.fromisoformat(item["list_date"]) > d
+        )
+        future_delist_records_hidden_total += sum(
+            1 for item in by_symbol.values()
+            if item["delist_date"] and date.fromisoformat(item["delist_date"]) > d
+        )
         count = len(members)
         if previous_count is not None and count != previous_count:
             change_dates.append({"date": d.isoformat(), "member_count": count, "previous_count": previous_count})
@@ -150,6 +187,12 @@ def main() -> int:
         if not _eligible(target, d):
             target_missing_dates.append(d.isoformat())
         snapshots.append((d.isoformat(), count))
+
+    if causal_invariance_mismatches:
+        raise RuntimeError(
+            "historical membership changes when future-dated listing/delisting facts are hidden: "
+            + json.dumps(causal_invariance_mismatches[:5], sort_keys=True)
+        )
 
     sampled = []
     sample_indices = sorted(set([0, len(snapshots)//4, len(snapshots)//2, 3*len(snapshots)//4, len(snapshots)-1]))
@@ -209,6 +252,11 @@ def main() -> int:
         "target_missing_date_count": len(target_missing_dates),
         "historical_universe_canonical_sha256": canonical_hash,
         "historical_membership_reconstruction": "PASS",
+        "event_time_no_future_leakage_subcontrol": "PASS",
+        "causal_event_invariance_checked_dates": len(research_dates),
+        "causal_event_invariance_mismatch_count": len(causal_invariance_mismatches),
+        "future_list_records_hidden_total": future_list_records_hidden_total,
+        "future_delist_records_hidden_total": future_delist_records_hidden_total,
         "historical_pit_availability": "NOT VERIFIED",
         "survivorship_selection_control": "NOT VERIFIED",
         "capital_deployment_ready": False,
@@ -216,8 +264,11 @@ def main() -> int:
             "This proves that the current official SSE payload exposes listing/delisting records "
             "sufficient to reconstruct a historical membership set across the exact 1200-row "
             "research window, and whether 600000 belonged to that set. It does not prove that these "
-            "fields were historically knowable at each past date, nor that 600000 was selected "
-            "ex ante from a frozen investable universe. Those gates remain NOT VERIFIED."
+            "membership is invariant when all future-dated listing/delisting facts are hidden, "
+            "which proves this reconstruction rule does not use future event dates to change pre-event "
+            "membership. It still does not prove the SSE fields were historically available/knowable "
+            "at each past date, nor that 600000 was selected ex ante from a frozen investable universe. "
+            "Those gates remain NOT VERIFIED."
         ),
     }
     args.output.write_text(json.dumps(evidence, ensure_ascii=True, indent=2) + "\n", encoding="utf-8")
