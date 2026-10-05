@@ -237,3 +237,62 @@ jobs:
 
           print(json.dumps(discovered, ensure_ascii=False, sort_keys=True))
           print("RMF_SSE_DELISTING_ENDPOINT_DISCOVERY_COMPLETE")
+
+      - name: Trace SSE common-table data URL construction for delisting channels
+        shell: python
+        run: |
+          import json
+          import re
+          import urllib.request
+
+          urls = [
+              "https://www.sse.com.cn/xhtml/js/common/common_table.js?v=V3.6.1_20250626",
+              "https://www.sse.com.cn/xhtml/js/common/table_config.js?v=V3.7.9",
+              "https://www.sse.com.cn/assortment/stock/list/delisting/",
+              "https://www.sse.com.cn/services/information/delisting/",
+          ]
+          headers = {
+              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/154 Safari/537.36",
+              "Accept": "text/html,application/javascript,text/javascript,*/*",
+          }
+          needles = [
+              r"js_delistedCompany",
+              r"delisting_8530",
+              r"channelCode",
+              r"commonQuery",
+              r"sseQuery",
+              r"query\.do",
+              r"sqlId",
+              r"ajax",
+              r"dataUrl",
+              r"queryUrl",
+              r"api",
+          ]
+          out = {"status":"DIAGNOSTIC_ONLY","sources":[]}
+          for url in urls:
+              req = urllib.request.Request(url, headers=headers)
+              with urllib.request.urlopen(req, timeout=25) as resp:
+                  raw = resp.read()
+                  status = resp.status
+                  ctype = resp.headers.get("Content-Type","")
+              text = raw.decode("utf-8", errors="replace")
+              snippets = []
+              for needle in needles:
+                  for m in re.finditer(needle, text, flags=re.I):
+                      snippets.append({
+                          "needle": needle,
+                          "snippet": text[max(0,m.start()-650):min(len(text),m.start()+1800)]
+                      })
+                      if len(snippets) >= 40:
+                          break
+                  if len(snippets) >= 40:
+                      break
+              out["sources"].append({
+                  "url":url,
+                  "http_status":status,
+                  "content_type":ctype,
+                  "bytes":len(raw),
+                  "snippets":snippets,
+              })
+          print(json.dumps(out, ensure_ascii=False, sort_keys=True))
+          print("RMF_SSE_COMMON_TABLE_TRACE_COMPLETE")
