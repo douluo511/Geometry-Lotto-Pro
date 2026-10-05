@@ -899,3 +899,17 @@ This checkpoint supersedes older in-progress wording for the items below only. I
 - Workflow fail-closed assertions enforce that technical-spec existence cannot promote those gates or Final.
 - Artifact `11345162043`, digest `sha256:fa089dcfd87537f3677ddc88705966577ae3e7dc686299bce0cf2d76929b0a9f`.
 - Portfolio boundary unchanged: migration/export readiness **18/18 PASS**; dedicated repositories **0/18**; Final/Delivery **0/18**.
+
+
+## 2026-10-05 RMF SSE daily-product-file PIT publication boundary
+
+- Diagnostic authority: PR #187 exact head `cb5e4cc16c680968ae08caa95ff204c70b45ae20`.
+- Run `37309761624` / job `111762006727` = **SUCCESS**. The 1200-session historical membership reconstruction and official daily listed-count cross-check were independently rerun on this exact head before the new PIT probe.
+- Historical membership reconstruction remains **PASS** with 0/1200 causal future-event mismatches; reconstructed membership 1992→2320 across 366 change dates; official listed-count cross-check remains **PASS** on four comparable dates.
+- Official SSE market-data specification returned HTTP 200, 184 pages; PDF SHA-256 `0a0ca283adc2dcfc532d3b4c54d12b114bd8e3ee957771e7947a20bdc5eb3bc7`; extracted-text SHA-256 `4b9cf21230b977a3c2df7aca546c998b630a1f82342158578f748934b972a1c1`.
+- Exact `cpxx0201MMDD` identifier, pre-open publication language, trading-date filename semantics and suspended-product scope are present. Therefore the **market-participant daily product-file publication mechanism = SUPPORTED**.
+- This does **not** reproduce the exact historical daily file contents for the frozen 2021-10-25→2026-09-30 research window. Historical file replayability = **NOT VERIFIED**; historical PIT content availability = **NOT VERIFIED**; survivorship selection control = **NOT VERIFIED**; leakage point-in-time = **NOT VERIFIED**.
+- Machine assertions prevent publication-mechanism evidence from promoting those business gates or Final.
+- Artifact `11344858920`, digest `sha256:1feccf434d6e59d9477292861dcaab07c120ec87c3569f64721af321ddb7175e`.
+- RMF remains Engineering **24/28 = 85.7%**, Business **12/16 = 75.0%**, Overall **75.0%**, Final **FAIL**.
+- Portfolio boundary unchanged: migration/export readiness **18/18 PASS**; dedicated repositories **0/18**; Final/Delivery **0/18**.
