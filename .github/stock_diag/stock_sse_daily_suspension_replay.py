@@ -22,6 +22,17 @@ FROZEN_CROSS_SOURCE_FIRST = "2018-01-02"
 FROZEN_CROSS_SOURCE_LAST = "2026-09-30"
 FROZEN_CROSS_SOURCE_SOURCE_HEAD = "51d8dd5819a63248cae3911c286feaf345495e07"
 FROZEN_CROSS_SOURCE_RUN = 37314906853
+OPEN_INTERVAL_SOURCE_HEAD = "c67d3c333a5529e1eb8e999a801ec4b20c74e60e"
+OPEN_INTERVAL_SOURCE_RUN = 37340971264
+OPEN_INTERVAL_ARTIFACT_ID = 11358183245
+OPEN_INTERVAL_ARTIFACT_DIGEST = "sha256:1b3de800b0453914c1f533ff86cd3aa8861a02afdd2611ca1da46ccf4ae16a0d"
+OPEN_INTERVAL_ANCHORS = {
+    ("688496", "20260911", "f5afe9438d16281455d05b0f64fc9022c2e84e79e2ace6ab691cf1cc97f7cbb3"),
+    ("601059", "20260915", "1043504c71630b4cb5044ac7ea76e53a5a117d784867f23b759ad214cc930d4e"),
+    ("601198", "20260915", "4b2df25e99e8f54d1ede90048bf3be8098dbe7eb4cdda467be09a364652400cf"),
+    ("600293", "20260929", "d3f4f55206ad8b56974ae494db611aad1b4934ed4afc59be57d4ec8b61812bd9"),
+    ("603183", "20260930", "ed52de2bc217ccfdce38308e64f5c6fa68736cf3bee60d4c90a905ae5c491c9e"),
+}
 
 
 def load(path: Path) -> dict:
@@ -154,6 +165,8 @@ def main() -> int:
     ]
 
     missing_end = []
+    resolved_open_end = []
+    observed_open_anchors = set()
     invalid_range = []
     zero_intersection = []
     daily_pairs = set()
@@ -164,13 +177,32 @@ def main() -> int:
         start = str(item.get("start") or "")
         end = item.get("end")
         if not end:
-            missing_end.append({
-                "code": code,
-                "name": item.get("name"),
-                "start": start,
-                "row_sha256": item.get("row_sha256"),
-            })
-            continue
+            row_sha = str(item.get("row_sha256") or "")
+            anchor = (code, start, row_sha)
+            if anchor in OPEN_INTERVAL_ANCHORS:
+                # PR #207 exact-head evidence queried these exact code+start
+                # records through 2026-10-06 and found them still open. Any
+                # eventual future end is after the frozen 2026-09-30 window,
+                # so clamping to END8 cannot use a future end date to alter
+                # state inside the research window.
+                observed_open_anchors.add(anchor)
+                resolved_open_end.append({
+                    "code": code,
+                    "name": item.get("name"),
+                    "start": start,
+                    "effective_end": END8,
+                    "row_sha256": row_sha,
+                    "resolution": "PR207_SUPPORTED_ACTIVE_THROUGH_FROZEN_END",
+                })
+                end = END8
+            else:
+                missing_end.append({
+                    "code": code,
+                    "name": item.get("name"),
+                    "start": start,
+                    "row_sha256": row_sha,
+                })
+                continue
         end = str(end)
         if end < start:
             invalid_range.append({
@@ -208,6 +240,9 @@ def main() -> int:
     suspended_dates = sorted({x["trade_date"] for x in pairs})
     suspended_codes = sorted({x["code"] for x in pairs})
 
+    open_anchor_missing = sorted(OPEN_INTERVAL_ANCHORS - observed_open_anchors)
+    open_anchor_extra = sorted(observed_open_anchors - OPEN_INTERVAL_ANCHORS)
+
     prerequisites = {
         "official_interval_corpus": interval_status,
         "end_stop_date_semantics": semantic_status,
@@ -226,7 +261,16 @@ def main() -> int:
         "calendar_sha256_eastmoney": date_sha(em_dates) if em_dates else None,
         "calendar_sha256_tencent": tx_sha,
         "a_share_interval_count": len(a_share),
-        "missing_end_count": len(missing_end),
+        "open_interval_resolution_source_head": OPEN_INTERVAL_SOURCE_HEAD,
+        "open_interval_resolution_source_run": OPEN_INTERVAL_SOURCE_RUN,
+        "open_interval_resolution_artifact_id": OPEN_INTERVAL_ARTIFACT_ID,
+        "open_interval_resolution_artifact_digest": OPEN_INTERVAL_ARTIFACT_DIGEST,
+        "open_interval_anchor_expected_count": len(OPEN_INTERVAL_ANCHORS),
+        "open_interval_anchor_observed_count": len(observed_open_anchors),
+        "open_interval_anchor_missing_count": len(open_anchor_missing),
+        "open_interval_anchor_extra_count": len(open_anchor_extra),
+        "resolved_open_end_count": len(resolved_open_end),
+        "unresolved_missing_end_count": len(missing_end),
         "invalid_range_count": len(invalid_range),
         "zero_trading_day_intersection_count": len(zero_intersection),
     }
@@ -238,6 +282,9 @@ def main() -> int:
         and len(trading_dates) > 0
         and len(a_share) > 0
         and not missing_end
+        and len(resolved_open_end) == len(OPEN_INTERVAL_ANCHORS)
+        and not open_anchor_missing
+        and not open_anchor_extra
         and not invalid_range
         and not zero_intersection
         and len(pairs) > 0
@@ -256,7 +303,15 @@ def main() -> int:
             "last_suspended_trade_date": suspended_dates[-1] if suspended_dates else None,
             "daily_state_sha256": canonical_sha(pairs),
             "suspended_code_sha256": canonical_sha(suspended_codes),
-            "missing_end_sample": missing_end[:20],
+            "resolved_open_end_sample": resolved_open_end[:20],
+            "unresolved_missing_end_sample": missing_end[:20],
+            "open_interval_anchor_missing_sample": open_anchor_missing[:20],
+            "open_interval_anchor_extra_sample": open_anchor_extra[:20],
+            "open_interval_future_end_invariance": (
+                len(resolved_open_end) == len(OPEN_INTERVAL_ANCHORS)
+                and not open_anchor_missing
+                and not open_anchor_extra
+            ),
             "invalid_range_sample": invalid_range[:20],
             "zero_intersection_sample": zero_intersection[:20],
             "min_interval_trading_days": min(interval_trade_day_counts) if interval_trade_day_counts else None,
