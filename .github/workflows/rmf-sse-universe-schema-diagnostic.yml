@@ -70,6 +70,43 @@ jobs:
               samples = []
               for row in rows[:5]:
                   samples.append({k: row.get(k) for k in interesting if k in row})
+
+              def clean(value):
+                  return str(value or "").strip()
+
+              delisted = [
+                  row for row in rows
+                  if re.fullmatch(r"\\d{8}", clean(row.get("DELIST_DATE")))
+              ]
+              listed_dates = sorted(
+                  clean(row.get("LIST_DATE")) for row in rows
+                  if re.fullmatch(r"\\d{8}", clean(row.get("LIST_DATE")))
+              )
+              delist_dates = sorted(
+                  clean(row.get("DELIST_DATE")) for row in delisted
+              )
+              status_counts = {}
+              for key in ("STATE_CODE", "STATE_CODE_STOCK", "PRODUCT_STATUS"):
+                  counts = {}
+                  for row in rows:
+                      value = clean(row.get(key))
+                      counts[value] = counts.get(value, 0) + 1
+                  status_counts[key] = dict(sorted(counts.items()))
+
+              historical_anchor = "20240906"
+              members_at_anchor = [
+                  row for row in rows
+                  if re.fullmatch(r"\\d{8}", clean(row.get("LIST_DATE")))
+                  and clean(row.get("LIST_DATE")) <= historical_anchor
+                  and (
+                      not re.fullmatch(r"\\d{8}", clean(row.get("DELIST_DATE")))
+                      or clean(row.get("DELIST_DATE")) >= historical_anchor
+                  )
+              ]
+              delisted_samples = [
+                  {k: row.get(k) for k in interesting if k in row}
+                  for row in delisted[:10]
+              ]
               return {
                   "stock_type": stock_type,
                   "http_status": status,
@@ -79,6 +116,14 @@ jobs:
                   "all_keys": keys,
                   "date_status_identity_keys": interesting,
                   "sample_rows": samples,
+                  "valid_list_date_count": len(listed_dates),
+                  "list_date_range": [listed_dates[0], listed_dates[-1]] if listed_dates else None,
+                  "valid_delist_date_count": len(delist_dates),
+                  "delist_date_range": [delist_dates[0], delist_dates[-1]] if delist_dates else None,
+                  "delisted_samples": delisted_samples,
+                  "status_counts": status_counts,
+                  "historical_anchor": historical_anchor,
+                  "membership_count_at_anchor_from_returned_rows": len(members_at_anchor),
               }
 
           result = {
