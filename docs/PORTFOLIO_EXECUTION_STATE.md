@@ -1,3 +1,16 @@
+<!-- exact-checkpoint-stock-257-current-20261006 -->
+## 2026-10-06 current authority correction — Stock #257
+
+This checkpoint supersedes the immediately older #255 authority wording for current Stock execution only.
+
+- Root-cause diagnostic PR #254 is closed unmerged after successful exact diagnostic run `37368139419` / job `111958245267`: unchanged Stock product bytes; historical PIT evidence gate present = PASS; live `exclude_st` policy = PASS; historical candidate pool PIT consumption = FAIL; historical dataset PIT state = FAIL; production/backtest ST-policy parity = NOT VERIFIED. Artifact `11368832574`.
+- **Current Stock behavior-changing candidate is PR #257**, branch `fix/stock-consume-historical-st-pit-20261006`, exact head `1f3080cc5789701e5181bd8652c06f4fb0c4c3d0`.
+- #257 now binds verified historical state into backtest execution: signal-date ST/suspension before Top-N ranking, per-market verified PIT calendars, true next-market-open alignment via `entry_date`, entry-date suspension execution rejection, no next-day ST selection leakage, audit/backtest canonical-SHA binding, and fail-closed missing/malformed/mismatched PIT state.
+- Earlier #257 head `56d2ff15...` correctly failed source recovery because release manifests were stale after behavior changes (`audit.py` git-blob SHA mismatch). The current head rebounded inner/outer manifests; fresh source run `37370425815` has PASSed exact checkout and immutable raw-byte restore. Remaining source gates are still non-terminal.
+- Fresh current-head runs only: source `37370425815`; full-business `37370425841`; Windows desktop `37370425783`. No prior Stock Business/Windows/GUI/Same-Hash PASS is inherited.
+- Stock deterministic migration/export remains stale after the behavior change; current-product-bound portfolio migration/export readiness remains **17/18** until a fresh export is generated and independently verified from the terminal #257 product head.
+- Dedicated repositories remain **0/18**; Final PASS **0/18**; delivery **0/18**.
+
 <!-- exact-checkpoint-stock-255-pit-consumption-20261006 -->
 ## 2026-10-06 current exact checkpoint — Stock #255 PIT consumption fix
 
