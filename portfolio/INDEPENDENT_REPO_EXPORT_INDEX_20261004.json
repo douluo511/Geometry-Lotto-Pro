@@ -326,7 +326,28 @@
           "shanghai_historical_st": "NOT VERIFIED",
           "beijing_historical_st": "NOT VERIFIED",
           "historical_suspension_daily_state": "NOT VERIFIED",
-          "full_historical_st_pit": "NOT VERIFIED"
+          "full_historical_st_pit": "NOT VERIFIED",
+          "sse_suspension_surface": {
+            "status": "EXACT_HEAD_DIAGNOSTIC_PASS_FULL_GATE_NOT_VERIFIED",
+            "diagnostic_pr": 191,
+            "diagnostic_head": "92a7bfc45b797b69bd3282289d2a0d78fd89640d",
+            "diagnostic_run": 37308150061,
+            "diagnostic_job": 111756731020,
+            "product_bytes_changed": false,
+            "official_public_surface_https_reachable": "PASS",
+            "static_query_sse_literal": "SUPPORTED",
+            "suspension_table_field_surface": "NOT VERIFIED",
+            "date_query_changes_static_surface": "NOT VERIFIED",
+            "stable_public_bulk_historical_suspension_endpoint": "NOT VERIFIED",
+            "historical_daily_suspension_state": "NOT VERIFIED",
+            "shanghai_historical_st_pit": "NOT VERIFIED",
+            "full_historical_st_pit": "NOT VERIFIED",
+            "suspension_page_raw_sha256": "2aac0ed11d89a468b54fe19ae81387a78faccd3f67b0f33a66e656319e0edf9a",
+            "suspension_page_canonical_sha256": "f6a69aa07f3946d629a9edb75a238f8cee1251b521bb6faca34002ae62fea176",
+            "artifact_id": 11344776014,
+            "artifact_digest": "sha256:9c6024a3cd2fcd62c0e71e83b63b2c700fcde8107cc07596d5033dc7d7065e76",
+            "superseded_non_exact_run": 37308035541
+          }
         }
       },
       "product_tree_byte_identity": "PASS",
@@ -589,7 +610,7 @@
     }
   ],
   "next_resume_condition": "Continue current exact-head product validation. Do not promote migration readiness to Final. Repository-independence work can resume only when dedicated target repositories are actually visible/writable to the integration; then seed each verified export and rerun the complete chain from independent main.",
-  "latest_delta": "Current-product export remains 18/18 PASS. Stock #188 now provides Shenzhen-only historical ST/PIT sub-evidence (7,489 dated name changes, 2,281 ST transitions) while Shanghai/Beijing/suspension and full HISTORICAL_ST_PIT remain NOT VERIFIED. RMF #189 now supports amount-based 5% participation capacity on 1,200 real public-L1 sessions, but spread/impact/broker-slippage/limit-fill and the full liquidity_capacity gate remain NOT VERIFIED. No completion percentage or Final status is promoted. Dedicated repositories remain 0/18; Final/Delivery 0/18.",
+  "latest_delta": "Current-product export remains 18/18 PASS. Stock #188 supplies Shenzhen historical ST sub-evidence; Stock #191 exact-head run 37308150061 proves official SSE suspension/public-data surfaces are reachable but the static/date-parameter surface still does not verify a stable public bulk historical suspension endpoint, so Shanghai suspension/PIT and full HISTORICAL_ST_PIT remain NOT VERIFIED. RMF amount-based capacity remains SUPPORTED only; full liquidity_capacity remains NOT VERIFIED. Dedicated repositories remain 0/18; Final/Delivery 0/18.",
   "infrastructure_capability": {
     "repository_creation": "BLOCKED",
     "repository_creation_evidence": "PR #127: Actions integration token cannot act as user-level repository creator; connector exposes no create-repository mutation.",
@@ -600,6 +621,6 @@
   "audit": {
     "exact_seed_audit_date": "2026-10-05",
     "status": "CURRENT_PRODUCT_EXPORTS_18_OF_18_PASS_STOCK_AND_HAPPY8_TERMINAL_FINAL_BLOCKED",
-    "note": "All 18 current-product-bound migration/export seeds remain PASS. Stock PR #155 and Happy8 PR #176 now both have terminal current-head candidate acceptance evidence; neither is Final because frozen business/release/repository boundaries remain non-PASS. Independent repositories remain 0/18 and Final/Delivery remain 0/18."
+    "note": "All 18 current-product-bound migration/export seeds remain PASS. Stock PR #155 and Happy8 PR #176 retain terminal candidate evidence. Stock diagnostic #191 is exact-head CI evidence for the SSE public suspension surface only and does not promote HISTORICAL_ST_PIT. Independent repositories remain 0/18 and Final/Delivery remain 0/18."
   }
 }
