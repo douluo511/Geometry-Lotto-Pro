@@ -35,14 +35,25 @@
       "source_product_head": "3b61bb59ed0da6f7c7717b6840fe95a00d58a2ad",
       "export_artifact_id": 11325575415,
       "export_artifact_digest": "sha256:c7d59fd4658a603f838f2eb54bc0ee19a42c72b07a9abbf468daab6833732a75",
-      "source_product_status": "REVALIDATING",
+      "source_product_status": "CANDIDATE_ONLY_FINAL_BLOCKED",
       "exact_head_checkout_required": true,
       "superseded_export_prs": [
         114,
         132
       ],
-      "note": "Current product head includes exact-head checkout-evidence v2 verifier repair. Export verification is PASS; Windows full-chain rerun 37262758839 remains in progress and no Final PASS is inherited.",
-      "superseded_export_pr": 132
+      "note": "Current exact-head Windows run 37262758839 passed architecture/tests/live network/Windows/Exact EXE/reproducible build/Standard User/physical GUI positive+failure paths/Same Hash. Business B05 remains PENDING solely on real independent Release N→N+1 prerequisites; scope approval is already PASS. Final FAIL is correct.",
+      "superseded_export_pr": 132,
+      "current_windows_run": 37262758839,
+      "current_windows_status": "FAIL_FINAL_AGGREGATE_ONLY",
+      "exact_exe_sha256": "8c513d8f07dc16749161af62c47d7e23934e08ee52c689b93cef08eb3f418a4c",
+      "updater_sha256": "c023976d073f765d195cb004a40a375a70a04e7e07568905614273618e629505",
+      "diagnostic_artifact_id": 11325666525,
+      "final_non_pass_gates": [
+        "business_content",
+        "updater_real_network",
+        "repository_independence",
+        "release_context"
+      ]
     },
     {
       "id": 2,
@@ -310,7 +321,7 @@
     }
   ],
   "next_resume_condition": "Continue current exact-head product validation. Do not promote migration readiness to Final. Repository-independence work can resume only when dedicated target repositories are actually visible/writable to the integration; then seed each verified export and rerun the complete chain from independent main.",
-  "latest_delta": "Current-product-bound migration readiness is 18/18 after RMF export #148 PASS bound to merge product 917e1de5. RMF corporate-action detector tightening reduced false significant shifts but corporate_action_point_in_time remains NOT VERIFIED (5 significant, 1 matched, 4 unexplained); current-run official SSE cost sub-evidence was also NOT VERIFIED due HTTP 403. Stock desktop and SSQ Windows current exact-head runs remain IN_PROGRESS. Independent repositories remain 0/18; Final/Delivery remain 0/18.",
+  "latest_delta": "Current-product-bound migration readiness remains 18/18. SSQ current exact-head Windows run 37262758839 has closed: all local/Windows/Standard User/physical GUI/Same Hash gates PASS, Final aggregate FAIL only on business B05/release/repository dependencies. Stock desktop research-corpus qualification remains IN_PROGRESS. Independent repositories remain 0/18; Final/Delivery remain 0/18.",
   "infrastructure_capability": {
     "repository_creation": "BLOCKED",
     "repository_creation_evidence": "PR #127: Actions integration token cannot act as user-level repository creator; connector exposes no create-repository mutation.",
