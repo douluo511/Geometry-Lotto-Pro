@@ -58,8 +58,17 @@ def page_url(index: int) -> str:
     return urljoin(ROOT, "index.html" if index == 0 else f"index_{index}.html")
 
 
-def parse_page(raw: bytes, final_url: str):
-    text = raw.decode("utf-8", errors="replace")
+def decode_response(response: requests.Response) -> str:
+    enc = response.encoding
+    if not enc or str(enc).lower() in {"iso-8859-1", "latin-1"}:
+        enc = response.apparent_encoding or "utf-8"
+    return response.content.decode(enc, errors="replace")
+
+
+def parse_page(response: requests.Response):
+    text = decode_response(response)
+    final_url = str(response.url)
+    raw = response.content
     soup = BeautifulSoup(text, "html.parser")
     rows = {}
     for a in soup.find_all("a"):
@@ -115,7 +124,7 @@ def main() -> int:
             }
             break
 
-        rows, raw_sha = parse_page(r.content, str(r.url))
+        rows, raw_sha = parse_page(r)
         if not rows:
             next_page_receipt = {
                 "page_index": idx,
@@ -174,7 +183,7 @@ def main() -> int:
                     "attempt": emeta["attempt"],
                 }
             else:
-                erows, esha = parse_page(er.content, str(er.url))
+                erows, esha = parse_page(er)
                 if erows and max(x["date"] for x in erows) > page_min:
                     raise RuntimeError(
                         f"post-boundary chronology reversal: page={extra_idx}"
