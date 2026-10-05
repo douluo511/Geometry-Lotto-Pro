@@ -9,6 +9,7 @@ from importlib.metadata import version as package_version
 
 import pandas as pd
 import akshare as ak
+import requests
 
 
 def pick(cols, *names):
@@ -47,8 +48,83 @@ def fetch_sz_change_name(max_attempts: int = 3):
             time.sleep(1.25 * (2 ** (attempt - 1)))
 
 
+BSE_INTERFACE_NOTICE_URL = "https://www.bse.cn/class_b/200028461.html"
+
+
+def fetch_bse_short_name_boundary(max_attempts: int = 3):
+    errors = []
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                      "AppleWebKit/537.36 Chrome/154 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Referer": "https://www.bse.cn/",
+    }
+    for attempt in range(1, max_attempts + 1):
+        try:
+            response = requests.get(
+                BSE_INTERFACE_NOTICE_URL,
+                headers=headers,
+                timeout=(5, 20),
+                allow_redirects=True,
+            )
+            if response.status_code == 429 or response.status_code >= 500:
+                raise RuntimeError(f"retryable HTTP {response.status_code}")
+            response.raise_for_status()
+            payload = response.content
+            if not payload:
+                raise RuntimeError("BSE interface notice returned empty body")
+            encoding = response.encoding
+            if not encoding or str(encoding).lower() in {"iso-8859-1", "latin-1"}:
+                encoding = response.apparent_encoding or "utf-8"
+            text = payload.decode(encoding, errors="replace")
+            has_file = "JCyymmdd.nnn" in text
+            has_short_name = "简称公告文件" in text
+            has_cancel = "取消" in text
+            supported = has_file and has_short_name and has_cancel
+            return {
+                "status": "SUPPORTED" if supported else "NOT VERIFIED",
+                "url": str(response.url),
+                "http_status": int(response.status_code),
+                "payload_sha256": hashlib.sha256(payload).hexdigest(),
+                "retrieved_at": datetime.now(timezone.utc).isoformat(),
+                "attempts": attempt,
+                "prior_attempt_errors": errors,
+                "file_identifier": "JCyymmdd.nnn" if has_file else "NOT VERIFIED",
+                "short_name_file_phrase_present": has_short_name,
+                "cancellation_phrase_present": has_cancel,
+                "historical_market_participant_short_name_file_existence": (
+                    "SUPPORTED" if supported else "NOT VERIFIED"
+                ),
+                "public_historical_bulk_archive": "NOT VERIFIED",
+                "beijing_historical_st_pit": "NOT VERIFIED",
+                "scope": (
+                    "Official BSE notice can support existence/cancellation of a market-participant "
+                    "short-name file. It does not prove a currently public historical bulk archive, "
+                    "nor reconstruct historical ST state or suspension state."
+                ),
+            }
+        except Exception as exc:
+            errors.append({
+                "attempt": attempt,
+                "error_type": type(exc).__name__,
+                "error": str(exc),
+            })
+            if attempt < max_attempts:
+                time.sleep(1.25 * (2 ** (attempt - 1)))
+    return {
+        "status": "NOT VERIFIED",
+        "url": BSE_INTERFACE_NOTICE_URL,
+        "attempts": max_attempts,
+        "errors": errors,
+        "historical_market_participant_short_name_file_existence": "NOT VERIFIED",
+        "public_historical_bulk_archive": "NOT VERIFIED",
+        "beijing_historical_st_pit": "NOT VERIFIED",
+    }
+
+
 def main():
     df, fetch_meta = fetch_sz_change_name()
+    bse_boundary = fetch_bse_short_name_boundary()
     cols = list(df.columns)
     code_col = pick(cols, "证券代码", "代码")
     date_col = pick(cols, "变更日期", "变更时间", "日期")
@@ -126,6 +202,7 @@ def main():
             "beijing": "NOT VERIFIED",
             "full_a_share_gate": "NOT VERIFIED",
         },
+        "beijing_official_source_boundary": bse_boundary,
         "historical_suspension_daily_state": "NOT VERIFIED",
         "product_bytes_changed": False,
         "final_gate": "FAIL",
