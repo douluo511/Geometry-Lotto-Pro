@@ -873,3 +873,16 @@ This checkpoint supersedes older in-progress wording for the items below only. I
 - Artifact `11344686371`, digest `sha256:d87d93ec2a77285baea175b31e9da105a18d555b33af0a98e57170409e8a25e6`.
 - RMF remains Engineering **24/28 = 85.7%**, Business **12/16 = 75.0%**, Overall **75.0%**, Final **FAIL**.
 - Portfolio boundary unchanged: migration/export readiness **18/18 PASS**; dedicated repositories **0/18**; Final/Delivery **0/18**.
+
+
+## 2026-10-05 Stock BSE historical short-name source boundary
+
+- Diagnostic authority: PR #188 exact head `dc6750f7693d3f7d3bd635f9ef2c47f4b7572f64`.
+- Run `37308649061` / job `111758361058` = **SUCCESS**; authoritative Stock PR #155 product bytes at `43168d9e75c70ab55be808d8a51f0c0eb14d83d5` were unchanged.
+- Shenzhen dated-name-change reconstruction remains **SUPPORTED**: 7,489 rows / 3,125 securities / 2,281 ST-related rows / 673 ST-related securities. First live attempt hit WinError 10054; bounded retry succeeded on attempt 2.
+- Official BSE notice `https://www.bse.cn/class_b/200028461.html` returned HTTP 200; payload SHA-256 `1e7ae7ac6004351bcf2e775a1db402991bfb3f52183d2ab2aa5002c154aec257`.
+- The notice contains exact file identifier `JCyymmdd.nnn`, the phrase “简称公告文件”, and cancellation wording. Therefore historical **market-participant short-name file existence = SUPPORTED**.
+- This does **not** establish a currently public historical bulk archive. BSE public historical bulk archive = **NOT VERIFIED**; Beijing historical ST/PIT = **NOT VERIFIED**; Shanghai historical ST/PIT = **NOT VERIFIED**; historical daily suspension state = **NOT VERIFIED**; full A-share `HISTORICAL_ST_PIT` = **NOT VERIFIED**.
+- Fail-closed assertions now enforce that source-file existence cannot promote Beijing PIT, full HISTORICAL_ST_PIT or Final.
+- Artifact `11344588057`, digest `sha256:b7188d73cc8cf3878f0af423bf66d1f9939f377c1d93f68fee669aa55f051094`.
+- Portfolio boundary unchanged: migration/export readiness **18/18 PASS**; dedicated repositories **0/18**; Final/Delivery **0/18**.
