@@ -418,10 +418,14 @@ def qualify_research(
     adjustment = str(source_meta.get("price_adjustment", "")).lower()
     # A provider qfq label alone is never enough. Corporate-action PASS requires
     # independent event dates plus observed qfq/raw factor changes and source hashes.
+    research_symbol = str(ordered[0].symbol)
+    if any(str(row.symbol) != research_symbol for row in ordered):
+        raise ValueError("qualification rows must belong to one research symbol")
     corporate_evidence = dict(corporate_action_evidence or {})
+    corporate_source_meta = {**source_meta, "symbol": research_symbol}
     corporate_action = (
         "PASS"
-        if _corporate_action_evidence_qualified(source_meta, corporate_evidence)
+        if _corporate_action_evidence_qualified(corporate_source_meta, corporate_evidence)
         else "NOT VERIFIED"
     )
     positive_amount = sum(1 for x in ordered if float(x.amount or 0.0) > 0)
