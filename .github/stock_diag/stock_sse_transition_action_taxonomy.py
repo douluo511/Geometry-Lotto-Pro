@@ -28,6 +28,10 @@ DATE_REQUIRED_ACTIONS = {
     "mixed_cancel_implement",
 }
 
+MIXED_CANCEL_IMPLEMENT_RE = re.compile(
+    r"(?:撤销|取消|终止实施|不再实施).*(?:及|并|暨|同时)(?:被)?(?:叠加)?实施.*风险(?:警示)?"
+)
+
 
 def classify_title(title: str) -> str:
     text = "".join(str(title or "").split())
