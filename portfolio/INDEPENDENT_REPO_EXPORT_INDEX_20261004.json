@@ -240,13 +240,16 @@
       "id": 13,
       "project": "Earth Online / Life Base",
       "export_pr": 118,
-      "export_head": "712c6d01ab7b83bd2163527f821bbc8f4a853a35",
-      "export_run": 37208447196,
+      "export_head": "1a53052cbd5209b6ec1b12d51c5343073a1eab94",
+      "export_run": 37257113709,
       "export_status": "PASS",
       "repository_independence": "BLOCKED",
       "final_gate": "FAIL",
-      "export_artifact_id": 11305882425,
-      "export_artifact_digest": "sha256:fba51126d8987765ba8ba6eb401effc6b07069b99c0a43958ed61dc9a6b0944e"
+      "export_artifact_id": 11323480566,
+      "export_artifact_digest": "sha256:c8679aff38bcbe5c06c0953a233aabd446fc007ee5d88db4d396e323089b1216",
+      "source_product_pr": 117,
+      "source_product_head": "d742b627b82d691a20c246e2cc560bf364655d7e",
+      "migration_changes_product_bytes": false
     },
     {
       "id": 14,
@@ -264,13 +267,16 @@
       "id": 15,
       "project": "Legal Philosophy Study",
       "export_pr": 98,
-      "export_head": "949469c5c8e236ea34462588c7d61066774a8c4f",
-      "export_run": 37256729072,
+      "export_head": "1b495af4df9094cfc7a243b55b5ebbbcfd87952b",
+      "export_run": 37257160661,
       "export_status": "PASS",
       "repository_independence": "BLOCKED",
       "final_gate": "FAIL",
-      "export_artifact_id": 11323195871,
-      "export_artifact_digest": "sha256:0df4e934eb322d45bd2ee73308f21179eeb6ddc907150385a5ccb0dd64a091a2"
+      "export_artifact_id": 11323111754,
+      "export_artifact_digest": "sha256:801759f98a0fc1cc6ecc176bda19db2f520fb2396b0219d20af7faebe2b4ef8a",
+      "source_product_pr": 96,
+      "source_product_head": "7388559ce5dcf0662b1d1e35537a52d7cd834c92",
+      "migration_changes_product_bytes": false
     },
     {
       "id": 16,
@@ -310,7 +316,7 @@
     }
   ],
   "next_resume_condition": "As soon as a dedicated repository becomes visible to the connected installation, seed it from the matching verified export and rerun the full frozen acceptance chain on that dedicated repository exact commit before any PASS inheritance.",
-  "latest_delta": "2026-10-05: Investment Finance migration PR #112 refreshed to updater-enabled exact head 98ac42f with run 37257773344 PASS; RMF current-product migration PR #131 remains PASS; Stock AI PR #126 c6e329d2 source/offline/network PASS while business+desktop current-head runs continue. Repository Independence remains 0/18.",
+  "latest_delta": "2026-10-05: Investment updater-enabled seed, RMF current-product seed, Earth current export and Legal current export were refreshed to exact successful heads. Stock AI PR #126 c6e329d2 source/offline/network PASS; business+desktop remain active. Repository Independence remains 0/18.",
   "infrastructure_capability": {
     "repository_creation": "BLOCKED",
     "repository_creation_evidence": "PR #127: Actions integration token cannot act as user-level repository creator; connector exposes no create-repository mutation.",
@@ -321,6 +327,6 @@
   "audit": {
     "exact_seed_audit_date": "2026-10-05",
     "status": "PASS",
-    "note": "All 18 migration lines remain export-verification PASS. Investment was refreshed to updater-enabled seed 98ac42f; RMF was rebound to exact current product via PR #131."
+    "note": "18/18 migration lines remain exact-head export-verification PASS. Recent drift repairs: Investment #112, RMF #131, Earth #118, Legal #98. Product-byte-changing migration deltas were not admitted."
   }
 }
