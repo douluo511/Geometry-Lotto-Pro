@@ -58,7 +58,10 @@ def main() -> int:
         if gates.get(name) != "PASS":
             failures.append(f"{name}={gates.get(name)!r}")
     pool = report.get("candidate_pool", {})
-    if pool.get("candidate_count") != 5:
+    # The current frozen science candidate family contains seven declared
+    # candidates; this must match the independent protocol contract and must not
+    # silently retain the superseded five-candidate denominator.
+    if pool.get("candidate_count") != 7:
         failures.append(f"candidate_count={pool.get('candidate_count')!r}")
     if pool.get("reality_check", {}).get("status") != "PASS":
         failures.append("reality_check_not_executed")
