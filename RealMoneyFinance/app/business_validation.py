@@ -89,7 +89,14 @@ def _corporate_action_evidence_qualified(source_meta: dict, evidence: dict) -> b
         verified = int(evidence.get("verified_event_count"))
         unexplained_count = int(evidence.get("unexplained_factor_changes"))
         significant = int(evidence.get("significant_factor_changes"))
+        overlap_rows = int(evidence.get("overlap_rows"))
     except Exception:
+        return False
+    source_symbol = str(source_meta.get("symbol") or "")
+    evidence_symbol = str(evidence.get("symbol") or "")
+    if overlap_rows < 60:
+        return False
+    if source_symbol and evidence_symbol != source_symbol:
         return False
     matched = evidence.get("matched_events")
     unexplained = evidence.get("unexplained_changes")
