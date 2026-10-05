@@ -413,7 +413,21 @@
         "physical_gui_update_positive": "BLOCKED",
         "updater_real_release": "BLOCKED",
         "desktop_artifact_id": 11341383365,
-        "desktop_artifact_digest": "sha256:a8373dfd187b08b878b5304fdd9426d725ec2d5f6c37a6f0acba76bc6745c7ec"
+        "desktop_artifact_digest": "sha256:a8373dfd187b08b878b5304fdd9426d725ec2d5f6c37a6f0acba76bc6745c7ec",
+        "historical_daily_suspension_state": "SUPPORTED_SHANGHAI_ONLY",
+        "historical_daily_suspension_pr": 209,
+        "historical_daily_suspension_head": "4663ac4cb3943c23f8f51626ee2c536d852f3b45",
+        "historical_daily_suspension_run": 37341509787,
+        "historical_daily_suspension_job": 111869457639,
+        "historical_daily_suspension_artifact_id": 11358417500,
+        "historical_daily_suspension_artifact_digest": "sha256:40a66e44e2ae5f066527e89528dabe0fd5afd90908a4efcbef1232e8e7864061",
+        "historical_daily_suspension_pairs": 23894,
+        "historical_daily_suspension_codes": 852,
+        "historical_daily_suspension_dates": 2026,
+        "historical_daily_suspension_sha256": "0a614254deb282111393b858f9264bb64c05c12a1c3c3eec4abb714d8774fb08",
+        "open_sse_intervals_resolved": "PASS_5_OF_5",
+        "shanghai_historical_st_pit": "NOT VERIFIED",
+        "full_historical_st_pit": "NOT VERIFIED"
       },
       "product_tree_byte_identity": "PASS",
       "superseded_export_prs": [
@@ -434,7 +448,7 @@
         "product_head": "f9d610aafe910cb73b036701a688329d9899399b",
         "status": "PASS"
       },
-      "note": "PR #155 exact head 43168d9e now has fresh SUCCESS on source/offline run 37289727792, full-business run 37289727888, and native desktop run 37289727787. Windows/Exact EXE/Real Network corpus/advanced technical/Physical GUI/Same Hash all PASS. Advanced business remains NOT VERIFIED on HISTORICAL_ST_PIT=WARN; positive production release update and repository independence remain BLOCKED. Final remains FAIL. Migration/export readiness is not Final.",
+      "note": "PR #155 exact head 43168d9e retains fresh source/full-business/native-desktop SUCCESS and migration binding PASS. New official-SSE combination diagnostic PR #209 closes Shanghai historical daily suspension state as SUPPORTED_SHANGHAI_ONLY by resolving all 5 open intervals through 2026-09-30, but Shanghai historical ST-name PIT, Beijing historical ST/PIT and full HISTORICAL_ST_PIT remain NOT VERIFIED. Advanced Business therefore remains non-PASS; production Release/repository independence remain BLOCKED; Final remains FAIL.",
       "exact_head_checkout_required": true,
       "current_windows_run": 37289727787,
       "current_windows_status": "SUCCESS_CANDIDATE_ONLY_FINAL_BLOCKED",
