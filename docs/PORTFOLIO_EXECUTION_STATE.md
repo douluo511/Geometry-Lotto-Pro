@@ -1,5 +1,16 @@
 # Portfolio Execution State — 18 Windows EXE Projects
 
+## 2026-10-05 Stock Shenzhen ST sub-evidence + RMF L1 capacity sub-evidence
+
+- **Stock PR #188 exact diagnostic head:** `d5bb390d839fb284790dcdb2359ef73f776b0d08`; run `37304826757` / job `111745875821` = **SUCCESS** with Stock #155 product bytes unchanged.
+- SZSE dated short-name history contains **7,489 valid rows / 3,125 codes**, spanning **1994-01-03 → 2026-09-30**; **2,281 ST-related transitions / 673 codes**. Dated-name-change SHA-256 `1a7d5ac0710e0bd59937105aafafe1a929f9c729776a1a4ea0fb02a49d70c16e`; dated-ST SHA-256 `72f998147519df4968781ce85d4bfb1edfaa54e3af4b8695d8470890313bd862`. Artifact `11343082888`, digest `sha256:42d978264d2a64425d04a78d6d20ede2406513b0ed335b775621da09eee38295`.
+- **Adjudication:** Shenzhen historical ST reconstruction = **SUPPORTED**. Shanghai = NOT VERIFIED; Beijing = NOT VERIFIED; historical daily suspension state = NOT VERIFIED; therefore full Stock `HISTORICAL_ST_PIT` remains **NOT VERIFIED**, Advanced Business remains non-PASS, Final FAIL.
+- **RMF PR #189 exact diagnostic head:** `62d907ccc555ad727be0f63ad181384e5020aa89`; run `37304767691` / job `111745682462` = **SUCCESS** with validated RMF product bytes unchanged.
+- Real 600000 public-L1 qfq history: **1,200 rows, 100% positive daily amount coverage**, as-of 2026-09-30. Frozen **5% participation** capacity CNY: min 3,916,070; p10 7,079,653.5; p25 9,623,801.25; median 17,208,295; p90 51,914,539.5; max 129,017,690. Fixed notional feasibility: 100k/500k/1m = 1200/1200; 5m = 1177/1200 (**98.0833%**); 10m = 868/1200 (**72.3333%**).
+- RMF amount-series SHA-256 `51f1ce999f64bae0a326cd8d15d9c7d2c9776eabc0fd5fdef910d0bbcc87486d`; source payload SHA-256 `bc0139c26c0de5d4213caee4a1ab2ef08e9b8647cc9e6706ed9c3b4a02fbf9d4`; artifact `11343368903`, digest `sha256:d0fc557b183f021289cbc3e60a7f9d412b14a66585cb05248747d3f308fa8351`.
+- **Adjudication:** amount-based participation capacity = **SUPPORTED** only. Historical bid/ask spread, observed market impact, broker execution slippage and limit-up/down fillability remain NOT VERIFIED; full RMF `liquidity_capacity` remains NOT VERIFIED. RMF Business remains **12/16 = 75%**, Overall **75%**, capital_deployment_ready=false, Final FAIL.
+- Portfolio boundary remains **export 18/18 PASS / dedicated repositories 0/18 / Final-Delivery 0/18**.
+
 ## 2026-10-05 strict continuation — Stock terminal + RMF causal-invariance rerun
 
 - **Stock AI authoritative product:** PR #155 exact head `43168d9e75c70ab55be808d8a51f0c0eb14d83d5`.
