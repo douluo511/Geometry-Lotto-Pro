@@ -49,8 +49,7 @@ class FakeTencentClient:
         for i in range(40):
             day = (start + timedelta(days=i)).isoformat()
             rows.append([day, "10", "10.1", "10.2", "9.9", str(1000+i), {"meta": i}])
-        key = "qfqday" if "qfq" in expected_variable else "day"
-        return {"data": {"sh600000": {key: rows}}}, meta
+        return {"data": {"sh600000": {"qfqday": rows}}}, meta
 
 
 class FakeTencentFullClient:
@@ -71,7 +70,8 @@ class FakeTencentFullClient:
                 day, "10", "10.1", "10.2", "9.9", str(1000+i),
                 "unused", "2.5", str(20+i),
             ])
-        return {"data": {"sh600000": {"qfqday": rows}}}, meta
+        key = "qfqday" if "qfq" in expected_variable else "day"
+        return {"data": {"sh600000": {key: rows}}}, meta
 
 
 class FakeYahooClient:
