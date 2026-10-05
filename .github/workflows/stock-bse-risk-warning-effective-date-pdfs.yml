@@ -1,0 +1,90 @@
+name: Stock BSE risk-warning effective-date PDFs
+
+on:
+  push:
+    branches:
+      - "diagnostic/stock-bse-risk-warning-effective-date-pdfs-20261006"
+    paths:
+      - ".github/stock_diag/stock_bse_risk_warning_effective_dates.py"
+      - ".github/workflows/stock-bse-risk-warning-effective-date-pdfs.yml"
+  pull_request:
+    paths:
+      - ".github/stock_diag/stock_bse_risk_warning_effective_dates.py"
+      - ".github/workflows/stock-bse-risk-warning-effective-date-pdfs.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact diagnostic head
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Verify exact checkout and unchanged Stock product bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected="${{ github.event.pull_request.head.sha || github.sha }}"
+          authoritative="7f270b9ab58e11fd8129053a65e000c90ff9d8c1"
+          test "$(git rev-parse HEAD)" = "$expected"
+          git merge-base --is-ancestor "$authoritative" HEAD
+          test -z "$(git diff --name-only "$authoritative"..HEAD -- StockAIPro)"
+          echo "STOCK_PRODUCT_BYTES_CHANGED=FALSE"
+
+      - name: Setup Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.11.9"
+
+      - name: Install pinned dependencies
+        run: |
+          python -m pip install --disable-pip-version-check --no-input "requests==2.34.2" "pypdf==6.1.1"
+
+      - name: Rebuild authoritative BSE market-wide corpus
+        run: python .github/stock_diag/stock_bse_risk_warning_marketwide_corpus.py
+
+      - name: Validate primary-PDF effective dates
+        id: effective
+        continue-on-error: true
+        run: python .github/stock_diag/stock_bse_risk_warning_effective_dates.py
+
+      - name: Upload effective-date evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: STOCK-BSE-RISK-WARNING-EFFECTIVE-DATES-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            stock_bse_risk_warning_marketwide_corpus.json
+            stock_bse_risk_warning_effective_dates.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Preserve strict non-promotion boundary
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f stock_bse_risk_warning_effective_dates.json
+          python - <<'PY'
+          import json
+          x=json.load(open("stock_bse_risk_warning_effective_dates.json",encoding="utf-8"))
+          a=x["adjudication"]
+          assert a["bse_effective_state_reconstruction"] == "NOT VERIFIED"
+          assert a["bse_removal_event_history"] == "NOT VERIFIED"
+          assert a["bse_historical_st_pit"] == "NOT VERIFIED"
+          assert a["bse_historical_suspension_pit"] == "NOT VERIFIED"
+          assert a["full_historical_st_pit"] == "NOT VERIFIED"
+          assert a["advanced_business"] == "NOT VERIFIED"
+          assert a["final_gate"] == "FAIL"
+          print("BSE_IMPLEMENTATION_EFFECTIVE_DATE_EVIDENCE="+a["bse_implementation_effective_date_evidence"])
+          print("BSE_HISTORICAL_ST_PIT=NOT VERIFIED")
+          print("FINAL_GATE=FAIL")
+          PY
+          test "${{ steps.effective.outcome }}" = "success"
