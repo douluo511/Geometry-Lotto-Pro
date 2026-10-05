@@ -257,7 +257,7 @@
       "final_gate": "FAIL",
       "source_product_pr": 155,
       "source_product_head": "43168d9e75c70ab55be808d8a51f0c0eb14d83d5",
-      "source_product_status": "CURRENT_HEAD_SOURCE_BUSINESS_DESKTOP_TERMINAL_CANDIDATE_PASS_FINAL_BLOCKED",
+      "source_product_status": "CURRENT_HEAD_SOURCE_BUSINESS_DESKTOP_TERMINAL_TECHNICAL_PASS_FINAL_BLOCKED",
       "export_artifact_id": 11335343870,
       "export_artifact_digest": "sha256:920e575d88eef56a5af90f27ed9a293b8a643a4f330a6b13a73029937a114d8d",
       "source_current_head_evidence": {
@@ -265,7 +265,7 @@
         "source_run": 37289727792,
         "full_business": "PASS",
         "full_business_run": 37289727888,
-        "native_desktop": "PASS_CANDIDATE_ONLY_FINAL_BLOCKED",
+        "native_desktop": "PASS",
         "native_desktop_run": 37289727787,
         "prior_source_run": 37268369320,
         "prior_full_business_run": 37268369291,
@@ -388,7 +388,19 @@
             "sse_a_share_corpus_sha256": "0d23b02f72a13c9c4a9cc0d738645f8b4296b89ba59ef34b1cfbcff544d9b550",
             "historical_daily_suspension_state": "NOT VERIFIED"
           }
-        }
+        },
+        "source_offline": "PASS",
+        "main_exact_exe_sha256": "50cb95cde7c258252a2b9f4dfe0761f46f8adac569d81efafb4553d157127141",
+        "current_coverage": 0.9099961700497894,
+        "delisted_coverage": 0.9571428571428572,
+        "advanced_technical_validation": "PASS",
+        "advanced_business_gap": "HISTORICAL_ST_PIT_WARN",
+        "physical_gui_entry_invocations": "PASS",
+        "physical_gui_positive_actions": "PASS",
+        "physical_gui_update_positive": "BLOCKED",
+        "updater_real_release": "BLOCKED",
+        "desktop_artifact_id": 11341383365,
+        "desktop_artifact_digest": "sha256:a8373dfd187b08b878b5304fdd9426d725ec2d5f6c37a6f0acba76bc6745c7ec"
       },
       "product_tree_byte_identity": "PASS",
       "superseded_export_prs": [
@@ -409,8 +421,16 @@
         "product_head": "f9d610aafe910cb73b036701a688329d9899399b",
         "status": "PASS"
       },
-      "note": "PR #181 migration export is bound to PR #155 exact current head 43168d9e and PASS. Current source run 37289727792, full-business run 37289727888, and desktop run 37289727787 are terminal; desktop proves Windows/Exact EXE/physical GUI/Same Hash and >=90% current+delisted corpus as candidate evidence. Business remains NO_TRADE/LOW, HISTORICAL_ST_PIT remains non-PASS, production release/repository remain blocked, and Final FAIL. Migration readiness is not repository independence or Final. Historical-ST sub-evidence strengthened: SZSE direct raw HTTP payload is captured and hashed; SSE historical interval/event corpora are reproducible, but daily suspension boundary semantics and full Shanghai/Beijing ST PIT remain NOT VERIFIED.",
-      "exact_head_checkout_required": true
+      "note": "PR #155 exact head 43168d9e now has fresh SUCCESS on source/offline run 37289727792, full-business run 37289727888, and native desktop run 37289727787. Windows/Exact EXE/Real Network corpus/advanced technical/Physical GUI/Same Hash all PASS. Advanced business remains NOT VERIFIED on HISTORICAL_ST_PIT=WARN; positive production release update and repository independence remain BLOCKED. Final remains FAIL. Migration/export readiness is not Final.",
+      "exact_head_checkout_required": true,
+      "current_windows_run": 37289727787,
+      "current_windows_status": "SUCCESS_CANDIDATE_ONLY_FINAL_BLOCKED",
+      "final_non_pass_gates": [
+        "advanced_business_qualification",
+        "positive_production_update",
+        "repository_independence",
+        "real_release_context"
+      ]
     },
     {
       "id": 11,
@@ -650,7 +670,7 @@
     }
   ],
   "next_resume_condition": "Continue current exact-head product validation. Do not promote migration readiness to Final. Repository-independence work can resume only when dedicated target repositories are actually visible/writable to the integration; then seed each verified export and rerun the complete chain from independent main.",
-  "latest_delta": "Current-product export remains 18/18 PASS. Stock #188 supplies Shenzhen historical ST sub-evidence; Stock #191 exact-head run 37308150061 proves official SSE suspension/public-data surfaces are reachable but the static/date-parameter surface still does not verify a stable public bulk historical suspension endpoint, so Shanghai suspension/PIT and full HISTORICAL_ST_PIT remain NOT VERIFIED. RMF amount-based capacity remains SUPPORTED only; full liquidity_capacity remains NOT VERIFIED. Dedicated repositories remain 0/18; Final/Delivery 0/18.",
+  "latest_delta": "Stock AI PR #155 exact head 43168d9e now has all three fresh authoritative workflows terminal SUCCESS: source 37289727792, business 37289727888, desktop 37289727787. Main EXE 50cb95cd..., Updater 365049c7..., Physical GUI and Same Hash PASS; advanced business remains NOT VERIFIED on HISTORICAL_ST_PIT=WARN, and repository/real release remain BLOCKED. Happy8 remains technical PASS / Final blocked. Migration/export 18/18 PASS; dedicated repositories 0/18; Final/Delivery 0/18.",
   "infrastructure_capability": {
     "repository_creation": "BLOCKED",
     "repository_creation_evidence": "PR #127: Actions integration token cannot act as user-level repository creator; connector exposes no create-repository mutation.",
@@ -660,7 +680,7 @@
   },
   "audit": {
     "exact_seed_audit_date": "2026-10-05",
-    "status": "CURRENT_PRODUCT_EXPORTS_18_OF_18_PASS_STOCK_AND_HAPPY8_TERMINAL_FINAL_BLOCKED",
-    "note": "All 18 current-product-bound migration/export seeds remain PASS. Stock PR #155 and Happy8 PR #176 retain terminal candidate evidence. Stock diagnostic #191 is exact-head CI evidence for the SSE public suspension surface only and does not promote HISTORICAL_ST_PIT. Independent repositories remain 0/18 and Final/Delivery remain 0/18."
+    "status": "CURRENT_PRODUCT_EXPORTS_18_OF_18_PASS_STOCK_TECHNICAL_TERMINAL_HAPPY8_TERMINAL_FINAL_BLOCKED",
+    "note": "All 18 current-product-bound migration/export seeds remain PASS. Stock PR #155 fresh source/business/desktop workflows are terminal SUCCESS, but advanced business qualification is NOT VERIFIED and release/repository gates are blocked. Happy8 remains terminal technical PASS with external Final blockers. Independent repositories remain 0/18 and Final/Delivery remain 0/18."
   }
 }
