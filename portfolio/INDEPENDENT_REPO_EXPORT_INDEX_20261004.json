@@ -14,12 +14,12 @@
   },
   "aggregate": {
     "projects_total": 18,
-    "export_verification_pass": 18,
-    "export_verification_nonpass": 0,
+    "export_verification_pass": 17,
+    "export_verification_nonpass": 1,
     "real_independent_repository_pass": 0,
     "final_delivery_allowed": 0,
-    "current_product_bound_export_pass": 18,
-    "current_product_bound_export_not_verified": 0
+    "current_product_bound_export_pass": 17,
+    "current_product_bound_export_not_verified": 1
   },
   "projects": [
     {
@@ -252,22 +252,25 @@
       "export_pr": 140,
       "export_head": "2b8af2bdbd3425d624e3a0bb066aada0e8358eca",
       "export_run": 37262978618,
-      "export_status": "PASS",
+      "export_status": "STALE_FOR_CURRENT_PRODUCT",
       "repository_independence": "BLOCKED",
       "final_gate": "FAIL",
-      "source_product_pr": 126,
-      "source_product_head": "dfa07c51fffdaa7736147cd49e39a274a745e363",
-      "source_product_status": "IN_PROGRESS",
+      "source_product_pr": 155,
+      "source_product_head": "f9d610aafe910cb73b036701a688329d9899399b",
+      "source_product_status": "REVALIDATING_BEHAVIOR_CHANGE",
       "export_artifact_id": 11324663165,
       "export_artifact_digest": "sha256:bb64ac81aa4532dd5b798d42f3492c725ae25500ac53d7a384d85e4e18752999",
       "source_current_head_evidence": {
-        "source_offline_real_network": "PASS",
-        "source_run": 37259832034,
-        "full_business": "PASS",
-        "full_business_run": 37259832083,
-        "native_desktop": "IN_PROGRESS",
-        "native_desktop_run": 37259832040,
-        "note": "Current full production daily source-engine-business runtime chain PASS at exact product head dfa07c51; this is not business-content 100%. Native desktop acceptance remains IN_PROGRESS, so formal engineering/business/overall completion is still NOT VERIFIED."
+        "source_offline_real_network": "PENDING_REVALIDATION",
+        "source_run": 37268369320,
+        "full_business": "PENDING_REVALIDATION",
+        "full_business_run": 37268369291,
+        "native_desktop": "PENDING_REVALIDATION",
+        "native_desktop_run": 37268369332,
+        "prior_source_run": 37259832034,
+        "prior_full_business_run": 37259832083,
+        "prior_native_desktop_run": 37259832040,
+        "note": "PR #155 changes research-corpus coverage validation and cache persistence semantics on top of exact #126 product head. All prior current-product PASS and migration binding are invalidated for this successor until exact-head source/business/desktop reruns and a fresh export pass."
       },
       "product_tree_byte_identity": "PASS",
       "superseded_export_prs": [
@@ -276,7 +279,17 @@
       ],
       "superseded_export_pr": 138,
       "product_byte_identity": "PASS",
-      "product_base_ancestry": "PASS"
+      "product_base_ancestry": "PASS",
+      "current_product_head": "f9d610aafe910cb73b036701a688329d9899399b",
+      "current_product_binding_status": "NOT VERIFIED",
+      "previous_verified_export": {
+        "pr": 140,
+        "head": "2b8af2bdbd3425d624e3a0bb066aada0e8358eca",
+        "run": 37262978618,
+        "product_head": "dfa07c51fffdaa7736147cd49e39a274a745e363",
+        "status": "PASS"
+      },
+      "note": "Current successor PR #155 exact head f9d610aa validates persisted history before it can count toward the frozen >=90% current+delisted coverage and adds explicit save-on-failure resumable cache. Package hash chain was refreshed after source-recovery correctly rejected stale manifest bytes. All affected evidence is rerunning; old migration #140 is historical only until rebound."
     },
     {
       "id": 11,
@@ -415,7 +428,7 @@
     }
   ],
   "next_resume_condition": "Continue current exact-head product validation. Do not promote migration readiness to Final. Repository-independence work can resume only when dedicated target repositories are actually visible/writable to the integration; then seed each verified export and rerun the complete chain from independent main.",
-  "latest_delta": "Migration/export readiness remains 18/18 PASS. RMF is now rebound to exact main merge commit c7966688 via PR #154 run 37267672124 PASS. Human Nature #150 and TalkCraft #151 are the current migration seeds. SSQ internal technical chain is closed but Final remains blocked by real release/repository context. Stock #152 remains active. Real independent repositories remain 0/18; Final/Delivery remain 0/18.",
+  "latest_delta": "Current-product-bound migration/export readiness is temporarily 17/18. Stock successor PR #155 exact head f9d610aa changes 90% research-corpus evidence semantics, so prior #126/#140 PASS is invalidated and exact-head source/business/desktop runs 37268369320/37268369291/37268369332 are pending. RMF exact-main seed #154, Human #150 and TalkCraft #151 remain PASS. Real independent repositories remain 0/18; Final/Delivery remain 0/18.",
   "infrastructure_capability": {
     "repository_creation": "BLOCKED",
     "repository_creation_evidence": "PR #127: Actions integration token cannot act as user-level repository creator; connector exposes no create-repository mutation.",
@@ -425,7 +438,7 @@
   },
   "audit": {
     "exact_seed_audit_date": "2026-10-05",
-    "status": "PASS",
-    "note": "All 18 current product lines have migration export verification PASS. This is migration readiness only. RMF #148 is bound to current merge product 917e1de5 and preserves non-final boundaries."
+    "status": "REVALIDATING_STOCK",
+    "note": "17/18 current-product-bound seeds are current. Stock historical export #140 remains a valid artifact for dfa07c51 but is stale for behavior-changing successor f9d610aa until fresh acceptance and export verification complete."
   }
 }
