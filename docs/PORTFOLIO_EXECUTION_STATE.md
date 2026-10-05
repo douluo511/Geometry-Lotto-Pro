@@ -597,3 +597,13 @@ Portfolio boundary remains unchanged: migration-seed readiness does not satisfy 
 - Therefore **current-product-bound migration/export readiness = 17/18**, not 18/18, until the Stock #155 exact-head source/business/desktop acceptance chain completes and a fresh deterministic Stock export is verified against that exact product head.
 - RMF #154 remains valid for `main@c7966688...`; closing duplicate RMF #156 does not reduce RMF migration readiness.
 - Real independent repositories remain **0/18**; Final Gate PASS remains **0/18**; final delivery remains **0/18**.
+
+
+## 2026-10-05 Happy8 exact-head advance — Windows console encoding fix
+
+- Happy8 PR #39 exact head advanced to `6f3d7a2dc82a3dfc7e06d98f0758c3e90875f795`; fresh run `37269650912` is authoritative and currently executing.
+- Superseded head `fe95aad8f6d3ff8b297865b05f68fc4c83eabe02` / run `37268981282` proved the earlier Storage/Service raw-provenance bug fixed, but the live step exited 1 after evidence generation because Windows cp1252 stdout could not encode Chinese JSON.
+- Artifact `11327616730`, digest `sha256:fc9d386b9997de83301021940931ebae0f450986886a3e2588019dfc502af191`, directly contains `live_official_history.json` with status PASS: 2084 draws, latest 2026263, Fuzhou+MOF-calendar+Jiangsu-current verification, crosscheck PASS, Storage commit PASS and Storage integrity PASS.
+- Commit `6f3d7a2d...` changes only console serialization to ASCII-escaped JSON; the UTF-8 evidence file and all source/scientific admission rules remain unchanged.
+- Separate diagnostics remain fail-closed: Jiangsu/Fuzhou reconciliation cannot independently bind issue 2021016 to a visible Jiangsu date; Sichuan is `SICHUAN_HISTORY_CONTRACT_INCOMPLETE` and is not production-admitted.
+- Until run `37269650912` reaches downstream gates, Science/Windows/GUI/Same Hash on this exact head remain NOT VERIFIED.
