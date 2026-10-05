@@ -5,6 +5,12 @@ concurrency:
   cancel-in-progress: true
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'Happy8/**'
+      - '.github/workflows/happy8-staging-recovery.yml'
   pull_request:
     paths:
       - 'Happy8/**'
