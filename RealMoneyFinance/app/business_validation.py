@@ -114,7 +114,7 @@ def _corporate_action_evidence_qualified(source_meta: dict, evidence: dict) -> b
 
     if evidence.get("factor_detection_method") != "persistent_median_regime_shift_v1":
         return False
-    if evidence.get("factor_estimator") != "median_ohlc_ratio_v1":
+    if evidence.get("factor_estimator") != "quantized_ohlc_interval_v2":
         return False
     try:
         factor_window_sessions = int(evidence.get("factor_window_sessions"))
@@ -174,6 +174,20 @@ def _corporate_action_evidence_qualified(source_meta: dict, evidence: dict) -> b
         effective_threshold = change.get("effective_threshold")
         rounding_bound = change.get("rounding_error_bound")
         local_noise = change.get("local_mad_ratio")
+        interval_gap = change.get("quantization_interval_gap")
+        before_interval = change.get("before_factor_interval")
+        after_interval = change.get("after_factor_interval")
+        if (
+            not isinstance(interval_gap, (int, float))
+            or not math.isfinite(float(interval_gap))
+            or float(interval_gap) <= float(tolerance)
+            or not isinstance(before_interval, list) or len(before_interval) != 2
+            or not isinstance(after_interval, list) or len(after_interval) != 2
+            or not all(isinstance(x, (int, float)) and math.isfinite(float(x)) for x in before_interval + after_interval)
+            or not (float(before_interval[1]) < float(after_interval[0])
+                    or float(after_interval[1]) < float(before_interval[0]))
+        ):
+            return False
         values = (relative, effective_threshold, rounding_bound, local_noise)
         if any(not isinstance(x, (int, float)) or not math.isfinite(float(x)) for x in values):
             return False
