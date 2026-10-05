@@ -14,12 +14,12 @@
   },
   "aggregate": {
     "projects_total": 18,
-    "export_verification_pass": 17,
-    "export_verification_nonpass": 1,
+    "export_verification_pass": 18,
+    "export_verification_nonpass": 0,
     "real_independent_repository_pass": 0,
     "final_delivery_allowed": 0,
-    "current_product_bound_export_pass": 17,
-    "current_product_bound_export_not_verified": 1
+    "current_product_bound_export_pass": 18,
+    "current_product_bound_export_not_verified": 0
   },
   "projects": [
     {
@@ -249,17 +249,17 @@
     {
       "id": 10,
       "project": "Stock AI Pro",
-      "export_pr": 140,
-      "export_head": "2b8af2bdbd3425d624e3a0bb066aada0e8358eca",
-      "export_run": 37262978618,
-      "export_status": "STALE_FOR_CURRENT_PRODUCT",
+      "export_pr": 157,
+      "export_head": "e27586e82fa1187fb85e43076302d8ce54021430",
+      "export_run": 37271777113,
+      "export_status": "PASS",
       "repository_independence": "BLOCKED",
       "final_gate": "FAIL",
       "source_product_pr": 155,
       "source_product_head": "f9d610aafe910cb73b036701a688329d9899399b",
-      "source_product_status": "REVALIDATING_BEHAVIOR_CHANGE",
-      "export_artifact_id": 11324663165,
-      "export_artifact_digest": "sha256:bb64ac81aa4532dd5b798d42f3492c725ae25500ac53d7a384d85e4e18752999",
+      "source_product_status": "CURRENT_HEAD_VALIDATION_IN_PROGRESS",
+      "export_artifact_id": 11328389116,
+      "export_artifact_digest": "sha256:23303ef27bc779140722c2ab2e11974dbfa277d1ebf56d2fd1130e307f358da7",
       "source_current_head_evidence": {
         "source_offline_real_network": "PENDING_REVALIDATION",
         "source_run": 37268369320,
@@ -275,7 +275,8 @@
       "product_tree_byte_identity": "PASS",
       "superseded_export_prs": [
         99,
-        138
+        138,
+        140
       ],
       "superseded_export_pr": 138,
       "product_byte_identity": "PASS",
@@ -289,7 +290,8 @@
         "product_head": "dfa07c51fffdaa7736147cd49e39a274a745e363",
         "status": "PASS"
       },
-      "note": "Current successor PR #155 exact head f9d610aa validates persisted history before it can count toward the frozen >=90% current+delisted coverage and adds explicit save-on-failure resumable cache. Package hash chain was refreshed after source-recovery correctly rejected stale manifest bytes. All affected evidence is rerunning; old migration #140 is historical only until rebound."
+      "note": "PR #157 is rebound to current Stock AI PR #155 exact product head f9d610aa and PASSes exact checkout, product-byte identity, deterministic export, independent second-pass verification, and deliberate mutation fail-closed. Product business/desktop acceptance for PR #155 is still running; this migration PASS is readiness only, not Final.",
+      "exact_head_checkout_required": true
     },
     {
       "id": 11,
