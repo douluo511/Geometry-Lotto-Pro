@@ -11,11 +11,14 @@ import requests
 
 PAGE = "https://www.sse.com.cn/disclosure/dealinstruc/suspension/stock/"
 SCRIPT = "https://www.sse.com.cn/xhtml/home/2021public/querySearch/search_tradeTip_2021.js"
+PAGE_FALLBACK = "https://big5.sse.com.cn/site/cht/www.sse.com.cn/disclosure/dealinstruc/suspension/stock/"
+SCRIPT_FALLBACK = "https://big5.sse.com.cn/site/cht/www.sse.com.cn/xhtml/home/2021public/querySearch/search_tradeTip_2021.js"
+SOURCE_FALLBACKS = {PAGE: PAGE_FALLBACK, SCRIPT: SCRIPT_FALLBACK}
 ENDPOINT = "https://query.sse.com.cn/commonSoaQuery.do"
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/154.0 Safari/537.36"
 
 
-def get(session, url, *, params=None, attempts=3):
+def get(session, url, *, params=None, attempts=3, allow_fallback=True):
     errors = []
     for attempt in range(1, attempts + 1):
         try:
@@ -39,6 +42,13 @@ def get(session, url, *, params=None, attempts=3):
         except Exception as exc:
             errors.append(f"{type(exc).__name__}: {exc}")
             if attempt == attempts:
+                fallback = SOURCE_FALLBACKS.get(url) if allow_fallback else None
+                if fallback:
+                    r, meta = get(session, fallback, params=params, attempts=attempts, allow_fallback=False)
+                    meta = dict(meta)
+                    meta["fallback_from"] = url
+                    meta["primary_errors"] = errors
+                    return r, meta
                 raise
             time.sleep(1.0 * (2 ** (attempt - 1)))
 
@@ -332,9 +342,13 @@ def main():
         "page_http_status": page.status_code,
         "page_sha256": hashlib.sha256(page.content).hexdigest(),
         "page_fetch_attempt": page_meta["attempt"],
+        "page_resolved_url": page.url,
+        "page_fallback_from": page_meta.get("fallback_from"),
         "script_http_status": script.status_code,
         "script_sha256": hashlib.sha256(script.content).hexdigest(),
         "script_fetch_attempt": script_meta["attempt"],
+        "script_resolved_url": script.url,
+        "script_fallback_from": script_meta.get("fallback_from"),
         "declares_query_host": 'sseQueryURL = "//query.sse.com.cn/"' in page_text,
         "declares_endpoint": "suspensionUrl: sseQueryURL + 'commonSoaQuery.do'" in script_text,
         "declares_sql_id": '"sqlId":\'GW_PL_JYTS_TFPXX\'' in script_text or "sqlId':\'GW_PL_JYTS_TFPXX\'" in script_text,
