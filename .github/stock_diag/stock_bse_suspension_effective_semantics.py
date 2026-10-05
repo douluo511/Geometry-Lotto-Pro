@@ -31,7 +31,7 @@ RESUME_PATTERNS=[
     ("resume_on_date",re.compile(rf"(?:公司股票|股票|证券)[^。；\n]{{0,80}}?(?:将于|于|自)\s*{DATE}[^。；\n]{{0,70}}?(?:复牌|恢复交易)")),
     ("resume_date_label",re.compile(rf"(?:复牌|恢复交易)(?:时间|日期|起始日|开始日)[：:\s]*{DATE}")),
 ]
-PROSPECTIVE_PREFIX=re.compile(r"(可能|拟|计划|预计|申请)")
+PROSPECTIVE_PREFIX=re.compile(r"(可能|拟|计划|预计)")
 ACTION_TERM_RE=re.compile(r"(停牌|暂停交易|复牌|恢复交易)")
 
 def load(name,path):
