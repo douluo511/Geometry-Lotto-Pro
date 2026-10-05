@@ -208,7 +208,6 @@ def main() -> int:
                     "url": extra_url,
                     "http_status": 404,
                     "attempt": emeta["attempt"],
-                    "parse_diagnostics": ediag,
                 }
             else:
                 erows, esha, ediag = parse_page(er)
@@ -225,6 +224,7 @@ def main() -> int:
                     "max_date": max((x["date"] for x in erows), default=None),
                     "min_date": min((x["date"] for x in erows), default=None),
                     "attempt": emeta["attempt"],
+                    "parse_diagnostics": ediag,
                 }
             break
 
@@ -240,7 +240,7 @@ def main() -> int:
         raise RuntimeError("no SZSE suspension archive rows in frozen window")
 
     dates = [x["date"] for x in corpus]
-    title_missing = sum(1 for x in corpus if x["title"] == "TITLE_NOT_EXTRACTED")
+    title_missing = sum(1 for x in corpus if not x.get("title"))
     article_links_unique = len({x["url"] for x in corpus}) == len(corpus)
 
     link_archive_complete = (
