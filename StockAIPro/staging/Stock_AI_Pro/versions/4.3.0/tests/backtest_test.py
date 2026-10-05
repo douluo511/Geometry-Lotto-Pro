@@ -21,12 +21,13 @@ cfg={"universe":{"min_turnover_cny":2e7,"live_top_n":80},
      "valuation":{"backtest_min_coverage":.4,"loss_company_score":15,"missing_score":50,"pe_weight":.6,"pb_weight":.4}}
 with tempfile.TemporaryDirectory() as td:
     tmp=Path(td);(tmp/"reports").mkdir()
-    with patch.object(bt,"ROOT",tmp),patch.object(bt,"load_config",return_value=cfg),patch.object(bt,"load_histories",return_value=hist),patch.object(bt,"merge_historical_valuation",side_effect=lambda x:x.assign(pe_ttm_hist=np.nan,pb_hist=np.nan,valuation_date=pd.NaT)):
+    with patch.object(bt,"ROOT",tmp),patch.object(bt,"load_config",return_value=cfg),patch.object(bt,"load_histories",return_value=hist),patch.object(bt,"_apply_historical_pit_policy",side_effect=lambda x,cfg:(x,{"status":"PASS","test_double":True})),patch.object(bt,"merge_historical_valuation",side_effect=lambda x:x.assign(pe_ttm_hist=np.nan,pb_hist=np.nan,valuation_date=pd.NaT)):
         out,summary=bt.run_backtest()
 assert not out.empty
 assert (out["entry_assumption"]=="next_open").all()
 assert summary["eval_points"]>0
 assert summary["production_model_parity"] is True and "extra_trees" in summary["model_stack"]
+assert summary["historical_pit_policy"]["status"]=="PASS"
 assert "model_weights" in out.columns
 assert "下一交易日开盘" in summary["entry_assumption"]
 print("BACKTEST EXECUTION TEST PASS",summary["eval_points"])
