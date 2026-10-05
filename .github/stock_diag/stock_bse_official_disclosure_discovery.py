@@ -13,6 +13,11 @@ import requests
 ROOTS = [
     "https://www.bse.cn/",
     "https://www.bse.cn/myhead.html",
+    # Direct first-party disclosure surfaces. The earlier discovery only
+    # reached these as secondary links and could miss their iframe/module
+    # contracts or mis-decode their Chinese labels.
+    "https://www.bse.cn/disclosure/announcement.html",
+    "https://www.bse.cn/disclosure/risk_warning_board.html",
 ]
 KEYWORDS = (
     "上市公司公告",
@@ -38,6 +43,7 @@ class Collector(HTMLParser):
         super().__init__()
         self.links = []
         self.scripts = []
+        self.frames = []
         self.text = []
     def handle_starttag(self, tag, attrs):
         a = dict(attrs)
@@ -45,6 +51,8 @@ class Collector(HTMLParser):
             self.links.append(a["href"])
         if tag == "script" and a.get("src"):
             self.scripts.append(a["src"])
+        if tag in ("iframe", "frame") and a.get("src"):
+            self.frames.append(a["src"])
     def handle_data(self, data):
         t = (data or "").strip()
         if t:
@@ -82,6 +90,46 @@ def fetch(session, url, attempts=4):
             if attempt == attempts:
                 raise
             time.sleep(1.0 * (2 ** (attempt-1)))
+
+
+def decode_html(response):
+    """Decode first-party HTML without trusting requests' ISO-8859-1 fallback.
+
+    BSE pages can omit an HTTP charset while containing UTF-8/GB-family Chinese.
+    Discovery must not turn that transport ambiguity into a false "no disclosure
+    surface" result.  We select only among byte decodings and never infer any
+    business status from the decoded text.
+    """
+    encodings=[]
+    if response.encoding and response.encoding.lower() not in ("iso-8859-1", "latin-1"):
+        encodings.append(response.encoding)
+    encodings.extend(["utf-8", "gb18030"])
+    try:
+        if response.apparent_encoding:
+            encodings.append(response.apparent_encoding)
+    except Exception:
+        pass
+    best=None
+    best_score=None
+    seen=set()
+    for enc in encodings:
+        key=(enc or "").lower()
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        try:
+            text=response.content.decode(enc,errors="replace")
+        except Exception:
+            continue
+        keyword_hits=sum(text.count(k) for k in KEYWORDS)
+        replacement_count=text.count("\ufffd")
+        score=(keyword_hits, -replacement_count)
+        if best_score is None or score > best_score:
+            best=text
+            best_score=score
+    if best is None:
+        best=response.content.decode("utf-8",errors="replace")
+    return best
 
 
 def normalized_url(base, value):
@@ -141,12 +189,16 @@ def main():
     for url in ROOTS:
         try:
             r,meta=fetch(s,url)
-            text=r.content.decode(r.encoding or "utf-8",errors="replace")
+            text=decode_html(r)
             c=Collector()
             c.feed(text)
             resolved_links=[u for x in c.links if (u:=normalized_url(r.url,x))]
             resolved_scripts=[u for x in c.scripts if (u:=normalized_url(r.url,x))]
+            resolved_frames=[u for x in c.frames if (u:=normalized_url(r.url,x))]
+            inline_candidates=url_candidates(text,r.url)
             all_links.update(resolved_links)
+            all_links.update(resolved_frames)
+            all_links.update(inline_candidates)
             script_urls.update(resolved_scripts)
             page_keyword_contexts.extend(
                 {"source":r.url,**x} for x in context_matches(text)
@@ -155,7 +207,9 @@ def main():
                 "requested_url":url,
                 "fetch":meta,
                 "link_count":len(resolved_links),
+                "frame_count":len(resolved_frames),
                 "script_count":len(resolved_scripts),
+                "inline_candidate_count":len(inline_candidates),
                 "keyword_context_count":len(context_matches(text)),
             })
         except Exception as exc:
@@ -173,7 +227,7 @@ def main():
     for url in sorted(script_urls)[:MAX_SCRIPTS]:
         try:
             r,meta=fetch(s,url)
-            text=r.content.decode(r.encoding or "utf-8",errors="replace")
+            text=decode_html(r)
             matches=url_candidates(text,r.url)
             js_candidates.update(matches)
             contexts=context_matches(text)
@@ -200,7 +254,7 @@ def main():
                 "url":url,
                 "fetch":meta,
                 "looks_like_disclosure_surface": any(
-                    kw in r.text for kw in KEYWORDS
+                    kw in decode_html(r) for kw in KEYWORDS
                 ),
             })
         except Exception as exc:
