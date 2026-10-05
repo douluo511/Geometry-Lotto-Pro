@@ -243,6 +243,8 @@ def verify_corporate_action_lineage(
         change_day = date.fromisoformat(change["trade_date"])
         candidates = []
         for index, event in enumerate(valid_events):
+            if index in used_events:
+                continue
             ex_day = date.fromisoformat(event["ex_dividend_date"])
             delta = (change_day - ex_day).days
             if 0 <= delta <= max_match_calendar_days:
