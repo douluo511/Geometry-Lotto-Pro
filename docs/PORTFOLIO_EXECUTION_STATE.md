@@ -589,3 +589,11 @@ Portfolio boundary remains unchanged: migration-seed readiness does not satisfy 
 - **Happy8 PR #39 current exact head is `fe95aad8f6d3ff8b297865b05f68fc4c83eabe02`**. Superseded run `37268193865` exposed `UnboundLocalError: raw_required` in Storage; current fix initializes every manifest row raw-required before source dispatch and only permits the explicitly validated derived Jiangsu-crosscheck metadata branch to opt out. Fresh run `37268981282` has current-head PASS through Compile/Domain/Storage/Service/science-method/updater-contract/self-test/UI-source-contract. Its live production network gate has not qualified; Science/Windows/GUI remain downstream NOT VERIFIED while official-source diagnostics execute.
 - RMF duplicate migration PR #156 was closed unmerged. Existing PR #154 / run `37267672124` remains the authoritative current-main migration verification.
 - Portfolio Final remains 0/18; real independent repositories visible remain 0/18.
+
+
+## 2026-10-05 correction — current-product migration readiness is 17/18
+
+- Stock PR #155 head `f9d610aafe910cb73b036701a688329d9899399b` changes research-corpus evidence semantics and package bytes, so the prior Stock migration/export seed cannot be inherited.
+- Therefore **current-product-bound migration/export readiness = 17/18**, not 18/18, until the Stock #155 exact-head source/business/desktop acceptance chain completes and a fresh deterministic Stock export is verified against that exact product head.
+- RMF #154 remains valid for `main@c7966688...`; closing duplicate RMF #156 does not reduce RMF migration readiness.
+- Real independent repositories remain **0/18**; Final Gate PASS remains **0/18**; final delivery remains **0/18**.
