@@ -1,0 +1,102 @@
+{
+  "schema": "happy8-engineering-acceptance-baseline-v1",
+  "project": "Geometry Lotto Pro · Happy8",
+  "weighting": "equal mandatory engineering item weight because no differential engineering weight was previously defined; all 19 items are required for Final and the denominator is frozen before any percentage is calculated",
+  "items": [
+    {
+      "id": "E01",
+      "weight": 1,
+      "name": "requirements_governance_architecture_contracts"
+    },
+    {
+      "id": "E02",
+      "weight": 1,
+      "name": "domain"
+    },
+    {
+      "id": "E03",
+      "weight": 1,
+      "name": "source_and_netclient"
+    },
+    {
+      "id": "E04",
+      "weight": 1,
+      "name": "storage_and_evidence"
+    },
+    {
+      "id": "E05",
+      "weight": 1,
+      "name": "engine_and_validation"
+    },
+    {
+      "id": "E06",
+      "weight": 1,
+      "name": "application_service"
+    },
+    {
+      "id": "E07",
+      "weight": 1,
+      "name": "desktop_ui"
+    },
+    {
+      "id": "E08",
+      "weight": 1,
+      "name": "independent_updater_implementation"
+    },
+    {
+      "id": "E09",
+      "weight": 1,
+      "name": "one_click_repair_implementation"
+    },
+    {
+      "id": "E10",
+      "weight": 1,
+      "name": "self_static_unit_contract_integration"
+    },
+    {
+      "id": "E11",
+      "weight": 1,
+      "name": "fault_injection"
+    },
+    {
+      "id": "E12",
+      "weight": 1,
+      "name": "real_official_network"
+    },
+    {
+      "id": "E13",
+      "weight": 1,
+      "name": "windows_native_reproducible_build"
+    },
+    {
+      "id": "E14",
+      "weight": 1,
+      "name": "exact_exe"
+    },
+    {
+      "id": "E15",
+      "weight": 1,
+      "name": "physical_gui_click"
+    },
+    {
+      "id": "E16",
+      "weight": 1,
+      "name": "post_gui_same_hash"
+    },
+    {
+      "id": "E17",
+      "weight": 1,
+      "name": "independent_repository"
+    },
+    {
+      "id": "E18",
+      "weight": 1,
+      "name": "real_release_n_to_n_plus_1_update"
+    },
+    {
+      "id": "E19",
+      "weight": 1,
+      "name": "release_evidence_and_unique_final_artifact"
+    }
+  ]
+}
