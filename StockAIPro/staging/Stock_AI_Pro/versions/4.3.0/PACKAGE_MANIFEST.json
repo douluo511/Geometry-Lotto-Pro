@@ -1,7 +1,7 @@
 {
   "product": "Stock AI Pro Core",
   "version": "4.3.0-deliverable",
-  "generated_at": "2026-10-05T16:43:00+00:00",
+  "generated_at": "2026-10-05T20:29:37+00:00",
   "file_count": 73,
   "files": {
     "app.py": "3fb2dbdcbc130f0a07064540ae59c6b586fcbd179e145e7be37fab2c9e934a91",
@@ -33,8 +33,8 @@
     "START_APP.bat": "cf1a73d081f0e45f693e87470baeef24a50856a57c40e209317c91a8163dfcce",
     "START_HERE.txt": "450841d68e56e60e11170c4b689eee168be1f60f51dd2f7d29bce0e5a6629821",
     "stock_ai/__init__.py": "42b7e8e1308ac35447a3f72ace74caa306ed84f42f021eb1cd5ec74865bdf4ec",
-    "stock_ai/audit.py": "e6cfd0bcccb75759cc175a077822d74296e1ebbf47192bd1d183b6a48b26549c",
-    "stock_ai/backtest.py": "39a15fad5e85b76aaba9dcf99217eaadf9629be1d85dd800385479682beb85ae",
+    "stock_ai/audit.py": "e261b324c5695490a8b168477759cff517e5de05546d5354cbdca2de8680c828",
+    "stock_ai/backtest.py": "9202eb0b516858ee7e609a48156c59a11ecc05b3a45cce2c720064e80282994e",
     "stock_ai/backup.py": "e9ee152dbae61b34a0115c1c8927008d0455d2514f31411c12cf8b3da37198d8",
     "stock_ai/config.py": "301aee238332ce7387dcd04fe69a2235a2cef441a65aa886932d7794fed14d53",
     "stock_ai/cost.py": "84493b0c785c1cb0609a207a08adfd5560ebef08d155b2abedf0c32f15476755",
@@ -76,6 +76,6 @@
     "tests/universe_parser_test.py": "847d674af0a66acea40bb018a53fab89d51b988cab41d9d7300a94e895bd1be7",
     "VERSION": "328fc98df37ff4f37f53e1566d36d10b40f1a5855ba27fa0dc652d43f2a4c433",
     "stock_ai/netclient.py": "c9d6acc6324a06c69089e1e525057472a4ec0ff35f0414b3f0e772b96f2ce0e8",
-    "stock_ai/historical_pit.py": "1615bd3c148085777144391eb75fb8438298484c5b1482e37c3be993e63c92c7"
+    "stock_ai/historical_pit.py": "76340d2caa6d8c5fb10716582eeec6ec1903f3db32e73226e1e84c41f52d050f"
   }
 }
