@@ -1,0 +1,96 @@
+name: Stock AI Current Product Independent Repository Export Verification
+
+on:
+  pull_request:
+    paths:
+      - ".github/migration/stock_ai_export_v2.py"
+      - ".github/workflows/stock-ai-independent-repo-export-v2.yml"
+      - "StockAIPro/**"
+      - ".github/workflows/stock-ai-source-recovery.yml"
+      - ".github/workflows/stock-ai-business-real-network.yml"
+      - ".github/workflows/stock-ai-desktop-candidate.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export-and-verify:
+    runs-on: ubuntu-latest
+    env:
+      PRODUCT_BASE_SHA: dfa07c51fffdaa7736147cd49e39a274a745e363
+      SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - name: Checkout exact migration head
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          fetch-depth: 0
+
+      - name: Exact checkout and product-byte identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          git merge-base --is-ancestor "$PRODUCT_BASE_SHA" HEAD
+          test -z "$(git diff --name-only "$PRODUCT_BASE_SHA"..HEAD -- StockAIPro .github/workflows/stock-ai-source-recovery.yml .github/workflows/stock-ai-business-real-network.yml .github/workflows/stock-ai-desktop-candidate.yml)"
+          echo "PRODUCT_TREE_BYTE_IDENTITY=PASS"
+          echo "PRODUCT_BASE_SHA=$PRODUCT_BASE_SHA"
+
+      - name: Setup Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.11"
+
+      - name: Deterministic current-product export
+        shell: bash
+        env:
+          EXPORT_DIR: ${{ runner.temp }}/stock-ai-independent
+        run: |
+          set -euo pipefail
+          python .github/migration/stock_ai_export_v2.py --destination "$EXPORT_DIR" --source-commit "$SOURCE_SHA" | tee "$RUNNER_TEMP/STOCK_AI_EXPORT_V2.json"
+
+      - name: Independent second-pass verification
+        shell: bash
+        env:
+          EXPORT_DIR: ${{ runner.temp }}/stock-ai-independent
+        run: |
+          set -euo pipefail
+          python .github/migration/stock_ai_export_v2.py --destination "$EXPORT_DIR" --verify-only | tee "$RUNNER_TEMP/STOCK_AI_VERIFY_V2.json"
+          grep -q '"status": "PASS"' "$RUNNER_TEMP/STOCK_AI_VERIFY_V2.json"
+
+      - name: Deliberate mutation must fail closed
+        shell: bash
+        env:
+          EXPORT_DIR: ${{ runner.temp }}/stock-ai-independent
+        run: |
+          set -euo pipefail
+          cp -a "$EXPORT_DIR" "$RUNNER_TEMP/stock-ai-tampered"
+          printf '\n# deliberate mutation\n' >> "$RUNNER_TEMP/stock-ai-tampered/StockAIPro/RECOVERY_STATUS.md"
+          set +e
+          python .github/migration/stock_ai_export_v2.py --destination "$RUNNER_TEMP/stock-ai-tampered" --verify-only > "$RUNNER_TEMP/STOCK_AI_TAMPER_V2.json"
+          rc=$?
+          set -e
+          test "$rc" -ne 0
+          grep -q '"status": "FAIL"' "$RUNNER_TEMP/STOCK_AI_TAMPER_V2.json"
+
+      - name: Upload current-product migration seed
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: STOCK-AI-CURRENT-PRODUCT-EXPORT-${{ env.SOURCE_SHA }}
+          path: |
+            ${{ runner.temp }}/stock-ai-independent
+            ${{ runner.temp }}/STOCK_AI_EXPORT_V2.json
+            ${{ runner.temp }}/STOCK_AI_VERIFY_V2.json
+            ${{ runner.temp }}/STOCK_AI_TAMPER_V2.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Explicit non-final boundary
+        run: |
+          echo "PROJECT_TREE_BYTE_IDENTITY=PASS"
+          echo "PROJECT_ONLY_EXPORT=PASS"
+          echo "REPOSITORY_INDEPENDENCE=NOT VERIFIED"
+          echo "REAL_RELEASE_N_TO_N_PLUS_1=NOT VERIFIED"
+          echo "FORMAL_RELEASE_REDOWNLOAD_SAME_HASH=NOT VERIFIED"
+          echo "FINAL_GATE=FAIL"
