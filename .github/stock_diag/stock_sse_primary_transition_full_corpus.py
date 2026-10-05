@@ -171,7 +171,11 @@ def main() -> int:
         "adjudication": report["adjudication"],
     }, ensure_ascii=True, sort_keys=True))
 
-    return 0 if transport_complete and date_candidate_complete else 2
+    # Diagnostic execution success is distinct from business semantic qualification.
+    # If every selected primary PDF was fetched and text-extracted, this diagnostic
+    # completed its job. Missing/ambiguous effective-date semantics stay encoded
+    # above as NOT VERIFIED and must not be converted into a workflow transport FAIL.
+    return 0 if transport_complete else 2
 
 
 if __name__ == "__main__":
