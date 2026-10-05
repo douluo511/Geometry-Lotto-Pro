@@ -9,7 +9,7 @@ from types import SimpleNamespace
 from app.domain import DailyBar
 from app.engine import analyze_observable_activity, reverse_validation
 from app.source_eastmoney import fetch_daily_bars
-from app.source_market import _select_success
+from app.source_market import _independent_successes, _select_success
 from app.source_tencent import fetch_daily_bars_tencent
 from app.source_tencent_full import fetch_daily_bars_tencent_full
 from app.source_yahoo import fetch_daily_bars_yahoo
@@ -74,6 +74,39 @@ class FakeTencentFullClient:
         return {"data": {"sh600000": {key: rows}}}, meta
 
 
+class FakeTencentFullPagedClient:
+    def get_jsonp_object(self, url, params, expected_variable, headers=None):
+        year = int(expected_variable[-4:])
+        meta = SimpleNamespace(
+            status=200,
+            payload_sha256=(format(year % 16, "x") * 64),
+            retrieved_at_unix=float(year),
+            url=f"{url}?year={year}",
+            content_type="application/javascript; charset=utf-8",
+            content_type_policy="strict-assignment-json",
+        )
+        rows = []
+        start = date(year, 1, 1)
+        for i in range(410):
+            day_obj = start + timedelta(days=i)
+            day = day_obj.isoformat()
+            ordinal = day_obj.toordinal()
+            base = 10.0 + (ordinal % 1000) / 10000.0
+            rows.append([
+                day,
+                f"{base:.4f}",
+                f"{base + 0.01:.4f}",
+                f"{base + 0.02:.4f}",
+                f"{base - 0.01:.4f}",
+                str(1000 + ordinal % 100),
+                "unused",
+                "2.5",
+                str(20 + ordinal % 10),
+            ])
+        key = "qfqday" if "qfq" in expected_variable else "day"
+        return {"data": {"sh600000": {key: rows}}}, meta
+
+
 class FakeYahooClient:
     def get_json(self, url, params, headers=None):
         meta = SimpleNamespace(
@@ -123,6 +156,16 @@ def main() -> int:
     assert raw_full_meta["price_adjustment"] == "unadjusted"
     assert raw_full_meta["requested_adjustment"] == "none"
 
+    paged_bars, paged_meta = fetch_daily_bars_tencent_full(
+        FakeTencentFullPagedClient(), "600000", 1200
+    )
+    assert len(paged_bars) == 1200
+    assert paged_meta["history_window_count"] > 1
+    assert paged_meta["history_coverage_satisfied"] is True
+    assert paged_meta["price_adjustment"] == "qfq"
+    assert len(paged_meta["source_payload_sha256s"]) == paged_meta["history_window_count"]
+    assert len(paged_meta["payload_sha256"]) == 64
+
     yahoo_bars, ymeta = fetch_daily_bars_yahoo(FakeYahooClient(), "600000", 40)
     assert len(yahoo_bars) == 40
     assert all(x.amount == 0.0 for x in yahoo_bars)
@@ -141,6 +184,16 @@ def main() -> int:
     equal_eastmoney = ("eastmoney_public_l1", bars * 20, {**meta, "price_adjustment": "qfq"})
     selected = _select_success([long_qfq, equal_eastmoney], 800)
     assert selected[0] == "eastmoney_public_l1", "fixed provider order must resolve equal evidence deterministically"
+
+    full_qfq = (
+        "tencent_public_full_kline",
+        paged_bars[:800],
+        {**paged_meta, "price_adjustment": "qfq"},
+    )
+    independent = _independent_successes([full_qfq, long_qfq, long_unadjusted], "tencent_public_full_kline")
+    assert [x[0] for x in independent] == ["yahoo_public_chart"], (
+        "standard and full Tencent adapters must not satisfy independent cross-source evidence"
+    )
 
     obs = analyze_observable_activity(bars)
     assert obs.true_capital_identity == "UNAVAILABLE_FROM_PUBLIC_LEVEL1"
