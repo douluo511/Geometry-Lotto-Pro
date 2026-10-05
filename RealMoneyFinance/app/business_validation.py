@@ -112,7 +112,7 @@ def _corporate_action_evidence_qualified(source_meta: dict, evidence: dict) -> b
     ):
         return False
 
-    if evidence.get("factor_detection_method") != "persistent_median_regime_shift_v1":
+    if evidence.get("factor_detection_method") != "persistent_median_adjacent_certified_regime_shift_v2":
         return False
     if evidence.get("factor_estimator") != "quantized_ohlc_interval_v2":
         return False
@@ -188,6 +188,28 @@ def _corporate_action_evidence_qualified(source_meta: dict, evidence: dict) -> b
             or float(after_interval[0]) > float(after_interval[1])
             or not (float(before_interval[1]) < float(after_interval[0])
                     or float(after_interval[1]) < float(before_interval[0]))
+        ):
+            return False
+
+        adjacent_jump = change.get("adjacent_factor_jump")
+        adjacent_gap = change.get("adjacent_quantization_interval_gap")
+        adjacent_before = change.get("adjacent_before_factor_interval")
+        adjacent_after = change.get("adjacent_after_factor_interval")
+        if (
+            not isinstance(adjacent_jump, (int, float))
+            or not math.isfinite(float(adjacent_jump))
+            or float(adjacent_jump) <= float(tolerance)
+            or not isinstance(adjacent_gap, (int, float))
+            or not math.isfinite(float(adjacent_gap))
+            or float(adjacent_gap) <= float(tolerance)
+            or not isinstance(adjacent_before, list) or len(adjacent_before) != 2
+            or not isinstance(adjacent_after, list) or len(adjacent_after) != 2
+            or not all(isinstance(x, (int, float)) and math.isfinite(float(x))
+                       for x in adjacent_before + adjacent_after)
+            or float(adjacent_before[0]) > float(adjacent_before[1])
+            or float(adjacent_after[0]) > float(adjacent_after[1])
+            or not (float(adjacent_before[1]) < float(adjacent_after[0])
+                    or float(adjacent_after[1]) < float(adjacent_before[0]))
         ):
             return False
         values = (relative, effective_threshold, rounding_bound, local_noise)

@@ -262,27 +262,72 @@ def verify_corporate_action_lineage(
             clusters[-1].append(signal)
     changes = []
     for cluster in clusters:
-        # Rolling-median persistence intentionally creates several neighboring
-        # candidate splits around one real adjustment step. Selecting the
-        # earliest equal-strength split can move the evidence date *before* the
-        # actual ex-date. Anchor the persistent regime change to the largest
-        # adjacent qfq/raw factor jump inside the validated cluster, while using
-        # the rolling windows only to prove persistence/noise separation.
-        def _adjacent_jump(signal):
+        # Rolling-window separation proves persistence, but it is not sufficient
+        # to prove a discrete corporate-action step. A slow drift can move two
+        # five-session medians far enough apart even when every adjacent pair of
+        # sessions remains quantization-compatible. Require the selected split
+        # itself to have a separately certified adjacent-session discontinuity.
+        # This is stricter than the previous rule; it never promotes a new PASS
+        # from weaker evidence.
+        def _adjacent_certification(signal):
             split = int(signal["split_index"])
             if split <= 0 or split >= len(factor_points):
-                return -1.0
-            left = float(factor_points[split - 1]["factor"])
-            right = float(factor_points[split]["factor"])
-            if left <= 0 or right <= 0:
-                return -1.0
-            return abs(right / left - 1.0)
+                return None
+            left = factor_points[split - 1]
+            right = factor_points[split]
+            if not left["factor_interval_consistent"] or not right["factor_interval_consistent"]:
+                return None
 
-        strongest = max(
-            cluster,
-            key=lambda x: (_adjacent_jump(x), x["relative_change"], -x["split_index"]),
+            left_lower = float(left["factor_interval_lower"])
+            left_upper = float(left["factor_interval_upper"])
+            right_lower = float(right["factor_interval_lower"])
+            right_upper = float(right["factor_interval_upper"])
+            if left_lower > left_upper or right_lower > right_upper:
+                return None
+
+            if left_upper < right_lower:
+                adjacent_gap = right_lower / left_upper - 1.0
+            elif right_upper < left_lower:
+                adjacent_gap = left_lower / right_upper - 1.0
+            else:
+                return None
+
+            left_factor = float(left["factor"])
+            right_factor = float(right["factor"])
+            if left_factor <= 0 or right_factor <= 0:
+                return None
+            adjacent_jump = abs(right_factor / left_factor - 1.0)
+            if (
+                adjacent_gap <= float(factor_change_tolerance)
+                or adjacent_jump <= float(factor_change_tolerance)
+            ):
+                return None
+
+            return {
+                "adjacent_factor_jump": adjacent_jump,
+                "adjacent_quantization_interval_gap": adjacent_gap,
+                "adjacent_before_factor_interval": [left_lower, left_upper],
+                "adjacent_after_factor_interval": [right_lower, right_upper],
+            }
+
+        certified = []
+        for signal in cluster:
+            adjacent = _adjacent_certification(signal)
+            if adjacent is not None:
+                certified.append((signal, adjacent))
+        if not certified:
+            continue
+
+        strongest, adjacent = max(
+            certified,
+            key=lambda item: (
+                item[1]["adjacent_factor_jump"],
+                item[0]["relative_change"],
+                -item[0]["split_index"],
+            ),
         )
         strongest = dict(strongest)
+        strongest.update(adjacent)
         strongest.pop("split_index", None)
         changes.append(strongest)
 
@@ -332,7 +377,7 @@ def verify_corporate_action_lineage(
         "overlap_end": dates[-1],
         "overlap_rows": len(dates),
         "factor_change_tolerance": factor_change_tolerance,
-        "factor_detection_method": "persistent_median_regime_shift_v1",
+        "factor_detection_method": "persistent_median_adjacent_certified_regime_shift_v2",
         "factor_estimator": "quantized_ohlc_interval_v2",
         "factor_window_sessions": window,
         "price_tick": 0.01,
