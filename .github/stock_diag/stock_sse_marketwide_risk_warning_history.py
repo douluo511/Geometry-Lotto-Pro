@@ -110,6 +110,7 @@ def main():
     payload_by_key={}
     total_positive=0
     missing_name_rows=0
+    skipped_b_share_rows=0
 
     for year in YEARS:
         begin=f"{year}-01-01"
