@@ -80,25 +80,52 @@ class FakeTencentFullHistoryClient:
 
     def get_jsonp_object(self, url, params, expected_variable, headers=None):
         self.calls += 1
-        payload_hash = f"{self.calls:064x}"
+        parts = str(params["param"]).split(",")
+        code = parts[0]
+        start = date.fromisoformat(parts[2])
+        end = date.fromisoformat(parts[3])
+        payload_hash = f"{start.year:064x}"[-64:]
         meta = SimpleNamespace(
             status=200,
             payload_sha256=payload_hash,
             retrieved_at_unix=10.0 + self.calls,
-            url=url,
+            url=f"{url}?window={start.isoformat()}:{end.isoformat()}",
             content_type="application/javascript; charset=utf-8",
             content_type_policy="strict-assignment-json",
         )
         rows = []
-        start = date(2018, 1, 1) + timedelta(days=(self.calls - 1) * 360)
-        for i in range(320):
-            day = (start + timedelta(days=i)).isoformat()
-            rows.append([
-                day, "10", "10.1", "10.2", "9.9", str(1000 + i),
-                "unused", "2.5", str(20 + i),
-            ])
+        day = start
+        while day < end and len(rows) < 640:
+            if day.weekday() < 5:
+                base = 10.0 + (day.toordinal() % 1000) / 1000.0
+                rows.append([
+                    day.isoformat(),
+                    f"{base:.3f}",
+                    f"{base + 0.05:.3f}",
+                    f"{base + 0.10:.3f}",
+                    f"{base - 0.05:.3f}",
+                    "1000",
+                    "unused",
+                    "2.5",
+                    "20",
+                ])
+            day += timedelta(days=1)
         key = "qfqday" if "qfq" in expected_variable else "day"
-        return {"data": {"sh600000": {key: rows}}}, meta
+        return {"data": {code: {key: rows}}}, meta
+
+
+class FakeTencentFullHistoryMismatchClient(FakeTencentFullHistoryClient):
+    def get_jsonp_object(self, url, params, expected_variable, headers=None):
+        obj, meta = super().get_jsonp_object(url, params, expected_variable, headers=headers)
+        if self.calls == 2:
+            code = str(params["param"]).split(",")[0]
+            key = "qfqday" if "qfq" in expected_variable else "day"
+            overlap_start = date(date.today().year - 1, 1, 1).isoformat()
+            for row in obj["data"][code][key]:
+                if row[0] >= overlap_start:
+                    row[2] = f"{float(row[2]) + 1.0:.3f}"
+                    break
+        return obj, meta
 
 
 class FakeYahooClient:
@@ -159,11 +186,22 @@ def main() -> int:
     assert history_meta["price_adjustment"] == "qfq"
     assert history_meta["requested_coverage_met"] is True
     assert history_meta["requested_row_count"] == 800
-    assert len(history_meta["history_windows"]) >= 3
-    assert len(history_meta["component_payload_sha256"]) >= 3
-    assert len(set(x.raw_sha256 for x in history_bars)) >= 3
+    assert len(history_meta["history_windows"]) >= 2
+    assert len(history_meta["component_payload_sha256"]) >= 2
+    assert len(set(x.raw_sha256 for x in history_bars)) >= 2
+    assert history_meta["overlap_consistency"] == "PASS"
+    assert history_meta["overlap_verified_rows"] > 0
     assert all(x.amount > 0 for x in history_bars)
     assert all(x.turnover_rate is not None and x.turnover_rate > 0 for x in history_bars)
+
+    try:
+        fetch_daily_bars_tencent_full_history(
+            FakeTencentFullHistoryMismatchClient(), "600000", 800, adjustment="qfq"
+        )
+    except ValueError as exc:
+        assert "scale mismatch" in str(exc)
+    else:
+        raise AssertionError("cross-window qfq mismatch must fail closed")
 
     yahoo_bars, ymeta = fetch_daily_bars_yahoo(FakeYahooClient(), "600000", 40)
     assert len(yahoo_bars) == 40
