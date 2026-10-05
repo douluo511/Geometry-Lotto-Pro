@@ -166,19 +166,28 @@ def verify_corporate_action_lineage(
         qrow = qmap[d]
         rrow = rmap[d]
         ratios = []
-        ratio_tick_bounds = []
+        factor_lowers = []
+        factor_uppers = []
         for field in ("open", "high", "low", "close"):
             qvalue = float(getattr(qrow, field))
             rvalue = float(getattr(rrow, field))
-            if qvalue <= 0 or rvalue <= 0:
-                return {"status": "FAIL", "reason": "non-positive OHLC in factor verification",
+            if qvalue <= half_tick or rvalue <= half_tick:
+                return {"status": "FAIL", "reason": "non-positive/too-small OHLC in factor verification",
                         "trade_date": d, "field": field, **hashes}
             ratios.append(qvalue / rvalue)
-            ratio_tick_bounds.append(half_tick / qvalue + half_tick / rvalue)
+            # Observed qfq/raw prices are cent-rounded. If the unrounded prices
+            # lie within ±half_tick, the true multiplicative adjustment factor
+            # must lie in this interval.
+            factor_lowers.append((qvalue - half_tick) / (rvalue + half_tick))
+            factor_uppers.append((qvalue + half_tick) / (rvalue - half_tick))
+        session_lower = max(factor_lowers)
+        session_upper = min(factor_uppers)
         factor_points.append({
             "trade_date": d,
             "factor": median(ratios),
-            "factor_tick_bound": median(ratio_tick_bounds),
+            "factor_interval_lower": session_lower,
+            "factor_interval_upper": session_upper,
+            "factor_interval_consistent": session_lower <= session_upper,
             "ohlc_factor_spread": max(ratios) - min(ratios),
         })
 
@@ -197,17 +206,29 @@ def verify_corporate_action_lineage(
             continue
         relative = abs(after_factor / before_factor - 1.0)
 
-        # Median OHLC-ratio uncertainty on each side is additive for a
-        # before/after relative comparison. Keep it explicit in evidence.
-        rounding_bound = (
-            median([x["factor_tick_bound"] for x in before])
-            + median([x["factor_tick_bound"] for x in after])
-        )
         before_mad = median([abs(x["factor"] - before_factor) for x in before]) / before_factor
         after_mad = median([abs(x["factor"] - after_factor) for x in after]) / after_factor
         local_noise = max(before_mad, after_mad)
-        threshold = max(float(factor_change_tolerance), 2.0 * rounding_bound, 6.0 * local_noise)
-        if relative > threshold:
+
+        # Quantization-certification: a regime shift is admissible only if the
+        # robust (median-session) feasible-factor intervals on the two five-day
+        # windows are disjoint. This prevents a close-only/near-threshold ratio
+        # wiggle from being labelled a corporate-action shift merely because it
+        # is a few basis points above a heuristic noise estimate.
+        before_lower = median([x["factor_interval_lower"] for x in before])
+        before_upper = median([x["factor_interval_upper"] for x in before])
+        after_lower = median([x["factor_interval_lower"] for x in after])
+        after_upper = median([x["factor_interval_upper"] for x in after])
+        intervals_separated = before_upper < after_lower or after_upper < before_lower
+        if before_upper < after_lower:
+            interval_gap = after_lower / before_upper - 1.0
+        elif after_upper < before_lower:
+            interval_gap = before_lower / after_upper - 1.0
+        else:
+            interval_gap = 0.0
+
+        threshold = max(float(factor_change_tolerance), 6.0 * local_noise)
+        if relative > threshold and intervals_separated and interval_gap > float(factor_change_tolerance):
             signals.append({
                 "split_index": split,
                 "previous_trade_date": before[-1]["trade_date"],
@@ -216,8 +237,11 @@ def verify_corporate_action_lineage(
                 "factor": after_factor,
                 "relative_change": relative,
                 "effective_threshold": threshold,
-                "rounding_error_bound": rounding_bound,
+                "rounding_error_bound": 0.0,
                 "local_mad_ratio": local_noise,
+                "quantization_interval_gap": interval_gap,
+                "before_factor_interval": [before_lower, before_upper],
+                "after_factor_interval": [after_lower, after_upper],
             })
 
     # A single persistent step can trigger several neighboring rolling splits.
@@ -301,7 +325,7 @@ def verify_corporate_action_lineage(
         "overlap_rows": len(dates),
         "factor_change_tolerance": factor_change_tolerance,
         "factor_detection_method": "persistent_median_regime_shift_v1",
-        "factor_estimator": "median_ohlc_ratio_v1",
+        "factor_estimator": "quantized_ohlc_interval_v2",
         "factor_window_sessions": window,
         "price_tick": 0.01,
         "significant_factor_changes": len(changes),
