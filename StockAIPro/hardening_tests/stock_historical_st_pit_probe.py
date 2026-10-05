@@ -105,7 +105,6 @@ def main():
             "fetch_attempts": fetch_meta["attempts"],
             "prior_attempt_errors": fetch_meta["errors"],
         },
-        "retrieval": retrieval,
         "columns": cols,
         "column_binding": {
             "code": code_col,
