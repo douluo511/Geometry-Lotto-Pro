@@ -68,9 +68,24 @@
       "source_product_head": "88809643fe3841879f4c038b9bbffb86026629f5",
       "export_artifact_id": 11323642177,
       "export_artifact_digest": "sha256:da354b71d433de1a04d11a75ac903482723c6caac70dca7f8a2544d23c5f710f",
-      "source_product_status": "REVALIDATING",
+      "source_product_status": "CANDIDATE_ONLY_FINAL_BLOCKED",
       "exact_head_checkout_required": true,
-      "superseded_export_pr": 115
+      "superseded_export_pr": 115,
+      "current_windows_run": 37258239532,
+      "current_windows_status": "FAIL_FINAL_AGGREGATE_ONLY",
+      "exact_exe_sha256": "5699d106d65317f283268ad991fe411bad1f97a44104640959f8a7d70a1d213f",
+      "updater_sha256": "adf2f72662b1f7afe1f655b05e56f1db3b4d175619cc35c65668b776493f170e",
+      "diagnostic_artifact_id": 11323897389,
+      "business_runtime_status": "PASS",
+      "business_content": "PENDING",
+      "business_b05": "PENDING",
+      "final_non_pass_gates": [
+        "business_content",
+        "updater_real_network",
+        "repository_independence",
+        "release_context"
+      ],
+      "note": "Current exact-head run 37258239532 passed compile/tests/business runtime/live network/Windows main+Updater reproducible builds/Exact package/updater rollback+data network/physical GUI positive+update failure+repair failure/No-shell/Same Hash. B05 remains PENDING because real independent Release N→N+1 requires updater_real_network + repository_independence + release_context. Approval is already PASS. Final FAIL is correct."
     },
     {
       "id": 3,
@@ -321,7 +336,7 @@
     }
   ],
   "next_resume_condition": "Continue current exact-head product validation. Do not promote migration readiness to Final. Repository-independence work can resume only when dedicated target repositories are actually visible/writable to the integration; then seed each verified export and rerun the complete chain from independent main.",
-  "latest_delta": "Current-product-bound migration readiness remains 18/18. SSQ current exact-head Windows run 37262758839 has closed: all local/Windows/Standard User/physical GUI/Same Hash gates PASS, Final aggregate FAIL only on business B05/release/repository dependencies. Stock desktop research-corpus qualification remains IN_PROGRESS. Independent repositories remain 0/18; Final/Delivery remain 0/18.",
+  "latest_delta": "Current-product-bound migration readiness remains 18/18. SSQ and DLT current exact-head Windows states are now closed in control: both pass their internal/Windows/GUI/hash chains and remain Final-blocked by independent release/repository dependencies. Stock desktop research-corpus qualification remains IN_PROGRESS. Independent repositories remain 0/18; Final/Delivery remain 0/18.",
   "infrastructure_capability": {
     "repository_creation": "BLOCKED",
     "repository_creation_evidence": "PR #127: Actions integration token cannot act as user-level repository creator; connector exposes no create-repository mutation.",
