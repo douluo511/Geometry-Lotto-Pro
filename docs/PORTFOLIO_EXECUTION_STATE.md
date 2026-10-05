@@ -1,5 +1,17 @@
 # Portfolio Execution State — 18 Windows EXE Projects
 
+## 2026-10-05 Stock SSE suspension surface exact-head diagnostic — PR #191
+
+- **Authoritative Stock product remains:** PR #155 exact head `43168d9e75c70ab55be808d8a51f0c0eb14d83d5`; product/runtime byte drift = **FALSE**.
+- Diagnostic PR #191 exact head `92a7bfc45b797b69bd3282289d2a0d78fd89640d`; fresh run `37308150061` / job `111756731020` = **SUCCESS**.
+- Prior run `37308035541` is preserved as non-authoritative FAIL→FIX history because it executed the PR merge commit rather than the literal branch head. Workflow now explicitly checks out and verifies the PR exact head before evidence production.
+- Official SSE stock suspension page + public-data directory = HTTPS reachable **PASS**.
+- Static suspension surface contains a `query.sse.com.cn` literal, but does not directly render the expected suspension table fields.
+- Base, 2017-01, and 2026-09 date-range requests produce the same canonical page SHA-256 `f6a69aa07f3946d629a9edb75a238f8cee1251b521bb6faca34002ae62fea176`; raw suspension-page SHA-256 `2aac0ed11d89a468b54fe19ae81387a78faccd3f67b0f33a66e656319e0edf9a`.
+- Strict adjudication: stable public bulk historical suspension endpoint = **NOT VERIFIED**; historical daily suspension state = **NOT VERIFIED**; Shanghai historical ST/PIT = **NOT VERIFIED**; full HISTORICAL_ST_PIT = **NOT VERIFIED**.
+- Artifact `11344776014`, digest `sha256:9c6024a3cd2fcd62c0e71e83b63b2c700fcde8107cc07596d5033dc7d7065e76`.
+- No Stock business percentage, Release gate, Repository Independence gate, or Final status is promoted. Advanced Business remains non-PASS; Final Gate remains **FAIL**.
+
 ## 2026-10-05 Stock Shenzhen ST sub-evidence + RMF L1 capacity sub-evidence
 
 - **Stock PR #188 exact diagnostic head:** `d5bb390d839fb284790dcdb2359ef73f776b0d08`; run `37304826757` / job `111745875821` = **SUCCESS** with Stock #155 product bytes unchanged.
