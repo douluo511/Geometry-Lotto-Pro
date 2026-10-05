@@ -932,3 +932,13 @@ This checkpoint supersedes older in-progress wording for the items below only. I
 - Strict adjudication: official SSE historical suspension **event corpus = PASS**. This does **not** prove trading-calendar/resumption-day state semantics or a complete daily market-state replay; therefore historical daily suspension state = **NOT VERIFIED**, Shanghai historical ST/PIT = **NOT VERIFIED**, full A-share `HISTORICAL_ST_PIT` = **NOT VERIFIED**, Advanced Business = **NOT VERIFIED**, Final Gate = **FAIL**.
 - No denominator, threshold, repository-independence requirement, production Release requirement, or Final criterion changed. Portfolio aggregate remains migration/export readiness **18/18 PASS**, dedicated repositories **0/18**, Final/Delivery **0/18**.
 
+## 2026-10-05 Stock SSE interval-vs-daily-state correction
+
+- PR #193 current exact branch head `1568226391c17e27618b0e3969621d698bb41b5f`; authoritative Stock product remains PR #155 @ `43168d9e75c70ab55be808d8a51f0c0eb14d83d5`; Stock product/runtime bytes changed = **FALSE**.
+- Fresh push run `37312529194` / job `111771187557` and PR run `37312535468` / job `111771204852` are both **SUCCESS**.
+- Both runs reproduce 4,815 raw/parsed official SSE suspension rows, 4,771 canonical intervals, complete annual pagination, and canonical interval SHA-256 `34ae0df9fc00ed92f0791d8254cb859a17e09f124614b716291c1fdc8c32329d`.
+- **Evidence classification correction:** previous head `e4a03660...` labeled `historical_daily_suspension_state=SUPPORTED_SHANGHAI_ONLY`, but the code had not expanded intervals onto an independently verified SSE trading calendar and had not proven whether `endStopDate` is the final suspended date or the resumption date. That stronger classification is superseded.
+- Current strict state: Shanghai historical suspension **intervals = SUPPORTED**; historical daily suspension state = **NOT VERIFIED**; Shanghai historical ST/PIT = **NOT VERIFIED**; Beijing historical ST/PIT = **NOT VERIFIED**; full A-share `HISTORICAL_ST_PIT` = **NOT VERIFIED**; Advanced Business = **NOT VERIFIED**; Final Gate = **FAIL**.
+- Push artifact `11345523920` digest `sha256:680cdb305545d38d25621b7a48dde11ad7c5e3f293b0b4d966cb00b5308fd661`; PR artifact `11346717120` digest `sha256:374f0d2c0de7441105710093b4f631f75916dfcce2ff07d0472aaae60a849a9b`.
+- Portfolio aggregate remains migration/export readiness **18/18 PASS**, dedicated repositories **0/18**, Final/Delivery **0/18**.
+
