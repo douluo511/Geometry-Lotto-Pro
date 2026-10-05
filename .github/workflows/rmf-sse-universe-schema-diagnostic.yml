@@ -76,11 +76,11 @@ jobs:
 
               delisted = [
                   row for row in rows
-                  if re.fullmatch(r"\\d{8}", clean(row.get("DELIST_DATE")))
+                  if re.fullmatch(r"\d{8}", clean(row.get("DELIST_DATE")))
               ]
               listed_dates = sorted(
                   clean(row.get("LIST_DATE")) for row in rows
-                  if re.fullmatch(r"\\d{8}", clean(row.get("LIST_DATE")))
+                  if re.fullmatch(r"\d{8}", clean(row.get("LIST_DATE")))
               )
               delist_dates = sorted(
                   clean(row.get("DELIST_DATE")) for row in delisted
@@ -96,10 +96,10 @@ jobs:
               historical_anchor = "20240906"
               members_at_anchor = [
                   row for row in rows
-                  if re.fullmatch(r"\\d{8}", clean(row.get("LIST_DATE")))
+                  if re.fullmatch(r"\d{8}", clean(row.get("LIST_DATE")))
                   and clean(row.get("LIST_DATE")) <= historical_anchor
                   and (
-                      not re.fullmatch(r"\\d{8}", clean(row.get("DELIST_DATE")))
+                      not re.fullmatch(r"\d{8}", clean(row.get("DELIST_DATE")))
                       or clean(row.get("DELIST_DATE")) >= historical_anchor
                   )
               ]
