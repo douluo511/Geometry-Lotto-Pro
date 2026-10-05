@@ -3,7 +3,15 @@ from __future__ import annotations
 from datetime import date, timedelta
 import hashlib
 import json
+from pathlib import Path
 import random
+import sys
+
+# Direct script execution sets sys.path[0] to Happy8/staging/scripts. Bind this
+# contract to the exact sibling package without changing any science threshold.
+STAGING_ROOT = Path(__file__).resolve().parents[1]
+if str(STAGING_ROOT) not in sys.path:
+    sys.path.insert(0, str(STAGING_ROOT))
 
 from happy8.domain import Draw
 from happy8.science import validate_history
