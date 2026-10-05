@@ -116,12 +116,7 @@ def fetch_daily_bars_tencent_full_history(
     limit: int = 1200,
     adjustment: str = "qfq",
 ) -> tuple[list[DailyBar], dict]:
-    """Collect long, field-complete Tencent history from bounded non-overlapping date windows.
-
-    This preserves the existing coverage-first selection rule: if the provider cannot
-    supply the requested history, callers may still prefer a longer alternative.
-    No model outcome is consulted during acquisition or selection.
-    """
+    """Collect long Tencent history from bounded windows with overlap proof.\n\n    The frozen coverage-first selector is unchanged. Adjacent request windows\n    overlap for one month and duplicate dates must contain identical market\n    values; otherwise the provider fails closed instead of silently stitching\n    incompatible qfq scales.\n    """
     requested = max(30, min(int(limit), 2000))
     mode = str(adjustment).strip().lower()
     if mode in {"none", "raw", "unadjusted"}:
@@ -139,14 +134,35 @@ def fetch_daily_bars_tencent_full_history(
     current_year = date.today().year
     by_date: dict[str, DailyBar] = {}
     components = []
+    overlap_verified_rows = 0
 
-    # Two calendar years stay below Tencent's 640-row request bound while
-    # allowing deterministic backward pagination for a 1200-row denominator.
+    def same_market_values(left: DailyBar, right: DailyBar) -> bool:
+        if left.symbol != right.symbol or left.trade_date != right.trade_date:
+            return False
+        for field in ("open", "close", "high", "low", "volume", "amount", "pct_change", "turnover_rate"):
+            a = getattr(left, field)
+            b = getattr(right, field)
+            if a is None or b is None:
+                if a is not b:
+                    return False
+                continue
+            a = float(a)
+            b = float(b)
+            tolerance = max(1e-9, 1e-9 * max(abs(a), abs(b), 1.0))
+            if abs(a - b) > tolerance:
+                return False
+        return True
+
+    # Two calendar years stay below Tencent's 640-row request bound. Older
+    # windows overlap the next-newer window for one month so qfq scale identity
+    # is independently checked instead of assumed.
     for window_index in range(10):
         end_year = current_year + 1 - (window_index * 2)
         start_year = end_year - 2
         start_date = f"{start_year}-01-01"
-        end_date = f"{end_year}-01-01"
+        end_date = f"{end_year}-01-01" if window_index == 0 else f"{end_year}-02-01"
+        start_bound = date.fromisoformat(start_date)
+        end_bound = date.fromisoformat(end_date)
         variable = f"kline_day{fq}_{start_year}_{end_year}"
         params = {
             "_var": variable,
@@ -182,12 +198,18 @@ def fetch_daily_bars_tencent_full_history(
             "row_count": len(rows_raw),
             "url": meta.url,
         }
-        components.append(component)
+        duplicate_overlap_rows = 0
 
         for row in rows_raw:
             if not isinstance(row, list) or len(row) < 9:
                 raise ValueError("Tencent full-history kline schema changed or row is incomplete")
             trade_date = str(row[0])
+            try:
+                trade_day = date.fromisoformat(trade_date)
+            except Exception as exc:
+                raise ValueError(f"invalid Tencent full-history trade date: {trade_date!r}") from exc
+            if not (start_bound <= trade_day < end_bound):
+                continue
             open_p = float(row[1])
             close_p = float(row[2])
             high_p = float(row[3])
@@ -199,7 +221,7 @@ def fetch_daily_bars_tencent_full_history(
                 volume *= 100.0
             if min(open_p, close_p, high_p, low_p, volume, amount, turnover_rate) <= 0:
                 raise ValueError(f"Tencent full-history kline contains non-positive required field on {trade_date}")
-            by_date[trade_date] = DailyBar(
+            candidate = DailyBar(
                 symbol=code[-6:],
                 trade_date=trade_date,
                 open=open_p,
@@ -213,8 +235,22 @@ def fetch_daily_bars_tencent_full_history(
                 provider="tencent_public_full_kline",
                 raw_sha256=meta.payload_sha256,
             )
+            prior = by_date.get(trade_date)
+            if prior is not None:
+                duplicate_overlap_rows += 1
+                if not same_market_values(prior, candidate):
+                    raise ValueError(
+                        "Tencent qfq/raw scale mismatch across overlapping history windows "
+                        f"on {trade_date}"
+                    )
+                overlap_verified_rows += 1
+            else:
+                by_date[trade_date] = candidate
 
-        if len(by_date) >= requested:
+        component["duplicate_overlap_rows"] = duplicate_overlap_rows
+        components.append(component)
+
+        if len(by_date) >= requested and overlap_verified_rows > 0:
             break
 
     rows = [by_date[key] for key in sorted(by_date)]
@@ -244,5 +280,7 @@ def fetch_daily_bars_tencent_full_history(
         "requested_adjustment": fq,
         "field_contract": "date/open/close/high/low/volume/turnover/amount",
         "unit_contract": "volume=shares; turnover_rate=fraction; amount=CNY",
-        "history_contract": "bounded-two-year-windows-deduped-by-trade-date",
+        "history_contract": "bounded-two-year-windows-one-month-overlap-verified",
+        "overlap_consistency": "PASS" if overlap_verified_rows > 0 else "NOT VERIFIED",
+        "overlap_verified_rows": overlap_verified_rows,
     }
