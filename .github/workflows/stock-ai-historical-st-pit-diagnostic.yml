@@ -53,11 +53,43 @@ jobs:
           path: StockAIPro/stock_historical_st_pit_diagnostic.json
           if-no-files-found: error
           retention-days: 30
-      - name: Explicit boundary
+      - name: Assert fail-closed cross-exchange boundary
+        working-directory: StockAIPro
+        shell: pwsh
         run: |
-          echo "SZSE_DATED_NAME_CHANGE=VERIFIED_BY_DIAGNOSTIC_IF_PRIOR_STEP_PASS"
-          echo "SHANGHAI_ST_PIT=NOT VERIFIED"
-          echo "BEIJING_ST_PIT=NOT VERIFIED"
-          echo "HISTORICAL_SUSPENSION_DAILY_STATE=NOT VERIFIED"
-          echo "FULL_HISTORICAL_ST_PIT=NOT VERIFIED"
-          echo "FINAL_GATE=FAIL"
+          @'
+          import json
+          from pathlib import Path
+
+          report = json.loads(Path("stock_historical_st_pit_diagnostic.json").read_text(encoding="utf-8"))
+          hist = report["historical_st_reconstruction"]
+          bse = report.get("beijing_official_source_boundary", {})
+
+          if hist.get("shenzhen") != "SUPPORTED":
+              raise SystemExit("Shenzhen dated reconstruction must remain SUPPORTED")
+          for key in ("shanghai", "beijing", "full_a_share_gate"):
+              if hist.get(key) != "NOT VERIFIED":
+                  raise SystemExit(f"{key} must remain NOT VERIFIED")
+          if report.get("historical_suspension_daily_state") != "NOT VERIFIED":
+              raise SystemExit("historical suspension daily state must remain NOT VERIFIED")
+          if report.get("final_gate") != "FAIL":
+              raise SystemExit("Final Gate must remain FAIL")
+
+          existence = bse.get("historical_market_participant_short_name_file_existence", "NOT VERIFIED")
+          if existence == "SUPPORTED":
+              if bse.get("file_identifier") != "JCyymmdd.nnn":
+                  raise SystemExit("BSE supported source boundary requires exact file identifier")
+              if bse.get("public_historical_bulk_archive") != "NOT VERIFIED":
+                  raise SystemExit("market-participant file existence cannot promote public bulk archive")
+              if bse.get("beijing_historical_st_pit") != "NOT VERIFIED":
+                  raise SystemExit("source existence cannot promote Beijing historical ST/PIT")
+
+          print("SZSE_DATED_NAME_CHANGE=SUPPORTED")
+          print("BSE_HISTORICAL_SHORT_NAME_FILE_EXISTENCE=" + str(existence))
+          print("BSE_PUBLIC_HISTORICAL_BULK_ARCHIVE=" + str(bse.get("public_historical_bulk_archive", "NOT VERIFIED")))
+          print("SHANGHAI_ST_PIT=NOT VERIFIED")
+          print("BEIJING_ST_PIT=NOT VERIFIED")
+          print("HISTORICAL_SUSPENSION_DAILY_STATE=NOT VERIFIED")
+          print("FULL_HISTORICAL_ST_PIT=NOT VERIFIED")
+          print("FINAL_GATE=FAIL")
+          '@ | python -
