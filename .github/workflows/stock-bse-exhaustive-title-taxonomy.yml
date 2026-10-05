@@ -3,6 +3,13 @@ on:
   push:
     branches:
       - diagnostic/stock-bse-exhaustive-title-taxonomy-20261006
+    paths:
+      - ".github/stock_diag/stock_bse_exhaustive_title_taxonomy.py"
+      - ".github/workflows/stock-bse-exhaustive-title-taxonomy.yml"
+  pull_request:
+    paths:
+      - ".github/stock_diag/stock_bse_exhaustive_title_taxonomy.py"
+      - ".github/workflows/stock-bse-exhaustive-title-taxonomy.yml"
   workflow_dispatch:
 permissions:
   contents: read
@@ -13,13 +20,14 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
       - name: Verify current Stock product byte identity
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          expected="${{ github.event.pull_request.head.sha || github.sha }}"
+          test "$(git rev-parse HEAD)" = "$expected"
           authoritative="7f270b9ab58e11fd8129053a65e000c90ff9d8c1"
           test -z "$(git diff --name-only "$authoritative"..HEAD -- StockAIPro)"
           echo "STOCK_PRODUCT_TREE_BYTE_IDENTITY=PASS"
