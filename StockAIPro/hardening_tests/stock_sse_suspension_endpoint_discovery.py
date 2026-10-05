@@ -196,6 +196,7 @@ def main():
         "page_http_status": report["page_http_status"],
         "script_refs_found": report["script_refs_found"],
         "same_origin_scripts_scanned": report["same_origin_scripts_scanned"],
+        "script_urls": urls,
         "discovery_status": report["discovery_status"],
         "hit_scripts": [x["script"]["url"] for x in hits],
         "page_keywords": sorted(page_matches),
