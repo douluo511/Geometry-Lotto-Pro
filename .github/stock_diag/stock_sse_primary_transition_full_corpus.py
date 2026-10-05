@@ -20,40 +20,40 @@ spec.loader.exec_module(s)
 OUT = Path("stock_sse_primary_transition_full_corpus.json")
 TARGET_CLASSES = {"actual_implementation_candidate", "actual_cancel_candidate"}
 
-DATE_CORE = String.raw\`(20\\d{2})\\s*年\\s*(\\d{1,2})\\s*月\\s*(\\d{1,2})\\s*日\`
+DATE_CORE = r"(20\d{2})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日"
 
 IMPLEMENTATION_PATTERNS = [
     re.compile(
-        rf"(?:自|于|从)?\\s*{DATE_CORE}\\s*(?:开市|交易)?\\s*起"
-        rf"[^。；\\n]{{0,140}}?(?:被|将被|继续|叠加)?\\s*实施"
+        rf"(?:自|于|从)?\s*{DATE_CORE}\s*(?:开市|交易)?\s*起"
+        rf"[^。；\n]{{0,140}}?(?:被|将被|继续|叠加)?\s*实施"
         rf"(?:退市风险警示|其他风险警示|风险警示)"
     ),
     re.compile(
-        rf"(?:公司股票|股票交易|证券交易)[^。；\\n]{{0,100}}?"
-        rf"(?:自|于|从)?\\s*{DATE_CORE}\\s*(?:开市|交易)?\\s*起"
-        rf"[^。；\\n]{{0,140}}?(?:被|将被)?\\s*实施"
+        rf"(?:公司股票|股票交易|证券交易)[^。；\n]{{0,100}}?"
+        rf"(?:自|于|从)?\s*{DATE_CORE}\s*(?:开市|交易)?\s*起"
+        rf"[^。；\n]{{0,140}}?(?:被|将被)?\s*实施"
         rf"(?:退市风险警示|其他风险警示|风险警示)"
     ),
     re.compile(
         rf"(?:实施|被实施|将被实施)(?:退市风险警示|其他风险警示|风险警示)"
-        rf"[^。；\\n]{{0,100}}?(?:自|于|从)?\\s*{DATE_CORE}\\s*(?:开市|交易)?\\s*起"
+        rf"[^。；\n]{{0,100}}?(?:自|于|从)?\s*{DATE_CORE}\s*(?:开市|交易)?\s*起"
     ),
 ]
 
 CANCELLATION_PATTERNS = [
     re.compile(
-        rf"(?:自|于|从)?\\s*{DATE_CORE}\\s*(?:开市|交易)?\\s*起"
-        rf"[^。；\\n]{{0,140}}?(?:撤销|取消|不再实施)"
+        rf"(?:自|于|从)?\s*{DATE_CORE}\s*(?:开市|交易)?\s*起"
+        rf"[^。；\n]{{0,140}}?(?:撤销|取消|不再实施)"
         rf"(?:股票)?(?:退市风险警示|其他风险警示|风险警示)"
     ),
     re.compile(
         rf"(?:撤销|取消|不再实施)(?:股票)?(?:退市风险警示|其他风险警示|风险警示)"
-        rf"[^。；\\n]{{0,100}}?(?:自|于|从)?\\s*{DATE_CORE}\\s*(?:开市|交易)?\\s*起"
+        rf"[^。；\n]{{0,100}}?(?:自|于|从)?\s*{DATE_CORE}\s*(?:开市|交易)?\s*起"
     ),
     re.compile(
-        rf"(?:公司股票|股票交易|证券交易)[^。；\\n]{{0,100}}?"
-        rf"(?:自|于|从)?\\s*{DATE_CORE}\\s*(?:开市|交易)?\\s*起"
-        rf"[^。；\\n]{{0,140}}?(?:撤销|取消)(?:股票)?"
+        rf"(?:公司股票|股票交易|证券交易)[^。；\n]{{0,100}}?"
+        rf"(?:自|于|从)?\s*{DATE_CORE}\s*(?:开市|交易)?\s*起"
+        rf"[^。；\n]{{0,140}}?(?:撤销|取消)(?:股票)?"
         rf"(?:退市风险警示|其他风险警示|风险警示)"
     ),
 ]
@@ -70,7 +70,7 @@ def _iso_date(y: str, m: str, d: str) -> str | None:
 
 
 def strong_transition_dates(text: str, klass: str) -> list[dict]:
-    normalized = re.sub(r"[ \\t\\u3000]+", " ", text or "")
+    normalized = re.sub(r"[ \t\u3000]+", " ", text or "")
     patterns = (
         IMPLEMENTATION_PATTERNS
         if klass == "actual_implementation_candidate"
@@ -92,8 +92,8 @@ def strong_transition_dates(text: str, klass: str) -> list[dict]:
             evidence.append({
                 "date": value,
                 "pattern_index": pattern_index,
-                "matched_text": re.sub(r"\\s+", " ", match.group(0)).strip()[:320],
-                "context": re.sub(r"\\s+", " ", normalized[lo:hi]).strip()[:520],
+                "matched_text": re.sub(r"\s+", " ", match.group(0)).strip()[:320],
+                "context": re.sub(r"\s+", " ", normalized[lo:hi]).strip()[:520],
             })
     return evidence
 
