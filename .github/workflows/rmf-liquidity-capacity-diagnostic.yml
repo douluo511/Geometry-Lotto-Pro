@@ -49,12 +49,56 @@ jobs:
           path: RealMoneyFinance/rmf_liquidity_capacity_diagnostic.json
           if-no-files-found: error
           retention-days: 30
-      - name: Explicit boundary
+      - name: Assert and print fail-closed evidence boundary
+        working-directory: RealMoneyFinance
+        shell: bash
         run: |
-          echo "AMOUNT_BASED_PARTICIPATION_CAPACITY=SUPPORTED"
-          echo "OBSERVED_MARKET_IMPACT=NOT VERIFIED"
-          echo "BROKER_EXECUTION_SLIPPAGE=NOT VERIFIED"
-          echo "LIMIT_FILLABILITY=NOT VERIFIED"
-          echo "LIQUIDITY_CAPACITY_FULL_GATE=NOT VERIFIED"
-          echo "CAPITAL_DEPLOYMENT_READY=FALSE"
-          echo "FINAL_GATE=FAIL"
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          report = json.loads(Path("rmf_liquidity_capacity_diagnostic.json").read_text(encoding="utf-8"))
+          boundary = report["evidence_boundary"]
+          snapshot = report.get("current_public_l1_snapshot", {})
+
+          required = {
+              "amount_based_participation_capacity": "SUPPORTED",
+              "historical_bid_ask_spread": "NOT VERIFIED",
+              "observed_market_impact": "NOT VERIFIED",
+              "broker_execution_slippage": "NOT VERIFIED",
+              "limit_up_down_fillability": "NOT VERIFIED",
+              "full_cost_slippage_calibration_gate": "NOT VERIFIED",
+              "full_liquidity_capacity_gate": "NOT VERIFIED",
+              "final_gate": "FAIL",
+          }
+          for key, expected in required.items():
+              actual = boundary.get(key)
+              if actual != expected:
+                  raise SystemExit(f"{key}: expected {expected!r}, got {actual!r}")
+          if boundary.get("capital_deployment_ready") is not False:
+              raise SystemExit("capital_deployment_ready must remain false")
+
+          if boundary.get("current_bid_ask_spread_snapshot") == "SUPPORTED":
+              if snapshot.get("snapshot_freshness") != "CURRENT_SESSION":
+                  raise SystemExit("current spread cannot be SUPPORTED from a stale quote")
+              spread = snapshot.get("spread_bps")
+              if not isinstance(spread, (int, float)) or spread < 0:
+                  raise SystemExit("supported current spread requires a finite non-negative spread_bps")
+
+          if boundary.get("current_limit_price_snapshot") == "SUPPORTED":
+              if snapshot.get("snapshot_freshness") != "CURRENT_SESSION":
+                  raise SystemExit("current limit-price evidence cannot be SUPPORTED from a stale quote")
+
+          print("AMOUNT_BASED_PARTICIPATION_CAPACITY=SUPPORTED")
+          print("CURRENT_L1_SPREAD=" + str(boundary.get("current_bid_ask_spread_snapshot")))
+          print("CURRENT_LIMIT_PRICE=" + str(boundary.get("current_limit_price_snapshot")))
+          print("LAST_QUOTED_LIMIT_PRICE=" + str(boundary.get("last_quoted_session_limit_price_snapshot")))
+          print("SNAPSHOT_FRESHNESS=" + str(snapshot.get("snapshot_freshness", "NOT VERIFIED")))
+          print("OBSERVED_MARKET_IMPACT=NOT VERIFIED")
+          print("BROKER_EXECUTION_SLIPPAGE=NOT VERIFIED")
+          print("LIMIT_FILLABILITY=NOT VERIFIED")
+          print("COST_SLIPPAGE_FULL_GATE=NOT VERIFIED")
+          print("LIQUIDITY_CAPACITY_FULL_GATE=NOT VERIFIED")
+          print("CAPITAL_DEPLOYMENT_READY=FALSE")
+          print("FINAL_GATE=FAIL")
+          PY
