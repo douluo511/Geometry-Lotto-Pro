@@ -21,73 +21,114 @@ def _tradable_next_open(row):
     except Exception:return False
 
 def _historical_candidate_pool(ds,cfg,research_calendar):
-    min_amt=float(cfg["universe"].get("min_turnover_cny",0)); top_n=int(cfg["universe"].get("live_top_n",300)); x=ds[ds["log_amount20"].notna()].copy()
+    min_amt=float(cfg["universe"].get("min_turnover_cny",0)); top_n=int(cfg["universe"].get("live_top_n",300))
+    x=ds[ds["log_amount20"].notna()].copy()
+    # Turnover threshold is independent of ST/PIT and commutes with that filter.
+    # The non-commuting Top-N rank is intentionally applied only AFTER
+    # signal-date ST/suspension state has been removed, matching live policy.
     if min_amt>0:x=x[x["log_amount20"]>=np.log1p(min_amt)]
-    if top_n>0 and not x.empty:
-        x["liq_rank"]=x.groupby("date")["log_amount20"].rank(method="first",ascending=False);x=x[x["liq_rank"]<=top_n]
     if x.empty:
-        return x,{"status":"NOT VERIFIED","reason":"empty_after_liquidity_filter"}
+        return x,{"status":"NOT VERIFIED","reason":"empty_after_turnover_filter"}
 
     calendar=sorted({pd.Timestamp(d).normalize() for d in research_calendar if pd.notna(d)})
     if len(calendar)<2:
         raise RuntimeError("historical PIT policy requires at least two research trading dates")
-    next_day={calendar[i].strftime("%Y-%m-%d"):calendar[i+1].strftime("%Y-%m-%d") for i in range(len(calendar)-1)}
+    expected_trade_date=calendar[-1].strftime("%Y-%m-%d")
+
     signal_day=pd.to_datetime(x["date"],errors="coerce").dt.strftime("%Y-%m-%d")
     actual_entry_day=pd.to_datetime(x["entry_date"],errors="coerce").dt.strftime("%Y-%m-%d")
-    expected_entry_day=signal_day.map(next_day)
+    codes=x["code"].astype(str).str.zfill(6)
+    if signal_day.isna().any():
+        raise RuntimeError("historical PIT policy found invalid signal dates")
+    signal_keys=list(zip(signal_day.tolist(),codes.tolist()))
+    signal_states,signal_evidence=load_historical_st_pit_subset(
+        ROOT,signal_keys,expected_trade_date=expected_trade_date
+    )
+
+    x["code"]=codes
+    x["_pit_market"]=[signal_states[k]["market"] for k in signal_keys]
+    x["_pit_signal_st"]=[bool(signal_states[k]["st"]) for k in signal_keys]
+    x["_pit_signal_suspended"]=[bool(signal_states[k]["suspended"]) for k in signal_keys]
+    exclude_st=bool((cfg.get("universe",{}) or {}).get("exclude_st",True))
+
+    signal_st=x["_pit_signal_st"].to_numpy(dtype=bool)
+    signal_suspended=x["_pit_signal_suspended"].to_numpy(dtype=bool)
+    allowed_signal=~signal_suspended
+    if exclude_st:
+        allowed_signal &= ~signal_st
+    signal_st_excluded=int(signal_st.sum()) if exclude_st else 0
+    signal_suspended_excluded=int(signal_suspended.sum())
+    rows_before_signal_pit=len(x)
+    x=x.loc[allowed_signal].copy()
+    if x.empty:
+        raise RuntimeError("historical PIT policy removed all rows at signal date")
+
+    if top_n>0:
+        x["liq_rank"]=x.groupby("date")["log_amount20"].rank(method="first",ascending=False)
+        x=x[x["liq_rank"]<=top_n].copy()
+    if x.empty:
+        raise RuntimeError("historical PIT policy has no rows after liquidity ranking")
+    rows_after_liquidity_rank=len(x)
+
+    market_dates=signal_evidence.get("market_dates") or {}
+    next_by_market={}
+    for market in ("SSE","SZSE","BSE"):
+        days=sorted(str(d) for d in (market_dates.get(market) or []))
+        if len(days)<2:
+            raise RuntimeError(f"historical PIT verified calendar too short for {market}")
+        next_by_market[market]={days[i]:days[i+1] for i in range(len(days)-1)}
+
+    signal_day=pd.to_datetime(x["date"],errors="coerce").dt.strftime("%Y-%m-%d")
+    actual_entry_day=pd.to_datetime(x["entry_date"],errors="coerce").dt.strftime("%Y-%m-%d")
+    expected_entry_day=pd.Series(
+        [next_by_market.get(m,{}).get(d) for m,d in zip(x["_pit_market"],signal_day)],
+        index=x.index,dtype="object"
+    )
     aligned=actual_entry_day.notna() & expected_entry_day.notna() & actual_entry_day.eq(expected_entry_day)
     entry_calendar_gap_count=int((~aligned).sum())
     x=x.loc[aligned].copy()
-    signal_day=signal_day.loc[aligned]
-    actual_entry_day=actual_entry_day.loc[aligned]
+    expected_entry_day=expected_entry_day.loc[aligned]
     if x.empty:
         raise RuntimeError("historical PIT policy removed all rows: no true next-market-open entries")
 
-    codes=x["code"].astype(str)
-    signal_keys=list(zip(signal_day.tolist(),codes.tolist()))
-    entry_keys=list(zip(actual_entry_day.tolist(),codes.tolist()))
-    required=set(signal_keys)|set(entry_keys)
-    states,evidence=load_historical_st_pit_subset(
-        ROOT,required,expected_trade_date=calendar[-1].strftime("%Y-%m-%d")
+    entry_codes=x["code"].astype(str).str.zfill(6)
+    entry_keys=list(zip(expected_entry_day.tolist(),entry_codes.tolist()))
+    entry_states,entry_evidence=load_historical_st_pit_subset(
+        ROOT,entry_keys,expected_trade_date=expected_trade_date
     )
-    signal_states=[states[k] for k in signal_keys]
-    entry_states=[states[k] for k in entry_keys]
-    signal_st=np.array([bool(v["st"]) for v in signal_states],dtype=bool)
-    signal_suspended=np.array([bool(v["suspended"]) for v in signal_states],dtype=bool)
-    entry_suspended=np.array([bool(v["suspended"]) for v in entry_states],dtype=bool)
-    exclude_st=bool((cfg.get("universe",{}) or {}).get("exclude_st",True))
-
-    allowed=~signal_suspended & ~entry_suspended
-    if exclude_st:
-        allowed &= ~signal_st
-
-    before=len(x)
-    excluded_signal_st=int(signal_st.sum()) if exclude_st else 0
-    excluded_signal_suspended=int(signal_suspended.sum())
-    excluded_entry_suspended=int(entry_suspended.sum())
-    x=x.loc[allowed].copy()
+    if entry_evidence.get("canonical_sha256")!=signal_evidence.get("canonical_sha256"):
+        raise RuntimeError("historical PIT canonical binding changed between signal and entry checks")
+    entry_suspended=np.array([bool(entry_states[k]["suspended"]) for k in entry_keys],dtype=bool)
+    entry_suspended_excluded=int(entry_suspended.sum())
+    x=x.loc[~entry_suspended].copy()
     if x.empty:
-        raise RuntimeError("historical PIT policy removed all candidate rows")
+        raise RuntimeError("historical PIT policy removed all candidates at entry execution")
 
+    required_state_keys=len(set(signal_keys)|set(entry_keys))
     policy={
         "status":"PASS",
         "point_in_time_only":True,
         "selection_state_date":"signal_date",
         "execution_state_date":"next_market_open",
+        "market_calendar_source":"verified_canonical_daily_state",
+        "liquidity_ranking_after_signal_pit":True,
         "exclude_st":exclude_st,
-        "rows_before_pit_state_filter":before,
-        "rows_after_pit_state_filter":len(x),
+        "rows_before_signal_pit":rows_before_signal_pit,
+        "rows_after_signal_pit":rows_before_signal_pit-signal_st_excluded-signal_suspended_excluded,
+        "rows_after_liquidity_rank":rows_after_liquidity_rank,
+        "rows_after_entry_pit":len(x),
         "entry_calendar_gap_excluded":entry_calendar_gap_count,
-        "signal_st_excluded":excluded_signal_st,
-        "signal_suspended_excluded":excluded_signal_suspended,
-        "entry_suspended_excluded":excluded_entry_suspended,
-        "required_state_keys":evidence.get("required_key_count"),
-        "canonical_sha256":evidence.get("canonical_sha256"),
-        "window_start":evidence.get("window_start"),
-        "window_end":evidence.get("window_end"),
+        "signal_st_excluded":signal_st_excluded,
+        "signal_suspended_excluded":signal_suspended_excluded,
+        "entry_suspended_excluded":entry_suspended_excluded,
+        "required_state_keys":required_state_keys,
+        "canonical_sha256":signal_evidence.get("canonical_sha256"),
+        "window_start":signal_evidence.get("window_start"),
+        "window_end":signal_evidence.get("window_end"),
         "future_safety":"ST selection uses signal-date state only; next-day suspension is used only for execution feasibility",
     }
-    return x,policy
+    drop=[c for c in x.columns if c.startswith("_pit_")]
+    return x.drop(columns=drop),policy
 
 def _net_mean(frame,cfg,order_size=None):
     if frame.empty:return float('nan')
