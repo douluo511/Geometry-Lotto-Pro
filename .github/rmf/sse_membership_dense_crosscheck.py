@@ -122,6 +122,8 @@ def main() -> int:
     if len(history) != 1200 or not history_meta.get("history_coverage_satisfied"):
         raise RuntimeError("exact 1200-row research history unavailable")
     research_dates = [date.fromisoformat(row.trade_date) for row in history]
+    if research_dates != sorted(research_dates) or len(research_dates) != len(set(research_dates)):
+        raise RuntimeError("research dates are not unique chronological dates")
     sample_dates = month_end_research_dates(research_dates)
 
     main_rows, main_meta = membership._fetch_board(client, "1")
