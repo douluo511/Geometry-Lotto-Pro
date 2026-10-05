@@ -452,14 +452,14 @@
     {
       "id": 18,
       "project": "Happy8",
-      "export_pr": 184,
-      "export_head": "596759ceee67cf3a67af8ba562c3754b505bf3b4",
-      "export_run": 37292036969,
+      "export_pr": 185,
+      "export_head": "f8fd54146054e56627ca2a60919082b1d2f3e820",
+      "export_run": 37292380803,
       "export_status": "PASS",
       "repository_independence": "BLOCKED",
       "final_gate": "FAIL",
-      "export_artifact_id": 11337525110,
-      "export_artifact_digest": "sha256:6050497a2e2d610c2502cc6dd92e49145cf132c42fa193275f0ffa7639863cbc",
+      "export_artifact_id": 11336683146,
+      "export_artifact_digest": "sha256:121d25a73bbe31ffa083fbcb2698a16671312c7567209b25953eb0243508645f",
       "source_product_pr": 176,
       "source_product_head": "10763ef098a653ba8c81f399d335a85486e31642",
       "source_product_status": "CURRENT_HEAD_INTERNAL_VALIDATION_IN_PROGRESS_FINAL_BLOCKED",
@@ -470,17 +470,18 @@
       "exact_head_checkout_required": true,
       "current_windows_run": 37291272371,
       "current_windows_status": "IN_PROGRESS",
-      "manifest_sha256": "f7fd74d340e10a9374772dfe6312bb6c2e6595d775234af9c1ec69a9dfddd95b",
+      "manifest_sha256": "c439970ddf6c8f6e777e09cf68e8527d602bf6e684c52e01cc40e89cba57d90e",
       "export_file_count": 52,
       "superseded_export_prs": [
         102,
-        163
+        163,
+        184
       ],
-      "note": "PR #184 is bound directly to authoritative Happy8 PR #176 exact head 10763ef0 and run 37292036969 PASSes exact checkout, product-byte identity, deterministic 52-file export, independent second-pass SHA/size verification, and deliberate mutation fail-closed. Product run 37291272371 is still executing fresh acceptance on 10763ef0; export readiness is not repository independence or Final."
+      "note": "PR #185 is the single current Happy8 export authority, bound directly to PR #176 exact product head 10763ef098a653ba8c81f399d335a85486e31642. Run 37292380803 PASSes exact checkout, product-byte identity, deterministic 52-file export, independent second-pass SHA verification and deliberate mutation fail-closed. PR #184 had identical exporter bytes and only a different branch-trigger line; it is closed as superseded. Product run 37291272371 is still executing downstream GUI acceptance; export readiness is not repository independence or Final."
     }
   ],
   "next_resume_condition": "Continue current exact-head product validation. Do not promote migration readiness to Final. Repository-independence work can resume only when dedicated target repositories are actually visible/writable to the integration; then seed each verified export and rerun the complete chain from independent main.",
-  "latest_delta": "Current-product-bound migration/export readiness remains 18/18 PASS. Happy8 current export is PR #184 head 596759ce bound to authoritative product PR #176 head 10763ef0; run 37292036969 PASS with 52-file deterministic export, independent second-pass verification and deliberate tamper rejection. Happy8 product run 37291272371 has fresh PASS through Real Network, current-history science and business-before-Windows and is executing Native Windows reproducible Exact EXE build. Stock authoritative PR #155 head 43168d9e source run 37289727792 is SUCCESS while fresh business 37289727888 and desktop 37289727787 remain in progress. RMF exact main is 62f75def with candidate chain PASS but Final blocked. Real independent repositories remain 0/18; Final/Delivery remain 0/18.",
+  "latest_delta": "Current-product-bound migration/export readiness remains 18/18 PASS. Happy8 current export authority is PR #185 head f8fd5414, bound to authoritative product PR #176 head 10763ef0; run 37292380803 PASS with 52-file deterministic export, independent second-pass verification and deliberate tamper rejection. PR #184 is closed as superseded. Happy8 product run 37291272371 has fresh PASS through Native Windows reproducible Exact EXE and first Physical GUI; second OS-mouse GUI is active. Stock authoritative PR #155 head 43168d9e source run 37289727792 is SUCCESS while fresh business 37289727888 and desktop 37289727787 remain in progress. Real independent repositories remain 0/18; Final/Delivery remain 0/18.",
   "infrastructure_capability": {
     "repository_creation": "BLOCKED",
     "repository_creation_evidence": "PR #127: Actions integration token cannot act as user-level repository creator; connector exposes no create-repository mutation.",
@@ -491,6 +492,6 @@
   "audit": {
     "exact_seed_audit_date": "2026-10-05",
     "status": "CURRENT_PRODUCT_EXPORTS_18_OF_18_PASS_ACTIVE_PRODUCT_REVALIDATIONS",
-    "note": "All 18 current-product-bound migration/export seeds are PASS. Happy8 current export PR #184 run 37292036969 PASS and supersedes stale #163. Stock current export PR #181 run 37289868886 PASS. RMF current export PR #183 run 37290705931 PASS. Happy8 product run 37291272371 and Stock business/desktop runs 37289727888/37289727787 remain active; no in-progress run is counted as Final PASS. Independent repositories remain 0/18 and Final/Delivery remain 0/18."
+    "note": "All 18 current-product-bound migration/export seeds are PASS. Happy8 current export PR #185 run 37292380803 PASS and supersedes #184/#163. Stock current export PR #181 run 37289868886 PASS. RMF current export PR #183 run 37290705931 PASS. Happy8 product run 37291272371 and Stock business/desktop runs 37289727888/37289727787 remain active; no in-progress run is counted as Final PASS. Independent repositories remain 0/18 and Final/Delivery remain 0/18."
   }
 }
