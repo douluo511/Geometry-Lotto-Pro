@@ -124,6 +124,75 @@ class NetClient:
         raise RuntimeError(f"network request failed after {self.max_attempts} attempts; last_error={last_error!r}") from last_error
 
 
+    def get_text(
+        self,
+        url: str,
+        params: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> tuple[str, ResponseMeta]:
+        if not str(url).lower().startswith("https://"):
+            raise ValueError("production network requests require HTTPS")
+        last_error: Exception | None = None
+        for attempt in range(1, self.max_attempts + 1):
+            started = time.time()
+            try:
+                r = self.session.get(
+                    url,
+                    params=params or {},
+                    headers=headers,
+                    timeout=(self.connect_timeout, self.read_timeout),
+                    allow_redirects=True,
+                )
+                status = int(r.status_code)
+                ctype = str(r.headers.get("content-type", "")).lower()
+                if status == 429 or 500 <= status <= 599:
+                    raise requests.HTTPError(f"retryable HTTP {status}", response=r)
+                r.raise_for_status()
+                body = r.content
+                if not body:
+                    raise ValueError("empty response")
+                if not any(token in ctype for token in ("text/", "html", "xml")):
+                    raise ValueError(f"unexpected text Content-Type: {ctype}")
+                digest = hashlib.sha256(body).hexdigest()
+                encoding = r.encoding
+                if not encoding or str(encoding).lower() in {"iso-8859-1", "latin-1"}:
+                    encoding = r.apparent_encoding or "utf-8"
+                try:
+                    text = body.decode(encoding, errors="strict")
+                except (LookupError, UnicodeDecodeError):
+                    text = body.decode("utf-8", errors="replace")
+                meta = ResponseMeta(
+                    str(r.url), status, ctype, time.time(), digest, attempt, "header-text"
+                )
+                self._record({
+                    "status": "PASS",
+                    "url": str(r.url),
+                    "http_status": status,
+                    "content_type": ctype,
+                    "content_type_policy": "header-text",
+                    "payload_sha256": digest,
+                    "attempt": attempt,
+                    "elapsed_seconds": round(time.time() - started, 6),
+                })
+                return text, meta
+            except Exception as exc:
+                last_error = exc
+                self._record({
+                    "status": "FAIL",
+                    "url": url,
+                    "attempt": attempt,
+                    "error": repr(exc),
+                    "elapsed_seconds": round(time.time() - started, 6),
+                })
+                if attempt >= self.max_attempts:
+                    break
+                sleep_s = self.backoff_base * (2 ** (attempt - 1)) + random.uniform(0, self.backoff_base)
+                time.sleep(sleep_s)
+        raise RuntimeError(
+            f"network text request failed after {self.max_attempts} attempts; last_error={last_error!r}"
+        ) from last_error
+
+
     def get_jsonp_object(
         self,
         url: str,

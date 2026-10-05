@@ -52,7 +52,8 @@
       "app/source_market.py",
       "app/source_eastmoney.py",
       "app/source_tencent.py",
-      "app/source_yahoo.py"
+      "app/source_yahoo.py",
+      "app/source_cost_rules.py"
     ],
     "NetClient": [
       "app/netclient.py"

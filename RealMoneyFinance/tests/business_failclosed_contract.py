@@ -18,6 +18,7 @@ from app.source_tencent import fetch_daily_bars_tencent
 from app.source_tencent_full import fetch_daily_bars_tencent_full
 from app.source_eastmoney import fetch_daily_bars as fetch_daily_bars_eastmoney
 from app.source_yahoo import fetch_daily_bars_yahoo
+from app.source_cost_rules import parse_official_cost_rules
 from tests.contract_gate import FakeClient, FakeTencentClient, FakeTencentFullClient, FakeYahooClient
 from tests.collect_candidate_evidence import main as collect, final_acceptance
 
@@ -31,6 +32,36 @@ def bars(count=150):
 
 
 class BusinessBoundaries(unittest.TestCase):
+    def test_official_regulatory_cost_rules_are_partial_evidence_only(self):
+        parsed = parse_official_cost_rules(
+            "<html>A股 经手费 成交金额的0.00341%（双向）</html>",
+            "<html>证券交易，税率为成交金额的千分之一。</html>",
+            "<html>自2023年8月28日起，证券交易印花税实施减半征收。</html>",
+        )
+        self.assertEqual(parsed["status"], "PASS")
+        self.assertAlmostEqual(parsed["exchange_handling_fee_bps_each_side"], 0.341)
+        self.assertAlmostEqual(parsed["sell_stamp_tax_bps"], 5.0)
+        got = qualify_research(bars(), {"provider": "synthetic_contract_only"})
+        self.assertEqual(got["gates"]["cost_slippage_model"], "NOT VERIFIED")
+
+    def test_official_stamp_tax_date_allows_html_spacing(self):
+        parsed = parse_official_cost_rules(
+            "<html>0.00341%</html>",
+            "<html>千分之一</html>",
+            "<html>证券交易印花税实施减半征收，自 2023 年 8 月 28 日 起执行。</html>",
+        )
+        self.assertEqual(parsed["status"], "PASS")
+        self.assertEqual(parsed["sell_stamp_tax_bps"], 5.0)
+
+    def test_incomplete_official_cost_rule_page_fails_closed(self):
+        parsed = parse_official_cost_rules(
+            "<html>missing current rate</html>",
+            "<html>证券交易，税率为成交金额的千分之一。</html>",
+            "<html>自2023年8月28日起，证券交易印花税实施减半征收。</html>",
+        )
+        self.assertEqual(parsed["status"], "NOT VERIFIED")
+        self.assertFalse(parsed["checks"]["sse_a_share_handling_fee_0_00341_percent_each_side"])
+
     def test_insufficient_real_holdout_power_is_not_a_business_pass(self):
         rows = []
         for i, row in enumerate(bars(300)):

@@ -12,6 +12,7 @@ from app.source_eastmoney import fetch_daily_bars as fetch_daily_bars_eastmoney
 from app.source_market import fetch_daily_bars_failover
 from app.source_tencent_full import fetch_daily_bars_tencent_full
 from app.source_yahoo import fetch_daily_bars_yahoo
+from app.source_cost_rules import fetch_official_cost_rules
 from tests.business_failclosed_contract import run_contract
 
 QUALIFICATION_HISTORY_ROWS = 1200
@@ -192,6 +193,33 @@ def real_network_qualification() -> dict:
             benchmark_meta=benchmark_meta,
         )
         got["benchmark_fetch_error"] = benchmark_error
+        try:
+            official_cost_rules = fetch_official_cost_rules(client)
+        except Exception as exc:
+            official_cost_rules = {
+                "status": "NOT VERIFIED",
+                "error": repr(exc),
+                "scope": (
+                    "official regulatory fee/tax calibration unavailable; broker commission and "
+                    "observed execution slippage remain separately NOT VERIFIED"
+                ),
+            }
+        got["official_cost_rule_evidence"] = official_cost_rules
+        got["cost_calibration_components"] = {
+            "official_exchange_fee_and_stamp_tax": (
+                "PASS" if official_cost_rules.get("status") == "PASS" else "NOT VERIFIED"
+            ),
+            "broker_commission": "NOT VERIFIED",
+            "observed_execution_slippage": "NOT VERIFIED",
+        }
+        if official_cost_rules.get("status") == "PASS":
+            got["qualification_gaps"]["cost_slippage_model"] = (
+                "Official exchange handling fee and securities stamp-tax schedule are verified "
+                "from current authoritative pages, but broker commission and observed execution "
+                "slippage remain NOT VERIFIED."
+            )
+        if got["gates"].get("cost_slippage_model") == "PASS":
+            raise AssertionError("regulatory fee evidence alone must not promote full cost/slippage calibration")
         field_complete_ablation = _field_complete_ablation_replication(client, bars)
         got["field_complete_ablation_replication"] = field_complete_ablation
         if field_complete_ablation.get("status") == "PASS":
