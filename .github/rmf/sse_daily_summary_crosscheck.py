@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-from datetime import date
 import json
 from pathlib import Path
 import re
@@ -24,8 +23,6 @@ HEADERS = {
 }
 DATES = ("2021-12-24", "2023-01-13", "2024-04-15", "2025-07-10", "2026-09-30")
 EXPECTED_RECONSTRUCTED = {
-    # 2021-12-24 is intentionally left unset until computed from canonical SSE
-    # listing/delisting rows in the companion membership evidence.
     "2023-01-13": 2170,
     "2024-04-15": 2268,
     "2025-07-10": 2283,
@@ -40,6 +37,18 @@ def _num(value: object) -> int:
     return int(raw)
 
 
+def _clean_row(row: dict) -> dict:
+    return {
+        "PRODUCT_CODE": str(row.get("PRODUCT_CODE") or "").strip(),
+        "TRADE_DATE": str(row.get("TRADE_DATE") or "").strip(),
+        "LIST_NUM": row.get("LIST_NUM"),
+        "AVG_PE_RATE": row.get("AVG_PE_RATE"),
+        "TOTAL_VALUE": row.get("TOTAL_VALUE"),
+        "NEGO_VALUE": row.get("NEGO_VALUE"),
+        "TRADE_AMT": row.get("TRADE_AMT"),
+    }
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--output", required=True, type=Path)
@@ -47,141 +56,114 @@ def main() -> int:
     args = ap.parse_args()
 
     client = NetClient(args.network_evidence, connect_timeout=5, read_timeout=30, max_attempts=3)
-    rows_by_date = {}
-    parsed = {}
-    mismatches = []
+    rows_by_date: dict[str, dict] = {}
+    parsed: dict[str, dict] = {}
+    mismatches: list[dict] = []
+
     for day in DATES:
         obj, meta = client.get_json(
             URL,
-            {"isPagination": "false", "sqlId": "COMMON_SSE_XXPL_LSSJL_S", "STAT_DATE": day},
+            {
+                "sqlId": CURRENT_DAILY_SQL_ID,
+                "PRODUCT_CODE": CURRENT_DAILY_PRODUCT_CODE,
+                "type": "inParams",
+                "SEARCH_DATE": day,
+            },
             headers=HEADERS,
             allow_mislabeled_json=True,
         )
-        rows = obj.get("result")
-        if not isinstance(rows, list):
-            fallback_obj, fallback_meta = client.get_json(
-                URL,
-                {
-                    "sqlId": CURRENT_DAILY_SQL_ID,
-                    "PRODUCT_CODE": CURRENT_DAILY_PRODUCT_CODE,
-                    "type": "inParams",
-                    "SEARCH_DATE": day,
-                },
-                headers=HEADERS,
-                allow_mislabeled_json=True,
-            )
-            fallback_result = fallback_obj.get("result") if isinstance(fallback_obj, dict) else None
-            fallback_shape = {
-                "top_level_type": type(fallback_obj).__name__,
-                "top_level_keys": sorted(fallback_obj.keys()) if isinstance(fallback_obj, dict) else [],
-                "result_type": type(fallback_result).__name__,
-                "result_keys": sorted(fallback_result.keys()) if isinstance(fallback_result, dict) else [],
-                "result_length": len(fallback_result) if isinstance(fallback_result, (list, dict)) else None,
-                "result_item_types": (
-                    [type(v).__name__ for v in fallback_result[:5]]
-                    if isinstance(fallback_result, list) else []
-                ),
-                "result_sample": (
-                    fallback_result[:3] if isinstance(fallback_result, list)
-                    else {str(k): v for k, v in list(fallback_result.items())[:3]}
-                    if isinstance(fallback_result, dict) else None
-                ),
-                "series_lengths": (
-                    {str(k): len(v) for k, v in fallback_result.items() if isinstance(v, list)}
-                    if isinstance(fallback_result, dict) else {}
-                ),
-                "listing_index_9_values": (
-                    {str(k): v[9] for k, v in fallback_result.items() if isinstance(v, list) and len(v) > 9}
-                    if isinstance(fallback_result, dict) else {}
-                ),
-            }
-            rows_by_date[day] = {
-                "payload_sha256": meta.payload_sha256,
-                "retrieved_at_unix": meta.retrieved_at_unix,
-                "rows": [],
-                "response_shape": {
-                    "top_level_type": type(obj).__name__,
-                    "top_level_keys": sorted(obj.keys()) if isinstance(obj, dict) else [],
-                    "result_type": type(rows).__name__,
-                },
-                "fallback_current_daily": {
-                    "sql_id": CURRENT_DAILY_SQL_ID,
-                    "payload_sha256": fallback_meta.payload_sha256,
-                    "retrieved_at_unix": fallback_meta.retrieved_at_unix,
-                    "shape": fallback_shape,
-                },
-            }
-            parsed[day] = {
-                "status": "NOT VERIFIED",
-                "reason": "legacy SSE summary unavailable; current daily endpoint shape captured for exact parser binding",
-                "result_type": type(rows).__name__,
-                "fallback_result_type": fallback_shape["result_type"],
-            }
-            continue
-        if not rows:
-            rows_by_date[day] = {
-                "payload_sha256": meta.payload_sha256,
-                "retrieved_at_unix": meta.retrieved_at_unix,
-                "rows": [],
-            }
-            parsed[day] = {
-                "status": "NOT VERIFIED",
-                "reason": "official SSE daily summary returned no rows",
-            }
-            continue
-        cleaned = []
-        for row in rows:
-            if not isinstance(row, dict):
-                raise RuntimeError("SSE summary row is not object")
-            cleaned.append({
-                "STAT_DATE": str(row.get("STAT_DATE") or day),
-                "STAT_NAME": str(row.get("STAT_NAME") or "").strip(),
-                "STAT_NUM": row.get("STAT_NUM"),
-                "TRADE_AMOUNT": row.get("TRADE_AMOUNT"),
-                "TOTAL_MARKET_CAP": row.get("TOTAL_MARKET_CAP"),
-                "FLOAT_MARKET_CAP": row.get("FLOAT_MARKET_CAP"),
-            })
+        rows = obj.get("result") if isinstance(obj, dict) else None
         rows_by_date[day] = {
             "payload_sha256": meta.payload_sha256,
             "retrieved_at_unix": meta.retrieved_at_unix,
-            "rows": cleaned,
+            "result_type": type(rows).__name__,
+            "rows": [_clean_row(row) for row in rows if isinstance(row, dict)]
+            if isinstance(rows, list)
+            else [],
         }
 
-        # SSE rows expose categories such as 主板A / 科创板. Require an exact
-        # unambiguous pair instead of inferring from total stock count.
-        main_candidates = [r for r in cleaned if "主板A" in r["STAT_NAME"]]
-        star_candidates = [r for r in cleaned if "科创板" in r["STAT_NAME"]]
+        if not isinstance(rows, list):
+            parsed[day] = {
+                "status": "NOT VERIFIED",
+                "reason": "official SSE current daily endpoint result is not a row list",
+                "result_type": type(rows).__name__,
+            }
+            continue
+        if not rows:
+            parsed[day] = {
+                "status": "NOT VERIFIED",
+                "reason": "official SSE current daily endpoint returned no rows for this date",
+            }
+            continue
+        if not all(isinstance(row, dict) for row in rows):
+            parsed[day] = {
+                "status": "NOT VERIFIED",
+                "reason": "official SSE current daily endpoint contained a non-object row",
+            }
+            continue
+
+        expected_trade_date = day.replace("-", "")
+        main_candidates = [
+            row for row in rows
+            if str(row.get("PRODUCT_CODE") or "").strip() == "01"
+            and str(row.get("TRADE_DATE") or "").strip() == expected_trade_date
+        ]
+        star_candidates = [
+            row for row in rows
+            if str(row.get("PRODUCT_CODE") or "").strip() == "03"
+            and str(row.get("TRADE_DATE") or "").strip() == expected_trade_date
+        ]
         if len(main_candidates) != 1 or len(star_candidates) != 1:
             parsed[day] = {
                 "status": "NOT VERIFIED",
-                "reason": "could not identify unique 主板A + 科创板 rows",
-                "stat_names": [r["STAT_NAME"] for r in cleaned],
+                "reason": "could not identify unique date-bound PRODUCT_CODE 01 + 03 rows",
+                "product_codes": [
+                    str(row.get("PRODUCT_CODE") or "").strip() for row in rows
+                ],
+                "trade_dates": [
+                    str(row.get("TRADE_DATE") or "").strip() for row in rows
+                ],
             }
             continue
-        main_count = _num(main_candidates[0]["STAT_NUM"])
-        star_count = _num(star_candidates[0]["STAT_NUM"])
+
+        try:
+            main_count = _num(main_candidates[0].get("LIST_NUM"))
+            star_count = _num(star_candidates[0].get("LIST_NUM"))
+        except ValueError as exc:
+            parsed[day] = {
+                "status": "NOT VERIFIED",
+                "reason": str(exc),
+            }
+            continue
+
         total = main_count + star_count
         parsed[day] = {
             "status": "PASS",
-            "main_a": main_count,
-            "star": star_count,
+            "main_a_product_code": "01",
+            "main_a_list_num": main_count,
+            "star_product_code": "03",
+            "star_list_num": star_count,
             "main_plus_star": total,
         }
         expected = EXPECTED_RECONSTRUCTED.get(day)
         if expected is not None and total != expected:
-            mismatches.append({"date": day, "official": total, "reconstructed": expected})
+            mismatches.append(
+                {"date": day, "official": total, "reconstructed": expected}
+            )
 
     comparable_dates = [
-        day for day, row in parsed.items()
+        day
+        for day, row in parsed.items()
         if row.get("status") == "PASS" and day in EXPECTED_RECONSTRUCTED
     ]
     status = "PASS" if not mismatches and len(comparable_dates) >= 3 else "FAIL"
     evidence = {
-        "schema": "rmf-sse-historical-membership-daily-summary-crosscheck-v1",
+        "schema": "rmf-sse-historical-membership-daily-summary-crosscheck-v2",
         "status": status,
-        "scope": "independent official SSE aggregate cross-check of historical membership counts",
+        "scope": "independent official SSE daily listed-count cross-check of historical membership reconstruction",
         "source_url": URL,
-        "sql_id": "COMMON_SSE_XXPL_LSSJL_S",
+        "sql_id": CURRENT_DAILY_SQL_ID,
+        "product_code_query": CURRENT_DAILY_PRODUCT_CODE,
         "dates": list(DATES),
         "official_results": parsed,
         "raw_source_evidence": rows_by_date,
@@ -192,13 +174,18 @@ def main() -> int:
         "historical_membership_crosscheck": status,
         "historical_pit_availability": "NOT VERIFIED",
         "survivorship_selection_control": "NOT VERIFIED",
+        "capital_deployment_ready": False,
         "boundary": (
-            "Agreement with SSE historical listed-count aggregates independently supports the "
-            "listing/delisting membership reconstruction. It does not prove point-in-time feature "
-            "availability or ex-ante security selection."
+            "Agreement with independent official SSE daily listed-count aggregates supports the "
+            "listing/delisting membership reconstruction only. It does not prove that the current "
+            "listing/delisting fields were historically knowable at each past date, nor that the "
+            "research symbol was selected ex ante from a frozen investable universe."
         ),
     }
-    args.output.write_text(json.dumps(evidence, ensure_ascii=True, indent=2) + "\n", encoding="utf-8")
+    args.output.write_text(
+        json.dumps(evidence, ensure_ascii=True, indent=2) + "\n",
+        encoding="utf-8",
+    )
     print(json.dumps(evidence, ensure_ascii=True, sort_keys=True))
     return 0 if status == "PASS" else 2
 
