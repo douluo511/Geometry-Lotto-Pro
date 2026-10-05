@@ -104,6 +104,12 @@ jobs:
           if ($before -ne $after) { throw "EXE changed after repair worker: $before != $after" }
           Write-Host "FROZEN_REPAIR_WORKER=PASS; EXE_SHA256=$after"
 
+      - name: Restore resumable real-history qualification corpus
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: ${{ runner.temp }}/stock-ai-frozen-business/data/history
+          key: stock-ai-research-history-v3-${{ runner.os }}-${{ hashFiles('StockAIPro/staging/Stock_AI_Pro/versions/4.3.0/stock_ai/data_source.py', 'StockAIPro/staging/Stock_AI_Pro/versions/4.3.0/stock_ai/netclient.py', 'StockAIPro/staging/Stock_AI_Pro/versions/4.3.0/config.default.json', 'StockAIPro/staging/Stock_AI_Pro/versions/4.3.0/requirements.txt') }}
+
       - name: Frozen EXE real-network core function
         shell: pwsh
         run: |
