@@ -332,6 +332,10 @@ class BusinessBoundaries(unittest.TestCase):
                                                                           "quantization_interval_gap": 0.0}}]},
             {**evidence, "matched_events": [{**matched, "factor_change": {**matched["factor_change"],
                                                                           "before_factor_interval": [1.0, 0.9]}}]},
+            {**evidence, "matched_events": [{**matched, "factor_change": {**matched["factor_change"],
+                                                                          "adjacent_quantization_interval_gap": 0.0}}]},
+            {**evidence, "matched_events": [{**matched, "factor_change": {**matched["factor_change"],
+                                                                          "adjacent_before_factor_interval": [1.0, 0.9]}}]},
         ]
         for forged in forged_detail_cases:
             with self.subTest(detail_forged=forged):
@@ -382,8 +386,36 @@ class BusinessBoundaries(unittest.TestCase):
         self.assertEqual(evidence["significant_factor_changes"], 0)
         self.assertEqual(evidence["unexplained_factor_changes"], 0)
         self.assertEqual(evidence["status"], "NOT VERIFIED")
-        self.assertEqual(evidence["factor_detection_method"], "persistent_median_regime_shift_v1")
+        self.assertEqual(evidence["factor_detection_method"], "persistent_median_adjacent_certified_regime_shift_v2")
         self.assertEqual(evidence["factor_estimator"], "quantized_ohlc_interval_v2")
+
+    def test_corporate_action_gradual_factor_drift_without_adjacent_step_is_not_a_regime_change(self):
+        raw = bars(150)
+        qfq = []
+        for i, row in enumerate(raw):
+            if i < 60:
+                factor = 0.90
+            elif i < 80:
+                factor = 0.90 + 0.0003 * (i - 59)
+            else:
+                factor = 0.906
+            qfq.append(replace(
+                row,
+                open=round(row.open * factor, 2),
+                close=round(row.close * factor, 2),
+                high=round(row.high * factor, 2),
+                low=round(row.low * factor, 2),
+                raw_sha256="b" * 64,
+            ))
+        evidence = verify_corporate_action_lineage(
+            qfq, raw, [],
+            {"provider": "tencent_public_full_kline", "price_adjustment": "qfq", "payload_sha256": "b" * 64},
+            {"provider": "tencent_public_full_kline", "price_adjustment": "unadjusted", "payload_sha256": "c" * 64},
+            {"provider": "eastmoney_share_bonus_datacenter", "payload_sha256": "d" * 64},
+        )
+        self.assertEqual(evidence["significant_factor_changes"], 0)
+        self.assertEqual(evidence["unexplained_factor_changes"], 0)
+        self.assertEqual(evidence["status"], "NOT VERIFIED")
 
     def test_corporate_action_unexplained_persistent_shift_stays_nonpass(self):
         raw = bars(150)
