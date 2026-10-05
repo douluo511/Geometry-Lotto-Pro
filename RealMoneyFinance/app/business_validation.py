@@ -4,6 +4,7 @@ from bisect import bisect_right
 from dataclasses import asdict, dataclass
 import math
 import random
+import re
 from statistics import NormalDist, mean, median, pstdev
 from typing import Iterable
 
