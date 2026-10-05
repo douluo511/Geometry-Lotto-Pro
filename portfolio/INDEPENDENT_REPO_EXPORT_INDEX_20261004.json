@@ -80,7 +80,9 @@
       "export_run": 37199887078,
       "export_status": "PASS",
       "repository_independence": "BLOCKED",
-      "final_gate": "FAIL"
+      "final_gate": "FAIL",
+      "export_artifact_id": 11302712460,
+      "export_artifact_digest": "sha256:78efb1af6156bb1d9d5ff2609f5818b91d4e74908a7db32387e0cbb33112321f"
     },
     {
       "id": 4,
@@ -90,22 +92,24 @@
       "export_run": 37205374903,
       "export_status": "PASS",
       "repository_independence": "BLOCKED",
-      "final_gate": "FAIL"
+      "final_gate": "FAIL",
+      "export_artifact_id": 11304487571,
+      "export_artifact_digest": "sha256:5301319cf085b0fdce70a8553fff65c9931ce698ba6afd20e635fcd2c05dbdad"
     },
     {
       "id": 5,
       "project": "Investment Finance Pro",
       "export_pr": 112,
-      "export_head": "ff4b0c1e11215fba47d361754f8e7a6365c529e5",
-      "export_run": 37221784521,
+      "export_head": "8dadbbfce202b5b3d53a7d2a620ca0ee01a63fe9",
+      "export_run": 37256638491,
       "export_status": "PASS",
       "repository_independence": "BLOCKED",
       "final_gate": "FAIL",
       "source_product_pr": 129,
       "source_product_head": "66480e4961d1b848c8a293ccbe0f0c0aa7010359",
       "source_product_status": "CANDIDATE_ONLY",
-      "export_artifact_id": 11310417175,
-      "export_artifact_digest": "sha256:1c6f6bf8f754d724a125640d2dbe127e271906d617ff551ef500f69fcea16a73"
+      "export_artifact_id": 11322444152,
+      "export_artifact_digest": "sha256:46fa687fc0bf93a13e2649d471cd0ac394ebbf82e8768549daad561dc5232a24"
     },
     {
       "id": 6,
@@ -115,7 +119,9 @@
       "export_run": 37205384083,
       "export_status": "PASS",
       "repository_independence": "BLOCKED",
-      "final_gate": "FAIL"
+      "final_gate": "FAIL",
+      "export_artifact_id": 11303829040,
+      "export_artifact_digest": "sha256:5ea70ace3aaa74a22210cbb59d02967ad75e654b9e90b2e893f6bef96e73806d"
     },
     {
       "id": 7,
@@ -139,7 +145,9 @@
       "export_run": 37199934460,
       "export_status": "PASS",
       "repository_independence": "BLOCKED",
-      "final_gate": "FAIL"
+      "final_gate": "FAIL",
+      "export_artifact_id": 11302447000,
+      "export_artifact_digest": "sha256:7d4ffbd349922f0b149e6b0674592aff656ca96a403211f545a918717006ca56"
     },
     {
       "id": 9,
@@ -149,7 +157,9 @@
       "export_run": 37205379788,
       "export_status": "PASS",
       "repository_independence": "BLOCKED",
-      "final_gate": "FAIL"
+      "final_gate": "FAIL",
+      "export_artifact_id": 11304726740,
+      "export_artifact_digest": "sha256:5ae303e7c32e00e6774f60f895c37aa3862e43aceeaa7b868306fa8a2e95ba5e"
     },
     {
       "id": 10,
@@ -215,11 +225,13 @@
       "id": 12,
       "project": "Passive Income Pipeline OS",
       "export_pr": 116,
-      "export_head": "0f0f6bcb331766a21b8c74f171f2cd5bc2a03b17",
-      "export_run": 37204800619,
+      "export_head": "d2d50e0c3fc33718091e76d1363b1441aee10417",
+      "export_run": 37256818988,
       "export_status": "PASS",
       "repository_independence": "BLOCKED",
-      "final_gate": "FAIL"
+      "final_gate": "FAIL",
+      "export_artifact_id": 11322529139,
+      "export_artifact_digest": "sha256:e1a852c79e0cf0df3d866541e2c0adaf85869ef28125977a6381028d95c51e42"
     },
     {
       "id": 13,
@@ -229,7 +241,9 @@
       "export_run": 37208447196,
       "export_status": "PASS",
       "repository_independence": "BLOCKED",
-      "final_gate": "FAIL"
+      "final_gate": "FAIL",
+      "export_artifact_id": 11305882425,
+      "export_artifact_digest": "sha256:fba51126d8987765ba8ba6eb401effc6b07069b99c0a43958ed61dc9a6b0944e"
     },
     {
       "id": 14,
@@ -239,17 +253,21 @@
       "export_run": 37213534368,
       "export_status": "PASS",
       "repository_independence": "BLOCKED",
-      "final_gate": "FAIL"
+      "final_gate": "FAIL",
+      "export_artifact_id": 11307611109,
+      "export_artifact_digest": "sha256:336d7dc2a41e3601b8d5a8efba9ef12b4557404a8548ccb0ddd43c1dc00f19f0"
     },
     {
       "id": 15,
       "project": "Legal Philosophy Study",
       "export_pr": 98,
-      "export_head": "3fba3f4bcd1cd87ce207044bd99873d2ff210e0d",
-      "export_run": 37194953022,
+      "export_head": "949469c5c8e236ea34462588c7d61066774a8c4f",
+      "export_run": 37256729072,
       "export_status": "PASS",
       "repository_independence": "BLOCKED",
-      "final_gate": "FAIL"
+      "final_gate": "FAIL",
+      "export_artifact_id": 11323195871,
+      "export_artifact_digest": "sha256:0df4e934eb322d45bd2ee73308f21179eeb6ddc907150385a5ccb0dd64a091a2"
     },
     {
       "id": 16,
@@ -259,7 +277,9 @@
       "export_run": 37203220423,
       "export_status": "PASS",
       "repository_independence": "BLOCKED",
-      "final_gate": "FAIL"
+      "final_gate": "FAIL",
+      "export_artifact_id": 11303616922,
+      "export_artifact_digest": "sha256:1e461633dab78f96ec4388195e6ec261707b771dfaac86a7c7c4027eefa11496"
     },
     {
       "id": 17,
@@ -269,7 +289,9 @@
       "export_run": 37209398722,
       "export_status": "PASS",
       "repository_independence": "BLOCKED",
-      "final_gate": "FAIL"
+      "final_gate": "FAIL",
+      "export_artifact_id": 11305358580,
+      "export_artifact_digest": "sha256:68712e5cd1dd9a9d438bb51c86408f8b5bdb93b785471c9a57410f0f13e16ebd"
     },
     {
       "id": 18,
@@ -279,11 +301,13 @@
       "export_run": 37200050417,
       "export_status": "PASS",
       "repository_independence": "BLOCKED",
-      "final_gate": "FAIL"
+      "final_gate": "FAIL",
+      "export_artifact_id": 11302032690,
+      "export_artifact_digest": "sha256:da83e27d36dbb390e3375d453b5fcc390cbcd7f2fe1ce6d40fa37fb53ff986a8"
     }
   ],
   "next_resume_condition": "As soon as a dedicated repository becomes visible to the connected installation, seed it from the matching verified export and rerun the full frozen acceptance chain on that dedicated repository exact commit before any PASS inheritance.",
-  "latest_delta": "Stock AI current product head c6e329d2a5059f296ee2303032b28b5a702a3600: source/offline/real-network run 37256385039 PASS; full business 37256385026 and desktop 37256385030 still in progress. Stock migration seed PR #99 current export run 37256423841 PASS. Repository creation remains blocked by integration identity; existing-repository Release asset create/upload/redownload Same Hash/delete mechanics are proven PASS but production N->N+1 is NOT VERIFIED.",
+  "latest_delta": "2026-10-05 exact-head migration verification sweep: all 18 current migration PR heads have successful export verification and current artifact digests recorded. Repository Independence remains 0/18. Stock AI product PR #126 head c6e329d2 has source/offline/real-network PASS while business/desktop are still running.",
   "infrastructure_capability": {
     "repository_creation": "BLOCKED",
     "repository_creation_evidence": "PR #127: Actions integration token cannot act as user-level repository creator; connector exposes no create-repository mutation.",
