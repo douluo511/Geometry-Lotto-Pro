@@ -5,15 +5,10 @@
 - Current-product-bound migration/export readiness: **18/18 PASS = 100%**.
 - Real dedicated repository independence: **0/18 PASS = 0%**.
 - Portfolio Final Gate / delivery allowed: **0/18 = 0%**.
-- **RMF current product:** main `1f190393988774227fcc2371997199f203a11885`; validated source head `6b6720eafc6154a0fd3bee9b8b7ca295dce0480f`; run `37274045669` SUCCESS through Real Network, 1200-row Tencent full qfq research, corporate-action PIT, Windows Native Build, Exact EXE, Physical GUI and current-byte Same Hash. Engineering **24/28 = 85.7%**; Business **12/16 = 75.0%**; Overall **75.0%**; Final **FAIL**. Current migration PR #169 head `ad089474522595b6c561087ec8f4dbaa688b9d74`, run `37274774271` PASS. Remaining business non-PASS: cost/slippage calibration, liquidity capacity, leakage PIT, survivorship-safe precommitted universe.
-- **Stock AI current product:** PR #155 head `f9d610aafe910cb73b036701a688329d9899399b`; source and full-business runs PASS, but desktop run `37268369332` remains IN_PROGRESS at the frozen >=90% real-history corpus prerequisite. No downstream Advanced/Physical-GUI/Final PASS is promoted while it is active.
-- **Active reversal/hardening candidates:** RMF #170 run `37274864785`, RMF #171 run `37274881957`, Happy8 #165 run `37274058082`. They are **NOT VERIFIED while in progress** and do not replace current product evidence unless their exact-head chains pass and the behavior is accepted/merged.
-- Repository creation remains externally **BLOCKED** because the connected GitHub capability exposes no repository-creation mutation; only gates dependent on a real independent repository are blocked. All other executable work continues.
-
-Updated: 2026-10-05
-Mode: STRICT ENGINEERING EXECUTION MODE
-Source of control: MASTER issue #11 plus exact current PR / Actions / artifact evidence.
-
+- **RMF current product-bearing main:** `9f7b0e99da70957a65adbeda2a8c784466d850c7`; exact validated product source head `152f9bfb31e8beb592fb230902fac86de1ec2c40`; GitHub compare shows zero byte diff under `RealMoneyFinance/**` and the RMF acceptance workflow. The strict source-head chain remains Engineering **24/28 = 85.7%**, Business **12/16 = 75.0%**, Overall **75.0%**, Final **FAIL**. Current migration v9 PR #174 head `8b3974e0d0d13c45f1f8f2257c42cac61e6a18a4`, run `37276164095` PASS: product-tree identity, deterministic export, independent second-pass, deliberate mutation rejection.
+- **Happy8 active revalidation:** PR #165 head `cc20a8a5c37228a30ccc27f3a9b8d4605b8533f6`, run `37275917431`. Frozen architecture/business/engineering baselines were restored byte-for-byte from the validated advanced lineage. Physical-GUI pre-seed now uses exact-EXE `--refresh-data`; the real GUI one-click update remains release-aware and BLOCKED without an independent production Release. Run remains **NOT VERIFIED while active**.
+- **Stock AI active revalidation:** PR #155 head `f9d610aafe910cb73b036701a688329d9899399b`; desktop run `37268369332` remains at the frozen >=90% real-history corpus qualification. No downstream desktop/Final PASS is promoted while active.
+- Repository creation remains externally **BLOCKED** because the connected GitHub capability exposes no repository-creation mutation. This blocks only repository/release-dependent gates; all other executable work continues.
 
 ## Latest exact-state continuation — 2026-10-05
 
