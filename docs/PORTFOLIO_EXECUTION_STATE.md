@@ -1,5 +1,15 @@
 # Portfolio Execution State — 18 Windows EXE Projects
 
+## Control reconciliation — 2026-10-05 exact state
+
+- Current-product-bound migration/export readiness: **18/18 PASS = 100%**.
+- Real dedicated repository independence: **0/18 PASS = 0%**.
+- Portfolio Final Gate / delivery allowed: **0/18 = 0%**.
+- **RMF current product:** main `1f190393988774227fcc2371997199f203a11885`; validated source head `6b6720eafc6154a0fd3bee9b8b7ca295dce0480f`; run `37274045669` SUCCESS through Real Network, 1200-row Tencent full qfq research, corporate-action PIT, Windows Native Build, Exact EXE, Physical GUI and current-byte Same Hash. Engineering **24/28 = 85.7%**; Business **12/16 = 75.0%**; Overall **75.0%**; Final **FAIL**. Current migration PR #169 head `ad089474522595b6c561087ec8f4dbaa688b9d74`, run `37274774271` PASS. Remaining business non-PASS: cost/slippage calibration, liquidity capacity, leakage PIT, survivorship-safe precommitted universe.
+- **Stock AI current product:** PR #155 head `f9d610aafe910cb73b036701a688329d9899399b`; source and full-business runs PASS, but desktop run `37268369332` remains IN_PROGRESS at the frozen >=90% real-history corpus prerequisite. No downstream Advanced/Physical-GUI/Final PASS is promoted while it is active.
+- **Active reversal/hardening candidates:** RMF #170 run `37274864785`, RMF #171 run `37274881957`, Happy8 #165 run `37274058082`. They are **NOT VERIFIED while in progress** and do not replace current product evidence unless their exact-head chains pass and the behavior is accepted/merged.
+- Repository creation remains externally **BLOCKED** because the connected GitHub capability exposes no repository-creation mutation; only gates dependent on a real independent repository are blocked. All other executable work continues.
+
 Updated: 2026-10-05
 Mode: STRICT ENGINEERING EXECUTION MODE
 Source of control: MASTER issue #11 plus exact current PR / Actions / artifact evidence.
