@@ -523,6 +523,16 @@ def validate_history(draws: list[Draw], *, canonical_hash: str) -> dict:
         raise ValueError("duplicate issue in scientific history")
     if not canonical_hash or len(canonical_hash) != 64:
         raise ValueError("scientific validation requires the current canonical SHA-256")
+    computed_canonical_hash = hashlib.sha256(
+        json.dumps(
+            [draw.to_dict() for draw in draws],
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+    if computed_canonical_hash != canonical_hash:
+        raise ValueError("canonical history hash mismatch")
 
     state = build_prefix_state(draws)
     candidate_validation = _candidate_pool_validation(draws, state)
