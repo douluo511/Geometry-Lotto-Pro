@@ -57,7 +57,22 @@ def main() -> int:
         )
         rows = obj.get("result")
         if not isinstance(rows, list):
-            raise RuntimeError(f"SSE daily summary malformed for {day}")
+            rows_by_date[day] = {
+                "payload_sha256": meta.payload_sha256,
+                "retrieved_at_unix": meta.retrieved_at_unix,
+                "rows": [],
+                "response_shape": {
+                    "top_level_type": type(obj).__name__,
+                    "top_level_keys": sorted(obj.keys()) if isinstance(obj, dict) else [],
+                    "result_type": type(rows).__name__,
+                },
+            }
+            parsed[day] = {
+                "status": "NOT VERIFIED",
+                "reason": "official SSE daily summary result was not a row list",
+                "result_type": type(rows).__name__,
+            }
+            continue
         if not rows:
             rows_by_date[day] = {
                 "payload_sha256": meta.payload_sha256,
