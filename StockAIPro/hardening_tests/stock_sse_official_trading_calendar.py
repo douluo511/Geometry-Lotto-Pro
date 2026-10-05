@@ -111,7 +111,14 @@ def fetch(session: requests.Session, url: str, attempts: int = 3):
             time.sleep((2 ** (attempt - 1)) + random.random() * 0.25)
 
 def visible_text(raw: bytes, encoding: str | None) -> str:
-    text = raw.decode(encoding or "utf-8", errors="replace")
+    # SSE annual notice responses currently declare only "text/html" with no
+    # charset. requests therefore defaults to ISO-8859-1, which corrupts all
+    # Chinese contract text. Prefer strict UTF-8 (the actual page encoding)
+    # and fall back only if UTF-8 genuinely fails.
+    try:
+        text = raw.decode("utf-8", errors="strict")
+    except UnicodeDecodeError:
+        text = raw.decode(encoding or "utf-8", errors="replace")
     text = re.sub(r"(?is)<script.*?</script>", " ", text)
     text = re.sub(r"(?is)<style.*?</style>", " ", text)
     text = re.sub(r"(?s)<[^>]+>", " ", text)
