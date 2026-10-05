@@ -305,7 +305,29 @@
         "positive_production_update": "BLOCKED",
         "real_release_update": "BLOCKED",
         "repository_independence": "BLOCKED",
-        "final_gate": "FAIL"
+        "final_gate": "FAIL",
+        "historical_st_pit_sub_evidence": {
+          "status": "PARTIAL_SUPPORTED_FULL_GATE_NOT_VERIFIED",
+          "diagnostic_pr": 188,
+          "diagnostic_head": "d5bb390d839fb284790dcdb2359ef73f776b0d08",
+          "diagnostic_run": 37304826757,
+          "diagnostic_job": 111745875821,
+          "shenzhen_historical_st": "SUPPORTED",
+          "shenzhen_valid_dated_name_change_rows": 7489,
+          "shenzhen_unique_codes": 3125,
+          "shenzhen_st_related_rows": 2281,
+          "shenzhen_st_related_codes": 673,
+          "date_min": "1994-01-03",
+          "date_max": "2026-09-30",
+          "dated_name_change_sha256": "1a7d5ac0710e0bd59937105aafafe1a929f9c729776a1a4ea0fb02a49d70c16e",
+          "dated_st_change_sha256": "72f998147519df4968781ce85d4bfb1edfaa54e3af4b8695d8470890313bd862",
+          "artifact_id": 11343082888,
+          "artifact_digest": "sha256:42d978264d2a64425d04a78d6d20ede2406513b0ed335b775621da09eee38295",
+          "shanghai_historical_st": "NOT VERIFIED",
+          "beijing_historical_st": "NOT VERIFIED",
+          "historical_suspension_daily_state": "NOT VERIFIED",
+          "full_historical_st_pit": "NOT VERIFIED"
+        }
       },
       "product_tree_byte_identity": "PASS",
       "superseded_export_prs": [
@@ -393,7 +415,43 @@
       "current_main_validation_job": 111700005257,
       "current_main_validation_status": "SUCCESS_CANDIDATE_ONLY_FINAL_BLOCKED",
       "current_main_candidate_artifact_id": 11335934671,
-      "current_main_candidate_artifact_digest": "sha256:1518c57e0c5b547f270f474f1beff0d9c935d2cfd320a641209a385d263e5602"
+      "current_main_candidate_artifact_digest": "sha256:1518c57e0c5b547f270f474f1beff0d9c935d2cfd320a641209a385d263e5602",
+      "liquidity_capacity_sub_evidence": {
+        "status": "AMOUNT_BASED_PARTICIPATION_SUPPORTED_FULL_GATE_NOT_VERIFIED",
+        "diagnostic_pr": 189,
+        "diagnostic_head": "62d907ccc555ad727be0f63ad181384e5020aa89",
+        "diagnostic_run": 37304767691,
+        "diagnostic_job": 111745682462,
+        "source_provider": "tencent_public_full_kline",
+        "source_rows": 1200,
+        "source_asof": "2026-09-30",
+        "max_participation_rate": 0.05,
+        "amount_positive_coverage": 1,
+        "capacity_cny": {
+          "min": 3916070,
+          "p10": 7079653.5,
+          "p25": 9623801.25,
+          "median": 17208295,
+          "p90": 51914539.5,
+          "max": 129017690
+        },
+        "order_notional_feasible_rate": {
+          "100000": 1,
+          "500000": 1,
+          "1000000": 1,
+          "5000000": 0.9808333333333333,
+          "10000000": 0.7233333333333334
+        },
+        "daily_amount_series_sha256": "51f1ce999f64bae0a326cd8d15d9c7d2c9776eabc0fd5fdef910d0bbcc87486d",
+        "source_payload_sha256": "bc0139c26c0de5d4213caee4a1ab2ef08e9b8647cc9e6706ed9c3b4a02fbf9d4",
+        "artifact_id": 11343368903,
+        "artifact_digest": "sha256:d0fc557b183f021289cbc3e60a7f9d412b14a66585cb05248747d3f308fa8351",
+        "historical_bid_ask_spread": "NOT VERIFIED",
+        "observed_market_impact": "NOT VERIFIED",
+        "broker_execution_slippage": "NOT VERIFIED",
+        "limit_up_down_fillability": "NOT VERIFIED",
+        "full_liquidity_capacity_gate": "NOT VERIFIED"
+      }
     },
     {
       "id": 12,
@@ -531,7 +589,7 @@
     }
   ],
   "next_resume_condition": "Continue current exact-head product validation. Do not promote migration readiness to Final. Repository-independence work can resume only when dedicated target repositories are actually visible/writable to the integration; then seed each verified export and rerun the complete chain from independent main.",
-  "latest_delta": "Stock AI PR #155 exact head 43168d9e now has terminal current-head source, full-business, and desktop evidence. Desktop run 37289727787 passes Windows/Exact EXE/physical GUI/Same Hash and >=90% current+delisted real-history corpus, while advanced business remains NOT VERIFIED on HISTORICAL_ST_PIT=WARN and production Release/repository remain blocked. Happy8 PR #176 remains terminal technical PASS through second physical GUI + Same Hash but Final FAIL on repository/release/final-artifact blockers. Migration/export remains 18/18 PASS; dedicated repositories 0/18; Final/Delivery 0/18.",
+  "latest_delta": "Current-product export remains 18/18 PASS. Stock #188 now provides Shenzhen-only historical ST/PIT sub-evidence (7,489 dated name changes, 2,281 ST transitions) while Shanghai/Beijing/suspension and full HISTORICAL_ST_PIT remain NOT VERIFIED. RMF #189 now supports amount-based 5% participation capacity on 1,200 real public-L1 sessions, but spread/impact/broker-slippage/limit-fill and the full liquidity_capacity gate remain NOT VERIFIED. No completion percentage or Final status is promoted. Dedicated repositories remain 0/18; Final/Delivery 0/18.",
   "infrastructure_capability": {
     "repository_creation": "BLOCKED",
     "repository_creation_evidence": "PR #127: Actions integration token cannot act as user-level repository creator; connector exposes no create-repository mutation.",
