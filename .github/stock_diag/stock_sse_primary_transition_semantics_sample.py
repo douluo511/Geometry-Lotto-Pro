@@ -274,3 +274,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+\n# exact-head trigger: 2026-10-06\n
