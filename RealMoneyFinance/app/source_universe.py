@@ -10,7 +10,11 @@ from typing import Any
 from .netclient import NetClient
 
 
-UNIVERSE_URL = "https://push2.eastmoney.com/api/qt/clist/get"
+UNIVERSE_URLS = (
+    "https://push2.eastmoney.com/api/qt/clist/get",
+    "https://82.push2.eastmoney.com/api/qt/clist/get",
+)
+UNIVERSE_URL = UNIVERSE_URLS[0]
 UNIVERSE_FILTER = "m:1+t:2,m:1+t:23"
 PUBLIC_UT = "bd1d9ddb04089700cf9c27f6f7426281"
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -120,6 +124,43 @@ def build_prospective_universe_precommit(
     }
 
 
+def _fetch_universe_page(client: NetClient, params: dict[str, str]) -> tuple[dict[str, Any], Any, list[dict[str, Any]]]:
+    attempts: list[dict[str, Any]] = []
+    last_error: Exception | None = None
+    for url in UNIVERSE_URLS:
+        try:
+            obj, meta = client.get_json(
+                url,
+                params,
+                headers={
+                    "User-Agent": (
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                        "AppleWebKit/537.36 Chrome/154 Safari/537.36"
+                    ),
+                    "Referer": "https://quote.eastmoney.com/center/gridlist.html",
+                    "Accept": "application/json,text/plain,*/*",
+                },
+                allow_mislabeled_json=True,
+            )
+            attempts.append({
+                "url": url,
+                "status": "PASS",
+                "payload_sha256": meta.payload_sha256,
+            })
+            return obj, meta, attempts
+        except Exception as exc:
+            last_error = exc
+            attempts.append({
+                "url": url,
+                "status": "FAIL",
+                "error": repr(exc),
+            })
+    raise RuntimeError(
+        "all configured current-universe hosts failed: "
+        + json.dumps(attempts, ensure_ascii=True, sort_keys=True)
+    ) from last_error
+
+
 def fetch_current_shanghai_universe_precommit(
     client: NetClient,
     *,
@@ -132,32 +173,27 @@ def fetch_current_shanghai_universe_precommit(
     payload_hashes: list[str] = []
     retrieved_times: list[float] = []
     declared_total: int | None = None
+    host_attempts: list[dict[str, Any]] = []
+    selected_source_urls: list[str] = []
 
     for page in range(1, int(max_pages) + 1):
-        obj, meta = client.get_json(
-            UNIVERSE_URL,
-            {
-                "pn": str(page),
-                "pz": str(size),
-                "po": "1",
-                "np": "1",
-                "ut": PUBLIC_UT,
-                "fltt": "2",
-                "invt": "2",
-                "fid": "f12",
-                "fs": UNIVERSE_FILTER,
-                "fields": "f12,f13,f14",
-            },
-            headers={
-                "User-Agent": (
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                    "AppleWebKit/537.36 Chrome/154 Safari/537.36"
-                ),
-                "Referer": "https://quote.eastmoney.com/center/gridlist.html",
-                "Accept": "application/json,text/plain,*/*",
-            },
-            allow_mislabeled_json=True,
-        )
+        params = {
+            "pn": str(page),
+            "pz": str(size),
+            "po": "1",
+            "np": "1",
+            "ut": PUBLIC_UT,
+            "fltt": "2",
+            "invt": "2",
+            "fid": "f12",
+            "fs": UNIVERSE_FILTER,
+            "fields": "f12,f13,f14",
+        }
+        obj, meta, page_attempts = _fetch_universe_page(client, params)
+        host_attempts.extend([
+            {"page": page, **attempt} for attempt in page_attempts
+        ])
+        selected_source_urls.append(str(meta.url).split("?")[0])
         data = obj.get("data")
         if not isinstance(data, dict):
             raise ValueError("universe response missing data object")
@@ -212,12 +248,19 @@ def fetch_current_shanghai_universe_precommit(
     ).astimezone(china_tz).date().isoformat()
     code_source_sha = os.environ.get("SOURCE_SHA") or os.environ.get("GITHUB_SHA") or ""
 
-    return build_prospective_universe_precommit(
+    result = build_prospective_universe_precommit(
         entries,
         asof_date=asof_date,
         retrieved_at_unix=latest_retrieval,
         source_payload_sha256s=payload_hashes,
         code_source_sha=code_source_sha,
+        source_url=selected_source_urls[0] if selected_source_urls else UNIVERSE_URL,
         declared_total=declared_total,
         min_symbols=min_symbols,
     )
+    result["selected_source_urls"] = sorted(set(selected_source_urls))
+    result["host_attempts"] = host_attempts
+    result["host_failover_used"] = any(
+        attempt.get("status") == "FAIL" for attempt in host_attempts
+    )
+    return result
