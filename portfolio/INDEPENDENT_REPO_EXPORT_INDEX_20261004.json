@@ -298,7 +298,7 @@
     }
   ],
   "next_resume_condition": "When an independent target repository becomes visible to the connected GitHub installation or an account-level repository-creation credential/action becomes available, seed only from the indexed verified exact-head export and rerun the full frozen acceptance chain there before any PASS inheritance.",
-  "latest_delta": "2026-10-05: migration readiness remains 18/18 at current indexed heads. Stock AI product exact head c6e329d2a5059f296ee2303032b28b5a702a3600 has source/offline/Real Network PASS; full production business and native desktop/research-corpus/GUI runs remain IN_PROGRESS. Repository creation remains blocked by integration identity; Release asset create/upload/re-download Same Hash mechanics on the existing repository are PASS.",
+  "latest_delta": "SSQ and DLT migration seeds were rebound to their current exact product heads after acceptance behavior changed. Replacement PRs #132/#133 verified exact-head exports; old #114/#115 are superseded. RMF #131 and Stock #99 are currently stale against newer product hardening heads and must be rebound before they count as current-product seeds.",
   "infrastructure_capability": {
     "repository_creation": "BLOCKED",
     "repository_creation_evidence": "PR #127: Actions integration token cannot act as user-level repository creator; connector exposes no create-repository mutation.",
