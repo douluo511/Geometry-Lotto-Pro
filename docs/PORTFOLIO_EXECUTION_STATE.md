@@ -964,3 +964,14 @@ This checkpoint supersedes older in-progress wording for the items below only. I
 - Push artifact `11345523920` digest `sha256:680cdb305545d38d25621b7a48dde11ad7c5e3f293b0b4d966cb00b5308fd661`; PR artifact `11346717120` digest `sha256:374f0d2c0de7441105710093b4f631f75916dfcce2ff07d0472aaae60a849a9b`.
 - Portfolio aggregate remains migration/export readiness **18/18 PASS**, dedicated repositories **0/18**, Final/Delivery **0/18**.
 
+## 2026-10-05 Stock SSE daily-state source-path adjudication
+
+- PR #197 @ `5cfcdb394583bbf8e8eef9daa2c987d12b4a8eed`, run `37312889604` = **SUCCESS**: official SSE JS declares `GW_PL_JYTS_TFPXX_TRADEDAY` and `bizDate`; first-party TRADEDAY contract = **PASS**.
+- PR #199 @ `ca64261c47fae57b6d43d1e08472145f4abd91b6`, run `37313127180` = **SUCCESS**: live historical TRADEDAY responses contain `beforeTradeDay/lastTradeDay` only and no product/security code. This refutes using TRADEDAY as a per-security suspension list.
+- PR #201 @ `44febed1811538dbf02786e0c65ea441b1af52c7`, run `37313359653` = **SUCCESS**: official JS declares `PL_SCRL_SCRLB` with `tradeBeginDate/tradeEndDate`, described in first-party source as market calendar.
+- PR #202 preserved initial FAIL evidence: the first probe had an incomplete parser; the next diagnostic exposed SSE's explicit `tradeBeginDate` max-length-8 contract error for dashed dates. Minimal correction used YYYYMMDD and actual SSE JSONP/parenthesized response parsing; no source or gate was weakened.
+- PR #202 current exact head `11cedd74a5abc084ddedaa89d281cb61628357fe`, run `37313932534` / job `111775828752` = **SUCCESS**. Live 2019-12 / 2024-12 / 2026-09 rows are market-event records (roadshow / IPO / listing) with fields such as `bizTypeDesc/title/stockCode/tradeBeginDate/tradeEndDate`; no trading-day/open/closed/holiday flag field exists in the observed response.
+- Strict adjudication: `PL_SCRL_SCRLB` market-event calendar surface = **SUPPORTED**; exchange trading-day calendar = **NOT VERIFIED**; this route is rejected as the daily-suspension calendar substrate.
+- Shanghai historical suspension intervals remain **SUPPORTED**; historical daily suspension state = **NOT VERIFIED**; Shanghai historical ST/PIT = **NOT VERIFIED**; Beijing historical ST/PIT = **NOT VERIFIED**; full `HISTORICAL_ST_PIT` = **NOT VERIFIED**; Advanced Business = **NOT VERIFIED**; Final Gate = **FAIL**.
+- Evidence: PR #197 artifact `11346303286`; PR #199 `11346383703`; PR #201 `11346673552`; PR #202 `11347600140`. Portfolio aggregate remains migration/export **18/18 PASS**, dedicated repositories **0/18**, Final/Delivery **0/18**.
+
