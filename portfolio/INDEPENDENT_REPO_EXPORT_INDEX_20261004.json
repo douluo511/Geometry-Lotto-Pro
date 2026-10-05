@@ -14,12 +14,12 @@
   },
   "aggregate": {
     "projects_total": 18,
-    "export_verification_pass": 18,
-    "export_verification_nonpass": 0,
+    "export_verification_pass": 17,
+    "export_verification_nonpass": 1,
     "real_independent_repository_pass": 0,
     "final_delivery_allowed": 0,
-    "current_product_bound_export_pass": 18,
-    "current_product_bound_export_not_verified": 0
+    "current_product_bound_export_pass": 17,
+    "current_product_bound_export_not_verified": 1
   },
   "projects": [
     {
@@ -299,19 +299,19 @@
       "export_pr": 169,
       "export_head": "ad089474522595b6c561087ec8f4dbaa688b9d74",
       "export_run": 37274774271,
-      "export_status": "PASS",
+      "export_status": "STALE_FOR_CURRENT_PRODUCT",
       "repository_independence": "NOT VERIFIED",
       "final_gate": "FAIL",
-      "source_product_pr": 164,
-      "source_product_head": "1f190393988774227fcc2371997199f203a11885",
-      "source_product_status": "MAIN_QFQ_CURRENT_PRODUCT_EXPORT_PASS",
+      "source_product_pr": 175,
+      "source_product_head": "2f6b23786bb554c2ead56c60691d0e6b9b88e7a8",
+      "source_product_status": "MAIN_PROSPECTIVE_SURVIVORSHIP_MERGED_EXPORT_STALE",
       "export_artifact_id": 11329058549,
       "export_artifact_digest": "sha256:ef174edce53e2864c57692ecf57a88c758a1cbee635c1befd0318a41564c724c",
       "engineering_completion_percent": 85.7,
       "business_completion_percent": 75,
       "overall_completion_percent": 75,
       "product_tree_byte_identity": "PASS",
-      "current_product_head": "9f7b0e99da70957a65adbeda2a8c784466d850c7",
+      "current_product_head": "2f6b23786bb554c2ead56c60691d0e6b9b88e7a8",
       "superseded_export_prs": [
         97,
         131,
@@ -322,7 +322,7 @@
         162,
         168
       ],
-      "note": "Merged PR #164 current main 1f190393988774227fcc2371997199f203a11885 has exact-head run 37274045669 SUCCESS: 1200-row Tencent field-complete qfq research, corporate-action PIT PASS (1 significant / 1 verified / 0 unexplained), Windows/Exact EXE/Physical GUI/current-byte Same Hash PASS. Engineering 24/28=85.7%, Business 12/16=75.0%, Overall 75.0%, Final FAIL. Migration PR #169 run 37274774271 PASS binds deterministic export to this exact current main. PR #171 is a stricter overlap-consistency candidate still under revalidation and is not current product until merged.",
+      "note": "PR #175 merged to current main 2f6b23786bb554c2ead56c60691d0e6b9b88e7a8 after full candidate run 37285578687 SUCCESS. The live prospective universe remained NOT VERIFIED because both Eastmoney hosts failed; historical survivorship remains NOT VERIFIED. Prior migration #174 is valid historical evidence for main 9f7b0e99 only and is stale for current main. Successor PR #178 is testing official SSE fallback and is not current product until merged.",
       "validated_pr_head": "6b6720eafc6154a0fd3bee9b8b7ca295dce0480f",
       "validated_pr_run": 37274045669,
       "current_merge_product_byte_identity": "PASS",
@@ -340,8 +340,16 @@
       "migration_pr": 174,
       "migration_head": "8b3974e0d0d13c45f1f8f2257c42cac61e6a18a4",
       "migration_run": 37276164095,
-      "migration_export_status": "PASS",
-      "delivery_allowed": false
+      "migration_export_status": "STALE_FOR_CURRENT_PRODUCT",
+      "delivery_allowed": false,
+      "previous_verified_export": {
+        "pr": 174,
+        "head": "8b3974e0d0d13c45f1f8f2257c42cac61e6a18a4",
+        "run": 37276164095,
+        "product_head": "9f7b0e99da70957a65adbeda2a8c784466d850c7",
+        "status": "PASS"
+      },
+      "current_product_binding_status": "NOT VERIFIED"
     },
     {
       "id": 12,
