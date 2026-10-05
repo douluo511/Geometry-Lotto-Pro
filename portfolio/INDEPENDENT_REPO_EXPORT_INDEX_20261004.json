@@ -115,14 +115,14 @@
     {
       "id": 4,
       "project": "Human Nature System",
-      "export_pr": 109,
-      "export_head": "867ac19a62c3aa9de51401047cdb5e76d520e5d0",
-      "export_run": 37205374903,
+      "export_pr": 150,
+      "export_head": "e24105a71f0746055d35b7b98cb5cc8c33948218",
+      "export_run": 37266030292,
       "export_status": "PASS",
       "repository_independence": "BLOCKED",
       "final_gate": "FAIL",
-      "export_artifact_id": 11304487571,
-      "export_artifact_digest": "sha256:5301319cf085b0fdce70a8553fff65c9931ce698ba6afd20e635fcd2c05dbdad",
+      "export_artifact_id": 11325859397,
+      "export_artifact_digest": "sha256:ec61ab0faaacd09e246039e703c66865db71637b96c33e883501b417ab326800",
       "source_product_head": "b332109080d03cb4b15ac6d479782b48b1c6dcba",
       "source_product_status": "CANDIDATE_ONLY_REPOSITORY_BLOCKED",
       "current_windows_run": 37258744429,
@@ -132,7 +132,10 @@
       "final_non_pass_gates": [
         "repository_independence"
       ],
-      "note": "Current branch exact run passes architecture/business/tests/Real Network/Windows/Exact EXE/Physical GUI/Same Hash. Sole hard failure is repository independence."
+      "note": "Current branch exact Windows run 37258744429 passes architecture/business/tests/Real Network/Windows/Exact EXE/Physical GUI/Same Hash; sole hard failure is repository independence. Fresh project-only migration seed PR #150 run 37266030292 PASS and supersedes #109.",
+      "superseded_export_prs": [
+        109
+      ]
     },
     {
       "id": 5,
@@ -221,14 +224,14 @@
     {
       "id": 9,
       "project": "TalkCraft / Expression Training",
-      "export_pr": 110,
-      "export_head": "535f7a01192ae196073d4f1032bbd85f3b5d5311",
-      "export_run": 37205379788,
+      "export_pr": 151,
+      "export_head": "b0168d644c784da9b90bd6f3dbe4fd9279355737",
+      "export_run": 37266042305,
       "export_status": "PASS",
       "repository_independence": "BLOCKED",
       "final_gate": "FAIL",
-      "export_artifact_id": 11304726740,
-      "export_artifact_digest": "sha256:5ae303e7c32e00e6774f60f895c37aa3862e43aceeaa7b868306fa8a2e95ba5e",
+      "export_artifact_id": 11326487922,
+      "export_artifact_digest": "sha256:b88a122ea42de53ef987ef483d437dce5b9c886726941142d1e558ba86862ee0",
       "source_product_head": "8bbedccdeeb99e1b1c552442aa4584c6a3e57e00",
       "source_product_status": "CANDIDATE_ONLY_REPOSITORY_BLOCKED",
       "current_windows_run": 37258749730,
@@ -238,7 +241,10 @@
       "final_non_pass_gates": [
         "repository_independence"
       ],
-      "note": "Current branch exact run passes architecture/business/tests/source+Exact EXE Real Network/Windows/Physical GUI/Same Hash. Sole hard failure is repository independence."
+      "note": "Current branch exact Windows run 37258749730 passes architecture/business/tests/source+Exact EXE Real Network/Windows/Physical GUI/Same Hash; sole hard failure is repository independence. Fresh project-only migration seed PR #151 run 37266042305 PASS and supersedes #110.",
+      "superseded_export_prs": [
+        110
+      ]
     },
     {
       "id": 10,
@@ -408,7 +414,7 @@
     }
   ],
   "next_resume_condition": "Continue current exact-head product validation. Do not promote migration readiness to Final. Repository-independence work can resume only when dedicated target repositories are actually visible/writable to the integration; then seed each verified export and rerun the complete chain from independent main.",
-  "latest_delta": "18/18 current-product migration exports PASS; repository independence remains 0/18. SSQ/DLT/Earth plus Psychology/English/Head/Human Nature/TalkCraft current exact states are now explicitly closed in control. Stock desktop remains the only active long internal acceptance chain at the frozen >=90% research-corpus prerequisite.",
+  "latest_delta": "Migration/export readiness remains 18/18 PASS. Human Nature seed refreshed by PR #150 run 37266030292 PASS; TalkCraft seed refreshed by PR #151 run 37266042305 PASS. SSQ current Windows run 37262758839 closes all internal technical gates and Final fails only on business B05/release/repository context. Stock #152 and RMF #153 exact-head executions are still active. Real independent repositories remain 0/18; Final/Delivery remain 0/18.",
   "infrastructure_capability": {
     "repository_creation": "BLOCKED",
     "repository_creation_evidence": "PR #127: Actions integration token cannot act as user-level repository creator; connector exposes no create-repository mutation.",
