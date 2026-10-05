@@ -35,6 +35,14 @@ def run_audit():
     latest_dir=ROOT/"predictions"/"latest"; rnd_shadow_ok=(latest_dir/"rnd_shadow.csv").exists() and verify_manifest(latest_dir)[0] if latest_dir.exists() else False
     chain_ok,chain_msg,chain_len=verify_prediction_chain(ROOT)
     historical_st_status,historical_st_detail,historical_st_meta=evaluate_historical_st_pit(ROOT,latest.get("expected_trade_date"))
+    pit_policy=bt.get("historical_pit_policy") or {}
+    pit_policy_ok=(
+        historical_st_status=="PASS"
+        and pit_policy.get("status")=="PASS"
+        and pit_policy.get("point_in_time_only") is True
+        and bool(pit_policy.get("canonical_sha256"))
+        and pit_policy.get("canonical_sha256")==historical_st_meta.get("canonical_sha256")
+    )
     rnd_cfg=cfg.get("rnd",{}) or {}
     checks=[
       {"id":"FUTURE_SAFE_FEATURES","name":"未来字段隔离","status":"PASS" if "target_return" not in FEATURES and "target_excess" not in FEATURES else "FAIL","detail":"训练特征不包含未来收益标签"},
@@ -54,9 +62,10 @@ def run_audit():
       {"id":"FEATURE_DRIFT","name":"特征漂移","status":"PASS" if drift.get("status")=="PASS" else ("WARN" if drift.get("status") in {"WARN",None} else "FAIL"),"detail":f"drift={drift.get('status','尚无报告')}"},
       {"id":"RND_PREOUTCOME_FREEZE","name":"研发Challenger事前冻结","status":"PASS" if rnd_shadow_ok else "WARN","detail":"Champion/Challenger必须在真实结果出现前进入冻结manifest"},
       {"id":"RND_NO_AUTO_PROMOTE","name":"研发禁止静默晋级","status":"PASS" if not bool(rnd_cfg.get("auto_promote",False)) else "FAIL","detail":"候选通过Gate也只进入PROMOTABLE_REVIEW，不自动修改生产模型"},
-      {"id":"HISTORICAL_ST_PIT","name":"历史ST逐日状态","status":historical_st_status,"detail":historical_st_detail}
+      {"id":"HISTORICAL_ST_PIT","name":"历史ST逐日状态","status":historical_st_status,"detail":historical_st_detail},
+      {"id":"HISTORICAL_ST_PIT_CONSUMED","name":"历史ST/停牌PIT回测消费","status":"PASS" if pit_policy_ok else "WARN","detail":f"policy={pit_policy.get('status','缺失')}; canonical={pit_policy.get('canonical_sha256')}; evidence={historical_st_meta.get('canonical_sha256')}"}
     ]
     fail=sum(c["status"]=="FAIL" for c in checks);warn=sum(c["status"]=="WARN" for c in checks);trust="LOW" if fail else ("MEDIUM" if warn else "HIGH")
     five=[{"check":c["name"],"status":c["status"],"why1":"验证未达到PASS。","why2":"数据覆盖、时间一致性或基准证据不足。","why3":"公开数据和样本外稳定性存在现实限制。","why4":"忽略会把偏差或Beta误认为Alpha。","why5":"处置：降低MODEL TRUST，继续积累冻结样本并重新验证。"} for c in checks if c["status"]!="PASS"]
-    report={"generated_at":now_iso(),"trust":trust,"base_rank_ic":base_ic,"shuffle_rank_ic":shuffle_ic,"shifted_rank_ic":shift_ic,"embargo_horizon_days":h,"checks":checks,"historical_st_pit_evidence":historical_st_meta,"five_why":five,"reverse_validation":["Label Shuffle","Time Shift","Random Baseline","Momentum Baseline","Value Baseline(PIT only)","Dynamic Cost / Zero-cost comparison","Capacity Test","Feature Drift","Freeze Integrity","Feature Ablation由测试套件验证模块独立性","Champion/Challenger事前冻结","Paired Bootstrap Promotion Gate","Cross-period Prediction Hash Chain"]}
+    report={"generated_at":now_iso(),"trust":trust,"base_rank_ic":base_ic,"shuffle_rank_ic":shuffle_ic,"shifted_rank_ic":shift_ic,"embargo_horizon_days":h,"checks":checks,"historical_st_pit_evidence":historical_st_meta,"historical_pit_policy":pit_policy,"five_why":five,"reverse_validation":["Label Shuffle","Time Shift","Random Baseline","Momentum Baseline","Value Baseline(PIT only)","Dynamic Cost / Zero-cost comparison","Capacity Test","Feature Drift","Freeze Integrity","Feature Ablation由测试套件验证模块独立性","Champion/Challenger事前冻结","Paired Bootstrap Promotion Gate","Cross-period Prediction Hash Chain"]}
     write_json(ROOT/"reports"/"audit_report.json",report);return report
