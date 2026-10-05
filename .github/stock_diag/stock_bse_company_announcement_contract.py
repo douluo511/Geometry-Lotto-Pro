@@ -165,6 +165,10 @@ def main():
         for label,method,params in request_variants:
             obj,meta=request_variant(session,label,method,params)
             records=find_records(obj) if obj is not None else []
+            if obj is not None and not records:
+                meta["parsed_preview"]=json.dumps(
+                    obj,ensure_ascii=False,sort_keys=True,separators=(",",":")
+                )[:800]
             exact=[r for r in records if str(r.get("companyCd","")).strip()==sample["code"]]
             matching=[]
             for r in exact:
