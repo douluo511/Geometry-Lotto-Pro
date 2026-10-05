@@ -11,7 +11,7 @@ from app.engine import analyze_observable_activity, reverse_validation
 from app.source_eastmoney import fetch_daily_bars
 from app.source_market import _select_success
 from app.source_tencent import fetch_daily_bars_tencent
-from app.source_tencent_full import fetch_daily_bars_tencent_full
+from app.source_tencent_full import fetch_daily_bars_tencent_full, fetch_daily_bars_tencent_full_history
 from app.source_yahoo import fetch_daily_bars_yahoo
 from app.storage import Storage
 
@@ -74,6 +74,33 @@ class FakeTencentFullClient:
         return {"data": {"sh600000": {key: rows}}}, meta
 
 
+class FakeTencentFullHistoryClient:
+    def __init__(self):
+        self.calls = 0
+
+    def get_jsonp_object(self, url, params, expected_variable, headers=None):
+        self.calls += 1
+        payload_hash = f"{self.calls:064x}"
+        meta = SimpleNamespace(
+            status=200,
+            payload_sha256=payload_hash,
+            retrieved_at_unix=10.0 + self.calls,
+            url=url,
+            content_type="application/javascript; charset=utf-8",
+            content_type_policy="strict-assignment-json",
+        )
+        rows = []
+        start = date(2018, 1, 1) + timedelta(days=(self.calls - 1) * 360)
+        for i in range(320):
+            day = (start + timedelta(days=i)).isoformat()
+            rows.append([
+                day, "10", "10.1", "10.2", "9.9", str(1000 + i),
+                "unused", "2.5", str(20 + i),
+            ])
+        key = "qfqday" if "qfq" in expected_variable else "day"
+        return {"data": {"sh600000": {key: rows}}}, meta
+
+
 class FakeYahooClient:
     def get_json(self, url, params, headers=None):
         meta = SimpleNamespace(
@@ -123,6 +150,21 @@ def main() -> int:
     assert raw_full_meta["price_adjustment"] == "unadjusted"
     assert raw_full_meta["requested_adjustment"] == "none"
 
+    history_client = FakeTencentFullHistoryClient()
+    history_bars, history_meta = fetch_daily_bars_tencent_full_history(
+        history_client, "600000", 800, adjustment="qfq"
+    )
+    assert len(history_bars) == 800
+    assert history_meta["provider"] == "tencent_public_full_kline"
+    assert history_meta["price_adjustment"] == "qfq"
+    assert history_meta["requested_coverage_met"] is True
+    assert history_meta["requested_row_count"] == 800
+    assert len(history_meta["history_windows"]) >= 3
+    assert len(history_meta["component_payload_sha256"]) >= 3
+    assert len(set(x.raw_sha256 for x in history_bars)) >= 3
+    assert all(x.amount > 0 for x in history_bars)
+    assert all(x.turnover_rate is not None and x.turnover_rate > 0 for x in history_bars)
+
     yahoo_bars, ymeta = fetch_daily_bars_yahoo(FakeYahooClient(), "600000", 40)
     assert len(yahoo_bars) == 40
     assert all(x.amount == 0.0 for x in yahoo_bars)
@@ -137,6 +179,10 @@ def main() -> int:
     long_qfq = ("tencent_public_kline", tencent_bars * 20, {**tmeta, "price_adjustment": "qfq"})
     selected = _select_success([long_qfq, long_unadjusted], 800)
     assert selected[0] == "tencent_public_kline", "qfq must win only after requested coverage is met"
+
+    full_history_qfq = ("tencent_public_full_kline", history_bars, history_meta)
+    selected = _select_success([full_history_qfq, long_unadjusted], 800)
+    assert selected[0] == "tencent_public_full_kline", "field-complete qfq must win after requested coverage is met"
 
     equal_eastmoney = ("eastmoney_public_l1", bars * 20, {**meta, "price_adjustment": "qfq"})
     selected = _select_success([long_qfq, equal_eastmoney], 800)

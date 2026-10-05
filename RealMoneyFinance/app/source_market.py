@@ -4,6 +4,7 @@ from .freshness import qualify_source_freshness
 from .netclient import NetClient
 from .source_eastmoney import fetch_daily_bars as fetch_eastmoney
 from .source_tencent import fetch_daily_bars_tencent
+from .source_tencent_full import fetch_daily_bars_tencent_full_history
 from .source_yahoo import fetch_daily_bars_yahoo
 
 
@@ -12,7 +13,8 @@ def _latest_close(rows):
 
 
 _PROVIDER_PRIORITY = {
-    "eastmoney_public_l1": 3,
+    "eastmoney_public_l1": 4,
+    "tencent_public_full_kline": 3,
     "tencent_public_kline": 2,
     "yahoo_public_chart": 1,
 }
@@ -39,11 +41,15 @@ def fetch_daily_bars_failover(client: NetClient, symbol: str, limit: int = 120):
     attempts = []
     successes = []
 
-    for provider, fn in [
-        ("eastmoney_public_l1", fetch_eastmoney),
+    providers = [("eastmoney_public_l1", fetch_eastmoney)]
+    if int(limit) > 500:
+        providers.append(("tencent_public_full_kline", fetch_daily_bars_tencent_full_history))
+    providers.extend([
         ("tencent_public_kline", fetch_daily_bars_tencent),
         ("yahoo_public_chart", fetch_daily_bars_yahoo),
-    ]:
+    ])
+
+    for provider, fn in providers:
         try:
             rows, meta = fn(client, symbol, limit)
             successes.append((provider, rows, meta))
@@ -119,7 +125,7 @@ def fetch_daily_bars_failover(client: NetClient, symbol: str, limit: int = 120):
         "coverage_first": True,
         "prefer_qfq_after_coverage": True,
         "then_row_count": True,
-        "provider_priority_tiebreak": ["eastmoney_public_l1", "tencent_public_kline", "yahoo_public_chart"],
+        "provider_priority_tiebreak": ["eastmoney_public_l1", "tencent_public_full_kline", "tencent_public_kline", "yahoo_public_chart"],
         "outcome_fields_used": False,
     }
     return rows, meta
