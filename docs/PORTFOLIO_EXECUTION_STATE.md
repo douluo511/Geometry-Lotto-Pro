@@ -1,5 +1,16 @@
 # Portfolio Execution State — 18 Windows EXE Projects
 
+## 2026-10-05 Happy8 exact-head terminal acceptance — 10763ef / run 37291272371
+
+- **Authoritative Happy8 product:** PR #176 exact head `10763ef098a653ba8c81f399d335a85486e31642`.
+- Fresh run `37291272371` / job `111702455072` is terminal **FAIL only at Evidence-derived staging aggregate**. This is the intentional fail-closed Final boundary, not a technical regression.
+- Same-run PASS: exact checkout, governance/architecture, compile/unit/contracts, Storage/Evidence, Service, updater handoff + independent updater rollback, Fault Injection, live dual-official Real Network, current-history science, business-before-Windows, reproducible Native Windows Exact EXE, first physical GUI, second OS-mouse physical GUI, and post-GUI Same Hash.
+- Exact EXE SHA-256: `f43307f927739ce5866897cd01ff359ca993419c880e87fd8ee9ba74ba426e64`.
+- Final derivation: Engineering **84.2105%**; Business **87.5%**; Exact EXE **PASS**; Physical GUI **PASS**; Same Hash **PASS**; Repository Independence **BLOCKED**; real independent Release N→N+1 **BLOCKED**; unique Final artifact **NOT VERIFIED**; Final Gate **FAIL**.
+- Diagnostic artifact `11337865817`, digest `sha256:d10d86c243416a0384c128370abf7d98c6cc27c7f40814e713cc2044f745d8ab`.
+- The sole red aggregate reports `business_final, engineering_final, final_gate` because the external hard gates are non-PASS. It must not be patched to green.
+- Portfolio boundary remains migration/export **18/18 PASS**, dedicated repositories **0/18**, Final/Delivery **0/18**.
+
 ## 2026-10-05 export reconciliation — Happy8 PR #185 supersedes closed #184
 
 - **Happy8 current migration/export:** PR #185 exact head `f8fd54146054e56627ca2a60919082b1d2f3e820`, run `37292380803` / job `111705566770` = **SUCCESS**. Exact checkout/product-byte identity, deterministic 52-file export, independent second-pass verification, deliberate tamper rejection and explicit non-Final boundary all PASS.
