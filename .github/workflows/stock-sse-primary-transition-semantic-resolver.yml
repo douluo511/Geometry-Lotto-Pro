@@ -11,7 +11,9 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: stock-sse-semantic-resolver-current-product
+  # Push and pull_request for the same exact head are independent evidence
+  # surfaces. Do not let one event cancel the other before artifact upload.
+  group: stock-sse-semantic-resolver-current-product-${{ github.event_name }}-${{ github.event.pull_request.head.sha || github.sha }}
   cancel-in-progress: true
 
 permissions:
