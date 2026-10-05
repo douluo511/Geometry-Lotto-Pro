@@ -56,8 +56,19 @@ def main() -> int:
             allow_mislabeled_json=True,
         )
         rows = obj.get("result")
-        if not isinstance(rows, list) or not rows:
-            raise RuntimeError(f"SSE daily summary absent for {day}")
+        if not isinstance(rows, list):
+            raise RuntimeError(f"SSE daily summary malformed for {day}")
+        if not rows:
+            rows_by_date[day] = {
+                "payload_sha256": meta.payload_sha256,
+                "retrieved_at_unix": meta.retrieved_at_unix,
+                "rows": [],
+            }
+            parsed[day] = {
+                "status": "NOT VERIFIED",
+                "reason": "official SSE daily summary returned no rows",
+            }
+            continue
         cleaned = []
         for row in rows:
             if not isinstance(row, dict):
@@ -100,9 +111,14 @@ def main() -> int:
         if expected is not None and total != expected:
             mismatches.append({"date": day, "official": total, "reconstructed": expected})
 
+    comparable_dates = [
+        day for day, row in parsed.items()
+        if row.get("status") == "PASS" and day in EXPECTED_RECONSTRUCTED
+    ]
+    status = "PASS" if not mismatches and len(comparable_dates) >= 3 else "FAIL"
     evidence = {
         "schema": "rmf-sse-historical-membership-daily-summary-crosscheck-v1",
-        "status": "PASS" if not mismatches else "FAIL",
+        "status": status,
         "scope": "independent official SSE aggregate cross-check of historical membership counts",
         "source_url": URL,
         "sql_id": "COMMON_SSE_XXPL_LSSJL_S",
@@ -111,7 +127,9 @@ def main() -> int:
         "raw_source_evidence": rows_by_date,
         "reconstructed_counts_checked": EXPECTED_RECONSTRUCTED,
         "mismatches": mismatches,
-        "historical_membership_crosscheck": "PASS" if not mismatches else "FAIL",
+        "comparable_dates": comparable_dates,
+        "minimum_comparable_dates": 3,
+        "historical_membership_crosscheck": status,
         "historical_pit_availability": "NOT VERIFIED",
         "survivorship_selection_control": "NOT VERIFIED",
         "boundary": (
@@ -122,7 +140,7 @@ def main() -> int:
     }
     args.output.write_text(json.dumps(evidence, ensure_ascii=True, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(evidence, ensure_ascii=True, sort_keys=True))
-    return 0 if evidence["status"] == "PASS" else 2
+    return 0 if status == "PASS" else 2
 
 
 if __name__ == "__main__":
