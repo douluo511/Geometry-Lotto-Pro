@@ -40,8 +40,8 @@ jobs:
       - name: Install diagnostic dependencies
         shell: pwsh
         run: |
-          python -m pip install --disable-pip-version-check --no-input "akshare==1.17.85" "pandas==2.2.3" "openpyxl==3.1.5"
-      - name: Probe official SZSE dated short-name changes
+          python -m pip install --disable-pip-version-check --no-input "akshare==1.17.85" "pandas==2.2.3" "openpyxl==3.1.5" "pypdf==5.4.0"
+      - name: Probe official SZSE/BSE/SSE historical source boundaries
         working-directory: StockAIPro
         shell: pwsh
         run: |
@@ -64,6 +64,7 @@ jobs:
           report = json.loads(Path("stock_historical_st_pit_diagnostic.json").read_text(encoding="utf-8"))
           hist = report["historical_st_reconstruction"]
           bse = report.get("beijing_official_source_boundary", {})
+          sse = report.get("shanghai_official_source_boundary", {})
 
           if hist.get("shenzhen") != "SUPPORTED":
               raise SystemExit("Shenzhen dated reconstruction must remain SUPPORTED")
@@ -84,9 +85,20 @@ jobs:
               if bse.get("beijing_historical_st_pit") != "NOT VERIFIED":
                   raise SystemExit("source existence cannot promote Beijing historical ST/PIT")
 
+          sse_spec = sse.get("sse_product_status_or_suspension_specification", "NOT VERIFIED")
+          if sse_spec == "SUPPORTED":
+              if sse.get("public_historical_bulk_archive") != "NOT VERIFIED":
+                  raise SystemExit("SSE specification cannot promote public historical bulk archive")
+              if sse.get("shanghai_historical_st_pit") != "NOT VERIFIED":
+                  raise SystemExit("SSE specification cannot promote Shanghai historical ST/PIT")
+              if sse.get("historical_daily_suspension_state") != "NOT VERIFIED":
+                  raise SystemExit("SSE specification cannot promote historical daily suspension state")
+
           print("SZSE_DATED_NAME_CHANGE=SUPPORTED")
           print("BSE_HISTORICAL_SHORT_NAME_FILE_EXISTENCE=" + str(existence))
           print("BSE_PUBLIC_HISTORICAL_BULK_ARCHIVE=" + str(bse.get("public_historical_bulk_archive", "NOT VERIFIED")))
+          print("SSE_PRODUCT_STATUS_OR_SUSPENSION_SPEC=" + str(sse_spec))
+          print("SSE_PUBLIC_HISTORICAL_BULK_ARCHIVE=" + str(sse.get("public_historical_bulk_archive", "NOT VERIFIED")))
           print("SHANGHAI_ST_PIT=NOT VERIFIED")
           print("BEIJING_ST_PIT=NOT VERIFIED")
           print("HISTORICAL_SUSPENSION_DAILY_STATE=NOT VERIFIED")
