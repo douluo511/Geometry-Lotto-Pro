@@ -632,6 +632,7 @@ def validate_history(draws: list[Draw], *, canonical_hash: str) -> dict:
         "status": "PASS",
         "software_verdict": "PASS" if methodology_complete or len(draws) < MIN_TRAIN + MIN_OOS else "FAIL",
         "canonical_hash": canonical_hash,
+        "computed_canonical_hash": computed_canonical_hash,
         "draw_count": len(draws),
         "latest_issue": draws[-1].issue,
         "baseline": {
