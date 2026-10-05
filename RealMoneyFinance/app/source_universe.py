@@ -340,7 +340,11 @@ def fetch_current_shanghai_universe_precommit(
                 "name": str(row.get("f14", "")).strip(),
             })
 
-        payload_hashes.append(meta.payload_sha256)
+        page_payload_hashes = getattr(meta, "payload_sha256s", None)
+        if page_payload_hashes:
+            payload_hashes.extend(str(value).lower() for value in page_payload_hashes)
+        else:
+            payload_hashes.append(str(meta.payload_sha256).lower())
         retrieved_times.append(meta.retrieved_at_unix)
         if len({item["symbol"] for item in entries}) >= declared_total:
             break
