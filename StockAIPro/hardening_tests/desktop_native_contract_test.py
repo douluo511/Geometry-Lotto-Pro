@@ -63,6 +63,42 @@ def check_ast_contracts() -> dict:
     }
 
 
+
+def check_progressive_cache_contract() -> dict:
+    workflow = (ROOT.parent / ".github" / "workflows" / "stock-ai-desktop-candidate.yml").read_text(
+        encoding="utf-8"
+    )
+    pinned = "55cc8345863c7cc4c66a329aec7e433d2d1c52a9"
+    restore = f"actions/cache/restore@{pinned}"
+    save = f"actions/cache/save@{pinned}"
+    if restore not in workflow:
+        fail("desktop workflow must use explicit pinned cache restore")
+    if save not in workflow:
+        fail("desktop workflow must use explicit pinned cache save")
+    if "uses: actions/cache@" + pinned in workflow:
+        fail("composite cache action can skip progressive save on non-PASS job")
+    q = workflow.find("Exact-head real-network research corpus qualification prerequisite")
+    s = workflow.find("Save progressive real-history corpus cache even when qualification is non-PASS")
+    if q < 0 or s <= q:
+        fail("progressive cache save must follow qualification")
+    save_window = workflow[s:s + 1200]
+    if "if: always()" not in save_window:
+        fail("progressive cache save must run even when qualification is non-PASS")
+    if "stock-ai-research-history-v1-" not in save_window:
+        fail("progressive cache save key namespace changed unexpectedly")
+    if "qualification coverage targets" not in (
+        ROOT / "staging" / "Stock_AI_Pro" / "versions" / "4.3.0" / "stock_ai" / "data_source.py"
+    ).read_text(encoding="utf-8"):
+        fail("qualification implementation identity unexpectedly missing")
+    return {
+        "explicit_restore": True,
+        "explicit_save": True,
+        "save_on_nonpass": True,
+        "cache_namespace_preserved": True,
+        "qualification_denominator_unchanged_by_cache_contract": True,
+    }
+
+
 def check_service_source_mode() -> dict:
     env = os.environ.copy()
     env["STOCK_AI_PACKAGE_ROOT"] = str(PACKAGE.resolve())
@@ -173,6 +209,7 @@ def main() -> int:
         "service_source_mode": check_service_source_mode(),
         "isolated_repair": check_repair_isolated_data(),
         "windowed_worker_regression": check_windowed_worker_streams(),
+        "progressive_cache_contract": check_progressive_cache_contract(),
         "desktop_final_boundary": {
             "windows_native_build": "NOT VERIFIED",
             "exact_exe": "NOT VERIFIED",
