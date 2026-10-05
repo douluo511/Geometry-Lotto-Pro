@@ -171,6 +171,156 @@ def call_query(session, label, params):
     return {"label": label, "params": params, "attempts": attempts, "payload": None}
 
 
+def _row_identity(row):
+    if not isinstance(row, dict):
+        return None
+    keys = (
+        "securityCode", "securityName", "productCode", "productName",
+        "startStopDate", "endStopDate", "startStopTime", "endStopTime",
+        "startStopReason", "endStopReason", "stopReason", "controlType",
+        "SEC_CODE", "SEC_NAME_CN", "STOP_DATE", "STOP_TIME", "STOP_REASON",
+    )
+    obj = {k: row.get(k) for k in keys if k in row}
+    if not obj:
+        obj = {k: row.get(k) for k in sorted(row)[:24]}
+    return hashlib.sha256(
+        json.dumps(obj, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+
+
+def _interval_from_row(row):
+    if not isinstance(row, dict):
+        return None
+    code = (
+        row.get("securityCode") or row.get("productCode") or
+        row.get("SEC_CODE") or row.get("secCode") or row.get("code")
+    )
+    name = (
+        row.get("securityName") or row.get("productName") or
+        row.get("SEC_NAME_CN") or row.get("secName") or row.get("name")
+    )
+    start = None
+    end = None
+    for k in ("startStopDate", "STOP_DATE", "stopDate", "startDate"):
+        if k in row and digits8(row.get(k)):
+            start = digits8(row.get(k))
+            break
+    for k in ("endStopDate", "endDate", "resumeDate"):
+        if k in row and digits8(row.get(k)):
+            end = digits8(row.get(k))
+            break
+    if start is None:
+        return None
+    return {
+        "code": str(code or ""),
+        "name": str(name or ""),
+        "start": start,
+        "end": end,
+        "control_type": row.get("controlType"),
+        "reason": row.get("startStopReason") or row.get("stopReason") or row.get("STOP_REASON"),
+        "row_sha256": _row_identity(row),
+    }
+
+
+def fetch_window_all_pages(session, year, start, end, page_size=200, max_pages=200):
+    base = {
+        "isPagination": "true",
+        "sqlId": "GW_PL_JYTS_TFPXX",
+        "pageHelp.pageSize": str(page_size),
+        "productCode": "",
+        "keyWords": "",
+        "startStopDate": start,
+        "endStopDate": end,
+    }
+    pages = []
+    all_rows = []
+    expected_page_count = None
+    expected_total = None
+    for page_no in range(1, max_pages + 1):
+        params = dict(base)
+        params["pageHelp.pageNo"] = str(page_no)
+        q = call_query(session, f"{year}-page-{page_no}", params)
+        payload = q.get("payload")
+        if not isinstance(payload, dict):
+            raise RuntimeError(f"{year} page {page_no}: unparseable payload")
+        rows = payload.get("result")
+        if not isinstance(rows, list):
+            raise RuntimeError(f"{year} page {page_no}: result is not a list")
+        ph = payload.get("pageHelp")
+        page_count = None
+        total = None
+        if isinstance(ph, dict):
+            for k in ("pageCount", "pagecount"):
+                if ph.get(k) not in (None, ""):
+                    try:
+                        page_count = int(ph.get(k))
+                    except Exception:
+                        pass
+            for k in ("total", "totalCount", "totalcount"):
+                if ph.get(k) not in (None, ""):
+                    try:
+                        total = int(ph.get(k))
+                    except Exception:
+                        pass
+        if page_count is not None:
+            if expected_page_count is None:
+                expected_page_count = page_count
+            elif expected_page_count != page_count:
+                raise RuntimeError(f"{year}: pageCount drift {expected_page_count} -> {page_count}")
+        if total is not None:
+            if expected_total is None:
+                expected_total = total
+            elif expected_total != total:
+                raise RuntimeError(f"{year}: total drift {expected_total} -> {total}")
+        pages.append({
+            "page_no": page_no,
+            "row_count": len(rows),
+            "page_count": page_count,
+            "total": total,
+            "attempts": q.get("attempts", []),
+        })
+        all_rows.extend(rows)
+
+        if expected_page_count is not None and page_no >= expected_page_count:
+            break
+        if len(rows) < page_size:
+            break
+    else:
+        raise RuntimeError(f"{year}: exceeded max_pages={max_pages}")
+
+    identities = [_row_identity(r) for r in all_rows]
+    nonnull_ids = [x for x in identities if x]
+    unique_ids = set(nonnull_ids)
+    if len(unique_ids) != len(nonnull_ids):
+        duplicate_count = len(nonnull_ids) - len(unique_ids)
+    else:
+        duplicate_count = 0
+
+    intervals = [_interval_from_row(r) for r in all_rows]
+    parsed_intervals = [x for x in intervals if x]
+    recognized = sum(1 for r in all_rows if _interval_from_row(r) is not None)
+
+    if expected_total is not None and len(all_rows) < expected_total:
+        raise RuntimeError(f"{year}: pagination incomplete rows={len(all_rows)} total={expected_total}")
+    if all_rows and recognized / len(all_rows) < 0.95:
+        raise RuntimeError(f"{year}: interval parse ratio too low {recognized}/{len(all_rows)}")
+
+    return {
+        "year": year,
+        "start": start,
+        "end": end,
+        "pages": pages,
+        "expected_page_count": expected_page_count,
+        "expected_total": expected_total,
+        "raw_row_count": len(all_rows),
+        "unique_row_count": len(unique_ids),
+        "duplicate_row_count": duplicate_count,
+        "interval_parse_count": len(parsed_intervals),
+        "interval_parse_ratio": (len(parsed_intervals) / len(all_rows)) if all_rows else 1.0,
+        "intervals": parsed_intervals,
+    }
+
+
 def main():
     s = requests.Session()
     page, page_meta = get(s, PAGE)
@@ -191,101 +341,94 @@ def main():
         "declares_start_date": "startStopDate" in script_text,
         "declares_end_date": "endStopDate" in script_text,
     }
+    if not all(source_contract[k] for k in (
+        "declares_query_host", "declares_endpoint", "declares_sql_id",
+        "declares_start_date", "declares_end_date",
+    )):
+        raise RuntimeError("first-party source contract is incomplete")
 
-    queries = []
-    base = {
-        "isPagination": "true",
-        "sqlId": "GW_PL_JYTS_TFPXX",
-        "pageHelp.pageSize": "200",
-        "pageHelp.pageNo": "1",
-        "productCode": "",
-        "keyWords": "",
-    }
-    for year in (2019, 2024):
-        compact = dict(base, startStopDate=f"{year}0101", endStopDate=f"{year}1231")
-        dashed = dict(base, startStopDate=f"{year}-01-01", endStopDate=f"{year}-12-31")
-        queries.append(call_query(s, f"{year}-compact", compact))
-        queries.append(call_query(s, f"{year}-dashed", dashed))
+    windows = []
+    for year in range(2018, 2027):
+        start = f"{year}0101"
+        end = f"{year}1231"
+        if year == 2026:
+            end = "20260930"
+        windows.append(fetch_window_all_pages(s, year, start, end))
 
-    recent = dict(base, startStopDate="20260901", endStopDate="20260930")
-    queries.append(call_query(s, "2026-09-compact", recent))
+    all_intervals = []
+    for w in windows:
+        all_intervals.extend(w["intervals"])
 
-    trade_day = call_query(s, "trade-day-20260930", {
-        "sqlId": "GW_PL_JYTS_TFPXX_TRADEDAY",
-        "bizDate": "20260930",
-    })
-    queries.append(trade_day)
-
-    historical_hits = []
-    for q in queries:
-        payload = q.get("payload")
-        if not isinstance(payload, dict):
-            continue
-        rows = payload.get("result")
-        if not isinstance(rows, list) or not rows:
-            continue
-        ev = date_evidence(rows, q["params"].get("startStopDate"), q["params"].get("endStopDate"))
-        if q["label"].startswith(("2019", "2024")) and ev["in_window_count"] > 0:
-            historical_hits.append({
-                "label": q["label"],
-                "rows": len(rows),
-                "date_evidence": ev,
-                "sample": [bounded_row(x) for x in rows[:3]],
-            })
-
-    endpoint_reachable_and_parseable = any(
-        isinstance(q.get("payload"), dict)
-        for q in queries
+    ids = [x["row_sha256"] for x in all_intervals if x.get("row_sha256")]
+    unique = {}
+    for row in all_intervals:
+        rid = row.get("row_sha256")
+        if rid:
+            unique[rid] = row
+    canonical_intervals = sorted(
+        unique.values(),
+        key=lambda x: (x.get("start") or "", x.get("code") or "", x.get("end") or "", x.get("row_sha256") or ""),
     )
-    historical_query_supported = bool(historical_hits)
+    canonical_bytes = json.dumps(
+        canonical_intervals, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    canonical_sha = hashlib.sha256(canonical_bytes).hexdigest()
+
+    total_rows = sum(w["raw_row_count"] for w in windows)
+    total_parsed = sum(w["interval_parse_count"] for w in windows)
+    all_years_complete = all(
+        (w["expected_total"] is None or w["raw_row_count"] >= w["expected_total"])
+        and w["interval_parse_ratio"] >= 0.95
+        for w in windows
+    )
+    full_window_supported = (
+        source_contract["page_http_status"] == 200
+        and source_contract["script_http_status"] == 200
+        and all_years_complete
+        and total_rows > 0
+        and len(canonical_intervals) > 0
+    )
 
     report = {
-        "schema": "stock-sse-historical-suspension-query-v1",
+        "schema": "stock-sse-historical-suspension-reconstruction-v2",
         "run_date_utc": date.today().isoformat(),
-        "official_sources": {
-            "page": PAGE,
-            "script": SCRIPT,
-            "endpoint": ENDPOINT,
-        },
+        "frozen_research_window": {"start": "20180101", "end": "20260930"},
+        "official_sources": {"page": PAGE, "script": SCRIPT, "endpoint": ENDPOINT},
         "source_contract": source_contract,
-        "queries": [
-            {
-                "label": q["label"],
-                "params": q["params"],
-                "attempts": q["attempts"],
-                "parsed_summary": summarize_payload(q["payload"]) if isinstance(q.get("payload"), dict) else None,
-            }
-            for q in queries
-        ],
-        "historical_hits": historical_hits,
+        "windows": windows,
+        "summary": {
+            "raw_row_count": total_rows,
+            "parsed_interval_count": total_parsed,
+            "canonical_interval_count": len(canonical_intervals),
+            "canonical_intervals_sha256": canonical_sha,
+            "all_years_pagination_complete": all_years_complete,
+        },
         "adjudication": {
-            "official_endpoint_reachable_and_parseable": endpoint_reachable_and_parseable,
-            "historical_sse_suspension_query_supported": historical_query_supported,
-            "historical_daily_suspension_state": "NOT VERIFIED",
+            "official_endpoint_reachable_and_parseable": True,
+            "historical_sse_suspension_query_supported": True,
+            "shanghai_historical_suspension_intervals_2018_to_20260930": (
+                "SUPPORTED" if full_window_supported else "NOT VERIFIED"
+            ),
+            "historical_daily_suspension_state": (
+                "SUPPORTED_SHANGHAI_ONLY" if full_window_supported else "NOT VERIFIED"
+            ),
             "shanghai_historical_st_pit": "NOT VERIFIED",
+            "beijing_historical_st_pit": "NOT VERIFIED",
             "full_historical_st_pit": "NOT VERIFIED",
             "advanced_business": "NOT VERIFIED",
             "product_bytes_changed": False,
             "final_gate": "FAIL",
         },
     }
-
     Path("stock_sse_historical_suspension_query.json").write_text(
         json.dumps(report, ensure_ascii=False, sort_keys=True, indent=2) + "\n",
         encoding="utf-8",
     )
     print(json.dumps({
-        "source_contract": source_contract,
-        "official_endpoint_reachable_and_parseable": endpoint_reachable_and_parseable,
-        "historical_sse_suspension_query_supported": historical_query_supported,
-        "historical_hits": historical_hits,
-        "historical_daily_suspension_state": "NOT VERIFIED",
-        "shanghai_historical_st_pit": "NOT VERIFIED",
-        "full_historical_st_pit": "NOT VERIFIED",
-        "advanced_business": "NOT VERIFIED",
-        "final_gate": "FAIL",
+        "summary": report["summary"],
+        "adjudication": report["adjudication"],
     }, ensure_ascii=True, sort_keys=True))
-    return 0
+    return 0 if full_window_supported else 2
 
 
 if __name__ == "__main__":
