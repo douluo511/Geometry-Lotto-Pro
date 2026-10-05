@@ -35,13 +35,14 @@
       "source_product_head": "3b61bb59ed0da6f7c7717b6840fe95a00d58a2ad",
       "export_artifact_id": 11325575415,
       "export_artifact_digest": "sha256:c7d59fd4658a603f838f2eb54bc0ee19a42c72b07a9abbf468daab6833732a75",
-      "source_product_status": "REVALIDATING_WINDOWS_CHAIN",
+      "source_product_status": "REVALIDATING",
       "exact_head_checkout_required": true,
       "superseded_export_prs": [
         114,
         132
       ],
-      "note": "Current product head includes exact-head checkout-evidence v2 verifier repair. Export verification is PASS; Windows full-chain rerun 37262758839 remains in progress and no Final PASS is inherited."
+      "note": "Current product head includes exact-head checkout-evidence v2 verifier repair. Export verification is PASS; Windows full-chain rerun 37262758839 remains in progress and no Final PASS is inherited.",
+      "superseded_export_pr": 132
     },
     {
       "id": 2,
@@ -171,13 +172,16 @@
         "full_business_run": 37259832083,
         "native_desktop": "IN_PROGRESS",
         "native_desktop_run": 37259832040,
-        "note": "Migration tooling is outside StockAIPro and the workflow asserts byte identity to exact product base. Product business/desktop runs remain in progress and are not inherited by the seed."
+        "note": "Current migration export is product-base ancestry/byte-identity verified. Product business/desktop acceptance remains independently in progress."
       },
       "product_tree_byte_identity": "PASS",
       "superseded_export_prs": [
         99,
         138
-      ]
+      ],
+      "superseded_export_pr": 138,
+      "product_byte_identity": "PASS",
+      "product_base_ancestry": "PASS"
     },
     {
       "id": 11,
@@ -190,19 +194,20 @@
       "final_gate": "FAIL",
       "source_product_pr": 137,
       "source_product_head": "573e07d57e3f3249e2ec03778559e439c007d64b",
-      "source_product_status": "CANDIDATE_VALIDATED_FINAL_FAIL",
+      "source_product_status": "ACTIVE_HARDENING_REVALIDATING",
       "export_artifact_id": 11324884467,
       "export_artifact_digest": "sha256:1e7fa976794bc71becffd3414bb981018db73596b6fc406ea72f8484831e0ca3",
       "engineering_completion_percent": 85.7,
       "business_completion_percent": 68.8,
       "overall_completion_percent": 68.8,
       "product_tree_byte_identity": "PASS",
-      "current_product_head": "573e07d57e3f3249e2ec03778559e439c007d64b",
+      "current_product_head": "26ae84edeb21581b5ffa2e37832b6010d1598b4f",
       "superseded_export_prs": [
         97,
         131
       ],
-      "note": "PR #137 run 37262214746 is SUCCESS as candidate validation only. Five business qualification gaps remain; repository independence, production N→N+1 and formal release redownload remain non-PASS."
+      "note": "PR #137 run 37262214746 is SUCCESS as candidate validation only. Five business qualification gaps remain; repository independence, production N→N+1 and formal release redownload remain non-PASS.",
+      "stale_reason": "Branch export #139 is verified for RMF #137 exact 573e07d5, but active corporate-action PIT hardening #136 has advanced to 26ae84ed and must be integrated with #137, fully revalidated, then exported before portfolio current-product migration PASS."
     },
     {
       "id": 12,
@@ -296,7 +301,7 @@
     }
   ],
   "next_resume_condition": "Continue current exact-head product validation. Do not promote migration readiness to Final. Repository-independence work can resume only when dedicated target repositories are actually visible/writable to the integration; then seed each verified export and rerun the complete chain from independent main.",
-  "latest_delta": "Current-product-bound migration readiness is 18/18. SSQ #141 run 37263066966 PASS binds export to product head 3b61bb59... after the checkout-evidence v2 verifier repair. Stock #140 run 37262978618 PASS uses product-byte-neutral migration tooling bound to dfa07c51.... RMF #139 run 37262871456 PASS binds export to #137 head 573e07d5.... This is migration readiness only: real independent repositories remain 0/18 and Final/Delivery remain 0/18. SSQ Windows run 37262758839 and Stock business/desktop runs 37259832083/37259832040 are still in progress.",
+  "latest_delta": "Current-product-bound migration readiness remains 17/18. SSQ #141 PASS now binds product head 3b61bb59; Stock #140 PASS provides stricter product-base ancestry + byte-identity verified export for dfa07c51. RMF remains the sole NOT VERIFIED line while #136/#137 business hardening awaits integration.",
   "infrastructure_capability": {
     "repository_creation": "BLOCKED",
     "repository_creation_evidence": "PR #127: Actions integration token cannot act as user-level repository creator; connector exposes no create-repository mutation.",
@@ -307,6 +312,6 @@
   "audit": {
     "exact_seed_audit_date": "2026-10-05",
     "status": "PASS",
-    "note": "All 18 migration lines now have current-product-bound exact-head export verification PASS. This does not satisfy repository independence: visible real dedicated repositories remain 0/18, so real Release N→N+1 and portfolio Final remain blocked."
+    "note": "Current-product-bound readiness is 17/18. SSQ #141, DLT #133, Investment #112, Stock #140 and other indexed lines are current-bound PASS. RMF remains NOT VERIFIED pending integration/revalidation of active business hardening; historical branch-specific exports do not satisfy the current-product binding."
   }
 }
