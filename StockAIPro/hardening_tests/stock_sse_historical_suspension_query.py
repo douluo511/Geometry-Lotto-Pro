@@ -390,7 +390,7 @@ def main():
     )
 
     report = {
-        "schema": "stock-sse-historical-suspension-reconstruction-v2",
+        "schema": "stock-sse-historical-suspension-reconstruction-v3",
         "run_date_utc": date.today().isoformat(),
         "frozen_research_window": {"start": "20180101", "end": "20260930"},
         "official_sources": {"page": PAGE, "script": SCRIPT, "endpoint": ENDPOINT},
@@ -409,8 +409,11 @@ def main():
             "shanghai_historical_suspension_intervals_2018_to_20260930": (
                 "SUPPORTED" if full_window_supported else "NOT VERIFIED"
             ),
-            "historical_daily_suspension_state": (
-                "SUPPORTED_SHANGHAI_ONLY" if full_window_supported else "NOT VERIFIED"
+            "historical_daily_suspension_state": "NOT VERIFIED",
+            "historical_daily_suspension_state_reason": (
+                "official interval corpus is complete, but the diagnostic does not expand intervals "
+                "onto an independently verified SSE trading calendar and does not prove whether "
+                "endStopDate is the final suspended date or the resumption date"
             ),
             "shanghai_historical_st_pit": "NOT VERIFIED",
             "beijing_historical_st_pit": "NOT VERIFIED",
