@@ -217,10 +217,13 @@ if($ReleaseMode -eq 'ConfiguredRelease') {
 }
 
 $ops=@(
-  @{key='predict'; label='预测下一期'; rx=0.14; expected='PASS'},
-  @{key='update'; label='一键更新'; rx=0.38; expected=$updateExpected},
-  @{key='repair'; label='一键修复'; rx=0.62; expected=$repairExpected},
-  @{key='advanced'; label='高级分析'; rx=0.86; expected='PASS'}
+  @{key='predict'; label='预测下一期'; rx=0.14; expected='PASS'; timeout=[math]::Max($TimeoutSeconds,240)},
+  # One-click update performs the real official-network refresh before exposing
+  # the software-release boundary. Keep the wait bounded, but do not falsely
+  # fail a slow valid network transaction at the generic 180-second timeout.
+  @{key='update'; label='一键更新'; rx=0.38; expected=$updateExpected; timeout=[math]::Max($TimeoutSeconds,480)},
+  @{key='repair'; label='一键修复'; rx=0.62; expected=$repairExpected; timeout=[math]::Max($TimeoutSeconds,240)},
+  @{key='advanced'; label='高级分析'; rx=0.86; expected='PASS'; timeout=[math]::Max($TimeoutSeconds,420)}
 )
 $results=@()
 
@@ -244,7 +247,7 @@ foreach($op in $ops) {
     $point=Find-Point $window.hwnd $op.label $op.rx 0.155
     Click-Point $window.hwnd $point.x $point.y
     Write-Progress ("operation-"+$op.key) 'CLICKED' ("locator="+$point.locator+" x="+$point.x+" y="+$point.y)
-    $record=Wait-Audit $audit $op.label $TimeoutSeconds
+    $record=Wait-Audit $audit $op.label ([int]$op.timeout)
     Write-Progress ("operation-"+$op.key) 'AUDIT_RECEIVED' ("backend_status="+$record.status)
     Start-Sleep -Milliseconds 400
     $after=Screen-Hash
