@@ -47,30 +47,36 @@
     {
       "id": 1,
       "project": "SSQ",
-      "export_pr": 114,
-      "export_head": "2845cdec7cb4fcfcf2c6b68948093ba29d267c9a",
-      "export_run": 37221678544,
+      "export_pr": 132,
+      "export_head": "228171b098a7aa11c57a03dcdd65eabaa4e90480",
+      "export_run": 37258412224,
       "export_status": "PASS",
       "repository_independence": "BLOCKED",
       "final_gate": "FAIL",
       "source_product_pr": 76,
-      "source_product_head": "2845cdec7cb4fcfcf2c6b68948093ba29d267c9a",
-      "export_artifact_id": 11310725681,
-      "export_artifact_digest": "sha256:aa4a2dea769516d919b5b546225f78592a474583689d83331eea7ed25487c1df"
+      "source_product_head": "fae399b80914fb992a42d6841ebe9fd77e19983d",
+      "export_artifact_id": 11324205121,
+      "export_artifact_digest": "sha256:fef58228985bd6bfaf46af637317264bec7a435d5d77c93fb3d78cb7ba698d5b",
+      "source_product_status": "REVALIDATING",
+      "exact_head_checkout_required": true,
+      "superseded_export_pr": 114
     },
     {
       "id": 2,
       "project": "DLT",
-      "export_pr": 115,
-      "export_head": "15b891f6953e6d9db236e8ea282c3543597c654a",
-      "export_run": 37221710805,
+      "export_pr": 133,
+      "export_head": "74e7a0bbf47c5d4cb0993eb377021ba36b3a6606",
+      "export_run": 37258425226,
       "export_status": "PASS",
       "repository_independence": "BLOCKED",
       "final_gate": "FAIL",
       "source_product_pr": 79,
-      "source_product_head": "d44142e0d22b4817aae12d04b1519a8f7947f5d3",
-      "export_artifact_id": 11309539207,
-      "export_artifact_digest": "sha256:bb2922f56617d535954bbcd2c727d4bd8a6cd5b64f3b6a74a5a44df446a8af50"
+      "source_product_head": "88809643fe3841879f4c038b9bbffb86026629f5",
+      "export_artifact_id": 11323642177,
+      "export_artifact_digest": "sha256:da354b71d433de1a04d11a75ac903482723c6caac70dca7f8a2544d23c5f710f",
+      "source_product_status": "REVALIDATING",
+      "exact_head_checkout_required": true,
+      "superseded_export_pr": 115
     },
     {
       "id": 3,
@@ -316,7 +322,7 @@
     }
   ],
   "next_resume_condition": "As soon as a dedicated repository becomes visible to the connected installation, seed it from the matching verified export and rerun the full frozen acceptance chain on that dedicated repository exact commit before any PASS inheritance.",
-  "latest_delta": "2026-10-05: Investment updater-enabled seed, RMF current-product seed, Earth current export and Legal current export were refreshed to exact successful heads. Stock AI PR #126 c6e329d2 source/offline/network PASS; business+desktop remain active. Repository Independence remains 0/18.",
+  "latest_delta": "2026-10-05: SSQ and DLT acceptance workflows were corrected to require literal PR-head checkout, invalidating synthetic-merge product evidence. Replacement migration PRs #132/#133 PASS from exact new product bases; fresh Windows product runs are revalidating. Stock AI c6e329d2 remains active. Repository Independence remains 0/18.",
   "infrastructure_capability": {
     "repository_creation": "BLOCKED",
     "repository_creation_evidence": "PR #127: Actions integration token cannot act as user-level repository creator; connector exposes no create-repository mutation.",
@@ -327,6 +333,6 @@
   "audit": {
     "exact_seed_audit_date": "2026-10-05",
     "status": "PASS",
-    "note": "18/18 migration lines remain exact-head export-verification PASS. Recent drift repairs: Investment #112, RMF #131, Earth #118, Legal #98. Product-byte-changing migration deltas were not admitted."
+    "note": "18/18 migration lines remain export-verification PASS. SSQ/DLT migration lines were replaced after checkout-identity hardening; old #114/#115 closed without merge."
   }
 }
