@@ -1,0 +1,36 @@
+name: Stock SSE Risk-Warning Global Pagination Diagnostic
+on:
+  pull_request:
+    paths:
+      - ".github/stock_diag/stock_sse_risk_warning_global_pagination.py"
+      - ".github/workflows/stock-sse-risk-warning-global-pagination.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  diagnostic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.11"
+      - run: python -m pip install --disable-pip-version-check requests
+      - name: Verify StockAIPro product bytes unchanged from product base
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "$(git diff --name-only 43168d9e75c70ab55be808d8a51f0c0eb14d83d5..HEAD -- StockAIPro)"
+      - name: Probe official SSE global risk-warning pagination
+        run: python .github/stock_diag/stock_sse_risk_warning_global_pagination.py
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: STOCK-SSE-RISK-WARNING-GLOBAL-PAGINATION-${{ github.event.pull_request.head.sha || github.sha }}
+          path: stock_sse_risk_warning_global_pagination.json
+          if-no-files-found: error
+          retention-days: 30
