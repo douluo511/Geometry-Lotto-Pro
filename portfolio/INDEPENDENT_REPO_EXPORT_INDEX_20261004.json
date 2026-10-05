@@ -158,14 +158,13 @@
       "export_artifact_id": 11323165672,
       "export_artifact_digest": "sha256:1c6c1f34a149e7d9bdf02969ee06a6216a92c1b4236cf031cb0a8d680f28e8c6",
       "source_current_head_evidence": {
-        "source_offline_real_network": "PASS",
-        "source_run": 37244348130,
-        "source_artifact_id": 11318353303,
-        "source_artifact_digest": "sha256:3d84d61ebd87ae51169bef849f3d90a4219e8dba1bfb0acacc87b9574ce13d04",
+        "source_offline_real_network": "IN_PROGRESS",
+        "source_run": 37256385039,
         "full_business": "IN_PROGRESS",
-        "full_business_run": 37244348120,
+        "full_business_run": 37256385026,
         "native_desktop": "IN_PROGRESS",
-        "native_desktop_run": 37244348122
+        "native_desktop_run": 37256385030,
+        "note": "Behavior-affecting qualification concurrency/cache change invalidated prior current-head product PASS. Fresh exact-head runs only."
       }
     },
     {
