@@ -507,3 +507,12 @@ Portfolio boundary remains unchanged: migration-seed readiness does not satisfy 
 - That partial-evidence defect was not promoted. Root cause was corrected with government-page charset handling plus whitespace-tolerant effective-date matching and a regression test.
 - Current PR #137 exact head is now `166b17efe4e929f1fba658e698f79bef36657528`; fresh run `37262100941` is IN_PROGRESS. All old-head downstream PASS is historical for the changed behavior until this fresh run closes.
 - Frozen Real-Money completion remains engineering 24/28=85.7%, business 11/16=68.8%, Final FAIL unless fresh evidence proves otherwise. Regulatory fee/tax evidence alone can never satisfy broker commission or observed execution slippage.
+
+
+## 2026-10-05 Real-Money official regulatory-cost sub-evidence closed
+
+- Real-Money PR #137 current exact head `573e07d57e3f3249e2ec03778559e439c007d64b`; fresh Windows run `37262214746` (#93) = SUCCESS.
+- Current-head chain PASS includes Static / Governance / Contract / Freshness / Fault / independent Updater contract / Real Network / business-method execution / Windows Build / Exact EXE / Physical GUI / current-byte Same Hash.
+- Official regulatory-cost sub-evidence is current-head PASS through real NetClient receipts and payload hashes: SSE A-share handling fee `0.00341%` each side (`0.341 bps`), statutory securities stamp-tax base, and the 2023-08-28 halving policy (derived current sell-side tax evidence `5.0 bps`).
+- This sub-evidence does **not** promote the frozen `cost_slippage_calibration` gate: broker commission and observed execution slippage remain NOT VERIFIED. RMF business remains 11/16=68.8%; engineering remains 24/28=85.7%; Final FAIL.
+- Current main EXE SHA256 `5be3cc0e33eebd9256c93aee114cf7613b871639dc1cfa312aaca2c31dc54354`; updater SHA256 `1f9a5f599c9af940821e30cf624f7e7a5e2c31565b67fa15675ba4ec2fa29868`.
