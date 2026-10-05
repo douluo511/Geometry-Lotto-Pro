@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import time
 from bisect import bisect_left, bisect_right
 from pathlib import Path
 
@@ -57,6 +58,23 @@ def canonical_sha(rows) -> str:
     ).hexdigest()
 
 
+def bounded_fetch(label, func, attempts: int = 3):
+    errors = []
+    for attempt in range(1, attempts + 1):
+        try:
+            value = func()
+            if value is None or getattr(value, "empty", False):
+                raise RuntimeError(f"{label}: empty response")
+            return value, {"attempt": attempt, "prior_errors": errors}
+        except Exception as exc:
+            errors.append(f"{type(exc).__name__}: {exc}")
+            if attempt == attempts:
+                raise RuntimeError(
+                    f"{label}: failed after {attempts} bounded attempts: {errors}"
+                ) from exc
+            time.sleep(1.0 * (2 ** (attempt - 1)))
+
+
 def flatten_intervals(evidence: dict) -> list[dict]:
     unique = {}
     for window in evidence.get("windows") or []:
@@ -87,10 +105,16 @@ def main() -> int:
     )
     semantic_status = semantic_evidence.get("end_stop_date_semantics")
 
-    em = ak.stock_zh_index_daily_em(
-        symbol="sh000001", start_date=START8, end_date=END8
+    em, em_fetch = bounded_fetch(
+        "eastmoney",
+        lambda: ak.stock_zh_index_daily_em(
+            symbol="sh000001", start_date=START8, end_date=END8
+        ),
     )
-    tx = ak.stock_zh_index_daily_tx(symbol="sh000001")
+    tx, tx_fetch = bounded_fetch(
+        "tencent",
+        lambda: ak.stock_zh_index_daily_tx(symbol="sh000001"),
+    )
     em_dates = normalize_dates(em, "eastmoney")
     tx_dates = normalize_dates(tx, "tencent")
     calendar_equal = em_dates == tx_dates
@@ -163,6 +187,8 @@ def main() -> int:
         "official_interval_corpus": interval_status,
         "end_stop_date_semantics": semantic_status,
         "calendar_provider_exact_equality": calendar_equal,
+        "calendar_fetch_eastmoney": em_fetch,
+        "calendar_fetch_tencent": tx_fetch,
         "calendar_rows_eastmoney": len(em_dates),
         "calendar_rows_tencent": len(tx_dates),
         "calendar_sha256_eastmoney": date_sha(em_dates),
