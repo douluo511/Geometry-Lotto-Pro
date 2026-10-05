@@ -46,8 +46,7 @@ jobs:
           if ($actual -ne $env:STOCK_SOURCE_SHA) { throw "stale checkout: $actual != $env:STOCK_SOURCE_SHA" }
 
       - name: Restore progressive real-history corpus cache
-        id: stock-history-cache-restore
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: ${{ runner.temp }}\stock-ai-frozen-business\data\history
           key: stock-ai-research-history-v1-${{ runner.os }}-${{ hashFiles('StockAIPro/staging/Stock_AI_Pro/versions/4.3.0/stock_ai/data_source.py') }}-${{ github.run_id }}-${{ github.run_attempt }}
@@ -141,8 +140,6 @@ jobs:
           } | ConvertTo-Json -Depth 5 | Set-Content -Encoding UTF8 ./desktop_frozen_core_evidence.json
 
       - name: Exact-head real-network research corpus qualification prerequisite
-        id: corpus_qualification
-        continue-on-error: true
         timeout-minutes: 130
         shell: pwsh
         run: |
@@ -150,28 +147,6 @@ jobs:
           $data = Join-Path $env:RUNNER_TEMP "stock-ai-frozen-business"
           python hardening_tests/qualify_research_corpus_gate.py --package-root $root --data-root $data --output desktop_research_corpus_evidence.json
           if ($LASTEXITCODE -ne 0) { throw "research corpus qualification did not reach frozen >=90% current + delisted coverage" }
-
-      - name: Persist progressive real-history corpus after every qualification attempt
-        if: always()
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-        with:
-          path: ${{ runner.temp }}\stock-ai-frozen-business\data\history
-          key: stock-ai-research-history-v1-${{ runner.os }}-${{ hashFiles('StockAIPro/staging/Stock_AI_Pro/versions/4.3.0/stock_ai/data_source.py') }}-${{ github.run_id }}-${{ github.run_attempt }}
-
-      - name: Enforce research corpus qualification result
-        if: always()
-        shell: pwsh
-        run: |
-          if ('${{ steps.corpus_qualification.outcome }}' -ne 'success') {
-            throw "research corpus qualification did not reach frozen >=90% current + delisted coverage; progressive real-history cache was persisted for the next exact-head attempt"
-          }
-
-      - name: Persist progressive real-history corpus after qualification attempt
-        if: always()
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-        with:
-          path: ${{ runner.temp }}\stock-ai-frozen-business\data\history
-          key: stock-ai-research-history-v1-${{ runner.os }}-${{ hashFiles('StockAIPro/staging/Stock_AI_Pro/versions/4.3.0/stock_ai/data_source.py') }}-${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: Frozen EXE advanced analysis
         shell: pwsh
