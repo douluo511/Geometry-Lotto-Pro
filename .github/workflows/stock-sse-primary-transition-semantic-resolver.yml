@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - diagnostic/stock-sse-semantic-resolver-current-product-20261006
+  pull_request:
+    branches:
+      - diagnostic/stock-sse-primary-transition-full-current-product-20261006
   workflow_dispatch:
 
 permissions:
