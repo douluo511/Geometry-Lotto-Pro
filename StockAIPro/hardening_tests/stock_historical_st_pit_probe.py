@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import hashlib
+import inspect
 import json
+import time
 from datetime import datetime, timezone
+from importlib.metadata import version as package_version
 
 import pandas as pd
 import akshare as ak
@@ -20,10 +23,32 @@ def norm_code(value):
     return digits[-6:].zfill(6) if digits else ""
 
 
+def fetch_sz_change_name(max_attempts: int = 3):
+    errors = []
+    for attempt in range(1, max_attempts + 1):
+        try:
+            df = ak.stock_info_sz_change_name(symbol="简称变更")
+            if df is None or df.empty:
+                raise RuntimeError("SZSE short-name change feed returned empty")
+            return df, {"attempts": attempt, "errors": errors}
+        except Exception as exc:
+            errors.append({
+                "attempt": attempt,
+                "error_type": type(exc).__name__,
+                "error": str(exc),
+            })
+            if attempt >= max_attempts:
+                raise RuntimeError(
+                    "SZSE short-name change feed failed after finite retries: "
+                    + json.dumps(errors, ensure_ascii=False)
+                ) from exc
+            # Finite exponential backoff. This is a read-only diagnostic and the
+            # upstream AkShare wrapper does not expose its own retry controls.
+            time.sleep(1.25 * (2 ** (attempt - 1)))
+
+
 def main():
-    df = ak.stock_info_sz_change_name(symbol="简称变更")
-    if df is None or df.empty:
-        raise RuntimeError("SZSE short-name change feed returned empty")
+    df, fetch_meta = fetch_sz_change_name()
     cols = list(df.columns)
     code_col = pick(cols, "证券代码", "代码")
     date_col = pick(cols, "变更日期", "变更时间", "日期")
@@ -63,15 +88,22 @@ def main():
         orient="records", date_format="iso", force_ascii=False
     ).encode("utf-8")
 
+    wrapper_source = inspect.getsource(ak.stock_info_sz_change_name).encode("utf-8")
     report = {
-        "schema": "stock-ai-historical-st-pit-diagnostic-v1",
+        "schema": "stock-ai-historical-st-pit-diagnostic-v2",
         "status": "PASS",
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "source": {
-            "provider": "SZSE via AkShare stock_info_sz_change_name",
+            "provider": "SZSE dated name-change feed via AkShare stock_info_sz_change_name",
             "scope": "Shenzhen-listed securities only",
-            "official_exchange_source": True,
+            "transport": "AkShare wrapper around exchange endpoint",
+            "akshare_version": package_version("akshare"),
+            "transport_wrapper_source_sha256": hashlib.sha256(wrapper_source).hexdigest(),
+            "raw_official_payload_sha256": "NOT AVAILABLE VIA THIS WRAPPER",
+            "official_exchange_source_lineage": "SUPPORTED VIA PINNED WRAPPER; DIRECT RAW PAYLOAD NOT CAPTURED",
             "dated_change_records": True,
+            "fetch_attempts": fetch_meta["attempts"],
+            "prior_attempt_errors": fetch_meta["errors"],
         },
         "columns": cols,
         "column_binding": {
