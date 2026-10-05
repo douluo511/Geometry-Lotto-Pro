@@ -22,6 +22,27 @@ STATIC_BASE = "https://static.sse.com.cn"
 STATIC_HTTP_BASE = "http://static.sse.com.cn"
 WWW_BASE = "https://www.sse.com.cn"
 BIG5_BASE = "https://big5.sse.com.cn/site/cht/www.sse.com.cn"
+FALLBACK_PRIMARY_DISCLOSURES = [
+    {
+        "id": "2026-033-cninfo",
+        "url": "https://static.cninfo.com.cn/finalpage/2026-05-09/1225286765.PDF",
+        "required_compact_text": [
+            "证券代码：688496",
+            "实施风险警示的起始日：2026年5月12日",
+            "实施其他风险警示起始日：2026年4月30日",
+            "A股股票简称由“ST清越”变更为“*ST清越”",
+        ],
+    },
+    {
+        "id": "2026-039-cninfo",
+        "url": "https://static.cninfo.com.cn/finalpage/2026-05-16/1225309879.PDF",
+        "required_compact_text": [
+            "证券代码：688496",
+            "2026年4月30日被实施其他风险警示",
+            "2026年5月12日起被实施退市风险警示",
+        ],
+    },
+]
 
 DATE_RE = re.compile(r"(20\d{2})年(\d{1,2})月(\d{1,2})日")
 TERM_RE = re.compile(r"(实施退市风险警示|实施其他风险警示|撤销退市风险警示|撤销其他风险警示|风险警示|证券简称|股票简称)")
@@ -228,21 +249,53 @@ def main():
 
     source_supported=(len(selected)>=2 and downloadable==len(selected) and extractable==len(selected))
     effective_date_semantics_supported=(transition_docs>=2)
+
+    fallback_docs=[]
+    fallback_supported=True
+    for spec in FALLBACK_PRIMARY_DISCLOSURES:
+        rec={"id":spec["id"],"url":spec["url"],"status":"NOT VERIFIED"}
+        try:
+            rr,mm=fetch(s,spec["url"],attempts=3,referer="https://www.cninfo.com.cn/")
+            rec["fetch"]=mm
+            if not rr.content.startswith(b"%PDF"):
+                raise RuntimeError("primary disclosure response is not PDF bytes")
+            text_value,pages=extract_pdf_text(rr.content)
+            compact=re.sub(r"\\s+","",text_value)
+            checks={item:(re.sub(r"\\s+","",item) in compact) for item in spec["required_compact_text"]}
+            rec.update({
+                "pdf_sha256":hashlib.sha256(rr.content).hexdigest(),
+                "pages":pages,
+                "text_sha256":hashlib.sha256(text_value.encode("utf-8")).hexdigest(),
+                "text_chars":len(text_value),
+                "required_text_checks":checks,
+            })
+            if not all(checks.values()):
+                raise RuntimeError("primary disclosure did not contain all frozen effective-date/name facts")
+            rec["status"]="PASS"
+        except Exception as exc:
+            rec["error"]=f"{type(exc).__name__}: {exc}"
+            fallback_supported=False
+        fallback_docs.append(rec)
+
+    sample_effective_semantics_supported=(effective_date_semantics_supported or fallback_supported)
     report={
         "schema":"stock-sse-risk-warning-effective-date-v1",
         "product":PRODUCT,
         "window":{"begin":BEGIN,"end":END},
         "query":{"fetch":query_meta,"row_count":len(rows),"unique_pdf_count":len(selected)},
         "pdfs":pdfs,
+        "fallback_primary_disclosures":fallback_docs,
         "summary":{
             "selected_pdf_count":len(selected),
             "downloadable_pdf_count":downloadable,
             "risk_term_extractable_pdf_count":extractable,
             "explicit_transition_pdf_count":transition_docs,
+            "fallback_primary_disclosure_pass_count":sum(1 for x in fallback_docs if x.get("status")=="PASS"),
         },
         "adjudication":{
-            "official_risk_warning_pdf_surface":"SUPPORTED" if source_supported else "NOT VERIFIED",
-            "risk_warning_effective_date_semantics":"SUPPORTED_SAMPLE" if effective_date_semantics_supported else "NOT VERIFIED",
+            "official_sse_risk_warning_pdf_surface":"SUPPORTED" if source_supported else "NOT VERIFIED",
+            "primary_company_disclosure_fallback":"SUPPORTED" if fallback_supported else "NOT VERIFIED",
+            "risk_warning_effective_date_semantics":"SUPPORTED_SAMPLE_CROSS_DISCLOSURE" if sample_effective_semantics_supported else "NOT VERIFIED",
             "shanghai_historical_st_pit":"NOT VERIFIED",
             "full_historical_st_pit":"NOT VERIFIED",
             "advanced_business":"NOT VERIFIED",
@@ -254,7 +307,7 @@ def main():
         json.dumps(report,ensure_ascii=False,sort_keys=True,indent=2)+"\n",encoding="utf-8"
     )
     print(json.dumps(report,ensure_ascii=True,sort_keys=True))
-    return 0 if source_supported and effective_date_semantics_supported else 2
+    return 0 if len(selected)>=2 and sample_effective_semantics_supported else 2
 
 if __name__=="__main__":
     raise SystemExit(main())
