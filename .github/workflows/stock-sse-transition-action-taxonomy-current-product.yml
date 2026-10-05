@@ -19,13 +19,14 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
       - name: Verify exact checkout and current Stock product identity
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          exact="${{ github.event.pull_request.head.sha || github.sha }}"
+          test "$(git rev-parse HEAD)" = "$exact"
           git merge-base --is-ancestor 8f990dfbc61ce6f977f91645194df245286c9d7d HEAD
           test -z "$(git diff --name-only 7f270b9ab58e11fd8129053a65e000c90ff9d8c1..HEAD -- StockAIPro)"
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
@@ -38,7 +39,7 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
-          name: STOCK-SSE-ACTION-TAXONOMY-CURRENT-${{ github.sha }}
+          name: STOCK-SSE-ACTION-TAXONOMY-CURRENT-${{ github.event.pull_request.head.sha || github.sha }}
           path: stock_sse_transition_action_taxonomy_current_product.json
           if-no-files-found: error
           retention-days: 30
