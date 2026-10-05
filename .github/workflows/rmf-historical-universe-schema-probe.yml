@@ -10,6 +10,13 @@ on:
       - ".github/rmf/sse_daily_summary_crosscheck.py"
       - ".github/rmf/sse_product_file_pit_boundary.py"
       - ".github/workflows/rmf-historical-universe-schema-probe.yml"
+  pull_request:
+    paths:
+      - ".github/rmf/historical_universe_schema_probe.py"
+      - ".github/rmf/historical_universe_membership_probe.py"
+      - ".github/rmf/sse_daily_summary_crosscheck.py"
+      - ".github/rmf/sse_product_file_pit_boundary.py"
+      - ".github/workflows/rmf-historical-universe-schema-probe.yml"
   workflow_dispatch:
 
 permissions:
