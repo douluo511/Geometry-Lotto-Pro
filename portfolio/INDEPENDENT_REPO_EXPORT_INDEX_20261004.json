@@ -370,7 +370,7 @@
             "canonical_intervals": 4771,
             "canonical_sha256": "34ae0df9fc00ed92f0791d8254cb859a17e09f124614b716291c1fdc8c32329d",
             "historical_daily_suspension_state": "NOT VERIFIED",
-            "reason": "No independently verified SSE trading-calendar expansion and endStopDate boundary semantics are not proven.",
+            "reason": "endStopDate semantics are now supported as final suspended date by official front-end source, but no independently verified trading-calendar/research-date replay contract has yet promoted daily suspension PIT.",
             "artifact_id": 11346717120,
             "artifact_digest": "sha256:374f0d2c0de7441105710093b4f631f75916dfcce2ff07d0472aaae60a849a9b"
           },
@@ -387,6 +387,19 @@
             "all_product_corpus_sha256": "c36cf257a20c3326240338edaa3454e914d37aa108a50997a336ef8972507c04",
             "sse_a_share_corpus_sha256": "0d23b02f72a13c9c4a9cc0d738645f8b4296b89ba59ef34b1cfbcff544d9b550",
             "historical_daily_suspension_state": "NOT VERIFIED"
+          },
+          "sse_field_semantics": {
+            "status": "PASS_SEMANTICS_ONLY_NO_DAILY_PROMOTION",
+            "diagnostic_pr": 198,
+            "diagnostic_head": "60ed0eb5582ac3f733ca85233fc06dbec71819bb",
+            "diagnostic_run": 37313061850,
+            "diagnostic_job": 111772946527,
+            "end_stop_date_semantics": "FINAL_SUSPENDED_DATE_SUPPORTED",
+            "page_sha256": "2aac0ed11d89a468b54fe19ae81387a78faccd3f67b0f33a66e656319e0edf9a",
+            "script_sha256": "32fc98ea41e599f457609247ba68defb82e6d855aa2551da6923dbf7e44153a7",
+            "daily_state_boundary": "NOT VERIFIED",
+            "artifact_id": 11346094910,
+            "artifact_digest": "sha256:d89cdcf370e0274dda94818ee31f982b23cb9dd1b9d0408a06ec7398522d65bd"
           }
         },
         "source_offline": "PASS",
