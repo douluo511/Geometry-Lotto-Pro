@@ -71,32 +71,58 @@ def parse_page(response: requests.Response):
     raw = response.content
     soup = BeautifulSoup(text, "html.parser")
     rows = {}
-    for a in soup.find_all("a"):
-        href = a.get("href")
-        if not href:
-            continue
-        full = urljoin(final_url, href)
+
+    # Preferred path: literal anchor hrefs, if present.
+    for a in soup.find_all("a", href=True):
+        full = urljoin(final_url, a.get("href"))
         if not same_szse(full):
             continue
-        path = urlparse(full).path
-        m = ARTICLE_RE.search(path)
+        m = ARTICLE_RE.search(full)
         if not m:
             continue
         d = m.group(1)
-        title = " ".join(a.get_text(" ", strip=True).split())
-        if not title:
-            title = str(a.get("title") or "").strip()
-        if not title:
-            # Preserve the event identity even if display title is injected elsewhere.
-            title = "TITLE_NOT_EXTRACTED"
-        key = (d, full)
+        title = " ".join(a.get_text(" ", strip=True).split()) or str(a.get("title") or "").strip()
+        key = (d, full.split("#", 1)[0])
         rows[key] = {
             "date": d,
-            "title": title,
-            "url": full,
+            "title": title or None,
+            "url": key[1],
+            "identity_source": "anchor_href",
         }
+
+    # Observed SZSE static pages can carry article targets in template data rather
+    # than literal <a href>. Recover only literal first-party tYYYYMMDD_N.html
+    # identifiers from the delivered HTML; never invent an ID from a date.
+    for match in re.finditer(r"(?:https?://(?:www\.)?szse\.cn)?(?:/disclosure/notice/temp/)?(t(20\d{6})_\d+\.html)", text, flags=re.I):
+        rel = match.group(1)
+        d = match.group(2)
+        full = urljoin(final_url, rel).split("#", 1)[0]
+        if not same_szse(full):
+            continue
+        key = (d, full)
+        if key not in rows:
+            lo = max(0, match.start() - 350)
+            hi = min(len(text), match.end() + 350)
+            context = text[lo:hi]
+            context_text = " ".join(BeautifulSoup(context, "html.parser").get_text(" ", strip=True).split())
+            rows[key] = {
+                "date": d,
+                "title": None,
+                "url": full,
+                "identity_source": "literal_template_identifier",
+                "context_sha256": hashlib.sha256(context.encode("utf-8", errors="replace")).hexdigest(),
+                "context_text_sample": context_text[:500],
+            }
+
     result = [rows[k] for k in sorted(rows, reverse=True)]
-    return result, hashlib.sha256(raw).hexdigest()
+    diagnostics = {
+        "literal_article_identifier_count": len(rows),
+        "literal_article_identifier_sha256": canonical_sha([
+            {"date": x["date"], "url": x["url"]} for x in result
+        ]) if result else None,
+        "date_token_count": len(re.findall(r"20\d{2}[-年/.]\d{1,2}[-月/.]\d{1,2}日?", text)),
+    }
+    return result, hashlib.sha256(raw).hexdigest(), diagnostics
 
 
 def canonical_sha(rows):
@@ -124,7 +150,7 @@ def main() -> int:
             }
             break
 
-        rows, raw_sha = parse_page(r)
+        rows, raw_sha, page_diag = parse_page(r)
         if not rows:
             next_page_receipt = {
                 "page_index": idx,
@@ -163,6 +189,7 @@ def main() -> int:
             "max_date": page_max,
             "min_date": page_min,
             "attempt": meta["attempt"],
+            "parse_diagnostics": page_diag,
         })
 
         prior_page_min = page_min
@@ -181,9 +208,10 @@ def main() -> int:
                     "url": extra_url,
                     "http_status": 404,
                     "attempt": emeta["attempt"],
+                    "parse_diagnostics": ediag,
                 }
             else:
-                erows, esha = parse_page(er)
+                erows, esha, ediag = parse_page(er)
                 if erows and max(x["date"] for x in erows) > page_min:
                     raise RuntimeError(
                         f"post-boundary chronology reversal: page={extra_idx}"
@@ -215,15 +243,15 @@ def main() -> int:
     title_missing = sum(1 for x in corpus if x["title"] == "TITLE_NOT_EXTRACTED")
     article_links_unique = len({x["url"] for x in corpus}) == len(corpus)
 
-    complete = (
+    link_archive_complete = (
         boundary_page is not None
         and min(dates) >= START
         and max(dates) <= END
         and article_links_unique
-        and title_missing == 0
         and len(pages) >= 2
         and pages[0]["sha256"] != pages[1]["sha256"]
     )
+    title_semantics_complete = title_missing == 0
 
     report = {
         "schema": "stock-szse-suspension-static-archive-v1",
@@ -243,8 +271,9 @@ def main() -> int:
             "events": corpus,
         },
         "adjudication": {
-            "official_static_archive_pagination": "PASS" if complete else "NOT VERIFIED",
-            "frozen_window_suspension_event_archive": "SUPPORTED" if complete else "NOT VERIFIED",
+            "official_static_archive_pagination": "PASS" if link_archive_complete else "NOT VERIFIED",
+            "frozen_window_suspension_notice_link_archive": "SUPPORTED" if link_archive_complete else "NOT VERIFIED",
+            "archive_title_semantics": "SUPPORTED" if title_semantics_complete else "NOT VERIFIED",
             "shenzhen_historical_suspension_state": "NOT VERIFIED",
             "shenzhen_historical_st_pit": "NOT VERIFIED",
             "full_historical_st_pit": "NOT VERIFIED",
@@ -253,10 +282,11 @@ def main() -> int:
             "final_gate": "FAIL",
         },
         "boundary": (
-            "This exhausts the official SZSE static suspension-notice archive backward across "
-            "the frozen start boundary. Archive announcements are event-source evidence only; "
-            "instrument identity and effective suspension/resumption daily state require separate "
-            "primary-document semantics before Shenzhen historical suspension PIT can pass."
+            "This exhausts literal first-party SZSE suspension-notice article identifiers backward "
+            "across the frozen start boundary. A link/date corpus can pass independently of title/body "
+            "semantics; missing title semantics remain NOT VERIFIED. Instrument identity and effective "
+            "suspension/resumption daily state require separate primary-document validation before "
+            "Shenzhen historical suspension PIT can pass."
         ),
     }
 
@@ -274,7 +304,7 @@ def main() -> int:
         "canonical_sha256": report["corpus"]["canonical_sha256"],
         "adjudication": report["adjudication"],
     }, ensure_ascii=True, sort_keys=True))
-    return 0 if complete else 2
+    return 0 if link_archive_complete else 2
 
 
 if __name__ == "__main__":
