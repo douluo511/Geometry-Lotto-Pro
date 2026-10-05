@@ -542,3 +542,12 @@ Portfolio boundary remains unchanged: migration-seed readiness does not satisfy 
 - Stock current product head: `dfa07c51fffdaa7736147cd49e39a274a745e363`; stricter product-byte-neutral migration PR #140 run `37262978618` PASS. Product business/desktop runs `37259832083` / `37259832040` remain in progress.
 - Real-Money current product head: `573e07d57e3f3249e2ec03778559e439c007d64b`; migration PR #139 run `37262871456` PASS. Candidate Engineering 85.7%, Business 68.8%, Overall 68.8%; Final remains FAIL.
 - Migration readiness is not repository independence, not a formal Release, and not a Final product.
+
+
+## 2026-10-05 continuation — RMF main merge, SSQ/DLT exact release blockers
+
+- Real-Money validated staging head `917e1de5e3a471064fb79b0edb5055a059c095d0` passed run `37267323305`, including current Real Network / Windows / Exact EXE / Physical GUI / Same Hash. Corporate-action PIT remains honestly NOT VERIFIED because 5 detected persistent qfq/raw factor shifts yielded 1 matched independently announced event and 4 unexplained shifts; business remains 11/16=68.8%.
+- PR #153 promoted that fail-closed evidence capability to `main` at merge commit `c79666888aed8fe8b28ff4f165be06e9eef1884e`. No fresh Actions run exists on the merge SHA, so exact-main runtime evidence is NOT VERIFIED rather than inherited from the staging SHA.
+- SSQ current product head `3b61bb59ed0da6f7c7717b6840fe95a00d58a2ad`, run `37262758839`: all current internal/Windows/Exact/reproducible/GUI/hash gates pass; Final FAIL is exactly business_content=PENDING (B05-derived), updater_real_network=PENDING, repository_independence=FAIL, release_context=FAIL.
+- DLT current head `88809643fe3841879f4c038b9bbffb86026629f5`, run `37258239532`: current internal/official-network/reproducible Windows/Exact/Updater/GUI/hash gates pass; Final has the same four release-chain non-PASS states.
+- Stock current exact head `dfa07c51fffdaa7736147cd49e39a274a745e363`: full default-production business run `37259832083` is PASS; desktop run `37259832040` is still executing the frozen >=90% current+delisted research-corpus gate.
