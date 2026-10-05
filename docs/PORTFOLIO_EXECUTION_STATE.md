@@ -499,3 +499,11 @@ Portfolio boundary remains unchanged: migration-seed readiness does not satisfy 
 - PR #137 run `37261916923` has passed Static / Governance / Contract / Freshness / Fault / Updater-contract / Real-Network at this checkpoint and is executing business qualification. Final result remains NOT VERIFIED until the exact-head run closes.
 - Fresh owner repository enumeration still returns only `douluo511/Geometry-Lotto-Pro`; dedicated repository availability remains 0/18 and Repository Independence remains BLOCKED.
 - Portfolio Final remains FAIL; final delivery allowed remains 0/18.
+
+
+## 2026-10-05 Real-Money cost-evidence rerun correction
+
+- Real-Money PR #137 old exact head `4f1e4736947509820fed36dfbf16b22d3cd7b1bc`, run `37261916923`, completed candidate SUCCESS through Windows Build / Exact EXE / Physical GUI / Same Hash, but the new official regulatory-cost sub-evidence remained NOT VERIFIED because the Ministry of Finance stamp-tax-halving page was not decoded/matched correctly.
+- That partial-evidence defect was not promoted. Root cause was corrected with government-page charset handling plus whitespace-tolerant effective-date matching and a regression test.
+- Current PR #137 exact head is now `166b17efe4e929f1fba658e698f79bef36657528`; fresh run `37262100941` is IN_PROGRESS. All old-head downstream PASS is historical for the changed behavior until this fresh run closes.
+- Frozen Real-Money completion remains engineering 24/28=85.7%, business 11/16=68.8%, Final FAIL unless fresh evidence proves otherwise. Regulatory fee/tax evidence alone can never satisfy broker commission or observed execution slippage.
