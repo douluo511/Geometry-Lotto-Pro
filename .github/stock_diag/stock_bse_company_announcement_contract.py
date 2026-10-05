@@ -29,7 +29,7 @@ SAMPLES = [
     {
         "code": "920305",
         "keyword": "退市风险警示",
-        "start": "2025-04-01",
+        "start": "2024-01-01",
         "end": "2026-06-30",
         "expected_title_tokens": ["退市风险警示"],
         "expected_date_prefix": "2025-",
