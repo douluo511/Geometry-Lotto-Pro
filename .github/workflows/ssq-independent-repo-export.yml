@@ -1,4 +1,5 @@
 name: SSQ Independent Repository Export Verification
+# migration-rebind product-base: fae399b80914fb992a42d6841ebe9fd77e19983d
 
 on:
   pull_request:
