@@ -627,3 +627,12 @@ Portfolio boundary remains unchanged: migration-seed readiness does not satisfy 
 - Prediction manifest SHA256 `026b80e81a194c51dcdd8a38d30f14f8ac17177516de4fcc8f2fb331e7430db5`.
 - Artifact `11328414508`; ZIP digest `sha256:0a28dee49b3b5c97138edaab185f1cf6b331bfd776b564883b82842e5834b897`.
 - Desktop run `37268369332` remains IN_PROGRESS at the exact-head >=90% current+delisted research-corpus prerequisite. Windows desktop / Physical GUI / Same Hash / Final are not inherited from Business PASS.
+
+
+## 2026-10-05 Stock migration authoritative-seed correction
+
+- PR #158 is closed unmerged as an exact duplicate of earlier PR #157.
+- Both were based on Stock product head `f9d610aafe910cb73b036701a688329d9899399b`; the exporter and workflow Git blob SHAs are byte-identical across the two branches.
+- **Authoritative Stock current-product migration seed = PR #157**, exact head `e27586e82fa1187fb85e43076302d8ce54021430`, run `37271777113` SUCCESS, artifact `11328389116`, digest `sha256:23303ef27bc779140722c2ab2e11974dbfa277d1ebf56d2fd1130e307f358da7`.
+- Portfolio migration/export readiness remains **18/18 PASS**; this correction changes only which duplicate control branch is authoritative.
+- Repository independence remains **0/18**; Final/Delivery remain **0/18**.
