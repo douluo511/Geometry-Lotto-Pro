@@ -115,7 +115,7 @@
     "history_primary_circuit_failures": 4,
     "history_primary_probe_every": 24,
     "industry_workers": 4,
-    "qualification_history_workers": 12
+    "qualification_history_workers": 24
   },
   "cost": {
     "order_size_cny": 100000,
