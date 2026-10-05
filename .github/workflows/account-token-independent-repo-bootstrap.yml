@@ -1,0 +1,46 @@
+name: Account-token independent repository bootstrap
+
+on:
+  pull_request:
+    paths:
+      - '.github/scripts/bootstrap_independent_repo_with_account_token.py'
+      - '.github/workflows/account-token-independent-repo-bootstrap.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    env:
+      CANDIDATE_GH_PAT: ${{ secrets.GH_PAT }}
+      CANDIDATE_GITHUB_PAT: ${{ secrets.GITHUB_PAT }}
+      CANDIDATE_REPO_TOKEN: ${{ secrets.REPO_TOKEN }}
+      CANDIDATE_PERSONAL_ACCESS_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+      CANDIDATE_USER_PAT: ${{ secrets.USER_PAT }}
+      CANDIDATE_ADMIN_PAT: ${{ secrets.ADMIN_PAT }}
+    steps:
+      - name: Checkout exact probe head
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Attempt actual SSQ repository bootstrap only with pre-existing account token secret
+        run: python .github/scripts/bootstrap_independent_repo_with_account_token.py
+      - name: Upload sanitized bootstrap evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: account-token-repo-bootstrap-${{ github.event.pull_request.head.sha || github.sha }}
+          path: account_token_repo_bootstrap.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Explicit boundary
+        run: |
+          python - <<'PY'
+          import json
+          x=json.load(open("account_token_repo_bootstrap.json"))
+          print("ACCOUNT_TOKEN_PRESENT="+str(x["candidate_secret_present"]).upper())
+          print("TOKEN_IDENTITY="+x["token_identity_status"])
+          print("REPOSITORY_CREATION="+x["repository_creation_status"])
+          PY
