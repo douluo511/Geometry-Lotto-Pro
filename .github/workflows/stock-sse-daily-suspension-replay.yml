@@ -75,6 +75,20 @@ jobs:
           import json
           x=json.load(open("stock_sse_daily_suspension_replay.json",encoding="utf-8"))
           a=x["adjudication"]
+          p=x["prerequisites"]
+          r=x["replay"]
+          assert a["historical_daily_suspension_state"] == "SUPPORTED_SHANGHAI_ONLY"
+          assert p["calendar_frozen_cross_source_anchor_match"] is True
+          assert p["open_interval_anchor_expected_count"] == 5
+          assert p["open_interval_anchor_observed_count"] == 5
+          assert p["open_interval_anchor_missing_count"] == 0
+          assert p["open_interval_anchor_extra_count"] == 0
+          assert p["resolved_open_end_count"] == 5
+          assert p["unresolved_missing_end_count"] == 0
+          assert p["invalid_range_count"] == 0
+          assert p["zero_trading_day_intersection_count"] == 0
+          assert r["open_interval_future_end_invariance"] is True
+          assert r["daily_state_pair_count"] > 0
           assert a["shanghai_historical_st_pit"] == "NOT VERIFIED"
           assert a["beijing_historical_st_pit"] == "NOT VERIFIED"
           assert a["full_historical_st_pit"] == "NOT VERIFIED"
