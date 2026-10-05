@@ -309,10 +309,10 @@
         "historical_st_pit_sub_evidence": {
           "status": "PARTIAL_SUPPORTED_FULL_GATE_NOT_VERIFIED",
           "diagnostic_pr": 188,
-          "diagnostic_head": "d5bb390d839fb284790dcdb2359ef73f776b0d08",
-          "diagnostic_run": 37304826757,
-          "diagnostic_job": 111745875821,
-          "shenzhen_historical_st": "SUPPORTED",
+          "diagnostic_head": "3568b7635eba44a17b3b1f0b999c4152d92773ec",
+          "diagnostic_run": 37312359698,
+          "diagnostic_job": 111770620452,
+          "shenzhen_historical_st": "SUPPORTED_DIRECT_RAW_HTTP",
           "shenzhen_valid_dated_name_change_rows": 7489,
           "shenzhen_unique_codes": 3125,
           "shenzhen_st_related_rows": 2281,
@@ -347,6 +347,46 @@
             "artifact_id": 11344776014,
             "artifact_digest": "sha256:9c6024a3cd2fcd62c0e71e83b63b2c700fcde8107cc07596d5033dc7d7065e76",
             "superseded_non_exact_run": 37308035541
+          },
+          "szse_direct_raw_payload": {
+            "url": "https://www.szse.cn/api/report/ShowReport?SHOWTYPE=xlsx&CATALOGID=SSGSGMXX&TABKEY=tab2",
+            "http_status": 200,
+            "payload_bytes": 287040,
+            "payload_sha256": "2274862529fa0c944ba882ca850af974b5ba727a86506b56c41642c6ee2db341",
+            "first_attempt": "CONNECTION_RESET_PRESERVED",
+            "bounded_retry": "PASS",
+            "artifact_id": 11346094012,
+            "artifact_digest": "sha256:87e6c5e4702a6908dba243755ca1b21efd6948d331f66495522feed531f65979"
+          },
+          "sse_historical_interval_evidence": {
+            "status": "SUPPORTED_INTERVALS_ONLY_DAILY_STATE_NOT_VERIFIED",
+            "diagnostic_pr": 193,
+            "diagnostic_head": "1568226391c17e27618b0e3969621d698bb41b5f",
+            "diagnostic_run": 37312535468,
+            "diagnostic_job": 111771204852,
+            "frozen_window": "2018-01-01_to_2026-09-30",
+            "raw_rows": 4815,
+            "parsed_intervals": 4815,
+            "canonical_intervals": 4771,
+            "canonical_sha256": "34ae0df9fc00ed92f0791d8254cb859a17e09f124614b716291c1fdc8c32329d",
+            "historical_daily_suspension_state": "NOT VERIFIED",
+            "reason": "No independently verified SSE trading-calendar expansion and endStopDate boundary semantics are not proven.",
+            "artifact_id": 11346717120,
+            "artifact_digest": "sha256:374f0d2c0de7441105710093b4f631f75916dfcce2ff07d0472aaae60a849a9b"
+          },
+          "sse_suspension_corpus_replay": {
+            "status": "PASS_EVENT_CORPUS_DAILY_STATE_NOT_VERIFIED",
+            "diagnostic_pr": 195,
+            "diagnostic_head": "2be2a1a29b3481e53cb4a7656857ac6d7889a450",
+            "diagnostic_run": 37311976231,
+            "months": 60,
+            "window": "2021-10_to_2026-09",
+            "unique_event_rows": 2893,
+            "sse_a_share_event_rows": 1056,
+            "st_named_sse_a_share_event_rows": 311,
+            "all_product_corpus_sha256": "c36cf257a20c3326240338edaa3454e914d37aa108a50997a336ef8972507c04",
+            "sse_a_share_corpus_sha256": "0d23b02f72a13c9c4a9cc0d738645f8b4296b89ba59ef34b1cfbcff544d9b550",
+            "historical_daily_suspension_state": "NOT VERIFIED"
           }
         }
       },
@@ -369,7 +409,7 @@
         "product_head": "f9d610aafe910cb73b036701a688329d9899399b",
         "status": "PASS"
       },
-      "note": "PR #181 migration export is bound to PR #155 exact current head 43168d9e and PASS. Current source run 37289727792, full-business run 37289727888, and desktop run 37289727787 are terminal; desktop proves Windows/Exact EXE/physical GUI/Same Hash and >=90% current+delisted corpus as candidate evidence. Business remains NO_TRADE/LOW, HISTORICAL_ST_PIT remains non-PASS, production release/repository remain blocked, and Final FAIL. Migration readiness is not repository independence or Final.",
+      "note": "PR #181 migration export is bound to PR #155 exact current head 43168d9e and PASS. Current source run 37289727792, full-business run 37289727888, and desktop run 37289727787 are terminal; desktop proves Windows/Exact EXE/physical GUI/Same Hash and >=90% current+delisted corpus as candidate evidence. Business remains NO_TRADE/LOW, HISTORICAL_ST_PIT remains non-PASS, production release/repository remain blocked, and Final FAIL. Migration readiness is not repository independence or Final. Historical-ST sub-evidence strengthened: SZSE direct raw HTTP payload is captured and hashed; SSE historical interval/event corpora are reproducible, but daily suspension boundary semantics and full Shanghai/Beijing ST PIT remain NOT VERIFIED.",
       "exact_head_checkout_required": true
     },
     {
