@@ -59,10 +59,10 @@ def _apply_historical_tradability_pit(ds,cfg,root=None):
     if exclude_st:
         keep=np.logical_and(keep,np.logical_not(np.asarray(st_flags,dtype=bool)))
 
+    x["code"]=codes
     excluded_st=int(np.sum(np.asarray(st_flags,dtype=bool))) if exclude_st else 0
     excluded_suspended=int(np.sum(np.asarray(suspended_flags,dtype=bool)))
     out=x.loc[keep].copy()
-    out["code"]=codes
     summary={
         "status":"PASS",
         "binding":"same-date-market-code-only",
