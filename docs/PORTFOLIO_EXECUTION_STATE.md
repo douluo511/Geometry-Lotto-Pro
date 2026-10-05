@@ -616,3 +616,14 @@ Portfolio boundary remains unchanged: migration-seed readiness does not satisfy 
 - **Happy8** exact head `6f3d7a2dc82a3dfc7e06d98f0758c3e90875f795`, run `37269650912`: Live official network PASS, scientific validation PASS with explicit `NO_EDGE / NULL_DAN / prospective=PENDING`; Windows build itself completed twice but reproducible Same Hash failed (`9cea4bdf... != 6ff3875e...`), so Physical GUI was correctly skipped and Final remained FAIL.
 - PyInstaller official reproducibility inputs were then frozen without removing the dual-build gate: current Happy8 exact head `8de39dcfd4c3c6a0070eb6506e5ad56cb859eaba` sets `PYTHONHASHSEED=1` and `SOURCE_DATE_EPOCH=1704067200` and records them in Windows evidence. Fresh run `37271743611` is authoritative and IN_PROGRESS.
 - Real independent repositories remain **0/18**. Portfolio Final Gate PASS remains **0/18**. Final delivery remains **0/18**.
+
+
+## 2026-10-05 Stock #155 Full Business terminal result
+
+- Exact Stock product head `f9d610aafe910cb73b036701a688329d9899399b`.
+- Full Business run `37268369291` / job `111629929713` = SUCCESS.
+- Default production daily chain: 300/300 live updates, live universe 300, research master 5461, research training symbols 353, validation rows 13,387, production train rows 180,000, valuation qualification PASS at frozen 40% target (120/300), data-quality good ratio 1.0.
+- Decision is correctly fail-closed: `NO_TRADE`, model trust LOW, Rank IC `-0.09807788334098926`; this PASS means the business process executed honestly, not that a predictive edge exists.
+- Prediction manifest SHA256 `026b80e81a194c51dcdd8a38d30f14f8ac17177516de4fcc8f2fb331e7430db5`.
+- Artifact `11328414508`; ZIP digest `sha256:0a28dee49b3b5c97138edaab185f1cf6b331bfd776b564883b82842e5834b897`.
+- Desktop run `37268369332` remains IN_PROGRESS at the exact-head >=90% current+delisted research-corpus prerequisite. Windows desktop / Physical GUI / Same Hash / Final are not inherited from Business PASS.
