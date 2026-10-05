@@ -98,9 +98,9 @@ rows = [
     {"date": D1, "market": "SZSE", "code": "000001", "st": False, "suspended": False},
     {"date": D2, "market": "SZSE", "code": "000001", "st": False, "suspended": False},
     {"date": D3, "market": "SZSE", "code": "000001", "st": False, "suspended": False},
-    {"date": D1, "market": "BSE",  "code": "430001", "st": False, "suspended": False},
-    {"date": D2, "market": "BSE",  "code": "430001", "st": False, "suspended": False},
-    {"date": D3, "market": "BSE",  "code": "430001", "st": False, "suspended": False},
+    {"date": D1, "market": "BSE",  "code": "920023", "st": False, "suspended": False},
+    {"date": D2, "market": "BSE",  "code": "920023", "st": False, "suspended": False},
+    {"date": D3, "market": "BSE",  "code": "920023", "st": False, "suspended": False},
 ]
 
 with tempfile.TemporaryDirectory() as td:
