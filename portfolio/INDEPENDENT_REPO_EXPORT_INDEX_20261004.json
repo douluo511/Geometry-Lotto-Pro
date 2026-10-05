@@ -307,7 +307,7 @@
       "final_gate": "FAIL",
       "source_product_pr": 182,
       "source_product_head": "62f75def60c16d5768110901890d05edbabe7b34",
-      "source_product_status": "CURRENT_MAIN_ACCEPTANCE_VALIDATED",
+      "source_product_status": "CURRENT_MAIN_EXACT_HEAD_FULL_CANDIDATE_PASS_FINAL_BLOCKED",
       "export_artifact_id": 11336460611,
       "export_artifact_digest": "sha256:fd65cf34ae51be458f16c1a431935e265a2013612ef8df067778bad733225f41",
       "engineering_completion_percent": 85.7,
@@ -328,7 +328,7 @@
         174,
         180
       ],
-      "note": "PR #182 exact head 9903c0f6 passed the full RMF candidate chain and was merged to current main 62f75def. Engineering remains 24/28=85.7%; Business remains 12/16=75.0%; Final remains FAIL on production update/repository/release plus the remaining business evidence gaps. Current migration PR #183 run 37290705931 PASSes exact-main product-byte identity, deterministic export, independent second-pass verification, and deliberate mutation fail-closed.",
+      "note": "Current main exact head 62f75def has its own push-triggered full Windows candidate run 37290657207 SUCCESS: contract/fault/Real Network/business method/Windows/Exact EXE/physical GUI/Same Hash PASS, Engineering 24/28=85.7%, Business 12/16=75.0%. Main EXE and Updater hashes are bound to this exact merge head. Current migration PR #183 run 37290705931 PASS. Final remains FAIL on independent production update/repository/release gates plus four business evidence gaps.",
       "validated_pr_head": "9903c0f6bbb8f681041b03483fe5e32345de5974",
       "validated_pr_run": 37290066705,
       "current_merge_product_byte_identity": "PASS",
@@ -337,8 +337,8 @@
       "corporate_action_significant_changes": 1,
       "corporate_action_verified_events": 1,
       "corporate_action_unexplained_changes": 0,
-      "main_exe_sha256": "ae2443283e9fa5e366e4b5024c475f9b01ea582ec3ce05f91043fd7b1ea74f6c",
-      "updater_sha256": "176dca06ed9e1cfa63090443e7dd4f135859b0584bbfb8f5abd065ac478ce6c9",
+      "main_exe_sha256": "a908dbc36c6076ab7ca7f2ff01c0f9276c3fa4e6d929cfa0d962b5158b396b86",
+      "updater_sha256": "beea635144eb89edfa76185482a4f7c6ebf824a7713914d448b5b58e0a2ea497",
       "primary_research_rows": 1200,
       "primary_research_provider": "tencent_public_full_kline",
       "primary_research_price_adjustment": "qfq",
@@ -355,7 +355,12 @@
         "product_head": "9deaaa0dd579444ed0e5ddfeed7e1d8a2b6cda17",
         "status": "PASS"
       },
-      "current_product_binding_status": "PASS"
+      "current_product_binding_status": "PASS",
+      "current_main_validation_run": 37290657207,
+      "current_main_validation_job": 111700005257,
+      "current_main_validation_status": "SUCCESS_CANDIDATE_ONLY_FINAL_BLOCKED",
+      "current_main_candidate_artifact_id": 11335934671,
+      "current_main_candidate_artifact_digest": "sha256:1518c57e0c5b547f270f474f1beff0d9c935d2cfd320a641209a385d263e5602"
     },
     {
       "id": 12,
