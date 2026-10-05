@@ -1,0 +1,60 @@
+{
+  "schema": "happy8-business-acceptance-baseline-v1",
+  "project": "Geometry Lotto Pro · Happy8",
+  "frozen_scope_source": [
+    "Happy8/RECOVERY_STATUS.md",
+    "Happy8/recovered/Geometry_Lotto_Pro_Happy8.html",
+    "user strict engineering directive reaffirmed 2026-10-03"
+  ],
+  "weighting": "equal mandatory item weight because no differential business weight exists in the recovered scope; all items are required for Final",
+  "items": [
+    {
+      "id": "B01",
+      "weight": 1,
+      "name": "lottery_domain_and_baseline",
+      "acceptance": "Happy8 universe is 1..80, each draw has exactly 20 unique numbers, fixed pick-10 theoretical single-number probability is 0.25 and random expected hits is 2.5."
+    },
+    {
+      "id": "B02",
+      "weight": 1,
+      "name": "official_data_provenance_and_integrity",
+      "acceptance": "Production history uses verified official-source provenance, canonical hashing, storage integrity and fail-closed source validation; test fixtures never substitute for this item."
+    },
+    {
+      "id": "B03",
+      "weight": 1,
+      "name": "core_prediction_depth",
+      "acceptance": "Predict Next exposes a complete ranked 1..80 research ranking, top-10 candidate, top-20 candidate, observed top-4 research core, immutable freeze hash and target/source issue binding."
+    },
+    {
+      "id": "B04",
+      "weight": 1,
+      "name": "scientific_validation_denominator",
+      "acceptance": "Candidate-pool independent validation includes walk-forward OOS, random/simple baseline, multi-window, multi-seed, bootstrap/sign-flip, ablation, max-model reality check, Holm correction, leave-one-period-out, stability/leakage challenge and canonical-hash binding."
+    },
+    {
+      "id": "B05",
+      "weight": 1,
+      "name": "anti_false_gain_production_truth",
+      "acceptance": "Unproven gain must produce NO_EDGE + NULL_DAN + empty formal_dan + uniform_baseline; no model is promoted merely to reach completion."
+    },
+    {
+      "id": "B06",
+      "weight": 1,
+      "name": "advanced_analysis_depth",
+      "acceptance": "Advanced Analysis returns canonical-bound scientific evidence with software verdict PASS while preserving the anti-false-gain state."
+    },
+    {
+      "id": "B07",
+      "weight": 1,
+      "name": "one_click_update_and_repair_use_value",
+      "acceptance": "One-click Update uses the independent updater with real production Release N→N+1 evidence; One-click Repair covers the frozen repair denominator and preserves user data. Missing real release remains BLOCKED, not PASS."
+    },
+    {
+      "id": "B08",
+      "weight": 1,
+      "name": "four_entry_desktop_and_truth_boundary",
+      "acceptance": "The exact Windows EXE physically exposes and executes Predict Next / One-click Update / One-click Repair / Advanced Analysis and visibly states the entertainment/non-guarantee theoretical-probability boundary."
+    }
+  ]
+}
