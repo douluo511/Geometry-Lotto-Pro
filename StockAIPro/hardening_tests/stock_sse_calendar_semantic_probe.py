@@ -9,6 +9,8 @@ from urllib.parse import urljoin, urlparse
 
 import requests
 
+from hardening_tests.stock_sse_historical_suspension_query import fetch_window_all_pages
+
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/154.0 Safari/537.36"
 SUSPENSION_PAGE = "https://www.sse.com.cn/disclosure/dealinstruc/suspension/stock/"
 SUSPENSION_SCRIPT = "https://www.sse.com.cn/xhtml/home/2021public/querySearch/search_tradeTip_2021.js"
@@ -166,6 +168,91 @@ def daily_suspension_probe(session, search_date: str):
     }
 
 
+def digits8_text(value):
+    if value is None:
+        return None
+    digits = "".join(ch for ch in str(value) if ch.isdigit())
+    return digits[:8] if len(digits) >= 8 else None
+
+
+def snapshot_active_stock_codes(item):
+    query_date = item["searchDate"]
+    active = set()
+    parsed = []
+    for row in item.get("rows") or []:
+        if not isinstance(row, dict):
+            continue
+        code = str(row.get("PRODUCT_CODE") or "").strip()
+        if not (len(code) == 6 and code.startswith(("600", "601", "603", "605", "688"))):
+            continue
+        if str(row.get("CONTROLTYPE") or "").strip() != "TR":
+            continue
+        stop_date = digits8_text(row.get("STOP_DATE"))
+        stop_time = str(row.get("STOP_TIME") or "")
+        start = None
+        end = None
+        m = re.search(r"自(\d{4}-\d{2}-\d{2})起至(\d{4}-\d{2}-\d{2})连续停牌", stop_time)
+        if m:
+            start = digits8_text(m.group(1))
+            end = digits8_text(m.group(2))
+        else:
+            m = re.search(r"自(\d{4}-\d{2}-\d{2})起连续停牌", stop_time)
+            if m:
+                start = digits8_text(m.group(1))
+        is_active = False
+        rule = "UNPARSED"
+        if stop_date == query_date:
+            is_active = True
+            rule = "STOP_DATE_EQUALS_QUERY"
+        elif start and end and start <= query_date <= end:
+            is_active = True
+            rule = "CONTINUOUS_RANGE_INCLUSIVE"
+        elif start and not end and start <= query_date:
+            is_active = True
+            rule = "CONTINUOUS_OPEN_ENDED"
+        parsed.append({
+            "code": code,
+            "name": row.get("PRODUCT_NAME"),
+            "stop_date": stop_date,
+            "stop_time": stop_time,
+            "parsed_start": start,
+            "parsed_end": end,
+            "active": is_active,
+            "rule": rule,
+        })
+        if is_active:
+            active.add(code)
+    return active, parsed
+
+
+def interval_active_stock_codes(intervals, query_date, inclusive_end=True):
+    active = set()
+    rows = []
+    for row in intervals:
+        code = str(row.get("code") or "").strip()
+        if not (len(code) == 6 and code.startswith(("600", "601", "603", "605", "688"))):
+            continue
+        if str(row.get("control_type") or "").strip() != "TR":
+            continue
+        start = row.get("start")
+        end = row.get("end")
+        if not start or start > query_date:
+            continue
+        if end:
+            in_range = query_date <= end if inclusive_end else query_date < end
+        else:
+            in_range = True
+        if in_range:
+            active.add(code)
+            rows.append({
+                "code": code,
+                "name": row.get("name"),
+                "start": start,
+                "end": end,
+            })
+    return active, rows
+
+
 def trade_day_probe(session, biz_date: str):
     params = {
         "sqlId": "GW_PL_JYTS_TFPXX_TRADEDAY",
@@ -224,6 +311,40 @@ def main():
             daily_suspension_contract[d] = daily_suspension_probe(s, d)
         except Exception as exc:
             daily_suspension_errors[d] = f"{type(exc).__name__}: {exc}"
+    event_windows = []
+    for year in range(2018, 2027):
+        end = f"{year}1231" if year < 2026 else "20260930"
+        event_windows.append(fetch_window_all_pages(s, year, f"{year}0101", end))
+    event_intervals = []
+    for window in event_windows:
+        event_intervals.extend(window["intervals"])
+
+    daily_crosscheck = {}
+    for d, item in daily_suspension_contract.items():
+        snapshot_set, snapshot_rows = snapshot_active_stock_codes(item)
+        event_inclusive_set, event_inclusive_rows = interval_active_stock_codes(event_intervals, d, True)
+        event_exclusive_set, event_exclusive_rows = interval_active_stock_codes(event_intervals, d, False)
+        daily_crosscheck[d] = {
+            "snapshot_active_stock_codes": sorted(snapshot_set),
+            "event_active_inclusive_end_codes": sorted(event_inclusive_set),
+            "event_active_exclusive_end_codes": sorted(event_exclusive_set),
+            "snapshot_only_vs_inclusive": sorted(snapshot_set - event_inclusive_set),
+            "event_only_vs_inclusive": sorted(event_inclusive_set - snapshot_set),
+            "snapshot_only_vs_exclusive": sorted(snapshot_set - event_exclusive_set),
+            "event_only_vs_exclusive": sorted(event_exclusive_set - snapshot_set),
+            "inclusive_exact_match": snapshot_set == event_inclusive_set,
+            "exclusive_exact_match": snapshot_set == event_exclusive_set,
+            "snapshot_parsed_rows": snapshot_rows,
+            "event_inclusive_rows": event_inclusive_rows,
+            "event_exclusive_rows": event_exclusive_rows,
+        }
+    crosscheck_exact_inclusive = bool(daily_crosscheck) and all(
+        x["inclusive_exact_match"] for x in daily_crosscheck.values()
+    )
+    crosscheck_exact_exclusive = bool(daily_crosscheck) and all(
+        x["exclusive_exact_match"] for x in daily_crosscheck.values()
+    )
+
     trade_day_before_values = {}
     for d, item in trade_day_contract.items():
         rows = item.get("rows") or []
@@ -315,6 +436,14 @@ def main():
         "frontend_semantics": frontend_semantics,
         "discovered_script_urls": discovered,
         "candidate_scripts": candidate_scripts,
+        "daily_interval_crosscheck": {
+            "scope": "SSE_A_SHARE_CONTROLTYPE_TR_SAMPLE_DATES",
+            "sample_dates": sorted(daily_crosscheck),
+            "event_interval_count": len(event_intervals),
+            "inclusive_end_exact_all_samples": crosscheck_exact_inclusive,
+            "exclusive_end_exact_all_samples": crosscheck_exact_exclusive,
+            "dates": daily_crosscheck,
+        },
         "daily_suspension_contract": {
             "endpoint": DAILY_ENDPOINT,
             "sqlId": "COMMON_SSE_XXPL_JYTS_TFPXX_L",
@@ -344,6 +473,18 @@ def main():
         "adjudication": {
             "official_sources_reached": True,
             "frontend_endStopDate_semantics": "SUPPORTED" if frontend_semantics["endStopDate"] else "NOT VERIFIED",
+            "daily_suspension_interval_crosscheck": (
+                "SUPPORTED_SAMPLE"
+                if crosscheck_exact_inclusive or crosscheck_exact_exclusive
+                else "CONTRADICTED_SAMPLE"
+            ),
+            "daily_suspension_interval_end_semantics_sample": (
+                "INCLUSIVE"
+                if crosscheck_exact_inclusive and not crosscheck_exact_exclusive
+                else "EXCLUSIVE"
+                if crosscheck_exact_exclusive and not crosscheck_exact_inclusive
+                else "AMBIGUOUS"
+            ),
             "sse_daily_suspension_snapshot_endpoint": (
                 "SUPPORTED"
                 if bool(daily_suspension_contract) and not daily_suspension_errors
@@ -367,6 +508,18 @@ def main():
         "frontend_endStopDate_fragments": len(frontend_semantics["endStopDate"]),
         "resume_term_fragments": len(frontend_semantics["resume_terms"]),
         "candidate_script_count": len(candidate_scripts),
+        "daily_interval_crosscheck_inclusive_exact": crosscheck_exact_inclusive,
+        "daily_interval_crosscheck_exclusive_exact": crosscheck_exact_exclusive,
+        "daily_interval_crosscheck": {
+            d: {
+                "snapshot": x["snapshot_active_stock_codes"],
+                "inclusive": x["event_active_inclusive_end_codes"],
+                "exclusive": x["event_active_exclusive_end_codes"],
+                "inclusive_exact": x["inclusive_exact_match"],
+                "exclusive_exact": x["exclusive_exact_match"],
+            }
+            for d, x in daily_crosscheck.items()
+        },
         "daily_suspension_snapshot_supported": bool(daily_suspension_contract) and not daily_suspension_errors,
         "daily_suspension_row_counts": {
             d: item.get("row_count")
