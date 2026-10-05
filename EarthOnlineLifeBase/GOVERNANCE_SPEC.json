@@ -1,0 +1,31 @@
+{
+  "schema": "earth-online-governance-v1",
+  "lineage": "NEW_REAUTHORED_IMPLEMENTATION",
+  "inherited_application_acceptance": false,
+  "source_business_baseline": "地球Online_人生底层系统_深度教学完整版_v2.0 (2026-09-17)",
+  "purpose": "Turn the owned Life Base corpus into an auditable decision-training desktop system; never present classical texts as prophecy, medical advice, political authority, or guaranteed correctness.",
+  "mandatory_flow": [
+    "facts",
+    "evidence_grade",
+    "five_dimensions",
+    "five_why",
+    "reversal_validation",
+    "options_and_risk",
+    "small_action",
+    "result_record",
+    "review_update"
+  ],
+  "high_risk_boundaries": [
+    "health",
+    "investment",
+    "politics",
+    "law"
+  ],
+  "mandatory_ui": [
+    "决策训练",
+    "一键更新",
+    "一键修复",
+    "高级分析"
+  ],
+  "final_rule": "Engineering=100 AND Business=100 AND hard_fail_count=0 AND independent repository/release/update/same-hash evidence PASS"
+}

@@ -1,0 +1,37 @@
+{
+  "schema": "earth-online-content-import-v2",
+  "source_version": "v2.0",
+  "source_date": "2026-09-17",
+  "source_pages": 95,
+  "import_status": "FULL_TEXT_CORPUS_IMPORTED",
+  "corpus_chunk_files": [
+    "v2_corpus_pages_001_012.txt",
+    "v2_corpus_pages_013_024.txt",
+    "v2_corpus_pages_025_036.txt",
+    "v2_corpus_pages_037_048.txt",
+    "v2_corpus_pages_049_060.txt",
+    "v2_corpus_pages_061_072.txt",
+    "v2_corpus_pages_073_084.txt",
+    "v2_corpus_pages_085_095.txt"
+  ],
+  "chapter_count": 21,
+  "imported_cases": 43,
+  "imported_training_days": 365,
+  "templates": [
+    "一页式重大决策",
+    "5 Why",
+    "逆转验证",
+    "每周复盘"
+  ],
+  "source_acceptance": [
+    "21 chapters each contain ability goal/core model/deep explanation/application/pitfalls/tool card/exercise/reference answer",
+    "case library >=40 across ancient/modern/science/strategy/organization/business/finance/safety",
+    "facts separated from interpretation; single cases never treated as universal causal proof",
+    "365 days each have theme/task/required output plus Day 30/90/180/270/365 gates",
+    "traditional health/divination chapters state modern evidence boundaries",
+    "political/historical texts do not require a political position",
+    "major decision/5 Why/reversal/weekly review templates exist",
+    "outcome is updateable judgment, controlled error cost, reviewable action; never guaranteed correctness"
+  ],
+  "note": "The complete parsed text corpus from the owned 95-page v2.0 source is imported as eight page-range chunks. Acceptance code validates the actual imported text rather than trusting manifest counts alone."
+}
