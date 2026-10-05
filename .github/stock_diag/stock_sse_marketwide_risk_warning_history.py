@@ -21,6 +21,7 @@ KEYWORDS = [
 YEARS = [2018, 2020, 2022, 2024, 2026]
 PAGE_SIZE = 100
 CODE_RE = re.compile(r"^6\d{5}$")
+B_SHARE_RE = re.compile(r"^900\\d{3}$")
 DATE_RE = re.compile(r"^20\d{2}-\d{2}-\d{2}$")
 
 
