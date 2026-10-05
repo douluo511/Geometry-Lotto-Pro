@@ -5,7 +5,9 @@ import json
 import math
 import tempfile
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -19,6 +21,7 @@ SCENARIOS_CNY = [100_000, 500_000, 1_000_000, 5_000_000, 10_000_000]
 
 QUOTE_URL = "https://push2.eastmoney.com/api/qt/stock/get"
 QUOTE_UT = "fa5fd1943c7b386f172d6893dbfba10b"
+MARKET_TZ = ZoneInfo("Asia/Shanghai")
 QUOTE_FIELDS = ",".join([
     "f11", "f12", "f13", "f14", "f15", "f16", "f17", "f18", "f19", "f20",
     "f31", "f32", "f33", "f34", "f35", "f36", "f37", "f38", "f39", "f40",
@@ -46,6 +49,24 @@ def _number(data, key):
     except (TypeError, ValueError):
         return None
     return value if math.isfinite(value) else None
+
+
+def _quote_datetime(raw):
+    if raw in (None, "", "-"):
+        return None
+    try:
+        value = float(raw)
+        if value > 1_000_000_000:
+            return datetime.fromtimestamp(value, timezone.utc).astimezone(MARKET_TZ)
+    except (TypeError, ValueError, OSError):
+        pass
+    text = str(raw).strip()
+    for fmt in ("%Y%m%d%H%M%S", "%Y%m%d%H%M"):
+        try:
+            return datetime.strptime(text, fmt).replace(tzinfo=MARKET_TZ)
+        except ValueError:
+            continue
+    return None
 
 
 def fetch_current_l1_snapshot(client: NetClient, symbol: str) -> dict:
@@ -98,12 +119,27 @@ def fetch_current_l1_snapshot(client: NetClient, symbol: str) -> dict:
         order_book_status = "SUPPORTED"
         order_book_reason = "non-zero public L1 best bid/ask snapshot observed"
 
-    limit_price_status = "NOT VERIFIED"
+    quote_dt = _quote_datetime(data.get("f86"))
+    retrieved_dt = datetime.fromtimestamp(meta.retrieved_at_unix, timezone.utc).astimezone(MARKET_TZ)
+    snapshot_freshness = "NOT VERIFIED"
+    if quote_dt is not None:
+        snapshot_freshness = "CURRENT_SESSION" if quote_dt.date() == retrieved_dt.date() else "STALE_OR_MARKET_CLOSED"
+
+    last_quoted_limit_price_status = "NOT VERIFIED"
     if (
         limit_up is not None and limit_down is not None
         and limit_up > 0 and limit_down > 0 and limit_up > limit_down
     ):
-        limit_price_status = "SUPPORTED"
+        last_quoted_limit_price_status = "SUPPORTED"
+    current_limit_price_status = (
+        last_quoted_limit_price_status
+        if snapshot_freshness == "CURRENT_SESSION"
+        else "NOT VERIFIED"
+    )
+    if snapshot_freshness != "CURRENT_SESSION":
+        order_book_status = "NOT VERIFIED"
+        spread_bps = None
+        order_book_reason = "quote timestamp is not from the retrieval trading date"
 
     return {
         "diagnostic_execution_status": "PASS",
@@ -115,6 +151,9 @@ def fetch_current_l1_snapshot(client: NetClient, symbol: str) -> dict:
         "symbol": code,
         "name": data.get("f58"),
         "quote_time_raw": data.get("f86"),
+        "quote_time_market_tz": quote_dt.isoformat() if quote_dt else None,
+        "retrieved_at_market_tz": retrieved_dt.isoformat(),
+        "snapshot_freshness": snapshot_freshness,
         "last": last,
         "previous_close": previous_close,
         "pct_change": _number(data, "f170"),
@@ -129,7 +168,8 @@ def fetch_current_l1_snapshot(client: NetClient, symbol: str) -> dict:
         "limit_down": limit_down,
         "current_order_book_evidence": order_book_status,
         "current_order_book_reason": order_book_reason,
-        "current_limit_price_evidence": limit_price_status,
+        "current_limit_price_evidence": current_limit_price_status,
+        "last_quoted_session_limit_price_evidence": last_quoted_limit_price_status,
         "scope": (
             "single retrieval-time public L1 snapshot only; does not establish historical spread, "
             "observed market impact, broker execution slippage, queue position, or limit fillability"
@@ -152,6 +192,7 @@ def main():
                 "diagnostic_execution_status": "NOT VERIFIED",
                 "current_order_book_evidence": "NOT VERIFIED",
                 "current_limit_price_evidence": "NOT VERIFIED",
+            "last_quoted_session_limit_price_evidence": "NOT VERIFIED",
                 "error": repr(exc),
                 "scope": (
                     "current public L1 snapshot unavailable; historical spread, market impact, "
@@ -188,6 +229,7 @@ def main():
 
     current_spread = l1_snapshot.get("current_order_book_evidence", "NOT VERIFIED")
     current_limits = l1_snapshot.get("current_limit_price_evidence", "NOT VERIFIED")
+    last_quoted_limits = l1_snapshot.get("last_quoted_session_limit_price_evidence", "NOT VERIFIED")
 
     report = {
         "schema": "rmf-liquidity-capacity-diagnostic-v2",
@@ -220,6 +262,7 @@ def main():
             "daily_missing_date_no_trade_candidates": "SUPPORTED",
             "current_bid_ask_spread_snapshot": current_spread,
             "current_limit_price_snapshot": current_limits,
+            "last_quoted_session_limit_price_snapshot": last_quoted_limits,
             "historical_bid_ask_spread": "NOT VERIFIED",
             "observed_market_impact": "NOT VERIFIED",
             "broker_execution_slippage": "NOT VERIFIED",
