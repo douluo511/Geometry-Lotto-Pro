@@ -1,5 +1,13 @@
 # Portfolio Execution State — 18 Windows EXE Projects
 
+## 2026-10-05 terminal refresh — Happy8/Stock current heads
+
+- **Happy8 #176** exact head `10763ef098a653ba8c81f399d335a85486e31642`: run `37291272371` terminal aggregate FAIL by intended external boundary. Fresh PASS includes dual-official Real Network, current-history science, Business-before-Windows, reproducible Windows Exact EXE, both physical GUI gates, and post-GUI Same Hash. Main EXE SHA-256 `f43307f927739ce5866897cd01ff359ca993419c880e87fd8ee9ba74ba426e64`. Engineering **84.2105%**, Business **87.5%**, Overall **84.2105%**. Repository independence / real production Release N→N+1 / unique final artifact remain non-PASS. Artifact `11337865817`, digest `sha256:d10d86c243416a0384c128370abf7d98c6cc27c7f40814e713cc2044f745d8ab`.
+- **Stock #155** exact head `43168d9e75c70ab55be808d8a51f0c0eb14d83d5`: fresh Business run `37289727888` = SUCCESS; fresh Desktop run `37289727787` = SUCCESS. Desktop proves Windows/Exact EXE, real-network corpus qualification 4886/5362 = 91.1227% (current 90.9996%, delisted 95.7143%), Advanced technical execution, Physical GUI and post-GUI Same Hash. Main EXE SHA-256 `50cb95cde7c258252a2b9f4dfe0761f46f8adac569d81efafb4553d157127141`; Updater SHA-256 `365049c764b7b13dc1a220885acfd09fdaa582e04c509737948886c50689be29`; desktop artifact `11341383365`, digest `sha256:a8373dfd187b08b878b5304fdd9426d725ec2d5f6c37a6f0acba76bc6745c7ec`.
+- **Stock Business** preserves negative validation Rank IC `-0.10273510698284655` as **NO_TRADE / LOW trust**. Valuation qualification remains PASS at frozen 120/300 target. Business artifact `11337726197`, digest `sha256:903e3cedce66697e9b8429b7bcb45c18c43e1df9e75033af26bd432f52b7b78a`. Advanced Business remains NOT VERIFIED because `HISTORICAL_ST_PIT` is WARN.
+- **Current Stock PIT work:** PR #193 has been extended on head `e4a03660d8d9894fe95f98ebb87aa662a7dcc8e9` from sample endpoint validation to fail-closed full-window (2018-01-01 → 2026-09-30) annual pagination + interval reconstruction. It may only promote Shanghai suspension intervals to SUPPORTED; Shanghai ST/PIT, Beijing ST/PIT, full HISTORICAL_ST_PIT, Advanced Business and Final remain NOT VERIFIED until their own evidence exists.
+- **Portfolio boundary:** migration/export **18/18 PASS**; dedicated repositories **0/18**; Final PASS **0/18**; delivery **0/18**.
+
 ## 2026-10-05 Stock SSE suspension surface exact-head diagnostic — PR #191
 
 - **Authoritative Stock product remains:** PR #155 exact head `43168d9e75c70ab55be808d8a51f0c0eb14d83d5`; product/runtime byte drift = **FALSE**.
