@@ -12,11 +12,11 @@ STAMP_TAX_HALF_URL = "https://www.mof.gov.cn/jrttts/202308/t20230828_3904235.htm
 
 
 def _visible_text(raw: str) -> str:
-    text = re.sub(r"<script\\b[^>]*>.*?</script>", " ", raw, flags=re.I | re.S)
-    text = re.sub(r"<style\\b[^>]*>.*?</style>", " ", text, flags=re.I | re.S)
+    text = re.sub(r"<script\b[^>]*>.*?</script>", " ", raw, flags=re.I | re.S)
+    text = re.sub(r"<style\b[^>]*>.*?</style>", " ", text, flags=re.I | re.S)
     text = re.sub(r"<[^>]+>", " ", text)
     text = unescape(text)
-    return re.sub(r"\\s+", " ", text).strip()
+    return re.sub(r"\s+", " ", text).strip()
 
 
 def parse_official_cost_rules(sse_html: str, stamp_base_html: str, stamp_half_html: str) -> dict:
@@ -26,7 +26,7 @@ def parse_official_cost_rules(sse_html: str, stamp_base_html: str, stamp_half_ht
 
     sse_rate_ok = ("0.00341%" in sse) or ("0.0341‰" in sse)
     stamp_base_ok = ("千分之一" in base) or ("0.1%" in base)
-    stamp_half_date_ok = bool(re.search(r"2023\\s*年\\s*8\\s*月\\s*28\\s*日|2023-0?8-28", half))
+    stamp_half_date_ok = bool(re.search(r"2023\s*年\s*8\s*月\s*28\s*日|2023-0?8-28", half))
     stamp_half_ok = "减半征收" in half and stamp_half_date_ok
 
     checks = {
