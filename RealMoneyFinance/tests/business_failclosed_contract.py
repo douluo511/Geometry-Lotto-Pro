@@ -216,9 +216,9 @@ class BusinessBoundaries(unittest.TestCase):
             qfq,
             raw,
             [event],
-            {"provider": "tencent_qfq", "price_adjustment": "qfq", "payload_sha256": "b" * 64},
-            {"provider": "tencent_raw", "price_adjustment": "unadjusted", "payload_sha256": "c" * 64},
-            {"provider": "eastmoney_events", "payload_sha256": "d" * 64},
+            {"provider": "tencent_public_full_kline", "price_adjustment": "qfq", "payload_sha256": "b" * 64},
+            {"provider": "tencent_public_full_kline", "price_adjustment": "unadjusted", "payload_sha256": "c" * 64},
+            {"provider": "eastmoney_share_bonus_datacenter", "payload_sha256": "d" * 64},
         )
 
     def test_corporate_action_requires_independent_event_and_factor_lineage(self):
@@ -230,7 +230,7 @@ class BusinessBoundaries(unittest.TestCase):
 
         got = qualify_research(
             bars(300),
-            {"provider": "production_fixture", "qualification_scope": "production_real_network"},
+            {"provider": "production_fixture", "qualification_scope": "production_real_network", "price_adjustment": "qfq"},
             corporate_action_evidence=evidence,
         )
         self.assertEqual(got["gates"]["corporate_action_adjustment"], "PASS")
@@ -242,15 +242,41 @@ class BusinessBoundaries(unittest.TestCase):
         broken = {**evidence, "event_payload_sha256": "short"}
         got = qualify_research(
             bars(300),
-            {"provider": "production_fixture", "qualification_scope": "production_real_network"},
+            {"provider": "production_fixture", "qualification_scope": "production_real_network", "price_adjustment": "qfq"},
             corporate_action_evidence=broken,
         )
         self.assertEqual(got["gates"]["corporate_action_adjustment"], "NOT VERIFIED")
 
         got = qualify_research(
             bars(300),
-            {"provider": "production_fixture", "qualification_scope": "production_real_network"},
+            {"provider": "production_fixture", "qualification_scope": "production_real_network", "price_adjustment": "qfq"},
             corporate_action_evidence={**evidence, "unexplained_factor_changes": 1},
+        )
+        self.assertEqual(got["gates"]["corporate_action_adjustment"], "NOT VERIFIED")
+
+        forged_cases = [
+            {**evidence, "source_providers": {"qfq": "fake", "raw": "fake", "events": "fake"}},
+            {**evidence, "qfq_payload_sha256": "z" * 64},
+            {**evidence, "raw_payload_sha256": evidence["qfq_payload_sha256"]},
+            {**evidence, "matched_events": []},
+            {**evidence, "unexplained_changes": [{"trade_date": "2026-01-01"}]},
+            {**evidence, "significant_factor_changes": evidence["verified_event_count"] + 1},
+        ]
+        for forged in forged_cases:
+            with self.subTest(forged=forged):
+                got = qualify_research(
+                    bars(300),
+                    {"provider": "production_fixture", "qualification_scope": "production_real_network",
+                     "price_adjustment": "qfq"},
+                    corporate_action_evidence=forged,
+                )
+                self.assertEqual(got["gates"]["corporate_action_adjustment"], "NOT VERIFIED")
+
+        got = qualify_research(
+            bars(300),
+            {"provider": "production_fixture", "qualification_scope": "production_real_network",
+             "price_adjustment": "unadjusted"},
+            corporate_action_evidence=evidence,
         )
         self.assertEqual(got["gates"]["corporate_action_adjustment"], "NOT VERIFIED")
 
