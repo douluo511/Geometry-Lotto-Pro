@@ -297,6 +297,8 @@ class BusinessBoundaries(unittest.TestCase):
                                                                   "bonus_ratio": 0.0, "transfer_ratio": 0.0}}]},
             {**evidence, "matched_events": [{**matched, "factor_change": {**matched["factor_change"],
                                                                           "effective_threshold": matched["factor_change"]["relative_change"] + 0.01}}]},
+            {**evidence, "matched_events": [{**matched, "factor_change": {**matched["factor_change"],
+                                                                          "quantization_interval_gap": 0.0}}]},
         ]
         for forged in forged_detail_cases:
             with self.subTest(detail_forged=forged):
@@ -348,7 +350,7 @@ class BusinessBoundaries(unittest.TestCase):
         self.assertEqual(evidence["unexplained_factor_changes"], 0)
         self.assertEqual(evidence["status"], "NOT VERIFIED")
         self.assertEqual(evidence["factor_detection_method"], "persistent_median_regime_shift_v1")
-        self.assertEqual(evidence["factor_estimator"], "median_ohlc_ratio_v1")
+        self.assertEqual(evidence["factor_estimator"], "quantized_ohlc_interval_v2")
 
     def test_corporate_action_unexplained_persistent_shift_stays_nonpass(self):
         raw = bars(150)
