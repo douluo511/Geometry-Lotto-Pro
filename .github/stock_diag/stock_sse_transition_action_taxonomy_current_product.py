@@ -56,10 +56,12 @@ def classify_title(title: str) -> str:
     if "申请" in text and "撤销" in text:
         return "cancel_application"
     if any(token in text for token in ("撤销", "取消", "终止实施", "不再实施")):
-        if "继续" in text or "叠加" in text:
-            return "mixed_cancel_continue"
+        # A same-announcement cancellation followed by implementation of another
+        # warning type is a distinct state transition, not a mere continuation.
         if MIXED_CANCEL_IMPLEMENT_RE.search(text):
             return "mixed_cancel_implement"
+        if "继续" in text or "叠加" in text:
+            return "mixed_cancel_continue"
         return "actual_cancel"
     if "预审计" in text or "专项说明" in text:
         return "descriptive_nontransition"
