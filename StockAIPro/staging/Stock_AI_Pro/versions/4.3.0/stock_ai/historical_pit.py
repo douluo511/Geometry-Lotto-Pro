@@ -28,12 +28,14 @@ def _market_for_code(code: str):
     code = str(code)
     if re.fullmatch(r"\d{6}", code) is None:
         return None
-    if code.startswith(("6", "9")):
-        return "SSE"
-    if code.startswith(("0", "3")):
-        return "SZSE"
-    if code.startswith(("4", "8")):
+    # Scope is mainland A-share / BSE equity codes only.  BSE includes both
+    # legacy 4/8 prefixes and the current 920xxx unified securities code.
+    if code.startswith("92") or code.startswith(("4", "8")):
         return "BSE"
+    if code.startswith(("600", "601", "603", "605", "688")):
+        return "SSE"
+    if code.startswith(("000", "001", "002", "003", "300", "301")):
+        return "SZSE"
     return None
 
 
