@@ -153,6 +153,15 @@ def main() -> int:
         maintenance_result = maintenance.get("result") or {}
         if maintenance_result.get("backtest") != "PASS":
             raise RuntimeError(f"automatic backtest not PASS: {maintenance_result}")
+        pit_policy = backtest_summary.get("historical_pit_policy") or {}
+        if pit_policy.get("status") != "PASS":
+            raise RuntimeError(f"historical PIT backtest policy not PASS: {pit_policy}")
+        if pit_policy.get("exact_date_join") is not True or pit_policy.get("future_lookup") is not False:
+            raise RuntimeError(f"historical PIT backtest policy is not exact-date/future-safe: {pit_policy}")
+        if not re.fullmatch(r"[0-9a-f]{64}", str(pit_policy.get("canonical_sha256", "")).lower()):
+            raise RuntimeError(f"historical PIT backtest policy missing bound canonical SHA-256: {pit_policy}")
+        if int(pit_policy.get("canonical_rows", 0) or 0) < 1:
+            raise RuntimeError(f"historical PIT backtest policy has no canonical rows: {pit_policy}")
         if str(maintenance_result.get("audit", "")).startswith("FAIL") or not maintenance_result.get("audit"):
             raise RuntimeError(f"automatic audit not complete: {maintenance_result}")
 
@@ -184,6 +193,7 @@ def main() -> int:
             "valuation_value_baseline_validated": backtest_summary.get("value_baseline_validated"),
             "valuation_value_valid_points": backtest_summary.get("value_valid_points"),
             "valuation_qualification": qualification,
+            "historical_pit_policy": pit_policy,
             "history_provider_counts": summary.get("history_provider_counts"),
             "spot_provider": summary.get("spot_provider"),
             "expected_trade_date": summary.get("expected_trade_date"),
