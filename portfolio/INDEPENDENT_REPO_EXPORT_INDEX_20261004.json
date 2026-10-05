@@ -257,20 +257,20 @@
       "final_gate": "FAIL",
       "source_product_pr": 155,
       "source_product_head": "f9d610aafe910cb73b036701a688329d9899399b",
-      "source_product_status": "CURRENT_HEAD_VALIDATION_IN_PROGRESS",
+      "source_product_status": "CURRENT_HEAD_SOURCE_BUSINESS_PASS_DESKTOP_IN_PROGRESS",
       "export_artifact_id": 11328389116,
       "export_artifact_digest": "sha256:23303ef27bc779140722c2ab2e11974dbfa277d1ebf56d2fd1130e307f358da7",
       "source_current_head_evidence": {
-        "source_offline_real_network": "PENDING_REVALIDATION",
+        "source_offline_real_network": "PASS",
         "source_run": 37268369320,
-        "full_business": "PENDING_REVALIDATION",
+        "full_business": "PASS",
         "full_business_run": 37268369291,
         "native_desktop": "PENDING_REVALIDATION",
         "native_desktop_run": 37268369332,
         "prior_source_run": 37259832034,
         "prior_full_business_run": 37259832083,
         "prior_native_desktop_run": 37259832040,
-        "note": "PR #155 changes research-corpus coverage validation and cache persistence semantics on top of exact #126 product head. All prior current-product PASS and migration binding are invalidated for this successor until exact-head source/business/desktop reruns and a fresh export pass."
+        "note": "PR #155 exact-head source/offline/real-network run 37268369320 and full-business run 37268369291 are SUCCESS. Desktop run 37268369332 remains in progress; current-product binding and Final stay NOT VERIFIED/FAIL until desktop evidence closes and independent release gates remain external."
       },
       "product_tree_byte_identity": "PASS",
       "superseded_export_prs": [
@@ -290,7 +290,7 @@
         "product_head": "dfa07c51fffdaa7736147cd49e39a274a745e363",
         "status": "PASS"
       },
-      "note": "PR #157 is rebound to current Stock AI PR #155 exact product head f9d610aa and PASSes exact checkout, product-byte identity, deterministic export, independent second-pass verification, and deliberate mutation fail-closed. Product business/desktop acceptance for PR #155 is still running; this migration PASS is readiness only, not Final.",
+      "note": "PR #157 migration export is rebound to PR #155 exact product head f9d610aa and PASS. PR #155 source/offline/real-network + full-business reruns are PASS; native desktop rerun is still in progress. Migration readiness is not repository independence or Final.",
       "exact_head_checkout_required": true
     },
     {
