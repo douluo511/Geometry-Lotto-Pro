@@ -43,6 +43,36 @@ def fetch(session, url, *, params=None, attempts=3):
                 raise
             time.sleep(1.0 * (2 ** (attempt - 1)))
 
+def post_fetch(session, url, *, data=None, attempts=3):
+    errors = []
+    for attempt in range(1, attempts + 1):
+        try:
+            r = session.post(
+                url,
+                data=data,
+                headers={
+                    "User-Agent": UA,
+                    "Referer": SUSPENSION_PAGE,
+                    "Accept": "application/json,text/javascript,*/*;q=0.01",
+                    "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+                    "X-Requested-With": "XMLHttpRequest",
+                },
+                timeout=(8, 30),
+                allow_redirects=True,
+            )
+            if r.status_code == 429 or r.status_code >= 500:
+                raise RuntimeError(f"retryable HTTP {r.status_code}")
+            r.raise_for_status()
+            if not r.content:
+                raise RuntimeError("empty payload")
+            return r, {"attempt": attempt, "prior_errors": errors}
+        except Exception as exc:
+            errors.append(f"{type(exc).__name__}: {exc}")
+            if attempt == attempts:
+                raise
+            time.sleep(1.0 * (2 ** (attempt - 1)))
+
+
 def sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
@@ -101,7 +131,7 @@ def trade_day_probe(session, biz_date: str):
         "bizDate": biz_date,
         "jsonCallBack": "jsonpCallback",
     }
-    r, meta = fetch(session, ENDPOINT, params=params, attempts=3)
+    r, meta = post_fetch(session, ENDPOINT, data=params, attempts=3)
     payload, parsed_as = parse_json_or_jsonp(decode(r))
     rows = payload.get("result") if isinstance(payload, dict) else None
     if not isinstance(rows, list):
