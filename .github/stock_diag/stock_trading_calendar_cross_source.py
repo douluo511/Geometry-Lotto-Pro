@@ -42,9 +42,10 @@ def main():
     only_em=sorted(em_set-tx_set)
     only_tx=sorted(tx_set-em_set)
     exact_equal=(em_dates==tx_dates)
+    canonical_dates=em_dates if exact_equal else []
 
     report={
-        "schema":"stock-trading-calendar-cross-source-v1",
+        "schema":"stock-trading-calendar-cross-source-v2",
         "symbol":SYMBOL,
         "frozen_window":{"start":"2018-01-01","end":"2026-09-30"},
         "providers":{
@@ -57,6 +58,12 @@ def main():
             "tencent_only_count":len(only_tx),
             "eastmoney_only_sample":only_em[:30],
             "tencent_only_sample":only_tx[:30],
+        },
+        "canonical_trading_dates":{
+            "status":"SUPPORTED" if exact_equal else "NOT VERIFIED",
+            "rows":len(canonical_dates),
+            "date_sha256":digest(canonical_dates) if canonical_dates else None,
+            "dates":canonical_dates,
         },
         "adjudication":{
             "research_trading_date_sequence":"SUPPORTED" if exact_equal else "NOT VERIFIED",
@@ -72,7 +79,17 @@ def main():
     Path("stock_trading_calendar_cross_source.json").write_text(
         json.dumps(report,ensure_ascii=False,sort_keys=True,indent=2)+"\n",encoding="utf-8"
     )
-    print(json.dumps(report,ensure_ascii=True,sort_keys=True))
+    print(json.dumps({
+        "schema":report["schema"],
+        "providers":report["providers"],
+        "comparison":report["comparison"],
+        "canonical_trading_dates":{
+            "status":report["canonical_trading_dates"]["status"],
+            "rows":report["canonical_trading_dates"]["rows"],
+            "date_sha256":report["canonical_trading_dates"]["date_sha256"],
+        },
+        "adjudication":report["adjudication"],
+    },ensure_ascii=True,sort_keys=True))
     return 0
 
 
