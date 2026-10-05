@@ -13,7 +13,7 @@ from app.netclient import NetClient
 from app.source_corporate_actions import fetch_share_bonus_events, verify_corporate_action_lineage
 from app.source_eastmoney import fetch_daily_bars as fetch_daily_bars_eastmoney
 from app.source_market import fetch_daily_bars_failover
-from app.source_universe import UNIVERSE_URLS, build_prospective_universe_precommit, fetch_current_shanghai_universe_precommit
+from app.source_universe import SSE_UNIVERSE_URL, UNIVERSE_URLS, build_prospective_universe_precommit, fetch_current_shanghai_universe_precommit
 from app.source_tencent_full import fetch_daily_bars_tencent_full
 from app.source_yahoo import fetch_daily_bars_yahoo
 from app.source_cost_rules import fetch_official_cost_rules
@@ -95,6 +95,18 @@ def _prospective_survivorship_contract() -> dict:
     second = build_prospective_universe_precommit(list(reversed(entries)), **kwargs)
     if first["precommit_sha256"] != second["precommit_sha256"]:
         raise AssertionError("prospective universe canonical hash depends on input order")
+    changed_payload = build_prospective_universe_precommit(
+        entries,
+        **{**kwargs, "source_payload_sha256s": ["c" * 64]},
+    )
+    if first["precommit_sha256"] == changed_payload["precommit_sha256"]:
+        raise AssertionError("prospective precommit must bind exact source payload hashes")
+    changed_time = build_prospective_universe_precommit(
+        entries,
+        **{**kwargs, "retrieved_at_unix": kwargs["retrieved_at_unix"] + 1.0},
+    )
+    if first["precommit_sha256"] == changed_time["precommit_sha256"]:
+        raise AssertionError("prospective precommit must bind exact retrieval time")
     if first["historical_survivorship_gate"] != "NOT VERIFIED":
         raise AssertionError("prospective snapshot must not promote historical survivorship gate")
     if first["policy"]["no_outcome_selection"] is not True:
@@ -136,6 +148,43 @@ def _prospective_survivorship_contract() -> dict:
                 ),
             )
 
+    class OfficialFallbackClient:
+        def __init__(self, partial: bool = False):
+            self.partial = partial
+            self.calls = []
+
+        def get_json(self, url, params, **kwargs):
+            self.calls.append((url, dict(params)))
+            if url in UNIVERSE_URLS:
+                raise RuntimeError("fixture Eastmoney source failure")
+            if url != SSE_UNIVERSE_URL:
+                raise RuntimeError(f"unexpected fixture URL: {url}")
+            stock_type = str(params.get("STOCK_TYPE"))
+            if stock_type == "1":
+                rows = [
+                    {"A_STOCK_CODE": f"{600000 + i:06d}", "SEC_NAME_CN": f"main-{i:03d}"}
+                    for i in range(250)
+                ]
+                digest = "d" * 64
+            elif stock_type == "8":
+                rows = [
+                    {"A_STOCK_CODE": f"{688000 + i:06d}", "SEC_NAME_CN": f"star-{i:03d}"}
+                    for i in range(250)
+                ]
+                digest = "e" * 64
+            else:
+                raise RuntimeError(f"unexpected stock type: {stock_type}")
+            if self.partial:
+                rows = rows[:1]
+            return (
+                {"result": rows},
+                SimpleNamespace(
+                    payload_sha256=digest,
+                    retrieved_at_unix=1791172800.0,
+                    url=url,
+                ),
+            )
+
     previous_source_sha = os.environ.get("SOURCE_SHA")
     os.environ["SOURCE_SHA"] = "a" * 40
     try:
@@ -162,6 +211,36 @@ def _prospective_survivorship_contract() -> dict:
             pass
         else:
             raise AssertionError("partial fallback universe must fail closed")
+
+        official_shape = fetch_current_shanghai_universe_precommit(
+            OfficialFallbackClient(),
+            page_size=500,
+            max_pages=1,
+            min_symbols=500,
+        )
+        if official_shape["source_provider"] != "sse_official_current_shanghai_equity_universe":
+            raise AssertionError("official SSE fallback provider was not bound into evidence")
+        if official_shape["symbol_count"] != 500:
+            raise AssertionError("official SSE main+STAR fixture did not produce the frozen broad universe")
+        if SSE_UNIVERSE_URL not in official_shape["selected_source_urls"]:
+            raise AssertionError("official SSE URL was not bound into precommit evidence")
+        if official_shape["source_filter"] != "STOCK_TYPE=1,8;COMPANY_STATUS=2,4,5,7,8":
+            raise AssertionError("official SSE evidence must bind its own board/status filter")
+        if len(official_shape["source_payload_sha256s"]) != 2:
+            raise AssertionError("official SSE precommit must bind both raw board payload hashes")
+        if official_shape["historical_survivorship_gate"] != "NOT VERIFIED":
+            raise AssertionError("official current universe must not backfill historical survivorship")
+        try:
+            fetch_current_shanghai_universe_precommit(
+                OfficialFallbackClient(partial=True),
+                page_size=500,
+                max_pages=1,
+                min_symbols=500,
+            )
+        except (RuntimeError, ValueError):
+            pass
+        else:
+            raise AssertionError("partial official SSE universe must fail closed")
     finally:
         if previous_source_sha is None:
             os.environ.pop("SOURCE_SHA", None)
@@ -174,6 +253,7 @@ def _prospective_survivorship_contract() -> dict:
         "symbol_count": first["symbol_count"],
         "historical_survivorship_gate": first["historical_survivorship_gate"],
         "host_failover_contract": "PASS",
+        "official_sse_fallback_contract": "PASS",
     }
 
 
