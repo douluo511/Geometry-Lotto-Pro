@@ -33,8 +33,8 @@
     "START_APP.bat": "cf1a73d081f0e45f693e87470baeef24a50856a57c40e209317c91a8163dfcce",
     "START_HERE.txt": "450841d68e56e60e11170c4b689eee168be1f60f51dd2f7d29bce0e5a6629821",
     "stock_ai/__init__.py": "42b7e8e1308ac35447a3f72ace74caa306ed84f42f021eb1cd5ec74865bdf4ec",
-    "stock_ai/audit.py": "a0bff1e81fb73aa6bc1376ac0d098d8f5a1bb3042dfa1518f641d4d4c9df0c90",
-    "stock_ai/backtest.py": "82c7e43456b5d38728bebd9b4c8ac28177e4fb0d87a623a8eaaf1457e3edda80",
+    "stock_ai/audit.py": "e6cfd0bcccb75759cc175a077822d74296e1ebbf47192bd1d183b6a48b26549c",
+    "stock_ai/backtest.py": "39a15fad5e85b76aaba9dcf99217eaadf9629be1d85dd800385479682beb85ae",
     "stock_ai/backup.py": "e9ee152dbae61b34a0115c1c8927008d0455d2514f31411c12cf8b3da37198d8",
     "stock_ai/config.py": "301aee238332ce7387dcd04fe69a2235a2cef441a65aa886932d7794fed14d53",
     "stock_ai/cost.py": "84493b0c785c1cb0609a207a08adfd5560ebef08d155b2abedf0c32f15476755",
@@ -42,7 +42,7 @@
     "stock_ai/data_source.py": "0e7eb4c611627407aee3d25573aee085a81aaae0b38c1160322b6032cec82642",
     "stock_ai/decision.py": "e0d6bde0c4739116373efdcdce5a25c2907018e15bd8418c1c699bfc699ad4a3",
     "stock_ai/drift.py": "91e6df4296ee11fdfbcd7a7351dbde9a4e226c4b7b73b9a13b8e040a98717f66",
-    "stock_ai/features.py": "b262fd8fbb4b8b2d53f2171184769d441c774f0944da76039025b21de5019e6e",
+    "stock_ai/features.py": "0002477065fc72595719b4baa27c24885a4947b7cea8bd088637bcd9f8fa6b33",
     "stock_ai/maintenance.py": "bd5824ce32048873c7f200fb5a596ea8e5ddb5e2d19737ba31cefb7df432af91",
     "stock_ai/model.py": "dba1979c09647092f715fca0a3d750819c5371357126783f498c6d3281fe767a",
     "stock_ai/pipeline.py": "0a0443c53c0e190e04c3fd14a081bc3018468102b54a9eb6051862874dda1c43",
@@ -53,8 +53,8 @@
     "stock_ai/utils.py": "3857d6871633286ea2e1b12289e8b063dec12c363c78eb2846acd20f3c32eb54",
     "stock_ai/valuation.py": "0377079cfccfc3ffa9bd86c465c0817aed42847a7bbef24753f31dc13a6203db",
     "tests/app_static_test.py": "c6b2dbbdbfdc38ffe47c3994ef2a416cc243fac853bd2fc502077f921a108f6b",
-    "tests/audit_test.py": "69314835e5e3deb97ddd51fcee387bdca0f607927b0a13c8e986818edbe90bbb",
-    "tests/backtest_test.py": "10435d0f2268a92aa2aae58e701c607f8cdef45f5ddaa524037157f13126f744",
+    "tests/audit_test.py": "32630e61d6f1e4e24cba4cdb05293e8706fe97f7d4b4fc06ce180a76068fa455",
+    "tests/backtest_test.py": "3c0d1d1563918986fd3ff0bde76a0bd525b0bd2eb058d7b2b0ff2406a1189f55",
     "tests/config_migration_test.py": "4e3834644fcad3b49d5305d9d51f3bb2a01176569f0b2ca3e038fc79a07c18d5",
     "tests/cost_valuation_decision_test.py": "2e3790da2d5eed91358b755e727d0012f61dec7d1eb2127ae8c8a848af26ce34",
     "tests/entrypoints_test.py": "6876b9fe5c9fc5dae83b034734175c5b84a5db3b3d2fd8de8c570f25f64e3b07",
@@ -76,6 +76,6 @@
     "tests/universe_parser_test.py": "847d674af0a66acea40bb018a53fab89d51b988cab41d9d7300a94e895bd1be7",
     "VERSION": "328fc98df37ff4f37f53e1566d36d10b40f1a5855ba27fa0dc652d43f2a4c433",
     "stock_ai/netclient.py": "c9d6acc6324a06c69089e1e525057472a4ec0ff35f0414b3f0e772b96f2ce0e8",
-    "stock_ai/historical_pit.py": "e7a128f75662f0e440944d014742012156da108a32e35abc7283c198f8b5c54c"
+    "stock_ai/historical_pit.py": "1615bd3c148085777144391eb75fb8438298484c5b1482e37c3be993e63c92c7"
   }
 }
