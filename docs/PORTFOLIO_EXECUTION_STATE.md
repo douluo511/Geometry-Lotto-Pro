@@ -1,5 +1,15 @@
 # Portfolio Execution State — 18 Windows EXE Projects
 
+## 2026-10-05 strict continuation checkpoint — live GitHub reconciliation
+
+- **Portfolio boundary:** current-product migration/export readiness remains **18/18 PASS = 100%**; real dedicated repositories remain **0/18 PASS = 0%**; Portfolio Final / delivery remains **0/18**.
+- **SSQ PR #76** exact product head `3b61bb59ed0da6f7c7717b6840fe95a00d58a2ad`: run `37262758839` is terminal **FAIL at the final evidence-derived aggregate only**. Same-run Native Windows build, Exact EXE, Standard User acceptance, physical GUI positive/fail-closed/repair-fail-closed paths and Same Hash are PASS. Final non-PASS remains `business_content=PENDING`, `updater_real_network=PENDING`, `repository_independence=FAIL`, `release_context=FAIL`. This is correct fail-closed behavior and must not be rerun merely to manufacture green.
+- **Stock AI PR #155** exact head `f9d610aafe910cb73b036701a688329d9899399b`: previous head `dfa07c51...` failed the frozen >=90% corpus gate at 63.8381% overall / 63.1367% current / 90% delisted. Current run `37268369332` has now PASSed that exact-head real-network corpus prerequisite, PASSed progressive cache save, and PASSed Frozen EXE advanced analysis; **Physical GUI click on the same Windows EXE is IN_PROGRESS**. No downstream GUI/Same-Hash/Final PASS is promoted while active.
+- **Happy8:** prior advanced run `37275917431` on source `cc20a8a5...` terminated FAIL and exposed non-PASS fault-injection/science-protocol/physical-GUI/business/final aggregation. That run is preserved as historical FAIL evidence. Current converged main-based successor **PR #176** head `deb0a09094b01b7c61d29882404eeea193917926`, run `37285191235`, has current-head PASS through Current-history Science, Business-before-Windows and Native Windows reproducible Exact EXE build; **Physical GUI click is IN_PROGRESS**. Separate PR #165 head `f5218201...` is also revalidating and is not promoted while active.
+- **Real-Money Finance:** earlier hardening run `37274864785` has terminated **SUCCESS** and must no longer be reported IN_PROGRESS. Current exact-main revalidation successor **PR #177** head `d58a2a05239c59131551be4f9b238e73736692b4`, run `37286235028`, has PASSed Fault Injection, independent updater rollback/contract, and Real Production Network; **cost/leakage walk-forward business qualification is IN_PROGRESS**.
+- **Repository creation blocker remains external:** the connected GitHub capability exposes repository/branch/file/PR/Issue/Actions mutations but no repository-creation mutation. Do not relabel repository-independence as PASS; only repository-dependent gates are BLOCKED while other executable gates continue.
+- **Execution rule:** terminal FAIL is preserved; active runs remain NOT VERIFIED downstream; no threshold/denominator is reduced for green CI; behavior-changing heads invalidate affected downstream evidence.
+
 ## Control reconciliation — 2026-10-05 exact state
 
 - Current-product-bound migration/export readiness: **18/18 PASS = 100%**.
