@@ -325,7 +325,7 @@
           "artifact_digest": "sha256:42d978264d2a64425d04a78d6d20ede2406513b0ed335b775621da09eee38295",
           "shanghai_historical_st": "NOT VERIFIED",
           "beijing_historical_st": "NOT VERIFIED",
-          "historical_suspension_daily_state": "NOT VERIFIED",
+          "historical_suspension_daily_state": "SUPPORTED_SHANGHAI_ONLY",
           "full_historical_st_pit": "NOT VERIFIED",
           "sse_suspension_surface": {
             "status": "EXACT_HEAD_DIAGNOSTIC_PASS_FULL_GATE_NOT_VERIFIED",
@@ -372,7 +372,8 @@
             "historical_daily_suspension_state": "NOT VERIFIED",
             "reason": "endStopDate semantics are now supported as final suspended date by official front-end source, but no independently verified trading-calendar/research-date replay contract has yet promoted daily suspension PIT.",
             "artifact_id": 11346717120,
-            "artifact_digest": "sha256:374f0d2c0de7441105710093b4f631f75916dfcce2ff07d0472aaae60a849a9b"
+            "artifact_digest": "sha256:374f0d2c0de7441105710093b4f631f75916dfcce2ff07d0472aaae60a849a9b",
+            "superseded_for_current_daily_state_by": "PR #209 / run 37341509787"
           },
           "sse_suspension_corpus_replay": {
             "status": "PASS_EVENT_CORPUS_DAILY_STATE_NOT_VERIFIED",
@@ -386,7 +387,8 @@
             "st_named_sse_a_share_event_rows": 311,
             "all_product_corpus_sha256": "c36cf257a20c3326240338edaa3454e914d37aa108a50997a336ef8972507c04",
             "sse_a_share_corpus_sha256": "0d23b02f72a13c9c4a9cc0d738645f8b4296b89ba59ef34b1cfbcff544d9b550",
-            "historical_daily_suspension_state": "NOT VERIFIED"
+            "historical_daily_suspension_state": "NOT VERIFIED",
+            "superseded_for_current_daily_state_by": "PR #209 / run 37341509787"
           },
           "sse_field_semantics": {
             "status": "PASS_SEMANTICS_ONLY_NO_DAILY_PROMOTION",
@@ -399,7 +401,8 @@
             "script_sha256": "32fc98ea41e599f457609247ba68defb82e6d855aa2551da6923dbf7e44153a7",
             "daily_state_boundary": "NOT VERIFIED",
             "artifact_id": 11346094910,
-            "artifact_digest": "sha256:d89cdcf370e0274dda94818ee31f982b23cb9dd1b9d0408a06ec7398522d65bd"
+            "artifact_digest": "sha256:d89cdcf370e0274dda94818ee31f982b23cb9dd1b9d0408a06ec7398522d65bd",
+            "superseded_for_current_daily_state_by": "PR #209 / run 37341509787"
           },
           "sse_risk_warning_bulletin_surface": {
             "status": "SUPPORTED_SOURCE_SURFACE_ONLY",
@@ -425,6 +428,40 @@
             "artifact_digest": "sha256:dce3a8fbb49e7005941480d0d4b981c631251e758f357508191240f5e6e07d65",
             "shanghai_historical_st_pit": "NOT VERIFIED",
             "full_historical_st_pit": "NOT VERIFIED"
+          },
+          "sse_daily_suspension_resolution": {
+            "status": "SUPPORTED_SHANGHAI_ONLY",
+            "diagnostic_pr": 209,
+            "diagnostic_head": "4663ac4cb3943c23f8f51626ee2c536d852f3b45",
+            "diagnostic_run": 37341509787,
+            "diagnostic_job": 111869457639,
+            "official_open_interval_resolution": "PASS_5_OF_5",
+            "replay_pairs": 23894,
+            "replay_codes": 852,
+            "suspended_trade_dates": 2026,
+            "daily_state_sha256": "0a614254deb282111393b858f9264bb64c05c12a1c3c3eec4abb714d8774fb08",
+            "artifact_id": 11358417500,
+            "artifact_digest": "sha256:40a66e44e2ae5f066527e89528dabe0fd5afd90908a4efcbef1232e8e7864061",
+            "shanghai_historical_st_name_pit": "NOT VERIFIED",
+            "full_historical_st_pit": "NOT VERIFIED"
+          },
+          "sse_risk_warning_effective_date_semantics": {
+            "status": "SUPPORTED_SAMPLE_CROSS_DISCLOSURE",
+            "diagnostic_pr": 213,
+            "diagnostic_head": "718b57754bf3e90b024bd7fb161055f20482adef",
+            "diagnostic_run": 37343674567,
+            "diagnostic_job": 111876780419,
+            "official_sse_risk_warning_pdf_surface": "SUPPORTED",
+            "selected_pdf_count": 3,
+            "downloadable_pdf_count": 3,
+            "extractable_pdf_count": 3,
+            "explicit_transition_pdf_count": 3,
+            "sample_code": "688496",
+            "artifact_id": 11359467367,
+            "artifact_digest": "sha256:2ec64566f9cc1bf926f7f56841ddac7e79875e4042f1ced27d9600b616970bec",
+            "shanghai_historical_st_pit": "NOT VERIFIED",
+            "full_historical_st_pit": "NOT VERIFIED",
+            "boundary": "Sample-level effective-date semantics only; no market-wide PIT promotion."
           }
         },
         "source_offline": "PASS",
@@ -473,7 +510,7 @@
         "product_head": "f9d610aafe910cb73b036701a688329d9899399b",
         "status": "PASS"
       },
-      "note": "Stock current head remains 43168d9e with source/business/desktop and migration PASS at candidate scope. Shanghai daily suspension state is SUPPORTED_SHANGHAI_ONLY. Official SSE company-bulletin endpoint is now machine-query SUPPORTED on PR #211 with dated risk-warning/name evidence, but full Shanghai historical ST-name PIT is still NOT VERIFIED pending market-wide historical event/effective-state reconstruction. Beijing/full HISTORICAL_ST_PIT, production Release, repository independence and Final remain non-PASS.",
+      "note": "Stock current head remains 43168d9e with source/full-business/native-desktop and migration PASS at candidate scope. Shanghai historical daily suspension is current-state SUPPORTED_SHANGHAI_ONLY via PR #209. Official SSE risk-warning bulletin source is machine-query supported via PR #211, and sample effective-date semantics are supported via PR #213, but market-wide Shanghai historical ST-name PIT is still NOT VERIFIED because global corpus pagination/completeness is unresolved. Beijing/full HISTORICAL_ST_PIT, production Release, repository independence and Final remain non-PASS.",
       "exact_head_checkout_required": true,
       "current_windows_run": 37289727787,
       "current_windows_status": "SUCCESS_CANDIDATE_ONLY_FINAL_BLOCKED",
