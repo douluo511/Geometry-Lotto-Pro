@@ -201,7 +201,7 @@ New-Item -ItemType Directory -Force $dataRoot | Out-Null
 # are all activated by physical foreground mouse events.
 $seedResult=Join-Path $root "seed-live-update.json"
 Write-Progress 'live_network_seed' 'RUNNING'
-$seed=Start-Process -FilePath $exe -ArgumentList @('--update','--data-root',$dataRoot,'--result-file',$seedResult) -Wait -PassThru
+$seed=Start-Process -FilePath $exe -ArgumentList @('--refresh-data','--data-root',$dataRoot,'--result-file',$seedResult) -Wait -PassThru
 if($seed.ExitCode -ne 0) { throw "exact EXE live-network seed failed: $($seed.ExitCode)" }
 $seedJson=Get-Content $seedResult -Raw -Encoding UTF8 | ConvertFrom-Json
 if($seedJson.status -ne 'PASS') { throw "exact EXE live-network seed was not PASS" }
