@@ -1,3 +1,14 @@
+<!-- exact-checkpoint-20261006-stock-attempt2 -->
+## 2026-10-06 exact checkpoint — Stock #210 attempt 2 / portfolio hard boundary
+
+- **Stock current product:** PR #210 exact head `7f270b9ab58e11fd8129053a65e000c90ff9d8c1`.
+- Source run `37342995675` = **SUCCESS**; full-business run `37342995570` = **SUCCESS**. Default business chain remains evidence-correct `NO_TRADE / LOW` with validation Rank IC `-0.09807788334098926`; full `HISTORICAL_ST_PIT` / Advanced Business remain **NOT VERIFIED**.
+- Desktop run `37342995652` attempt 1 = **FAIL** at the 130-minute exact-head research-corpus qualification timeout. Progressive history cache save completed successfully; no threshold or denominator was reduced. Attempt 2 job `111950095551` is currently **QUEUED**; downstream current-head Advanced / physical GUI / post-GUI Same Hash remain **NOT VERIFIED** until terminal.
+- **Stock current-product migration/export:** PR #216 exact head `3180c5ae518a4ff62016adeff2044892aaa1df3d`, based exactly on #210 product head. Run `37343378422` / job `111875768476` = **SUCCESS**; 408 files; manifest `3d5d0af681e3452eb5afb85c290c9842b534eb453c72cc70b6568804cc6a506b`; artifact `11358729281`; ZIP digest `sha256:c4c5bd37aaae253be4197d484b92c8c4a38c8a18096954fafbe1267e4a29318b`.
+- Therefore current-product-bound migration/export readiness = **18/18 PASS** at this exact state. This is **not** repository independence.
+- Accessible owner repositories still expose only `Geometry-Lotto-Pro`; dedicated repositories = **0/18 evidenced**. Final PASS = **0/18**; delivery allowed = **0/18**.
+- **Happy8:** PR #39 merged; latest verified candidate chain has Live Network / science-method / Windows Exact EXE / physical GUI / post-GUI Same Hash PASS, while science verdict is **NO_EDGE** and positive production software update / independent repository / real Release N→N+1 remain non-PASS. Final remains FAIL.
+
 <!-- exact-checkpoint-stock-pit-20261006-b -->
 ## Exact-state checkpoint — Stock PIT / Happy8 / RMF
 
