@@ -1,5 +1,16 @@
 # Portfolio Execution State — 18 Windows EXE Projects
 
+## 2026-10-05 RMF historical-membership evidence + Stock desktop advance
+
+- **RMF product bytes unchanged:** exact main remains `62f75def60c16d5768110901890d05edbabe7b34`; Engineering **24/28 = 85.7%**, Business **12/16 = 75.0%**, Overall **75.0%**, Final FAIL.
+- **RMF diagnostic PR #187:** head `f95747b29b5ae15abce4849149b96ad4184eb072`, run `37294835060` = **SUCCESS** after preserving prior 403 failure `37294661137` and removing only the redundant six-request SSE schema burst.
+- Exact research window: **1200 qfq rows, 2021-10-25 → 2026-09-30**; Tencent research lineage SHA-256 `b3ee61b845c53c1c3e42d6e3c24d761875362321c20530365268bb24be035140`.
+- Official SSE unfiltered Main+STAR records: **2466 securities**, **146** with real delist dates; historical member count **1992 → 2320** with **366** membership-change dates; 600000 is a member on **1200/1200** research dates. Historical-universe canonical SHA-256 `849902986c5e7d887c487133d3413b5a23641ab3c3139154537b4cdb2b01d4be`.
+- This closes only **historical-membership reconstruction = PASS**. It does **not** prove historical point-in-time knowability or ex-ante/precommitted symbol selection: `historical_pit_availability=NOT VERIFIED`, `survivorship_selection_control=NOT VERIFIED`, capital deployment remains false.
+- Diagnostic artifact `11338900586`, digest `sha256:198b64c38ba71a96172b6892679b5275c411adfae4a9bc386e9c27a337d38bff`.
+- **Stock AI #155:** current Business run `37289727888` = SUCCESS; desktop run `37289727787` has fresh-PASSed Frozen EXE Real Network and the frozen **≥90% current+delisted research-corpus qualification** gate; Frozen EXE Advanced Analysis is currently active.
+- Portfolio boundary remains **export 18/18 PASS / dedicated repositories 0/18 / Final-Delivery 0/18**.
+
 ## 2026-10-05 Stock AI fresh business exact-head PASS — 43168d9e / run 37289727888
 
 - **Authoritative Stock AI product:** PR #155 exact head `43168d9e75c70ab55be808d8a51f0c0eb14d83d5`.
