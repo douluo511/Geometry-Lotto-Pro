@@ -12,7 +12,7 @@ def parse(text):
     t=text.strip()
     try:return json.loads(t)
     except Exception:pass
-    m=re.match(r"^[A-Za-z0-9_.$]+\\((.*)\\)\\s*;?\\s*$",t,re.S)
+    m=re.match(r"^[A-Za-z0-9_.$]+\((.*)\)\s*;?\s*$",t,re.S)
     if not m: raise ValueError("not JSON/JSONP")
     return json.loads(m.group(1))
 
