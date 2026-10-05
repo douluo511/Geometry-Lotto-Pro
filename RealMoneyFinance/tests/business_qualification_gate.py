@@ -8,6 +8,7 @@ import tempfile
 from app.business_validation import CostAssumptions, qualify_research
 from app.domain import DailyBar
 from app.netclient import NetClient
+from app.source_corporate_actions import fetch_share_bonus_events, verify_corporate_action_lineage
 from app.source_eastmoney import fetch_daily_bars as fetch_daily_bars_eastmoney
 from app.source_market import fetch_daily_bars_failover
 from app.source_tencent_full import fetch_daily_bars_tencent_full
@@ -162,6 +163,23 @@ def _field_complete_ablation_replication(client: NetClient, reference_rows: list
         "provider_attempts": attempts,
     }
 
+def _corporate_action_lineage(client: NetClient) -> dict:
+    try:
+        qfq_rows, qfq_meta = fetch_daily_bars_tencent_full(client, "600000", 500, adjustment="qfq")
+        raw_rows, raw_meta = fetch_daily_bars_tencent_full(client, "600000", 500, adjustment="raw")
+        events, event_meta = fetch_share_bonus_events(client, "600000", 100)
+        return verify_corporate_action_lineage(
+            qfq_rows, raw_rows, events, qfq_meta, raw_meta, event_meta
+        )
+    except Exception as exc:
+        return {
+            "status": "NOT VERIFIED",
+            "point_in_time_lineage": "NOT VERIFIED",
+            "reason": "corporate-action real-network evidence could not be completed",
+            "error": repr(exc),
+        }
+
+
 def real_network_qualification() -> dict:
     with tempfile.TemporaryDirectory() as td:
         root = Path(td)
@@ -185,13 +203,16 @@ def real_network_qualification() -> dict:
                 benchmark_error = "benchmark as-of date does not match primary qualification date"
         except Exception as exc:
             benchmark_error = repr(exc)
+        corporate_action_evidence = _corporate_action_lineage(client)
         got = qualify_research(
             bars,
             meta,
             CostAssumptions(),
             benchmark_rows=benchmark_rows,
             benchmark_meta=benchmark_meta,
+            corporate_action_evidence=corporate_action_evidence,
         )
+        got["corporate_action_real_network_evidence"] = corporate_action_evidence
         got["benchmark_fetch_error"] = benchmark_error
         try:
             official_cost_rules = fetch_official_cost_rules(client)
