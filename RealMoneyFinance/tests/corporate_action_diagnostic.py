@@ -13,7 +13,7 @@ if str(ROOT) not in sys.path:
 
 from app.netclient import NetClient
 from app.source_corporate_actions import fetch_share_bonus_events, verify_corporate_action_lineage
-from app.source_tencent_full import fetch_daily_bars as fetch_daily_bars_tencent_full
+from app.source_tencent_full import fetch_daily_bars_tencent_full
 
 
 def _finite(value) -> float:
