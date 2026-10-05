@@ -1020,6 +1020,42 @@ class ReleaseGateEvidenceTests(unittest.TestCase):
                 proof = _verify_checkout_identity(root)
             self.assertEqual(proof["event_head_sha"], head_sha)
 
+    def test_checkout_identity_v2_accepts_exact_pr_head(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            event_sha = "1" * 40
+            head_sha = "2" * 40
+            report = {
+                "schema": "ssq-checkout-identity-v2", "status": "PASS",
+                "github_event_sha": event_sha, "github_run_id": "12345",
+                "event": "pull_request", "event_head_sha": head_sha,
+                "expected_source_sha": head_sha, "actual_checkout_sha": head_sha,
+                "exact_head_required": True,
+            }
+            (root / "CHECKOUT_IDENTITY_GATE.json").write_text(json.dumps(report), encoding="utf-8")
+            with patch.dict(os.environ, {"GITHUB_SHA": event_sha, "GITHUB_RUN_ID": "12345"}):
+                proof = _verify_checkout_identity(root)
+            self.assertEqual(proof["schema"], "ssq-checkout-identity-v2")
+            self.assertEqual(proof["actual_checkout_sha"], head_sha)
+            self.assertEqual(proof["expected_source_sha"], head_sha)
+
+    def test_checkout_identity_v2_rejects_nonexact_pr_checkout(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            event_sha = "1" * 40
+            head_sha = "2" * 40
+            report = {
+                "schema": "ssq-checkout-identity-v2", "status": "PASS",
+                "github_event_sha": event_sha, "github_run_id": "12345",
+                "event": "pull_request", "event_head_sha": head_sha,
+                "expected_source_sha": head_sha, "actual_checkout_sha": "3" * 40,
+                "exact_head_required": True,
+            }
+            (root / "CHECKOUT_IDENTITY_GATE.json").write_text(json.dumps(report), encoding="utf-8")
+            with patch.dict(os.environ, {"GITHUB_SHA": event_sha, "GITHUB_RUN_ID": "12345"}):
+                with self.assertRaises(ValueError):
+                    _verify_checkout_identity(root)
+
     def test_checkout_identity_rejects_stale_pr_merge_parent(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
