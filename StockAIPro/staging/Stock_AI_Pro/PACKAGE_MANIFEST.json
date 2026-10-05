@@ -1,7 +1,7 @@
 {
   "product": "Stock AI Pro Distribution",
   "version": "4.3.0-deliverable",
-  "generated_at": "2026-09-10T11:36:59.848198+00:00",
+  "generated_at": "2026-10-05T16:35:00+00:00",
   "file_count": 190,
   "files": {
     "ACCEPTANCE_REPORT.md": "5b221a4550deab2650016dcf936d6733bc5f19f18e2d4983dcd841f278a0eda8",
@@ -128,7 +128,7 @@
     "versions/4.3.0/FIRST_TIME_SETUP.bat": "b4ff8111302cb5dcd65cc2e5a575d8c31182147d05a66b8958010e6e8afa2016",
     "versions/4.3.0/healthcheck.py": "3fce152d6716e3119654f2b3945159c5b1d8bf20acbc4aee103a93511b4c84e5",
     "versions/4.3.0/ONE_CLICK_START.bat": "4c39c1441f1838093838ed1d67da3b7a7bdbd3b5878fd3ffa7ec79ee94767de1",
-    "versions/4.3.0/PACKAGE_MANIFEST.json": "7b11dbeae914dcd5f4da5537ed1bdb333f7b22161a640b8fdec3f9b3085edfe5",
+    "versions/4.3.0/PACKAGE_MANIFEST.json": "306cbf8d1d7ed8964a398e1b695b4e111cce8d522c944f6da498591962f4d005",
     "versions/4.3.0/README_CN.md": "7a3a280d0beaebffaa8c74ca3a773263ebb58e96ef024d3fabdc6dea13200703",
     "versions/4.3.0/REMOVE_AUTO_UPDATE.bat": "b3936b2d4f655ce5c7b0bb522e0088881ed900b9a20d4ac61a5ecd79866afdb3",
     "versions/4.3.0/REPAIR_ENV.bat": "a8e33f1a6f1a002091edbb394858d8aa5325fba3b6d3022a8f0b96e82ae15793",
