@@ -148,32 +148,45 @@ def verify_corporate_action_lineage(
     if hashes["qfq_payload_sha256"] == hashes["raw_payload_sha256"]:
         return {"status": "NOT VERIFIED", "reason": "qfq/raw payloads are not independently distinguishable", **hashes}
 
-    qmap = {x.trade_date: float(x.close) for x in qfq}
-    rmap = {x.trade_date: float(x.close) for x in raw}
+    qmap = {x.trade_date: x for x in qfq}
+    rmap = {x.trade_date: x for x in raw}
     dates = sorted(set(qmap) & set(rmap))
     if len(dates) < 60:
         return {"status": "NOT VERIFIED", "reason": "qfq/raw overlap is too short", "overlap_rows": len(dates), **hashes}
 
+    # One rounded close is too weak to identify an adjustment factor: both qfq
+    # and raw prices are cent-rounded, so a single ratio can jump when price
+    # levels move even though the underlying adjustment factor is unchanged.
+    # Use four independent same-session OHLC ratios and their explicit tick
+    # uncertainty. This tightens the evidence model; it does not relax the
+    # frozen factor-change tolerance.
     factor_points = []
+    half_tick = 0.005
     for d in dates:
-        raw_close = rmap[d]
-        qfq_close = qmap[d]
-        if raw_close <= 0 or qfq_close <= 0:
-            return {"status": "FAIL", "reason": "non-positive close in factor verification", "trade_date": d, **hashes}
+        qrow = qmap[d]
+        rrow = rmap[d]
+        ratios = []
+        ratio_tick_bounds = []
+        for field in ("open", "high", "low", "close"):
+            qvalue = float(getattr(qrow, field))
+            rvalue = float(getattr(rrow, field))
+            if qvalue <= 0 or rvalue <= 0:
+                return {"status": "FAIL", "reason": "non-positive OHLC in factor verification",
+                        "trade_date": d, "field": field, **hashes}
+            ratios.append(qvalue / rvalue)
+            ratio_tick_bounds.append(half_tick / qvalue + half_tick / rvalue)
         factor_points.append({
             "trade_date": d,
-            "qfq_close": qfq_close,
-            "raw_close": raw_close,
-            "factor": qfq_close / raw_close,
+            "factor": median(ratios),
+            "factor_tick_bound": median(ratio_tick_bounds),
+            "ohlc_factor_spread": max(ratios) - min(ratios),
         })
 
-    # qfq and raw closes are price-tick rounded. A day-to-day ratio therefore
-    # jitters even while the true adjustment factor is unchanged. Detect only
-    # persistent factor-regime shifts by comparing five-session medians. The
-    # threshold is bounded below by the caller's tolerance and raised only by
-    # an explicit 0.01-price-tick error bound plus local MAD noise.
+    # Detect only persistent factor-regime shifts by comparing five-session
+    # medians. The threshold is bounded below by the frozen caller tolerance,
+    # explicit cent-rounding uncertainty from all four OHLC observations, and
+    # local MAD noise.
     window = 5
-    half_tick = 0.005
     signals = []
     for split in range(window, len(factor_points) - window + 1):
         before = factor_points[split-window:split]
@@ -184,13 +197,11 @@ def verify_corporate_action_lineage(
             continue
         relative = abs(after_factor / before_factor - 1.0)
 
-        before_q = median([x["qfq_close"] for x in before])
-        before_r = median([x["raw_close"] for x in before])
-        after_q = median([x["qfq_close"] for x in after])
-        after_r = median([x["raw_close"] for x in after])
+        # Median OHLC-ratio uncertainty on each side is additive for a
+        # before/after relative comparison. Keep it explicit in evidence.
         rounding_bound = (
-            half_tick / before_q + half_tick / before_r
-            + half_tick / after_q + half_tick / after_r
+            median([x["factor_tick_bound"] for x in before])
+            + median([x["factor_tick_bound"] for x in after])
         )
         before_mad = median([abs(x["factor"] - before_factor) for x in before]) / before_factor
         after_mad = median([abs(x["factor"] - after_factor) for x in after]) / after_factor
@@ -290,6 +301,7 @@ def verify_corporate_action_lineage(
         "overlap_rows": len(dates),
         "factor_change_tolerance": factor_change_tolerance,
         "factor_detection_method": "persistent_median_regime_shift_v1",
+        "factor_estimator": "median_ohlc_ratio_v1",
         "factor_window_sessions": window,
         "price_tick": 0.01,
         "significant_factor_changes": len(changes),
