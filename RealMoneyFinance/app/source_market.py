@@ -4,7 +4,7 @@ from .freshness import qualify_source_freshness
 from .netclient import NetClient
 from .source_eastmoney import fetch_daily_bars as fetch_eastmoney
 from .source_tencent import fetch_daily_bars_tencent
-from .source_tencent_full import fetch_daily_bars_tencent_full_history
+from .source_tencent_full import fetch_daily_bars_tencent_full
 from .source_yahoo import fetch_daily_bars_yahoo
 
 
@@ -13,11 +13,26 @@ def _latest_close(rows):
 
 
 _PROVIDER_PRIORITY = {
-    "eastmoney_public_l1": 4,
-    "tencent_public_full_kline": 3,
+    "tencent_public_full_kline": 4,
+    "eastmoney_public_l1": 3,
     "tencent_public_kline": 2,
     "yahoo_public_chart": 1,
 }
+
+_PROVIDER_FAMILY = {
+    "tencent_public_full_kline": "tencent",
+    "tencent_public_kline": "tencent",
+    "eastmoney_public_l1": "eastmoney",
+    "yahoo_public_chart": "yahoo",
+}
+
+
+def _independent_successes(successes, chosen_provider: str):
+    chosen_family = _PROVIDER_FAMILY.get(chosen_provider, chosen_provider)
+    return [
+        item for item in successes
+        if _PROVIDER_FAMILY.get(item[0], item[0]) != chosen_family
+    ]
 
 
 def _select_success(successes, requested_limit: int):
@@ -41,15 +56,12 @@ def fetch_daily_bars_failover(client: NetClient, symbol: str, limit: int = 120):
     attempts = []
     successes = []
 
-    providers = [("eastmoney_public_l1", fetch_eastmoney)]
-    if int(limit) > 500:
-        providers.append(("tencent_public_full_kline", fetch_daily_bars_tencent_full_history))
-    providers.extend([
+    for provider, fn in [
+        ("eastmoney_public_l1", fetch_eastmoney),
+        ("tencent_public_full_kline", fetch_daily_bars_tencent_full),
         ("tencent_public_kline", fetch_daily_bars_tencent),
         ("yahoo_public_chart", fetch_daily_bars_yahoo),
-    ])
-
-    for provider, fn in providers:
+    ]:
         try:
             rows, meta = fn(client, symbol, limit)
             successes.append((provider, rows, meta))
@@ -70,35 +82,42 @@ def fetch_daily_bars_failover(client: NetClient, symbol: str, limit: int = 120):
     }
 
     if len(successes) >= 2:
-        remaining = [item for item in successes if item[0] != chosen_provider]
-        _, rows2, meta2 = _select_success(remaining, limit)
-        d1, c1 = _latest_close(rows)
-        d2, c2 = _latest_close(rows2)
-        if d1 == d2 and c1 and c2:
-            rel = abs(c1 - c2) / max(abs(c1), abs(c2), 1e-9)
-            if rel <= 0.02:
-                cross_source = {
-                    "status": "PASS",
-                    "latest_date": d1,
-                    "relative_close_difference": rel,
-                    "providers": [meta["provider"], meta2["provider"]],
-                }
+        remaining = _independent_successes(successes, chosen_provider)
+        if remaining:
+            _, rows2, meta2 = _select_success(remaining, limit)
+        if remaining:
+            d1, c1 = _latest_close(rows)
+            d2, c2 = _latest_close(rows2)
+            if d1 == d2 and c1 and c2:
+                rel = abs(c1 - c2) / max(abs(c1), abs(c2), 1e-9)
+                if rel <= 0.02:
+                    cross_source = {
+                        "status": "PASS",
+                        "latest_date": d1,
+                        "relative_close_difference": rel,
+                        "providers": [meta["provider"], meta2["provider"]],
+                    }
+                else:
+                    cross_source = {
+                        "status": "FAIL",
+                        "reason": "latest close differs by more than 2%",
+                        "latest_date_primary": d1,
+                        "latest_date_secondary": d2,
+                        "close_primary": c1,
+                        "close_secondary": c2,
+                        "relative_close_difference": rel,
+                    }
             else:
                 cross_source = {
                     "status": "FAIL",
-                    "reason": "latest close differs by more than 2%",
+                    "reason": "latest trade date mismatch or missing close",
                     "latest_date_primary": d1,
                     "latest_date_secondary": d2,
-                    "close_primary": c1,
-                    "close_secondary": c2,
-                    "relative_close_difference": rel,
                 }
         else:
             cross_source = {
-                "status": "FAIL",
-                "reason": "latest trade date mismatch or missing close",
-                "latest_date_primary": d1,
-                "latest_date_secondary": d2,
+                "status": "NOT VERIFIED",
+                "reason": "no independently operated second production provider succeeded",
             }
 
     source_freshness = qualify_source_freshness(
@@ -125,7 +144,7 @@ def fetch_daily_bars_failover(client: NetClient, symbol: str, limit: int = 120):
         "coverage_first": True,
         "prefer_qfq_after_coverage": True,
         "then_row_count": True,
-        "provider_priority_tiebreak": ["eastmoney_public_l1", "tencent_public_full_kline", "tencent_public_kline", "yahoo_public_chart"],
+        "provider_priority_tiebreak": ["tencent_public_full_kline", "eastmoney_public_l1", "tencent_public_kline", "yahoo_public_chart"],
         "outcome_fields_used": False,
     }
     return rows, meta
