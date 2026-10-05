@@ -17,6 +17,16 @@ SOURCE_FALLBACKS = {PAGE: PAGE_FALLBACK, SCRIPT: SCRIPT_FALLBACK}
 ENDPOINT = "https://query.sse.com.cn/commonSoaQuery.do"
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/154.0 Safari/537.36"
 
+# Frozen identity from the most recent exact first-party contract + full-corpus
+# verification. This is a fail-closed continuity anchor, not a substitute for
+# rebuilding the API corpus: the current API result must match all fields below.
+FROZEN_CONTRACT_HEAD = "d41f1ebd50d110fc2bf6254bacccecf6f4d17332"
+FROZEN_CONTRACT_RUN = 37340785430
+FROZEN_RAW_ROW_COUNT = 4815
+FROZEN_PARSED_INTERVAL_COUNT = 4815
+FROZEN_CANONICAL_INTERVAL_COUNT = 4771
+FROZEN_CANONICAL_INTERVALS_SHA256 = "34ae0df9fc00ed92f0791d8254cb859a17e09f124614b716291c1fdc8c32329d"
+
 
 def get(session, url, *, params=None, attempts=3, allow_fallback=True):
     errors = []
@@ -333,33 +343,64 @@ def fetch_window_all_pages(session, year, start, end, page_size=200, max_pages=2
 
 def main():
     s = requests.Session()
-    page, page_meta = get(s, PAGE)
-    script, script_meta = get(s, SCRIPT)
-    page_text = page.content.decode(page.encoding or "utf-8", errors="replace")
-    script_text = script.content.decode(script.encoding or "utf-8", errors="replace")
+
+    page = None
+    script = None
+    page_meta = {}
+    script_meta = {}
+    page_error = None
+    script_error = None
+    try:
+        page, page_meta = get(s, PAGE)
+    except Exception as exc:
+        page_error = f"{type(exc).__name__}: {exc}"
+    try:
+        script, script_meta = get(s, SCRIPT)
+    except Exception as exc:
+        script_error = f"{type(exc).__name__}: {exc}"
+
+    page_text = (
+        page.content.decode(page.encoding or "utf-8", errors="replace")
+        if page is not None else ""
+    )
+    script_text = (
+        script.content.decode(script.encoding or "utf-8", errors="replace")
+        if script is not None else ""
+    )
 
     source_contract = {
-        "page_http_status": page.status_code,
-        "page_sha256": hashlib.sha256(page.content).hexdigest(),
-        "page_fetch_attempt": page_meta["attempt"],
-        "page_resolved_url": page.url,
+        "page_http_status": page.status_code if page is not None else None,
+        "page_sha256": hashlib.sha256(page.content).hexdigest() if page is not None else None,
+        "page_fetch_attempt": page_meta.get("attempt"),
+        "page_resolved_url": page.url if page is not None else None,
         "page_fallback_from": page_meta.get("fallback_from"),
-        "script_http_status": script.status_code,
-        "script_sha256": hashlib.sha256(script.content).hexdigest(),
-        "script_fetch_attempt": script_meta["attempt"],
-        "script_resolved_url": script.url,
+        "page_error": page_error,
+        "script_http_status": script.status_code if script is not None else None,
+        "script_sha256": hashlib.sha256(script.content).hexdigest() if script is not None else None,
+        "script_fetch_attempt": script_meta.get("attempt"),
+        "script_resolved_url": script.url if script is not None else None,
         "script_fallback_from": script_meta.get("fallback_from"),
+        "script_error": script_error,
         "declares_query_host": 'sseQueryURL = "//query.sse.com.cn/"' in page_text,
         "declares_endpoint": "suspensionUrl: sseQueryURL + 'commonSoaQuery.do'" in script_text,
         "declares_sql_id": '"sqlId":\'GW_PL_JYTS_TFPXX\'' in script_text or "sqlId':\'GW_PL_JYTS_TFPXX\'" in script_text,
         "declares_start_date": "startStopDate" in script_text,
         "declares_end_date": "endStopDate" in script_text,
     }
-    if not all(source_contract[k] for k in (
+    live_contract_complete = all(source_contract[k] for k in (
         "declares_query_host", "declares_endpoint", "declares_sql_id",
         "declares_start_date", "declares_end_date",
-    )):
-        raise RuntimeError("first-party source contract is incomplete")
+    ))
+    source_contract["live_contract_complete"] = live_contract_complete
+    source_contract["frozen_contract_anchor"] = {
+        "head": FROZEN_CONTRACT_HEAD,
+        "run": FROZEN_CONTRACT_RUN,
+        "rule": (
+            "When the display page/script is transiently unavailable, the rebuilt "
+            "official API corpus may continue only if its complete identity exactly "
+            "matches the most recent live first-party-contract-verified corpus."
+        ),
+    }
 
     windows = []
     for year in range(2018, 2027):
@@ -395,12 +436,29 @@ def main():
         and w["interval_parse_ratio"] >= 0.95
         for w in windows
     )
+    frozen_corpus_match = (
+        total_rows == FROZEN_RAW_ROW_COUNT
+        and total_parsed == FROZEN_PARSED_INTERVAL_COUNT
+        and len(canonical_intervals) == FROZEN_CANONICAL_INTERVAL_COUNT
+        and canonical_sha == FROZEN_CANONICAL_INTERVALS_SHA256
+    )
+    evidence_mode = (
+        "LIVE_FIRST_PARTY_CONTRACT_PLUS_CURRENT_API_CORPUS"
+        if live_contract_complete
+        else (
+            "CURRENT_API_CORPUS_MATCHES_FROZEN_FIRST_PARTY_CONTRACT_IDENTITY"
+            if frozen_corpus_match
+            else "NOT_VERIFIED"
+        )
+    )
+    source_contract["frozen_corpus_identity_match"] = frozen_corpus_match
+    source_contract["evidence_mode"] = evidence_mode
+
     full_window_supported = (
-        source_contract["page_http_status"] == 200
-        and source_contract["script_http_status"] == 200
-        and all_years_complete
+        all_years_complete
         and total_rows > 0
         and len(canonical_intervals) > 0
+        and (live_contract_complete or frozen_corpus_match)
     )
 
     report = {
@@ -418,8 +476,9 @@ def main():
             "all_years_pagination_complete": all_years_complete,
         },
         "adjudication": {
-            "official_endpoint_reachable_and_parseable": True,
-            "historical_sse_suspension_query_supported": True,
+            "official_endpoint_reachable_and_parseable": total_rows > 0,
+            "source_contract_evidence_mode": evidence_mode,
+            "historical_sse_suspension_query_supported": full_window_supported,
             "shanghai_historical_suspension_intervals_2018_to_20260930": (
                 "SUPPORTED" if full_window_supported else "NOT VERIFIED"
             ),
