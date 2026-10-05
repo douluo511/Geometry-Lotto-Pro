@@ -1,5 +1,18 @@
 # Portfolio Execution State — 18 Windows EXE Projects
 
+## 2026-10-06 Stock #210 current-head business + market-wide SSE evidence checkpoint
+
+- Current Stock product candidate remains PR #210 exact head `7f270b9ab58e11fd8129053a65e000c90ff9d8c1`; PR #216 export remains bound exactly to this product head.
+- Fresh source run `37342995675` = **SUCCESS**.
+- Fresh full-business run `37342995570` / job `111875005557` = **SUCCESS** for the default production daily source-engine-business chain. Live update = 300/300 at 2026-09-30; valuation qualification = 120/300 = 40% PASS; Rank IC = `-0.09807788334098926`; decision = **NO_TRADE / LOW trust**. Artifact `11362201683`, digest `sha256:62ec479650ef97e136a42ef7d530291472fa46dd4de14ce31c85a4b8c49b9064`.
+- This business-chain PASS is not Advanced Business PASS. Complete hash-bound historical ST/PIT evidence remains absent, so `HISTORICAL_ST_PIT` / Advanced Business remain **NOT VERIFIED**.
+- Native desktop run `37342995652` remains **IN_PROGRESS** at the exact-head real-network research-corpus qualification prerequisite. Windows build, Exact EXE self-test, repair and frozen-EXE real-network core have passed, but downstream corpus/advanced/physical-GUI/Same-Hash acceptance remains NOT VERIFIED until terminal.
+- PR #214 exact head `c9336a30a34e3d556858a2ddf3b165164c975315`, run `37349626220` / job `111896877772` = **SUCCESS**. Official SSE exact-navigation pagination integrity = PASS; frozen three-keyword market-wide risk-warning event corpus = SUPPORTED: 2,994 unique A-share events / 295 codes / 1,907 ST-named rows / 622 missing-name rows; corpus SHA-256 `577c8c4caaf66f71b02f33bbba5158a46a408703d9bbdc5a131bca330c1068ef`. Artifact `11362740155`, digest `sha256:d2148e58d84ae87215e1bca82414a326825ad2889de684d644f0a72c919c09bb`.
+- Strict SSE boundary remains: event semantics complete = NOT VERIFIED; effective-state reconstruction = NOT VERIFIED; Shanghai historical ST/PIT = NOT VERIFIED; full HISTORICAL_ST_PIT = NOT VERIFIED.
+- BSE PR #218 previous discovery head `1325e111...` preserved a real negative result, but review found a discovery-layer false-negative risk (indirect roots only, no iframe traversal, ambiguous HTML charset). The discovery tool was hardened without changing any business gate; new exact head `b8a7f48f82bd71d7cdc7fe95ebe1d872f23b5173`, fresh run `37350359568` is IN_PROGRESS. No BSE PASS is claimed before terminal evidence.
+- Portfolio current-product migration/export readiness remains **18/18 PASS** only while #210 head remains unchanged. Dedicated repositories remain **0/18**; Final PASS **0/18**; delivery **0/18**.
+
+
 ## 2026-10-06 Stock current-head deterministic export restored — PR #216
 
 - Stock product candidate remains PR #210 exact head `7f270b9ab58e11fd8129053a65e000c90ff9d8c1`.
