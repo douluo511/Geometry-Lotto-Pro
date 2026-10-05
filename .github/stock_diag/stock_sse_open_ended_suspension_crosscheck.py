@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 import hashlib
 import json
+import math
 from pathlib import Path
 import time
 
@@ -48,7 +49,8 @@ def bounded(label, fn, attempts=3):
             time.sleep(2 ** (attempt - 1))
 
 
-def yahoo_dates(code: str, start: str, end: str) -> list[str]:
+def yahoo_history(code: str, start: str, end: str) -> dict:
+    """Return only real Yahoo bars, not calendar timestamps with null quotes."""
     start_dt = datetime.fromisoformat(start).replace(tzinfo=timezone.utc) - timedelta(days=3)
     end_dt = datetime.fromisoformat(end).replace(tzinfo=timezone.utc) + timedelta(days=2)
     url = f"https://query1.finance.yahoo.com/v8/finance/chart/{code}.SS"
@@ -70,16 +72,42 @@ def yahoo_dates(code: str, start: str, end: str) -> list[str]:
     result = ((obj.get("chart") or {}).get("result") or [None])[0]
     if not isinstance(result, dict):
         raise RuntimeError("yahoo: missing chart result")
-    stamps = result.get("timestamp") or []
+    stamps = list(result.get("timestamp") or [])
+    quote = (((result.get("indicators") or {}).get("quote") or [{}])[0] or {})
+    closes = list(quote.get("close") or [])
     tz8 = timezone(timedelta(hours=8))
-    values = sorted({
-        datetime.fromtimestamp(int(ts), tz=timezone.utc).astimezone(tz8).date().isoformat()
-        for ts in stamps
-    })
-    values = [d for d in values if start <= d <= end]
+    qualified = []
+    discarded = []
+    for idx, ts in enumerate(stamps):
+        day = datetime.fromtimestamp(int(ts), tz=timezone.utc).astimezone(tz8).date().isoformat()
+        if not (start <= day <= end):
+            continue
+        close = closes[idx] if idx < len(closes) else None
+        try:
+            valid_close = close is not None and math.isfinite(float(close))
+        except Exception:
+            valid_close = False
+        if valid_close:
+            qualified.append(day)
+        else:
+            discarded.append(day)
+    values = sorted(set(qualified))
     if not values:
-        raise RuntimeError("yahoo: empty date sequence")
-    return values
+        raise RuntimeError("yahoo: no finite-close bars in diagnostic window")
+    meta = result.get("meta") if isinstance(result.get("meta"), dict) else {}
+    return {
+        "dates": values,
+        "raw_timestamp_count": len(stamps),
+        "qualified_bar_count": len(values),
+        "discarded_null_or_nonfinite_close_dates": sorted(set(discarded)),
+        "meta": {
+            k: meta.get(k)
+            for k in ("symbol", "exchangeName", "fullExchangeName", "instrumentType",
+                      "shortName", "longName", "currency", "timezone", "exchangeTimezoneName")
+            if k in meta
+        },
+        "response_url": resp.url,
+    }
 
 
 def main() -> int:
@@ -168,9 +196,21 @@ def main() -> int:
         else:
             providers["tencent"] = tx_meta
 
-        yd, y_meta = bounded("yahoo", lambda c=code, ws=window_start: yahoo_dates(c, ws, END))
+        yd, y_meta = bounded("yahoo", lambda c=code, ws=window_start: yahoo_history(c, ws, END))
         if yd is not None:
-            providers["yahoo"] = {"status": "PASS", "dates": yd, "transport": y_meta}
+            providers["yahoo"] = {
+                "status": "PASS",
+                "dates": yd["dates"],
+                "transport": y_meta,
+                "bar_semantics": {
+                    "raw_timestamp_count": yd["raw_timestamp_count"],
+                    "qualified_bar_count": yd["qualified_bar_count"],
+                    "discarded_null_or_nonfinite_close_dates": yd["discarded_null_or_nonfinite_close_dates"],
+                    "meta": yd["meta"],
+                    "response_url": yd["response_url"],
+                    "rule": "timestamp counts as a trade date only when the same row has a finite close",
+                },
+            }
         else:
             providers["yahoo"] = y_meta
 
