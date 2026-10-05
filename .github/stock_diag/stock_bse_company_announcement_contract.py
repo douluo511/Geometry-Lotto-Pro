@@ -543,8 +543,10 @@ def main():
                     if item["matching_count"]:
                         winning=item
                         break
-                    if item["exact_code_record_count"]<=0:
-                        continue
+                    # An old-code query can return a market-wide page before the
+                    # requested historical alias appears. Follow the server's
+                    # own totalPages denominator even when page 0 has no exact
+                    # alias row; never infer completeness from page 0 alone.
                     total_pages=int(item.get("page_meta",{}).get("totalPages") or 1)
                     for page_no in range(1,min(total_pages,60)):
                         paged={k:v for k,v in alias_base.items() if k!="page"}
@@ -577,7 +579,7 @@ def main():
         })
 
     report={
-        "schema":"stock-bse-company-announcement-contract-v5",
+        "schema":"stock-bse-company-announcement-contract-v6",
         "endpoint":ENDPOINT,
         "endpoint_discovered_from":{
             "pr":219,
