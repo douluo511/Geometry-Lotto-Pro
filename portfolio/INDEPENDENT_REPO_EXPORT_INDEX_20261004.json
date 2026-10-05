@@ -97,7 +97,20 @@
       "repository_independence": "BLOCKED",
       "final_gate": "FAIL",
       "export_artifact_id": 11302712460,
-      "export_artifact_digest": "sha256:78efb1af6156bb1d9d5ff2609f5818b91d4e74908a7db32387e0cbb33112321f"
+      "export_artifact_digest": "sha256:78efb1af6156bb1d9d5ff2609f5818b91d4e74908a7db32387e0cbb33112321f",
+      "source_product_pr": 93,
+      "source_product_head": "efcdf7b17bc6320d7c5e56ac5695d8a1703d0d74",
+      "source_product_status": "CANDIDATE_ONLY_EXTERNAL_RELEASE_BLOCKED",
+      "current_windows_run": 37193960475,
+      "current_windows_status": "FAIL_FINAL_AGGREGATE_ONLY",
+      "exact_exe_sha256": "cbc788294ca02f975f967ec6b2854b86f285cbbf9f84ac282c877ea71e4a1d6e",
+      "hard_gates_passed": 32,
+      "hard_gates_total": 34,
+      "final_non_pass_gates": [
+        "updater_real_network",
+        "repository_independence"
+      ],
+      "note": "Current exact-head chain passes local/business/Real Network/Windows/Exact EXE/Physical GUI/Same Hash; only production updater real network and repository independence remain BLOCKED."
     },
     {
       "id": 4,
@@ -109,7 +122,17 @@
       "repository_independence": "BLOCKED",
       "final_gate": "FAIL",
       "export_artifact_id": 11304487571,
-      "export_artifact_digest": "sha256:5301319cf085b0fdce70a8553fff65c9931ce698ba6afd20e635fcd2c05dbdad"
+      "export_artifact_digest": "sha256:5301319cf085b0fdce70a8553fff65c9931ce698ba6afd20e635fcd2c05dbdad",
+      "source_product_head": "b332109080d03cb4b15ac6d479782b48b1c6dcba",
+      "source_product_status": "CANDIDATE_ONLY_REPOSITORY_BLOCKED",
+      "current_windows_run": 37258744429,
+      "current_windows_status": "FAIL_FINAL_AGGREGATE_ONLY",
+      "exact_exe_sha256": "47052f1b844c917e6fd1a52c795fb51ba1c0ddfa4227144efd7930907083a319",
+      "business_content_status": "PASS",
+      "final_non_pass_gates": [
+        "repository_independence"
+      ],
+      "note": "Current branch exact run passes architecture/business/tests/Real Network/Windows/Exact EXE/Physical GUI/Same Hash. Sole hard failure is repository independence."
     },
     {
       "id": 5,
@@ -137,7 +160,23 @@
       "repository_independence": "BLOCKED",
       "final_gate": "FAIL",
       "export_artifact_id": 11303829040,
-      "export_artifact_digest": "sha256:5ea70ace3aaa74a22210cbb59d02967ad75e654b9e90b2e893f6bef96e73806d"
+      "export_artifact_digest": "sha256:5ea70ace3aaa74a22210cbb59d02967ad75e654b9e90b2e893f6bef96e73806d",
+      "source_product_pr": 92,
+      "source_product_head": "e0aba7a1fdd261c54cfd2e5d127e1d527737aef4",
+      "source_product_status": "CANDIDATE_ONLY_EXTERNAL_RELEASE_BLOCKED",
+      "current_windows_run": 37157129067,
+      "current_windows_status": "FAIL_FINAL_AGGREGATE_ONLY",
+      "engineering_completion_percent": 90.625,
+      "business_completion_percent": 100,
+      "overall_completion_percent": 90.625,
+      "exact_exe_sha256": "0d79d261d30d488edfc270ed2227876dd79bd36ebfaf26b293e4b03dc1258fed",
+      "updater_sha256": "18c736f3464064eb96d273e81994462a3d096a10bbab7d360989f0c3cd0c769a",
+      "final_non_pass_gates": [
+        "updater_real_network",
+        "repository_independence",
+        "final_artifact"
+      ],
+      "note": "Current exact head passes Windows/Tcl/Exact EXE/Physical GUI/Same Hash and business content 100%; remaining Final gates are external release/repository/artifact context."
     },
     {
       "id": 7,
@@ -163,7 +202,21 @@
       "repository_independence": "BLOCKED",
       "final_gate": "FAIL",
       "export_artifact_id": 11302447000,
-      "export_artifact_digest": "sha256:7d4ffbd349922f0b149e6b0674592aff656ca96a403211f545a918717006ca56"
+      "export_artifact_digest": "sha256:7d4ffbd349922f0b149e6b0674592aff656ca96a403211f545a918717006ca56",
+      "source_product_pr": 94,
+      "source_product_head": "d4dc4a3b75f38a3064e39f0ea6cc9ea052b95c6c",
+      "source_product_status": "CANDIDATE_ONLY_EXTERNAL_RELEASE_BLOCKED",
+      "current_windows_run": 37194265114,
+      "current_windows_status": "FAIL_FINAL_AGGREGATE_ONLY",
+      "engineering_completion_percent": 94.2857,
+      "exact_exe_sha256": "6497571970e2133951b1a1174f4efb48a562163704dc5281ec98ef4866c6dc66",
+      "hard_gates_passed": 33,
+      "hard_gates_total": 35,
+      "final_non_pass_gates": [
+        "repository_independence",
+        "updater_real_network"
+      ],
+      "note": "Current exact-head late technical chain passes through Windows/Exact EXE/Real Network/Physical GUI/Same Hash. Only repository independence and production updater real-network evidence remain BLOCKED."
     },
     {
       "id": 9,
@@ -175,7 +228,17 @@
       "repository_independence": "BLOCKED",
       "final_gate": "FAIL",
       "export_artifact_id": 11304726740,
-      "export_artifact_digest": "sha256:5ae303e7c32e00e6774f60f895c37aa3862e43aceeaa7b868306fa8a2e95ba5e"
+      "export_artifact_digest": "sha256:5ae303e7c32e00e6774f60f895c37aa3862e43aceeaa7b868306fa8a2e95ba5e",
+      "source_product_head": "8bbedccdeeb99e1b1c552442aa4584c6a3e57e00",
+      "source_product_status": "CANDIDATE_ONLY_REPOSITORY_BLOCKED",
+      "current_windows_run": 37258749730,
+      "current_windows_status": "FAIL_FINAL_AGGREGATE_ONLY",
+      "exact_exe_sha256": "96e64cf8a83f29ff56d8b09a39f0c54f04026305ee2b202482f70cf68ea620d6",
+      "business_content_status": "PASS",
+      "final_non_pass_gates": [
+        "repository_independence"
+      ],
+      "note": "Current branch exact run passes architecture/business/tests/source+Exact EXE Real Network/Windows/Physical GUI/Same Hash. Sole hard failure is repository independence."
     },
     {
       "id": 10,
@@ -345,7 +408,7 @@
     }
   ],
   "next_resume_condition": "Continue current exact-head product validation. Do not promote migration readiness to Final. Repository-independence work can resume only when dedicated target repositories are actually visible/writable to the integration; then seed each verified export and rerun the complete chain from independent main.",
-  "latest_delta": "Current-product-bound migration readiness remains 18/18. SSQ/DLT exact-head states and Earth Online current merged candidate are closed in control; Earth business content is 8/8=100% with Windows/Exact/GUI/Same Hash PASS, but production update/repository/release remain blocked. Stock desktop research-corpus qualification remains IN_PROGRESS. Independent repositories remain 0/18; Final/Delivery remain 0/18.",
+  "latest_delta": "18/18 current-product migration exports PASS; repository independence remains 0/18. SSQ/DLT/Earth plus Psychology/English/Head/Human Nature/TalkCraft current exact states are now explicitly closed in control. Stock desktop remains the only active long internal acceptance chain at the frozen >=90% research-corpus prerequisite.",
   "infrastructure_capability": {
     "repository_creation": "BLOCKED",
     "repository_creation_evidence": "PR #127: Actions integration token cannot act as user-level repository creator; connector exposes no create-repository mutation.",
