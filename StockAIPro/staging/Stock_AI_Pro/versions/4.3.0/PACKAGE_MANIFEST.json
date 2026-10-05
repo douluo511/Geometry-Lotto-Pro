@@ -1,7 +1,7 @@
 {
   "product": "Stock AI Pro Core",
   "version": "4.3.0-deliverable",
-  "generated_at": "2026-10-05T20:35:31+00:00",
+  "generated_at": "2026-10-05T20:40:20+00:00",
   "file_count": 73,
   "files": {
     "app.py": "3fb2dbdcbc130f0a07064540ae59c6b586fcbd179e145e7be37fab2c9e934a91",
@@ -54,7 +54,7 @@
     "stock_ai/valuation.py": "0377079cfccfc3ffa9bd86c465c0817aed42847a7bbef24753f31dc13a6203db",
     "tests/app_static_test.py": "c6b2dbbdbfdc38ffe47c3994ef2a416cc243fac853bd2fc502077f921a108f6b",
     "tests/audit_test.py": "32630e61d6f1e4e24cba4cdb05293e8706fe97f7d4b4fc06ce180a76068fa455",
-    "tests/backtest_test.py": "46b8e522568ba0566f1b228ad362608e1b86875aba6dd2ed4376710e72dc163f",
+    "tests/backtest_test.py": "72ea9ba640f581afc46081fdb28656cc7f2ac9bbf27c8fdaec99bd52293b66f7",
     "tests/config_migration_test.py": "4e3834644fcad3b49d5305d9d51f3bb2a01176569f0b2ca3e038fc79a07c18d5",
     "tests/cost_valuation_decision_test.py": "2e3790da2d5eed91358b755e727d0012f61dec7d1eb2127ae8c8a848af26ce34",
     "tests/entrypoints_test.py": "6876b9fe5c9fc5dae83b034734175c5b84a5db3b3d2fd8de8c570f25f64e3b07",
