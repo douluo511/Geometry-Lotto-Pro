@@ -19,6 +19,22 @@ _PROVIDER_PRIORITY = {
     "yahoo_public_chart": 1,
 }
 
+_PROVIDER_FAMILY = {
+    "eastmoney_public_l1": "eastmoney",
+    "tencent_public_full_kline": "tencent",
+    "tencent_public_kline": "tencent",
+    "yahoo_public_chart": "yahoo",
+}
+
+
+def _independent_successes(successes, chosen_provider: str):
+    """Return only independently operated provider families for cross-source proof."""
+    chosen_family = _PROVIDER_FAMILY.get(chosen_provider, chosen_provider)
+    return [
+        item for item in successes
+        if _PROVIDER_FAMILY.get(item[0], item[0]) != chosen_family
+    ]
+
 
 def _select_success(successes, requested_limit: int):
     """Select acquisition evidence without consulting returns, labels or model output."""
@@ -69,8 +85,8 @@ def fetch_daily_bars_failover(client: NetClient, symbol: str, limit: int = 120):
         "reason": "only one production provider succeeded",
     }
 
-    if len(successes) >= 2:
-        remaining = [item for item in successes if item[0] != chosen_provider]
+    remaining = _independent_successes(successes, chosen_provider)
+    if remaining:
         _, rows2, meta2 = _select_success(remaining, limit)
         d1, c1 = _latest_close(rows)
         d2, c2 = _latest_close(rows2)
@@ -82,6 +98,10 @@ def fetch_daily_bars_failover(client: NetClient, symbol: str, limit: int = 120):
                     "latest_date": d1,
                     "relative_close_difference": rel,
                     "providers": [meta["provider"], meta2["provider"]],
+                    "provider_families": [
+                        _PROVIDER_FAMILY.get(chosen_provider, chosen_provider),
+                        _PROVIDER_FAMILY.get(meta2["provider"], meta2["provider"]),
+                    ],
                 }
             else:
                 cross_source = {
@@ -100,6 +120,12 @@ def fetch_daily_bars_failover(client: NetClient, symbol: str, limit: int = 120):
                 "latest_date_primary": d1,
                 "latest_date_secondary": d2,
             }
+    elif len(successes) >= 2:
+        cross_source = {
+            "status": "NOT VERIFIED",
+            "reason": "multiple adapters succeeded but no independently operated second provider family succeeded",
+            "provider_family": _PROVIDER_FAMILY.get(chosen_provider, chosen_provider),
+        }
 
     source_freshness = qualify_source_freshness(
         rows[-1].trade_date,
