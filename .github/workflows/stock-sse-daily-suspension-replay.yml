@@ -1,0 +1,101 @@
+name: Stock SSE daily suspension replay
+
+on:
+  push:
+    branches:
+      - "diagnostic/stock-sse-daily-suspension-replay-20261005"
+    paths:
+      - ".github/stock_diag/stock_sse_daily_suspension_replay.py"
+      - ".github/workflows/stock-sse-daily-suspension-replay.yml"
+  pull_request:
+    paths:
+      - ".github/stock_diag/stock_sse_daily_suspension_replay.py"
+      - ".github/workflows/stock-sse-daily-suspension-replay.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  replay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout exact diagnostic head
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Verify exact checkout and unchanged Stock product bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual="$(git rev-parse HEAD)"
+          expected="${{ github.event.pull_request.head.sha || github.sha }}"
+          test "$actual" = "$expected"
+          echo "EXACT_DIAGNOSTIC_HEAD=$actual"
+          base="43168d9e75c70ab55be808d8a51f0c0eb14d83d5"
+          git merge-base --is-ancestor "$base" HEAD
+          unexpected=""
+          while IFS= read -r path; do
+            case "$path" in
+              StockAIPro/hardening_tests/stock_sse_suspension_endpoint_discovery.py) ;;
+              StockAIPro/hardening_tests/stock_sse_historical_suspension_query.py) ;;
+              "") ;;
+              *) unexpected="${unexpected}${path}"$'\n' ;;
+            esac
+          done < <(git diff --name-only "$base..HEAD" -- StockAIPro)
+          test -z "$unexpected" || { printf "%s" "$unexpected"; exit 1; }
+          echo "STOCK_PRODUCT_BYTES_CHANGED=FALSE"
+      - name: Setup Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.11.9"
+      - name: Install pinned diagnostic dependencies
+        run: python -m pip install --disable-pip-version-check --no-input "requests==2.34.2" "akshare==1.17.85" "pandas>=2.2,<3"
+      - name: Rebuild official SSE interval corpus
+        run: python StockAIPro/hardening_tests/stock_sse_historical_suspension_query.py
+      - name: Revalidate official endStopDate semantics
+        run: python .github/stock_diag/sse_suspension_field_semantics.py
+      - name: Replay suspension intervals over cross-source trading dates
+        run: python .github/stock_diag/stock_sse_daily_suspension_replay.py
+      - name: Upload evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: STOCK-SSE-DAILY-SUSPENSION-REPLAY-${{ github.sha }}
+          path: |
+            stock_sse_historical_suspension_query.json
+            stock_sse_suspension_field_semantics.json
+            stock_sse_daily_suspension_replay.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Preserve strict final boundary
+        run: |
+          python - <<'PY'
+          import json
+          x=json.load(open("stock_sse_daily_suspension_replay.json",encoding="utf-8"))
+          a=x["adjudication"]
+          p=x["prerequisites"]
+          r=x["replay"]
+          assert a["historical_daily_suspension_state"] == "SUPPORTED_SHANGHAI_ONLY"
+          assert p["calendar_frozen_cross_source_anchor_match"] is True
+          assert p["open_interval_anchor_expected_count"] == 5
+          assert p["open_interval_anchor_observed_count"] == 5
+          assert p["open_interval_anchor_missing_count"] == 0
+          assert p["open_interval_anchor_extra_count"] == 0
+          assert p["resolved_open_end_count"] == 5
+          assert p["unresolved_missing_end_count"] == 0
+          assert p["invalid_range_count"] == 0
+          assert p["zero_trading_day_intersection_count"] == 0
+          assert r["open_interval_future_end_invariance"] is True
+          assert r["daily_state_pair_count"] > 0
+          assert a["shanghai_historical_st_pit"] == "NOT VERIFIED"
+          assert a["beijing_historical_st_pit"] == "NOT VERIFIED"
+          assert a["full_historical_st_pit"] == "NOT VERIFIED"
+          assert a["advanced_business"] == "NOT VERIFIED"
+          assert a["final_gate"] == "FAIL"
+          print("HISTORICAL_DAILY_SUSPENSION_STATE="+a["historical_daily_suspension_state"])
+          print("SHANGHAI_HISTORICAL_ST_PIT=NOT VERIFIED")
+          print("FULL_HISTORICAL_ST_PIT=NOT VERIFIED")
+          print("FINAL_GATE=FAIL")
+          PY
