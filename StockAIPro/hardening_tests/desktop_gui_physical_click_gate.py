@@ -207,7 +207,11 @@ def contract_test():
     warning["checks"][0]["status"] = "WARN"
     assert validate_advanced(warning, backtest)["status"] == "NOT VERIFIED"
     warning["checks"][0]["status"] = "FAIL"
-    assert validate_advanced(warning, backtest)["status"] == "FAIL"
+    failed_qualification = validate_advanced(warning, backtest)
+    assert failed_qualification["status"] == "FAIL"
+    # A business FAIL remains a business FAIL; desktop physical execution is
+    # adjudicated separately and must not rewrite this value.
+    assert failed_qualification["non_pass_checks"][0]["raw_status"] == "FAIL"
     checks.append("advanced-non-PASS-not-promoted")
     for invalid in ({}, {**backtest, "eval_points": 0}, {**backtest, "mean_strategy_return": float("nan")}):
         try:
@@ -260,7 +264,10 @@ def main():
     exe, data = Path(args.exe).resolve(), Path(args.data_root).resolve()
     data.mkdir(parents=True, exist_ok=True)
     result = {"schema": "stock-ai-physical-gui-v2", "status": "FAIL", "exe": str(exe), "actions": {},
-              "physical_gui_positive_actions": "NOT VERIFIED", "physical_gui_update_positive": "BLOCKED", "final_gate": "FAIL"}
+              "physical_gui_entry_invocations": "NOT VERIFIED",
+              "physical_gui_positive_actions": "NOT VERIFIED",
+              "advanced_business_qualification": "NOT VERIFIED",
+              "physical_gui_update_positive": "BLOCKED", "final_gate": "FAIL"}
     process, win = None, None
     try:
         from pywinauto import Desktop
@@ -346,9 +353,14 @@ def main():
         result["actions"]["advanced_analysis"] = {**qualification, "execution_status": "PASS", "click": click,
             "receipt": str(receipt_path), "invocation_id": receipt["invocation_id"], "audit_evidence": str(audit_file),
             "audit_sha256": sha256(audit_file), "backtest_evidence": str(backtest_file), "backtest_sha256": sha256(backtest_file)}
+        # Physical acceptance proves that the exact EXE received real mouse
+        # input and executed core / repair / advanced through the frozen worker.
+        # The advanced business qualification remains a separate literal gate:
+        # FAIL/NOT VERIFIED is preserved and must never be promoted to PASS.
         result["physical_gui_entry_invocations"] = "PASS"
-        result["physical_gui_positive_actions"] = qualification["status"]
-        result["status"] = qualification["status"] if qualification["status"] != "PASS" else "BLOCKED"
+        result["physical_gui_positive_actions"] = "PASS"
+        result["advanced_business_qualification"] = qualification["status"]
+        result["status"] = "BLOCKED"  # positive production update/release remains unavailable
     except Exception as exc:
         result["status"], result["error"] = "FAIL", repr(exc)
     finally:
