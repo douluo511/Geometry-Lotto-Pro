@@ -59,8 +59,9 @@ def main():
     page, page_meta = fetch(s, PAGE)
     html = page.content.decode(page.encoding or "utf-8", errors="replace")
     srcs = re.findall(r"<script[^>]+src=[\"']([^\"']+)[\"']", html, flags=re.I)
+    dynamic_refs = re.findall(r"js_files=[\"']([^\"']+)[\"']", html, flags=re.I)
     urls = []
-    for src in srcs:
+    for src in [*srcs, *dynamic_refs]:
         url = urljoin(PAGE, src)
         host = urlparse(url).hostname or ""
         if host.endswith("sse.com.cn") and url not in urls:
@@ -160,6 +161,8 @@ def main():
         "page_bytes": len(page.content),
         "page_fetch_attempt": page_meta["attempt"],
         "script_refs_found": len(srcs),
+        "dynamic_js_refs_found": len(dynamic_refs),
+        "dynamic_js_refs": dynamic_refs,
         "same_origin_scripts_scanned": len(scanned),
         "page_matches": page_matches,
         "script_hits": hits,
@@ -271,6 +274,8 @@ def main():
         "status": report["status"],
         "page_http_status": report["page_http_status"],
         "script_refs_found": report["script_refs_found"],
+        "dynamic_js_refs_found": report.get("dynamic_js_refs_found"),
+        "dynamic_js_refs": report.get("dynamic_js_refs"),
         "same_origin_scripts_scanned": report["same_origin_scripts_scanned"],
         "script_urls": urls,
         "discovery_status": report["discovery_status"],
