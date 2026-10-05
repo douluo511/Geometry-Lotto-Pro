@@ -130,7 +130,7 @@ def main():
         "product_bytes_changed": False,
         "final_gate": "FAIL",
     }
-    print(json.dumps(report, ensure_ascii=False, sort_keys=True))
+    print(json.dumps(report, ensure_ascii=True, sort_keys=True))
     with open("stock_historical_st_pit_diagnostic.json", "w", encoding="utf-8") as f:
         json.dump(report, f, ensure_ascii=False, sort_keys=True, indent=2)
         f.write("\n")
