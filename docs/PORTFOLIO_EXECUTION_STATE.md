@@ -1,3 +1,18 @@
+<!-- exact-checkpoint-stock-pit-20261006-b -->
+## Exact-state checkpoint — Stock PIT / Happy8 / RMF
+
+This checkpoint is evidence-only and does not supersede stricter later evidence.
+
+- **Portfolio hard boundary:** accessible owner repository list still exposes only `Geometry-Lotto-Pro`; dedicated repositories remain **0/18 evidenced**. No create-repository action is exposed. Therefore Final PASS = **0/18** and delivery allowed = **0/18**.
+- **Stock current product:** PR #210 `7f270b9ab58e11fd8129053a65e000c90ff9d8c1`. PR #216 remains the deterministic migration/export seed for that product head; export readiness is not repository independence.
+- **Stock BSE suspension semantics:** PR #244 run `37363751691` SUCCESS. 85/85 PDFs transported/text-extracted; 52 unique-transition documents, 25 no-strong-date, 8 multi-date ambiguous. `SUPPORTED_DIAGNOSTIC` only; BSE effective daily suspension/PIT remains NOT VERIFIED.
+- **Stock SSE strong dates:** PR #238 run `37361439603` SUCCESS over 667 PDFs; 280 unique strong effective dates, 36 ambiguous, 351 without strong date. Shanghai historical ST/PIT remains NOT VERIFIED.
+- **Stock SZSE archive:** PR #245 run `37363689831` SUCCESS; 94 pages / 1,849 notice rows / 761 dates. Pagination PASS; archive title semantics and Shenzhen daily suspension/PIT remain NOT VERIFIED.
+- **Stock live frontier:** PR #247 exact-head evidence binding commit `1da425c95356c0052de345fb306f71c3fe692168` (run `37364842160` queued); PR #248 exact-head evidence binding commit `abc789771e031c003697bbea0068460ae05a8fa0` (run `37365202352` running). PR #239 first attempt ended only because the runner received shutdown / exit 143; rerun is queued, so semantic result remains NOT VERIFIED.
+- **Stock desktop current-head:** run `37342995652` remains in exact-head research-corpus qualification. No downstream GUI / Same Hash PASS is inherited until the run reaches those gates.
+- **Happy8:** PR #224 export run `37352697602` PASS (52 files; manifest `6361714bc30579342d6e671748f5cf1823236d363b1e4cde8c1f74e13c58f109`; artifact `11362334700`; digest `fce86e2f8b65dd47e22718e69842033091fb6b1ee7475d9524f8758231c38ab9`). Full acceptance remains Engineering **84.2105%**, Business **87.5%**, Exact EXE / physical GUI / post-GUI Same Hash PASS, repository + real Release N→N+1 + unique final artifact non-PASS, Final FAIL.
+- **RMF:** PR #233 run `37363485709` proves SSE product-file distribution context, but `historical_pit_content_availability` and `survivorship_selection_control` remain NOT VERIFIED; artifact `11367407546`, digest `3019667971e4a4ef12101f7aa6cb315aec546e491840e3c79762a069546d0ed4`.
+
 # Portfolio Execution State — 18 Windows EXE Projects
 
 ## 2026-10-06 Stock SSE transition inventory + BSE machine-surface checkpoint
