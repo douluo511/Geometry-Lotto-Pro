@@ -8,6 +8,7 @@ on:
       - ".github/rmf/historical_universe_schema_probe.py"
       - ".github/rmf/historical_universe_membership_probe.py"
       - ".github/rmf/sse_daily_summary_crosscheck.py"
+      - ".github/rmf/sse_product_file_pit_boundary.py"
       - ".github/workflows/rmf-historical-universe-schema-probe.yml"
   workflow_dispatch:
 
@@ -40,7 +41,7 @@ jobs:
 
       - name: Install minimal RMF diagnostic dependency
         shell: bash
-        run: python -m pip install --disable-pip-version-check requests==2.34.2
+        run: python -m pip install --disable-pip-version-check "requests==2.34.2" "pypdf==5.4.0"
 
       - name: Bind prior successful SSE schema evidence
         shell: bash
@@ -68,6 +69,57 @@ jobs:
             --output "$RUNNER_TEMP/rmf_sse_daily_summary_crosscheck.json" \
             --network-evidence "$RUNNER_TEMP/rmf_summary_network.jsonl"
 
+      - name: Probe official SSE daily product-file PIT publication boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python .github/rmf/sse_product_file_pit_boundary.py \
+            --output "$RUNNER_TEMP/rmf_sse_product_file_pit_boundary.json"
+
+      - name: Assert PIT publication mechanism cannot promote historical replay
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["RUNNER_TEMP"])
+          obj = json.loads((root / "rmf_sse_product_file_pit_boundary.json").read_text(encoding="utf-8"))
+          ev = obj["evidence"]
+
+          for key in (
+              "historical_file_contents_replayable_now",
+              "historical_pit_content_availability",
+              "survivorship_selection_control",
+              "leakage_point_in_time",
+          ):
+              if ev.get(key) != "NOT VERIFIED":
+                  raise SystemExit(f"{key} must remain NOT VERIFIED")
+          if ev.get("capital_deployment_ready") is not False:
+              raise SystemExit("capital_deployment_ready must remain false")
+          if ev.get("final_gate") != "FAIL":
+              raise SystemExit("Final Gate must remain FAIL")
+
+          schedule = ev.get("market_participant_daily_product_file_schedule", "NOT VERIFIED")
+          if schedule == "SUPPORTED":
+              if ev.get("file_identifier") != "cpxx0201MMDD":
+                  raise SystemExit("supported publication schedule requires exact file identifier")
+              if not ev.get("pre_open_publication_language_present"):
+                  raise SystemExit("supported publication schedule requires pre-open publication language")
+              if not ev.get("trading_date_filename_semantics_present"):
+                  raise SystemExit("supported publication schedule requires trading-date filename semantics")
+
+          print("SSE_DAILY_PRODUCT_FILE_SCHEDULE=" + str(schedule))
+          print("SSE_DAILY_FILE_INCLUDES_SUSPENDED_PRODUCTS=" + str(ev.get("daily_file_includes_suspended_products", "NOT VERIFIED")))
+          print("HISTORICAL_FILE_CONTENTS_REPLAYABLE_NOW=NOT VERIFIED")
+          print("HISTORICAL_PIT_CONTENT_AVAILABILITY=NOT VERIFIED")
+          print("SURVIVORSHIP_SELECTION_CONTROL=NOT VERIFIED")
+          print("LEAKAGE_POINT_IN_TIME=NOT VERIFIED")
+          print("FINAL_GATE=FAIL")
+          PY
+
       - name: Upload schema evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
@@ -76,6 +128,7 @@ jobs:
             ${{ runner.temp }}/rmf_sse_historical_membership.json
             ${{ runner.temp }}/rmf_membership_network.jsonl
             ${{ runner.temp }}/rmf_sse_daily_summary_crosscheck.json
+            ${{ runner.temp }}/rmf_sse_product_file_pit_boundary.json
             ${{ runner.temp }}/rmf_summary_network.jsonl
           if-no-files-found: error
           retention-days: 30
