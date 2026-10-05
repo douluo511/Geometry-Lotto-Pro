@@ -28,7 +28,7 @@ with tempfile.TemporaryDirectory() as td:
     with patch.object(au,'ROOT',tmp),patch.object(au,'load_config',return_value=cfg),patch.object(au,'load_histories',return_value=hist):
         report=au.run_audit()
 ids={x['id'] for x in report['checks']}
-required={'FUTURE_SAFE_FEATURES','EMBARGO_SPLIT','LABEL_SHUFFLE','TIME_SHIFT','IMMUTABLE','UNIVERSE_COVERAGE','SURVIVORSHIP','VALUATION_PIT','DYNAMIC_COST','CAPACITY','VALUE_BASELINE','RANDOM_BASELINE','FEATURE_DRIFT'}
+required={'FUTURE_SAFE_FEATURES','EMBARGO_SPLIT','LABEL_SHUFFLE','TIME_SHIFT','IMMUTABLE','UNIVERSE_COVERAGE','SURVIVORSHIP','VALUATION_PIT','DYNAMIC_COST','CAPACITY','VALUE_BASELINE','RANDOM_BASELINE','FEATURE_DRIFT','HISTORICAL_ST_PIT','HISTORICAL_ST_PIT_CONSUMED'}
 assert required<=ids
 assert report['trust'] in {'MEDIUM','HIGH'}
 assert 'Label Shuffle' in report['reverse_validation'] and 'Time Shift' in report['reverse_validation']
