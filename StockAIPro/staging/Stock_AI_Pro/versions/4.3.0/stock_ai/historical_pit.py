@@ -6,6 +6,8 @@ import re
 from datetime import date
 from pathlib import Path
 
+import pandas as pd
+
 SCHEMA = "stock-ai-historical-st-pit-v1"
 REQUIRED_MARKETS = ("SSE", "SZSE", "BSE")
 HEX64 = re.compile(r"^[0-9a-f]{64}$")
@@ -216,3 +218,116 @@ def evaluate_historical_st_pit(root: Path, expected_trade_date=None):
         f"历史ST/停牌逐日PIT证据完整且字节哈希绑定；SSE/SZSE/BSE；"
         f"{obj.get('window_start')}..{obj.get('window_end')}"
     ), meta
+
+
+def _market_for_code(code: str) -> str:
+    code = str(code)
+    if code.startswith(("6", "9")):
+        return "SSE"
+    if code.startswith(("4", "8")):
+        return "BSE"
+    return "SZSE"
+
+
+def load_verified_historical_st_pit(root: Path, expected_trade_date=None):
+    """Load the exact hash-bound daily PIT state only after the evidence gate passes.
+
+    The returned frame is safe for exact-date joins only.  No as-of/backward
+    lookup is performed here because doing so could leak a later ST/suspension
+    state into an earlier backtest date.
+    """
+    root = Path(root)
+    status, detail, meta = evaluate_historical_st_pit(root, expected_trade_date)
+    if status != PASS:
+        raise RuntimeError(f"historical ST/PIT evidence not verified: {detail}")
+
+    canonical_meta = (
+        ((meta.get("bindings") or {}).get("canonical") or {}).get("meta") or {}
+    )
+    canonical_path = canonical_meta.get("path")
+    if not canonical_path:
+        raise RuntimeError("verified historical ST/PIT evidence has no canonical path")
+    canonical_path = Path(canonical_path)
+    if not canonical_path.is_file():
+        raise RuntimeError("verified historical ST/PIT canonical file disappeared")
+
+    rows = []
+    with canonical_path.open("r", encoding="utf-8") as stream:
+        for lineno, raw in enumerate(stream, start=1):
+            if not raw.strip():
+                continue
+            try:
+                obj = json.loads(raw)
+            except Exception as exc:
+                raise RuntimeError(
+                    f"historical ST/PIT canonical JSONL invalid at line {lineno}: "
+                    f"{type(exc).__name__}"
+                ) from exc
+            required = {"date", "market", "code", "st", "suspended"}
+            if not isinstance(obj, dict) or not required.issubset(obj):
+                raise RuntimeError(
+                    f"historical ST/PIT canonical row missing required fields at line {lineno}"
+                )
+
+            day = _parse_day(obj.get("date"))
+            market = str(obj.get("market", "")).upper()
+            code = str(obj.get("code", "")).strip()
+            st = obj.get("st")
+            suspended = obj.get("suspended")
+            if day is None:
+                raise RuntimeError(
+                    f"historical ST/PIT canonical date invalid at line {lineno}"
+                )
+            if market not in REQUIRED_MARKETS:
+                raise RuntimeError(
+                    f"historical ST/PIT canonical market invalid at line {lineno}: {market}"
+                )
+            if re.fullmatch(r"\d{6}", code) is None:
+                raise RuntimeError(
+                    f"historical ST/PIT canonical code invalid at line {lineno}: {code!r}"
+                )
+            if market != _market_for_code(code):
+                raise RuntimeError(
+                    f"historical ST/PIT market/code mismatch at line {lineno}: "
+                    f"{market}/{code}"
+                )
+            if type(st) is not bool or type(suspended) is not bool:
+                raise RuntimeError(
+                    f"historical ST/PIT booleans invalid at line {lineno}"
+                )
+            rows.append(
+                {
+                    "date": pd.Timestamp(day),
+                    "market": market,
+                    "code": code,
+                    "st": st,
+                    "suspended": suspended,
+                }
+            )
+
+    if not rows:
+        raise RuntimeError("historical ST/PIT canonical daily state is empty")
+    frame = pd.DataFrame(rows).sort_values(["date", "market", "code"]).reset_index(drop=True)
+    dup = frame.duplicated(["date", "code"], keep=False)
+    if bool(dup.any()):
+        sample = frame.loc[dup, ["date", "market", "code"]].head(5).to_dict("records")
+        raise RuntimeError(f"historical ST/PIT canonical duplicate date/code rows: {sample}")
+
+    claim = json.loads((root / "cache" / "historical_st_pit.json").read_text(encoding="utf-8"))
+    start = _parse_day(claim.get("window_start"))
+    end = _parse_day(claim.get("window_end"))
+    if start is None or end is None:
+        raise RuntimeError("historical ST/PIT verified claim lost its window")
+    if frame["date"].min().date() < start or frame["date"].max().date() > end:
+        raise RuntimeError("historical ST/PIT canonical rows escape the verified window")
+
+    return frame, {
+        "status": PASS,
+        "canonical_sha256": meta.get("canonical_sha256"),
+        "canonical_path": str(canonical_path),
+        "row_count": int(len(frame)),
+        "window_start": str(start),
+        "window_end": str(end),
+        "exact_date_join_only": True,
+        "future_lookup_forbidden": True,
+    }
