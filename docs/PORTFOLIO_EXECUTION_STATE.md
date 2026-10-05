@@ -790,3 +790,16 @@ This checkpoint supersedes older in-progress wording for the items below only. I
 - **Happy8 advanced convergence FAIL→FIX:** PR #165 exact head `f52182015f09303127897b9cd725716bb3c64c93`, run `37285586660` failed at `science_protocol_contract.py` and `science_method_contract.py` with `NameError: json is not defined` inside `happy8/science.py::validate_history`. The expanded Service repair contract, updater contract/rollback and Fault Injection had passed before this blocker; downstream Business/Windows/Exact EXE/GUI/Same Hash were skipped and therefore NOT VERIFIED. Minimal fix `import json` committed as `b39359fd8c96a6b949848f288e096af50de85d04`; fresh exact-head run `37286419249` is IN_PROGRESS. No science threshold or denominator changed.
 - **Stock AI current product:** PR #155 exact head `f9d610aafe910cb73b036701a688329d9899399b`. Business run `37268369291` = SUCCESS. Desktop run `37268369332` has now PASSed Native Windows build, Exact EXE self-test, frozen repair, Exact-EXE real-network core, the >=90% real-history corpus qualification prerequisite, persisted corpus cache, and Frozen EXE advanced analysis; Physical GUI is IN_PROGRESS. Downstream updater/final evidence remains NOT VERIFIED until terminal.
 - **Final boundary unchanged:** workflow success, candidate artifacts, migration/export PASS, prospective evidence, or monorepo exact-EXE evidence do not satisfy dedicated repository independence or real production Release N→N+1. Final Gate remains FAIL for every project.
+
+
+## 2026-10-05 RMF historical-membership independent cross-check
+
+- Diagnostic authority: PR #187 exact head `0e6340774ee74ba004634f474f353c52273e480b`.
+- Run `37300980163` attempt 1 is preserved FAIL because the official SSE membership endpoint returned HTTP 403 after bounded retries. No code or threshold was changed to hide that failure.
+- Same-head attempt 2 / job `111733819301` = **SUCCESS**.
+- Historical membership reconstruction = **PASS**; canonical universe SHA-256 `849902986c5e7d887c487133d3413b5a23641ab3c3139154537b4cdb2b01d4be`; reconstructed member count 1992→2320 across 366 change dates; 600000 is present on all 1200 research dates.
+- Independent official SSE daily listed-count cross-check = **PASS** at four comparable dates (minimum 3): 2023-01-13 `1668+502=2170`; 2024-04-15 `1697+571=2268`; 2025-07-10 `1694+589=2283`; 2026-09-30 `1702+618=2320`; mismatches = 0. The current daily endpoint returned no rows for 2021-12-24, so that date remains **NOT VERIFIED** and is not imputed.
+- Evidence artifact `11341503114`; digest `sha256:c11f72e1bfeff85cbada6dcc9a7e02a5431360315e02b57ec953d975a5f1d231`.
+- Strict boundary: `historical_pit_availability=NOT VERIFIED`; `survivorship_selection_control=NOT VERIFIED`; `capital_deployment_ready=false`; RMF Final Gate remains **FAIL**. This diagnostic changes no `RealMoneyFinance/**` product bytes and does not itself change the formal RMF Business 12/16 denominator result.
+- Duplicate draft diagnostic PR #186 was closed as superseded; its historical evidence remains preserved.
+- Repository Independence remains **0/18 PASS** and portfolio Final/Delivery remains **0/18**.
