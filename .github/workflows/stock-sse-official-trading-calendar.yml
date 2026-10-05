@@ -70,6 +70,7 @@ jobs:
           print("FINAL_GATE=FAIL")
           PY
       - name: Upload calendar evidence
+        if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: STOCK-SSE-OFFICIAL-TRADING-CALENDAR-${{ github.sha }}
