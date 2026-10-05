@@ -76,12 +76,16 @@ def build_prospective_universe_precommit(
     if declared_total is not None and int(declared_total) < len(normalised):
         raise ValueError("provider-declared total is smaller than parsed universe")
 
+    payload_hashes = [str(x).lower() for x in source_payload_sha256s]
     canonical = {
         "schema": "rmf-prospective-survivorship-precommit-v1",
         "asof_date": str(asof_date),
+        "retrieved_at_unix": canonical["retrieved_at_unix"],
         "source_provider": str(source_provider),
         "source_url": str(source_url),
         "source_filter": str(source_filter),
+        "source_payload_sha256s": payload_hashes,
+        "declared_total": int(declared_total) if declared_total is not None else None,
         "code_source_sha": str(code_source_sha).lower(),
         "symbols": normalised,
     }
@@ -104,8 +108,8 @@ def build_prospective_universe_precommit(
         "source_url": canonical["source_url"],
         "source_filter": canonical["source_filter"],
         "code_source_sha": canonical["code_source_sha"],
-        "source_payload_sha256s": [str(x).lower() for x in source_payload_sha256s],
-        "declared_total": int(declared_total) if declared_total is not None else None,
+        "source_payload_sha256s": canonical["source_payload_sha256s"],
+        "declared_total": canonical["declared_total"],
         "symbol_count": len(normalised),
         "symbols_sha256": hashlib.sha256(symbols_raw).hexdigest(),
         "precommit_sha256": precommit_sha256,
@@ -193,7 +197,8 @@ def _fetch_official_sse_universe(
                 )
             board_rows.append({"f12": symbol, "f13": 1, "f14": name})
         rows.extend(board_rows)
-        payload_hashes.append(meta.payload_sha256)
+        page_payload_hashes = getattr(meta, "payload_sha256s", None) or [meta.payload_sha256]
+        payload_hashes.extend(page_payload_hashes)
         retrieved_times.append(meta.retrieved_at_unix)
         attempts.append({
             "url": SSE_UNIVERSE_URL,
@@ -213,6 +218,7 @@ def _fetch_official_sse_universe(
     meta = SimpleNamespace(
         url=SSE_UNIVERSE_URL,
         payload_sha256=composite,
+        payload_sha256s=payload_hashes,
         retrieved_at_unix=max(retrieved_times),
     )
     return {"data": {"total": unique_count, "diff": rows}}, meta, attempts
@@ -357,6 +363,11 @@ def fetch_current_shanghai_universe_precommit(
     ).astimezone(china_tz).date().isoformat()
     code_source_sha = os.environ.get("SOURCE_SHA") or os.environ.get("GITHUB_SHA") or ""
 
+    source_filter = (
+        "STOCK_TYPE=1,8;COMPANY_STATUS=2,4,5,7,8"
+        if providers[0] == "sse_official_current_shanghai_equity_universe"
+        else UNIVERSE_FILTER
+    )
     result = build_prospective_universe_precommit(
         entries,
         asof_date=asof_date,
@@ -365,6 +376,7 @@ def fetch_current_shanghai_universe_precommit(
         code_source_sha=code_source_sha,
         source_url=selected_source_urls[0] if selected_source_urls else UNIVERSE_URL,
         source_provider=providers[0],
+        source_filter=source_filter,
         declared_total=declared_total,
         min_symbols=min_symbols,
     )
