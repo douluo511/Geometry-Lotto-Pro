@@ -339,6 +339,17 @@ class BusinessBoundaries(unittest.TestCase):
         self.assertGreaterEqual(evidence["unexplained_factor_changes"], 1)
         self.assertEqual(evidence["status"], "NOT VERIFIED")
 
+    def test_mixed_symbol_rows_fail_before_corporate_action_qualification(self):
+        rows = bars(150)
+        rows[80] = replace(rows[80], symbol="000001")
+        with self.assertRaises(ValueError):
+            qualify_research(
+                rows,
+                {"provider": "production_fixture", "qualification_scope": "production_real_network",
+                 "price_adjustment": "qfq"},
+                corporate_action_evidence=self._valid_corporate_action_evidence(),
+            )
+
     def test_missing_turnover_cannot_pass_complete_ablation(self):
         got = qualify_research([replace(x, turnover_rate=None) for x in bars()], {})
         self.assertEqual(got["feature_results"]["turnover_only"]["status"], "NOT VERIFIED")
