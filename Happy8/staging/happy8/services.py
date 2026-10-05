@@ -1,0 +1,335 @@
+from __future__ import annotations
+
+import json
+import os
+import subprocess
+import sys
+import tempfile
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Callable
+
+from .domain import Draw
+from .science import PICK_SIZE, build_prefix_state, rank_prefix, validate_history
+from .sources import build_official_snapshot
+from .storage import Store, canonical_json, sha256_json
+
+SOFTWARE_VERSION = "0.2.0"
+
+
+def _utc_now() -> str:
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def _atomic_json(path: Path, value: Any) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(prefix=path.name + ".", suffix=".tmp", dir=str(path.parent))
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as fh:
+            fh.write(canonical_json(value) + "\n")
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp_name, path)
+    finally:
+        try:
+            os.unlink(tmp_name)
+        except FileNotFoundError:
+            pass
+
+
+class Happy8Service:
+    """Application service boundary used by CLI and GUI.
+
+    UI code must call these methods instead of importing Source/Storage/Science
+    directly.  Every success response is derived from verified state.
+    """
+
+    def __init__(
+        self,
+        data_root: Path,
+        *,
+        snapshot_builder: Callable[[], tuple[dict[str, Any], dict[str, bytes]]] = build_official_snapshot,
+    ):
+        self.data_root = Path(data_root).resolve()
+        self.data_root.mkdir(parents=True, exist_ok=True)
+        self.store = Store(self.data_root / "store")
+        self.results = self.data_root / "results"
+        self.evidence = self.data_root / "evidence"
+        self.snapshot_builder = snapshot_builder
+
+    @staticmethod
+    def _draws(snapshot: dict[str, Any]) -> list[Draw]:
+        rows = snapshot["canonical"].get("draws")
+        if not isinstance(rows, list) or not rows:
+            raise RuntimeError("verified canonical snapshot contains no draws")
+        return [
+            Draw.from_values(row["issue"], row["draw_date"], row["numbers"])
+            for row in rows
+        ]
+
+    def status(self) -> dict[str, Any]:
+        integrity = self.store.integrity_check()
+        result: dict[str, Any] = {
+            "status": integrity.get("status"),
+            "store_integrity": integrity,
+        }
+        if integrity.get("status") == "PASS":
+            snapshot = self.store.read_current_snapshot()
+            result.update({
+                "generation_id": snapshot["generation_id"],
+                "canonical_hash": snapshot["canonical"]["canonical_hash"],
+                "draw_count": snapshot["canonical"]["draw_count"],
+                "latest_issue": snapshot["canonical"]["draws"][-1]["issue"],
+            })
+        return result
+
+    def one_click_update(self) -> dict[str, Any]:
+        """Refresh official data, then hand software replacement to the independent Updater.
+
+        A data refresh is never promoted to a software-update PASS. Without a
+        production HTTPS manifest/trust context the result is explicitly BLOCKED.
+        """
+        data_result = self.update_data()
+        manifest_url = str(os.environ.get("HAPPY8_UPDATE_MANIFEST_URL") or "").strip()
+        trusted_hosts = [
+            item.strip().lower()
+            for item in str(os.environ.get("HAPPY8_UPDATE_TRUSTED_HOSTS") or "").split(",")
+            if item.strip()
+        ]
+        target_override = str(os.environ.get("HAPPY8_TARGET_EXE") or "").strip()
+        updater_override = str(os.environ.get("HAPPY8_UPDATER_EXE") or "").strip()
+
+        target_exe = Path(target_override).resolve() if target_override else Path(sys.executable).resolve()
+        updater_exe = (
+            Path(updater_override).resolve()
+            if updater_override
+            else target_exe.with_name("Geometry_Lotto_Pro_Happy8_Updater.exe")
+        )
+        updater_evidence = self.evidence / "software_updater_result.json"
+
+        if not manifest_url or not trusted_hosts:
+            result = {
+                "status": "BLOCKED",
+                "operation": "one_click_update",
+                "data_update": data_result,
+                "software_update": {
+                    "status": "BLOCKED",
+                    "reason": "production update manifest/trusted-host context is unavailable",
+                    "required_environment": [
+                        "HAPPY8_UPDATE_MANIFEST_URL",
+                        "HAPPY8_UPDATE_TRUSTED_HOSTS",
+                    ],
+                },
+                "completed_at": _utc_now(),
+            }
+            _atomic_json(self.evidence / "last_one_click_update.json", result)
+            return result
+
+        if not target_exe.is_file() or not updater_exe.is_file():
+            result = {
+                "status": "BLOCKED",
+                "operation": "one_click_update",
+                "data_update": data_result,
+                "software_update": {
+                    "status": "BLOCKED",
+                    "reason": "exact main EXE or independent Updater EXE is unavailable",
+                    "target_exe": str(target_exe),
+                    "updater_exe": str(updater_exe),
+                },
+                "completed_at": _utc_now(),
+            }
+            _atomic_json(self.evidence / "last_one_click_update.json", result)
+            return result
+
+        command = [
+            str(updater_exe),
+            "--manifest-url",
+            manifest_url,
+        ]
+        for host in trusted_hosts:
+            command.extend(["--trusted-host", host])
+        command.extend([
+            "--target-exe",
+            str(target_exe),
+            "--current-version",
+            SOFTWARE_VERSION,
+            "--parent-pid",
+            str(os.getpid()),
+            "--evidence-file",
+            str(updater_evidence),
+        ])
+        try:
+            flags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+            process = subprocess.Popen(
+                command,
+                cwd=str(target_exe.parent),
+                creationflags=flags,
+                close_fds=True,
+            )
+        except Exception as exc:
+            result = {
+                "status": "FAIL",
+                "operation": "one_click_update",
+                "data_update": data_result,
+                "software_update": {
+                    "status": "FAIL",
+                    "error": f"{type(exc).__name__}: {exc}",
+                    "updater_exe": str(updater_exe),
+                },
+                "completed_at": _utc_now(),
+            }
+            _atomic_json(self.evidence / "last_one_click_update.json", result)
+            return result
+
+        result = {
+            "status": "PENDING_RESTART",
+            "operation": "one_click_update",
+            "data_update": data_result,
+            "software_update": {
+                "status": "PENDING_RESTART",
+                "action": "INDEPENDENT_UPDATER_LAUNCHED",
+                "updater_pid": int(process.pid),
+                "target_exe": str(target_exe),
+                "updater_exe": str(updater_exe),
+                "manifest_url": manifest_url,
+                "trusted_hosts": trusted_hosts,
+                "final_evidence": str(updater_evidence),
+            },
+            "completed_at": _utc_now(),
+        }
+        _atomic_json(self.evidence / "last_one_click_update.json", result)
+        return result
+
+    def update_data(self) -> dict[str, Any]:
+        report, raw_sources = self.snapshot_builder()
+        if report.get("status") != "PASS":
+            raise RuntimeError("official network snapshot is not PASS")
+        commit = self.store.commit_official_snapshot(report, raw_sources)
+        result = {
+            "status": "PASS",
+            "operation": "update",
+            "generation_id": commit["generation_id"],
+            "canonical_hash": commit["canonical_hash"],
+            "history_count": report["history_count"],
+            "latest_issue": report["latest"]["issue"],
+            "history_source": report["history_source"],
+            "verification": report["verification"],
+            "completed_at": _utc_now(),
+        }
+        _atomic_json(self.evidence / "last_update.json", result)
+        return result
+
+    def predict_next(self) -> dict[str, Any]:
+        snapshot = self.store.read_current_snapshot()
+        draws = self._draws(snapshot)
+        science = validate_history(
+            draws,
+            canonical_hash=str(snapshot["canonical"]["canonical_hash"]),
+        )
+        state = build_prefix_state(draws)
+        ranking = rank_prefix(draws, state, len(draws))
+        candidate10 = sorted(int(row["number"]) for row in ranking[:PICK_SIZE])
+        latest_issue = draws[-1].issue
+        target_issue = str(int(latest_issue) + 1)
+
+        edge_state = str(science.get("edge_state"))
+        dan_state = str(science.get("dan_state"))
+        formal_dan = list(science.get("formal_dan") or [])
+        if edge_state != "VALIDATED_EDGE":
+            if dan_state != "NULL_DAN" or formal_dan:
+                raise RuntimeError("NO_EDGE scientific state attempted to emit formal dan")
+            production_model = "uniform_baseline"
+            label = "STRUCTURED_CANDIDATE_ONLY"
+        else:
+            production_model = str(science.get("production_model"))
+            label = "VALIDATED_EDGE"
+
+        freeze = {
+            "schema": "happy8-prediction-freeze-v1",
+            "status": "PASS",
+            "target_issue": target_issue,
+            "source_latest_issue": latest_issue,
+            "canonical_hash": snapshot["canonical"]["canonical_hash"],
+            "generation_id": snapshot["generation_id"],
+            "candidate10_research_only": candidate10,
+            "formal_dan": formal_dan,
+            "edge_state": edge_state,
+            "dan_state": dan_state,
+            "production_model": production_model,
+            "label": label,
+            "created_at": _utc_now(),
+        }
+        freeze["freeze_hash"] = sha256_json({
+            key: value for key, value in freeze.items() if key not in {"created_at", "freeze_hash"}
+        })
+        path = self.results / f"prediction_{target_issue}.json"
+        if path.exists():
+            previous = json.loads(path.read_text(encoding="utf-8"))
+            comparable_keys = set(freeze) - {"created_at"}
+            if any(previous.get(k) != freeze.get(k) for k in comparable_keys):
+                raise RuntimeError(
+                    f"immutable prediction freeze conflict for target issue {target_issue}"
+                )
+            return previous
+        _atomic_json(path, freeze)
+        _atomic_json(self.evidence / "last_prediction.json", freeze)
+        return freeze
+
+    def repair(self) -> dict[str, Any]:
+        before = self.store.integrity_check()
+        if before.get("status") == "PASS":
+            snapshot = self.store.read_current_snapshot()
+            result = {
+                "status": "PASS",
+                "operation": "repair",
+                "action": "NO_CHANGE_REQUIRED",
+                "generation_id": snapshot["generation_id"],
+                "completed_at": _utc_now(),
+            }
+        else:
+            repaired = self.store.repair_current_pointer()
+            if repaired.get("status") != "PASS":
+                result = {
+                    "status": "FAIL",
+                    "operation": "repair",
+                    "action": "NO_VALID_GENERATION",
+                    "before": before,
+                    "repair": repaired,
+                    "completed_at": _utc_now(),
+                }
+                _atomic_json(self.evidence / "last_repair.json", result)
+                return result
+            after = self.store.integrity_check()
+            if after.get("status") != "PASS":
+                raise RuntimeError("repair reported PASS but post-repair integrity failed")
+            result = {
+                "status": "PASS",
+                "operation": "repair",
+                "action": "RESTORED_VERIFIED_GENERATION",
+                "generation_id": repaired["generation_id"],
+                "before": before,
+                "after": after,
+                "completed_at": _utc_now(),
+            }
+        _atomic_json(self.evidence / "last_repair.json", result)
+        return result
+
+    def advanced_analysis(self) -> dict[str, Any]:
+        snapshot = self.store.read_current_snapshot()
+        draws = self._draws(snapshot)
+        report = validate_history(
+            draws,
+            canonical_hash=str(snapshot["canonical"]["canonical_hash"]),
+        )
+        if report.get("status") != "PASS" or report.get("software_verdict") != "PASS":
+            raise RuntimeError("scientific validation software gate failed")
+        result = {
+            "status": "PASS",
+            "operation": "advanced_analysis",
+            "generation_id": snapshot["generation_id"],
+            "canonical_hash": snapshot["canonical"]["canonical_hash"],
+            "report": report,
+            "completed_at": _utc_now(),
+        }
+        _atomic_json(self.evidence / "last_advanced_analysis.json", result)
+        return result
