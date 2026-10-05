@@ -147,3 +147,93 @@ jobs:
 
           # Never convert diagnostic schema visibility into a business PASS.
           print("RMF_SSE_SCHEMA_PROBE_COMPLETE")
+
+      - name: Discover official SSE delisting data endpoint references
+        shell: python
+        run: |
+          import json
+          import re
+          import urllib.parse
+          import urllib.request
+
+          pages = [
+              "https://www.sse.com.cn/assortment/stock/list/delisting/",
+              "https://www.sse.com.cn/services/information/delisting/",
+          ]
+          headers = {
+              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/154 Safari/537.36",
+              "Accept": "text/html,application/javascript,text/javascript,*/*",
+          }
+          patterns = [
+              r"sqlId", r"commonQuery", r"DELIST", r"delist",
+              r"暂停", r"终止", r"退市", r"COMPANY_STATUS",
+          ]
+
+          def fetch(url):
+              req = urllib.request.Request(url, headers=headers)
+              with urllib.request.urlopen(req, timeout=20) as resp:
+                  raw = resp.read()
+                  ctype = resp.headers.get("Content-Type", "")
+                  status = resp.status
+              text = raw.decode("utf-8", errors="replace")
+              return status, ctype, text
+
+          discovered = {"status": "DIAGNOSTIC_ONLY", "pages": [], "script_hits": []}
+          scripts = []
+          for page in pages:
+              try:
+                  status, ctype, html = fetch(page)
+                  srcs = re.findall(r'''<script[^>]+src=["']([^"']+)["']''', html, flags=re.I)
+                  resolved = []
+                  for src in srcs:
+                      url = urllib.parse.urljoin(page, src)
+                      if "sse.com.cn" in urllib.parse.urlparse(url).netloc:
+                          resolved.append(url)
+                  resolved = list(dict.fromkeys(resolved))
+                  scripts.extend(resolved)
+                  page_hits = []
+                  for pat in patterns:
+                      for m in re.finditer(pat, html, flags=re.I):
+                          page_hits.append(html[max(0,m.start()-250):m.start()+500])
+                          if len(page_hits) >= 10:
+                              break
+                      if len(page_hits) >= 10:
+                          break
+                  discovered["pages"].append({
+                      "url": page,
+                      "http_status": status,
+                      "content_type": ctype,
+                      "script_count": len(resolved),
+                      "scripts": resolved,
+                      "html_hits": page_hits,
+                  })
+              except Exception as exc:
+                  discovered["pages"].append({"url": page, "error": repr(exc)})
+
+          for url in list(dict.fromkeys(scripts))[:80]:
+              try:
+                  status, ctype, text = fetch(url)
+                  if len(text) > 4_000_000:
+                      continue
+                  hits = []
+                  for pat in patterns:
+                      for m in re.finditer(pat, text, flags=re.I):
+                          hits.append(text[max(0,m.start()-350):m.start()+900])
+                          if len(hits) >= 8:
+                              break
+                      if len(hits) >= 8:
+                          break
+                  if hits:
+                      discovered["script_hits"].append({
+                          "url": url,
+                          "http_status": status,
+                          "content_type": ctype,
+                          "hits": hits,
+                      })
+                  if len(discovered["script_hits"]) >= 20:
+                      break
+              except Exception:
+                  pass
+
+          print(json.dumps(discovered, ensure_ascii=False, sort_keys=True))
+          print("RMF_SSE_DELISTING_ENDPOINT_DISCOVERY_COMPLETE")
