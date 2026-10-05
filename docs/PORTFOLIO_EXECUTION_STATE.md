@@ -1,8 +1,28 @@
 # Portfolio Execution State — 18 Windows EXE Projects
 
-Updated: 2026-10-03
+Updated: 2026-10-05
 Mode: STRICT ENGINEERING EXECUTION MODE
 Source of control: MASTER issue #11 plus exact current PR / Actions / artifact evidence.
+
+## Current continuation checkpoint — 2026-10-05
+
+Authoritative portfolio boundary at this checkpoint:
+
+- Current-product-bound migration/export readiness: **18/18 PASS = 100%**. This is migration readiness only.
+- Real dedicated repository independence: **0/18 PASS = 0%**.
+- Portfolio Final Gate / final delivery: **0/18 PASS = 0%**.
+- These three denominators are intentionally separate. Migration PASS must never be promoted to repository independence or Final PASS.
+
+Fresh exact evidence:
+
+- **SSQ** PR #76 product head `3b61bb59ed0da6f7c7717b6840fe95a00d58a2ad`; Windows run `37262758839` completed **FAIL only at Final aggregation after current-run PASS through Native Windows build, Exact EXE, Standard User acceptance, physical GUI positive/fail-closed paths and Same Hash**. Final non-PASS is exactly `business_content=PENDING`, `updater_real_network=PENDING`, `repository_independence=FAIL`, `release_context=FAIL`. Main EXE SHA-256 `8c513d8f07dc16749161af62c47d7e23934e08ee52c689b93cef08eb3f418a4c`; Updater SHA-256 `c023976d073f765d195cb004a40a375a70a04e7e07568905614273618e629505`; candidate evidence artifact `11325666525`. This is correct fail-closed behavior, not a test bug.
+- **DLT** PR #79 head `88809643fe3841879f4c038b9bbffb86026629f5`, run `37258239532`: all current internal/Real-Network/Windows/Exact/Updater/GUI/Same-Hash gates PASS; Final FAIL remains exactly the independent-production-release-dependent business/updater/repository/release gates.
+- **Real-Money Finance** hardening PR #145 run `37264034367` succeeded as candidate validation and was integrated. PR #153 merged current verified official-cost/corporate-action evidence to main at merge commit `c79666888aed8fe8b28ff4f165be06e9eef1884e`; its candidate run `37267323305` is SUCCESS. Engineering remains 24/28 = 85.7%; business remains 11/16 = 68.8%; corporate-action PIT, leakage PIT, survivorship-safe universe, liquidity capacity and full cost/slippage calibration remain non-PASS. Current-product migration export #148 / run `37264309986` PASS restored portfolio migration readiness to 18/18.
+- **Stock AI Pro** repair PR #152 head `a47de1ee00a99ee1b4ac4f121f9deeb1a09c6384`: resumable real-history Actions cache was added without lowering the frozen >=90% corpus-qualification threshold. Run `37266215808` remains IN_PROGRESS and is not pre-promoted.
+- **Happy8** PR #39 head `580de850b42f318f4f5f261b0eafd7d43e4265c6`: direct-script science import blocker was fixed. Run `37267427383` remains IN_PROGRESS at the live dual-official-source network gate; downstream science/Windows/GUI evidence remains NOT VERIFIED until current-head execution completes.
+- **Human Nature** migration PR #150 run `37266030292` PASS; **TalkCraft** migration PR #151 run `37266042305` PASS. Both remain non-Final because repository independence is not satisfied.
+
+Execution rule remains unchanged: advance an executable non-PASS gate; preserve FAIL→FIX→PASS; never alter thresholds or denominators merely to obtain a green workflow. Repository creation is still unavailable through the connected GitHub integration, so only repository-dependent gates are BLOCKED while all other executable work continues.
 
 ## Current continuation checkpoint — 2026-10-03
 
