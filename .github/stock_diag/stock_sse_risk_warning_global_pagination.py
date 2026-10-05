@@ -28,13 +28,27 @@ def fetch(session,page):
         r=session.get(ENDPOINT,params=params,headers={"User-Agent":UA,"Referer":REFERER,"Accept":"application/json,text/javascript,*/*;q=0.01"},timeout=(8,35))
         if r.status_code==429 or r.status_code>=500: raise RuntimeError(f"retryable HTTP {r.status_code}")
         r.raise_for_status()
-        obj=parse(r.content.decode(r.encoding or "utf-8",errors="replace"))
-        return obj,{"attempt":attempt,"prior_errors":errs,"http_status":r.status_code,
-          "payload_sha256":hashlib.sha256(r.content).hexdigest(),"url":r.url}
       except Exception as exc:
-        errs.append(f"{type(exc).__name__}: {exc}")
-        if attempt==3: raise
-        time.sleep(2**(attempt-1))
+        err=f"{type(exc).__name__}: {exc}"
+        errs.append(err)
+        if attempt==3:
+          return None,{"attempt":attempt,"prior_errors":list(errs),"transport_error":err,
+            "url":getattr(locals().get("r",None),"url",ENDPOINT)}
+        time.sleep(2**(attempt-1)); continue
+
+      decoded=r.content.decode(r.encoding or "utf-8",errors="replace")
+      meta={"attempt":attempt,"prior_errors":list(errs),"http_status":r.status_code,
+        "payload_sha256":hashlib.sha256(r.content).hexdigest(),"url":r.url,
+        "content_type":r.headers.get("content-type"),"encoding":r.encoding,
+        "body_prefix":decoded[:512]}
+      try:
+        obj=parse(decoded)
+      except Exception as exc:
+        err=f"{type(exc).__name__}: {exc}"
+        errs.append(err); meta["parse_error"]=err; meta["prior_errors"]=list(errs)
+        if attempt==3: return None,meta
+        time.sleep(2**(attempt-1)); continue
+      return obj,meta
 
 def rows(obj):
     if isinstance(obj,dict):
@@ -46,7 +60,8 @@ def rows(obj):
     return []
 
 def main():
-    s=requests.Session(); obj,first=fetch(s,1); ph=obj.get("pageHelp") or {}
+    s=requests.Session(); obj,first=fetch(s,1)
+    ph=(obj.get("pageHelp") or {}) if isinstance(obj,dict) else {}
     page_count=int(ph.get("pageCount") or 0); total=int(ph.get("total") or 0)
     first_rows=rows(obj)
     report={"schema":"stock-sse-risk-warning-global-pagination-v1","endpoint":ENDPOINT,
@@ -55,13 +70,21 @@ def main():
       "probes":[],"adjudication":{"global_query_surface":"NOT VERIFIED","pagination_contract":"NOT VERIFIED",
       "market_wide_corpus_completeness":"NOT VERIFIED","shanghai_historical_st_pit":"NOT VERIFIED",
       "full_historical_st_pit":"NOT VERIFIED","product_bytes_changed":False,"final_gate":"FAIL"}}
+    if obj is None:
+      Path("stock_sse_risk_warning_global_pagination.json").write_text(json.dumps(report,ensure_ascii=False,sort_keys=True,indent=2)+"\\n",encoding="utf-8")
+      print(json.dumps(report,ensure_ascii=True,sort_keys=True)); return 2
     if total<=0 or page_count<=0:
       Path("stock_sse_risk_warning_global_pagination.json").write_text(json.dumps(report,ensure_ascii=False,sort_keys=True,indent=2)+"\\n",encoding="utf-8")
       print(json.dumps(report,ensure_ascii=True,sort_keys=True)); return 2
     probe_pages=sorted(set([1,2 if page_count>=2 else 1,max(1,page_count//2),page_count]))
     seen=set()
     for p in probe_pages:
-      po,meta=(obj,first) if p==1 else fetch(s,p); rr=rows(po); pph=po.get("pageHelp") or {}
+      po,meta=(obj,first) if p==1 else fetch(s,p)
+      if po is None:
+        report["probes"].append({"page":p,"fetch":meta,"row_count":0,"pageHelp":{},"sample_signature_sha256":None,"sample_codes":[]})
+        Path("stock_sse_risk_warning_global_pagination.json").write_text(json.dumps(report,ensure_ascii=False,sort_keys=True,indent=2)+"\\n",encoding="utf-8")
+        print(json.dumps(report,ensure_ascii=True,sort_keys=True)); return 2
+      rr=rows(po); pph=po.get("pageHelp") or {}
       sig=[]
       for row in rr[:10]:
         if isinstance(row,dict):
