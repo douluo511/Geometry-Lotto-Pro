@@ -9,6 +9,8 @@ from urllib.parse import urlparse
 import requests
 
 ENDPOINT = "https://www.bse.cn/disclosureInfoController/companyAnnouncement.do"
+TYPE_ENDPOINT = "https://www.bse.cn/disclosureInfoController/disclosure_type.do"
+HY_ENDPOINT = "https://www.bse.cn/disclosureInfoController/disclosure_hy.do"
 OUT = Path("stock_bse_company_announcement_contract.json")
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) StockAI BSE contract validator"
 NEED_FIELDS = [
@@ -125,8 +127,73 @@ def request_variant(session, label: str, method: str, params):
         return None,meta
 
 
+def get_control_json(session, url, params):
+    r=session.get(
+        url,
+        params=params,
+        headers={
+            "User-Agent":UA,
+            "Accept":"application/javascript,application/json,text/plain,*/*",
+            "Referer":"https://www.bse.cn/disclosure/announcement.html",
+        },
+        timeout=(10,30),
+        allow_redirects=True,
+    )
+    meta={
+        "status":r.status_code,
+        "resolved_url":r.url,
+        "content_type":r.headers.get("content-type"),
+        "bytes":len(r.content),
+        "sha256":sha256(r.content),
+        "same_official_host":same_bse(r.url),
+    }
+    if r.status_code != 200 or not r.content or not same_bse(r.url):
+        return None,meta
+    try:
+        obj=parse_jsonp(r.content.decode(r.encoding or "utf-8",errors="strict"))
+        meta["parse"]="PASS"
+        return obj,meta
+    except Exception as exc:
+        meta["parse"]="FAIL"
+        meta["parse_error"]=f"{type(exc).__name__}: {exc}"
+        return None,meta
+
+
+def collect_values(obj, wanted_keys):
+    out=[]
+    def walk(x):
+        if isinstance(x,dict):
+            for k,v in x.items():
+                if k in wanted_keys:
+                    if isinstance(v,(str,int,float)) and str(v).strip():
+                        out.append(str(v).strip())
+                    elif isinstance(v,list):
+                        for z in v:
+                            if isinstance(z,(str,int,float)) and str(z).strip():
+                                out.append(str(z).strip())
+                walk(v)
+        elif isinstance(x,list):
+            for v in x:
+                walk(v)
+    walk(obj)
+    return list(dict.fromkeys(out))
+
+
 def main():
     session=requests.Session()
+    # Reconstruct the page's classification inputs from the same first-party
+    # endpoints referenced by list_company_2.min.js.  An empty disclosureType
+    # is not treated as "all"; the prior v2 run proved it returns an empty
+    # result set with HTTP 200.
+    type_obj,type_meta=get_control_json(session,TYPE_ENDPOINT,{"type":6})
+    hy_obj,hy_meta=get_control_json(session,HY_ENDPOINT,{"type":1})
+    disclosure_type_candidates=collect_values(
+        type_obj,{"distype","dvalue","disclosureType","value"}
+    )[:40]
+    hy_type_candidates=collect_values(
+        hy_obj,{"hyType","dvalue","value"}
+    )[:40]
+
     results=[]
     all_sample_pass=True
 
@@ -160,6 +227,18 @@ def main():
             ("repeated_keys_post","POST",repeated_pairs),
             ("legacy_scalar_post","POST",legacy),
         ]
+
+        # Page-contract reconstruction: test only classification values returned
+        # live by the official disclosure_type endpoint.  Do not invent a type
+        # code and do not treat an HTTP-200 empty list as evidence.
+        category_base={k:v for k,v in base.items() if k not in ("disclosureType","hyType","keyword")}
+        category_base["keyword"]=""
+        for idx,dtype in enumerate(disclosure_type_candidates):
+            pairs=list(category_base.items())
+            pairs += [("disclosureType[]",dtype),("xxfcbj[]","2")]
+            pairs += [("needFields[]",field) for field in NEED_FIELDS]
+            request_variants.append((f"official_discovered_type_{idx}_post","POST",pairs))
+
         variants=[]
         winning=None
         for label,method,params in request_variants:
@@ -205,7 +284,7 @@ def main():
         results.append({"sample":sample,"status":status,"variants":variants})
 
     report={
-        "schema":"stock-bse-company-announcement-contract-v2",
+        "schema":"stock-bse-company-announcement-contract-v3",
         "endpoint":ENDPOINT,
         "endpoint_discovered_from":{
             "pr":219,
@@ -218,8 +297,17 @@ def main():
             "official_ajax_type":"post",
             "official_data_type":"jsonp",
             "array_fields":["xxfcbj","needFields"],
-            "array_encoding_under_test":"jquery bracket-suffixed keys",
+            "array_encoding_under_test":"jquery bracket-suffixed keys plus live official disclosure_type.do values",
             "no_gate_reduction":True,
+        },
+        "classification_controls":{
+            "disclosure_type_endpoint":TYPE_ENDPOINT,
+            "disclosure_type_transport":type_meta,
+            "disclosure_type_candidates":disclosure_type_candidates,
+            "hy_endpoint":HY_ENDPOINT,
+            "hy_transport":hy_meta,
+            "hy_type_candidates":hy_type_candidates,
+            "prior_empty_contract_root_cause":"v2 used disclosureType='' even though the official page derives disclosureType from disclosure_type.do",
         },
         "sample_results":results,
         "adjudication":{
