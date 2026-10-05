@@ -1,3 +1,18 @@
+<!-- exact-checkpoint-stock-255-pit-consumption-20261006 -->
+## 2026-10-06 current exact checkpoint — Stock #255 PIT consumption fix
+
+This checkpoint supersedes older Stock authority / migration-readiness wording below for the current exact state only. Historical evidence remains preserved.
+
+- **Stock current behavior-changing product line:** draft PR #255, exact head `834401e77b02a259e7189bdf3a0628b9dc7fb65c`, branch `fix/stock-backtest-consume-historical-pit-20261006`.
+- Root cause from Issue #252 is confirmed: the prior historical ST/suspension PIT evaluator was an audit gate but its verified daily state was not consumed by the historical backtest candidate pool.
+- Current fix requires hash-bound canonical PIT evidence, exact `(date, market, code)` binding, historical ST exclusion when `exclude_st=true`, unconditional suspended-row exclusion, no nearest-date / forward-fill / backward-fill / present-day fallback, and fail-closed behavior for any missing evaluated PIT row.
+- Counterexample contract `historical_st_pit_backtest_contract_test.py` is now part of the source workflow. A pre-CI self-review found and fixed a filtered-frame code-length mismatch; therefore earlier #255 head `7f5b0f0a...` is superseded and must not be counted.
+- Fresh exact-head workflows only: source/offline `37369180406`, full-business `37369180425`, Windows desktop `37369180504`. They are currently non-terminal; **no current-head PASS is inherited** from `7f270b9a...`, `43168d9e...`, or earlier heads.
+- **Stock migration/export:** PR #216 was bound to superseded product `7f270b9a...` and has been closed as stale. Current Stock migration/export = **NOT CURRENT / needs refresh after #255 stabilizes**.
+- **Portfolio current-product-bound migration/export readiness = 17/18**, not 18/18, until a deterministic Stock export is rebuilt and independently verified against the terminal #255 product head.
+- **Happy8 current migration readiness remains PASS:** PR #224 / run `37352697602`, 52 files, manifest `6361714bc30579342d6e671748f5cf1823236d363b1e4cde8c1f74e13c58f109`, artifact `11362334700`, digest `sha256:fce86e2f8b65dd47e22718e69842033091fb6b1ee7475d9524f8758231c38ab9`, deliberate tamper rejection PASS. Happy8 Engineering **84.2105%**, Business **87.5%**, Exact EXE / physical GUI / Same Hash PASS; repository + real Release N→N+1 + unique final artifact remain non-PASS; Final FAIL.
+- Connected GitHub installation still exposes only `douluo511/Geometry-Lotto-Pro` and no create-repository mutation. Independent repositories = **0/18**; Final PASS = **0/18**; delivery allowed = **0/18**.
+
 <!-- exact-checkpoint-stock-bse-removal-20261006 -->
 ## 2026-10-06 Stock BSE removal-history bounded negative evidence
 
