@@ -490,3 +490,12 @@ This section supersedes stale PR-body wording for the named projects below. It i
 - **Stock AI #126** previous head `d1e04a1fc3c6d60a8d830388644c0fae38750985`: source/offline and full business PASS, native desktop FAIL because the acceptance harness conflated advanced business qualification with Windows physical-execution status. New exact head `dfa07c51fffdaa7736147cd49e39a274a745e363` separates those gates without changing business qualification. Business FAIL/NOT VERIFIED remains literal; Physical GUI/Exact EXE/Same Hash can now continue independently. Fresh runs `37259832034` source, `37259832083` business, `37259832040` desktop are current-head and must not be pre-promoted.
 
 Portfolio boundary remains unchanged: migration-seed readiness does not satisfy Repository Independence; Final accepted products remain 0/18 until each project reaches Engineering=100%, Business=100%, all hard gates PASS, dedicated repository/release lineage complete, and unique final artifact accepted.
+
+
+## 2026-10-05 continuation delta — Real-Money official cost evidence
+
+- Stock AI PR #126 exact head advanced to `dfa07c51fffdaa7736147cd49e39a274a745e363`. Recovery run `37259832034` is current-head PASS; desktop `37259832040` and full business `37259832083` remain IN_PROGRESS and are not pre-promoted.
+- Real-Money Finance new incremental PR #137 exact head `4f1e4736947509820fed36dfbf16b22d3cd7b1bc` adds official regulatory cost evidence through the frozen NetClient. It proves only exchange handling-fee / stamp-tax sub-evidence when the authoritative pages are successfully retrieved and parsed; broker commission and observed execution slippage remain NOT VERIFIED, so the frozen cost/slippage business gate cannot be promoted from this change alone.
+- PR #137 run `37261916923` has passed Static / Governance / Contract / Freshness / Fault / Updater-contract / Real-Network at this checkpoint and is executing business qualification. Final result remains NOT VERIFIED until the exact-head run closes.
+- Fresh owner repository enumeration still returns only `douluo511/Geometry-Lotto-Pro`; dedicated repository availability remains 0/18 and Repository Independence remains BLOCKED.
+- Portfolio Final remains FAIL; final delivery allowed remains 0/18.
