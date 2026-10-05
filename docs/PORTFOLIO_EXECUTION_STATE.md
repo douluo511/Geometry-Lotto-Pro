@@ -1,5 +1,14 @@
 # Portfolio Execution State — 18 Windows EXE Projects
 
+## 2026-10-06 Stock historical-state evidence advance
+
+- **Authoritative Stock product remains PR #155** @ `43168d9e75c70ab55be808d8a51f0c0eb14d83d5`; fresh source/business/desktop chains remain terminal SUCCESS and Final remains FAIL on business PIT + production repository/release boundaries.
+- **Shanghai daily suspension state closed as a supported sub-dimension:** PR #209 exact head `4663ac4cb3943c23f8f51626ee2c536d852f3b45`, run `37341509787` = SUCCESS. Same-run recomputation includes full SSE 2018-01-01→2026-09-30 interval corpus, `endStopDate` semantics, 5/5 open-interval resolution, and the frozen 2,123-date research-calendar identity. A-share intervals = 2,333; resolved open ends = 5; missing ends = 0; invalid ranges = 0; zero trading-day intersections = 0; daily pairs = 23,894; suspended dates = 2,026; unique codes = 852; daily-state SHA-256 `0a614254deb282111393b858f9264bb64c05c12a1c3c3eec4abb714d8774fb08`. Adjudication: **HISTORICAL_DAILY_SUSPENSION_STATE=SUPPORTED_SHANGHAI_ONLY**. Artifact `11358417500`, digest `sha256:40a66e44e2ae5f066527e89528dabe0fd5afd90908a4efcbef1232e8e7864061`.
+- **Official SSE risk-warning bulletin machine surface validated:** PR #211 exact head `6de21ed9ff5ef7f294a78b7e7a9a5a7b83829e7b`, run `37342169436` = SUCCESS. Official `queryCompanyBulletin.do` is HTTP-200 + JSONP parseable. Product 688496 returns historical risk-warning rows preserving official name sequence 清越科技 (2026-04-29) → ST清越 (2026-05-09) → *ST清越 (2026-09-02). Artifact `11359281478`, digest `sha256:dce3a8fbb49e7005941480d0d4b981c631251e758f357508191240f5e6e07d65`.
+- **Strict remaining boundary:** Shanghai historical ST/PIT = NOT VERIFIED; Beijing historical ST/PIT = NOT VERIFIED; full `HISTORICAL_ST_PIT` = NOT VERIFIED; Advanced Business = NOT VERIFIED; positive production update / independent repository / real Release N→N+1 = BLOCKED; Final = FAIL.
+- **Current next diagnostic:** PR #213 validates effective-date semantics from primary SSE risk-warning PDFs. Its result must not be promoted to market-wide ST/PIT without complete reconstruction evidence.
+- **Portfolio aggregate remains:** migration/export 18/18 PASS; dedicated repositories 0/18; Final PASS 0/18; delivery 0/18.
+
 ## 2026-10-06 Stock PR #210 behavior change — acceptance/export invalidation + suspension corroboration boundary
 
 - **Current Stock product candidate is now PR #210**, exact head `847511a4fa98f5b1869687eabd9bf7fe43808994`, based on former PR #155 head `43168d9e75c70ab55be808d8a51f0c0eb14d83d5`.
