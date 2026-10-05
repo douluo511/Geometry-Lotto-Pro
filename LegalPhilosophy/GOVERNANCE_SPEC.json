@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "project": "LegalPhilosophy",
+  "implementation_identity": "reauthored_2026-10-04_new_lineage",
+  "purpose": "Traceable legal-philosophy study and judgment support; educational only, not individualized legal advice.",
+  "five_why": [
+    "Users need more than summaries: they need to know why a claim is justified.",
+    "Justification fails when source text, scholarship, law, case and model inference are mixed.",
+    "Mixed layers hide conflicts, stale authority and interpretation choices.",
+    "Without explicit evidence and falsification, polished prose can look more certain than its basis.",
+    "Therefore the system must separate claim layers, bind outputs to current source receipts, preserve counterevidence and fail closed."
+  ],
+  "risk_boundaries": [
+    "No individualized legal advice.",
+    "No claim may label scholarship as primary text or legal authority.",
+    "No source update success without current HTTPS retrieval, validation and payload hash.",
+    "No fabricated quotation, section, case, citation or authority.",
+    "Contradictory sources remain visible; the engine may not silently average them.",
+    "Missing primary-source lineage keeps the corresponding business gate NOT VERIFIED."
+  ],
+  "architecture": [
+    "Product",
+    "Governance",
+    "Domain",
+    "Source",
+    "NetClient",
+    "Storage",
+    "Engine",
+    "Validation",
+    "Evidence",
+    "Service",
+    "UI",
+    "Release"
+  ],
+  "frozen_sections": [
+    "Preface / Introduction",
+    "Abstract Right",
+    "Morality",
+    "Family",
+    "Civil Society",
+    "State",
+    "International Law",
+    "World History"
+  ],
+  "ui_entries": [
+    "核心研习",
+    "一键更新",
+    "一键修复",
+    "高级分析"
+  ]
+}
