@@ -95,6 +95,18 @@ def _prospective_survivorship_contract() -> dict:
     second = build_prospective_universe_precommit(list(reversed(entries)), **kwargs)
     if first["precommit_sha256"] != second["precommit_sha256"]:
         raise AssertionError("prospective universe canonical hash depends on input order")
+    changed_payload = build_prospective_universe_precommit(
+        entries,
+        **{**kwargs, "source_payload_sha256s": ["c" * 64]},
+    )
+    if first["precommit_sha256"] == changed_payload["precommit_sha256"]:
+        raise AssertionError("prospective precommit must bind exact source payload hashes")
+    changed_time = build_prospective_universe_precommit(
+        entries,
+        **{**kwargs, "retrieved_at_unix": kwargs["retrieved_at_unix"] + 1.0},
+    )
+    if first["precommit_sha256"] == changed_time["precommit_sha256"]:
+        raise AssertionError("prospective precommit must bind exact retrieval time")
     if first["historical_survivorship_gate"] != "NOT VERIFIED":
         raise AssertionError("prospective snapshot must not promote historical survivorship gate")
     if first["policy"]["no_outcome_selection"] is not True:
@@ -212,6 +224,10 @@ def _prospective_survivorship_contract() -> dict:
             raise AssertionError("official SSE main+STAR fixture did not produce the frozen broad universe")
         if SSE_UNIVERSE_URL not in official_shape["selected_source_urls"]:
             raise AssertionError("official SSE URL was not bound into precommit evidence")
+        if official_shape["source_filter"] != "STOCK_TYPE=1,8;COMPANY_STATUS=2,4,5,7,8":
+            raise AssertionError("official SSE evidence must bind its own board/status filter")
+        if len(official_shape["source_payload_sha256s"]) != 2:
+            raise AssertionError("official SSE precommit must bind both raw board payload hashes")
         if official_shape["historical_survivorship_gate"] != "NOT VERIFIED":
             raise AssertionError("official current universe must not backfill historical survivorship")
         try:
