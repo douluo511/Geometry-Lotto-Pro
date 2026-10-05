@@ -4,6 +4,10 @@ on:
   push:
     branches:
       - diagnostic/rmf-sse-product-file-distribution-context-20261006
+  pull_request:
+    paths:
+      - ".github/rmf/sse_product_file_distribution_context.py"
+      - ".github/workflows/rmf-sse-product-file-distribution-context.yml"
   workflow_dispatch:
 
 permissions:
