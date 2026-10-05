@@ -215,35 +215,60 @@ class Updater:
         if not target_exe.exists() or not target_exe.is_file():
             raise FileNotFoundError(f"target EXE does not exist: {target_exe}")
         current = _version_tuple(current_version)
-        manifest, manifest_receipt = self.fetch_manifest()
-        proposed = _version_tuple(str(manifest["version"]))
-        if proposed <= current:
+        target_hash_before = hashlib.sha256(target_exe.read_bytes()).hexdigest()
+        stage = target_exe.with_name(target_exe.name + ".update-stage")
+        backup = target_exe.with_name(target_exe.name + ".backup")
+        health_file = target_exe.with_name(target_exe.name + ".health.json")
+        manifest: dict[str, Any] | None = None
+        manifest_receipt: dict[str, Any] | None = None
+        artifact_receipt: dict[str, Any] | None = None
+        try:
+            manifest, manifest_receipt = self.fetch_manifest()
+            proposed = _version_tuple(str(manifest["version"]))
+            if proposed <= current:
+                result = {
+                    "status": "PASS",
+                    "operation": "software_update",
+                    "action": "UP_TO_DATE",
+                    "current_version": current_version,
+                    "manifest_version": manifest["version"],
+                    "manifest_receipt": manifest_receipt,
+                }
+                if evidence_file:
+                    _atomic_json(Path(evidence_file), result)
+                return result
+
+            artifact, artifact_receipt = self.download_artifact(manifest)
+            with stage.open("wb") as fh:
+                fh.write(artifact)
+                fh.flush()
+            _durable_sync_path(stage)
+            _wait_parent_exit(parent_pid)
+            if backup.exists():
+                backup.unlink()
+            shutil.copy2(target_exe, backup)
+            old_hash = hashlib.sha256(backup.read_bytes()).hexdigest()
+        except Exception as exc:
+            stage.unlink(missing_ok=True)
+            health_file.unlink(missing_ok=True)
             result = {
-                "status": "PASS",
+                "status": "FAIL",
                 "operation": "software_update",
-                "action": "UP_TO_DATE",
-                "current_version": current_version,
-                "manifest_version": manifest["version"],
+                "action": "ABORTED_BEFORE_REPLACE",
+                "from_version": current_version,
+                "to_version": manifest.get("version") if isinstance(manifest, dict) else None,
+                "error": f"{type(exc).__name__}: {exc}",
+                "target_exe_sha256": target_hash_before,
+                "target_preserved": (
+                    target_exe.exists()
+                    and hashlib.sha256(target_exe.read_bytes()).hexdigest() == target_hash_before
+                ),
                 "manifest_receipt": manifest_receipt,
+                "artifact_receipt": artifact_receipt,
             }
             if evidence_file:
                 _atomic_json(Path(evidence_file), result)
             return result
-
-        artifact, artifact_receipt = self.download_artifact(manifest)
-        stage = target_exe.with_name(target_exe.name + ".update-stage")
-        backup = target_exe.with_name(target_exe.name + ".backup")
-        health_file = target_exe.with_name(target_exe.name + ".health.json")
-        with stage.open("wb") as fh:
-            fh.write(artifact)
-            fh.flush()
-        _durable_sync_path(stage)
-
-        _wait_parent_exit(parent_pid)
-        if backup.exists():
-            backup.unlink()
-        shutil.copy2(target_exe, backup)
-        old_hash = hashlib.sha256(backup.read_bytes()).hexdigest()
         try:
             os.replace(stage, target_exe)
             installed_hash = hashlib.sha256(target_exe.read_bytes()).hexdigest()
