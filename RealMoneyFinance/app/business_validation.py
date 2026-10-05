@@ -114,6 +114,8 @@ def _corporate_action_evidence_qualified(source_meta: dict, evidence: dict) -> b
 
     if evidence.get("factor_detection_method") != "persistent_median_regime_shift_v1":
         return False
+    if evidence.get("factor_estimator") != "median_ohlc_ratio_v1":
+        return False
     try:
         factor_window_sessions = int(evidence.get("factor_window_sessions"))
     except Exception:
