@@ -100,16 +100,17 @@
       "id": 5,
       "project": "Investment Finance Pro",
       "export_pr": 112,
-      "export_head": "8dadbbfce202b5b3d53a7d2a620ca0ee01a63fe9",
-      "export_run": 37256638491,
+      "export_head": "98ac42f73dee5ce6fc772c1dd1f35d6e9ebf3a2a",
+      "export_run": 37257773344,
       "export_status": "PASS",
       "repository_independence": "BLOCKED",
       "final_gate": "FAIL",
       "source_product_pr": 129,
       "source_product_head": "66480e4961d1b848c8a293ccbe0f0c0aa7010359",
       "source_product_status": "CANDIDATE_ONLY",
-      "export_artifact_id": 11322444152,
-      "export_artifact_digest": "sha256:46fa687fc0bf93a13e2649d471cd0ac394ebbf82e8768549daad561dc5232a24"
+      "export_artifact_id": 11323621278,
+      "export_artifact_digest": "sha256:bed78a0585540d3c0e704267614aaa29a091db1837cb31822d3165fbd3ebe108",
+      "updater_enabled_seed": true
     },
     {
       "id": 6,
@@ -309,7 +310,7 @@
     }
   ],
   "next_resume_condition": "As soon as a dedicated repository becomes visible to the connected installation, seed it from the matching verified export and rerun the full frozen acceptance chain on that dedicated repository exact commit before any PASS inheritance.",
-  "latest_delta": "2026-10-05: RMF stale/diverged export PR #97 was replaced by PR #131 from exact product e3ae513; run 37257714230 PASS proves product-tree byte identity, deterministic export, second-pass verification and tamper rejection. Stock AI PR #126 c6e329d2 source/offline/network PASS; business and desktop remain in progress. Repository Independence remains 0/18.",
+  "latest_delta": "2026-10-05: Investment Finance migration PR #112 refreshed to updater-enabled exact head 98ac42f with run 37257773344 PASS; RMF current-product migration PR #131 remains PASS; Stock AI PR #126 c6e329d2 source/offline/network PASS while business+desktop current-head runs continue. Repository Independence remains 0/18.",
   "infrastructure_capability": {
     "repository_creation": "BLOCKED",
     "repository_creation_evidence": "PR #127: Actions integration token cannot act as user-level repository creator; connector exposes no create-repository mutation.",
@@ -320,6 +321,6 @@
   "audit": {
     "exact_seed_audit_date": "2026-10-05",
     "status": "PASS",
-    "note": "All 18 migration lines remain exact-head export-verification PASS; RMF was rebound to current product bytes via PR #131 after stale #97 divergence was detected and closed."
+    "note": "All 18 migration lines remain export-verification PASS. Investment was refreshed to updater-enabled seed 98ac42f; RMF was rebound to exact current product via PR #131."
   }
 }
