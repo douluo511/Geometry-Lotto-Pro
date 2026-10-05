@@ -109,6 +109,7 @@ def main():
     nonempty_years=set()
     payload_by_key={}
     total_positive=0
+    missing_name_rows=0
 
     for year in YEARS:
         begin=f"{year}-01-01"
@@ -138,7 +139,7 @@ def main():
                     if not CODE_RE.fullmatch(code):
                         raise ValueError(f"invalid/non-Shanghai code: {code!r}")
                     if not name:
-                        raise ValueError(f"missing name for {code}")
+                        missing_name_rows += 1
                     if not DATE_RE.fullmatch(dt) or int(dt[:4])!=year:
                         raise ValueError(f"date filter not honored: {dt!r} for year {year}")
                     if not (url.startswith("/disclosure/") or url.startswith("https://")):
@@ -157,7 +158,8 @@ def main():
                     "year":year,"label":label,"keyword":keyword,
                     "begin":begin,"end":end,"fetch":meta,"page":pm,
                     "row_count":len(rows),"unique_codes":len({x["security_code"] for x in normalized}),
-                    "st_named_rows":sum(1 for x in normalized if "ST" in x["security_name"].upper()),
+                    "missing_name_rows":sum(1 for x in normalized if not x["security_name"]),
+                    "st_named_rows":sum(1 for x in normalized if x["security_name"] and "ST" in x["security_name"].upper()),
                     "sample":normalized[:12],
                 })
             except Exception as exc:
@@ -180,7 +182,7 @@ def main():
     )
 
     report={
-        "schema":"stock-sse-marketwide-risk-warning-surface-v2",
+        "schema":"stock-sse-marketwide-risk-warning-surface-v3",
         "endpoint":ENDPOINT,
         "frozen_probe_years":YEARS,
         "query_scope":"productId blank; bounded first-page probes only",
@@ -190,6 +192,8 @@ def main():
             "nonempty_years":sorted(nonempty_years),
             "positive_total_probe_count":total_positive,
             "observed_unique_codes":len(observed_codes),
+            "missing_name_rows":missing_name_rows,
+            "name_field_complete":missing_name_rows == 0,
             "keyword_date_discrimination":keyword_date_discrimination,
         },
         "probes":probes,
@@ -203,7 +207,7 @@ def main():
             "product_bytes_changed":False,
             "final_gate":"FAIL",
         },
-        "boundary":"This bounded gate only proves that official SSE market-wide historical query parameters discriminate dates/keywords and expose multi-security paginated results. It does not exhaust pages, infer effective dates, or promote historical ST/PIT.",
+        "boundary":"This bounded gate only proves that official SSE market-wide historical query parameters discriminate dates/keywords and expose multi-security paginated results. Missing SECURITY_NAME is retained as an explicit field-coverage gap and MUST NOT be used to infer ST identity. It does not exhaust pages, infer effective dates, or promote historical ST/PIT.",
     }
     Path("stock_sse_marketwide_risk_warning_history.json").write_text(
         json.dumps(report,ensure_ascii=False,sort_keys=True,indent=2)+"\n",encoding="utf-8"
