@@ -296,3 +296,48 @@ jobs:
               })
           print(json.dumps(out, ensure_ascii=False, sort_keys=True))
           print("RMF_SSE_COMMON_TABLE_TRACE_COMPLETE")
+
+      - name: Extract inline delisting page scripts and RequireJS modules
+        shell: python
+        run: |
+          import json
+          import re
+          import urllib.request
+
+          pages = [
+              "https://www.sse.com.cn/assortment/stock/list/delisting/",
+              "https://www.sse.com.cn/services/information/delisting/",
+          ]
+          headers = {
+              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/154 Safari/537.36",
+              "Accept": "text/html,*/*",
+          }
+          out = {"status":"DIAGNOSTIC_ONLY","pages":[]}
+          for url in pages:
+              req=urllib.request.Request(url,headers=headers)
+              with urllib.request.urlopen(req,timeout=25) as resp:
+                  html=resp.read().decode("utf-8",errors="replace")
+              scripts=re.findall(r"<script([^>]*)>(.*?)</script>",html,flags=re.I|re.S)
+              inline=[]
+              srcs=[]
+              for attrs,body in scripts:
+                  m=re.search(r"""src\s*=\s*["']([^"']+)["']""",attrs,flags=re.I)
+                  if m:
+                      srcs.append(m.group(1))
+                      continue
+                  body=body.strip()
+                  if body:
+                      inline.append(body)
+              interesting=[]
+              for body in inline:
+                  if re.search(r"delist|table|query|require|sseQuery|ajax|jsonp|sqlId|channelCode",body,flags=re.I):
+                      interesting.append(body)
+              out["pages"].append({
+                  "url":url,
+                  "src_count":len(srcs),
+                  "srcs":srcs,
+                  "inline_script_count":len(inline),
+                  "interesting_inline_scripts":interesting,
+              })
+          print(json.dumps(out,ensure_ascii=False,sort_keys=True))
+          print("RMF_SSE_INLINE_SCRIPT_TRACE_COMPLETE")
