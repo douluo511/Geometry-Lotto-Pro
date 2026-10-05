@@ -9,7 +9,7 @@ from types import SimpleNamespace
 from app.domain import DailyBar
 from app.engine import analyze_observable_activity, reverse_validation
 from app.source_eastmoney import fetch_daily_bars
-from app.source_market import _select_success
+from app.source_market import _independent_successes, _select_success
 from app.source_tencent import fetch_daily_bars_tencent
 from app.source_tencent_full import fetch_daily_bars_tencent_full, fetch_daily_bars_tencent_full_history
 from app.source_yahoo import fetch_daily_bars_yahoo
@@ -221,6 +221,18 @@ def main() -> int:
     full_history_qfq = ("tencent_public_full_kline", history_bars, history_meta)
     selected = _select_success([full_history_qfq, long_unadjusted], 800)
     assert selected[0] == "tencent_public_full_kline", "field-complete qfq must win after requested coverage is met"
+
+    independent = _independent_successes(
+        [full_history_qfq, long_qfq, long_unadjusted],
+        "tencent_public_full_kline",
+    )
+    assert [item[0] for item in independent] == ["yahoo_public_chart"], (
+        "Tencent standard + Tencent full are one provider family and cannot cross-confirm each other"
+    )
+    assert _independent_successes(
+        [full_history_qfq, long_qfq],
+        "tencent_public_full_kline",
+    ) == [], "same-family adapters alone must leave cross-source evidence NOT VERIFIED"
 
     equal_eastmoney = ("eastmoney_public_l1", bars * 20, {**meta, "price_adjustment": "qfq"})
     selected = _select_success([long_qfq, equal_eastmoney], 800)
