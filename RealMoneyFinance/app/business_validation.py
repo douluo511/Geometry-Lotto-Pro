@@ -59,6 +59,79 @@ def _strict_dates(rows: list[DailyBar]) -> bool:
     return len(dates) == len(set(dates)) and dates == sorted(dates)
 
 
+def _corporate_action_evidence_qualified(source_meta: dict, evidence: dict) -> bool:
+    if source_meta.get("qualification_scope") != "production_real_network":
+        return False
+    if str(source_meta.get("price_adjustment", "")).lower() != "qfq":
+        return False
+    if evidence.get("status") != "PASS" or evidence.get("point_in_time_lineage") != "PASS":
+        return False
+
+    providers = evidence.get("source_providers")
+    if providers != {
+        "qfq": "tencent_public_full_kline",
+        "raw": "tencent_public_full_kline",
+        "events": "eastmoney_share_bonus_datacenter",
+    }:
+        return False
+
+    hashes = [
+        evidence.get("qfq_payload_sha256"),
+        evidence.get("raw_payload_sha256"),
+        evidence.get("event_payload_sha256"),
+    ]
+    if any(not isinstance(x, str) or not re.fullmatch(r"[0-9a-f]{64}", x) for x in hashes):
+        return False
+    if hashes[0] == hashes[1]:
+        return False
+
+    try:
+        verified = int(evidence.get("verified_event_count"))
+        unexplained_count = int(evidence.get("unexplained_factor_changes"))
+        significant = int(evidence.get("significant_factor_changes"))
+    except Exception:
+        return False
+    matched = evidence.get("matched_events")
+    unexplained = evidence.get("unexplained_changes")
+    if (
+        verified < 1
+        or unexplained_count != 0
+        or not isinstance(matched, list)
+        or len(matched) != verified
+        or not isinstance(unexplained, list)
+        or len(unexplained) != 0
+        or significant != verified + unexplained_count
+    ):
+        return False
+
+    tolerance = evidence.get("factor_change_tolerance")
+    if not isinstance(tolerance, (int, float)) or not math.isfinite(float(tolerance)) or float(tolerance) <= 0:
+        return False
+    for item in matched:
+        if not isinstance(item, dict):
+            return False
+        event = item.get("event")
+        change = item.get("factor_change")
+        if not isinstance(event, dict) or not isinstance(change, dict):
+            return False
+        notice = str(event.get("plan_notice_date") or "")
+        ex_date = str(event.get("ex_dividend_date") or "")
+        trade_date = str(change.get("trade_date") or "")
+        if not all(re.fullmatch(r"\d{4}-\d{2}-\d{2}", x) for x in (notice, ex_date, trade_date)):
+            return False
+        if notice > ex_date or trade_date < ex_date:
+            return False
+        days_after = item.get("calendar_days_after_ex_date")
+        if not isinstance(days_after, int) or not 0 <= days_after <= 7:
+            return False
+        relative = change.get("relative_change")
+        if not isinstance(relative, (int, float)) or not math.isfinite(float(relative)):
+            return False
+        if float(relative) <= float(tolerance):
+            return False
+    return True
+
+
 def _safe_ratio(values: list[float], recent: int, base: int) -> float | None:
     if len(values) < base:
         return None
@@ -331,22 +404,11 @@ def qualify_research(
     # A provider qfq label alone is never enough. Corporate-action PASS requires
     # independent event dates plus observed qfq/raw factor changes and source hashes.
     corporate_evidence = dict(corporate_action_evidence or {})
-    hash_fields = (
-        corporate_evidence.get("qfq_payload_sha256"),
-        corporate_evidence.get("raw_payload_sha256"),
-        corporate_evidence.get("event_payload_sha256"),
+    corporate_action = (
+        "PASS"
+        if _corporate_action_evidence_qualified(source_meta, corporate_evidence)
+        else "NOT VERIFIED"
     )
-    corporate_action = "PASS" if (
-        source_meta.get("qualification_scope") == "production_real_network"
-        and corporate_evidence.get("status") == "PASS"
-        and corporate_evidence.get("point_in_time_lineage") == "PASS"
-        and int(corporate_evidence.get("verified_event_count", 0) or 0) >= 1
-        and int(
-            corporate_evidence.get("unexplained_factor_changes")
-            if corporate_evidence.get("unexplained_factor_changes") is not None else 1
-        ) == 0
-        and all(isinstance(x, str) and len(x) == 64 for x in hash_fields)
-    ) else "NOT VERIFIED"
     positive_amount = sum(1 for x in ordered if float(x.amount or 0.0) > 0)
     amount_coverage = positive_amount / len(ordered)
     # Positive daily amount neither states an order size nor proves executable
