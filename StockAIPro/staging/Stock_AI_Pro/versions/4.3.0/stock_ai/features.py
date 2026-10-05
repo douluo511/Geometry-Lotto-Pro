@@ -9,7 +9,7 @@ FEATURES = [
     "vol20","vol60","volume_z20","amount_z20","log_amount20",
     "drawdown60","breakout20","range20"
 ]
-EXECUTION_COLUMNS = ["entry_open","entry_high","entry_low","signal_close"]
+EXECUTION_COLUMNS = ["entry_date","entry_open","entry_high","entry_low","signal_close"]
 
 def _zscore(s: pd.Series, w: int) -> pd.Series:
     m = s.rolling(w).mean()
@@ -46,6 +46,7 @@ def make_features(df:pd.DataFrame,horizon:int=5)->pd.DataFrame:
 
     # Signal at t close; realistic research entry is t+1 open.
     x["signal_close"] = c
+    x["entry_date"] = pd.to_datetime(x["date"], errors="coerce").shift(-1)
     x["entry_open"] = o.shift(-1)
     x["entry_high"] = hprice.shift(-1)
     x["entry_low"] = lprice.shift(-1)
