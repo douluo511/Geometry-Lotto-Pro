@@ -261,6 +261,7 @@ class BusinessBoundaries(unittest.TestCase):
             {**evidence, "matched_events": []},
             {**evidence, "unexplained_changes": [{"trade_date": "2026-01-01"}]},
             {**evidence, "significant_factor_changes": evidence["verified_event_count"] + 1},
+            {**evidence, "overlap_rows": 59},
         ]
         for forged in forged_cases:
             with self.subTest(forged=forged):
@@ -276,6 +277,14 @@ class BusinessBoundaries(unittest.TestCase):
             bars(300),
             {"provider": "production_fixture", "qualification_scope": "production_real_network",
              "price_adjustment": "unadjusted"},
+            corporate_action_evidence=evidence,
+        )
+        self.assertEqual(got["gates"]["corporate_action_adjustment"], "NOT VERIFIED")
+
+        got = qualify_research(
+            bars(300),
+            {"provider": "production_fixture", "qualification_scope": "production_real_network",
+             "price_adjustment": "qfq", "symbol": "000001"},
             corporate_action_evidence=evidence,
         )
         self.assertEqual(got["gates"]["corporate_action_adjustment"], "NOT VERIFIED")
