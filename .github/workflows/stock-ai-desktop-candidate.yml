@@ -46,7 +46,7 @@ jobs:
           if ($actual -ne $env:STOCK_SOURCE_SHA) { throw "stale checkout: $actual != $env:STOCK_SOURCE_SHA" }
 
       - name: Restore progressive real-history corpus cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: ${{ runner.temp }}\stock-ai-frozen-business\data\history
           key: stock-ai-research-history-v1-${{ runner.os }}-${{ hashFiles('StockAIPro/staging/Stock_AI_Pro/versions/4.3.0/stock_ai/data_source.py') }}-${{ github.run_id }}-${{ github.run_attempt }}
@@ -147,6 +147,13 @@ jobs:
           $data = Join-Path $env:RUNNER_TEMP "stock-ai-frozen-business"
           python hardening_tests/qualify_research_corpus_gate.py --package-root $root --data-root $data --output desktop_research_corpus_evidence.json
           if ($LASTEXITCODE -ne 0) { throw "research corpus qualification did not reach frozen >=90% current + delisted coverage" }
+
+      - name: Save progressive real-history corpus cache even when qualification is non-PASS
+        if: always()
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: ${{ runner.temp }}\stock-ai-frozen-business\data\history
+          key: stock-ai-research-history-v1-${{ runner.os }}-${{ hashFiles('StockAIPro/staging/Stock_AI_Pro/versions/4.3.0/stock_ai/data_source.py') }}-${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: Frozen EXE advanced analysis
         shell: pwsh
