@@ -57,6 +57,8 @@ jobs:
         run: python StockAIPro/hardening_tests/stock_sse_historical_suspension_query.py
       - name: Revalidate official endStopDate semantics
         run: python .github/stock_diag/sse_suspension_field_semantics.py
+      - name: Resolve frozen-window open SSE intervals
+        run: python .github/stock_diag/stock_sse_open_interval_resolution.py
       - name: Replay suspension intervals over cross-source trading dates
         run: python .github/stock_diag/stock_sse_daily_suspension_replay.py
       - name: Upload evidence
@@ -66,6 +68,7 @@ jobs:
           path: |
             stock_sse_historical_suspension_query.json
             stock_sse_suspension_field_semantics.json
+            stock_sse_open_interval_resolution.json
             stock_sse_daily_suspension_replay.json
           if-no-files-found: error
           retention-days: 30
@@ -75,6 +78,7 @@ jobs:
           import json
           x=json.load(open("stock_sse_daily_suspension_replay.json",encoding="utf-8"))
           a=x["adjudication"]
+          assert a["historical_daily_suspension_state"] == "SUPPORTED_SHANGHAI_ONLY"
           assert a["shanghai_historical_st_pit"] == "NOT VERIFIED"
           assert a["beijing_historical_st_pit"] == "NOT VERIFIED"
           assert a["full_historical_st_pit"] == "NOT VERIFIED"
