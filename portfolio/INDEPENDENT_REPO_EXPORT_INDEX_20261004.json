@@ -147,16 +147,16 @@
       "id": 10,
       "project": "Stock AI Pro",
       "export_pr": 99,
-      "export_head": "8b2ebd1a01e0f9eef536f0b462c825ed19f69a7d",
-      "export_run": 37244537955,
+      "export_head": "0e47649e2acee93aa56ea3c649ba345ea2ee1115",
+      "export_run": 37256423841,
       "export_status": "PASS",
       "repository_independence": "BLOCKED",
       "final_gate": "FAIL",
       "source_product_pr": 126,
-      "source_product_head": "9d1e6112b58a308011c88677f6a23e59d9a40917",
-      "source_product_status": "PARTIAL_CURRENT_HEAD_VALIDATION",
-      "export_artifact_id": 11318059051,
-      "export_artifact_digest": "sha256:cfb4cf2f2d01e710dfccc388683ae6b79246af2bfc59a574d5128a65878c08fd",
+      "source_product_head": "c6e329d2a5059f296ee2303032b28b5a702a3600",
+      "source_product_status": "NOT VERIFIED",
+      "export_artifact_id": 11323165672,
+      "export_artifact_digest": "sha256:1c6c1f34a149e7d9bdf02969ee06a6216a92c1b4236cf031cb0a8d680f28e8c6",
       "source_current_head_evidence": {
         "source_offline_real_network": "PASS",
         "source_run": 37244348130,
@@ -258,5 +258,12 @@
     }
   ],
   "next_resume_condition": "As soon as a dedicated repository becomes visible to the connected installation, seed it from the matching verified export and rerun the full frozen acceptance chain on that dedicated repository exact commit before any PASS inheritance.",
-  "latest_delta": "Current exact migration freshness audit: all 18 export PR heads have completed SUCCESS export verification. Investment Finance export #112 is now ff4b0c1... / run 37221784521 on product #129 head 66480e4.... Stock AI export #99 is now 8b2ebd1... / run 37244537955 stacked one commit over product #126 head 9d1e611...; source/offline/real-network run 37244348130 PASS while full business 37244348120 and native desktop 37244348122 remain IN_PROGRESS. Repository independence remains 0/18."
+  "latest_delta": "Stock AI migration export revalidated on current product base c6e329d2 after bounded 24-worker research-corpus throughput correction. Product PR #126 source/business/desktop exact-head Actions are fresh and in progress; no old PASS is inherited.",
+  "infrastructure_capability": {
+    "repository_creation": "BLOCKED",
+    "repository_creation_evidence": "PR #127: Actions integration token cannot act as user-level repository creator; connector exposes no create-repository mutation.",
+    "existing_repository_release_asset_mechanics": "PASS",
+    "release_mechanics_evidence": "PR #128: temporary draft Release create + asset upload + authenticated re-download Same Hash + cleanup PASS.",
+    "production_signing_context": "NOT VERIFIED"
+  }
 }
