@@ -34,7 +34,7 @@
     "START_HERE.txt": "450841d68e56e60e11170c4b689eee168be1f60f51dd2f7d29bce0e5a6629821",
     "stock_ai/__init__.py": "42b7e8e1308ac35447a3f72ace74caa306ed84f42f021eb1cd5ec74865bdf4ec",
     "stock_ai/audit.py": "a0bff1e81fb73aa6bc1376ac0d098d8f5a1bb3042dfa1518f641d4d4c9df0c90",
-    "stock_ai/backtest.py": "c46d67a1e25a94714a1647abcc6c593e5d991ccd01c0be63ecb7f733ac47076f",
+    "stock_ai/backtest.py": "ba5f9262f46d359538e891c8d94af6ee5be4137e83493c9081d43e2f552e4818",
     "stock_ai/backup.py": "e9ee152dbae61b34a0115c1c8927008d0455d2514f31411c12cf8b3da37198d8",
     "stock_ai/config.py": "301aee238332ce7387dcd04fe69a2235a2cef441a65aa886932d7794fed14d53",
     "stock_ai/cost.py": "84493b0c785c1cb0609a207a08adfd5560ebef08d155b2abedf0c32f15476755",
