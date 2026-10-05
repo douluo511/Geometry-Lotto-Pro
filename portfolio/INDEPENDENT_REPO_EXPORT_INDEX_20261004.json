@@ -269,7 +269,16 @@
       "export_artifact_digest": "sha256:c8679aff38bcbe5c06c0953a233aabd446fc007ee5d88db4d396e323089b1216",
       "source_product_pr": 117,
       "source_product_head": "d742b627b82d691a20c246e2cc560bf364655d7e",
-      "migration_changes_product_bytes": false
+      "migration_changes_product_bytes": false,
+      "source_product_status": "CANDIDATE_ONLY_EXTERNAL_RELEASE_BLOCKED",
+      "current_windows_run": 37256969624,
+      "current_windows_status": "SUCCESS_CANDIDATE_ONLY",
+      "exact_exe_sha256": "6b091e5e76e6fce4ecc83f2bf1d6ac0959ccede9ee30fb88b1e3ecddf45e8e3a",
+      "diagnostic_artifact_id": 11323545695,
+      "business_completion_percent": 100,
+      "business_content_status": "PASS",
+      "positive_production_update": "BLOCKED",
+      "note": "Current merged product run 37256969624 passes business content 8/8, Windows/Exact EXE/physical GUI/Same Hash. One-click update correctly returns BLOCKED because independent production repository/release/signing context is absent. Final remains FAIL."
     },
     {
       "id": 14,
@@ -336,7 +345,7 @@
     }
   ],
   "next_resume_condition": "Continue current exact-head product validation. Do not promote migration readiness to Final. Repository-independence work can resume only when dedicated target repositories are actually visible/writable to the integration; then seed each verified export and rerun the complete chain from independent main.",
-  "latest_delta": "Current-product-bound migration readiness remains 18/18. SSQ and DLT current exact-head Windows states are now closed in control: both pass their internal/Windows/GUI/hash chains and remain Final-blocked by independent release/repository dependencies. Stock desktop research-corpus qualification remains IN_PROGRESS. Independent repositories remain 0/18; Final/Delivery remain 0/18.",
+  "latest_delta": "Current-product-bound migration readiness remains 18/18. SSQ/DLT exact-head states and Earth Online current merged candidate are closed in control; Earth business content is 8/8=100% with Windows/Exact/GUI/Same Hash PASS, but production update/repository/release remain blocked. Stock desktop research-corpus qualification remains IN_PROGRESS. Independent repositories remain 0/18; Final/Delivery remain 0/18.",
   "infrastructure_capability": {
     "repository_creation": "BLOCKED",
     "repository_creation_evidence": "PR #127: Actions integration token cannot act as user-level repository creator; connector exposes no create-repository mutation.",
