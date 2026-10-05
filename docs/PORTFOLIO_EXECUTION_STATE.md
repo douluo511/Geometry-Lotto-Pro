@@ -580,3 +580,12 @@ Portfolio boundary remains unchanged: migration-seed readiness does not satisfy 
 - Export manifest: 41 files; SHA256 `49b9f836ec187654edc4c2a916e3db7c5c0c8fe0b4358903375e2af6646f8316`; artifact ID `11327253113`.
 - The workflow explicitly records repository_independence=NOT VERIFIED, real_release_n_to_n_plus_1=NOT VERIFIED and final_gate=FAIL. Migration/export readiness is not a final product.
 - With this refresh, current-product-bound migration/export verification is again 18/18 PASS; visible real independent repositories remain 0/18 and portfolio Final remains 0/18.
+
+
+## 2026-10-05 authoritative-line correction — Stock #155 / Happy8 fe95
+
+- **Stock AI authoritative successor is PR #155**, exact head `f9d610aafe910cb73b036701a688329d9899399b`, based directly on PR #126 product head `dfa07c51fffdaa7736147cd49e39a274a745e363`. Source/offline run `37268369320` is current-head SUCCESS. Business `37268369291` and desktop `37268369332` remain IN_PROGRESS and are not pre-promoted.
+- Direct audit of PR #155 confirms the research-history cache now uses separate `actions/cache/restore` and `actions/cache/save`, a semantic restore prefix, a per-run/per-attempt save key, and `if: always()` save. This permits a bounded failed >=90% qualification attempt to persist validated real-network history without lowering the frozen current+delisted >=90% threshold. Closed PR #152 is historical/stale, not current.
+- **Happy8 PR #39 current exact head is `fe95aad8f6d3ff8b297865b05f68fc4c83eabe02`**. Superseded run `37268193865` exposed `UnboundLocalError: raw_required` in Storage; current fix initializes every manifest row raw-required before source dispatch and only permits the explicitly validated derived Jiangsu-crosscheck metadata branch to opt out. Fresh run `37268981282` has current-head PASS through Compile/Domain/Storage/Service/science-method/updater-contract/self-test/UI-source-contract. Its live production network gate has not qualified; Science/Windows/GUI remain downstream NOT VERIFIED while official-source diagnostics execute.
+- RMF duplicate migration PR #156 was closed unmerged. Existing PR #154 / run `37267672124` remains the authoritative current-main migration verification.
+- Portfolio Final remains 0/18; real independent repositories visible remain 0/18.
