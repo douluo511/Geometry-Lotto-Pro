@@ -111,20 +111,17 @@ def main() -> int:
     )
     semantic_status = semantic_evidence.get("end_stop_date_semantics")
 
-    em = None
+    # Eastmoney was independently proven against Tencent on PR #203, but the
+    # current hosted-runner path failed twice (including three bounded retries)
+    # with RemoteDisconnected. Do not keep hammering the same unavailable
+    # endpoint. Re-fetch Tencent and require byte-identical equality to the
+    # frozen dual-provider identity from PR #203.
     em_dates = []
     em_fetch = None
-    em_error = None
-    try:
-        em, em_fetch = bounded_fetch(
-            "eastmoney",
-            lambda: ak.stock_zh_index_daily_em(
-                symbol="sh000001", start_date=START8, end_date=END8
-            ),
-        )
-        em_dates = normalize_dates(em, "eastmoney")
-    except Exception as exc:
-        em_error = f"{type(exc).__name__}: {exc}"
+    em_error = (
+        "SKIPPED_AFTER_CURRENT_DIAGNOSTIC_FAILURES:"
+        " runs=37316082923,37340126540"
+    )
 
     tx, tx_fetch = bounded_fetch(
         "tencent",
@@ -139,21 +136,12 @@ def main() -> int:
         and tx_dates[-1] == FROZEN_CROSS_SOURCE_LAST
         and tx_sha == FROZEN_CROSS_SOURCE_DATE_SHA256
     )
-    live_dual_equal = bool(em_dates) and em_dates == tx_dates
-    live_dual_anchor_match = (
-        live_dual_equal
-        and len(em_dates) == FROZEN_CROSS_SOURCE_DATE_COUNT
-        and date_sha(em_dates) == FROZEN_CROSS_SOURCE_DATE_SHA256
-    )
-    calendar_supported = live_dual_anchor_match or frozen_anchor_match
+    live_dual_equal = False
+    calendar_supported = frozen_anchor_match
     calendar_mode = (
-        "LIVE_DUAL_PROVIDER_EXACT_MATCH"
-        if live_dual_anchor_match
-        else (
-            "TENCENT_REPLAY_MATCHES_FROZEN_DUAL_PROVIDER_IDENTITY"
-            if frozen_anchor_match
-            else "NOT_VERIFIED"
-        )
+        "TENCENT_REPLAY_MATCHES_FROZEN_DUAL_PROVIDER_IDENTITY"
+        if frozen_anchor_match
+        else "NOT_VERIFIED"
     )
     trading_dates = tx_dates if calendar_supported else []
     trading_compact = [x.replace("-", "") for x in trading_dates]
