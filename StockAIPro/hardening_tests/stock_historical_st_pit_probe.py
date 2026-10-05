@@ -4,12 +4,14 @@ import hashlib
 import inspect
 import json
 import time
+from io import BytesIO
 from datetime import datetime, timezone
 from importlib.metadata import version as package_version
 
 import pandas as pd
 import akshare as ak
 import requests
+from pypdf import PdfReader
 
 
 def pick(cols, *names):
@@ -122,9 +124,144 @@ def fetch_bse_short_name_boundary(max_attempts: int = 3):
     }
 
 
+SSE_HISTORICAL_SPEC_URL = (
+    "https://www.sse.com.cn/services/tradingtech/historicaldata/c/10635730/files/"
+    "bddbf218c88e418a98954fdc0fa64c05.pdf"
+)
+SSE_PRODUCT_INFO_SPEC_URL = (
+    "https://www.sse.com.cn/services/tradingtech/development/c/10781338/files/"
+    "b251f026187849cdb57db7d4e2205269.pdf"
+)
+
+
+def _compact_pdf_text(value):
+    return "".join(str(value or "").replace("\u200b", "").split())
+
+
+def _fetch_pdf_text(url, max_attempts: int = 3):
+    errors = []
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                      "AppleWebKit/537.36 Chrome/154 Safari/537.36",
+        "Accept": "application/pdf,*/*;q=0.8",
+        "Referer": "https://www.sse.com.cn/",
+    }
+    for attempt in range(1, max_attempts + 1):
+        try:
+            response = requests.get(
+                url,
+                headers=headers,
+                timeout=(5, 30),
+                allow_redirects=True,
+            )
+            if response.status_code == 429 or response.status_code >= 500:
+                raise RuntimeError(f"retryable HTTP {response.status_code}")
+            response.raise_for_status()
+            payload = response.content
+            if not payload.startswith(b"%PDF"):
+                raise RuntimeError(
+                    f"SSE technical document is not PDF-shaped; status={response.status_code}"
+                )
+            reader = PdfReader(BytesIO(payload))
+            text = "\n".join((page.extract_text() or "") for page in reader.pages)
+            if not text.strip():
+                raise RuntimeError("SSE technical PDF text extraction returned empty")
+            return {
+                "status": "PASS",
+                "url": str(response.url),
+                "http_status": int(response.status_code),
+                "payload_sha256": hashlib.sha256(payload).hexdigest(),
+                "extracted_text_sha256": hashlib.sha256(
+                    text.encode("utf-8", errors="replace")
+                ).hexdigest(),
+                "page_count": len(reader.pages),
+                "attempts": attempt,
+                "prior_attempt_errors": errors,
+                "text": text,
+            }
+        except Exception as exc:
+            errors.append({
+                "attempt": attempt,
+                "error_type": type(exc).__name__,
+                "error": str(exc),
+            })
+            if attempt < max_attempts:
+                time.sleep(1.25 * (2 ** (attempt - 1)))
+    return {
+        "status": "NOT VERIFIED",
+        "url": url,
+        "attempts": max_attempts,
+        "errors": errors,
+    }
+
+
+def fetch_sse_status_spec_boundary():
+    historical = _fetch_pdf_text(SSE_HISTORICAL_SPEC_URL)
+    product = _fetch_pdf_text(SSE_PRODUCT_INFO_SPEC_URL)
+
+    hist_text = _compact_pdf_text(historical.get("text"))
+    product_text = _compact_pdf_text(product.get("text"))
+
+    file_identifier = "cpxx0201MMDD.txt"
+    hist_has_file = file_identifier in hist_text
+    hist_has_status = "产品状态标志" in hist_text
+    hist_has_risk = "风险警示" in hist_text or "风险" in hist_text
+    product_has_file = file_identifier in product_text
+    product_has_short_name = "中文简称" in product_text or "证券简称" in product_text
+    product_has_suspension = (
+        "停牌" in product_text
+        and ("产品" in product_text or "证券" in product_text)
+    )
+
+    status_field_supported = (
+        historical.get("status") == "PASS"
+        and hist_has_file
+        and hist_has_status
+    )
+    product_scope_supported = (
+        product.get("status") == "PASS"
+        and product_has_file
+        and product_has_short_name
+        and product_has_suspension
+    )
+    specification_supported = status_field_supported or product_scope_supported
+
+    def evidence(doc):
+        return {
+            key: value for key, value in doc.items()
+            if key != "text"
+        }
+
+    return {
+        "status": "SUPPORTED" if specification_supported else "NOT VERIFIED",
+        "historical_spec": evidence(historical),
+        "product_info_spec": evidence(product),
+        "file_identifier": file_identifier if (hist_has_file or product_has_file) else "NOT VERIFIED",
+        "historical_spec_file_identifier_present": hist_has_file,
+        "historical_spec_product_status_field_present": hist_has_status,
+        "historical_spec_risk_warning_phrase_present": hist_has_risk,
+        "product_info_file_identifier_present": product_has_file,
+        "product_info_short_name_phrase_present": product_has_short_name,
+        "product_info_suspension_phrase_present": product_has_suspension,
+        "sse_product_status_or_suspension_specification": (
+            "SUPPORTED" if specification_supported else "NOT VERIFIED"
+        ),
+        "public_historical_bulk_archive": "NOT VERIFIED",
+        "shanghai_historical_st_pit": "NOT VERIFIED",
+        "historical_daily_suspension_state": "NOT VERIFIED",
+        "scope": (
+            "Official SSE technical-document evidence can support that exchange product-information "
+            "specifications contain product-status / short-name / suspension concepts. It does not "
+            "prove a publicly reproducible historical bulk archive, historical ST state, or daily "
+            "point-in-time suspension reconstruction across the frozen research window."
+        ),
+    }
+
+
 def main():
     df, fetch_meta = fetch_sz_change_name()
     bse_boundary = fetch_bse_short_name_boundary()
+    sse_boundary = fetch_sse_status_spec_boundary()
     cols = list(df.columns)
     code_col = pick(cols, "证券代码", "代码")
     date_col = pick(cols, "变更日期", "变更时间", "日期")
@@ -203,6 +340,7 @@ def main():
             "full_a_share_gate": "NOT VERIFIED",
         },
         "beijing_official_source_boundary": bse_boundary,
+        "shanghai_official_source_boundary": sse_boundary,
         "historical_suspension_daily_state": "NOT VERIFIED",
         "product_bytes_changed": False,
         "final_gate": "FAIL",
