@@ -7,10 +7,6 @@ on:
     paths:
       - "StockAIPro/hardening_tests/stock_sse_calendar_semantic_probe.py"
       - ".github/workflows/stock-sse-calendar-semantic-probe.yml"
-  pull_request:
-    paths:
-      - "StockAIPro/hardening_tests/stock_sse_calendar_semantic_probe.py"
-      - ".github/workflows/stock-sse-calendar-semantic-probe.yml"
   workflow_dispatch:
 
 permissions:
