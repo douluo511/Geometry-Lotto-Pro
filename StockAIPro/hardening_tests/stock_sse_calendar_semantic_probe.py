@@ -351,8 +351,11 @@ def main():
     )
 
     end_semantic_expectations = {
+        # 605090 is active on 2022-01-04 with start=end=2022-01-04.
+        # A distinct new interval begins 2022-01-05, so 01-05 is retained in
+        # the raw crosscheck but is intentionally not used as the prior
+        # interval's "day after" semantic assertion.
         "20220104": {"605090": True},
-        "20220105": {"605090": False},
         "20220112": {"600072": True},
         "20220113": {"600072": False},
         "20220117": {"603227": True},
