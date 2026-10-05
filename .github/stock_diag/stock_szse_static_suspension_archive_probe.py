@@ -74,7 +74,7 @@ def inspect_index(r: requests.Response, meta: dict):
         full = urljoin(str(r.url), a.get("href"))
         if not same_szse(full):
             continue
-        if re.search(r"/disclosure/notice/temp/t\d{8}_\d+\.html(?:$|[?#])", full):
+        if re.search(r"/t\d{8}_\d+\.html(?:$|[?#])", full):
             article_links.append({
                 "url": full.split("#", 1)[0],
                 "text": " ".join(a.get_text(" ", strip=True).split())[:500],
