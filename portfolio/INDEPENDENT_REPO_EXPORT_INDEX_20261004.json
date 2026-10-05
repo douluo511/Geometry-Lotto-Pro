@@ -186,28 +186,31 @@
     {
       "id": 11,
       "project": "Real-Money Finance System",
-      "export_pr": 139,
-      "export_head": "08564343fd1499283478547d922ff113cf94029a",
-      "export_run": 37262871456,
+      "export_pr": 144,
+      "export_head": "bd7d26db4e755d3ffe7b276ad054de4724a04fe3",
+      "export_run": 37263811756,
       "export_status": "PASS",
       "repository_independence": "BLOCKED",
       "final_gate": "FAIL",
-      "source_product_pr": 137,
-      "source_product_head": "573e07d57e3f3249e2ec03778559e439c007d64b",
-      "source_product_status": "ACTIVE_HARDENING_REVALIDATING",
-      "export_artifact_id": 11324884467,
-      "export_artifact_digest": "sha256:1e7fa976794bc71becffd3414bb981018db73596b6fc406ea72f8484831e0ca3",
+      "source_product_pr": 142,
+      "source_product_head": "e29d35a65e2b44ad086c5c3fbb5134e8b8fdd253",
+      "source_product_status": "INTEGRATED_BYTE_IDENTICAL_TO_VALIDATED_PR_HEAD",
+      "export_artifact_id": 11325985360,
+      "export_artifact_digest": "sha256:4383d0a2ba70a8b413d6f42048e261c881c706b1321657c31fbd5807aa8bf0d7",
       "engineering_completion_percent": 85.7,
       "business_completion_percent": 68.8,
       "overall_completion_percent": 68.8,
       "product_tree_byte_identity": "PASS",
-      "current_product_head": "26ae84edeb21581b5ffa2e37832b6010d1598b4f",
+      "current_product_head": "e29d35a65e2b44ad086c5c3fbb5134e8b8fdd253",
       "superseded_export_prs": [
         97,
-        131
+        131,
+        139
       ],
-      "note": "PR #137 run 37262214746 is SUCCESS as candidate validation only. Five business qualification gaps remain; repository independence, production N→N+1 and formal release redownload remain non-PASS.",
-      "stale_reason": "Branch export #139 is verified for RMF #137 exact 573e07d5, but active corporate-action PIT hardening #136 has advanced to 26ae84ed and must be integrated with #137, fully revalidated, then exported before portfolio current-product migration PASS."
+      "note": "PR #142 integrated official-cost + corporate-action hardening. Pre-merge exact PR head 2d019268 run 37263529422 passed the full candidate chain; merged current product e29d35a6 is byte-identical for product/workflow via export v4, but no exact-merge-head Windows PASS is claimed. Official cost sub-evidence PASS; corporate-action PIT remains NOT VERIFIED due 17 unexplained persistent factor shifts. Repository independence, production N→N+1 and formal release redownload remain non-PASS.",
+      "validated_pr_head": "2d019268314411becc51a8c2811f703135e8de11",
+      "validated_pr_run": 37263529422,
+      "current_merge_product_byte_identity": "PASS"
     },
     {
       "id": 12,
@@ -301,7 +304,7 @@
     }
   ],
   "next_resume_condition": "Continue current exact-head product validation. Do not promote migration readiness to Final. Repository-independence work can resume only when dedicated target repositories are actually visible/writable to the integration; then seed each verified export and rerun the complete chain from independent main.",
-  "latest_delta": "Current-product-bound migration readiness is 18/18. Stock full production daily business runtime run 37259832083 is now PASS at dfa07c51, but native desktop run 37259832040 remains IN_PROGRESS and business-content 100% is not claimed. SSQ Windows run 37262758839 remains IN_PROGRESS. Real independent repositories remain 0/18 and Final/Delivery remain 0/18.",
+  "latest_delta": "Current-product-bound migration readiness is 18/18. RMF export #144 exact head bd7d26db run 37263811756 PASS binds the integrated product tree at merge head e29d35a6. Stock full production business runtime is PASS at dfa07c51 while native desktop research-corpus qualification remains IN_PROGRESS. Real independent repositories remain 0/18; Final/Delivery remain 0/18.",
   "infrastructure_capability": {
     "repository_creation": "BLOCKED",
     "repository_creation_evidence": "PR #127: Actions integration token cannot act as user-level repository creator; connector exposes no create-repository mutation.",
@@ -312,6 +315,6 @@
   "audit": {
     "exact_seed_audit_date": "2026-10-05",
     "status": "PASS",
-    "note": "Current-product-bound readiness is 17/18. SSQ #141, DLT #133, Investment #112, Stock #140 and other indexed lines are current-bound PASS. RMF remains NOT VERIFIED pending integration/revalidation of active business hardening; historical branch-specific exports do not satisfy the current-product binding."
+    "note": "Current-product-bound migration readiness is 18/18. RMF #144 is bound to integrated merge product e29d35a6 with product-tree byte identity PASS; its pre-merge exact Windows candidate run is recorded separately and is not misrepresented as an exact merge-head Windows PASS."
   }
 }
