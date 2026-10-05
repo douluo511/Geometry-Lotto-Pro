@@ -146,6 +146,36 @@ def main():
                 "context": " ".join(item.split())[:3000],
             })
 
+    loader_context = []
+    loader_keywords = (
+        target_key, "sseQueryURL", "commonQuery.do", "commonQuery", "sqlId",
+        "$.ajax", "ajax(", "queryUrl", "queryURL", "tableData", "tableFun",
+    )
+    for row in scanned:
+        url = row.get("url")
+        if row.get("status") == "FAIL" or not url:
+            continue
+        try:
+            rr, _ = fetch(s, url, attempts=2)
+            tt = rr.content.decode(rr.encoding or "utf-8", errors="replace")
+        except Exception:
+            continue
+        matched_any = []
+        for kw in loader_keywords:
+            ss = snippets(tt, kw, radius=1600)
+            if ss:
+                matched_any.append({
+                    "keyword": kw,
+                    "contexts": [" ".join(x.split())[:3500] for x in ss[:4]],
+                })
+        if matched_any:
+            loader_context.append({
+                "source": url,
+                "matches": matched_any,
+            })
+        if len(loader_context) >= 20:
+            break
+
     public_candidates = []
     for hit in hits:
         for keyword, items in hit["matches"].items():
@@ -172,6 +202,7 @@ def main():
         "public_candidates": public_candidates,
         "targeted_context": targeted_context,
         "page_query_context": page_query_context,
+        "loader_context": loader_context,
         "boundary": report["boundary"],
     }, ensure_ascii=True, sort_keys=True))
     return 0
