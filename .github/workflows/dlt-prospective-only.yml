@@ -81,7 +81,10 @@ jobs:
           status=x["status"]
           freeze=x["freeze"]
           cohort=x["cohort"]
-          assert cohort["source_commit"] == os.environ["EXPECTED_SHA"]
+          assert x["cycle_source_commit"] == os.environ["EXPECTED_SHA"]
+          assert isinstance(x["behavior_hash"], str) and len(x["behavior_hash"]) == 64
+          assert cohort["behavior_hash"] == x["behavior_hash"]
+          assert cohort["protocol_spec"]["behavior_hash"] == x["behavior_hash"]
           assert live["network_gate"] == "PASS"
           assert live["freshness_gate"] == "PASS"
           assert live["crosscheck_status"] == "PASS"
