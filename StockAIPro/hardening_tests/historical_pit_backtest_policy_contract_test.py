@@ -37,6 +37,7 @@ def install_claim(root: Path, rows: list[dict]) -> None:
         root, source_rel,
         b'{"point_in_time_only":true,"sources":["SSE","SZSE","BSE"]}\n',
     )
+    canonical_sha = sha(canonical)
     markets = {}
     for market in ("SSE", "SZSE", "BSE"):
         rel = f"cache/historical_st_pit_{market.lower()}.json"
@@ -48,6 +49,12 @@ def install_claim(root: Path, rows: list[dict]) -> None:
                 "suspension_state": "PASS",
                 "trading_calendar": "PASS",
                 "daily_state": "PASS",
+                "point_in_time_only": True,
+                "future_leakage_violations": 0,
+                "window_start": "2026-01-05",
+                "window_end": "2026-01-07",
+                "canonical_sha256": canonical_sha,
+                "source_count": 1,
             }, sort_keys=True) + "\n").encode("utf-8"),
         )
         markets[market] = {
@@ -69,7 +76,7 @@ def install_claim(root: Path, rows: list[dict]) -> None:
         "window_start": "2026-01-05",
         "window_end": "2026-01-07",
         "canonical_path": canonical_rel,
-        "canonical_sha256": sha(canonical),
+        "canonical_sha256": canonical_sha,
         "source_manifest_path": source_rel,
         "source_manifest_sha256": source_sha,
         "markets": markets,
