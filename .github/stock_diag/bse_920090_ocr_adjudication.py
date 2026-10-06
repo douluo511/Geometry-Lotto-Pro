@@ -58,6 +58,48 @@ def direct_resume_dates(text:str):
             })
     return sorted(set(out)),evidence
 
+def diagnostic_date_tokens(text:str):
+    compact=re.sub(r"\\s+","",text or "")
+    exact=[]
+    for m in re.finditer(DATE,compact):
+        try:
+            exact.append({"raw":m.group(0),"date":iso(*m.groups()[:3])})
+        except Exception:
+            pass
+    flexible=[]
+    for m in re.finditer(r"(20\\d{2})\\D{0,4}(\\d{1,2})\\D{0,4}(\\d{1,2})",compact):
+        raw=m.group(0)
+        try:
+            value=iso(*m.groups()[:3])
+        except Exception:
+            continue
+        flexible.append({"raw":raw,"date":value})
+    def dedupe(rows):
+        seen=set(); out=[]
+        for row in rows:
+            key=(row["raw"],row["date"])
+            if key not in seen:
+                seen.add(key); out.append(row)
+        return out
+    return dedupe(exact),dedupe(flexible)
+
+def action_contexts(text:str):
+    compact=re.sub(r"\\s+","",text or "")
+    rows=[]
+    for term in ("复牌","恢复交易","开市","停牌"):
+        for m in re.finditer(term,compact):
+            lo=max(0,m.start()-140); hi=min(len(compact),m.end()+180)
+            snippet=compact[lo:hi]
+            rows.append({
+                "term":term,
+                "snippet":snippet,
+                "snippet_sha256":sha256(snippet.encode("utf-8")),
+            })
+    unique={}
+    for row in rows:
+        unique[(row["term"],row["snippet_sha256"])]=row
+    return [unique[k] for k in sorted(unique)][:40]
+
 def run_ocr(png:Path,psm:int):
     cmd=["tesseract",str(png),"stdout","-l","chi_sim+eng","--psm",str(psm),"--dpi","300"]
     p=subprocess.run(cmd,capture_output=True,text=True,encoding="utf-8",errors="replace",check=False)
@@ -130,12 +172,17 @@ def main()->int:
     for psm,texts in ocr_by_psm.items():
         joined=normalize("\n".join(texts))
         dates,hits=direct_resume_dates(joined)
+        exact_tokens,flexible_tokens=diagnostic_date_tokens(joined)
+        contexts=action_contexts(joined)
         psm_results[str(psm)]={
             "text_sha256":sha256(joined.encode("utf-8")),
             "text_chars":len(joined),
             "resume_dates":dates,
             "semantic_hits":hits,
-            "contains_title":"股票复牌公告" in re.sub(r"\s+","",joined),
+            "exact_date_tokens":exact_tokens,
+            "flexible_date_tokens":flexible_tokens,
+            "action_contexts":contexts,
+            "contains_title":"股票复牌公告" in re.sub(r"\\s+","",joined),
         }
 
     date3=psm_results["3"]["resume_dates"]
