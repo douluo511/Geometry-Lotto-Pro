@@ -1,0 +1,92 @@
+name: SSQ V2 shadow research benchmark
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'SSQ/SSQ/glp/research_v2.py'
+      - 'SSQ/tools/research_v2_benchmark.py'
+      - 'SSQ/tests/test_research_v2*.py'
+      - 'SSQ/RESEARCH_MODEL_V2.md'
+      - '.github/workflows/ssq-v2-research-benchmark.yml'
+  push:
+    branches:
+      - 'research/ssq-v2-*'
+    paths:
+      - 'SSQ/SSQ/glp/research_v2.py'
+      - 'SSQ/tools/research_v2_benchmark.py'
+      - 'SSQ/tests/test_research_v2*.py'
+      - 'SSQ/RESEARCH_MODEL_V2.md'
+      - '.github/workflows/ssq-v2-research-benchmark.yml'
+
+defaults:
+  run:
+    working-directory: SSQ
+
+jobs:
+  shadow-benchmark:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@v4
+
+      - name: Setup pinned Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11.9'
+
+      - name: Compile research path
+        run: python -m compileall -q SSQ/glp/research_v2.py tools/research_v2_benchmark.py tests/test_research_v2.py tests/test_research_v2_benchmark.py
+
+      - name: Research regression tests
+        env:
+          PYTHONPATH: SSQ
+        run: python -m unittest discover -s tests -p 'test_research_v2*.py' -v
+
+      - name: Official-seed chronology-safe shadow benchmark
+        env:
+          PYTHONPATH: SSQ
+        run: |
+          mkdir -p evidence/SSQ
+          python tools/research_v2_benchmark.py \
+            --dataset SSQ/resources/official_seed.json \
+            --output evidence/SSQ/research_v2_shadow_benchmark.json \
+            --max-evals 1440 \
+            --confirmation 240 \
+            --refit-interval 20 \
+            --train-points 240 \
+            --rounds 1999
+
+      - name: Surface benchmark verdict
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path("evidence/SSQ/research_v2_shadow_benchmark.json")
+          d=json.loads(p.read_text(encoding="utf-8"))
+          print("SOFTWARE_STATUS="+str(d["software_status"]))
+          print("RESEARCH_DECISION="+str(d["research_decision"]))
+          print("DAN_RESEARCH_DECISION="+str(d["dan_research_decision"]))
+          print("RHO_RECOMMENDATION="+str(d["rho_recommendation"]))
+          print("PROMOTION_ELIGIBLE="+str(d["promotion_eligible"]))
+          print("WALK_FORWARD="+json.dumps(d["walk_forward"], sort_keys=True))
+          print("DEV_COMBINED="+json.dumps(d["development"]["summary"]["metrics"]["combined_gain"], sort_keys=True))
+          print("DEV_DAN="+json.dumps(d["development"]["summary"]["metrics"]["dan_gain"], sort_keys=True))
+          print("HOLDOUT_COMBINED="+json.dumps(d["confirmation"]["summary"]["metrics"]["combined_gain"], sort_keys=True))
+          print("NULL_WORLD="+json.dumps(d["null_world"], sort_keys=True))
+          if d["promotion_eligible"]:
+              raise SystemExit("shadow benchmark must never self-promote")
+          if float(d["rho_recommendation"]) != 0.0:
+              raise SystemExit("non-zero rho is forbidden in shadow benchmark")
+          PY
+
+      - name: Upload immutable benchmark evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: SSQ-V2-SHADOW-BENCHMARK-${{ github.sha }}
+          path: SSQ/evidence/SSQ/research_v2_shadow_benchmark.json
+          if-no-files-found: warn
+          retention-days: 30
