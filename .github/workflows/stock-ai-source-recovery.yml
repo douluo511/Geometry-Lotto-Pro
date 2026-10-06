@@ -14,6 +14,7 @@ on:
       - 'StockAIPro/hardening_tests/history_execution_contract_test.py'
       - 'StockAIPro/hardening_tests/pipeline_overlap_contract_test.py'
       - 'StockAIPro/hardening_tests/valuation_qualification_contract_test.py'
+      - 'StockAIPro/hardening_tests/historical_st_pit_contract_test.py'
       - 'StockAIPro/hardening_tests/full_daily_business_gate.py'
       - 'StockAIPro/hardening_tests/restore_immutable_git_bytes.py'
       - 'StockAIPro/hardening_tests/real_network_gate.py'
@@ -66,6 +67,8 @@ jobs:
         run: python hardening_tests/pipeline_overlap_contract_test.py
       - name: Historical PIT valuation qualification contract
         run: python hardening_tests/valuation_qualification_contract_test.py
+      - name: Historical ST and suspension PIT fail-closed contract
+        run: python hardening_tests/historical_st_pit_contract_test.py
       - name: Immutable 187 file import and full 32 gate Windows offline regression
         run: python verify_recovery.py --repo-root .. --output source_recovery_evidence.json
       - name: Install pinned AkShare for production source integration
