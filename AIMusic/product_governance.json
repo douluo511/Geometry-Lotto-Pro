@@ -1,0 +1,23 @@
+{
+  "schema": "ai-music-reauthored-governance-v1",
+  "lineage": "NEW_REAUTHORED_IMPLEMENTATION",
+  "historical_candidate_inheritance": "FORBIDDEN",
+  "product_goal": "Auditable Windows music-production system with truthful separation between local procedural composition and external AI-provider generation.",
+  "mandatory_ui": ["创作音乐", "一键更新", "一键修复", "高级分析"],
+  "engine_identity": {
+    "local": "Local Procedural Composer v1 reauthored",
+    "cloud_ai_provider": "NOT CONFIGURED / NOT VERIFIED"
+  },
+  "business_gates": [
+    "request_validation",
+    "deterministic_local_audio",
+    "wav_export_integrity",
+    "metadata_provenance",
+    "local_vs_cloud_identity_boundary",
+    "license_boundary",
+    "real_cloud_provider_generation",
+    "provider_output_quality",
+    "provider_license_provenance"
+  ],
+  "final_rule": "No Final PASS until repository independence, real provider generation where claimed, licensing provenance, positive updater N->N+1, formal release re-download Same Hash, engineering 100%, business 100%."
+}
