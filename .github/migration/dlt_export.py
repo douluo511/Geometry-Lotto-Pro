@@ -14,7 +14,6 @@ PROJECT = ROOT / "DLT"
 TARGET = "douluo511/Geometry-Lotto-Pro-DLT"
 WORKFLOWS = (
     ROOT / ".github/workflows/dlt-windows-build-acceptance.yml",
-    ROOT / ".github/workflows/dlt-prospective-only.yml",
 )
 EXCLUDE_PARTS = {
     "__pycache__",
@@ -112,8 +111,8 @@ def main() -> int:
         "layout": "preserve-dlt-root",
         "required_workflows": [
             ".github/workflows/dlt-windows-build-acceptance.yml",
-            ".github/workflows/dlt-prospective-only.yml",
         ],
+        "prospective_research_authority": "EXCLUDED_NOT_ON_CURRENT_MAIN",
         "file_count": len(rows),
         "repository_independence": "NOT VERIFIED",
         "release_context": "NOT VERIFIED",
