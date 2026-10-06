@@ -226,9 +226,13 @@ def fetch_doc(session: requests.Session, url: str) -> tuple[bytes, dict]:
                 and r.content
             ):
                 return r.content, {**rec, "attempt_count": attempt, "attempts": attempts}
-            # Preserve 403/404/429/5xx as transport evidence and continue the
-            # bounded retry set. Never turn an inaccessible primary document
-            # into a semantic PASS.
+            # Preserve inaccessible primary documents as transport evidence.
+            # BSE is rate-limit sensitive: a short retry loop after 403/429
+            # deterministically reproduces the block. Use the same bounded
+            # cooldown proven by the 85/85 suspension-primary diagnostic.
+            if r.status_code in {403, 429} and attempt < 3:
+                time.sleep(75.0)
+                continue
         except requests.RequestException as exc:
             last_error = exc
             attempts.append({
@@ -316,6 +320,14 @@ def main() -> int:
     role_counts = {"terminal": 0, "period_start": 0, "period_end": 0}
 
     for index, url in enumerate(sorted(unique_docs)):
+        # Proven BSE transport hygiene from the suspension-primary corpus:
+        # reset the session and cool down before the next 20-document batch.
+        # This changes only acquisition pacing, never semantic acceptance.
+        if index > 0 and index % 20 == 0:
+            session.close()
+            time.sleep(75.0)
+            session = requests.Session()
+
         events_for_doc = unique_docs[url]
         raw, transport = fetch_doc(session, url)
         rec = {
