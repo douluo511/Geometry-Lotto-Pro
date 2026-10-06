@@ -192,11 +192,24 @@ class LottoService:
         draws, canonical_hash = self.store.load_draws()
         selector_hash = model_identity()["selector_hash"]
         prospective = self.store.prospective_replays(selector_hash)
+        freeze_before = len(self.store.freezes())
         court = run_evidence_court(draws, prospective, progress)
-        prediction = self.predict(progress)
-        trace = prediction.get("effect_trace", {})
+        # Audit is observational. It may compute the current scoring trace, but it
+        # must never call predict(), which persists a formal production Freeze.
+        _shadow_prediction, trace = make_prediction(draws, canonical_hash, court)
+        freeze_after = len(self.store.freezes())
+        if freeze_after != freeze_before:
+            raise RuntimeError(
+                f"Evidence Court mutated formal Freeze state: {freeze_before}->{freeze_after}"
+            )
         ors = build_ors_record(court, trace)
-        payload = {"court": court, "ors": ors}
+        payload = {
+            "court": court,
+            "ors": ors,
+            "formal_freeze_written": False,
+            "freeze_before": freeze_before,
+            "freeze_after": freeze_after,
+        }
         self.store.append_experiment("evidence_court", court["software_verdict"], canonical_hash, court["model_hash"], payload)
         return payload
 
@@ -225,32 +238,60 @@ class LottoService:
         return court
 
     def repair(self, progress: Callable[[str], None] | None = None) -> dict[str, Any]:
-        before = self.store.integrity_check()
+        before: dict[str, Any] | None = None
         actions: list[str] = []
-        by_name = {c.get("name"): c.get("status") for c in before.get("checks", [])}
+        try:
+            before = self.store.integrity_check()
+            by_name = {c.get("name"): c.get("status") for c in before.get("checks", [])}
 
-        if by_name.get("SQLite integrity") != "PASS" or by_name.get("Freeze archive") != "PASS":
-            if progress:
-                progress("实验账本损坏，正在备份并重建 ledger")
-            rebuilt = self.store.rebuild_ledger()
-            actions.append(f"ledger rebuilt; restored_freezes={rebuilt.get('restored_freezes', 0)}")
+            if by_name.get("SQLite integrity") != "PASS" or by_name.get("Freeze archive") != "PASS":
+                if progress:
+                    progress("实验账本损坏，正在备份并重建 ledger")
+                rebuilt = self.store.rebuild_ledger()
+                actions.append(f"ledger rebuilt; restored_freezes={rebuilt.get('restored_freezes', 0)}")
 
-        # Recheck local canonical history after ledger recovery. Network is required only
-        # when the canonical dataset itself is invalid/missing.
-        mid = self.store.integrity_check()
-        mid_by_name = {c.get("name"): c.get("status") for c in mid.get("checks", [])}
-        if mid_by_name.get("Canonical hash") != "PASS" or mid_by_name.get("Source evidence") != "PASS":
-            if progress:
-                progress("Canonical/来源证据损坏，正在从双官方源重建")
-            self.update(progress)
-            actions.append("canonical history/source evidence rebuilt from dual official sources")
+            # Recheck local canonical history after ledger recovery. Network is required only
+            # when the canonical dataset itself is invalid/missing.
+            mid = self.store.integrity_check()
+            mid_by_name = {c.get("name"): c.get("status") for c in mid.get("checks", [])}
+            if mid_by_name.get("Canonical hash") != "PASS" or mid_by_name.get("Source evidence") != "PASS":
+                if progress:
+                    progress("Canonical/来源证据损坏，正在从双官方源重建")
+                self.update(progress)
+                actions.append("canonical history/source evidence rebuilt from dual official sources")
 
-        replayed = self.replay_all()
-        after = self.store.integrity_check()
-        status = "PASS" if after["status"] == "PASS" else "FAIL"
-        payload = {"before": before, "action": actions or ["无需修复"], "replayed": replayed, "after": after}
-        self.store.append_experiment("repair", status, sha256_json(before), APP_VERSION, payload)
-        return payload
+            replayed = self.replay_all()
+            after = self.store.integrity_check()
+            status = "PASS" if after["status"] == "PASS" else "FAIL"
+            payload = {"before": before, "action": actions or ["无需修复"], "replayed": replayed, "after": after}
+            self.store.append_experiment("repair", status, sha256_json(before), APP_VERSION, payload)
+            return payload
+        except Exception as exc:
+            evidence_before = before if isinstance(before, dict) else {
+                "status": "FAIL",
+                "checks": [],
+                "detail": "repair failed before an integrity snapshot was available",
+            }
+            failure: dict[str, Any] = {
+                "status": "FAIL",
+                "before": evidence_before,
+                "action": actions or ["修复未完成"],
+                "failed_at": utc_now(),
+                "error_type": type(exc).__name__,
+                "error": str(exc),
+            }
+            try:
+                self.store.append_experiment(
+                    "repair", "FAIL", sha256_json(evidence_before), APP_VERSION, failure
+                )
+            except Exception as evidence_exc:
+                # Never replace the original repair failure with a secondary evidence-write
+                # exception.  If the ledger itself is unavailable there may be no writable
+                # channel, but the caller must still receive the original FAIL.
+                failure["evidence_write_error"] = (
+                    f"{type(evidence_exc).__name__}: {evidence_exc}"
+                )
+            raise
 
 
 def self_test(root: Path | None = None) -> dict[str, Any]:
