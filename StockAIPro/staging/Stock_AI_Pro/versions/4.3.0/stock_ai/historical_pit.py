@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 SCHEMA = "stock-ai-historical-st-pit-v1"
@@ -11,6 +11,7 @@ REQUIRED_MARKETS = ("SSE", "SZSE", "BSE")
 HEX64 = re.compile(r"^[0-9a-f]{64}$")
 PASS = "PASS"
 WARN = "WARN"
+MARKET_LIFECYCLE_START = {"BSE": date(2021, 11, 15)}
 
 
 def _parse_day(value):
@@ -112,6 +113,16 @@ def _validate_source_manifest_semantics(path: Path):
     return True, "PASS", {"sources": sorted(normalized), "point_in_time_only": True}
 
 
+def _weekday_slots(start: date, end: date) -> int:
+    count = 0
+    current = start
+    while current <= end:
+        if current.weekday() < 5:
+            count += 1
+        current += timedelta(days=1)
+    return count
+
+
 def _validate_canonical_semantics(path: Path, start, end, expected):
     if start is None or end is None or start > end:
         return False, "invalid_window", None
@@ -173,6 +184,32 @@ def _validate_canonical_semantics(path: Path, start, end, expected):
             "market_row_counts": counts,
         }
 
+    # A hash-bound three-market file can still be semantically incomplete if it
+    # contains only one/few dates while claiming a multi-year daily-state window.
+    # Require a conservative weekday-density floor before any PASS. This is a
+    # sanity floor, not a substitute for a bound official trading-calendar x
+    # point-in-time-universe denominator in the real production evidence bundle.
+    date_axis_sanity = {}
+    for market in REQUIRED_MARKETS:
+        effective_start = max(start, MARKET_LIFECYCLE_START.get(market, start))
+        weekday_slots = _weekday_slots(effective_start, end) if effective_start <= end else 0
+        minimum_dates = max(1, (weekday_slots * 7 + 9) // 10) if weekday_slots else 1
+        observed_dates = len(dates[market])
+        date_axis_sanity[market] = {
+            "effective_start": effective_start.isoformat(),
+            "window_end": end.isoformat(),
+            "weekday_slots": weekday_slots,
+            "minimum_date_count_70pct_weekdays": minimum_dates,
+            "observed_date_count": observed_dates,
+        }
+        if observed_dates < minimum_dates:
+            return False, f"date_axis_too_sparse:{market}:{observed_dates}/{minimum_dates}", {
+                "rows": rows,
+                "market_row_counts": counts,
+                "market_date_counts": {m: len(days) for m, days in dates.items()},
+                "date_axis_sanity": date_axis_sanity,
+            }
+
     if expected is not None:
         expected_iso = expected.isoformat()
         missing_fresh = [market for market in REQUIRED_MARKETS if expected_iso not in dates[market]]
@@ -189,6 +226,7 @@ def _validate_canonical_semantics(path: Path, start, end, expected):
         "market_date_counts": {market: len(days) for market, days in dates.items()},
         "market_first_date": {market: min(days) for market, days in dates.items()},
         "market_last_date": {market: max(days) for market, days in dates.items()},
+        "date_axis_sanity": date_axis_sanity,
         "expected_trade_date": expected.isoformat() if expected is not None else None,
     }
 
