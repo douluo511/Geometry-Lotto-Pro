@@ -70,11 +70,15 @@ jobs:
           mb = b / "MIGRATION_MANIFEST.json"
 
           assert ma.read_bytes() == mb.read_bytes(), "manifest is not deterministic"
+          sa = a / "MIGRATION_SHA256SUMS.txt"
+          sb = b / "MIGRATION_SHA256SUMS.txt"
+          assert sa.read_bytes() == sb.read_bytes(), "checksum list is not deterministic"
           m = json.loads(ma.read_text(encoding="utf-8"))
 
           expected_candidate = os.environ["CANDIDATE_SHA"]
           expected_export = os.environ["EXPECTED_EXPORT_SHA"]
           assert m["schema"] == "dlt-independent-export-v4"
+          assert m["source_repository"] == "douluo511/Geometry-Lotto-Pro"
           assert m["source_commit"] == expected_candidate
           assert m["candidate_head"] == expected_candidate
           assert m["export_commit"] == expected_export
@@ -105,11 +109,15 @@ jobs:
           assert not (a / "tests").exists(), "DLT root was flattened"
           assert not (a / "scripts").exists(), "DLT root was flattened"
 
-          allowed_top = {"DLT", ".github", "MIGRATION_MANIFEST.json"}
+          allowed_top = {"DLT", ".github", "MIGRATION_MANIFEST.json", "MIGRATION_SHA256SUMS.txt"}
           for p in a.rglob("*"):
               if p.is_file():
                   rel = p.relative_to(a)
                   assert rel.parts[0] in allowed_top, f"unexpected top-level path: {rel}"
+
+          expected_sum_lines = [f'{row["sha256"]}  {row["path"]}' for row in m["files"]]
+          actual_sum_lines = [line.rstrip() for line in sa.read_text(encoding="utf-8").splitlines() if line.rstrip()]
+          assert actual_sum_lines == expected_sum_lines, "checksum list does not exactly match manifest"
 
           for row in m["files"]:
               p = a / row["path"]
