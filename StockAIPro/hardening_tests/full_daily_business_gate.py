@@ -125,7 +125,7 @@ def main() -> int:
         decision = load(latest / "decision.json")
         chain = load(DATA_ROOT / "state" / "prediction_chain.json")
         maintenance = load(DATA_ROOT / "state" / "maintenance.json")
-        backtest_summary = load(DATA_ROOT / "reports" / "backtest_summary.json")
+        backtest_summary_path = DATA_ROOT / "reports" / "backtest_summary.json"
         frozen_cfg = load(VERSION / "config.default.json")
         update = load(DATA_ROOT / "cache" / "last_update_status.json")
 
@@ -152,7 +152,15 @@ def main() -> int:
 
         maintenance_result = maintenance.get("result") or {}
         if maintenance_result.get("backtest") != "PASS":
+            if not backtest_summary_path.is_file():
+                raise RuntimeError(
+                    "automatic backtest not PASS and no backtest summary was produced; "
+                    f"maintenance={maintenance_result}"
+                )
             raise RuntimeError(f"automatic backtest not PASS: {maintenance_result}")
+        if not backtest_summary_path.is_file():
+            raise RuntimeError("automatic backtest reported PASS but backtest_summary.json is missing")
+        backtest_summary = load(backtest_summary_path)
         pit_policy = backtest_summary.get("historical_pit_policy") or {}
         if pit_policy.get("status") != "PASS":
             raise RuntimeError(f"historical PIT backtest policy not PASS: {pit_policy}")
