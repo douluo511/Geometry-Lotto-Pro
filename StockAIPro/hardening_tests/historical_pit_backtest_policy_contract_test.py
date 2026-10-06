@@ -55,6 +55,74 @@ def install_claim(root: Path, rows: list[dict], calendar_dates=None) -> None:
             },
         }, sort_keys=True) + "\n").encode("utf-8"),
     )
+    denominator_markets = {}
+    market_rank = {"SSE": 0, "SZSE": 1, "BSE": 2}
+    for market in ("SSE", "SZSE", "BSE"):
+        market_rows = [r for r in rows if r["market"] == market]
+        by_code = {}
+        for row in market_rows:
+            by_code.setdefault(row["code"], []).append(row["date"])
+        lifecycle_rel = f"cache/historical_st_pit_{market.lower()}_lifecycle.jsonl"
+        lifecycle_lines = []
+        expected_lines = []
+        for code in sorted(by_code):
+            code_dates = sorted(by_code[code])
+            listing, delisting = code_dates[0], code_dates[-1]
+            lifecycle_lines.append(json.dumps({
+                "market": market, "code": code,
+                "listing_date": listing, "delisting_date": delisting,
+            }, sort_keys=True) + "\n")
+            for day in calendar_dates:
+                if listing <= day <= delisting:
+                    expected_lines.append(f"{day}|{market}|{code}\n")
+        lifecycle_sha = write_bytes(root, lifecycle_rel, "".join(lifecycle_lines).encode("utf-8"))
+        expected_rel = f"cache/historical_st_pit_{market.lower()}_expected_keys.txt"
+        expected_payload = "".join(expected_lines).encode("ascii")
+        expected_sha = write_bytes(root, expected_rel, expected_payload)
+        raw_rel = f"cache/raw_{market.lower()}_fixture.json"
+        raw_sha = write_bytes(root, raw_rel, (json.dumps({"market": market, "fixture": True}, sort_keys=True) + "\n").encode("utf-8"))
+        provenance_rel = f"cache/historical_st_pit_{market.lower()}_provenance.json"
+        provenance_sha = write_bytes(
+            root, provenance_rel,
+            (json.dumps({
+                "market": market,
+                "point_in_time_only": True,
+                "raw_files": [{"path": raw_rel, "sha256": raw_sha}],
+            }, sort_keys=True) + "\n").encode("utf-8"),
+        )
+        denominator_markets[market] = {
+            "status": "PASS",
+            "source_count": 1,
+            "lifecycle_path": lifecycle_rel,
+            "lifecycle_sha256": lifecycle_sha,
+            "expected_keys_path": expected_rel,
+            "expected_keys_sha256": expected_sha,
+            "expected_key_count": len(expected_lines),
+            "provenance_path": provenance_rel,
+            "provenance_sha256": provenance_sha,
+        }
+    denominator_rel = "cache/historical_st_pit_denominator.json"
+    denominator_sha = write_bytes(
+        root, denominator_rel,
+        (json.dumps({
+            "schema": "stock-ai-historical-pit-denominator-v1",
+            "window_start": window_start,
+            "window_end": window_end,
+            "calendar_manifest_sha256": calendar_sha,
+            "source_manifest_sha256": source_sha,
+            "universe_definition": "all_eligible_mainland_equities_with_listing_delisting_boundaries",
+            "nonlisted_policy": "exclude_pre_listing_and_post_delisting",
+            "st_effective_date_rule": "point_in_time_effective_date_only",
+            "suspension_effective_date_rule": "point_in_time_effective_date_only",
+            "completeness_formula": "canonical_unique_expected_keys/expected_keys",
+            "raw_provenance_required": True,
+            "point_in_time_only": True,
+            "future_leakage_violations": 0,
+            "source_gap_count": 0,
+            "semantic_ambiguity_count": 0,
+            "markets": denominator_markets,
+        }, sort_keys=True) + "\n").encode("utf-8"),
+    )
     markets = {}
     for market in ("SSE", "SZSE", "BSE"):
         rel = f"cache/historical_st_pit_{market.lower()}.json"
@@ -98,6 +166,8 @@ def install_claim(root: Path, rows: list[dict], calendar_dates=None) -> None:
         "source_manifest_sha256": source_sha,
         "calendar_manifest_path": calendar_rel,
         "calendar_manifest_sha256": calendar_sha,
+        "denominator_manifest_path": denominator_rel,
+        "denominator_manifest_sha256": denominator_sha,
         "markets": markets,
     }
     (root / "cache" / "historical_st_pit.json").write_text(
@@ -201,10 +271,10 @@ with tempfile.TemporaryDirectory() as td:
     omitted = "2026-01-06"
     calendar_rows = []
     anchors = (("SSE", "600002"), ("SZSE", "000001"), ("BSE", "920023"))
-    for day in calendar_dates:
-        if day == omitted:
-            continue
-        for market, code in anchors:
+    for market, code in anchors:
+        for day in calendar_dates:
+            if day == omitted:
+                continue
             calendar_rows.append({
                 "date": day, "market": market, "code": code,
                 "st": False, "suspended": False,

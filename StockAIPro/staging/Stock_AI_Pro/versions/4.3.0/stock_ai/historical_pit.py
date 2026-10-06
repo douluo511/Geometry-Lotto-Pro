@@ -8,6 +8,7 @@ from pathlib import Path
 
 SCHEMA = "stock-ai-historical-st-pit-v1"
 CALENDAR_SCHEMA = "stock-ai-historical-market-calendar-v1"
+DENOMINATOR_SCHEMA = "stock-ai-historical-pit-denominator-v1"
 REQUIRED_MARKETS = ("SSE", "SZSE", "BSE")
 HEX64 = re.compile(r"^[0-9a-f]{64}$")
 PASS = "PASS"
@@ -172,6 +173,199 @@ def _validate_calendar_manifest_semantics(path: Path, start, end, expected=None)
     }
 
 
+def _validate_raw_provenance(root: Path, path: Path, market: str):
+    ok, reason, obj = _read_json_object(path)
+    if not ok:
+        return False, reason, None
+    if obj.get("market") != market:
+        return False, "market_mismatch", obj
+    if obj.get("point_in_time_only") is not True:
+        return False, "point_in_time_only", obj
+    raw_files = obj.get("raw_files")
+    if not isinstance(raw_files, list) or not raw_files:
+        return False, "raw_files_missing", obj
+    verified = []
+    for idx, item in enumerate(raw_files):
+        if not isinstance(item, dict):
+            return False, f"raw_file_invalid:{idx}", obj
+        good, why, meta = _verify_bound_file(root, item.get("path"), item.get("sha256"))
+        if not good:
+            return False, f"raw_file_binding:{idx}:{why}", obj
+        verified.append(meta)
+    return True, "PASS", {"raw_file_count": len(verified), "verified": verified}
+
+
+def _read_lifecycle(path: Path, market: str):
+    rows = []
+    seen = set()
+    last_code = None
+    try:
+        handle = path.open("r", encoding="utf-8")
+    except Exception as exc:
+        return False, f"open_failed:{type(exc).__name__}", None
+    with handle:
+        for lineno, raw in enumerate(handle, 1):
+            text = raw.strip()
+            if not text:
+                continue
+            try:
+                item = json.loads(text)
+            except Exception as exc:
+                return False, f"malformed_jsonl:{lineno}:{type(exc).__name__}", None
+            if not isinstance(item, dict):
+                return False, f"row_not_object:{lineno}", None
+            code = str(item.get("code") or "").strip()
+            row_market = str(item.get("market") or "").strip().upper()
+            listing = _parse_day(item.get("listing_date"))
+            delisting_raw = item.get("delisting_date")
+            delisting = _parse_day(delisting_raw) if delisting_raw not in (None, "") else None
+            if row_market != market or _market_for_code(code) != market:
+                return False, f"market_code_mismatch:{lineno}", None
+            if listing is None:
+                return False, f"listing_date_invalid:{lineno}", None
+            if delisting is not None and delisting < listing:
+                return False, f"lifecycle_order:{lineno}", None
+            if code in seen:
+                return False, f"duplicate_code:{code}", None
+            if last_code is not None and code < last_code:
+                return False, f"lifecycle_not_sorted:{lineno}", None
+            last_code = code
+            seen.add(code)
+            rows.append((code, listing, delisting))
+    if not rows:
+        return False, "lifecycle_empty", None
+    return True, "PASS", rows
+
+
+def _validate_denominator_manifest_semantics(
+    root: Path, path: Path, start, end, calendar_sha256, calendar_semantic_meta,
+    source_manifest_sha256, canonical_semantic_meta,
+):
+    ok, reason, obj = _read_json_object(path)
+    if not ok:
+        return False, reason, None
+    required_scalars = {
+        "schema": DENOMINATOR_SCHEMA,
+        "universe_definition": "all_eligible_mainland_equities_with_listing_delisting_boundaries",
+        "nonlisted_policy": "exclude_pre_listing_and_post_delisting",
+        "st_effective_date_rule": "point_in_time_effective_date_only",
+        "suspension_effective_date_rule": "point_in_time_effective_date_only",
+        "completeness_formula": "canonical_unique_expected_keys/expected_keys",
+    }
+    for field, expected_value in required_scalars.items():
+        if obj.get(field) != expected_value:
+            return False, f"{field}_mismatch", obj
+    if start is None or end is None or obj.get("window_start") != start.isoformat() or obj.get("window_end") != end.isoformat():
+        return False, "window_mismatch", obj
+    if str(obj.get("calendar_manifest_sha256") or "").lower() != str(calendar_sha256 or "").lower():
+        return False, "calendar_hash_mismatch", obj
+    if str(obj.get("source_manifest_sha256") or "").lower() != str(source_manifest_sha256 or "").lower():
+        return False, "source_manifest_hash_mismatch", obj
+    if obj.get("raw_provenance_required") is not True or obj.get("point_in_time_only") is not True:
+        return False, "provenance_or_pit_policy", obj
+    for field in ("future_leakage_violations", "source_gap_count", "semantic_ambiguity_count"):
+        try:
+            if int(obj.get(field, -1)) != 0:
+                return False, field, obj
+        except Exception:
+            return False, field, obj
+
+    calendar_dates = (calendar_semantic_meta or {}).get("market_dates") or {}
+    canonical_counts = (canonical_semantic_meta or {}).get("market_row_counts") or {}
+    canonical_hashes = (canonical_semantic_meta or {}).get("market_key_sha256") or {}
+    markets = obj.get("markets")
+    if not isinstance(markets, dict):
+        return False, "markets_missing", obj
+    result = {}
+    for market in REQUIRED_MARKETS:
+        item = markets.get(market)
+        if not isinstance(item, dict) or item.get("status") != PASS:
+            return False, f"market_missing_or_not_pass:{market}", obj
+        try:
+            if int(item.get("source_count", 0)) < 1:
+                return False, f"source_count:{market}", obj
+        except Exception:
+            return False, f"source_count:{market}", obj
+
+        life_ok, life_reason, life_meta = _verify_bound_file(
+            root, item.get("lifecycle_path"), item.get("lifecycle_sha256")
+        )
+        if not life_ok:
+            return False, f"lifecycle_binding:{market}:{life_reason}", obj
+        lifecycle_ok, lifecycle_reason, lifecycle = _read_lifecycle(
+            Path(life_meta["path"]), market
+        )
+        if not lifecycle_ok:
+            return False, f"lifecycle_semantics:{market}:{lifecycle_reason}", obj
+
+        prov_ok, prov_reason, prov_meta = _verify_bound_file(
+            root, item.get("provenance_path"), item.get("provenance_sha256")
+        )
+        if not prov_ok:
+            return False, f"provenance_binding:{market}:{prov_reason}", obj
+        raw_ok, raw_reason, raw_meta = _validate_raw_provenance(
+            root, Path(prov_meta["path"]), market
+        )
+        if not raw_ok:
+            return False, f"provenance_semantics:{market}:{raw_reason}", obj
+
+        expected_ok, expected_reason, expected_meta = _verify_bound_file(
+            root, item.get("expected_keys_path"), item.get("expected_keys_sha256")
+        )
+        if not expected_ok:
+            return False, f"expected_keys_binding:{market}:{expected_reason}", obj
+
+        days = [_parse_day(value) for value in (calendar_dates.get(market) or [])]
+        if not days or any(day is None for day in days):
+            return False, f"calendar_dates_missing:{market}", obj
+        derived_lines = []
+        for code, listing, delisting in lifecycle:
+            for day in days:
+                if day < listing or (delisting is not None and day > delisting):
+                    continue
+                derived_lines.append(f"{day.isoformat()}|{market}|{code}\n")
+        if not derived_lines:
+            return False, f"derived_denominator_empty:{market}", obj
+        derived_payload = "".join(derived_lines).encode("ascii")
+        actual_payload = Path(expected_meta["path"]).read_bytes()
+        if actual_payload != derived_payload:
+            return False, f"expected_keys_not_derivable:{market}", {
+                "expected_bytes": len(derived_payload),
+                "actual_bytes": len(actual_payload),
+            }
+        derived_sha = hashlib.sha256(derived_payload).hexdigest()
+        derived_count = len(derived_lines)
+        try:
+            declared_count = int(item.get("expected_key_count", -1))
+        except Exception:
+            return False, f"expected_key_count:{market}", obj
+        if declared_count != derived_count:
+            return False, f"expected_key_count:{market}", obj
+        if int(canonical_counts.get(market, -1)) != derived_count:
+            return False, f"canonical_denominator_count:{market}", {
+                "canonical": canonical_counts.get(market), "expected": derived_count
+            }
+        if str(canonical_hashes.get(market) or "").lower() != derived_sha:
+            return False, f"canonical_denominator_hash:{market}", {
+                "canonical": canonical_hashes.get(market), "expected": derived_sha
+            }
+        result[market] = {
+            "expected_key_count": derived_count,
+            "expected_keys_sha256": derived_sha,
+            "lifecycle_count": len(lifecycle),
+            "raw_provenance": raw_meta,
+            "canonical_key_sha256": canonical_hashes.get(market),
+        }
+    return True, "PASS", {
+        "schema": DENOMINATOR_SCHEMA,
+        "window_start": start.isoformat(),
+        "window_end": end.isoformat(),
+        "markets": result,
+        "total_expected_key_count": sum(x["expected_key_count"] for x in result.values()),
+        "completeness_ratio": 1.0,
+    }
+
+
 def _weekday_slots(start: date, end: date) -> int:
     count = 0
     current = start
@@ -188,7 +382,10 @@ def _validate_canonical_semantics(path: Path, start, end, expected):
 
     counts = {market: 0 for market in REQUIRED_MARKETS}
     dates = {market: set() for market in REQUIRED_MARKETS}
+    key_hashers = {market: hashlib.sha256() for market in REQUIRED_MARKETS}
+    market_rank = {market: idx for idx, market in enumerate(REQUIRED_MARKETS)}
     seen = set()
+    last_sort_key = None
     rows = 0
 
     try:
@@ -230,9 +427,16 @@ def _validate_canonical_semantics(path: Path, start, end, expected):
             key = (day.isoformat(), code)
             if key in seen:
                 return False, f"duplicate_key:{day.isoformat()}:{code}", None
+            sort_key = (market_rank[market], code, day.isoformat())
+            if last_sort_key is not None and sort_key < last_sort_key:
+                return False, f"canonical_key_order:{lineno}", None
+            last_sort_key = sort_key
             seen.add(key)
             counts[market] += 1
             dates[market].add(day.isoformat())
+            key_hashers[market].update(
+                f"{day.isoformat()}|{market}|{code}\n".encode("ascii")
+            )
 
     if rows < 1:
         return False, "canonical_empty", None
@@ -282,6 +486,7 @@ def _validate_canonical_semantics(path: Path, start, end, expected):
     return True, "PASS", {
         "rows": rows,
         "market_row_counts": counts,
+        "market_key_sha256": {market: key_hashers[market].hexdigest() for market in REQUIRED_MARKETS},
         "market_date_counts": {market: len(days) for market, days in dates.items()},
         "market_dates": {market: sorted(days) for market, days in dates.items()},
         "market_first_date": {market: min(days) for market, days in dates.items()},
@@ -452,6 +657,20 @@ def evaluate_historical_st_pit(root: Path, expected_trade_date=None):
         if not calendar_semantic_ok:
             failures.append("calendar_manifest_semantics")
 
+    denominator_ok, denominator_reason, denominator_meta = _verify_bound_file(
+        root, obj.get("denominator_manifest_path"), obj.get("denominator_manifest_sha256")
+    )
+    bindings["denominator_manifest"] = {
+        "status": PASS if denominator_ok else WARN,
+        "reason": denominator_reason,
+        "meta": denominator_meta,
+    }
+    if not denominator_ok:
+        failures.append("denominator_manifest_binding")
+
+    denominator_semantic_ok = False
+    denominator_semantic_meta = None
+
     if canonical_semantic_ok and calendar_semantic_ok:
         canonical_dates = (canonical_semantic_meta or {}).get("market_dates") or {}
         bound_dates = (calendar_semantic_meta or {}).get("market_dates") or {}
@@ -469,6 +688,23 @@ def evaluate_historical_st_pit(root: Path, expected_trade_date=None):
         bindings["canonical"]["calendar_coverage_meta"] = coverage_meta
         if missing_by_market:
             failures.append("canonical_calendar_coverage")
+
+    if denominator_ok and canonical_semantic_ok and calendar_semantic_ok:
+        denominator_semantic_ok, denominator_semantic_reason, denominator_semantic_meta = _validate_denominator_manifest_semantics(
+            root,
+            Path(denominator_meta["path"]),
+            start,
+            end,
+            obj.get("calendar_manifest_sha256"),
+            calendar_semantic_meta,
+            obj.get("source_manifest_sha256"),
+            canonical_semantic_meta,
+        )
+        bindings["denominator_manifest"]["semantic_status"] = PASS if denominator_semantic_ok else WARN
+        bindings["denominator_manifest"]["semantic_reason"] = denominator_semantic_reason
+        bindings["denominator_manifest"]["semantic_meta"] = denominator_semantic_meta
+        if not denominator_semantic_ok:
+            failures.append("denominator_manifest_semantics")
 
     markets = obj.get("markets")
     if not isinstance(markets, dict):
@@ -535,6 +771,8 @@ def evaluate_historical_st_pit(root: Path, expected_trade_date=None):
         "canonical_sha256": obj.get("canonical_sha256"),
         "source_manifest_sha256": obj.get("source_manifest_sha256"),
         "calendar_manifest_sha256": obj.get("calendar_manifest_sha256"),
+        "denominator_manifest_sha256": obj.get("denominator_manifest_sha256"),
+        "denominator": denominator_semantic_meta,
         "bindings": bindings,
     }
 
