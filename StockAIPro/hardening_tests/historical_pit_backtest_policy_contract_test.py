@@ -80,7 +80,30 @@ def install_claim(root: Path, rows: list[dict], calendar_dates=None) -> None:
         expected_payload = "".join(expected_lines).encode("ascii")
         expected_sha = write_bytes(root, expected_rel, expected_payload)
         raw_rel = f"cache/raw_{market.lower()}_fixture.json"
-        raw_sha = write_bytes(root, raw_rel, (json.dumps({"market": market, "fixture": True}, sort_keys=True) + "\n").encode("utf-8"))
+        raw_sha = write_bytes(
+            root,
+            raw_rel,
+            (json.dumps({
+                "schema": "stock-ai-security-lifecycle-source-v1",
+                "market": market,
+                "point_in_time_only": True,
+                "securities": [
+                    {
+                        "code": code,
+                        "listing_date": listing,
+                        "delisting_date": delisting,
+                    }
+                    for code, listing, delisting in [
+                        (
+                            code,
+                            sorted(by_code[code])[0],
+                            sorted(by_code[code])[-1],
+                        )
+                        for code in sorted(by_code)
+                    ]
+                ],
+            }, sort_keys=True) + "\n").encode("utf-8"),
+        )
         provenance_rel = f"cache/historical_st_pit_{market.lower()}_provenance.json"
         provenance_sha = write_bytes(
             root, provenance_rel,
