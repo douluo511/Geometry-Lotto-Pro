@@ -9,6 +9,7 @@ from pathlib import Path
 SCHEMA = "stock-ai-historical-st-pit-v1"
 CALENDAR_SCHEMA = "stock-ai-historical-market-calendar-v1"
 DENOMINATOR_SCHEMA = "stock-ai-historical-pit-denominator-v1"
+RAW_LIFECYCLE_SCHEMA = "stock-ai-security-lifecycle-source-v1"
 REQUIRED_MARKETS = ("SSE", "SZSE", "BSE")
 HEX64 = re.compile(r"^[0-9a-f]{64}$")
 PASS = "PASS"
@@ -184,16 +185,75 @@ def _validate_raw_provenance(root: Path, path: Path, market: str):
     raw_files = obj.get("raw_files")
     if not isinstance(raw_files, list) or not raw_files:
         return False, "raw_files_missing", obj
+
     verified = []
+    lifecycle_by_code = {}
     for idx, item in enumerate(raw_files):
         if not isinstance(item, dict):
             return False, f"raw_file_invalid:{idx}", obj
         good, why, meta = _verify_bound_file(root, item.get("path"), item.get("sha256"))
         if not good:
             return False, f"raw_file_binding:{idx}:{why}", obj
-        verified.append(meta)
-    return True, "PASS", {"raw_file_count": len(verified), "verified": verified}
 
+        raw_ok, raw_reason, raw_obj = _read_json_object(Path(meta["path"]))
+        if not raw_ok:
+            return False, f"raw_file_semantics:{idx}:{raw_reason}", obj
+        if raw_obj.get("schema") != RAW_LIFECYCLE_SCHEMA:
+            return False, f"raw_file_schema:{idx}", raw_obj
+        if raw_obj.get("market") != market:
+            return False, f"raw_file_market:{idx}", raw_obj
+        if raw_obj.get("point_in_time_only") is not True:
+            return False, f"raw_file_point_in_time_only:{idx}", raw_obj
+
+        securities = raw_obj.get("securities")
+        if not isinstance(securities, list) or not securities:
+            return False, f"raw_file_securities_missing:{idx}", raw_obj
+        for sec_idx, sec in enumerate(securities):
+            if not isinstance(sec, dict):
+                return False, f"raw_security_invalid:{idx}:{sec_idx}", raw_obj
+            code = str(sec.get("code") or "").strip()
+            listing = _parse_day(sec.get("listing_date"))
+            delisting_raw = sec.get("delisting_date")
+            delisting = _parse_day(delisting_raw) if delisting_raw not in (None, "") else None
+            if _market_for_code(code) != market:
+                return False, f"raw_security_market_code:{idx}:{sec_idx}:{code}", raw_obj
+            if listing is None:
+                return False, f"raw_security_listing_date:{idx}:{sec_idx}:{code}", raw_obj
+            if delisting is not None and delisting < listing:
+                return False, f"raw_security_lifecycle_order:{idx}:{sec_idx}:{code}", raw_obj
+
+            normalized = (
+                code,
+                listing.isoformat(),
+                delisting.isoformat() if delisting is not None else None,
+            )
+            previous = lifecycle_by_code.get(code)
+            if previous is not None and previous != normalized:
+                return False, f"raw_security_conflict:{code}", raw_obj
+            lifecycle_by_code[code] = normalized
+        verified.append(meta)
+
+    lifecycle_rows = [
+        {
+            "code": code,
+            "listing_date": listing,
+            "delisting_date": delisting,
+        }
+        for code, listing, delisting in sorted(lifecycle_by_code.values())
+    ]
+    if not lifecycle_rows:
+        return False, "raw_lifecycle_empty", obj
+    lifecycle_payload = "".join(
+        f"{row['code']}|{row['listing_date']}|{row['delisting_date'] or ''}\n"
+        for row in lifecycle_rows
+    ).encode("utf-8")
+    return True, "PASS", {
+        "raw_file_count": len(verified),
+        "verified": verified,
+        "lifecycle_rows": lifecycle_rows,
+        "lifecycle_count": len(lifecycle_rows),
+        "lifecycle_sha256": hashlib.sha256(lifecycle_payload).hexdigest(),
+    }
 
 def _read_lifecycle(path: Path, market: str):
     rows = []
@@ -308,6 +368,21 @@ def _validate_denominator_manifest_semantics(
         )
         if not raw_ok:
             return False, f"provenance_semantics:{market}:{raw_reason}", obj
+
+        raw_lifecycle = [
+            (
+                row["code"],
+                _parse_day(row["listing_date"]),
+                _parse_day(row["delisting_date"]) if row.get("delisting_date") else None,
+            )
+            for row in (raw_meta.get("lifecycle_rows") or [])
+        ]
+        if raw_lifecycle != lifecycle:
+            return False, f"raw_lifecycle_mismatch:{market}", {
+                "raw_count": len(raw_lifecycle),
+                "lifecycle_count": len(lifecycle),
+                "raw_lifecycle_sha256": raw_meta.get("lifecycle_sha256"),
+            }
 
         expected_ok, expected_reason, expected_meta = _verify_bound_file(
             root, item.get("expected_keys_path"), item.get("expected_keys_sha256")
