@@ -96,4 +96,5 @@ jobs:
             ${{ runner.temp }}/SSQ_INDEPENDENT_REPO_EXPORT_PROOF.json
             ${{ runner.temp }}/SSQ_INDEPENDENT_REPO_VERIFY_PROOF.json
           if-no-files-found: error
+          include-hidden-files: true
           retention-days: 30
