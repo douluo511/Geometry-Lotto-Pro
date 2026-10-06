@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import sys
 from dataclasses import asdict
+from datetime import datetime, timezone
 from pathlib import Path
 
 from core import APP_NAME, APP_VERSION, MANIFEST_URLS, self_test as legacy_self_test
@@ -11,6 +14,7 @@ from engine import EnglishRootEngine
 from evidence import EvidenceLedger
 from net_client import NetClient
 from storage import RootStorage
+from software_update import launch_independent_updater, software_update_environment_status, ReleaseConfigurationUnavailable
 
 def _alternate_data_url(url: str) -> str:
     prefix = "https://raw.githubusercontent.com/douluo511/Geometry-Lotto-Pro/"
@@ -40,7 +44,15 @@ class EnglishRootService:
     def mark_practiced(self, m):
         return self.storage.mark_practiced(m)
 
-    def one_click_update(self):
+    def one_click_update(self, *, main_exe=None, updater_exe=None, parent_pid=None):
+        """Hand software replacement to the separately packaged Updater process."""
+        return launch_independent_updater(
+            data_root=self.storage.root, current_version=APP_VERSION,
+            main_exe=main_exe, updater_exe=updater_exe, parent_pid=parent_pid,
+        )
+
+    def refresh_knowledge(self):
+        """Refresh the hash-bound corpus; this alone is not a software update."""
         manifest_receipts = []
         data_receipts = []
         try:
@@ -137,7 +149,32 @@ class EnglishRootService:
         self.evidence.record("STORAGE", r["status"], checks=r["checks"])
         return r
 
+    def software_update_status(self, *, main_exe, updater_exe=None):
+        return software_update_environment_status(
+            main_exe=main_exe, updater_exe=updater_exe, current_version=APP_VERSION,
+        )
+
+    def record_ui_action(self, label, result):
+        """Record the completed Service outcome for physical GUI acceptance."""
+        output = os.environ.get("ENGLISH_ROOT_GUI_ACTIONS_PATH")
+        if output:
+            path = Path(output)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            row = {"label": label, "result": result,
+                   "process_id": os.getpid(),
+                   "exe_sha256": hashlib.sha256(Path(sys.executable).read_bytes()).hexdigest() if getattr(sys, "frozen", False) else None,
+                   "source_sha": os.environ.get("ENGLISH_ROOT_SOURCE_SHA"),
+                   "github_run_id": os.environ.get("GITHUB_RUN_ID"),
+                   "github_run_attempt": os.environ.get("GITHUB_RUN_ATTEMPT"),
+                   "recorded_at": datetime.now(timezone.utc).isoformat()}
+            with path.open("a", encoding="utf-8") as handle:
+                handle.write(json.dumps(row, ensure_ascii=False) + "\n")
+                handle.flush()
+                os.fsync(handle.fileno())
+
 def create_service(root: Path | None = None, net: NetClient | None = None) -> EnglishRootService:
+    if root is None and os.environ.get("ENGLISH_ROOT_DATA_ROOT"):
+        root = Path(os.environ["ENGLISH_ROOT_DATA_ROOT"])
     s = RootStorage(root)
     return EnglishRootService(s, net or NetClient(), EvidenceLedger(s.root / "evidence.jsonl"))
 

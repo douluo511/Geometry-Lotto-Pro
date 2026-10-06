@@ -1,4 +1,5 @@
 from __future__ import annotations
+from gate_common import run_identity
 
 import json
 import os
@@ -14,7 +15,7 @@ def main() -> int:
     report = {
         "schema": "english-root-real-network-v2",
         "status": "FAIL",
-        "github_sha": os.environ.get("GITHUB_SHA"),
+        **run_identity(), "github_sha": (os.environ.get("ENGLISH_ROOT_SOURCE_SHA") or os.environ.get("GITHUB_SHA")),
         "network_gate": "FAIL",
         "source_count": 0,
         "distinct_source_ids": [],
@@ -22,7 +23,7 @@ def main() -> int:
     }
     try:
         with tempfile.TemporaryDirectory(prefix="eri-net-") as td:
-            result = create_service(Path(td)).one_click_update()
+            result = create_service(Path(td)).refresh_knowledge()
             sources = result.get("sources") or []
             distinct = sorted(set(result.get("distinct_source_ids") or []))
             ok = (

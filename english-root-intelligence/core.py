@@ -239,7 +239,7 @@ class MaintenanceEngine:
     def one_click_update(self) -> dict[str, Any]:
         raise RuntimeError(
             "legacy MaintenanceEngine network update is disabled; "
-            "use EnglishRootService.one_click_update so all production traffic "
+            "use EnglishRootService.refresh_knowledge so all corpus traffic "
             "passes through the audited NetClient and evidence chain"
         )
 

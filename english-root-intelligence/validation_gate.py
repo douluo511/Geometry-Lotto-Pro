@@ -1,4 +1,5 @@
 from __future__ import annotations
+from gate_common import run_identity
 
 import argparse
 import json
@@ -27,7 +28,7 @@ def main() -> int:
     report = {
         "schema": f"english-root-{a.suite}-gate-v1",
         "status": "PASS" if proc.returncode == 0 else "FAIL",
-        "github_sha": os.environ.get("GITHUB_SHA"),
+        **run_identity(), "github_sha": (os.environ.get("ENGLISH_ROOT_SOURCE_SHA") or os.environ.get("GITHUB_SHA")),
         "suite": a.suite,
         "exit_code": proc.returncode,
         "stdout": proc.stdout[-12000:],

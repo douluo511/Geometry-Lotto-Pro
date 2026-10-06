@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 import shutil
 import tempfile
@@ -133,13 +134,15 @@ class RootStorage:
             roots = self.store.load_roots()
             checks.append(("Knowledge DB", "PASS", f'{len(roots["roots"])} roots'))
         except Exception as exc:
-            shutil.copy2(bundled_path("data", "roots.json"), self.store.roots_path)
+            self._preserve_original(self.store.roots_path)
+            self._restore(self.store.roots_path, bundled_path("data", "roots.json").read_bytes())
             self.store.load_roots()
             checks.append(("Knowledge DB", "REPAIRED", str(exc)))
         try:
             progress = self.store.load_progress()
             checks.append(("User Progress", "PASS", f'{len(progress.get("practiced", {}))} practiced roots'))
         except Exception as exc:
+            self._preserve_original(self.store.progress_path)
             self.store.save_progress({"schema": 1, "practiced": {}, "analyses": 0, "last_update": None})
             checks.append(("User Progress", "REPAIRED", str(exc)))
         try:
@@ -150,3 +153,19 @@ class RootStorage:
             checks.append(("Final Gate", "FAIL", str(exc)))
             status = "FAIL"
         return {"status": status, "checks": checks}
+
+    def _preserve_original(self, path: Path) -> None:
+        if not path.is_file():
+            return
+        original = path.read_bytes()
+        digest = hashlib.sha256(original).hexdigest()
+        destination = self.root / "recovery" / f"{path.name}.{digest}.original"
+        if destination.exists():
+            if destination.read_bytes() != original:
+                raise RuntimeError("repair recovery artifact mismatch")
+            return
+        staged = self._stage(destination, original)
+        try:
+            os.replace(staged, destination)
+        finally:
+            staged.unlink(missing_ok=True)
