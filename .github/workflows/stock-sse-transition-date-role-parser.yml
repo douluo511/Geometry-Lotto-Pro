@@ -1,5 +1,6 @@
 name: Stock SSE transition date role parser
 on:
+  pull_request:
   push:
     branches:
       - diagnostic/stock-sse-role-current-c25-20261006
