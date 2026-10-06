@@ -59,7 +59,7 @@ def main():
   rows.append(rec)
  counts=dict(sorted(Counter(x["status"] for x in rows).items()))
  by_class={}
- for k in sorted(m.TARGET_CLASSES):
+ for k in sorted(m.m.TARGET_CLASSES):
   q=[x for x in rows if x["class"]==k]
   by_class[k]={"selected":len(q),"unique_top":sum(x["status"]=="UNIQUE_TOP_EFFECTIVE_DATE" for x in q),"multi_top":sum(x["status"]=="MULTI_TOP_EFFECTIVE_DATE" for x in q),"no_strong":sum(x["status"]=="NO_STRONG_EFFECTIVE_ROLE" for x in q)}
  report={"schema":"stock-sse-transition-effective-tier-v1","selected":len(rows),"status_counts":counts,"by_class":by_class,"records":rows,
