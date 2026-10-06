@@ -1,0 +1,107 @@
+name: RMF liquidity capacity diagnostic
+
+on:
+  push:
+    branches:
+      - "diagnostic/rmf-liquidity-capacity-20261005"
+    paths:
+      - "RealMoneyFinance/tests/liquidity_capacity_diagnostic.py"
+      - ".github/workflows/rmf-liquidity-capacity-diagnostic.yml"
+  pull_request:
+    paths:
+      - "RealMoneyFinance/tests/liquidity_capacity_diagnostic.py"
+      - ".github/workflows/rmf-liquidity-capacity-diagnostic.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact diagnostic head
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+      - name: Verify RMF product bytes unchanged
+        shell: bash
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor "62f75def60c16d5768110901890d05edbabe7b34" HEAD
+          changed="$(git diff --name-only "62f75def60c16d5768110901890d05edbabe7b34"..HEAD -- RealMoneyFinance ':!.github' | grep -v '^RealMoneyFinance/tests/liquidity_capacity_diagnostic.py$' || true)"
+          test -z "$changed" || { echo "$changed"; exit 1; }
+          echo "RMF_PRODUCT_BYTES_CHANGED=FALSE"
+      - name: Setup Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.11.9"
+      - name: Install RMF runtime dependency
+        run: python -m pip install --disable-pip-version-check --no-input "requests==2.34.2"
+      - name: Execute real-network capacity diagnostic
+        working-directory: RealMoneyFinance
+        run: python tests/liquidity_capacity_diagnostic.py
+      - name: Upload diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: RMF-LIQUIDITY-CAPACITY-DIAGNOSTIC-${{ github.sha }}
+          path: RealMoneyFinance/rmf_liquidity_capacity_diagnostic.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Assert and print fail-closed evidence boundary
+        if: always()
+        working-directory: RealMoneyFinance
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          report = json.loads(Path("rmf_liquidity_capacity_diagnostic.json").read_text(encoding="utf-8"))
+          boundary = report["evidence_boundary"]
+          snapshot = report.get("current_public_l1_snapshot", {})
+
+          required = {
+              "amount_based_participation_capacity": "SUPPORTED",
+              "historical_bid_ask_spread": "NOT VERIFIED",
+              "observed_market_impact": "NOT VERIFIED",
+              "broker_execution_slippage": "NOT VERIFIED",
+              "limit_up_down_fillability": "NOT VERIFIED",
+              "full_cost_slippage_calibration_gate": "NOT VERIFIED",
+              "full_liquidity_capacity_gate": "NOT VERIFIED",
+              "final_gate": "FAIL",
+          }
+          for key, expected in required.items():
+              actual = boundary.get(key)
+              if actual != expected:
+                  raise SystemExit(f"{key}: expected {expected!r}, got {actual!r}")
+          if boundary.get("capital_deployment_ready") is not False:
+              raise SystemExit("capital_deployment_ready must remain false")
+
+          if boundary.get("current_bid_ask_spread_snapshot") == "SUPPORTED":
+              if snapshot.get("snapshot_freshness") != "CURRENT_SESSION":
+                  raise SystemExit("current spread cannot be SUPPORTED from a stale quote")
+              spread = snapshot.get("spread_bps")
+              if not isinstance(spread, (int, float)) or spread < 0:
+                  raise SystemExit("supported current spread requires a finite non-negative spread_bps")
+
+          if boundary.get("current_limit_price_snapshot") == "SUPPORTED":
+              if snapshot.get("snapshot_freshness") != "CURRENT_SESSION":
+                  raise SystemExit("current limit-price evidence cannot be SUPPORTED from a stale quote")
+
+          print("AMOUNT_BASED_PARTICIPATION_CAPACITY=SUPPORTED")
+          print("CURRENT_L1_SPREAD=" + str(boundary.get("current_bid_ask_spread_snapshot")))
+          print("CURRENT_LIMIT_PRICE=" + str(boundary.get("current_limit_price_snapshot")))
+          print("LAST_QUOTED_L1_SPREAD=" + str(boundary.get("last_quoted_session_bid_ask_spread_snapshot")))
+          print("LAST_QUOTED_LIMIT_PRICE=" + str(boundary.get("last_quoted_session_limit_price_snapshot")))
+          print("SNAPSHOT_FRESHNESS=" + str(snapshot.get("snapshot_freshness", "NOT VERIFIED")))
+          print("OBSERVED_MARKET_IMPACT=NOT VERIFIED")
+          print("BROKER_EXECUTION_SLIPPAGE=NOT VERIFIED")
+          print("LIMIT_FILLABILITY=NOT VERIFIED")
+          print("COST_SLIPPAGE_FULL_GATE=NOT VERIFIED")
+          print("LIQUIDITY_CAPACITY_FULL_GATE=NOT VERIFIED")
+          print("CAPITAL_DEPLOYMENT_READY=FALSE")
+          print("FINAL_GATE=FAIL")
+          PY
