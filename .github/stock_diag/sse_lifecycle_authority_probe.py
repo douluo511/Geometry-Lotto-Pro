@@ -24,7 +24,7 @@ HEADERS = {
     ),
     "Accept": "application/json,text/plain,*/*",
 }
-CODE = re.compile(r"^6\\d{5}$")
+CODE = re.compile(r"^6\d{5}$")
 CROSSCHECK_DATES = ("2023-01-13", "2024-04-15", "2025-07-10", "2026-09-30")
 
 
@@ -37,7 +37,7 @@ def parse_date(value: object, *, allow_missing: bool) -> date | None:
     if allow_missing and raw in {"", "-"}:
         return None
     compact = raw.replace("-", "")
-    if not re.fullmatch(r"\\d{8}", compact):
+    if not re.fullmatch(r"\d{8}", compact):
         raise ValueError(f"invalid SSE date: {raw!r}")
     return date(int(compact[:4]), int(compact[4:6]), int(compact[6:8]))
 
