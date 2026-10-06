@@ -33,9 +33,9 @@ def complete(root: Path):
     canonical_sha = make_file(
         root, canonical_path,
         (
-            b'{"date":"2026-09-30","market":"SSE","code":"600000","st":false,"suspended":false}\\n'
-            b'{"date":"2026-09-30","market":"SZSE","code":"000001","st":false,"suspended":false}\\n'
-            b'{"date":"2026-09-30","market":"BSE","code":"920001","st":false,"suspended":false}\\n'
+            b'{"date":"2026-09-30","market":"SSE","code":"600000","st":false,"suspended":false}\n'
+            b'{"date":"2026-09-30","market":"SZSE","code":"000001","st":false,"suspended":false}\n'
+            b'{"date":"2026-09-30","market":"BSE","code":"920001","st":false,"suspended":false}\n'
         ),
     )
     source_manifest_sha = make_file(
@@ -101,7 +101,7 @@ def rebind_canonical(root: Path, claim: dict, payload: bytes):
         evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
         evidence["canonical_sha256"] = claim["canonical_sha256"]
         evidence_path.write_text(
-            json.dumps(evidence, sort_keys=True) + "\\n", encoding="utf-8"
+            json.dumps(evidence, sort_keys=True) + "\n", encoding="utf-8"
         )
         claim["markets"][market]["evidence_sha256"] = sha(evidence_path)
 
@@ -167,7 +167,7 @@ with tempfile.TemporaryDirectory() as td:
     rebind_canonical(
         root,
         x,
-        b'{"date":"2026-09-30","market":"SSE","code":"600000","st":false,"suspended":false}\\n',
+        b'{"date":"2026-09-30","market":"SSE","code":"600000","st":false,"suspended":false}\n',
     )
     write_claim(root, x)
     status, _, meta = evaluate_historical_st_pit(root, "2026-09-30")
@@ -180,7 +180,7 @@ with tempfile.TemporaryDirectory() as td:
     x = complete(root)
     source_manifest = root / x["source_manifest_path"]
     source_manifest.write_text(
-        json.dumps({"sources": ["SSE"], "point_in_time_only": True}) + "\\n",
+        json.dumps({"sources": ["SSE"], "point_in_time_only": True}) + "\n",
         encoding="utf-8",
     )
     x["source_manifest_sha256"] = sha(source_manifest)
