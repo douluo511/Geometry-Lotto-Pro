@@ -20,6 +20,13 @@ $ExpectedTarget = "douluo511/Geometry-Lotto-Pro-DLT"
 $ExpectedBaselineSchema = "dlt-current-main-release-baseline-v2"
 $ExpectedCurrentSchema = "dlt-independent-export-v4"
 $ExpectedBaselineAssetName = "Geometry_Lotto_Pro_DLT.exe"
+$FrozenCurrentSourceCommit = "30c3d9d2c6fdfc3dd0751f6f8a0a85348ec2b4a6"
+$FrozenCurrentManifestSha256 = "ebbbb919518b93da72929d742569ed8f1466742a0844030726278ec951fe8a59"
+$FrozenCurrentSumsSha256 = "a0d982b48397f7a33a86c2e3ccdb7d21a189044ab9dc6149fd65d8744ce463bf"
+$FrozenBaselineManifestSha256 = "2cb5635c43b8908cc9b1e269cb002b9b5f3f397701056ce06ab54d7bd4cc94b1"
+$FrozenBaselineSumsSha256 = "51d189a62eca66ec0d9696eab2651d1bbe9addfbfeb67fbfe80e028020b0e680"
+$FrozenBaselineExeSha256 = "aa177556b9f18e448861553871ead6bf722aff85ebe4cc39dfb82f7589d1338e"
+$FrozenBaselineReleaseTag = "v2.1.1"
 
 function Write-JsonEvidence {
   param([hashtable]$Payload, [string]$Path)
@@ -124,7 +131,13 @@ if (-not (Test-FullSha -Value $ExpectedCurrentSourceCommit)) { throw "ExpectedCu
 foreach ($value in @($ExpectedCurrentManifestSha256,$ExpectedCurrentSumsSha256,$ExpectedBaselineManifestSha256,$ExpectedBaselineSumsSha256,$ExpectedBaselineExeSha256)) {
   if (-not (Test-Sha256 -Value $value)) { throw "all expected digest values must be 64-hex SHA256" }
 }
-if ($ExpectedBaselineReleaseTag -ne "v2.1.1") { throw "baseline release tag must be exactly v2.1.1" }
+if ($ExpectedCurrentSourceCommit.ToLowerInvariant() -ne $FrozenCurrentSourceCommit) { throw "current source commit is not the frozen transition source" }
+if ($ExpectedCurrentManifestSha256.ToLowerInvariant() -ne $FrozenCurrentManifestSha256) { throw "current manifest SHA is not the frozen transition manifest" }
+if ($ExpectedCurrentSumsSha256.ToLowerInvariant() -ne $FrozenCurrentSumsSha256) { throw "current checksum-list SHA is not the frozen transition checksum list" }
+if ($ExpectedBaselineManifestSha256.ToLowerInvariant() -ne $FrozenBaselineManifestSha256) { throw "baseline manifest SHA is not the frozen transition baseline" }
+if ($ExpectedBaselineSumsSha256.ToLowerInvariant() -ne $FrozenBaselineSumsSha256) { throw "baseline checksum-list SHA is not the frozen transition baseline" }
+if ($ExpectedBaselineExeSha256.ToLowerInvariant() -ne $FrozenBaselineExeSha256) { throw "baseline EXE SHA is not the frozen transition baseline" }
+if ($ExpectedBaselineReleaseTag -ne $FrozenBaselineReleaseTag) { throw "baseline release tag is not the frozen transition tag" }
 
 $currentRoot = (Resolve-Path -LiteralPath $CurrentExportDir).Path
 $currentPlanPath = Join-Path ([System.IO.Path]::GetTempPath()) ("dlt-current-plan-" + [Guid]::NewGuid().ToString("N") + ".json")
