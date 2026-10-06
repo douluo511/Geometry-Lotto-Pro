@@ -10,7 +10,7 @@ REPO_ROOT = ROOT.parent
 PKG = ROOT / "SSQ" / "glp"
 SPEC = ROOT / "ENGINEERING_SPEC.md"
 ACTION_SHA_RE = re.compile(
-    r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+@[0-9a-f]{40}(?:\\s+#.*)?$"
+    r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+@[0-9a-f]{40}(?:\s+#.*)?$"
 )
 EXPECTED_BUILD_REQUIREMENTS = {
     "pyinstaller": "6.22.3",
