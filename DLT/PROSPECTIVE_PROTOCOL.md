@@ -118,3 +118,10 @@ This prevents two opposite false outcomes:
 The Freeze itself still records the exact source commit used to create that prediction. Thus
 provenance remains exact even when multiple documentation-only commits share one scientific
 cohort.
+
+
+## Evidence-branch no-op rule
+
+Issue #296 freezes the persistence rule: a cycle that adds no cohort identity, immutable Freeze,
+immutable Replay, or qualification-relevant state must not create a Git evidence commit merely
+because generated summary timestamps changed. CI artifacts may still contain refreshed summaries.
