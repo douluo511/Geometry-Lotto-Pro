@@ -1,0 +1,83 @@
+name: DLT Independent Repository Create Capability Probe
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/dlt-repo-create-probe.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      TARGET_REPO: douluo511/Geometry-Lotto-Pro-DLT
+      TARGET_NAME: Geometry-Lotto-Pro-DLT
+    steps:
+      - name: Checkout probe head
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Probe account-level repository creation
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p probe-artifacts
+
+          auth_login="$(gh api /user --jq '.login' 2>/dev/null || echo UNKNOWN)"
+          echo "AUTHENTICATED_LOGIN=$auth_login"
+
+          if gh api "repos/$TARGET_REPO" > probe-artifacts/existing.json 2> probe-artifacts/existing.err; then
+            jq -n               --arg schema "dlt-repository-create-capability-v1"               --arg state "EXISTING"               --arg target "$TARGET_REPO"               --arg auth_login "$auth_login"               --arg github_repository "$GITHUB_REPOSITORY"               --arg github_sha "$GITHUB_SHA"               --arg github_run_id "$GITHUB_RUN_ID"               '{schema:$schema,state:$state,target_repository:$target,authenticated_login:$auth_login,github_repository:$github_repository,github_sha:$github_sha,github_run_id:$github_run_id}'               > probe-artifacts/result.json
+            echo "REPOSITORY_CREATE_PROBE=EXISTING"
+            exit 0
+          fi
+
+          set +e
+          gh api --method POST /user/repos             -f name="$TARGET_NAME"             -F private=false             -F auto_init=true             -f description="Independent DLT release/acceptance repository for Geometry Lotto Pro"             > probe-artifacts/create.json             2> probe-artifacts/create.err
+          rc=$?
+          set -e
+
+          if [ "$rc" -eq 0 ]; then
+            full_name="$(jq -r '.full_name // empty' probe-artifacts/create.json)"
+            visibility="$(jq -r '.visibility // (if .private then "private" else "public" end)' probe-artifacts/create.json)"
+            test "$full_name" = "$TARGET_REPO"
+            jq -n               --arg schema "dlt-repository-create-capability-v1"               --arg state "CREATED"               --arg target "$TARGET_REPO"               --arg visibility "$visibility"               --arg auth_login "$auth_login"               --arg github_repository "$GITHUB_REPOSITORY"               --arg github_sha "$GITHUB_SHA"               --arg github_run_id "$GITHUB_RUN_ID"               '{schema:$schema,state:$state,target_repository:$target,visibility:$visibility,authenticated_login:$auth_login,github_repository:$github_repository,github_sha:$github_sha,github_run_id:$github_run_id}'               > probe-artifacts/result.json
+            echo "REPOSITORY_CREATE_PROBE=CREATED"
+          else
+            error_text="$(tr '\n' ' ' < probe-artifacts/create.err | sed 's/[[:space:]]\+/ /g' | cut -c1-2000)"
+            jq -n               --arg schema "dlt-repository-create-capability-v1"               --arg state "DENIED"               --arg target "$TARGET_REPO"               --arg auth_login "$auth_login"               --arg github_repository "$GITHUB_REPOSITORY"               --arg github_sha "$GITHUB_SHA"               --arg github_run_id "$GITHUB_RUN_ID"               --arg error "$error_text"               --argjson exit_code "$rc"               '{schema:$schema,state:$state,target_repository:$target,authenticated_login:$auth_login,github_repository:$github_repository,github_sha:$github_sha,github_run_id:$github_run_id,exit_code:$exit_code,error:$error}'               > probe-artifacts/result.json
+            echo "REPOSITORY_CREATE_PROBE=DENIED"
+          fi
+
+          cat probe-artifacts/result.json
+
+      - name: Verify probe evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          state="$(jq -r '.state' probe-artifacts/result.json)"
+          case "$state" in
+            EXISTING|CREATED|DENIED) ;;
+            *) echo "invalid probe state: $state"; exit 2 ;;
+          esac
+          test "$(jq -r '.target_repository' probe-artifacts/result.json)" = "$TARGET_REPO"
+          echo "PROBE_EVIDENCE=PASS"
+          echo "PROBE_STATE=$state"
+
+      - name: Upload repository-create probe evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: DLT-REPOSITORY-CREATE-CAPABILITY-PROBE-${{ github.event.pull_request.head.sha || github.sha }}
+          path: probe-artifacts/**
+          if-no-files-found: error
+          retention-days: 90
