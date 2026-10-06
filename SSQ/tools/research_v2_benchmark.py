@@ -199,7 +199,7 @@ def run_shadow_benchmark(
     *,
     max_evals: int = 1440,
     confirmation_n: int = 240,
-    refit_interval: int = 20,
+    refit_interval: int = 240,
     train_points: int = 240,
     rounds: int = 1999,
 ) -> dict[str, Any]:
@@ -365,7 +365,7 @@ def main() -> int:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--max-evals", type=int, default=1440)
     parser.add_argument("--confirmation", type=int, default=240)
-    parser.add_argument("--refit-interval", type=int, default=20)
+    parser.add_argument("--refit-interval", type=int, default=240)
     parser.add_argument("--train-points", type=int, default=240)
     parser.add_argument("--rounds", type=int, default=1999)
     args = parser.parse_args()
