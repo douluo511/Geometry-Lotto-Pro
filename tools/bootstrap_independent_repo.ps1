@@ -211,6 +211,18 @@ function Assert-ExportIntegrity {
   $rows = @($manifest.files)
   if ($rows.Count -eq 0) { throw "manifest file list empty" }
 
+  if ($schema -eq "dlt-current-main-release-baseline-v2") {
+    $baselinePaths = @($rows | ForEach-Object { [string]$_.path })
+    foreach ($requiredBaselinePath in @(
+      "DLT/src/glp/constants.py",
+      ".github/workflows/dlt-windows-build-acceptance.yml"
+    )) {
+      if ($baselinePaths -notcontains $requiredBaselinePath) {
+        throw "DLT baseline required file missing from manifest: $requiredBaselinePath"
+      }
+    }
+  }
+
   $expected = @{}
   foreach ($row in $rows) {
     $rel = [string]$row.path
