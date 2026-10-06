@@ -100,7 +100,7 @@
     "source_commit": "af492bbd32f9e48cbb54ef0cef4316e6f39b7ef4",
     "status": "ACTIVE"
   },
-  "created_at": "2026-10-06T08:36:37Z",
+  "created_at": "2026-10-06T08:37:57Z",
   "effect_trace": {
     "complete_space": {
       "back": 66,
@@ -231,7 +231,7 @@
   "schema": "dlt-prospective-cycle-v1",
   "status": {
     "cohort_id": "862079ac77f4cc06d11ca104",
-    "created_at": "2026-10-06T08:36:37Z",
+    "created_at": "2026-10-06T08:37:57Z",
     "dan_state": "NULL_DAN",
     "edge_state": "NO_EDGE",
     "freeze_count": 1,
