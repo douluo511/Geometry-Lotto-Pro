@@ -34,25 +34,27 @@ def normalize(text:str)->str:
 
 def direct_resume_dates(text:str):
     compact=re.sub(r"\s+","",text or "")
-    patterns=[
+    generic_patterns=[
         re.compile(rf"(?:本公司股票|公司股票|股票)[^。；]{{0,80}}?(?:自|于){DATE}[^。；]{{0,60}}?(?:起|开市起)?[^。；]{{0,20}}?复牌"),
         re.compile(rf"(?:复牌日期|恢复交易日期)[：:]?{DATE}"),
         re.compile(rf"(?:自|于){DATE}(?:开市)?起复牌"),
         re.compile(rf"(?:自|于){DATE}复牌"),
-        # Last-resort scan-safe relation: the official document's explicit
-        # "复牌依据及复牌日期" section must itself contain one and only one
-        # calendar date before the direct "日起复牌" action. This tolerates
-        # OCR loss of a small connector such as "自", but not a nearby date.
+    ]
+    heading_patterns=[
+        # Explicit section-bound relation. OCR may drop a connector such as
+        # "自", but the section itself must contain exactly one full calendar
+        # date before the direct "起复牌" action.
         re.compile(rf"(?:复牌依据及复牌日期)[^。；]{{0,420}}?{DATE}[^。；]{{0,20}}?起复牌"),
     ]
+    # When the document exposes the stronger explicit section, weaker generic
+    # relations are suppressed so narrative/publication dates cannot compete.
+    patterns=heading_patterns if "复牌依据及复牌日期" in compact else generic_patterns
     out=[]
     evidence=[]
     for pid,pat in enumerate(patterns):
         for m in pat.finditer(compact):
             matched=m.group(0)
             date_matches=list(re.finditer(DATE,matched))
-            # A matched semantic relation containing multiple complete dates
-            # remains ambiguous and must not be promoted.
             if len(date_matches) != 1:
                 continue
             groups=date_matches[0].groups()[:3]
@@ -62,7 +64,7 @@ def direct_resume_dates(text:str):
                 continue
             out.append(dt)
             evidence.append({
-                "pattern":pid,
+                "pattern":("heading_" if patterns is heading_patterns else "generic_")+str(pid),
                 "date":dt,
                 "matched_text":matched[:520],
                 "matched_sha256":sha256(matched.encode("utf-8")),
