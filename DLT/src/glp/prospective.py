@@ -226,6 +226,24 @@ class ProspectiveLedger:
         if prediction.target_date <= draws[-1].draw_date:
             raise ValueError("prospective target date is not after latest official draw")
 
+        paths = CohortPaths(self.root, manifest["cohort_id"])
+        existing_path = paths.freezes / f"{prediction.target_issue}.json"
+        if existing_path.exists():
+            existing = json.loads(existing_path.read_text(encoding="utf-8"))
+            existing_pred = Prediction(**existing["prediction"])
+            if (
+                existing.get("cohort_id") != manifest["cohort_id"]
+                or existing.get("protocol_hash") != manifest["protocol_hash"]
+                or existing.get("source_commit") != manifest["source_commit"]
+                or existing_pred.model_hash != manifest["model_hash"]
+                or existing_pred.selector_hash != manifest["selector_hash"]
+                or existing_pred.canonical_hash != canonical_hash
+            ):
+                raise ValueError("existing prospective freeze identity mismatch")
+            if _freeze_hash(existing_pred.to_dict()) != existing_pred.freeze_hash:
+                raise ValueError("existing prospective freeze hash mismatch")
+            return existing
+
         p = prediction.to_dict()
         p["freeze_hash"] = ""
         p["freeze_hash"] = _freeze_hash(p)
@@ -246,7 +264,7 @@ class ProspectiveLedger:
             "prediction": frozen.to_dict(),
         }
         evidence["record_hash"] = sha256_json(evidence)
-        path = CohortPaths(self.root, manifest["cohort_id"]).freezes / f"{frozen.target_issue}.json"
+        path = paths.freezes / f"{frozen.target_issue}.json"
         _write_immutable_json(path, evidence)
         return evidence
 
@@ -280,6 +298,9 @@ class ProspectiveLedger:
             if actual is None:
                 continue
             pred = Prediction(**freeze["prediction"])
+            replay_path = CohortPaths(self.root, manifest["cohort_id"]).replays / f"{target}.json"
+            if replay_path.exists():
+                continue
             replay = replay_prediction(pred, actual)
             seeds = tuple(PROMOTION_POLICY["seeds"])
             front_random = statistics.mean(
@@ -320,8 +341,7 @@ class ProspectiveLedger:
                 "replay": replay,
             }
             row["record_hash"] = sha256_json(row)
-            path = CohortPaths(self.root, manifest["cohort_id"]).replays / f"{target}.json"
-            _write_immutable_json(path, row)
+            _write_immutable_json(replay_path, row)
             created.append(row)
         return created
 
