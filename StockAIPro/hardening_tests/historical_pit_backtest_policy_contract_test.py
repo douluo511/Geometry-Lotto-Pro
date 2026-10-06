@@ -11,6 +11,7 @@ PACKAGE_ROOT = Path(__file__).resolve().parents[1] / "staging" / "Stock_AI_Pro" 
 sys.path.insert(0, str(PACKAGE_ROOT))
 
 import stock_ai.backtest as bt
+from stock_ai.historical_pit import evaluate_historical_st_pit
 
 
 def sha(path: Path) -> str:
@@ -163,6 +164,17 @@ with tempfile.TemporaryDirectory() as td:
     bad = [dict(r) for r in rows]
     bad[0]["market"] = "SZSE"  # 600001 is an SSE code.
     install_claim(root, bad)
+
+    # The hardened evaluator must reject the malformed canonical bytes at the
+    # earliest evidence boundary and preserve the exact semantic reason.
+    status, _, meta = evaluate_historical_st_pit(root, D3)
+    assert status == "WARN"
+    assert "canonical_semantics" in meta["failures"]
+    assert "market_code_mismatch" in meta["bindings"]["canonical"]["semantic_reason"]
+
+    # End-to-end policy consumption must still fail closed.  Do not couple this
+    # assertion to the older downstream loader wording because the bundle is
+    # now rejected before lookup.
     ds = pd.DataFrame([
         {"date": D1, "entry_date": D2, "code": "600001", "log_amount20": 20.0},
     ])
@@ -171,7 +183,7 @@ with tempfile.TemporaryDirectory() as td:
         try:
             bt._historical_candidate_pool(ds, cfg, pd.to_datetime([D1, D2, D3]))
         except RuntimeError as exc:
-            assert "market/code mismatch" in str(exc)
+            assert "historical ST/PIT evidence not qualified" in str(exc)
         else:
             raise AssertionError("market/code mismatch must fail closed")
 
