@@ -7,6 +7,7 @@ on:
   pull_request:
     paths:
       - ".github/stock_diag/szse_lifecycle_authority_probe.py"
+      - ".github/stock_diag/szse_showreport_json_probe.py"
       - ".github/workflows/stock-szse-lifecycle-authority.yml"
   workflow_dispatch:
 
@@ -43,6 +44,16 @@ jobs:
       - name: Install pinned diagnostic dependencies
         run: python -m pip install --disable-pip-version-check --no-input "openpyxl==3.1.5" "requests==2.32.5"
 
+      - name: Probe first-party SZSE ShowReport JSON schema
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/stock_szse_raw"
+          python .github/stock_diag/szse_showreport_json_probe.py \
+            --output "$RUNNER_TEMP/stock_szse_showreport_json_discovery.json" \
+            --raw-dir "$RUNNER_TEMP/stock_szse_raw"
+
       - name: Run first-party SZSE lifecycle authority diagnostic
         shell: bash
         run: |
@@ -59,6 +70,7 @@ jobs:
           name: STOCK-SZSE-LIFECYCLE-AUTHORITY-${{ github.event.pull_request.head.sha || github.sha }}
           path: |
             ${{ runner.temp }}/stock_szse_lifecycle_authority.json
+            ${{ runner.temp }}/stock_szse_showreport_json_discovery.json
             ${{ runner.temp }}/stock_szse_raw/**
           if-no-files-found: warn
           retention-days: 30
