@@ -1,0 +1,32 @@
+name: Independent Repository Bootstrap Contract
+
+on:
+  pull_request:
+    paths:
+      - "tools/bootstrap_independent_repo.ps1"
+      - "tools/tests/test_bootstrap_integrity.py"
+      - ".github/workflows/independent-repo-bootstrap-contract.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bootstrap-contract:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Setup Python 3.11
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.11"
+      - name: Bootstrap integrity regression
+        run: python -m unittest discover -s tools/tests -p 'test_bootstrap_integrity.py' -v
