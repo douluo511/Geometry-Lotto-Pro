@@ -54,7 +54,7 @@ jobs:
             --output evidence/SSQ/research_v2_shadow_benchmark.json \
             --max-evals 1440 \
             --confirmation 240 \
-            --refit-interval 20 \
+            --refit-interval 240 \
             --train-points 240 \
             --rounds 1999
 
