@@ -220,17 +220,15 @@ def fetch_doc(session: requests.Session, url: str) -> tuple[bytes, dict]:
                 "sha256": sha256_bytes(r.content),
             }
             attempts.append(rec)
-            if not same_bse(r.url):
-                raise RuntimeError(f"non-BSE redirect: {r.url}")
-            if r.status_code == 429 or 500 <= r.status_code <= 599:
-                if attempt == 3:
-                    raise RuntimeError(f"retryable HTTP {r.status_code}")
-            elif r.status_code != 200:
-                raise RuntimeError(f"HTTP {r.status_code}")
-            elif not r.content:
-                raise RuntimeError("empty primary document")
-            else:
+            if (
+                same_bse(r.url)
+                and r.status_code == 200
+                and r.content
+            ):
                 return r.content, {**rec, "attempt_count": attempt, "attempts": attempts}
+            # Preserve 403/404/429/5xx as transport evidence and continue the
+            # bounded retry set. Never turn an inaccessible primary document
+            # into a semantic PASS.
         except requests.RequestException as exc:
             last_error = exc
             attempts.append({
@@ -239,7 +237,12 @@ def fetch_doc(session: requests.Session, url: str) -> tuple[bytes, dict]:
             })
         if attempt < 3:
             time.sleep((2 ** (attempt - 1)) + 0.2 * attempt)
-    raise RuntimeError(f"primary document fetch failed: {url}; {last_error!r}; {attempts}")
+    return None, {
+        "attempt_count": len(attempts),
+        "attempts": attempts,
+        "selected_attempt": None,
+        "last_error": repr(last_error) if last_error is not None else None,
+    }
 
 
 def text_from_document(raw: bytes, content_type: str) -> tuple[str, dict]:
@@ -315,16 +318,11 @@ def main() -> int:
     for index, url in enumerate(sorted(unique_docs)):
         events_for_doc = unique_docs[url]
         raw, transport = fetch_doc(session, url)
-        suffix = ".pdf" if raw.startswith(b"%PDF") else ".raw"
-        raw_path = args.raw_dir / f"{index:03d}_{sha256_bytes(url.encode())[:12]}{suffix}"
-        raw_path.write_bytes(raw)
-        fetch_pass += 1
-
         rec = {
             "url": url,
             "event_count": len(events_for_doc),
             "events": events_for_doc,
-            "raw_path": raw_path.as_posix(),
+            "raw_path": None,
             "transport": transport,
             "parse_status": "NOT VERIFIED",
             "semantic_hits": [],
@@ -333,8 +331,24 @@ def main() -> int:
             "period_start_dates": [],
             "period_end_dates": [],
         }
+        if raw is None:
+            rec["fetch_status"] = "FAIL"
+            documents.append(rec)
+            continue
+
+        suffix = ".pdf" if raw.startswith(b"%PDF") else ".raw"
+        raw_path = args.raw_dir / f"{index:03d}_{sha256_bytes(url.encode())[:12]}{suffix}"
+        raw_path.write_bytes(raw)
+        rec["raw_path"] = raw_path.as_posix()
+        rec["fetch_status"] = "PASS"
+        fetch_pass += 1
+
         try:
-            text, parse_meta = text_from_document(raw, transport.get("content_type", ""))
+            selected_transport = transport
+            content_type = ""
+            if isinstance(selected_transport, dict):
+                content_type = str(selected_transport.get("content_type") or "")
+            text, parse_meta = text_from_document(raw, content_type)
             hits = extract_semantic_hits(text)
             text_hash = sha256_bytes(text.encode("utf-8"))
             parse_pass += 1
@@ -451,6 +465,22 @@ def main() -> int:
         "company_terminal_projection_count": len(company_terminal_projection),
         "company_terminal_conflict_count": company_conflicts,
         "company_terminal_projection": company_terminal_projection,
+        "fetch_failures": [
+            {
+                "url": doc["url"],
+                "attempts": doc.get("transport", {}).get("attempts"),
+            }
+            for doc in documents
+            if doc.get("fetch_status") != "PASS"
+        ],
+        "parse_failures": [
+            {
+                "url": doc["url"],
+                "error": doc.get("parse_error"),
+            }
+            for doc in documents
+            if doc.get("fetch_status") == "PASS" and doc.get("parse_status") != "PASS"
+        ],
         "adjudication": report["adjudication"],
     }, ensure_ascii=False, sort_keys=True))
     return 0 if fetch_pass == len(unique_docs) else 2
