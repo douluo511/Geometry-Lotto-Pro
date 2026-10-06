@@ -119,13 +119,22 @@ def main() -> int:
         b'{"lotteryDrawNum":"26100","lotteryDrawTime":"2026-09-01","lotteryDrawResult":"01 02 03 04 05 01 02"},'
         b'{"lotteryDrawNum":"bad","lotteryDrawTime":"2026-09-04","lotteryDrawResult":"01 02 03 04 05 01 02"}]}}'
     )
+    malformed_session = FakeSession([
+        FakeResponse(200, malformed_payload, {"Content-Type": "application/json"}, sources.NATIONAL_URL)
+    ])
     try:
-        sources.fetch_national_page(1, session=FakeSession([
-            FakeResponse(200, malformed_payload, {"Content-Type": "application/json"})
-        ]))
+        sources.fetch_national_page(1, session=malformed_session)
         record("malformed_row_fail_closed", False, "bad row was skipped")
     except SourceError as exc:
-        record("malformed_row_fail_closed", True, str(exc))
+        # A host/transport rejection is NOT evidence that malformed rows were
+        # parsed and rejected. Require the precise parser boundary and one call.
+        record(
+            "malformed_row_fail_closed",
+            len(malformed_session.calls) == 1
+            and "\u7b2c 1 \u884c\u975e\u6cd5" in str(exc)
+            and isinstance(exc.__cause__, ValueError),
+            str(exc),
+        )
 
     bad_jiangsu = """
     <table>
@@ -194,6 +203,8 @@ def main() -> int:
     failures = [name for name, row in checks.items() if row["status"] != "PASS"]
     report = {
         "schema": "dlt-network-contract-gate-v1",
+        "test_mode": "CONTROLLED_CONTRACT_TEST",
+        "real_network_evidence": False,
         "status": "PASS" if not failures else "FAIL",
         "hard_fail_count": len(failures),
         "failures": failures,

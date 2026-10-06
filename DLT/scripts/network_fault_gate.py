@@ -117,13 +117,18 @@ def main() -> int:
         b'{"lotteryDrawNum":"26100","lotteryDrawTime":"2026-09-01","lotteryDrawResult":"01 02 03 04 05 01 02"},'
         b'{"lotteryDrawNum":"26100","lotteryDrawTime":"2026-09-01","lotteryDrawResult":"01 02 03 04 05 01 02"}]}}'
     )
+    duplicate_session = FakeSession([
+        FakeResponse(200, duplicate_payload, {"Content-Type": "application/json"}, sources.NATIONAL_URL)
+    ])
     try:
-        sources.fetch_national_page(1, session=FakeSession([
-            FakeResponse(200, duplicate_payload, {"Content-Type": "application/json"})
-        ]))
+        sources.fetch_national_page(1, session=duplicate_session)
         record("duplicate_issue_fail_closed", False, "duplicate issue accepted")
     except SourceError as exc:
-        record("duplicate_issue_fail_closed", True, str(exc))
+        record(
+            "duplicate_issue_fail_closed",
+            len(duplicate_session.calls) == 1 and "\u91cd\u590d\u671f\u53f7: 26100" in str(exc),
+            str(exc),
+        )
 
     with tempfile.TemporaryDirectory() as td:
         store = Store(Path(td))
@@ -180,6 +185,8 @@ def main() -> int:
     failures = [name for name, row in checks.items() if row["status"] != "PASS"]
     report = {
         "schema": "dlt-network-fault-gate-v1",
+        "test_mode": "CONTROLLED_FAULT_INJECTION",
+        "real_network_evidence": False,
         "status": "PASS" if not failures else "FAIL",
         "hard_fail_count": len(failures),
         "failures": failures,

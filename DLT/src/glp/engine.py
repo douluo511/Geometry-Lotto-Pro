@@ -6,7 +6,10 @@ import math
 from collections import Counter, defaultdict
 from typing import Iterable
 
-from .constants import MODEL_VERSION, SELECTOR_VERSION, PROMOTION_POLICY
+from .constants import (
+    MODEL_VERSION, SELECTOR_VERSION, PROMOTION_POLICY,
+    DEFAULT_RESEARCH_DAN_FRONT_COUNT, DEFAULT_RESEARCH_DAN_BACK_COUNT,
+)
 from .domain import Draw, Prediction, Ranking
 from .util import next_draw_date, next_issue, parse_date, sha256_json, utc_now, zscores
 
@@ -307,8 +310,8 @@ def make_prediction(draws: list[Draw], canonical_hash: str, latest_court: dict |
         back_ranking=back_order,
         dan_state="CERTIFIED_DAN" if dan_certified else "NULL_DAN",
         edge_state="EDGE_PROVEN" if edge_proven else "NO_EDGE",
-        research_dan_front=front_order[:2],
-        research_dan_back=back_order[:1],
+        research_dan_front=front_order[:DEFAULT_RESEARCH_DAN_FRONT_COUNT],
+        research_dan_back=back_order[:DEFAULT_RESEARCH_DAN_BACK_COUNT],
         canonical_hash=canonical_hash,
         model_hash=ident["model_hash"],
         selector_hash=ident["selector_hash"],

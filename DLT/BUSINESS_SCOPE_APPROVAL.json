@@ -1,0 +1,27 @@
+{
+  "schema": "dlt-business-scope-approval-v1",
+  "project": "DLT",
+  "status": "APPROVED",
+  "approved_by": "user",
+  "scope_ids": [
+    "B01",
+    "B02",
+    "B03",
+    "B04",
+    "B05",
+    "B06",
+    "B07",
+    "B08"
+  ],
+  "entry_inventory": [
+    "predict",
+    "update",
+    "repair",
+    "audit"
+  ],
+  "approval_reference": "2026-10-02 explicit final-delivery directive: full original requirements preserved; no-shell; real network; Windows; physical GUI; Same Hash; detailed architecture/interfaces; unique Final EXE; 2026-10-06 explicit 1.0.3 behavior baseline: background 30-minute official polling after window close, automatic settlement/next prediction, default 2 dan, preserve frozen 1-dan history, manual app reopen after reboot/login",
+  "original_requirements_preserved": true,
+  "denominator_rule": "B01-B08 plus predict/update/repair/audit are the complete minimum business acceptance denominator. Every original DLT requirement remains binding and any uncovered original requirement adds an additional hard gate; approval cannot reduce scope.",
+  "no_scope_reduction": true,
+  "reason": "User explicitly required the complete final product under the frozen non-downgradable baseline and repeated all original hard requirements. Approval freezes the mandatory minimum denominator without waiving B05, independent repository/release, or any original requirement."
+}
