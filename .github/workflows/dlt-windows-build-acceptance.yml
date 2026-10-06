@@ -71,7 +71,8 @@ jobs:
             '.\scripts\updater_acceptance.ps1',
             '.\scripts\release_update_acceptance.ps1',
             '.\scripts\physical_gui_click_smoke.ps1',
-            '.\scripts\physical_gui_failure_smoke.ps1'
+            '.\scripts\physical_gui_failure_smoke.ps1',
+            '.\scripts\background_acceptance.ps1'
           )){
             $tokens=$null
             $errors=$null
@@ -228,6 +229,14 @@ jobs:
           Get-Content $out
           if ($r.status -ne "PASS") { throw "Exact EXE GUI construction gate failed" }
 
+      - name: Exact EXE detached background continuity
+        shell: pwsh
+        run: |
+          .\scripts\background_acceptance.ps1 `
+            -MainExe ".\dist\Geometry_Lotto_Pro_DLT.exe" `
+            -EvidencePath ".\artifacts\background_acceptance.json" `
+            -TimeoutSeconds 1800
+
       - name: Physical GUI Click Smoke
         shell: pwsh
         run: |
@@ -261,7 +270,7 @@ jobs:
             -OperationTimeoutSeconds 900 `
             -EvidencePath ".\artifacts\physical_gui_repair_failure.json"
 
-      - name: Runtime B01-B07 business and no-shell evidence gate
+      - name: Runtime B01-B08 business and no-shell evidence gate
         shell: pwsh
         run: |
           $env:PYTHONPATH="$PWD\src"

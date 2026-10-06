@@ -7,7 +7,8 @@ from pathlib import Path
 
 from glp.constants import (
     APP_VERSION, BACK_MAX, BACK_PICK, FOUR_ENTRIES, FRONT_MAX, FRONT_PICK,
-    GAME, PROMOTION_POLICY,
+    GAME, PROMOTION_POLICY, BACKGROUND_POLL_SECONDS, BACKGROUND_STARTUP_MODE,
+    DEFAULT_RESEARCH_DAN_FRONT_COUNT, DEFAULT_RESEARCH_DAN_BACK_COUNT,
 )
 from glp.domain import Draw
 from glp.delivery import (
@@ -21,6 +22,7 @@ from glp.storage import Store
 import glp.gui as gui
 import glp.service as service
 import glp.sources as sources
+import glp.background as background
 from final_gate import derive
 from completion_boundary import static_report
 
@@ -75,6 +77,21 @@ def main() -> int:
     ))
 
     checks.append(check(
+        "1.0.3 background continuity contract",
+        BACKGROUND_POLL_SECONDS == 1800
+        and BACKGROUND_STARTUP_MODE == "manual_app_launch_required_after_login"
+        and DEFAULT_RESEARCH_DAN_FRONT_COUNT == 2
+        and DEFAULT_RESEARCH_DAN_BACK_COUNT == 1
+        and callable(getattr(background, "background_cycle", None))
+        and callable(getattr(background, "launch_background_worker", None))
+        and callable(getattr(background, "run_background_worker", None)),
+        (
+            f"poll={BACKGROUND_POLL_SECONDS}; startup={BACKGROUND_STARTUP_MODE}; "
+            f"front_dan={DEFAULT_RESEARCH_DAN_FRONT_COUNT}; back_dan={DEFAULT_RESEARCH_DAN_BACK_COUNT}"
+        ),
+    ))
+
+    checks.append(check(
         "Four production entries",
         tuple(FOUR_ENTRIES) == ("预测下一期", "一键更新", "一键修复", "高级分析")
         and all(callable(getattr(LottoService, n, None)) for n in ("predict", "update", "repair", "audit")),
@@ -113,6 +130,7 @@ def main() -> int:
         Path(inspect.getfile(Store)).resolve(),
         Path(inspect.getfile(NetClient)).resolve(),
         Path(inspect.getfile(UpdaterClient)).resolve(),
+        Path(background.__file__).resolve(),
     ]
     banned = ("StubService", "unittest.mock", "Mock(", "NotImplementedError", "TODO: production", "pass  # production")
     shell_hits: list[str] = []
@@ -137,7 +155,8 @@ def main() -> int:
         and all(callable(x) for x in (
             launch_software_update, read_software_update_result,
             create_backup, restore_backup, export_evidence, verify_export,
-            source_health, derive,
+            source_health, derive, background.background_cycle,
+            background.launch_background_worker, background.run_background_worker,
         ))
     )
     checks.append(check(
