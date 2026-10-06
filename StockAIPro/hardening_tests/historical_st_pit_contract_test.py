@@ -32,7 +32,11 @@ def complete(root: Path):
     source_manifest_path = "cache/historical_st_pit_sources.json"
     canonical_sha = make_file(
         root, canonical_path,
-        b'{"date":"2026-09-30","market":"SSE","code":"600000","st":false,"suspended":false}\n',
+        (
+            b'{"date":"2026-09-30","market":"SSE","code":"600000","st":false,"suspended":false}\\n'
+            b'{"date":"2026-09-30","market":"SZSE","code":"000001","st":false,"suspended":false}\\n'
+            b'{"date":"2026-09-30","market":"BSE","code":"920001","st":false,"suspended":false}\\n'
+        ),
     )
     source_manifest_sha = make_file(
         root, source_manifest_path,
@@ -45,7 +49,19 @@ def complete(root: Path):
         evidence_sha = make_file(
             root, rel,
             json.dumps(
-                {"market": market, "st_identity": "PASS", "suspension_state": "PASS"},
+                {
+                    "market": market,
+                    "st_identity": "PASS",
+                    "suspension_state": "PASS",
+                    "trading_calendar": "PASS",
+                    "daily_state": "PASS",
+                    "point_in_time_only": True,
+                    "future_leakage_violations": 0,
+                    "window_start": "2018-01-01",
+                    "window_end": "2026-09-30",
+                    "canonical_sha256": canonical_sha,
+                    "source_count": 1,
+                },
                 sort_keys=True,
             ).encode("utf-8") + b"\n",
         )
@@ -74,6 +90,20 @@ def complete(root: Path):
         "source_manifest_sha256": source_manifest_sha,
         "markets": markets,
     }
+
+
+def rebind_canonical(root: Path, claim: dict, payload: bytes):
+    canonical = root / claim["canonical_path"]
+    canonical.write_bytes(payload)
+    claim["canonical_sha256"] = sha(canonical)
+    for market in ("SSE", "SZSE", "BSE"):
+        evidence_path = root / claim["markets"][market]["evidence_path"]
+        evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+        evidence["canonical_sha256"] = claim["canonical_sha256"]
+        evidence_path.write_text(
+            json.dumps(evidence, sort_keys=True) + "\\n", encoding="utf-8"
+        )
+        claim["markets"][market]["evidence_sha256"] = sha(evidence_path)
 
 
 with tempfile.TemporaryDirectory() as td:
@@ -130,6 +160,34 @@ with tempfile.TemporaryDirectory() as td:
     assert status == "WARN"
     assert "canonical_binding" in meta["failures"]
     assert meta["bindings"]["canonical"]["reason"] == "path_escape"
+
+    # All bytes and hashes are internally consistent, but a one-market
+    # canonical dataset must not masquerade as a complete three-market bundle.
+    x = complete(root)
+    rebind_canonical(
+        root,
+        x,
+        b'{"date":"2026-09-30","market":"SSE","code":"600000","st":false,"suspended":false}\\n',
+    )
+    write_claim(root, x)
+    status, _, meta = evaluate_historical_st_pit(root, "2026-09-30")
+    assert status == "WARN"
+    assert "canonical_semantics" in meta["failures"]
+    assert meta["bindings"]["canonical"]["semantic_reason"].startswith("missing_markets:")
+
+    # A rebound source-manifest hash is still insufficient if the bound
+    # manifest omits required markets.
+    x = complete(root)
+    source_manifest = root / x["source_manifest_path"]
+    source_manifest.write_text(
+        json.dumps({"sources": ["SSE"], "point_in_time_only": True}) + "\\n",
+        encoding="utf-8",
+    )
+    x["source_manifest_sha256"] = sha(source_manifest)
+    write_claim(root, x)
+    status, _, meta = evaluate_historical_st_pit(root, "2026-09-30")
+    assert status == "WARN"
+    assert "source_manifest_semantics" in meta["failures"]
 
     x = complete(root)
     write_claim(root, x)
