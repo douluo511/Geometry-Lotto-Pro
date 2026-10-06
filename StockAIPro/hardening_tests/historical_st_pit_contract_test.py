@@ -43,6 +43,20 @@ def complete(root: Path):
         b'{"sources":["SSE","SZSE","BSE"],"point_in_time_only":true}\n',
     )
 
+    calendar_manifest_path = "cache/historical_market_calendar.json"
+    calendar_manifest_sha = make_file(
+        root,
+        calendar_manifest_path,
+        (json.dumps({
+            "schema": "stock-ai-historical-market-calendar-v1",
+            "window_start": "2026-09-30",
+            "window_end": "2026-09-30",
+            "markets": {
+                market: {"status": "PASS", "source_count": 1, "dates": ["2026-09-30"]}
+                for market in ("SSE", "SZSE", "BSE")
+            },
+        }, sort_keys=True) + "\n").encode("utf-8"),
+    )
     markets = {}
     for market in ("SSE", "SZSE", "BSE"):
         rel = f"cache/historical_st_pit_{market.lower()}.json"
@@ -88,6 +102,8 @@ def complete(root: Path):
         "canonical_sha256": canonical_sha,
         "source_manifest_path": source_manifest_path,
         "source_manifest_sha256": source_manifest_sha,
+        "calendar_manifest_path": calendar_manifest_path,
+        "calendar_manifest_sha256": calendar_manifest_sha,
         "markets": markets,
     }
 

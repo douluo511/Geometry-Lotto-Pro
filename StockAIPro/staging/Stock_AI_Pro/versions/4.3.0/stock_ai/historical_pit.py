@@ -7,6 +7,7 @@ from datetime import date, timedelta
 from pathlib import Path
 
 SCHEMA = "stock-ai-historical-st-pit-v1"
+CALENDAR_SCHEMA = "stock-ai-historical-market-calendar-v1"
 REQUIRED_MARKETS = ("SSE", "SZSE", "BSE")
 HEX64 = re.compile(r"^[0-9a-f]{64}$")
 PASS = "PASS"
@@ -111,6 +112,64 @@ def _validate_source_manifest_semantics(path: Path):
     if missing:
         return False, "sources_missing_markets:" + ",".join(missing), obj
     return True, "PASS", {"sources": sorted(normalized), "point_in_time_only": True}
+
+
+def _validate_calendar_manifest_semantics(path: Path, start, end, expected=None):
+    ok, reason, obj = _read_json_object(path)
+    if not ok:
+        return False, reason, None
+    if obj.get("schema") != CALENDAR_SCHEMA:
+        return False, "schema_mismatch", obj
+    if start is None or end is None or start > end:
+        return False, "invalid_window", obj
+    if obj.get("window_start") != start.isoformat() or obj.get("window_end") != end.isoformat():
+        return False, "window_mismatch", obj
+    markets = obj.get("markets")
+    if not isinstance(markets, dict):
+        return False, "markets_missing", obj
+    normalized = {}
+    for market in REQUIRED_MARKETS:
+        item = markets.get(market)
+        if not isinstance(item, dict):
+            return False, f"market_missing:{market}", obj
+        if item.get("status") != PASS:
+            return False, f"market_not_pass:{market}", obj
+        try:
+            if int(item.get("source_count", 0)) < 1:
+                return False, f"source_count:{market}", obj
+        except Exception:
+            return False, f"source_count:{market}", obj
+        dates_raw = item.get("dates")
+        if not isinstance(dates_raw, list) or not dates_raw:
+            return False, f"dates_missing:{market}", obj
+        parsed = []
+        seen = set()
+        for idx, value in enumerate(dates_raw):
+            day = _parse_day(value)
+            if day is None:
+                return False, f"date_invalid:{market}:{idx}", obj
+            if day < start or day > end:
+                return False, f"date_outside_window:{market}:{day.isoformat()}", obj
+            lifecycle = MARKET_LIFECYCLE_START.get(market)
+            if lifecycle is not None and day < lifecycle:
+                return False, f"date_before_market_lifecycle:{market}:{day.isoformat()}", obj
+            iso = day.isoformat()
+            if iso in seen:
+                return False, f"date_duplicate:{market}:{iso}", obj
+            seen.add(iso)
+            parsed.append(iso)
+        if parsed != sorted(parsed):
+            return False, f"dates_not_sorted:{market}", obj
+        if expected is not None and expected.isoformat() not in seen:
+            return False, f"expected_trade_date_missing:{market}:{expected.isoformat()}", obj
+        normalized[market] = parsed
+    return True, "PASS", {
+        "schema": CALENDAR_SCHEMA,
+        "window_start": start.isoformat(),
+        "window_end": end.isoformat(),
+        "market_dates": normalized,
+        "market_date_counts": {market: len(days) for market, days in normalized.items()},
+    }
 
 
 def _weekday_slots(start: date, end: date) -> int:
@@ -224,6 +283,7 @@ def _validate_canonical_semantics(path: Path, start, end, expected):
         "rows": rows,
         "market_row_counts": counts,
         "market_date_counts": {market: len(days) for market, days in dates.items()},
+        "market_dates": {market: sorted(days) for market, days in dates.items()},
         "market_first_date": {market: min(days) for market, days in dates.items()},
         "market_last_date": {market: max(days) for market, days in dates.items()},
         "date_axis_sanity": date_axis_sanity,
@@ -346,6 +406,22 @@ def evaluate_historical_st_pit(root: Path, expected_trade_date=None):
     if not source_ok:
         failures.append("source_manifest_binding")
 
+    calendar_ok, calendar_reason, calendar_meta = _verify_bound_file(
+        root, obj.get("calendar_manifest_path"), obj.get("calendar_manifest_sha256")
+    )
+    bindings["calendar_manifest"] = {
+        "status": PASS if calendar_ok else WARN,
+        "reason": calendar_reason,
+        "meta": calendar_meta,
+    }
+    if not calendar_ok:
+        failures.append("calendar_manifest_binding")
+
+    canonical_semantic_ok = False
+    canonical_semantic_meta = None
+    calendar_semantic_ok = False
+    calendar_semantic_meta = None
+
     if canonical_ok:
         canonical_semantic_ok, canonical_semantic_reason, canonical_semantic_meta = _validate_canonical_semantics(
             Path(canonical_meta["path"]), start, end, expected
@@ -365,6 +441,34 @@ def evaluate_historical_st_pit(root: Path, expected_trade_date=None):
         bindings["source_manifest"]["semantic_meta"] = source_semantic_meta
         if not source_semantic_ok:
             failures.append("source_manifest_semantics")
+
+    if calendar_ok:
+        calendar_semantic_ok, calendar_semantic_reason, calendar_semantic_meta = _validate_calendar_manifest_semantics(
+            Path(calendar_meta["path"]), start, end, expected
+        )
+        bindings["calendar_manifest"]["semantic_status"] = PASS if calendar_semantic_ok else WARN
+        bindings["calendar_manifest"]["semantic_reason"] = calendar_semantic_reason
+        bindings["calendar_manifest"]["semantic_meta"] = calendar_semantic_meta
+        if not calendar_semantic_ok:
+            failures.append("calendar_manifest_semantics")
+
+    if canonical_semantic_ok and calendar_semantic_ok:
+        canonical_dates = (canonical_semantic_meta or {}).get("market_dates") or {}
+        bound_dates = (calendar_semantic_meta or {}).get("market_dates") or {}
+        missing_by_market = {}
+        for market in REQUIRED_MARKETS:
+            missing = sorted(set(bound_dates.get(market) or []) - set(canonical_dates.get(market) or []))
+            if missing:
+                missing_by_market[market] = missing
+        coverage_meta = {
+            "status": PASS if not missing_by_market else WARN,
+            "missing_counts": {market: len(days) for market, days in missing_by_market.items()},
+            "missing_samples": {market: days[:12] for market, days in missing_by_market.items()},
+        }
+        bindings["canonical"]["calendar_coverage_status"] = coverage_meta["status"]
+        bindings["canonical"]["calendar_coverage_meta"] = coverage_meta
+        if missing_by_market:
+            failures.append("canonical_calendar_coverage")
 
     markets = obj.get("markets")
     if not isinstance(markets, dict):
@@ -430,6 +534,7 @@ def evaluate_historical_st_pit(root: Path, expected_trade_date=None):
         "failures": failures,
         "canonical_sha256": obj.get("canonical_sha256"),
         "source_manifest_sha256": obj.get("source_manifest_sha256"),
+        "calendar_manifest_sha256": obj.get("calendar_manifest_sha256"),
         "bindings": bindings,
     }
 
@@ -475,6 +580,13 @@ def load_historical_st_pit_subset(root: Path, required_keys, expected_trade_date
     canonical_path = Path(canonical_path_raw)
     if not canonical_path.is_file():
         raise RuntimeError("qualified canonical historical PIT file disappeared")
+
+    calendar_binding = (meta.get("bindings") or {}).get("calendar_manifest") or {}
+    calendar_semantic_meta = calendar_binding.get("semantic_meta") or {}
+    bound_market_dates = calendar_semantic_meta.get("market_dates") or {}
+    if any(not isinstance(bound_market_dates.get(market), list) or not bound_market_dates.get(market)
+           for market in REQUIRED_MARKETS):
+        raise RuntimeError("qualified bound historical market calendar is unavailable")
 
     claim_path = root / "cache" / "historical_st_pit.json"
     claim = json.loads(claim_path.read_text(encoding="utf-8"))
@@ -545,8 +657,10 @@ def load_historical_st_pit_subset(root: Path, required_keys, expected_trade_date
         "found_key_count": len(found),
         "scanned_rows": scanned_rows,
         "market_row_counts": market_row_counts,
-        "market_dates": {market: sorted(days) for market, days in market_dates.items()},
+        "canonical_market_dates": {market: sorted(days) for market, days in market_dates.items()},
+        "market_dates": {market: list(bound_market_dates[market]) for market in REQUIRED_MARKETS},
         "canonical_sha256": meta.get("canonical_sha256"),
+        "calendar_manifest_sha256": meta.get("calendar_manifest_sha256"),
         "window_start": claim.get("window_start"),
         "window_end": claim.get("window_end"),
         "expected_trade_date": str(expected_trade_date) if expected_trade_date else None,

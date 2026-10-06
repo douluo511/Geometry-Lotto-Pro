@@ -170,12 +170,14 @@ def main() -> int:
             raise RuntimeError(f"historical PIT selection does not use signal-date state: {pit_policy}")
         if pit_policy.get("execution_state_date") != "next_market_open":
             raise RuntimeError(f"historical PIT execution does not use next-market-open state: {pit_policy}")
-        if pit_policy.get("market_calendar_source") != "verified_canonical_daily_state":
+        if pit_policy.get("market_calendar_source") != "verified_bound_market_calendar":
             raise RuntimeError(f"historical PIT market calendar is not canonical-evidence bound: {pit_policy}")
         if pit_policy.get("liquidity_ranking_after_signal_pit") is not True:
             raise RuntimeError(f"historical PIT signal filter did not precede Top-N liquidity ranking: {pit_policy}")
         if not re.fullmatch(r"[0-9a-f]{64}", str(pit_policy.get("canonical_sha256", "")).lower()):
             raise RuntimeError(f"historical PIT backtest policy missing canonical SHA-256: {pit_policy}")
+        if not re.fullmatch(r"[0-9a-f]{64}", str(pit_policy.get("calendar_manifest_sha256", "")).lower()):
+            raise RuntimeError(f"historical PIT backtest policy missing calendar manifest SHA-256: {pit_policy}")
         if str(maintenance_result.get("audit", "")).startswith("FAIL") or not maintenance_result.get("audit"):
             raise RuntimeError(f"automatic audit not complete: {maintenance_result}")
 
