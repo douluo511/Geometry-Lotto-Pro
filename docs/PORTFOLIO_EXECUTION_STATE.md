@@ -1,3 +1,13 @@
+<!-- exact-checkpoint-20261006-continued-execution -->
+## 2026-10-06 strict continuation — portfolio blockers and live remediation
+
+- Portfolio migration/export readiness is currently **18/18 PASS** only for the exact product bindings already evidenced, including Stock export PR #260 run `37413482053` SUCCESS against Stock product head `c25a5c394363058d341b624b18943cd3733eb720`.
+- Dedicated independent repositories remain **0/18 evidenced**. The connected GitHub toolset exposes no repository-creation mutation, so repository independence cannot be completed from this integration despite user authorization. Final PASS and formal delivery therefore remain **0/18**.
+- Stock PR #257 exact head `c25a5c394363058d341b624b18943cd3733eb720`: source/offline run `37371301910` SUCCESS; full-business run `37371301878` FAIL because the required hash-bound historical ST/PIT bundle is absent; desktop run `37371302045` is currently IN_PROGRESS on the failed-jobs retry. No downstream PASS is promoted until terminal.
+- Stock PR #261 exact head `3f40a298159048de4b053d81470717405edc0218`: SSE semantic-role parser run `37413979859` is IN_PROGRESS. It is a diagnostic/evidence line only until terminal evidence is available; no historical ST/PIT or Advanced Business PASS is claimed.
+- RMF PR #250 exact head `0ffaaa76a43fb734d69d8a3f0170e9d97b176518`: prior run `37366837461` ended with job `111953955684` CANCELLED, so that outcome is not treated as a semantic FAIL. The cancelled job was explicitly re-run; replacement job `112113533557` is now IN_PROGRESS. No PASS is claimed before terminal evidence.
+- Strict rule remains unchanged: behavior-changing changes invalidate downstream acceptance; export PASS is not repository independence; queued/in-progress work is NOT VERIFIED.
+
 <!-- exact-checkpoint-stock-257-current-20261006 -->
 ## 2026-10-06 current authority correction — Stock #257
 
