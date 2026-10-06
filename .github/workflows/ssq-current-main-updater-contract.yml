@@ -12,6 +12,9 @@ on:
       - 'SSQ/tools/updater_release_acceptance.py'
       - 'SSQ/tests/test_updater_*.py'
       - '.github/workflows/ssq-current-main-updater-contract.yml'
+      - '.github/workflows/ssq-current-main-independent-export.yml'
+      - 'SSQ/tools/export_independent_repo.py'
+      - 'SSQ/tests/test_independent_repo_export.py'
   pull_request:
     paths:
       - 'SSQ/updater.py'
@@ -21,6 +24,9 @@ on:
       - 'SSQ/tools/updater_release_acceptance.py'
       - 'SSQ/tests/test_updater_*.py'
       - '.github/workflows/ssq-current-main-updater-contract.yml'
+      - '.github/workflows/ssq-current-main-independent-export.yml'
+      - 'SSQ/tools/export_independent_repo.py'
+      - 'SSQ/tests/test_independent_repo_export.py'
   workflow_dispatch:
 
 permissions:
