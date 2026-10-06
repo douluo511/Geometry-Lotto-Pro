@@ -39,12 +39,23 @@ def direct_resume_dates(text:str):
         re.compile(rf"(?:复牌日期|恢复交易日期)[：:]?{DATE}"),
         re.compile(rf"(?:自|于){DATE}(?:开市)?起复牌"),
         re.compile(rf"(?:自|于){DATE}复牌"),
+        # Last-resort scan-safe relation: the official document's explicit
+        # "复牌依据及复牌日期" section must itself contain one and only one
+        # calendar date before the direct "日起复牌" action. This tolerates
+        # OCR loss of a small connector such as "自", but not a nearby date.
+        re.compile(rf"(?:复牌依据及复牌日期)[^。；]{{0,420}}?{DATE}[^。；]{{0,20}}?日起复牌"),
     ]
     out=[]
     evidence=[]
     for pid,pat in enumerate(patterns):
         for m in pat.finditer(compact):
-            groups=m.groups()[:3]
+            matched=m.group(0)
+            date_matches=list(re.finditer(DATE,matched))
+            # A matched semantic relation containing multiple complete dates
+            # remains ambiguous and must not be promoted.
+            if len(date_matches) != 1:
+                continue
+            groups=date_matches[0].groups()[:3]
             try:
                 dt=iso(*groups)
             except Exception:
@@ -53,8 +64,8 @@ def direct_resume_dates(text:str):
             evidence.append({
                 "pattern":pid,
                 "date":dt,
-                "matched_text":m.group(0)[:320],
-                "matched_sha256":sha256(m.group(0).encode("utf-8")),
+                "matched_text":matched[:520],
+                "matched_sha256":sha256(matched.encode("utf-8")),
             })
     return sorted(set(out)),evidence
 
