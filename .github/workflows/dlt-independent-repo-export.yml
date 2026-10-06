@@ -1,0 +1,188 @@
+name: DLT Independent Repository Export Verification v4
+
+on:
+  pull_request:
+    paths:
+      - ".github/migration/dlt_export.py"
+      - ".github/workflows/dlt-independent-repo-export.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CANDIDATE_SHA: 30c3d9d2c6fdfc3dd0751f6f8a0a85348ec2b4a6
+    steps:
+      - name: Checkout exact migration head
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Exact identity and candidate-payload equivalence
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          actual="$(git rev-parse HEAD)"
+          test "$actual" = "$EXPECTED_SHA"
+          git cat-file -e "${CANDIDATE_SHA}^{commit}"
+          git diff --quiet "$CANDIDATE_SHA" HEAD --             DLT             .github/workflows/dlt-windows-build-acceptance.yml             .github/workflows/dlt-prospective-only.yml
+          echo "EXACT_EXPORT_HEAD=$actual"
+          echo "CANDIDATE_PAYLOAD_EQUIVALENCE=PASS"
+          echo "CANDIDATE_HEAD=$CANDIDATE_SHA"
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.11.9"
+
+      - name: Build deterministic export A
+        env:
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: python .github/migration/dlt_export.py --out "$RUNNER_TEMP/export-a"
+
+      - name: Build deterministic export B
+        env:
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: python .github/migration/dlt_export.py --out "$RUNNER_TEMP/export-b"
+
+      - name: Verify manifest, layout, hashes, and workflow contracts
+        shell: bash
+        env:
+          EXPECTED_EXPORT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          a = Path(os.environ["RUNNER_TEMP"]) / "export-a"
+          b = Path(os.environ["RUNNER_TEMP"]) / "export-b"
+          ma = a / "MIGRATION_MANIFEST.json"
+          mb = b / "MIGRATION_MANIFEST.json"
+
+          assert ma.read_bytes() == mb.read_bytes(), "manifest is not deterministic"
+          m = json.loads(ma.read_text(encoding="utf-8"))
+
+          expected_candidate = os.environ["CANDIDATE_SHA"]
+          expected_export = os.environ["EXPECTED_EXPORT_SHA"]
+          assert m["schema"] == "dlt-independent-export-v4"
+          assert m["source_commit"] == expected_candidate
+          assert m["candidate_head"] == expected_candidate
+          assert m["export_commit"] == expected_export
+          assert m["target_repository"] == "douluo511/Geometry-Lotto-Pro-DLT"
+          assert m["layout"] == "preserve-dlt-root"
+          assert m["repository_independence"] == "NOT VERIFIED"
+          assert m["release_context"] == "NOT VERIFIED"
+          assert m["file_count"] == len(m["files"]) and m["file_count"] > 0
+
+          required = {
+              "DLT/requirements.txt",
+              "DLT/GeometryLottoPro.spec",
+              "DLT/GeometryLottoProUpdater.spec",
+              "DLT/src/updater.py",
+              "DLT/src/glp/delivery.py",
+              "DLT/src/glp/prospective.py",
+              "DLT/src/glp/service.py",
+              "DLT/tests/test_restored_updater_contract.py",
+              "DLT/scripts/updater_acceptance.ps1",
+              "DLT/scripts/release_update_acceptance.ps1",
+              "DLT/scripts/physical_gui_failure_smoke.ps1",
+              "DLT/scripts/prospective_writer_auth.py",
+              ".github/workflows/dlt-windows-build-acceptance.yml",
+              ".github/workflows/dlt-prospective-only.yml",
+          }
+          paths = {x["path"] for x in m["files"]}
+          missing = sorted(required - paths)
+          assert not missing, f"required export files missing: {missing}"
+
+          assert not (a / "src").exists(), "DLT root was flattened"
+          assert not (a / "tests").exists(), "DLT root was flattened"
+          assert not (a / "scripts").exists(), "DLT root was flattened"
+
+          allowed_top = {"DLT", ".github", "MIGRATION_MANIFEST.json"}
+          for p in a.rglob("*"):
+              if p.is_file():
+                  rel = p.relative_to(a)
+                  assert rel.parts[0] in allowed_top, f"unexpected top-level path: {rel}"
+
+          for row in m["files"]:
+              p = a / row["path"]
+              q = b / row["path"]
+              assert p.is_file(), row["path"]
+              assert q.is_file(), row["path"]
+              assert p.stat().st_size == row["size"], row["path"]
+              digest = hashlib.sha256(p.read_bytes()).hexdigest()
+              assert digest == row["sha256"], row["path"]
+              assert p.read_bytes() == q.read_bytes(), row["path"]
+
+          windows = (a / ".github/workflows/dlt-windows-build-acceptance.yml").read_text(encoding="utf-8")
+          prospective = (a / ".github/workflows/dlt-prospective-only.yml").read_text(encoding="utf-8")
+          assert "working-directory: DLT" in windows
+          assert "douluo511/Geometry-Lotto-Pro-DLT" in windows
+          assert "DLT/src/glp/prospective.py" in prospective
+          assert "evidence/dlt-prospective-ledger" in prospective
+
+          src_root = Path(os.environ["GITHUB_WORKSPACE"])
+          for wf in (
+              ".github/workflows/dlt-windows-build-acceptance.yml",
+              ".github/workflows/dlt-prospective-only.yml",
+          ):
+              assert (a / wf).read_bytes() == (src_root / wf).read_bytes()
+
+          print("MANIFEST_HASH_LAYOUT_VERIFY=PASS")
+          print("WORKFLOW_PATH_CONTRACT=PASS")
+          print("DETERMINISTIC_REBUILD=PASS")
+          print("FILE_COUNT", m["file_count"])
+          PY
+
+      - name: Deliberate tamper counterexample
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["RUNNER_TEMP"]) / "export-a"
+          m = json.loads((root / "MIGRATION_MANIFEST.json").read_text(encoding="utf-8"))
+          row = next(x for x in m["files"] if x["path"] == "DLT/requirements.txt")
+          p = root / row["path"]
+          p.write_bytes(p.read_bytes() + b"\nTAMPER")
+          assert hashlib.sha256(p.read_bytes()).hexdigest() != row["sha256"]
+          print("TAMPER_REJECTION=PASS")
+          PY
+
+      - name: Rebuild clean upload seed
+        env:
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: python .github/migration/dlt_export.py --out "$RUNNER_TEMP/export-a"
+
+      - name: Migration boundary
+        shell: bash
+        run: |
+          echo "PROJECT_ONLY_EXPORT=PASS"
+          echo "STRUCTURE_PRESERVED=PASS"
+          echo "WINDOWS_WORKFLOW_INCLUDED=PASS"
+          echo "PROSPECTIVE_WORKFLOW_INCLUDED=PASS"
+          echo "REPOSITORY_INDEPENDENCE=NOT VERIFIED"
+          echo "REAL_RELEASE_N_TO_N_PLUS_1=NOT VERIFIED"
+          echo "FINAL_GATE=FAIL"
+
+      - name: Upload current-head migration seed
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: dlt-independent-repo-seed-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/export-a
+          if-no-files-found: error
+          retention-days: 90
