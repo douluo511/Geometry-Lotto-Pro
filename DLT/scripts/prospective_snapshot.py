@@ -56,7 +56,9 @@ def main() -> int:
     freeze = result["freeze"]
     status = result["status"]
     print("DLT_PROSPECTIVE_CYCLE=PASS")
-    print(f"SOURCE_COMMIT={result['cohort']['source_commit']}")
+    print(f"CYCLE_SOURCE_COMMIT={result['cycle_source_commit']}")
+    print(f"INITIAL_SOURCE_COMMIT={result['cohort']['initial_source_commit']}")
+    print(f"BEHAVIOR_HASH={result['behavior_hash']}")
     print(f"COHORT_ID={result['cohort']['cohort_id']}")
     print(f"PROTOCOL_HASH={result['cohort']['protocol_hash']}")
     print(f"MODEL_HASH={result['cohort']['model_hash']}")
