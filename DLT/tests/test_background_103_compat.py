@@ -4,6 +4,12 @@ import inspect
 import tempfile
 import unittest
 from pathlib import Path
+import sys
+
+ROOT = Path(__file__).resolve().parents[1]
+SRC = ROOT / "src"
+if str(SRC) not in sys.path:
+    sys.path.insert(0, str(SRC))
 
 from glp.background import background_cycle, launch_background_worker
 from glp.constants import (
