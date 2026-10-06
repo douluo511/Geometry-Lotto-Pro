@@ -497,16 +497,28 @@ def fetch_shanghai_full_history(
             "start_issue": spec["start_issue"],
             "end_issue": spec["end_issue"],
         }
-        response = _get_official(
-            "official_shanghai_L1", SHANGHAI_HISTORY_URL, record_raw,
-            params=params, headers=headers,
-        )
-        response.raise_for_status()
-        raw = bytes(response.content)
-        _record_response(
-            record_raw, "official_shanghai_L1", response, raw,
-            SHANGHAI_HISTORY_URL, params,
-        )
+        response = None
+        raw = b""
+        semantic_attempts = 0
+        # A 200 response with an empty body has been observed transiently from
+        # the official Shanghai history endpoint. Treat it as a semantic
+        # transport failure: preserve every received body, retry finitely, and
+        # still fail closed if no non-empty official response is obtained.
+        for semantic_attempts in range(1, 4):
+            response = _get_official(
+                "official_shanghai_L1", SHANGHAI_HISTORY_URL, record_raw,
+                params=params, headers=headers,
+            )
+            response.raise_for_status()
+            raw = bytes(response.content)
+            _record_response(
+                record_raw, "official_shanghai_L1", response, raw,
+                SHANGHAI_HISTORY_URL, params,
+            )
+            if raw:
+                break
+        if response is None:
+            raise SourceError("Shanghai full history request did not execute")
         _response_body(response, "Shanghai full history", json_expected=False, raw=raw)
 
         actual = urlsplit(str(getattr(response, "url", "") or ""))
@@ -553,6 +565,7 @@ def fetch_shanghai_full_history(
             "bytes": len(raw),
             "url": str(response.url),
             "draw_count": len(chunk_draws),
+            "semantic_attempts": semantic_attempts,
             "first_issue": chunk_draws[0].issue if chunk_draws else None,
             "last_issue": chunk_draws[-1].issue if chunk_draws else None,
         })
