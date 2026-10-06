@@ -15,6 +15,7 @@ TARGET_REPOSITORY = "douluo511/Geometry-Lotto-Pro-SSQ"
 
 COPY_FILES = (
     Path(".github/workflows/ssq-windows-build-acceptance.yml"),
+    Path(".github/workflows/ssq-current-main-updater-contract.yml"),
     Path(".github/scripts/ssq_physical_gui_click_smoke.ps1"),
     Path(".gitignore"),
     Path("PORTFOLIO_GOVERNANCE.md"),
@@ -202,6 +203,9 @@ def verify_export(destination: Path) -> dict:
     )
     checks["required_workflow"] = (
         ".github/workflows/ssq-windows-build-acceptance.yml" in actual_paths
+    )
+    checks["required_updater_workflow"] = (
+        ".github/workflows/ssq-current-main-updater-contract.yml" in actual_paths
     )
     checks["required_gui_script"] = (
         ".github/scripts/ssq_physical_gui_click_smoke.ps1" in actual_paths
