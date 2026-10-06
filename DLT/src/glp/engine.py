@@ -6,7 +6,10 @@ import math
 from collections import Counter, defaultdict
 from typing import Iterable
 
-from .constants import (\n    MODEL_VERSION, SELECTOR_VERSION, PROMOTION_POLICY,\n    DEFAULT_RESEARCH_DAN_FRONT_COUNT, DEFAULT_RESEARCH_DAN_BACK_COUNT,\n)
+from .constants import (
+    MODEL_VERSION, SELECTOR_VERSION, PROMOTION_POLICY,
+    DEFAULT_RESEARCH_DAN_FRONT_COUNT, DEFAULT_RESEARCH_DAN_BACK_COUNT,
+)
 from .domain import Draw, Prediction, Ranking
 from .util import next_draw_date, next_issue, parse_date, sha256_json, utc_now, zscores
 
