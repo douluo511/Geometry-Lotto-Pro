@@ -207,6 +207,18 @@ def verify_export(destination: Path) -> dict:
     checks["required_updater_workflow"] = (
         ".github/workflows/ssq-current-main-updater-contract.yml" in actual_paths
     )
+    checks["required_updater_runtime"] = {
+        "SSQ/updater.py",
+        "SSQ/SSQ/glp/updater_client.py",
+        "SSQ/tools/build_updater_windows.py",
+        "SSQ/tools/prepare_release_manifest.py",
+        "SSQ/tools/updater_release_acceptance.py",
+    }.issubset(actual_paths)
+    checks["required_updater_contract_tests"] = {
+        "SSQ/tests/test_updater_client.py",
+        "SSQ/tests/test_updater_software.py",
+        "SSQ/tests/test_updater_release_acceptance.py",
+    }.issubset(actual_paths)
     checks["required_gui_script"] = (
         ".github/scripts/ssq_physical_gui_click_smoke.ps1" in actual_paths
     )
