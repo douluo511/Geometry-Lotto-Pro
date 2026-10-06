@@ -28,6 +28,7 @@ BEHAVIOR_PATHS = (
     "src/glp/evidence.py",
     "src/glp/prospective.py",
     "src/glp/background.py",
+    "src/glp/service.py",
     "src/glp/util.py",
     "src/main.py",
     "scripts/prospective_snapshot.py",
