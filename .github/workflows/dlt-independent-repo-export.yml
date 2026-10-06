@@ -124,7 +124,9 @@ jobs:
               q = b / row["path"]
               assert p.is_file(), row["path"]
               assert q.is_file(), row["path"]
-              assert p.stat().st_size == row["size"], row["path"]
+              assert set(row) == {"path", "bytes", "sha256"}, f"unexpected manifest row contract: {row}"
+              assert isinstance(row["bytes"], int) and row["bytes"] >= 0, row["path"]
+              assert p.stat().st_size == row["bytes"], row["path"]
               digest = hashlib.sha256(p.read_bytes()).hexdigest()
               assert digest == row["sha256"], row["path"]
               assert p.read_bytes() == q.read_bytes(), row["path"]
