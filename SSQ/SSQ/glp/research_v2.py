@@ -342,3 +342,37 @@ def research_two_dan_and_ticket(
         "back_baseline_probability": back.baseline_probability,
         "two_dan_random_baseline": exact_two_dan_random_baseline(),
     }
+
+
+
+def research_probabilities_from_coefficients(
+    history: list[Draw],
+    area: str,
+    coefficients: tuple[float, ...] | list[float],
+    *,
+    decay: float = DEFAULT_DECAY,
+    zero_feature: str | None = None,
+) -> dict[int, float]:
+    """Apply already-fitted coefficients to a strictly past-only history.
+
+    This supports chronology-safe shadow walk-forward evaluation without
+    retraining at every target. zero_feature is a diagnostic coefficient-zero
+    ablation only; it is not a refit-based promotion test.
+    """
+    beta = tuple(float(x) for x in coefficients)
+    if len(beta) != 1 + len(FEATURE_NAMES):
+        raise ValueError("coefficient vector does not match SSQ V2 feature schema")
+    if zero_feature is not None and zero_feature not in FEATURE_NAMES:
+        raise ValueError(f"unknown V2 feature for ablation: {zero_feature}")
+    current = feature_map(history, area, decay)
+    max_n, pick = _meta(area)
+    zero_idx = FEATURE_NAMES.index(zero_feature) if zero_feature is not None else None
+    logits: dict[int, float] = {}
+    for number in range(1, max_n + 1):
+        eta = beta[0]
+        for j in range(len(FEATURE_NAMES)):
+            if zero_idx is not None and j == zero_idx:
+                continue
+            eta += beta[j + 1] * current[number][j]
+        logits[number] = eta
+    return _calibrate_logits_to_pick(logits, pick)
