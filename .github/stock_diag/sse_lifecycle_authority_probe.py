@@ -80,6 +80,35 @@ def fetch_board(output_dir: Path, stock_type: str, board: str) -> tuple[list[dic
     if not isinstance(rows, list) or not rows:
         raise RuntimeError(f"SSE {board} universe is empty")
 
+    page_help = obj.get("pageHelp")
+    if not isinstance(page_help, dict):
+        raise RuntimeError(f"SSE {board} pageHelp missing")
+    try:
+        server_total = int(page_help.get("total"))
+        page_count = int(page_help.get("pageCount"))
+        page_no = int(page_help.get("pageNo"))
+        begin_page = int(page_help.get("beginPage"))
+        end_page = int(page_help.get("endPage"))
+    except Exception as exc:
+        raise RuntimeError(f"SSE {board} invalid pagination metadata") from exc
+    page_data = page_help.get("data")
+    if (
+        server_total != len(rows)
+        or page_count != 1
+        or page_no != 1
+        or begin_page != 1
+        or end_page != 1
+        or not isinstance(page_data, list)
+        or page_data != rows
+    ):
+        raise RuntimeError(
+            f"SSE {board} pagination denominator mismatch: "
+            f"total={server_total} rows={len(rows)} pageCount={page_count} "
+            f"pageNo={page_no} beginPage={begin_page} endPage={end_page}"
+        )
+
+    nums = []
+    seen_codes = set()
     normalized: list[dict] = []
     for idx, row in enumerate(rows):
         if not isinstance(row, dict):
@@ -87,6 +116,13 @@ def fetch_board(output_dir: Path, stock_type: str, board: str) -> tuple[list[dic
         code = str(row.get("A_STOCK_CODE") or "").strip()
         if not CODE.fullmatch(code):
             raise RuntimeError(f"SSE {board} invalid A_STOCK_CODE {code!r}")
+        if code in seen_codes:
+            raise RuntimeError(f"SSE {board} duplicate A_STOCK_CODE {code!r}")
+        seen_codes.add(code)
+        try:
+            nums.append(int(str(row.get("NUM") or "").strip()))
+        except Exception as exc:
+            raise RuntimeError(f"SSE {board} invalid NUM at row {idx}") from exc
         listed = parse_date(row.get("LIST_DATE"), allow_missing=False)
         delisted = parse_date(row.get("DELIST_DATE"), allow_missing=True)
         if delisted is not None and delisted < listed:
@@ -99,6 +135,9 @@ def fetch_board(output_dir: Path, stock_type: str, board: str) -> tuple[list[dic
             "delisting_date": delisted.isoformat() if delisted else None,
         })
 
+    if sorted(nums) != list(range(1, server_total + 1)):
+        raise RuntimeError(f"SSE {board} NUM sequence is not exact 1..{server_total}")
+
     return normalized, {
         "url": UNIVERSE_URL,
         "sql_id": UNIVERSE_SQL_ID,
@@ -108,6 +147,22 @@ def fetch_board(output_dir: Path, stock_type: str, board: str) -> tuple[list[dic
         "raw_sha256": sha256_bytes(raw),
         "retrieved_at_unix": retrieved,
         "row_count": len(normalized),
+        "server_total": server_total,
+        "page_count": page_count,
+        "page_no": page_no,
+        "begin_page": begin_page,
+        "end_page": end_page,
+        "pagehelp_result_identity": True,
+        "num_sequence_complete": True,
+        "unique_code_count": len(seen_codes),
+        "pagination_complete": (
+            server_total == len(normalized)
+            and page_count == 1
+            and page_no == 1
+            and begin_page == 1
+            and end_page == 1
+            and len(seen_codes) == server_total
+        ),
     }
 
 
@@ -225,7 +280,12 @@ def main() -> int:
     source_identity_pass = (
         main_meta["row_count"] > 0
         and star_meta["row_count"] > 0
+        and main_meta.get("pagination_complete") is True
+        and star_meta.get("pagination_complete") is True
+        and main_meta["server_total"] == main_meta["row_count"]
+        and star_meta["server_total"] == star_meta["row_count"]
         and len(lifecycle) == len(by_code)
+        and len(lifecycle) == main_meta["server_total"] + star_meta["server_total"]
     )
     reconstruction_supported = comparable >= 3 and not mismatches
 
@@ -272,7 +332,7 @@ def main() -> int:
             "final_gate": "FAIL",
         },
         "boundary": (
-            "PASS proves a current first-party SSE native universe payload was fetched and preserved, "
+            "PASS proves a current first-party SSE native universe payload was fetched and preserved, its server-declared pagination denominator exactly matched the complete returned rows with continuous NUM identities, "
             "its LIST_DATE/DELIST_DATE rows were deterministically normalized, and the reconstruction "
             "agreed with independent official SSE daily listed-count aggregates on at least three "
             "comparable historical dates with zero mismatches. It does not prove historical PIT "
