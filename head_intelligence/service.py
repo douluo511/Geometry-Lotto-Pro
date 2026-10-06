@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from pathlib import Path
+import sys
 
-from head_intelligence.engine import InformationEngine
+from head_intelligence.engine import APP_VERSION, InformationEngine
+from head_intelligence.software_update import launch_independent_updater
 
 
 class InformationService:
@@ -15,7 +17,11 @@ class InformationService:
         return self.engine.one_click_update().to_dict()
 
     def repair(self) -> dict:
-        return self.engine.health_check()
+        from head_intelligence.repair import repair_data
+        return repair_data(self.engine, main_exe=Path(sys.executable))
+
+    def software_update(self) -> dict:
+        return launch_independent_updater(data_root=self.engine.data_dir, current_version=APP_VERSION)
 
     def current_judgment(self) -> dict | None:
         return self.engine.load_latest_snapshot()

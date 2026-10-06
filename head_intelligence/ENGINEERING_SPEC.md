@@ -40,3 +40,14 @@ Every current-run gate must be explicit PASS: purpose_model, five_why, risk_boun
 
 ## Unique Product
 One version, one EXE, one SHA256, one final report. Behavior-code changes invalidate all previous acceptance.
+
+## Independent software update and repair contracts
+The information refresh remains `InformationService.update()` and `--network-smoke-test`. The GUI software-update button calls `software_update()` and requires the separately built `HeadIntelligence_Updater.exe` plus `HeadIntelligence_Update_Config.json` beside the main EXE. The config schema is `head-intelligence-software-update-config-v1`, with a trusted HTTPS `manifest_url` and explicit `trusted_hosts`. No release config is invented when the independent production repository is unavailable.
+
+The independent process waits for the main process to exit, validates manifest version/hash/size and trusted HTTPS redirects, stages bytes durably, retains an exact backup, replaces atomically, executes a typed new-version main self-test, and rolls back failed replacements. Failed rollback preserves its journal and backup for restart recovery. Offline fixture tests do not satisfy the real release gate.
+
+Repair checks database, index, missing_files, cache, configuration, network_configuration, version and data_integrity. A damaged snapshot pointer is backed up unchanged and restored only from an immutable recovery envelope whose raw source bytes still match. Missing or tampered raw evidence is not fabricated. Local integrity can PASS while real software release configuration remains BLOCKED.
+
+Physical acceptance requires actual mouse clicks, before/after screenshots and per-process backend operations bound to the same GUI run and EXE hash. A `BlockedRelease` GUI result proves the negative update path only and cannot satisfy Final Gate. Production Release N to N+1 validation fetches official GitHub metadata, tag commit and actual main/Updater asset bytes; arbitrary caller-declared PASS checks cannot satisfy the required named evidence.
+
+The Windows 2022 workflow executes each gate through a private process-receipt writer. Receipts must be untracked outputs, bind the checked-out exact head and current GitHub run, and bind actual EXE hashes where relevant. Legacy `.pass` files are not acceptance authority. Repository independence is derived from an executable tracked-file inventory in the dedicated repository; no command-line PASS flag can bypass the shared-repository block.
