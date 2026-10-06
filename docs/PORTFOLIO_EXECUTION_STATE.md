@@ -1188,3 +1188,17 @@ This checkpoint supersedes older in-progress wording for the items below only. I
 - Repository capability re-probe via PR #271 / run `37419494668` found `ACCOUNT_TOKEN_PRESENT=FALSE`, `TOKEN_IDENTITY=NOT VERIFIED`, `REPOSITORY_CREATION=BLOCKED`; target `douluo511/Geometry-Lotto-Pro-SSQ` was not created. Dedicated repositories remain **0/18**; Final/Delivery remain **0/18**.
 - SSE taxonomy diagnostic #251 terminal run `37366817737` / artifact `11392260941`: 667 selected documents, 606 date-required actions, 61 non-new transitions, 0 unclassified; taxonomy/denominator = SUPPORTED_DIAGNOSTIC only, full historical PIT = NOT VERIFIED.
 - BSE suspension semantic diagnostic #244 terminal rerun before parser hardening: 85/85 PDF transport/text PASS; 74 unique transition documents, 11 unresolved (8 no strong transition date, 3 multi-date ambiguous); daily BSE suspension PIT = NOT VERIFIED. Narrow heading-bound parser fix committed as `e458bac4abc4c4fa164e6558bfd221b5389c88cd`; fresh diagnostic run active, with no result pre-promoted.
+
+
+## 2026-10-06 Stock authority advanced to #288 — denominator hardening
+
+- **Current Stock acceptance candidate:** PR #288 exact head `d9de2c4f88f7b7a87c14fdb589ed322606984f2c`, stacked on PR #268 exact head `b24fdb3480b6bcd0af1f6a02584c7bbea7e2b01a`.
+- #288 freezes the previously unfrozen full historical ST/PIT business-completeness denominator with byte-bound market calendars, lifecycle files, expected-key files, raw provenance bindings, deterministic expected-key recomputation, exact canonical key count/SHA equality, PIT/no-future-leakage/source-gap/semantic-ambiguity contracts, and separate runtime required-key coverage.
+- This is an acceptance-behavior change. **No #268/#257 Business/Desktop/Exact-EXE/GUI/Same-Hash evidence is inherited.**
+- Fresh Source/Offline run `37433711397` / job `112170311267` = **SUCCESS** on exact #288 head. Strict NetClient/fault, valuation PIT, historical ST/suspension PIT, Top-N/future-safety, immutable 187-file + full 32-gate Windows offline regression, and real AkShare source integration all PASS.
+- Fresh Full Business run `37433711422` is **IN_PROGRESS** at this checkpoint; pending is not PASS.
+- Fresh Native Windows Desktop run `37433711517` is **IN_PROGRESS** at this checkpoint; pending Exact EXE / Physical GUI / Same Hash are not PASS.
+- Parent #268 exact-head Full Business run `37432457933` is terminal **FAIL** for the truthful fail-closed reason that real `historical_st_pit.json` / full historical ST+suspension PIT evidence is absent. That failure remains evidence of the real-data gap, not a code defect.
+- Issue #278 scoped false-PASS remediation is CLOSED/PASS only for the calendar-binding code path on #268 Source run `37432457782`; it does not promote historical PIT completeness.
+- Stock deterministic migration/export bound to #257 is stale after #268/#288 behavior changes. Current-product migration/export readiness remains **17/18** until a new exact #288-bound export is produced after stabilization.
+- Accessible dedicated repositories remain **0/18**; Repository Independence = FAIL; Final/Delivery = **0/18**.
