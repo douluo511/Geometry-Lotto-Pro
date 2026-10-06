@@ -6,6 +6,7 @@ on:
       - "tools/bootstrap_independent_repo.ps1"
       - "tools/tests/test_bootstrap_integrity.py"
       - ".github/workflows/independent-repo-bootstrap-contract.yml"
+      - ".github/workflows/independent-repo-seed-plan.yml"
   workflow_dispatch:
 
 permissions:
