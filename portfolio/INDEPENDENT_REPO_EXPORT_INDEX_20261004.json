@@ -257,7 +257,7 @@
       "final_gate": "FAIL",
       "source_product_pr": 210,
       "source_product_head": "e53c89e1780390cea559ca71db51f6f4300cc02e",
-      "source_product_status": "POST_MERGE_REVALIDATION_IN_PROGRESS",
+      "source_product_status": "POST_MERGE_SOURCE_AND_FULL_BUSINESS_PASS_DESKTOP_EXACT_HEAD_IN_PROGRESS",
       "export_artifact_id": 11335343870,
       "export_artifact_digest": "sha256:920e575d88eef56a5af90f27ed9a293b8a643a4f330a6b13a73029937a114d8d",
       "source_current_head_evidence": {
@@ -489,7 +489,21 @@
         "historical_daily_suspension_sha256": "0a614254deb282111393b858f9264bb64c05c12a1c3c3eec4abb714d8774fb08",
         "open_sse_intervals_resolved": "PASS_5_OF_5",
         "shanghai_historical_st_pit": "NOT VERIFIED",
-        "full_historical_st_pit": "NOT VERIFIED"
+        "full_historical_st_pit": "NOT VERIFIED",
+        "post_merge_source_run": 37413081791,
+        "post_merge_source_status": "PASS_SOURCE_INTEGRATION_ONLY",
+        "post_merge_source_artifact_id": 11390331181,
+        "post_merge_source_artifact_digest": "sha256:c2266271b6328c0431293137972d114f819b5e42cf8d8096743c7030ac604710",
+        "post_merge_full_business_run": 37413081840,
+        "post_merge_full_business_status": "PASS",
+        "post_merge_full_business_artifact_id": 11391121654,
+        "post_merge_full_business_artifact_digest": "sha256:bbd95fe2c73f84bfbe1b16d281d50083bc5a46d5d79b09bd91b813a20d5caa63",
+        "post_merge_decision": "NO_TRADE",
+        "post_merge_model_trust": "LOW",
+        "post_merge_rank_ic": -0.10357488511079711,
+        "desktop_exact_head_hardening_pr": 262,
+        "desktop_exact_head_run": 37417850096,
+        "desktop_exact_head_status": "IN_PROGRESS"
       },
       "product_tree_byte_identity": "PASS",
       "superseded_export_prs": [
@@ -510,7 +524,7 @@
         "product_head": "f9d610aafe910cb73b036701a688329d9899399b",
         "status": "PASS"
       },
-      "note": "PR #210 merged as e53c89e1780390cea559ca71db51f6f4300cc02e after exact-head source/full-business/native-desktop checks passed on 7f270b9a. Prior export PR #181 is stale because it binds 43168d9e, not the new product head. Post-merge source/full-business revalidation is in progress. Advanced business remains NOT VERIFIED on HISTORICAL_ST_PIT=WARN; production updater/release and repository independence remain BLOCKED; Final FAIL.",
+      "note": "Stock product head is e53c89e1780390cea559ca71db51f6f4300cc02e. Post-merge source and full-business checks are PASS. Desktop exact-head evidence is being repaired via PR #262/run 37417850096; prior pre-merge Desktop evidence is not promoted to the merge head. Export #181 remains stale and current-product binding remains NOT VERIFIED until a new export is verified after exact-head Desktop closure. Historical ST PIT, production updater/release, repository independence and Final remain non-PASS.",
       "exact_head_checkout_required": true,
       "current_windows_run": 37289727787,
       "current_windows_status": "SUCCESS_CANDIDATE_ONLY_FINAL_BLOCKED",
