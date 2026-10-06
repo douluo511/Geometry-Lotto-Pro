@@ -3,11 +3,13 @@ from __future__ import annotations
 import inspect
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 import updater as updater_module
 from glp.delivery import UPDATER_NAME, UpdaterClient
 from glp.gui import NativeApp
+from glp.service import LottoService
 
 
 class RestoredUpdaterContractTests(unittest.TestCase):
@@ -38,6 +40,53 @@ class RestoredUpdaterContractTests(unittest.TestCase):
             prefix = client._command_prefix()
             self.assertGreaterEqual(len(prefix), 2)
             self.assertTrue(prefix[-1].endswith("updater.py"))
+
+    def test_audit_is_observational_and_never_writes_formal_freeze(self) -> None:
+        class FakeStore:
+            def __init__(self) -> None:
+                self._freezes = [object(), object()]
+                self.experiments = []
+
+            def integrity_check(self):
+                return {"status": "PASS"}
+
+            def load_draws(self):
+                return [], "canonical-hash"
+
+            def prospective_replays(self, selector_hash):
+                self.selector_hash = selector_hash
+                return []
+
+            def freezes(self):
+                return list(self._freezes)
+
+            def append_experiment(self, *args):
+                self.experiments.append(args)
+
+        store = FakeStore()
+        service = LottoService(store=store)
+        service.ensure_seed = lambda: None
+
+        court = {
+            "software_verdict": "PASS",
+            "scientific_gate": "PASS",
+            "model_hash": "model-hash",
+            "edge_state": "NO_EDGE",
+            "dan_state": "NULL_DAN",
+        }
+        with patch("glp.service.model_identity", return_value={"selector_hash": "selector"}), \
+             patch("glp.service.run_evidence_court", return_value=court), \
+             patch("glp.service.make_prediction", return_value=(object(), {"trace": "shadow"})), \
+             patch("glp.service.build_ors_record", return_value={"ors": "PASS"}):
+            result = service.audit()
+
+        self.assertFalse(result["formal_freeze_written"])
+        self.assertEqual(result["freeze_before"], 2)
+        self.assertEqual(result["freeze_after"], 2)
+        self.assertEqual(len(store.freezes()), 2)
+        self.assertEqual(result["court"]["edge_state"], "NO_EDGE")
+        self.assertEqual(result["court"]["software_verdict"], "PASS")
+        self.assertEqual(len(store.experiments), 1)
 
 
 if __name__ == "__main__":
