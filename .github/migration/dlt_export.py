@@ -104,6 +104,7 @@ def main() -> int:
 
     manifest = {
         "schema": "dlt-independent-export-v4",
+        "source_repository": "douluo511/Geometry-Lotto-Pro",
         "source_commit": candidate_sha,
         "candidate_head": candidate_sha,
         "export_commit": export_sha,
@@ -123,6 +124,11 @@ def main() -> int:
         json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
+    sums_path = out / "MIGRATION_SHA256SUMS.txt"
+    sums_path.write_text(
+        "".join(f'{row["sha256"]}  {row["path"]}\n' for row in rows),
+        encoding="utf-8",
+    )
     print(
         json.dumps(
             {
@@ -132,6 +138,7 @@ def main() -> int:
                 "export_commit": export_sha,
                 "file_count": len(rows),
                 "manifest_sha256": sha256_file(manifest_path),
+                "sums_sha256": sha256_file(sums_path),
                 "layout": manifest["layout"],
                 "repository_independence": "NOT VERIFIED",
             },
