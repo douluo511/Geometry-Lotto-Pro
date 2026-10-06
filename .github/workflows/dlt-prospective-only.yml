@@ -6,6 +6,7 @@ on:
       - "DLT/src/glp/prospective.py"
       - "DLT/scripts/prospective_snapshot.py"
       - "DLT/tests/test_prospective_protocol.py"
+      - "DLT/tests/test_background_103_compat.py"
       - "DLT/PROSPECTIVE_PROTOCOL.md"
       - ".github/workflows/dlt-prospective-only.yml"
   workflow_dispatch:
@@ -47,10 +48,12 @@ jobs:
       - name: Compile prospective protocol
         run: python -m compileall -q DLT/src/glp/prospective.py DLT/scripts/prospective_snapshot.py
 
-      - name: Prospective protocol regression tests
+      - name: Prospective protocol and 1.0.3 compatibility tests
         env:
           PYTHONPATH: DLT/src
-        run: python -m unittest DLT.tests.test_prospective_protocol -v
+        run: |
+          python -m unittest DLT.tests.test_prospective_protocol -v
+          python -m unittest DLT.tests.test_background_103_compat -v
 
       - name: Checkout persistent evidence ledger
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -88,6 +91,7 @@ jobs:
           assert freeze["promotion_authorized"] is False
           assert freeze["prediction"]["edge_state"] == "NO_EDGE"
           assert freeze["prediction"]["dan_state"] == "NULL_DAN"
+          assert len(freeze["prediction"]["research_dan_front"]) in {1, 2}
           assert status["edge_state"] == "NO_EDGE"
           assert status["dan_state"] == "NULL_DAN"
           assert status["production_rho"] == 0.0
