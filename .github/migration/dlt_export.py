@@ -97,7 +97,7 @@ def main() -> int:
         rows.append(
             {
                 "path": rel.as_posix(),
-                "size": dst.stat().st_size,
+                "bytes": dst.stat().st_size,
                 "sha256": sha256_file(dst),
             }
         )
