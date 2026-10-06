@@ -1,0 +1,20 @@
+[
+  {
+    "id": "toastmasters_public_speaking",
+    "name": "Toastmasters International - Public Speaking Tips",
+    "url": "https://www.toastmasters.org/resources/public-speaking-tips",
+    "role": "speech preparation, practice and delivery reference"
+  },
+  {
+    "id": "purdue_owl_academic_writing",
+    "name": "Purdue OWL - Academic Writing / Public Speaking resources",
+    "url": "https://owl.purdue.edu/owl/general_writing/academic_writing/index.html",
+    "role": "organization, audience and presentation reference"
+  },
+  {
+    "id": "openstax_public_speaking",
+    "name": "OpenStax Writing Guide - Delivery/Public Speaking",
+    "url": "https://openstax.org/books/writing-guide/pages/19-7-spotlight-on-delivery-public-speaking",
+    "role": "voice, gestures, fluency, audience and delivery reference"
+  }
+]

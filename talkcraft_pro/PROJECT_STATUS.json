@@ -1,0 +1,49 @@
+{
+  "project": "TalkCraft Pro",
+  "version": "1.1-reauthored-staging",
+  "measurement_status": "CURRENT_WINDOWS_HARD_GATE_NOT_YET_PROVEN",
+  "engineering_completion_percent": null,
+  "business_completion_percent": null,
+  "overall_completion_percent": null,
+  "engineering_final_gate": "PENDING_STAGING_VALIDATION",
+  "project_final_gate": "BLOCKED_REPOSITORY_INDEPENDENCE",
+  "full_version": false,
+  "provenance": {
+    "source_code_branch": "recover/talkcraft-fullcandidate-20260929",
+    "content_recovery_mode": "REAUTHORED_FROM_RECOVERED_USER_OWNED_SOURCES",
+    "legacy_json_byte_identical_recovery": false,
+    "recovered_prototype": "TalkCraft Pro browser prototype with 10 prompts / 6 mechanisms / 7 scoring dimensions",
+    "recovered_training_documents": [
+      "把人聊到爽_完整版封版_实战执行系统.docx",
+      "把人聊到爽_真正最终完整版_训练执行版.pdf"
+    ]
+  },
+  "current_content": {
+    "drills": 180,
+    "cases": 60,
+    "real_network_sources": 3,
+    "scoring_dimensions": 7,
+    "mechanisms": 6,
+    "content_version": "1.1-reauthored-20260929"
+  },
+  "engineering_present": {
+    "strict_netclient": true,
+    "raw_network_provenance": true,
+    "sqlite_evidence": true,
+    "architecture_gate": true,
+    "business_gate": true,
+    "unit_contract_integration_fault_tests": true,
+    "counterexample_reversal_tests": true,
+    "real_network_gate": true,
+    "windows_workflow": true,
+    "exact_exe_network_gate": true,
+    "physical_gui_binding": true,
+    "same_hash_gate": true,
+    "evidence_derived_final_gate": true
+  },
+  "remaining_hard_blockers": [
+    "Current Windows staging workflow has not yet produced current-version evidence.",
+    "Portfolio Final requires an independent repository; this monorepo staging workflow intentionally sets repository_independence=FAIL."
+  ],
+  "policy": "Do not call this project Final until current Windows evidence passes all technical gates and the same candidate is rerun in an independent repository with repository_independence=PASS."
+}
