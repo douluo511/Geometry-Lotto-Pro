@@ -26,12 +26,23 @@ jobs:
     env:
       PYTHONUTF8: '1'
       PYTHONIOENCODING: 'utf-8'
+      GUOXUE_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
-      - name: Checkout exact commit
-        uses: actions/checkout@v4
+      - name: Checkout exact source head
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ env.GUOXUE_SOURCE_SHA }}
+          fetch-depth: 0
+
+      - name: Exact checkout identity gate
+        shell: pwsh
+        run: |
+          $actual=(& git rev-parse HEAD).Trim()
+          if ($actual -ne $env:GUOXUE_SOURCE_SHA) { throw "checkout mismatch actual=$actual expected=$env:GUOXUE_SOURCE_SHA" }
+          @{schema='guoxue-checkout-identity-v1';status='PASS';github_sha=$env:GUOXUE_SOURCE_SHA;checked_out_sha=$actual} | ConvertTo-Json | Set-Content checkout_identity.json -Encoding utf8
 
       - name: Setup Python x64
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: '3.11.9'
           architecture: 'x64'
@@ -49,10 +60,13 @@ jobs:
         run: python business_gate.py
 
       - name: Source self-test
-        run: python app.py --self-test
+        run: python app.py --self-test --result-file source_self_test.json
 
       - name: Unit Gate
         run: python validation_gate.py --suite unit --output unit_gate.json
+
+      - name: GUI backend evidence counterexamples
+        run: python -m unittest discover -s tests -p test_gui_backend_evidence.py -v
 
       - name: Contract Gate
         run: python validation_gate.py --suite contract --output contract_gate.json
@@ -63,47 +77,90 @@ jobs:
       - name: Integration Gate
         run: python validation_gate.py --suite integration --output integration_gate.json
 
+      - name: Independent Updater integration rollback and restart recovery
+        run: python updater_gate.py --output updater_gate.json
+
+      - name: Repository independence evidence
+        run: python repository_independence_gate.py --repository "${{ github.repository }}" --repo-root ".." --output repository_independence.json
+
       - name: Business Counterexample Reversal Gate
         run: python business_validation_gate.py
 
-      - name: Real Network through production update path
+      - name: Real Network through production knowledge-update path
         run: python real_network_check.py
 
-      - name: Native Windows Build
+      - name: Native Windows main and independent Updater build
         shell: pwsh
         run: |
           pyinstaller --noconfirm --clean --onefile --windowed --name Guoxue_Zhice_Windows_Verified --add-data "data;data" app.py
-          if (-not (Test-Path ".\dist\Guoxue_Zhice_Windows_Verified.exe")) { throw "EXE missing" }
+          if ($LASTEXITCODE -ne 0) { throw "main PyInstaller failed" }
+          pyinstaller --noconfirm --clean --onefile --windowed --name Guoxue_Zhice_Updater updater_entry.py
+          if ($LASTEXITCODE -ne 0) { throw "Updater PyInstaller failed" }
+          if (-not (Test-Path ".\dist\Guoxue_Zhice_Windows_Verified.exe")) { throw "main EXE missing" }
+          if (-not (Test-Path ".\dist\Guoxue_Zhice_Updater.exe")) { throw "Updater EXE missing" }
 
-      - name: Exact Candidate Gate
+      - name: Exact main candidate gate
         run: python exact_candidate_gate.py --exe ".\dist\Guoxue_Zhice_Windows_Verified.exe" --output exact_candidate_gate.json
 
-      - name: Physical GUI Click Smoke
+      - name: Exact Updater EXE self-test
         shell: pwsh
         run: |
-          python ..\.github\scripts\tk_button_points.py --project-path . --module app --entry main --labels "目标推演;一键更新;一键复盘;高级分析" --out ".\gui_points.txt"
+          $selfTestPath = [IO.Path]::GetFullPath("updater_exe_self_test.json")
+          $updaterProcess = Start-Process -FilePath (Resolve-Path ".\dist\Guoxue_Zhice_Updater.exe").Path -ArgumentList @('--self-test', '--evidence-file', ('"{0}"' -f $selfTestPath)) -WindowStyle Hidden -PassThru -Wait
+          if ($updaterProcess.ExitCode -ne 0) { throw "Updater EXE self-test failed: exit=$($updaterProcess.ExitCode)" }
+          if (-not (Test-Path -LiteralPath $selfTestPath)) { throw "Updater EXE self-test evidence missing after process exit" }
+          $self=Get-Content ".\updater_exe_self_test.json" -Raw | ConvertFrom-Json
+          if ($self.status -ne 'PASS') { throw "Updater EXE evidence not PASS" }
+
+      - name: Physical GUI mouse-click acceptance on Exact main EXE
+        shell: pwsh
+        run: |
+          python tk_button_points.py --project-path . --module app --entry main --labels "目标推演;一键更新;一键修复;高级分析" --out ".\gui_points.txt"
           $points=(Get-Content ".\gui_points.txt" -Raw).Trim()
-          ..\.github\scripts\physical_gui_click_smoke.ps1 -ExePath ".\dist\Guoxue_Zhice_Windows_Verified.exe" -Points $points -SettleMs 1200 -EvidencePath ".\physical_gui_click.json"
+          .\physical_gui_click.ps1 -ExePath ".\dist\Guoxue_Zhice_Windows_Verified.exe" -Points $points -ButtonTexts "目标推演;一键更新;一键修复;高级分析" -SettleMs 1200 -EvidencePath ".\physical_gui_click.json"
           python bind_physical_gui.py --exe ".\dist\Guoxue_Zhice_Windows_Verified.exe" --evidence ".\physical_gui_click.json"
 
-      - name: Freeze final bytes
+      - name: Freeze post-GUI exact bytes
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force dist\final | Out-Null
           Copy-Item dist\Guoxue_Zhice_Windows_Verified.exe dist\final\Guoxue_Zhice_Windows_Verified.exe -Force
+          Copy-Item dist\Guoxue_Zhice_Updater.exe dist\final\Guoxue_Zhice_Updater.exe -Force
 
-      - name: Evidence-derived Final Gate and Same Hash
+      - name: Updater Exact EXE and Same Hash gate
         shell: pwsh
         run: |
-          python collect_final_gates.py --exe ".\dist\Guoxue_Zhice_Windows_Verified.exe" --final-exe ".\dist\final\Guoxue_Zhice_Windows_Verified.exe" --physical-gui ".\physical_gui_click.json" --repository-independent FAIL --output ".\mother_gates.json"
+          $source=(Get-FileHash ".\dist\Guoxue_Zhice_Updater.exe" -Algorithm SHA256).Hash.ToLowerInvariant()
+          $final=(Get-FileHash ".\dist\final\Guoxue_Zhice_Updater.exe" -Algorithm SHA256).Hash.ToLowerInvariant()
+          $self=Get-Content ".\updater_exe_self_test.json" -Raw | ConvertFrom-Json
+          if ($source -ne $final -or $self.status -ne 'PASS') { throw "Updater Exact EXE / Same Hash failed" }
+          @{schema='guoxue-updater-windows-gate-v1';status='PASS';github_sha=$env:GUOXUE_SOURCE_SHA;updater_exact_exe='PASS';updater_exe_sha256=$source;final_updater_sha256=$final;same_hash=$true;self_test=$self} | ConvertTo-Json -Depth 8 | Set-Content updater_windows_gate.json -Encoding utf8
+          Get-Content updater_windows_gate.json
+
+      - name: Real independent Release N to N+1 validation
+        shell: pwsh
+        run: |
+          $args=@('software_release_gate.py','--repository','${{ github.repository }}','--source-sha',$env:GUOXUE_SOURCE_SHA,'--output','software_release_validation.json')
+          if (Test-Path 'real_software_update.json') { $args += @('--input','real_software_update.json') }
+          python @args
+          if ($LASTEXITCODE -ne 0) { throw "real software release evidence is malformed or false" }
+
+      - name: Final Artifact evidence
+        shell: pwsh
+        run: |
+          python final_artifact_gate.py --main-exe ".\dist\Guoxue_Zhice_Windows_Verified.exe" --final-main-exe ".\dist\final\Guoxue_Zhice_Windows_Verified.exe" --updater-exe ".\dist\Guoxue_Zhice_Updater.exe" --final-updater-exe ".\dist\final\Guoxue_Zhice_Updater.exe" --exact-evidence ".\exact_candidate_gate.json" --physical-gui ".\physical_gui_click.json" --updater-windows ".\updater_windows_gate.json" --repository-evidence ".\repository_independence.json" --software-release-evidence ".\software_release_validation.json" --output ".\FINAL_ARTIFACT.json"
+          if ($LASTEXITCODE -ne 0) { throw "final artifact evidence invalid" }
+
+      - name: Evidence-derived Final Gate
+        shell: pwsh
+        run: |
+          python collect_final_gates.py --exe ".\dist\Guoxue_Zhice_Windows_Verified.exe" --final-exe ".\dist\final\Guoxue_Zhice_Windows_Verified.exe" --physical-gui ".\physical_gui_click.json" --updater-gate ".\updater_gate.json" --updater-windows ".\updater_windows_gate.json" --repository-evidence ".\repository_independence.json" --software-release-evidence ".\software_release_validation.json" --final-artifact-evidence ".\FINAL_ARTIFACT.json" --output ".\mother_gates.json"
           $collectorExit=$LASTEXITCODE
           python release_gate.py --input ".\mother_gates.json" --output ".\final_gate.json"
           $releaseExit=$LASTEXITCODE
           $mother=Get-Content ".\mother_gates.json" -Raw | ConvertFrom-Json
           $final=Get-Content ".\final_gate.json" -Raw | ConvertFrom-Json
-          if ($collectorExit -ne 0 -or $releaseExit -ne 0 -or $mother.status -ne 'PASS' -or $final.final_gate -ne 'PASS' -or [int]$final.hard_fail_count -ne 0) {
-            throw "Final Gate blocked: independent repository is mandatory"
-          }
+          if ($collectorExit -ne 0 -or $releaseExit -ne 0 -or $mother.status -ne 'PASS' -or $final.final_gate -ne 'PASS' -or [int]$final.hard_fail_count -ne 0) { throw "Final Gate not PASS" }
           Write-Host "GUOXUE_FINAL_SHA256=$($mother.exe_sha256)"
           Write-Host "FINAL_RELEASE_GATE=PASS"
 
@@ -111,42 +168,47 @@ jobs:
         shell: pwsh
         run: |
           $mother=Get-Content ".\mother_gates.json" -Raw | ConvertFrom-Json
-          @{
-            project='Guoxue Zhice'
-            version='0.2.0'
-            artifact='Guoxue_Zhice_Windows_Verified.exe'
-            sha256=$mother.exe_sha256
-            source_commit=$env:GITHUB_SHA
-            final_gate='PASS'
-            hard_fail_count=$mother.hard_fail_count
-          } | ConvertTo-Json | Set-Content FINAL_ACCEPTANCE.json -Encoding utf8
+          $updater=Get-Content ".\updater_windows_gate.json" -Raw | ConvertFrom-Json
+          @{project='Guoxue Zhice';version='0.2.0';artifact='Guoxue_Zhice_Windows_Verified.exe';sha256=$mother.exe_sha256;updater_artifact='Guoxue_Zhice_Updater.exe';updater_sha256=$updater.updater_exe_sha256;source_commit=$env:GUOXUE_SOURCE_SHA;final_gate='PASS';hard_fail_count=$mother.hard_fail_count} | ConvertTo-Json | Set-Content FINAL_ACCEPTANCE.json -Encoding utf8
 
       - name: Upload Unique Final Product
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: Guoxue_Zhice_FINAL_v0.2.0
-          path: guoxue-zhice/dist/final/Guoxue_Zhice_Windows_Verified.exe
+          path: |
+            guoxue-zhice/dist/final/Guoxue_Zhice_Windows_Verified.exe
+            guoxue-zhice/dist/final/Guoxue_Zhice_Updater.exe
+            guoxue-zhice/FINAL_ACCEPTANCE.json
           if-no-files-found: error
           retention-days: 30
           compression-level: 0
 
       - name: Upload Audit Evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: Guoxue_Zhice_AUDIT_v0.2.0
           path: |
+            guoxue-zhice/checkout_identity.json
             guoxue-zhice/architecture_gate.json
             guoxue-zhice/business_gate.json
+            guoxue-zhice/source_self_test.json
             guoxue-zhice/unit_gate.json
             guoxue-zhice/contract_gate.json
             guoxue-zhice/fault_gate.json
             guoxue-zhice/integration_gate.json
+            guoxue-zhice/updater_gate.json
+            guoxue-zhice/repository_independence.json
             guoxue-zhice/business_validation_gate.json
             guoxue-zhice/real_network_evidence.json
             guoxue-zhice/exact_candidate_gate.json
+            guoxue-zhice/updater_exe_self_test.json
             guoxue-zhice/physical_gui_click.json
+            guoxue-zhice/gui-audit-*.json
+            guoxue-zhice/updater_windows_gate.json
+            guoxue-zhice/software_release_validation.json
+            guoxue-zhice/FINAL_ARTIFACT.json
             guoxue-zhice/mother_gates.json
             guoxue-zhice/final_gate.json
             guoxue-zhice/FINAL_ACCEPTANCE.json
-          if-no-files-found: error
+          if-no-files-found: warn

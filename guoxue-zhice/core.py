@@ -103,22 +103,59 @@ class Store:
             root = Path(appdata) / "GuoxueZhice" if appdata else Path.home() / ".guoxue-zhice"
         self.root = Path(root)
         self.data_dir = self.root / "data"
+        self.recovery_dir = self.root / "recovery"
         self.knowledge_path = self.data_dir / "knowledge.json"
         self.state_path = self.root / "state.json"
+        self.config_path = self.root / "config.json"
+        self.cache_path = self.root / "cache.json"
+        self.index_path = self.root / "index.json"
         self.evidence_path = self.root / "network_evidence.json"
         self.data_dir.mkdir(parents=True, exist_ok=True)
+        self.recovery_dir.mkdir(parents=True, exist_ok=True)
         self._ensure_seed()
+
+    @staticmethod
+    def _default_state() -> dict[str, Any]:
+        return {"schema": 1, "analyses": [], "reviews": [], "last_update": None}
+
+    @staticmethod
+    def _default_config() -> dict[str, Any]:
+        return {
+            "schema": 1,
+            "app_version": APP_VERSION,
+            "network_policy": "https-only",
+            "max_reviews": 200,
+            "max_analyses": 100,
+        }
+
+    @staticmethod
+    def _default_cache() -> dict[str, Any]:
+        return {"schema": 1, "entries": {}}
+
+    @staticmethod
+    def _knowledge_sha256(value: dict[str, Any]) -> str:
+        raw = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        return hashlib.sha256(raw).hexdigest()
+
+    @classmethod
+    def _index_value(cls, knowledge: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "schema": 1,
+            "knowledge_sha256": cls._knowledge_sha256(knowledge),
+            "titles": sorted(str(row["title"]) for row in knowledge["classics"]),
+        }
 
     def _ensure_seed(self) -> None:
         if not self.knowledge_path.exists():
             shutil.copy2(bundled_path("data", "knowledge.json"), self.knowledge_path)
         if not self.state_path.exists():
-            atomic_json(self.state_path, {
-                "schema": 1,
-                "analyses": [],
-                "reviews": [],
-                "last_update": None,
-            })
+            atomic_json(self.state_path, self._default_state())
+        if not self.config_path.exists():
+            atomic_json(self.config_path, self._default_config())
+        if not self.cache_path.exists():
+            atomic_json(self.cache_path, self._default_cache())
+        if not self.index_path.exists():
+            atomic_json(self.index_path, self._index_value(self.load_knowledge()))
 
     def load_knowledge(self) -> dict[str, Any]:
         return validate_knowledge(json.loads(self.knowledge_path.read_text(encoding="utf-8")))
@@ -130,10 +167,51 @@ class Store:
         value.setdefault("analyses", [])
         value.setdefault("reviews", [])
         value.setdefault("last_update", None)
+        if not isinstance(value["analyses"], list) or not isinstance(value["reviews"], list):
+            raise ValueError("state collections invalid")
+        return value
+
+    def load_config(self) -> dict[str, Any]:
+        value = json.loads(self.config_path.read_text(encoding="utf-8"))
+        if not isinstance(value, dict) or value.get("schema") != 1:
+            raise ValueError("config schema mismatch")
+        if value.get("app_version") != APP_VERSION:
+            raise ValueError(f"config version mismatch: {value.get('app_version')!r} != {APP_VERSION!r}")
+        if value.get("network_policy") != "https-only":
+            raise ValueError("network policy must be https-only")
+        return value
+
+    def load_cache(self) -> dict[str, Any]:
+        value = json.loads(self.cache_path.read_text(encoding="utf-8"))
+        if not isinstance(value, dict) or value.get("schema") != 1 or not isinstance(value.get("entries"), dict):
+            raise ValueError("cache schema mismatch")
+        return value
+
+    def load_index(self) -> dict[str, Any]:
+        value = json.loads(self.index_path.read_text(encoding="utf-8"))
+        if not isinstance(value, dict) or value.get("schema") != 1 or not isinstance(value.get("titles"), list):
+            raise ValueError("index schema mismatch")
+        expected = self._index_value(self.load_knowledge())
+        if value.get("knowledge_sha256") != expected["knowledge_sha256"] or value.get("titles") != expected["titles"]:
+            raise ValueError("index does not match current knowledge")
         return value
 
     def save_state(self, value: dict[str, Any]) -> None:
         atomic_json(self.state_path, value)
+
+    def rebuild_index(self) -> dict[str, Any]:
+        value = self._index_value(self.load_knowledge())
+        atomic_json(self.index_path, value)
+        return value
+
+    def backup_for_recovery(self, path: Path, label: str) -> str | None:
+        path = Path(path)
+        if not path.exists():
+            return None
+        stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        backup = self.recovery_dir / f"{label}-{stamp}-{hashlib.sha256(path.read_bytes()).hexdigest()[:12]}.bin"
+        shutil.copy2(path, backup)
+        return str(backup)
 
     @staticmethod
     def _stage_bytes(path: Path, data: bytes) -> Path:
@@ -166,11 +244,13 @@ class Store:
         knowledge_bytes = raw
         state_bytes = (json.dumps(state, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
         evidence_bytes = (json.dumps(evidence, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+        index_bytes = (json.dumps(self._index_value(value), ensure_ascii=False, indent=2) + "\n").encode("utf-8")
 
         old = {
             self.knowledge_path: self.knowledge_path.read_bytes() if self.knowledge_path.exists() else None,
             self.state_path: self.state_path.read_bytes() if self.state_path.exists() else None,
             self.evidence_path: self.evidence_path.read_bytes() if self.evidence_path.exists() else None,
+            self.index_path: self.index_path.read_bytes() if self.index_path.exists() else None,
         }
         staged: dict[Path, Path] = {}
         committed: list[Path] = []
@@ -178,13 +258,15 @@ class Store:
             staged[self.knowledge_path] = self._stage_bytes(self.knowledge_path, knowledge_bytes)
             staged[self.state_path] = self._stage_bytes(self.state_path, state_bytes)
             staged[self.evidence_path] = self._stage_bytes(self.evidence_path, evidence_bytes)
+            staged[self.index_path] = self._stage_bytes(self.index_path, index_bytes)
 
-            for target in (self.evidence_path, self.state_path, self.knowledge_path):
+            for target in (self.evidence_path, self.state_path, self.knowledge_path, self.index_path):
                 os.replace(staged.pop(target), target)
                 committed.append(target)
 
             self.load_knowledge()
             self.load_state()
+            self.load_index()
             reloaded = json.loads(self.evidence_path.read_text(encoding="utf-8"))
             if reloaded.get("status") != "PASS" or reloaded.get("knowledge_sha256") != evidence.get("knowledge_sha256"):
                 raise ValueError("network evidence post-write verification failed")
@@ -451,30 +533,94 @@ class MaintenanceEngine:
         }
 
     def one_click_repair(self) -> dict[str, Any]:
-        checks = []
+        """Repair the frozen local denominator without silently deleting user bytes.
+
+        Corrupt user/state/config files are copied to recovery/ before replacement.
+        Cache and index are derived data and can be rebuilt.  The final PASS is
+        emitted only after every repaired component is reloaded and cross-checked.
+        """
+        checks: list[tuple[str, str, str]] = []
+        backups: list[str] = []
+
+        def preserve(path: Path, label: str) -> None:
+            saved = self.store.backup_for_recovery(path, label)
+            if saved:
+                backups.append(saved)
+
+        # Missing/corrupt knowledge + data integrity.
         try:
             kb = self.store.load_knowledge()
             checks.append(("Knowledge DB", "PASS", f'{len(kb["classics"])} classics'))
         except Exception as exc:
+            preserve(self.store.knowledge_path, "knowledge")
             shutil.copy2(bundled_path("data", "knowledge.json"), self.store.knowledge_path)
             kb = self.store.load_knowledge()
-            checks.append(("Knowledge DB", "REPAIRED", str(exc)))
+            checks.append(("Knowledge DB", "REPAIRED", f"{type(exc).__name__}: {exc}"))
 
+        # State DB holds user analyses/reviews.  Preserve corrupt bytes before reset.
         try:
             state = self.store.load_state()
             checks.append(("State DB", "PASS", f'{len(state["reviews"])} reviews'))
         except Exception as exc:
-            atomic_json(self.store.state_path, {"schema": 1, "analyses": [], "reviews": [], "last_update": None})
-            checks.append(("State DB", "REPAIRED", str(exc)))
-
-        try:
-            self.store.load_knowledge()
+            preserve(self.store.state_path, "state")
+            atomic_json(self.store.state_path, self.store._default_state())
             self.store.load_state()
+            checks.append(("State DB", "REPAIRED", f"{type(exc).__name__}: {exc}"))
+
+        # Configuration covers schema, app version and HTTPS-only network policy.
+        try:
+            self.store.load_config()
+            checks.append(("Configuration", "PASS", f"v{APP_VERSION} / https-only"))
+        except Exception as exc:
+            preserve(self.store.config_path, "config")
+            atomic_json(self.store.config_path, self.store._default_config())
+            self.store.load_config()
+            checks.append(("Configuration", "REPAIRED", f"{type(exc).__name__}: {exc}"))
+
+        # Cache is derived and can be safely reset.
+        try:
+            cache = self.store.load_cache()
+            checks.append(("Cache", "PASS", f'{len(cache["entries"])} entries'))
+        except Exception as exc:
+            atomic_json(self.store.cache_path, self.store._default_cache())
+            self.store.load_cache()
+            checks.append(("Cache", "REPAIRED", f"{type(exc).__name__}: {exc}"))
+
+        # Index must be bound to the current validated knowledge hash.
+        try:
+            index = self.store.load_index()
+            checks.append(("Index", "PASS", f'{len(index["titles"])} titles'))
+        except Exception as exc:
+            self.store.rebuild_index()
+            self.store.load_index()
+            checks.append(("Index", "REPAIRED", f"{type(exc).__name__}: {exc}"))
+
+        # Final reverse check: every local persistence surface must be valid after repair.
+        try:
+            kb = self.store.load_knowledge()
+            state = self.store.load_state()
+            config = self.store.load_config()
+            cache = self.store.load_cache()
+            index = self.store.load_index()
+            expected_index = self.store._index_value(kb)
+            if index.get("knowledge_sha256") != expected_index["knowledge_sha256"]:
+                raise ValueError("post-repair index hash mismatch")
+            if config.get("network_policy") != "https-only" or config.get("app_version") != APP_VERSION:
+                raise ValueError("post-repair config/network/version mismatch")
+            if not isinstance(state.get("reviews"), list) or not isinstance(cache.get("entries"), dict):
+                raise ValueError("post-repair state/cache contract mismatch")
+            checks.append(("Final Self-Check", "PASS", expected_index["knowledge_sha256"]))
             final = "PASS"
         except Exception as exc:
-            checks.append(("Final Gate", "FAIL", str(exc)))
+            checks.append(("Final Self-Check", "FAIL", f"{type(exc).__name__}: {exc}"))
             final = "FAIL"
-        return {"status": final, "checks": checks}
+
+        return {
+            "status": final,
+            "checks": checks,
+            "recovery_backups": backups,
+            "user_data_preservation": "PASS" if final == "PASS" else "NOT VERIFIED",
+        }
 
 
 def self_test(root: Path | None = None) -> dict[str, Any]:
