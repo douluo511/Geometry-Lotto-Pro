@@ -1,0 +1,132 @@
+{
+  "behavior_files": {
+    "scripts/prospective_snapshot.py": "c43ce2550e00d75837140930ccdbad90d55161f0468cdd8d9cbd36cea01471e3",
+    "src/glp/background.py": "27517332ca6af19b8baac84c6ec27e00e0c07881f36e48c7bba12760785f5e1e",
+    "src/glp/constants.py": "252fe89b384659c53101ddd721cd664831b8a0ebb9193483728b9512bfede59b",
+    "src/glp/domain.py": "b989ad377be2e30374cf51dd2bf57e32a5f888264acfd77ae80183f11cc556c7",
+    "src/glp/engine.py": "edc5b5cb35433395625f00ade472ebd258daf586b99732c59b209ce94704d75a",
+    "src/glp/evidence.py": "e8745a8918dac607590ea7c2bba5c56f77303202dedc70079ca610bc838a2fd9",
+    "src/glp/net_client.py": "f89809a03207d5609aa2c525c7629d568fa1f859c126406b093ec5365542531d",
+    "src/glp/prospective.py": "86973650befbd7f352035d543e70dbe7dbf0daa748109554263d6597db7d0cc3",
+    "src/glp/service.py": "72659a70a6f0a5f10a2ae7a238515de3e93f4177c6f7062c41ae389b7ed182dc",
+    "src/glp/sources.py": "aa3a63f5ea47f800b2f10f081a2fc66a9dbb6478ef7d5014f719c62862dc109f",
+    "src/glp/storage.py": "226feeeedc035785e1d4ef8b6fc95796ec85f31f3f185187358305170d0b1c25",
+    "src/glp/util.py": "f07839a3b186632f8407c0baaff97c71142af8142a2bb22046d96bccbe3699c4",
+    "src/main.py": "a29bd4eaeb960036c536cd7c8394383da570a0af526f74ad1ba82e77f0c69732"
+  },
+  "behavior_hash": "a3482920f78064d896898ef37b588ed5f6d44cfbfbf0b3f6caaf44dc9a99859c",
+  "cohort_id": "7663ebcabe8df06a25f77933",
+  "created_at": "2026-10-06T09:36:29Z",
+  "initial_source_commit": "852e4c27269aed85f47c7ae27995152ca64d1ac9",
+  "model_hash": "4bf5572e27f5542e21bee9b58f894b6e6db7b7a5fd6922996be5ad77bf836caf",
+  "production_dan_state": "NULL_DAN",
+  "production_edge_state": "NO_EDGE",
+  "production_rho": 0.0,
+  "promotion_authorized": false,
+  "protocol_hash": "8ac067f9bc41b11260c76cb0309c19f709c87d92cb3f20818051d2eefdd40a41",
+  "protocol_spec": {
+    "behavior_files": {
+      "scripts/prospective_snapshot.py": "c43ce2550e00d75837140930ccdbad90d55161f0468cdd8d9cbd36cea01471e3",
+      "src/glp/background.py": "27517332ca6af19b8baac84c6ec27e00e0c07881f36e48c7bba12760785f5e1e",
+      "src/glp/constants.py": "252fe89b384659c53101ddd721cd664831b8a0ebb9193483728b9512bfede59b",
+      "src/glp/domain.py": "b989ad377be2e30374cf51dd2bf57e32a5f888264acfd77ae80183f11cc556c7",
+      "src/glp/engine.py": "edc5b5cb35433395625f00ade472ebd258daf586b99732c59b209ce94704d75a",
+      "src/glp/evidence.py": "e8745a8918dac607590ea7c2bba5c56f77303202dedc70079ca610bc838a2fd9",
+      "src/glp/net_client.py": "f89809a03207d5609aa2c525c7629d568fa1f859c126406b093ec5365542531d",
+      "src/glp/prospective.py": "86973650befbd7f352035d543e70dbe7dbf0daa748109554263d6597db7d0cc3",
+      "src/glp/service.py": "72659a70a6f0a5f10a2ae7a238515de3e93f4177c6f7062c41ae389b7ed182dc",
+      "src/glp/sources.py": "aa3a63f5ea47f800b2f10f081a2fc66a9dbb6478ef7d5014f719c62862dc109f",
+      "src/glp/storage.py": "226feeeedc035785e1d4ef8b6fc95796ec85f31f3f185187358305170d0b1c25",
+      "src/glp/util.py": "f07839a3b186632f8407c0baaff97c71142af8142a2bb22046d96bccbe3699c4",
+      "src/main.py": "a29bd4eaeb960036c536cd7c8394383da570a0af526f74ad1ba82e77f0c69732"
+    },
+    "behavior_hash": "a3482920f78064d896898ef37b588ed5f6d44cfbfbf0b3f6caaf44dc9a99859c",
+    "model_hash": "4bf5572e27f5542e21bee9b58f894b6e6db7b7a5fd6922996be5ad77bf836caf",
+    "model_spec": {
+      "base_models": [
+        "simple_frequency",
+        "recency",
+        "gap",
+        "transition",
+        "pair_graph",
+        "geometry_state",
+        "geometry_transition"
+      ],
+      "complete_space_weights": {
+        "geometry_fit": 0.16,
+        "pair_fit": 0.025
+      },
+      "ensemble_weights": {
+        "gap": 0.1,
+        "geometry_state": 0.17,
+        "geometry_transition": 0.18,
+        "pair_graph": 0.1,
+        "recency": 0.12,
+        "simple_frequency": 0.18,
+        "transition": 0.15
+      },
+      "geometry": "state+cross-draw-transition",
+      "model_version": "dlt-research-v2.1-geometry",
+      "selector_version": "dan-firewall-v2.1.2-scientific-gate"
+    },
+    "promotion_policy": {
+      "ablation_points": 240,
+      "alpha": 0.05,
+      "bootstrap_rounds": 800,
+      "dan_min_coverage": 0.6,
+      "dan_min_lift": 0.01,
+      "dan_min_rank_support": 0.6,
+      "dan_seed_jitter": 0.05,
+      "dan_wilson_z": 1.959963984540054,
+      "loeo_bootstrap_rounds": 300,
+      "loeo_permutation_rounds": 500,
+      "max_null_world_fpr": 0.1,
+      "min_back_recall_gain": 0.0,
+      "min_bootstrap_lower": 0.0,
+      "min_era_count": 3,
+      "min_front_recall_gain": 0.0,
+      "min_history": 600,
+      "min_prospective_replays": 30,
+      "min_validated_components": 1,
+      "null_worlds": 100,
+      "permutation_rounds": 1200,
+      "protocol_version": "false-edge-firewall-v2.1.2",
+      "research_dan_back_count": 1,
+      "research_dan_front_count": 2,
+      "seeds": [
+        17,
+        29,
+        43,
+        71,
+        97
+      ],
+      "synthetic_null_draws": 300,
+      "synthetic_null_max_false_edges": 0,
+      "synthetic_null_test_points": 60,
+      "synthetic_null_worlds": 6,
+      "untouched_holdout": 120,
+      "walk_forward_points": 720,
+      "windows": [
+        120,
+        240,
+        360
+      ]
+    },
+    "protocol_version": "dlt-prospective-only-v2-behavior-identity",
+    "qualification": {
+      "areas": [
+        "front",
+        "back"
+      ],
+      "baseline": "same-target deterministic uniform random rankings",
+      "bootstrap_lower_must_exceed": 0.0,
+      "minimum_valid_replays": 30,
+      "permutation_alpha": 0.05,
+      "split_half_required": true
+    },
+    "selector_hash": "02418652a27b2e9d15362abc3141fddc47ba0e48f3d4eeaf0884fe5e7b47bf92"
+  },
+  "schema": "dlt-prospective-cohort-v2",
+  "selector_hash": "02418652a27b2e9d15362abc3141fddc47ba0e48f3d4eeaf0884fe5e7b47bf92",
+  "status": "ACTIVE"
+}

@@ -1,6 +1,6 @@
 {
-  "activated_at": "2026-10-06T09:21:01Z",
-  "active_cohort_id": "9ccb07fb090247a11c71102f",
+  "activated_at": "2026-10-06T09:36:29Z",
+  "active_cohort_id": "7663ebcabe8df06a25f77933",
   "cohort_history": [
     {
       "cohort_id": "1eaec00e5631bb9e67514cc3",
@@ -25,9 +25,15 @@
       "ended_at": "2026-10-06T09:21:01Z",
       "reason": "PROTOCOL_IDENTITY_CHANGED",
       "replacement_cohort_id": "9ccb07fb090247a11c71102f"
+    },
+    {
+      "cohort_id": "9ccb07fb090247a11c71102f",
+      "ended_at": "2026-10-06T09:36:29Z",
+      "reason": "PROTOCOL_IDENTITY_CHANGED",
+      "replacement_cohort_id": "7663ebcabe8df06a25f77933"
     }
   ],
   "created_at": "2026-10-06T06:33:33Z",
-  "reset_count": 4,
+  "reset_count": 5,
   "schema": "dlt-prospective-index-v1"
 }

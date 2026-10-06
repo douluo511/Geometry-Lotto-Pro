@@ -1,5 +1,5 @@
 {
-  "behavior_hash": "43216f196c8cae2f372f2e9c004d6b95b15370439252ef616aeacedef6cfe633",
+  "behavior_hash": "a3482920f78064d896898ef37b588ed5f6d44cfbfbf0b3f6caaf44dc9a99859c",
   "cohort": {
     "behavior_files": {
       "scripts/prospective_snapshot.py": "c43ce2550e00d75837140930ccdbad90d55161f0468cdd8d9cbd36cea01471e3",
@@ -9,22 +9,23 @@
       "src/glp/engine.py": "edc5b5cb35433395625f00ade472ebd258daf586b99732c59b209ce94704d75a",
       "src/glp/evidence.py": "e8745a8918dac607590ea7c2bba5c56f77303202dedc70079ca610bc838a2fd9",
       "src/glp/net_client.py": "f89809a03207d5609aa2c525c7629d568fa1f859c126406b093ec5365542531d",
-      "src/glp/prospective.py": "ce4f3acf9f699a59fe028c9d07182908edb454f903e2423ffa32d87972631838",
+      "src/glp/prospective.py": "86973650befbd7f352035d543e70dbe7dbf0daa748109554263d6597db7d0cc3",
+      "src/glp/service.py": "72659a70a6f0a5f10a2ae7a238515de3e93f4177c6f7062c41ae389b7ed182dc",
       "src/glp/sources.py": "aa3a63f5ea47f800b2f10f081a2fc66a9dbb6478ef7d5014f719c62862dc109f",
       "src/glp/storage.py": "226feeeedc035785e1d4ef8b6fc95796ec85f31f3f185187358305170d0b1c25",
       "src/glp/util.py": "f07839a3b186632f8407c0baaff97c71142af8142a2bb22046d96bccbe3699c4",
       "src/main.py": "a29bd4eaeb960036c536cd7c8394383da570a0af526f74ad1ba82e77f0c69732"
     },
-    "behavior_hash": "43216f196c8cae2f372f2e9c004d6b95b15370439252ef616aeacedef6cfe633",
-    "cohort_id": "9ccb07fb090247a11c71102f",
-    "created_at": "2026-10-06T09:21:01Z",
-    "initial_source_commit": "83e5fb21754dd14ae3e79e5d3abd76a755e0a25d",
+    "behavior_hash": "a3482920f78064d896898ef37b588ed5f6d44cfbfbf0b3f6caaf44dc9a99859c",
+    "cohort_id": "7663ebcabe8df06a25f77933",
+    "created_at": "2026-10-06T09:36:29Z",
+    "initial_source_commit": "852e4c27269aed85f47c7ae27995152ca64d1ac9",
     "model_hash": "4bf5572e27f5542e21bee9b58f894b6e6db7b7a5fd6922996be5ad77bf836caf",
     "production_dan_state": "NULL_DAN",
     "production_edge_state": "NO_EDGE",
     "production_rho": 0.0,
     "promotion_authorized": false,
-    "protocol_hash": "7ab7563a73c005ed129d22d2f2a3b543086b2a4f0a5619569c338bc81cefe449",
+    "protocol_hash": "8ac067f9bc41b11260c76cb0309c19f709c87d92cb3f20818051d2eefdd40a41",
     "protocol_spec": {
       "behavior_files": {
         "scripts/prospective_snapshot.py": "c43ce2550e00d75837140930ccdbad90d55161f0468cdd8d9cbd36cea01471e3",
@@ -34,13 +35,14 @@
         "src/glp/engine.py": "edc5b5cb35433395625f00ade472ebd258daf586b99732c59b209ce94704d75a",
         "src/glp/evidence.py": "e8745a8918dac607590ea7c2bba5c56f77303202dedc70079ca610bc838a2fd9",
         "src/glp/net_client.py": "f89809a03207d5609aa2c525c7629d568fa1f859c126406b093ec5365542531d",
-        "src/glp/prospective.py": "ce4f3acf9f699a59fe028c9d07182908edb454f903e2423ffa32d87972631838",
+        "src/glp/prospective.py": "86973650befbd7f352035d543e70dbe7dbf0daa748109554263d6597db7d0cc3",
+        "src/glp/service.py": "72659a70a6f0a5f10a2ae7a238515de3e93f4177c6f7062c41ae389b7ed182dc",
         "src/glp/sources.py": "aa3a63f5ea47f800b2f10f081a2fc66a9dbb6478ef7d5014f719c62862dc109f",
         "src/glp/storage.py": "226feeeedc035785e1d4ef8b6fc95796ec85f31f3f185187358305170d0b1c25",
         "src/glp/util.py": "f07839a3b186632f8407c0baaff97c71142af8142a2bb22046d96bccbe3699c4",
         "src/main.py": "a29bd4eaeb960036c536cd7c8394383da570a0af526f74ad1ba82e77f0c69732"
       },
-      "behavior_hash": "43216f196c8cae2f372f2e9c004d6b95b15370439252ef616aeacedef6cfe633",
+      "behavior_hash": "a3482920f78064d896898ef37b588ed5f6d44cfbfbf0b3f6caaf44dc9a99859c",
       "model_hash": "4bf5572e27f5542e21bee9b58f894b6e6db7b7a5fd6922996be5ad77bf836caf",
       "model_spec": {
         "base_models": [
@@ -130,8 +132,8 @@
     "selector_hash": "02418652a27b2e9d15362abc3141fddc47ba0e48f3d4eeaf0884fe5e7b47bf92",
     "status": "ACTIVE"
   },
-  "created_at": "2026-10-06T09:21:03Z",
-  "cycle_source_commit": "83e5fb21754dd14ae3e79e5d3abd76a755e0a25d",
+  "created_at": "2026-10-06T09:36:31Z",
+  "cycle_source_commit": "852e4c27269aed85f47c7ae27995152ca64d1ac9",
   "effect_trace": {
     "complete_space": {
       "back": 66,
@@ -150,7 +152,7 @@
   },
   "freeze": {
     "canonical_hash": "09b35cf15eee8ebdf8223bd49769ec18bec5abb24a6b5cb93cf6f727f471c133",
-    "cohort_id": "9ccb07fb090247a11c71102f",
+    "cohort_id": "7663ebcabe8df06a25f77933",
     "latest_observed_issue": "26113",
     "prediction": {
       "back": [
@@ -172,10 +174,10 @@
         6
       ],
       "canonical_hash": "09b35cf15eee8ebdf8223bd49769ec18bec5abb24a6b5cb93cf6f727f471c133",
-      "created_at": "2026-10-06T09:21:03Z",
+      "created_at": "2026-10-06T09:36:31Z",
       "dan_state": "NULL_DAN",
       "edge_state": "NO_EDGE",
-      "freeze_hash": "29cd85699ddbab7a85efd28c338db40f0f70a563ec87601dbc2b75d13d58cc8c",
+      "freeze_hash": "ddede7a7a59f38c2cfe0ece8ff7072271aa92932c7c25b323ff085b284a1b3e9",
       "front": [
         3,
         9,
@@ -237,12 +239,12 @@
     },
     "production_rho": 0.0,
     "promotion_authorized": false,
-    "protocol_hash": "7ab7563a73c005ed129d22d2f2a3b543086b2a4f0a5619569c338bc81cefe449",
-    "record_hash": "e8c9601a30a14efcc6f606844a44b28125d95fc94dc58618b984e754c823b4a7",
-    "registered_at": "2026-10-06T09:21:03Z",
+    "protocol_hash": "8ac067f9bc41b11260c76cb0309c19f709c87d92cb3f20818051d2eefdd40a41",
+    "record_hash": "c022cf7397bab3d9f86ef7064ebd1480284602dcb699cdb363394b0c1614aa9c",
+    "registered_at": "2026-10-06T09:36:31Z",
     "research_only": true,
     "schema": "dlt-prospective-freeze-v1",
-    "source_commit": "83e5fb21754dd14ae3e79e5d3abd76a755e0a25d",
+    "source_commit": "852e4c27269aed85f47c7ae27995152ca64d1ac9",
     "target_date": "2026-10-07",
     "target_issue": "26114"
   },
@@ -261,20 +263,20 @@
   "promotion_authorized": false,
   "schema": "dlt-prospective-cycle-v1",
   "status": {
-    "behavior_hash": "43216f196c8cae2f372f2e9c004d6b95b15370439252ef616aeacedef6cfe633",
-    "cohort_id": "9ccb07fb090247a11c71102f",
-    "created_at": "2026-10-06T09:21:03Z",
+    "behavior_hash": "a3482920f78064d896898ef37b588ed5f6d44cfbfbf0b3f6caaf44dc9a99859c",
+    "cohort_id": "7663ebcabe8df06a25f77933",
+    "created_at": "2026-10-06T09:36:31Z",
     "dan_state": "NULL_DAN",
     "edge_state": "NO_EDGE",
     "freeze_count": 1,
-    "initial_source_commit": "83e5fb21754dd14ae3e79e5d3abd76a755e0a25d",
+    "initial_source_commit": "852e4c27269aed85f47c7ae27995152ca64d1ac9",
     "model_hash": "4bf5572e27f5542e21bee9b58f894b6e6db7b7a5fd6922996be5ad77bf836caf",
     "pending_targets": [
       "26114"
     ],
     "production_rho": 0.0,
     "promotion_authorized": false,
-    "protocol_hash": "7ab7563a73c005ed129d22d2f2a3b543086b2a4f0a5619569c338bc81cefe449",
+    "protocol_hash": "8ac067f9bc41b11260c76cb0309c19f709c87d92cb3f20818051d2eefdd40a41",
     "qualification": {
       "back": null,
       "decision": "NOT_READY",
