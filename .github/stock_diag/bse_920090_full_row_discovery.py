@@ -189,6 +189,10 @@ def main()->int:
         "status":report["status"],
         "match_count":report["match_count"],
         "row_keys":[m["row_keys"] for m in matches],
+        "identifier_fields":[{
+            k:m["scalar_fields"].get(k)
+            for k in ("companyCd","infoId","disclosureCode","dKey","filePath","destFilePath","fileExt","publishDate","pubDate","upDate","upTime")
+        } for m in matches],
         "candidate_text_fields":[m["candidate_text_fields"] for m in matches],
         "adjudication":report["adjudication"],
     },ensure_ascii=True,sort_keys=True))
