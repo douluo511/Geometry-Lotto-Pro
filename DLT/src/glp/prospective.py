@@ -28,6 +28,7 @@ BEHAVIOR_PATHS = (
     "src/glp/evidence.py",
     "src/glp/prospective.py",
     "src/glp/background.py",
+    "src/glp/service.py",
     "src/glp/util.py",
     "src/main.py",
     "scripts/prospective_snapshot.py",
@@ -39,6 +40,10 @@ def _require_source_commit(value: str) -> str:
     if not SOURCE_COMMIT_RE.fullmatch(value):
         raise ValueError("prospective source_commit must be an exact 40/64 hex commit id")
     return value
+
+
+def _behavior_hash_from_files(hashes: dict[str, str]) -> str:
+    return sha256_json(dict(sorted(hashes.items())))
 
 
 def _behavior_fingerprint(override: str | None = None) -> dict[str, Any]:
@@ -59,7 +64,7 @@ def _behavior_fingerprint(override: str | None = None) -> dict[str, Any]:
             raise FileNotFoundError(f"behavior identity file missing: {rel}")
         hashes[rel] = hashlib.sha256(path.read_bytes()).hexdigest()
     return {
-        "behavior_hash": sha256_json(hashes),
+        "behavior_hash": _behavior_hash_from_files(hashes),
         "behavior_files": hashes,
     }
 
