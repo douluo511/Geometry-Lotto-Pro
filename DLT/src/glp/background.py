@@ -193,6 +193,7 @@ def run_background_worker(
                 "pid": os.getpid(),
                 "updated_at": utc_now(),
                 "interval_seconds": interval_seconds,
+                "production_poll_seconds": BACKGROUND_POLL_SECONDS,
                 "startup_mode": BACKGROUND_STARTUP_MODE,
             })
             return 0
@@ -205,6 +206,7 @@ def run_background_worker(
             "started_at": utc_now(),
             "updated_at": utc_now(),
             "interval_seconds": interval_seconds,
+            "production_poll_seconds": BACKGROUND_POLL_SECONDS,
             "cycle_count": 0,
             "startup_mode": BACKGROUND_STARTUP_MODE,
             "autostart_registered": False,
@@ -302,6 +304,7 @@ def launch_background_worker(
         "child_pid": int(proc.pid),
         "parent_pid": os.getpid(),
         "interval_seconds": int(interval_seconds),
+        "production_poll_seconds": BACKGROUND_POLL_SECONDS,
         "max_cycles": int(max_cycles),
         "wait_parent_exit": bool(wait_parent_exit),
         "startup_mode": BACKGROUND_STARTUP_MODE,
