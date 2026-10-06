@@ -7,6 +7,10 @@ FRONT_MAX = 35
 FRONT_PICK = 5
 BACK_MAX = 12
 BACK_PICK = 2
+BACKGROUND_POLL_SECONDS = 1800
+DEFAULT_RESEARCH_DAN_FRONT_COUNT = 2
+DEFAULT_RESEARCH_DAN_BACK_COUNT = 1
+BACKGROUND_STARTUP_MODE = "manual_app_launch_required_after_login"
 
 NATIONAL_URL = "https://webapi.sporttery.cn/gateway/lottery/getHistoryPageListV1.qry"
 JIANGSU_URL = "https://api.js-lottery.com/wfzq/dlt/data"
@@ -49,6 +53,8 @@ PROMOTION_POLICY = {
     "dan_seed_jitter": 0.05,
     "min_validated_components": 1,
     "min_prospective_replays": 30,
+    "research_dan_front_count": DEFAULT_RESEARCH_DAN_FRONT_COUNT,
+    "research_dan_back_count": DEFAULT_RESEARCH_DAN_BACK_COUNT,
 }
 
 MODEL_VERSION = "dlt-research-v2.1-geometry"
