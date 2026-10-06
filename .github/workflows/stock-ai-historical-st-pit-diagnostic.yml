@@ -1,0 +1,107 @@
+name: Stock AI historical ST/PIT diagnostic
+
+on:
+  push:
+    branches:
+      - "diagnostic/stock-historical-st-pit-20261005"
+    paths:
+      - "StockAIPro/hardening_tests/stock_historical_st_pit_probe.py"
+      - ".github/workflows/stock-ai-historical-st-pit-diagnostic.yml"
+  pull_request:
+    paths:
+      - "StockAIPro/hardening_tests/stock_historical_st_pit_probe.py"
+      - ".github/workflows/stock-ai-historical-st-pit-diagnostic.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact diagnostic head
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+      - name: Verify product bytes unchanged from authoritative Stock head
+        shell: pwsh
+        run: |
+          $base = "43168d9e75c70ab55be808d8a51f0c0eb14d83d5"
+          git merge-base --is-ancestor $base HEAD
+          $changed = git diff --name-only "$base..HEAD" -- StockAIPro | Where-Object { $_ -ne 'StockAIPro/hardening_tests/stock_historical_st_pit_probe.py' }
+          if ($changed) { throw "diagnostic changed StockAIPro product bytes: $changed" }
+          Write-Host "PRODUCT_BYTES_CHANGED=FALSE"
+      - name: Setup pinned Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.11.9"
+      - name: Install diagnostic dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check --no-input "akshare==1.17.85" "pandas==2.2.3" "openpyxl==3.1.5" "pypdf==5.4.0"
+      - name: Probe official SZSE/BSE/SSE historical source boundaries
+        working-directory: StockAIPro
+        shell: pwsh
+        run: |
+          python hardening_tests/stock_historical_st_pit_probe.py
+      - name: Upload diagnostic evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: STOCK-HISTORICAL-ST-PIT-DIAGNOSTIC-${{ github.sha }}
+          path: StockAIPro/stock_historical_st_pit_diagnostic.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Assert fail-closed cross-exchange boundary
+        working-directory: StockAIPro
+        shell: pwsh
+        run: |
+          @'
+          import json
+          from pathlib import Path
+
+          report = json.loads(Path("stock_historical_st_pit_diagnostic.json").read_text(encoding="utf-8"))
+          hist = report["historical_st_reconstruction"]
+          bse = report.get("beijing_official_source_boundary", {})
+          sse = report.get("shanghai_official_source_boundary", {})
+
+          if hist.get("shenzhen") != "SUPPORTED":
+              raise SystemExit("Shenzhen dated reconstruction must remain SUPPORTED")
+          for key in ("shanghai", "beijing", "full_a_share_gate"):
+              if hist.get(key) != "NOT VERIFIED":
+                  raise SystemExit(f"{key} must remain NOT VERIFIED")
+          if report.get("historical_suspension_daily_state") != "NOT VERIFIED":
+              raise SystemExit("historical suspension daily state must remain NOT VERIFIED")
+          if report.get("final_gate") != "FAIL":
+              raise SystemExit("Final Gate must remain FAIL")
+
+          existence = bse.get("historical_market_participant_short_name_file_existence", "NOT VERIFIED")
+          if existence == "SUPPORTED":
+              if bse.get("file_identifier") != "JCyymmdd.nnn":
+                  raise SystemExit("BSE supported source boundary requires exact file identifier")
+              if bse.get("public_historical_bulk_archive") != "NOT VERIFIED":
+                  raise SystemExit("market-participant file existence cannot promote public bulk archive")
+              if bse.get("beijing_historical_st_pit") != "NOT VERIFIED":
+                  raise SystemExit("source existence cannot promote Beijing historical ST/PIT")
+
+          sse_spec = sse.get("sse_product_status_or_suspension_specification", "NOT VERIFIED")
+          if sse_spec == "SUPPORTED":
+              if sse.get("public_historical_bulk_archive") != "NOT VERIFIED":
+                  raise SystemExit("SSE specification cannot promote public historical bulk archive")
+              if sse.get("shanghai_historical_st_pit") != "NOT VERIFIED":
+                  raise SystemExit("SSE specification cannot promote Shanghai historical ST/PIT")
+              if sse.get("historical_daily_suspension_state") != "NOT VERIFIED":
+                  raise SystemExit("SSE specification cannot promote historical daily suspension state")
+
+          print("SZSE_DATED_NAME_CHANGE=SUPPORTED")
+          print("BSE_HISTORICAL_SHORT_NAME_FILE_EXISTENCE=" + str(existence))
+          print("BSE_PUBLIC_HISTORICAL_BULK_ARCHIVE=" + str(bse.get("public_historical_bulk_archive", "NOT VERIFIED")))
+          print("SSE_PRODUCT_STATUS_OR_SUSPENSION_SPEC=" + str(sse_spec))
+          print("SSE_PUBLIC_HISTORICAL_BULK_ARCHIVE=" + str(sse.get("public_historical_bulk_archive", "NOT VERIFIED")))
+          print("SHANGHAI_ST_PIT=NOT VERIFIED")
+          print("BEIJING_ST_PIT=NOT VERIFIED")
+          print("HISTORICAL_SUSPENSION_DAILY_STATE=NOT VERIFIED")
+          print("FULL_HISTORICAL_ST_PIT=NOT VERIFIED")
+          print("FINAL_GATE=FAIL")
+          '@ | python -
