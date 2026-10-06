@@ -1,74 +1,95 @@
 # Portfolio Live Exact-State Checkpoint — 2026-10-06
 
-This file is an evidence checkpoint on control PR #84. It does not promote any project to Final PASS.
+This is the latest exact-state checkpoint on control PR #84. Historical checkpoints remain available in Git history and Issue #11.
 
 ## Portfolio boundary
 
-- Current-product deterministic migration/export readiness: **18/18 PASS** at the exact product bindings already evidenced.
-- Connected GitHub repository enumeration: only `douluo511/Geometry-Lotto-Pro` is visible.
+- **Active-candidate deterministic migration/export readiness: 17/18 PASS.**
+- Reason for the regression from 18/18: Stock PR #268 is a behavior-changing acceptance fix on top of product `c25a5c39...`; Stock export PR #260 remains valid only for the superseded `c25a5c39...` exact state and is stale relative to active candidate `632b59da...`.
+- Connected GitHub repository enumeration still exposes only `douluo511/Geometry-Lotto-Pro`.
 - Dedicated independent repositories: **0/18 evidenced**.
 - Repository Independence: **0/18 PASS**.
 - Final Gate: **0/18 PASS**.
 - Formal delivery allowed: **0/18**.
-- The connected GitHub tool surface still exposes no repository-creation mutation. User authorization does not alter that capability boundary.
+- Connected GitHub actions still expose no repository-creation mutation.
 
-## Stock AI — current product authority
+## Stock active remediation candidate — PR #268
 
-- Product behavior head: PR #257 `c25a5c394363058d341b624b18943cd3733eb720`.
-- Source/offline run `37371301910`: **SUCCESS**.
-- Full-business run `37371301878`: **FAIL** because the required hash-bound historical ST/PIT evidence bundle is absent; runtime records `historical_st_pit.json` missing / historical ST-suspension daily state not verified.
-- Current deterministic export: PR #260 `0cacdb645aaac68ee6820f04b95595bf4073b334`, run `37413482053` = **SUCCESS**, exactly bound to product `c25a5c39...`.
-- Desktop run `37371302045`, rerun job `112106367690`: **IN_PROGRESS** at the frozen real-network research-corpus qualification prerequisite. Current-run PASS only extends through exact checkout, Windows native build, Exact EXE self-test, repair worker, and Frozen EXE Real Network. Advanced Analysis / Physical GUI / post-GUI Same Hash remain **NOT VERIFIED** until the job reaches them.
+PR #268: `Stock AI: fail closed on semantically incomplete historical PIT bundles`
 
-## Stock SSE transition semantics — exact-head evidence correction
+- Base: current prior product authority `c25a5c394363058d341b624b18943cd3733eb720`.
+- Exact active head: `632b59da262e2f7468bbc4d0fd43d3cf67c0297b`.
+- This line closes a verified false-PASS path in Historical ST/PIT evidence evaluation.
 
-The prior PR #261 workflow run `37413979859` completed SUCCESS on GitHub synthetic PR merge commit `87a5547985843644ab164519efde4927af8f5a78`, not the then PR head `3f40a298159048de4b053d81470717405edc0218`. It is therefore historical diagnostic evidence only and is **not** accepted as current-head validation.
+Verified defect on the base:
+- `evaluate_historical_st_pit()` recomputed real file SHA-256 values but did not semantically verify canonical JSONL / source manifest / per-market evidence bytes against the declared three-market completeness claim.
+- The previous positive contract fixture contained only **one SSE canonical row** while the claim declared SSE/SZSE/BSE PASS.
+- Therefore real-byte binding alone could accept a semantically incomplete three-market bundle.
 
-Executed repairs on PR #261:
-- `d21383d615b408ad1994c10c8f711adcdeb32a7d`: bind checkout, exact-head assertion, and artifact naming to `${{ github.event.pull_request.head.sha || github.sha }}`.
-- `26f7f8afcfb046100d5fefe2c3c5408e7c7e2543`: parser v2 conditions transition dates on bulletin action (implementation vs cancellation), rejects pre-bulletin historical dates from the candidate set, narrows action/date spans, and applies exclusion terms to the matched clause instead of a broad paragraph.
+Executed repair:
+- canonical JSONL must parse completely before PASS;
+- malformed rows, invalid dates, invalid market/code mapping, non-boolean state, and duplicate `(date,code)` rows fail closed;
+- canonical data must actually contain SSE/SZSE/BSE;
+- when expected trade date is supplied, each required market must have canonical state on that date;
+- bound source manifest must parse, be `point_in_time_only=true`, and actually list SSE/SZSE/BSE;
+- each bound market evidence file must parse and agree with its claim on market, ST identity, suspension state, trading calendar, daily state, window, canonical SHA, source count, point-in-time flag, and zero future-leakage violations;
+- new counterexamples deliberately rebind all SHA values after reducing canonical data to SSE-only or source manifest to SSE-only; evaluator must remain WARN;
+- inner/outer PACKAGE_MANIFEST SHA bindings were recomputed to the changed product bytes.
 
-Fresh exact PR head: `26f7f8afcfb046100d5fefe2c3c5408e7c7e2543`.
-Fresh run: `37417963945`, job `112120713099`.
-At this checkpoint:
-- exact checkout: **PASS**
-- unchanged `StockAIPro/**` product bytes relative to `c25a5c39...`: **PASS**
-- parser execution: **IN_PROGRESS**
-- artifact / strict-boundary steps: pending
-- Historical ST/PIT / Advanced Business / Final: **NOT VERIFIED / FAIL boundary preserved**
+Changed product SHA-256:
+- `stock_ai/historical_pit.py`: `83acd049569b6b795d694f43a067190bc83e6677b7359ab0cc2d3d299fc74489`
+- inner `PACKAGE_MANIFEST.json`: `afc84ee8ccbb840db6295460397c1e7bbe2e4802464bdcfa862c765115abac5b`
+- outer distribution manifest after rebinding: `21d7e78dad65ef5f2d6e94db4ab5f90d55127d72f590d830a0a0f07f369adfa3`
 
-The older synthetic-merge diagnostic counts (667 selected; 291 unique-clean; remaining ambiguous/no-role) are not promoted to the new exact head.
+Fresh exact-head workflows:
+- Source/offline `37419257825` / job `112124705286`: **IN_PROGRESS**.
+- Full Business `37419257711` / job `112124704832`: **IN_PROGRESS**.
+- Windows Desktop `37419257669` / job `112124705359`: **IN_PROGRESS**.
+- No fresh PASS is promoted while they are active.
 
-## Stock historical ST/PIT consumer contract
+## Stock Historical ST/PIT data completeness remains separate
 
-Current product source at `c25a5c39...` requires a real-byte-bound bundle, not a narrative claim. Required claim schema is `stock-ai-historical-st-pit-v1`, including:
-- `status=PASS`
-- `full_historical_st_pit=PASS`
-- `daily_state_complete=true`
-- `point_in_time_only=true`
-- `future_leakage_violations=0`
-- fresh window covering expected trade date
-- canonical JSONL + source manifest + SSE/SZSE/BSE market evidence files with recomputed SHA-256 equality
-- per-market ST identity, suspension state, trading calendar, and daily state PASS
-- exact `(date, code)` coverage for every backtest-required state; malformed, missing, duplicate, market/code-mismatched, or non-boolean state fails closed.
+PR #268 does **not** invent a historical bundle. Even after evaluator hardening, the actual hash-bound canonical bundle is still absent. Product contract still requires:
+- schema `stock-ai-historical-st-pit-v1`;
+- claim status/full/daily/PIT/no-future-leakage assertions;
+- fresh canonical daily-state bytes;
+- source manifest;
+- SSE/SZSE/BSE market evidence;
+- exact `(date,code)` coverage consumed by backtest at signal date and true next market open.
 
-Partial SSE diagnostics must not be used to fabricate this bundle.
+Issue #252 confirms evaluated row/date PIT gaps must fail closed. Runtime consumption denominator is the frozen research dataset after turnover filtering for signal keys plus post-PIT/Top-N next-market-open execution keys. The broader business meaning of `full_historical_st_pit` still lacks an independently frozen all-market numerical denominator and must not be reduced to the runtime key set by assumption.
+
+## Stock source-data diagnostics
+
+PR #261 current diagnostic head `26f7f8afcfb046100d5fefe2c3c5408e7c7e2543`, run `37417963945` remains **IN_PROGRESS**. Its exact checkout and unchanged-`c25a5c39...` Stock product-byte checks passed before parser execution. It remains source-diagnostic evidence only and does not promote Historical ST/PIT.
+
+The older #261 SUCCESS on synthetic merge commit `87a55479...` remains historical only and is not exact PR-head proof.
+
+## Superseded Stock exact-state evidence
+
+PR #257 `c25a5c394363058d341b624b18943cd3733eb720`:
+- source `37371301910` = SUCCESS;
+- full business `37371301878` = FAIL on absent historical ST/PIT bundle;
+- desktop `37371302045` retry remains IN_PROGRESS at frozen research-corpus qualification;
+- these runs are preserved for that exact state but are not inherited by PR #268.
+
+PR #260 export `0cacdb645aaac68ee6820f04b95595bf4073b334` / run `37413482053` = SUCCESS for product `c25a5c39...`; it is now stale relative to PR #268 and therefore current-candidate portfolio export readiness is 17/18.
 
 ## RMF
 
-PR #250 exact head `0ffaaa76a43fb734d69d8a3f0170e9d97b176518`, rerun job `112113533557` = **SUCCESS**:
-- 60 sample dates
-- 58 comparable
-- 58 matched
-- 0 mismatches
-- 96.6667% comparison coverage
-- historical membership reconstruction: **SUPPORTED**
-- historical PIT availability: **NOT VERIFIED**
-- survivorship selection control: **NOT VERIFIED**
+RMF formal completion remains:
+- Engineering: **85.7%**
+- Business: **75.0%**
+- Overall: **75.0%**
 - Final: **FAIL**
 
-RMF formal completion remains Engineering **85.7%**, Business **75.0%**, Overall **75.0%**. L1 amount-based capacity is only SUPPORTED; historical spread, observed market impact, broker slippage, and limit-up/down fillability remain NOT VERIFIED.
+PR #250 rerun job `112113533557` = SUCCESS with 58/58 comparable dates matched, but historical PIT availability and survivorship selection control remain NOT VERIFIED.
+
+PR #189 supports 5% amount-based capacity diagnostics only; historical bid/ask spread, observed market impact, broker execution slippage, limit-up/down fillability, full cost/slippage calibration and full liquidity-capacity gate remain NOT VERIFIED.
 
 ## Strict adjudication
 
-Queued / in-progress work is NOT VERIFIED. Behavior-changing changes invalidate affected downstream evidence. Migration/export readiness is not Repository Independence and not Final Gate.
+Queued / in-progress = NOT VERIFIED.
+Behavior-changing changes invalidate affected downstream evidence.
+Real-byte binding without semantic consistency is not sufficient evidence.
+Migration/export readiness is not Repository Independence and is not Final Gate.
