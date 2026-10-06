@@ -75,7 +75,16 @@ def complete(root: Path):
         raw_rel = f"cache/raw_{market.lower()}_fixture.json"
         raw_sha = make_file(
             root, raw_rel,
-            (json.dumps({"market": market, "fixture": True}, sort_keys=True) + "\n").encode("utf-8"),
+            (json.dumps({
+                "schema": "stock-ai-security-lifecycle-source-v1",
+                "market": market,
+                "point_in_time_only": True,
+                "securities": [{
+                    "code": code,
+                    "listing_date": "2026-09-30",
+                    "delisting_date": "2026-09-30",
+                }],
+            }, sort_keys=True) + "\n").encode("utf-8"),
         )
         provenance_rel = f"cache/historical_st_pit_{market.lower()}_provenance.json"
         provenance_sha = make_file(
@@ -309,6 +318,34 @@ with tempfile.TemporaryDirectory() as td:
     assert status == "WARN"
     assert "denominator_manifest_semantics" in meta["failures"]
     assert meta["bindings"]["denominator_manifest"]["semantic_reason"] == "source_gap_count"
+
+    # Raw provenance must semantically reproduce the lifecycle denominator.
+    # Rebinding every affected hash must still fail if authoritative raw
+    # lifecycle bytes contain an additional eligible security omitted from the
+    # lifecycle/expected/canonical denominator.
+    x = complete(root)
+    denominator_path = root / x["denominator_manifest_path"]
+    denominator = json.loads(denominator_path.read_text(encoding="utf-8"))
+    provenance_path = root / denominator["markets"]["SSE"]["provenance_path"]
+    provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
+    raw_path = root / provenance["raw_files"][0]["path"]
+    raw_obj = json.loads(raw_path.read_text(encoding="utf-8"))
+    raw_obj["securities"].append({
+        "code": "600001",
+        "listing_date": "2026-09-30",
+        "delisting_date": "2026-09-30",
+    })
+    raw_path.write_text(json.dumps(raw_obj, sort_keys=True) + "\n", encoding="utf-8")
+    provenance["raw_files"][0]["sha256"] = sha(raw_path)
+    provenance_path.write_text(json.dumps(provenance, sort_keys=True) + "\n", encoding="utf-8")
+    denominator["markets"]["SSE"]["provenance_sha256"] = sha(provenance_path)
+    denominator_path.write_text(json.dumps(denominator, sort_keys=True) + "\n", encoding="utf-8")
+    x["denominator_manifest_sha256"] = sha(denominator_path)
+    write_claim(root, x)
+    status, _, meta = evaluate_historical_st_pit(root, "2026-09-30")
+    assert status == "WARN"
+    assert "denominator_manifest_semantics" in meta["failures"]
+    assert meta["bindings"]["denominator_manifest"]["semantic_reason"] == "raw_lifecycle_mismatch:SSE"
 
     # Raw provenance bytes are first-class evidence and must hash-match.
     x = complete(root)
