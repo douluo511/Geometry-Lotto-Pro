@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
 from export_independent_repo import export_repository, verify_export  # noqa: E402
-from architecture_gate import (  # noqa: E402
+from migration_supply_chain_gate import (  # noqa: E402
     build_requirements_are_frozen,
     workflow_actions_are_sha_pinned,
 )
