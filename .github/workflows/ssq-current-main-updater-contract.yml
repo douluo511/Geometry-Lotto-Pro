@@ -52,6 +52,9 @@ jobs:
         with:
           python-version: '3.11.9'
 
+      - name: Install pinned contract dependencies
+        run: python -m pip install --disable-pip-version-check -r requirements-build.txt
+
       - name: Compile updater contract
         run: python -m compileall -q updater.py SSQ/glp/updater_client.py tools/prepare_release_manifest.py tools/updater_release_acceptance.py tools/build_updater_windows.py
 
