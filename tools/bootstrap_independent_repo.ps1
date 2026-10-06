@@ -107,7 +107,12 @@ function Get-RelativeFileList {
       $pending.Push($full)
       continue
     }
-    if ($rel -notin @("MIGRATION_MANIFEST.json","MIGRATION_SHA256SUMS.txt")) {
+    if ($rel -notin @(
+      "MIGRATION_MANIFEST.json",
+      "MIGRATION_SHA256SUMS.txt",
+      "BASELINE_MANIFEST.json",
+      "BASELINE_SHA256SUMS.txt"
+    )) {
       $rows += $rel
     }
     }
@@ -121,14 +126,30 @@ function Assert-ExportIntegrity {
   # Check directories/reparse points before opening any manifest-controlled path.
   $actual = @(Get-RelativeFileList -Root $Root -AllowGitMetadata:$AllowGitMetadata)
 
-  $manifestPath = Join-Path $Root "MIGRATION_MANIFEST.json"
-  if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
-    throw "MIGRATION_MANIFEST.json missing"
+  $migrationManifestPath = Join-Path $Root "MIGRATION_MANIFEST.json"
+  $baselineManifestPath = Join-Path $Root "BASELINE_MANIFEST.json"
+  $manifestCandidates = @(
+    $migrationManifestPath,
+    $baselineManifestPath
+  )
+  $existingManifests = @($manifestCandidates | Where-Object {
+    Test-Path -LiteralPath $_ -PathType Leaf
+  })
+  if ($existingManifests.Count -ne 1) {
+    throw "exactly one supported manifest file required"
   }
+
+  $manifestPath = [string]$existingManifests[0]
+  $manifestName = [System.IO.Path]::GetFileName($manifestPath)
   $manifest = Get-Content -LiteralPath $manifestPath -Raw -Encoding utf8 | ConvertFrom-Json
 
   $schema = [string]$manifest.schema
-  if ($schema -notin @("ssq-independent-repo-export-v1","dlt-independent-export-v4","portfolio-independent-repo-export-v1")) {
+  if ($schema -notin @(
+    "ssq-independent-repo-export-v1",
+    "dlt-independent-export-v4",
+    "dlt-current-main-release-baseline-v2",
+    "portfolio-independent-repo-export-v1"
+  )) {
     throw "unsupported manifest schema: $schema"
   }
   if ([string]$manifest.source_repository -ne "douluo511/Geometry-Lotto-Pro") {
@@ -138,9 +159,44 @@ function Assert-ExportIntegrity {
     throw "target repository mismatch"
   }
 
-  $sourceCommit = [string]$manifest.source_commit
+  $sumsName = "MIGRATION_SHA256SUMS.txt"
+  if ($schema -eq "dlt-current-main-release-baseline-v2") {
+    if ($manifestName -ne "BASELINE_MANIFEST.json") {
+      throw "DLT baseline schema requires BASELINE_MANIFEST.json"
+    }
+    $sumsName = "BASELINE_SHA256SUMS.txt"
+    if ([string]$manifest.purpose -ne "release-n-to-n-plus-1-acceptance-only") {
+      throw "DLT baseline purpose mismatch"
+    }
+    if ([string]$manifest.current_version -ne "2.1.2" -or [string]$manifest.baseline_version -ne "2.1.1") {
+      throw "DLT baseline version contract mismatch"
+    }
+    $controlled = @($manifest.controlled_changes)
+    if ($controlled.Count -ne 1 -or [string]$controlled[0] -ne "DLT/src/glp/constants.py") {
+      throw "DLT baseline controlled-change contract mismatch"
+    }
+    if ([bool]$manifest.final_eligible -ne $false) {
+      throw "DLT baseline must never be Final eligible"
+    }
+    if ([string]$manifest.baseline_release_state -ne "NOT PUBLISHED") {
+      throw "DLT baseline release state must be NOT PUBLISHED before bootstrap"
+    }
+    if ([string]$manifest.repository_independence -ne "NOT VERIFIED") {
+      throw "DLT baseline repository independence must be NOT VERIFIED before bootstrap"
+    }
+    if ([string]$manifest.prospective_research_authority -ne "EXCLUDED_NOT_ON_CURRENT_MAIN") {
+      throw "DLT baseline prospective authority mismatch"
+    }
+    $sourceCommit = [string]$manifest.source_product_commit
+  } else {
+    if ($manifestName -ne "MIGRATION_MANIFEST.json") {
+      throw "migration schema requires MIGRATION_MANIFEST.json"
+    }
+    $sourceCommit = [string]$manifest.source_commit
+  }
+
   if (-not (Test-FullSha -Value $sourceCommit)) {
-    throw "manifest source_commit must be full SHA"
+    throw "manifest source commit must be full SHA"
   }
   $sourceCommit = $sourceCommit.ToLowerInvariant()
   if ($ExpectedCommit) {
@@ -154,6 +210,18 @@ function Assert-ExportIntegrity {
 
   $rows = @($manifest.files)
   if ($rows.Count -eq 0) { throw "manifest file list empty" }
+
+  if ($schema -eq "dlt-current-main-release-baseline-v2") {
+    $baselinePaths = @($rows | ForEach-Object { [string]$_.path })
+    foreach ($requiredBaselinePath in @(
+      "DLT/src/glp/constants.py",
+      ".github/workflows/dlt-windows-build-acceptance.yml"
+    )) {
+      if ($baselinePaths -notcontains $requiredBaselinePath) {
+        throw "DLT baseline required file missing from manifest: $requiredBaselinePath"
+      }
+    }
+  }
 
   $expected = @{}
   foreach ($row in $rows) {
@@ -183,9 +251,9 @@ function Assert-ExportIntegrity {
     if (-not $expected.ContainsKey($rel)) { throw "unmanifested file: $rel" }
   }
 
-  $sumsPath = Join-Path $Root "MIGRATION_SHA256SUMS.txt"
+  $sumsPath = Join-Path $Root $sumsName
   if (-not (Test-Path -LiteralPath $sumsPath -PathType Leaf)) {
-    throw "MIGRATION_SHA256SUMS.txt missing"
+    throw "$sumsName missing"
   }
 
   $expectedSumLines = @($rows | ForEach-Object {
@@ -204,6 +272,8 @@ function Assert-ExportIntegrity {
     source_repository = [string]$manifest.source_repository
     target_repository = [string]$manifest.target_repository
     source_commit = $sourceCommit
+    manifest_name = $manifestName
+    sums_name = $sumsName
     file_count = $expected.Count
     manifest_sha256 = Get-Sha256 -Path $manifestPath
     sums_sha256 = Get-Sha256 -Path $sumsPath

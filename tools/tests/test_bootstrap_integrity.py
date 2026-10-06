@@ -39,6 +39,37 @@ class BootstrapIntegrityTests(unittest.TestCase):
         (self.root / "MIGRATION_SHA256SUMS.txt").write_text(
             "".join(f"{r['sha256']}  {r['path']}\n" for r in rows), encoding="utf-8")
 
+    def baseline_manifest(self):
+        constants = self.root / "DLT/src/glp/constants.py"
+        workflow = self.root / ".github/workflows/dlt-windows-build-acceptance.yml"
+        constants.parent.mkdir(parents=True, exist_ok=True)
+        workflow.parent.mkdir(parents=True, exist_ok=True)
+        constants.write_bytes(b'APP_VERSION = "2.1.1"\n')
+        workflow.write_bytes(b"name: DLT baseline workflow\n")
+        rows = []
+        for rel in ("app.py", "DLT/src/glp/constants.py", ".github/workflows/dlt-windows-build-acceptance.yml"):
+            raw = (self.root / rel).read_bytes()
+            rows.append({"path": rel, "bytes": len(raw), "sha256": hashlib.sha256(raw).hexdigest()})
+        (self.root / "MIGRATION_MANIFEST.json").unlink()
+        (self.root / "MIGRATION_SHA256SUMS.txt").unlink()
+        (self.root / "BASELINE_MANIFEST.json").write_text(json.dumps({
+            "schema": "dlt-current-main-release-baseline-v2",
+            "purpose": "release-n-to-n-plus-1-acceptance-only",
+            "source_repository": "douluo511/Geometry-Lotto-Pro",
+            "source_product_commit": SHA,
+            "target_repository": "douluo511/Geometry-Lotto-Pro-DLT",
+            "current_version": "2.1.2",
+            "baseline_version": "2.1.1",
+            "controlled_changes": ["DLT/src/glp/constants.py"],
+            "prospective_research_authority": "EXCLUDED_NOT_ON_CURRENT_MAIN",
+            "repository_independence": "NOT VERIFIED",
+            "baseline_release_state": "NOT PUBLISHED",
+            "final_eligible": False,
+            "files": rows,
+        }), encoding="utf-8")
+        (self.root / "BASELINE_SHA256SUMS.txt").write_text(
+            "".join(f"{r['sha256']}  {r['path']}\n" for r in rows), encoding="utf-8")
+
     def run_functions(self, statement, root=None):
         env = dict(os.environ, BOOTSTRAP_SCRIPT=str(SCRIPT), EXPORT_TEST_ROOT=str(root or self.root))
         # Load ONLY function definitions. Do not execute the bootstrap main,
@@ -169,6 +200,64 @@ if (-not $caught) { throw 'GitHub CLI failure swallowed' }
         proof = json.loads(result.stdout)
         self.assertEqual(proof["schema"], "dlt-independent-export-v4")
         self.assertEqual(proof["target_repository"], "douluo511/Geometry-Lotto-Pro-DLT")
+
+    def test_dlt_current_main_baseline_schema_passes_fail_closed_contract(self):
+        self.baseline_manifest()
+        result = self.run_functions(
+            "Assert-ExportIntegrity -Root $env:EXPORT_TEST_ROOT "
+            "-Repo 'douluo511/Geometry-Lotto-Pro-DLT' -ExpectedCommit ('a'*40) "
+            "| ConvertTo-Json -Compress"
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        proof = json.loads(result.stdout)
+        self.assertEqual(proof["schema"], "dlt-current-main-release-baseline-v2")
+        self.assertEqual(proof["source_commit"], SHA)
+        self.assertEqual(proof["manifest_name"], "BASELINE_MANIFEST.json")
+        self.assertEqual(proof["sums_name"], "BASELINE_SHA256SUMS.txt")
+        self.assertEqual(proof["target_repository"], "douluo511/Geometry-Lotto-Pro-DLT")
+        self.assertEqual(proof["file_count"], 3)
+
+    def test_dlt_baseline_final_eligible_true_fails_closed(self):
+        self.baseline_manifest()
+        path = self.root / "BASELINE_MANIFEST.json"
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload["final_eligible"] = True
+        path.write_text(json.dumps(payload), encoding="utf-8")
+        result = self.run_functions(
+            "Assert-ExportIntegrity -Root $env:EXPORT_TEST_ROOT "
+            "-Repo 'douluo511/Geometry-Lotto-Pro-DLT' -ExpectedCommit ('a'*40)"
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("must never be Final eligible", result.stderr)
+
+    def test_dlt_baseline_required_workflow_manifest_row_is_mandatory(self):
+        self.baseline_manifest()
+        path = self.root / "BASELINE_MANIFEST.json"
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload["files"] = [
+            row for row in payload["files"]
+            if row["path"] != ".github/workflows/dlt-windows-build-acceptance.yml"
+        ]
+        path.write_text(json.dumps(payload), encoding="utf-8")
+        rows = payload["files"]
+        (self.root / "BASELINE_SHA256SUMS.txt").write_text(
+            "".join(f"{r['sha256']}  {r['path']}\n" for r in rows), encoding="utf-8")
+        result = self.run_functions(
+            "Assert-ExportIntegrity -Root $env:EXPORT_TEST_ROOT "
+            "-Repo 'douluo511/Geometry-Lotto-Pro-DLT' -ExpectedCommit ('a'*40)"
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("DLT baseline required file missing from manifest", result.stderr)
+
+    def test_multiple_manifest_authorities_fail_closed(self):
+        self.baseline_manifest()
+        (self.root / "MIGRATION_MANIFEST.json").write_text("{}", encoding="utf-8")
+        result = self.run_functions(
+            "Assert-ExportIntegrity -Root $env:EXPORT_TEST_ROOT "
+            "-Repo 'douluo511/Geometry-Lotto-Pro-DLT' -ExpectedCommit ('a'*40)"
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("exactly one supported manifest file required", result.stderr)
 
     def test_unsupported_manifest_schema_fails_closed(self):
         manifest_path = self.root / "MIGRATION_MANIFEST.json"
