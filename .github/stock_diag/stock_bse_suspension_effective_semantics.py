@@ -277,6 +277,9 @@ def main():
         rec["pages"]=pages
         rec["text_chars"]=len(text)
         rec["text_sha256"]=hashlib.sha256(text.encode()).hexdigest()
+        rec["usable_text_extraction"]=len(text.strip()) >= 20
+        title_text=str(rec.get("title") or "")
+        rec["transition_role"]="STATE_CONTINUATION_NO_NEW_TRANSITION" if "继续停牌" in title_text else "NEW_TRANSITION_REQUIRED"
         rec["action_contexts"]=action_contexts(text)
         stops=strong_matches(text,STOP_PATTERNS,"停牌")
         resumes=strong_matches(text,RESUME_PATTERNS,"复牌")
@@ -296,7 +299,11 @@ def main():
         rec["resume_dates"]=resume_dates
         rec["stop_date_count"]=len(stop_dates)
         rec["resume_date_count"]=len(resume_dates)
-        if len(stop_dates)<=1 and len(resume_dates)<=1 and (stop_dates or resume_dates):
+        if rec["transition_role"]=="STATE_CONTINUATION_NO_NEW_TRANSITION":
+            rec["semantic_status"]="STATE_CONTINUATION_NO_NEW_TRANSITION"
+        elif not rec.get("usable_text_extraction"):
+            rec["semantic_status"]="TEXT_EXTRACTION_INSUFFICIENT"
+        elif len(stop_dates)<=1 and len(resume_dates)<=1 and (stop_dates or resume_dates):
             rec["semantic_status"]="UNIQUE_TRANSITION_DATES"
         elif not stop_dates and not resume_dates:
             rec["semantic_status"]="NO_STRONG_TRANSITION_DATE"
@@ -305,8 +312,12 @@ def main():
         records.append(rec)
 
     total=len(records)
-    transport=sum(1 for x in records if x.get("transport_status")=="PASS" and x.get("text_sha256"))
+    pdf_transport=sum(1 for x in records if x.get("transport_status")=="PASS")
+    usable_text=sum(1 for x in records if x.get("transport_status")=="PASS" and x.get("usable_text_extraction") is True)
+    continuation=sum(1 for x in records if x.get("semantic_status")=="STATE_CONTINUATION_NO_NEW_TRANSITION")
+    required=sum(1 for x in records if x.get("transition_role")=="NEW_TRANSITION_REQUIRED")
     unique=sum(1 for x in records if x.get("semantic_status")=="UNIQUE_TRANSITION_DATES")
+    insufficient=sum(1 for x in records if x.get("semantic_status")=="TEXT_EXTRACTION_INSUFFICIENT")
     none=sum(1 for x in records if x.get("semantic_status")=="NO_STRONG_TRANSITION_DATE")
     multi=sum(1 for x in records if x.get("semantic_status")=="MULTI_DATE_AMBIGUOUS")
     stop_unique=sum(1 for x in records if x.get("stop_date_count")==1)
@@ -319,7 +330,7 @@ def main():
         "stop_dates":x.get("stop_dates",[]),
         "resume_dates":x.get("resume_dates",[]),
         "action_contexts":(x.get("action_contexts") or [])[:16],
-    } for x in records if x.get("semantic_status")!="UNIQUE_TRANSITION_DATES"]
+    } for x in records if x.get("transition_role")=="NEW_TRANSITION_REQUIRED" and x.get("semantic_status")!="UNIQUE_TRANSITION_DATES"]
 
     report={
       "schema":"stock-bse-suspension-effective-semantics-v1",
@@ -327,8 +338,12 @@ def main():
       "source_event_count":len(events),
       "summary":{
         "selected_documents":total,
-        "transport_and_text_pass":transport,
+        "pdf_transport_pass":pdf_transport,
+        "usable_text_extraction":usable_text,
+        "state_continuation_documents":continuation,
+        "new_transition_required_documents":required,
         "unique_transition_documents":unique,
+        "text_extraction_insufficient":insufficient,
         "no_strong_transition_date":none,
         "multi_date_ambiguous":multi,
         "unique_stop_date_documents":stop_unique,
@@ -340,9 +355,11 @@ def main():
       "rate_limit_control":{"batch_size":20,"cooldown_seconds":75,"cooldowns":cooldowns},
       "records":records,
       "adjudication":{
-        "full_primary_pdf_transport_and_text":"PASS" if total>0 and transport==total else "NOT VERIFIED",
+        "full_primary_pdf_transport":"PASS" if total>0 and pdf_transport==total else "NOT VERIFIED",
+        "full_primary_pdf_transport_and_usable_text":"PASS" if total>0 and usable_text==total else "NOT VERIFIED",
         "bse_suspension_transition_semantics":"SUPPORTED_DIAGNOSTIC" if unique>0 else "NOT VERIFIED",
-        "bse_suspension_event_semantics_complete":"SUPPORTED" if total>0 and unique==total else "NOT VERIFIED",
+        "bse_suspension_new_transition_semantics_complete":"SUPPORTED" if required>0 and unique==required else "NOT VERIFIED",
+        "bse_suspension_event_semantics_complete":"NOT VERIFIED",
         "bse_effective_daily_suspension_state":"NOT VERIFIED",
         "bse_historical_suspension_pit":"NOT VERIFIED",
         "bse_historical_st_pit":"NOT VERIFIED",
@@ -351,11 +368,11 @@ def main():
         "product_bytes_changed":False,
         "final_gate":"FAIL",
       },
-      "boundary":"Only explicit PDF text linking dates to stop/resume actions is accepted. Publication date is never substituted. Even complete transition semantics would still require ordered interval replay on a validated trading calendar before BSE historical suspension PIT."
+      "boundary":"PDF transport is separated from usable text extraction. Continuation notices (e.g. 继续停牌) preserve an already-suspended state and do not create a new active->suspended transition denominator. Publication date is never substituted. Any insufficient primary text remains unresolved, and even complete new-transition semantics still require ordered interval replay on a validated trading calendar before BSE historical suspension PIT."
     }
     OUT.write_text(json.dumps(report,ensure_ascii=False,sort_keys=True,indent=2)+"\n",encoding="utf-8")
     print(json.dumps({"schema":report["schema"],"summary":report["summary"],"adjudication":report["adjudication"]},ensure_ascii=True,sort_keys=True))
-    return 0 if total>0 and transport==total else 2
+    return 0 if total>0 and pdf_transport==total else 2
 
 if __name__=="__main__":
     raise SystemExit(main())
