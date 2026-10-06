@@ -66,7 +66,8 @@ jobs:
         env:
           GLP_SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
-          python DLT/scripts/prospective_snapshot.py             --ledger-dir prospective-ledger/DLT/prospective_ledger
+          python DLT/scripts/prospective_snapshot.py \
+            --ledger-dir prospective-ledger/DLT/prospective_ledger
 
       - name: Fail-closed prospective evidence schema
         env:
@@ -75,12 +76,14 @@ jobs:
           python - <<'PY'
           import json, os
           from pathlib import Path
-          p=Path("prospective-ledger/DLT/prospective_ledger/last_cycle.json")
-          x=json.loads(p.read_text(encoding="utf-8"))
-          live=x["live_source"]
-          status=x["status"]
-          freeze=x["freeze"]
-          cohort=x["cohort"]
+
+          p = Path("prospective-ledger/DLT/prospective_ledger/last_cycle.json")
+          x = json.loads(p.read_text(encoding="utf-8"))
+          live = x["live_source"]
+          status = x["status"]
+          freeze = x["freeze"]
+          cohort = x["cohort"]
+
           assert x["cycle_source_commit"] == os.environ["EXPECTED_SHA"]
           assert isinstance(x["behavior_hash"], str) and len(x["behavior_hash"]) == 64
           assert cohort["behavior_hash"] == x["behavior_hash"]
@@ -99,7 +102,9 @@ jobs:
           assert status["dan_state"] == "NULL_DAN"
           assert status["production_rho"] == 0.0
           assert status["promotion_authorized"] is False
-          assert status["qualification"]["decision"] in {"NOT_READY","NO_EDGE","PROSPECTIVE_EDGE_CANDIDATE"}
+          assert status["qualification"]["decision"] in {
+              "NOT_READY", "NO_EDGE", "PROSPECTIVE_EDGE_CANDIDATE"
+          }
           if status["qualification"]["decision"] == "PROSPECTIVE_EDGE_CANDIDATE":
               assert status["qualification"]["promotion_authorized"] is False
               assert status["qualification"]["production_rho"] == 0.0
@@ -117,22 +122,10 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add DLT/prospective_ledger
-          meaningful="$(git diff --cached --name-only | grep -Ev '(^|/)status\.json$|^DLT/prospective_ledger/last_cycle\.json
-          echo "ledger_commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-
-      - name: Upload exact prospective evidence
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: DLT-PROSPECTIVE-${{ github.event.pull_request.head.sha || github.sha }}
-          path: prospective-ledger/DLT/prospective_ledger
-          if-no-files-found: error
-          retention-days: 90
- || true)"
+          meaningful="$(git diff --cached --name-only | grep -Ev '(^|/)status\.json$|^DLT/prospective_ledger/last_cycle\.json$' || true)"
           if git diff --cached --quiet; then
             echo "LEDGER_CHANGED=false"
           elif [ -z "$meaningful" ]; then
-            # Do not pollute the append-only evidence branch with timestamp-only
-            # status/last_cycle refreshes when no cohort/Freeze/Replay changed.
             git reset
             echo "LEDGER_CHANGED=false"
             echo "LEDGER_NOOP_SUMMARY_ONLY=true"
