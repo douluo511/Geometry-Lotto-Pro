@@ -41,6 +41,44 @@ class RestoredUpdaterContractTests(unittest.TestCase):
             self.assertGreaterEqual(len(prefix), 2)
             self.assertTrue(prefix[-1].endswith("updater.py"))
 
+    def test_repair_failure_is_persisted_without_false_pass(self) -> None:
+        class FakeStore:
+            def __init__(self) -> None:
+                self.experiments = []
+
+            def integrity_check(self):
+                return {
+                    "status": "FAIL",
+                    "checks": [
+                        {"name": "SQLite integrity", "status": "PASS"},
+                        {"name": "Freeze archive", "status": "PASS"},
+                        {"name": "Canonical hash", "status": "FAIL"},
+                        {"name": "Source evidence", "status": "PASS"},
+                    ],
+                }
+
+            def append_experiment(self, *args):
+                self.experiments.append(args)
+
+        store = FakeStore()
+        service = LottoService(store=store)
+        service.update = lambda progress=None: (_ for _ in ()).throw(
+            RuntimeError("injected offline source failure")
+        )
+
+        with self.assertRaisesRegex(RuntimeError, "injected offline source failure"):
+            service.repair()
+
+        repair_rows = [row for row in store.experiments if row[0] == "repair"]
+        self.assertEqual(len(repair_rows), 1)
+        kind, status, _input_hash, _version, payload = repair_rows[0]
+        self.assertEqual(kind, "repair")
+        self.assertEqual(status, "FAIL")
+        self.assertEqual(payload["status"], "FAIL")
+        self.assertEqual(payload["error_type"], "RuntimeError")
+        self.assertIn("injected offline source failure", payload["error"])
+        self.assertNotEqual(status, "PASS")
+
     def test_audit_is_observational_and_never_writes_formal_freeze(self) -> None:
         class FakeStore:
             def __init__(self) -> None:
