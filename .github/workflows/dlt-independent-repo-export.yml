@@ -187,4 +187,5 @@ jobs:
           name: dlt-independent-repo-seed-${{ github.event.pull_request.head.sha || github.sha }}
           path: ${{ runner.temp }}/export-a
           if-no-files-found: error
+          include-hidden-files: true
           retention-days: 90
