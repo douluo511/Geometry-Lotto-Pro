@@ -43,7 +43,7 @@ def direct_resume_dates(text:str):
         # "复牌依据及复牌日期" section must itself contain one and only one
         # calendar date before the direct "日起复牌" action. This tolerates
         # OCR loss of a small connector such as "自", but not a nearby date.
-        re.compile(rf"(?:复牌依据及复牌日期)[^。；]{{0,420}}?{DATE}[^。；]{{0,20}}?日起复牌"),
+        re.compile(rf"(?:复牌依据及复牌日期)[^。；]{{0,420}}?{DATE}[^。；]{{0,20}}?起复牌"),
     ]
     out=[]
     evidence=[]
@@ -111,6 +111,16 @@ def action_contexts(text:str):
         unique[(row["term"],row["snippet_sha256"])]=row
     return [unique[k] for k in sorted(unique)][:40]
 
+def semantic_regression_self_check():
+    positive="三、复牌依据及复牌日期根据规则并经申请，本公司股票2023年8月9日起复牌。"
+    dates,hits=direct_resume_dates(positive)
+    if dates != ["2023-08-09"] or not hits:
+        raise RuntimeError(f"heading resume positive regression failed: {dates}")
+    negative="三、复牌依据及复牌日期2023年8月8日审议，2023年8月9日起复牌。"
+    dates2,_=direct_resume_dates(negative)
+    if dates2:
+        raise RuntimeError(f"multi-date heading must fail closed: {dates2}")
+
 def run_ocr(png:Path,psm:int):
     cmd=["tesseract",str(png),"stdout","-l","chi_sim+eng","--psm",str(psm),"--dpi","300"]
     p=subprocess.run(cmd,capture_output=True,text=True,encoding="utf-8",errors="replace",check=False)
@@ -122,6 +132,7 @@ def run_ocr(png:Path,psm:int):
     }
 
 def main()->int:
+    semantic_regression_self_check()
     r=requests.get(
         URL,
         headers={
