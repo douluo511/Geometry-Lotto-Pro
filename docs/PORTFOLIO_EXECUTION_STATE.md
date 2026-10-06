@@ -1133,3 +1133,14 @@ This checkpoint supersedes older in-progress wording for the items below only. I
 - Shanghai historical suspension intervals remain **SUPPORTED**; historical daily suspension state = **NOT VERIFIED**; Shanghai historical ST/PIT = **NOT VERIFIED**; Beijing historical ST/PIT = **NOT VERIFIED**; full `HISTORICAL_ST_PIT` = **NOT VERIFIED**; Advanced Business = **NOT VERIFIED**; Final Gate = **FAIL**.
 - Evidence: PR #197 artifact `11346303286`; PR #199 `11346383703`; PR #201 `11346673552`; PR #202 `11347600140`. Portfolio aggregate remains migration/export **18/18 PASS**, dedicated repositories **0/18**, Final/Delivery **0/18**.
 
+
+
+## 2026-10-06 Stock #257 current behavior + migration rebind #260
+
+- **Current Stock product candidate:** PR #257 exact head `c25a5c394363058d341b624b18943cd3733eb720`.
+- **Fresh source acceptance:** run `37371301910` / job `111968840454` = **SUCCESS**. Immutable 187-file restore, historical ST/suspension PIT fail-closed contract, Top-N/future-safety backtest policy contract, full 32/32 Windows offline regression, and real AkShare source integration PASS.
+- **Fresh full-business:** run `37371301878` / job `111968841067` = **FAIL**. Production maintenance fails closed because `historical_st_pit.json` / complete historical ST+suspension daily PIT evidence is absent; Advanced Business remains **NOT VERIFIED**.
+- **Fresh desktop:** run `37371302045` attempt 1 / job `111968841651` failed at the frozen >=90% current+delisted corpus prerequisite after progressive cache save; downstream Advanced/Physical GUI/Same-Hash were skipped. Failed-jobs rerun job `112106367690` is active; no pending result is promoted.
+- **Current-product migration/export:** PR #260 head `0cacdb645aaac68ee6820f04b95595bf4073b334`, based exactly on #257 `c25a5c39...`; run `37413482053` / job `112106873905` = **SUCCESS**. Product-tree byte identity, deterministic export, independent second-pass verification and deliberate tamper rejection PASS. File count **409**; manifest SHA-256 `63b988ea1c3dae4fa20eec124f875c26ed2299be2fd52a8e643382ca77dc19ae`; artifact `11389831927`; ZIP digest `sha256:6a6792ca53d3c7ebc43661711a19fd8451c1c70c1b1c46cc70fae7cb410d81ab`.
+- **Portfolio boundary:** current-product migration/export readiness = **18/18 PASS**; accessible dedicated repositories = **0/18**; connected GitHub actions expose no repository-creation mutation; Final PASS = **0/18**; Delivery = **0/18**.
+- If PR #257 changes head, PR #260 is stale immediately and the Stock migration count must be invalidated until rebound.
