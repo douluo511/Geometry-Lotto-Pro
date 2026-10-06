@@ -163,58 +163,83 @@ class LottoService:
             db.close()
 
     def update(self, progress: Callable[[str], None] | None = None) -> dict[str, Any]:
-        self.ensure_seed()
-        # A provincial fallback is allowed to extend only an integrity-verified
-        # local baseline.  Structurally valid but tampered history must not be
-        # "washed clean" by matching only the recent provincial window.
-        # The packaged seed predates raw-byte preservation. It may bootstrap a
-        # live refresh, but it must never count as current Real Network PASS.
-        baseline_integrity = self.store.baseline_integrity_check()
-        if not baseline_integrity.get("ok"):
-            raise RuntimeError("local canonical baseline integrity FAIL; run 一键修复 before network update")
-        if progress:
-            progress("连接多官方源并构建 SSQ Canonical Dataset…")
-        baseline_draws = self._load_draws()
-        baseline_raw_verified = bool(self.store.integrity_check().get("ok"))
-        baseline_evidence = (
-            json.loads(self.store.evidence_path.read_text(encoding="utf-8"))
-            if baseline_raw_verified else None
-        )
-        dataset, evidences = build_canonical(
-            progress=progress,
-            baseline_draws=baseline_draws,
-            baseline_raw_verified=baseline_raw_verified,
-            baseline_evidence=baseline_evidence,
-            failure_sink=self.store.save_failure_evidence,
-        )
-        if getattr(dataset, "crosscheck_status", None) != "PASS":
-            raise RuntimeError("official source crosscheck did not PASS")
-        self.store.save_dataset(dataset, evidences)
-        persisted_integrity = self._integrity_check()
-        if not persisted_integrity.get("ok"):
-            raise RuntimeError("persisted official network evidence failed strict integrity")
-        replay_result = self.replay_all(progress=progress)
-        latest = dataset.draws[-1]
-        receipts = [asdict(r) for r in dataset.receipts]
-        payload = {
-            "schema": "official-update-v8.3",
-            "game": "SSQ",
-            "latest": latest.to_dict(),
-            "latest_issue": latest.issue,
-            "latest_date": latest.draw_date,
-            "draw_count": len(dataset.draws),
-            "canonical_hash": dataset.canonical_hash,
-            "crosscheck_count": dataset.crosscheck_count,
-            "crosscheck_status": dataset.crosscheck_status,
-            "verification": evidences.get("verification"),
-            "source": "official-source-quorum",
-            "baseline_integrity": baseline_integrity,
-            "persisted_integrity": persisted_integrity,
-            "source_receipts": receipts,
-            "replayed": replay_result.get("replayed", 0),
-        }
-        self._append_experiment("official_update", "PASS", dataset.canonical_hash, payload)
-        return payload
+        attempt_id = sha256_json({
+            "kind": "official_update",
+            "started_at": utc_now(),
+            "app_version": APP_VERSION,
+        })
+        try:
+            self.ensure_seed()
+            # A provincial fallback is allowed to extend only an integrity-verified
+            # local baseline.  Structurally valid but tampered history must not be
+            # "washed clean" by matching only the recent provincial window.
+            # The packaged seed predates raw-byte preservation. It may bootstrap a
+            # live refresh, but it must never count as current Real Network PASS.
+            baseline_integrity = self.store.baseline_integrity_check()
+            if not baseline_integrity.get("ok"):
+                raise RuntimeError("local canonical baseline integrity FAIL; run 一键修复 before network update")
+            if progress:
+                progress("连接多官方源并构建 SSQ Canonical Dataset…")
+            baseline_draws = self._load_draws()
+            baseline_raw_verified = bool(self.store.integrity_check().get("ok"))
+            baseline_evidence = (
+                json.loads(self.store.evidence_path.read_text(encoding="utf-8"))
+                if baseline_raw_verified else None
+            )
+            dataset, evidences = build_canonical(
+                progress=progress,
+                baseline_draws=baseline_draws,
+                baseline_raw_verified=baseline_raw_verified,
+                baseline_evidence=baseline_evidence,
+                failure_sink=self.store.save_failure_evidence,
+            )
+            if getattr(dataset, "crosscheck_status", None) != "PASS":
+                raise RuntimeError("official source crosscheck did not PASS")
+            self.store.save_dataset(dataset, evidences)
+            persisted_integrity = self._integrity_check()
+            if not persisted_integrity.get("ok"):
+                raise RuntimeError("persisted official network evidence failed strict integrity")
+            replay_result = self.replay_all(progress=progress)
+            latest = dataset.draws[-1]
+            receipts = [asdict(r) for r in dataset.receipts]
+            payload = {
+                "schema": "official-update-v8.3",
+                "game": "SSQ",
+                "latest": latest.to_dict(),
+                "latest_issue": latest.issue,
+                "latest_date": latest.draw_date,
+                "draw_count": len(dataset.draws),
+                "canonical_hash": dataset.canonical_hash,
+                "crosscheck_count": dataset.crosscheck_count,
+                "crosscheck_status": dataset.crosscheck_status,
+                "verification": evidences.get("verification"),
+                "source": "official-source-quorum",
+                "baseline_integrity": baseline_integrity,
+                "persisted_integrity": persisted_integrity,
+                "source_receipts": receipts,
+                "replayed": replay_result.get("replayed", 0),
+            }
+            self._append_experiment("official_update", "PASS", dataset.canonical_hash, payload)
+            return payload
+        except Exception as exc:
+            failure = {
+                "schema": "official-update-failure-v1",
+                "game": "SSQ",
+                "status": "FAIL",
+                "attempt_id": attempt_id,
+                "failed_at": utc_now(),
+                "error_type": type(exc).__name__,
+                "error": str(exc),
+            }
+            try:
+                self._append_experiment("official_update", "FAIL", attempt_id, failure)
+            except Exception as evidence_exc:
+                # Do not replace the original network/update failure with a
+                # secondary evidence-write failure.
+                failure["evidence_write_error"] = (
+                    f"{type(evidence_exc).__name__}: {evidence_exc}"
+                )
+            raise
 
     def latest_court(self) -> dict[str, Any] | None:
         db = self._db()
