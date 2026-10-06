@@ -125,7 +125,7 @@ def main() -> int:
         decision = load(latest / "decision.json")
         chain = load(DATA_ROOT / "state" / "prediction_chain.json")
         maintenance = load(DATA_ROOT / "state" / "maintenance.json")
-        backtest_summary = load(DATA_ROOT / "reports" / "backtest_summary.json")
+        backtest_summary_path = DATA_ROOT / "reports" / "backtest_summary.json"
         frozen_cfg = load(VERSION / "config.default.json")
         update = load(DATA_ROOT / "cache" / "last_update_status.json")
 
@@ -152,7 +152,15 @@ def main() -> int:
 
         maintenance_result = maintenance.get("result") or {}
         if maintenance_result.get("backtest") != "PASS":
+            if not backtest_summary_path.is_file():
+                raise RuntimeError(
+                    "automatic backtest not PASS and no backtest summary was produced; "
+                    f"maintenance={maintenance_result}"
+                )
             raise RuntimeError(f"automatic backtest not PASS: {maintenance_result}")
+        if not backtest_summary_path.is_file():
+            raise RuntimeError("automatic backtest reported PASS but backtest_summary.json is missing")
+        backtest_summary = load(backtest_summary_path)
         pit_policy = backtest_summary.get("historical_pit_policy") or {}
         if pit_policy.get("status") != "PASS":
             raise RuntimeError(f"historical PIT backtest policy not PASS: {pit_policy}")
@@ -162,12 +170,14 @@ def main() -> int:
             raise RuntimeError(f"historical PIT selection does not use signal-date state: {pit_policy}")
         if pit_policy.get("execution_state_date") != "next_market_open":
             raise RuntimeError(f"historical PIT execution does not use next-market-open state: {pit_policy}")
-        if pit_policy.get("market_calendar_source") != "verified_canonical_daily_state":
+        if pit_policy.get("market_calendar_source") != "verified_bound_market_calendar":
             raise RuntimeError(f"historical PIT market calendar is not canonical-evidence bound: {pit_policy}")
         if pit_policy.get("liquidity_ranking_after_signal_pit") is not True:
             raise RuntimeError(f"historical PIT signal filter did not precede Top-N liquidity ranking: {pit_policy}")
         if not re.fullmatch(r"[0-9a-f]{64}", str(pit_policy.get("canonical_sha256", "")).lower()):
             raise RuntimeError(f"historical PIT backtest policy missing canonical SHA-256: {pit_policy}")
+        if not re.fullmatch(r"[0-9a-f]{64}", str(pit_policy.get("calendar_manifest_sha256", "")).lower()):
+            raise RuntimeError(f"historical PIT backtest policy missing calendar manifest SHA-256: {pit_policy}")
         if str(maintenance_result.get("audit", "")).startswith("FAIL") or not maintenance_result.get("audit"):
             raise RuntimeError(f"automatic audit not complete: {maintenance_result}")
 

@@ -99,6 +99,8 @@ def _historical_candidate_pool(ds,cfg,research_calendar):
     )
     if entry_evidence.get("canonical_sha256")!=signal_evidence.get("canonical_sha256"):
         raise RuntimeError("historical PIT canonical binding changed between signal and entry checks")
+    if entry_evidence.get("calendar_manifest_sha256")!=signal_evidence.get("calendar_manifest_sha256"):
+        raise RuntimeError("historical PIT calendar binding changed between signal and entry checks")
     entry_suspended=np.array([bool(entry_states[k]["suspended"]) for k in entry_keys],dtype=bool)
     entry_suspended_excluded=int(entry_suspended.sum())
     x=x.loc[~entry_suspended].copy()
@@ -111,7 +113,7 @@ def _historical_candidate_pool(ds,cfg,research_calendar):
         "point_in_time_only":True,
         "selection_state_date":"signal_date",
         "execution_state_date":"next_market_open",
-        "market_calendar_source":"verified_canonical_daily_state",
+        "market_calendar_source":"verified_bound_market_calendar",
         "liquidity_ranking_after_signal_pit":True,
         "exclude_st":exclude_st,
         "rows_before_signal_pit":rows_before_signal_pit,
@@ -124,6 +126,7 @@ def _historical_candidate_pool(ds,cfg,research_calendar):
         "entry_suspended_excluded":entry_suspended_excluded,
         "required_state_keys":required_state_keys,
         "canonical_sha256":signal_evidence.get("canonical_sha256"),
+        "calendar_manifest_sha256":signal_evidence.get("calendar_manifest_sha256"),
         "window_start":signal_evidence.get("window_start"),
         "window_end":signal_evidence.get("window_end"),
         "future_safety":"ST selection uses signal-date state only; next-day suspension is used only for execution feasibility",

@@ -11,6 +11,7 @@ PACKAGE_ROOT = Path(__file__).resolve().parents[1] / "staging" / "Stock_AI_Pro" 
 sys.path.insert(0, str(PACKAGE_ROOT))
 
 import stock_ai.backtest as bt
+from stock_ai.historical_pit import evaluate_historical_st_pit
 
 
 def sha(path: Path) -> str:
@@ -24,7 +25,9 @@ def write_bytes(root: Path, rel: str, payload: bytes) -> str:
     return sha(p)
 
 
-def install_claim(root: Path, rows: list[dict]) -> None:
+def install_claim(root: Path, rows: list[dict], calendar_dates=None) -> None:
+    calendar_dates = list(calendar_dates or [D1, D2, D3])
+    window_start, window_end = calendar_dates[0], calendar_dates[-1]
     canonical_rel = "cache/historical_st_pit_daily_state.jsonl"
     canonical = root / canonical_rel
     canonical.parent.mkdir(parents=True, exist_ok=True)
@@ -37,6 +40,21 @@ def install_claim(root: Path, rows: list[dict]) -> None:
         root, source_rel,
         b'{"point_in_time_only":true,"sources":["SSE","SZSE","BSE"]}\n',
     )
+    canonical_sha = sha(canonical)
+    calendar_rel = "cache/historical_market_calendar.json"
+    calendar_sha = write_bytes(
+        root,
+        calendar_rel,
+        (json.dumps({
+            "schema": "stock-ai-historical-market-calendar-v1",
+            "window_start": window_start,
+            "window_end": window_end,
+            "markets": {
+                market: {"status": "PASS", "source_count": 1, "dates": calendar_dates}
+                for market in ("SSE", "SZSE", "BSE")
+            },
+        }, sort_keys=True) + "\n").encode("utf-8"),
+    )
     markets = {}
     for market in ("SSE", "SZSE", "BSE"):
         rel = f"cache/historical_st_pit_{market.lower()}.json"
@@ -48,6 +66,12 @@ def install_claim(root: Path, rows: list[dict]) -> None:
                 "suspension_state": "PASS",
                 "trading_calendar": "PASS",
                 "daily_state": "PASS",
+                "point_in_time_only": True,
+                "future_leakage_violations": 0,
+                "window_start": window_start,
+                "window_end": window_end,
+                "canonical_sha256": canonical_sha,
+                "source_count": 1,
             }, sort_keys=True) + "\n").encode("utf-8"),
         )
         markets[market] = {
@@ -66,12 +90,14 @@ def install_claim(root: Path, rows: list[dict]) -> None:
         "daily_state_complete": True,
         "point_in_time_only": True,
         "future_leakage_violations": 0,
-        "window_start": "2026-01-05",
-        "window_end": "2026-01-07",
+        "window_start": window_start,
+        "window_end": window_end,
         "canonical_path": canonical_rel,
-        "canonical_sha256": sha(canonical),
+        "canonical_sha256": canonical_sha,
         "source_manifest_path": source_rel,
         "source_manifest_sha256": source_sha,
+        "calendar_manifest_path": calendar_rel,
+        "calendar_manifest_sha256": calendar_sha,
         "markets": markets,
     }
     (root / "cache" / "historical_st_pit.json").write_text(
@@ -112,11 +138,29 @@ with tempfile.TemporaryDirectory() as td:
     ])
     cfg = {"universe": {"min_turnover_cny": 0, "live_top_n": 1, "exclude_st": True}}
     with patch.object(bt, "ROOT", root):
+        pit_status, pit_detail, pit_meta = evaluate_historical_st_pit(root, D3)
+        print("BACKTEST_POLICY_FIXTURE_EVALUATOR=" + json.dumps({
+            "status": pit_status,
+            "detail": pit_detail,
+            "failures": pit_meta.get("failures"),
+            "market_failures": pit_meta.get("market_failures"),
+            "bindings": {
+                key: {
+                    "status": value.get("status"),
+                    "reason": value.get("reason"),
+                    "semantic_status": value.get("semantic_status"),
+                    "semantic_reason": value.get("semantic_reason"),
+                }
+                for key, value in (pit_meta.get("bindings") or {}).items()
+            },
+        }, sort_keys=True))
+        assert pit_status == "PASS", (pit_detail, pit_meta)
         out, ev = bt._historical_candidate_pool(ds, cfg, pd.to_datetime([D1, D2, D3]))
     assert out["code"].tolist() == ["600002"], out
     assert ev["signal_st_excluded"] == 1
     assert ev["liquidity_ranking_after_signal_pit"] is True
-    assert ev["market_calendar_source"] == "verified_canonical_daily_state"
+    assert ev["market_calendar_source"] == "verified_bound_market_calendar"
+    assert ev["calendar_manifest_sha256"]
     assert ev["entry_suspended_excluded"] == 0
     assert ev["future_safety"].startswith("ST selection uses signal-date")
 
@@ -153,9 +197,54 @@ with tempfile.TemporaryDirectory() as td:
 
 with tempfile.TemporaryDirectory() as td:
     root = Path(td)
+    calendar_dates = ["2026-01-05", "2026-01-06", "2026-01-07", "2026-01-08", "2026-01-09"]
+    omitted = "2026-01-06"
+    calendar_rows = []
+    anchors = (("SSE", "600002"), ("SZSE", "000001"), ("BSE", "920023"))
+    for day in calendar_dates:
+        if day == omitted:
+            continue
+        for market, code in anchors:
+            calendar_rows.append({
+                "date": day, "market": market, "code": code,
+                "st": False, "suspended": False,
+            })
+    install_claim(root, calendar_rows, calendar_dates=calendar_dates)
+    status, _, meta = evaluate_historical_st_pit(root, calendar_dates[-1])
+    assert status == "WARN"
+    assert "canonical_calendar_coverage" in meta["failures"]
+    assert meta["bindings"]["canonical"]["calendar_coverage_status"] == "WARN"
+    assert omitted in meta["bindings"]["canonical"]["calendar_coverage_meta"]["missing_samples"]["SSE"]
+
+    ds = pd.DataFrame([
+        {"date": calendar_dates[0], "entry_date": calendar_dates[2], "code": "600002", "log_amount20": 20.0},
+    ])
+    cfg = {"universe": {"min_turnover_cny": 0, "live_top_n": 0, "exclude_st": True}}
+    with patch.object(bt, "ROOT", root):
+        try:
+            bt._historical_candidate_pool(ds, cfg, pd.to_datetime(calendar_dates))
+        except RuntimeError as exc:
+            assert "historical ST/PIT evidence not qualified" in str(exc)
+        else:
+            raise AssertionError("canonical omission of a bound trading day must fail closed")
+
+
+with tempfile.TemporaryDirectory() as td:
+    root = Path(td)
     bad = [dict(r) for r in rows]
     bad[0]["market"] = "SZSE"  # 600001 is an SSE code.
     install_claim(root, bad)
+
+    # The hardened evaluator must reject the malformed canonical bytes at the
+    # earliest evidence boundary and preserve the exact semantic reason.
+    status, _, meta = evaluate_historical_st_pit(root, D3)
+    assert status == "WARN"
+    assert "canonical_semantics" in meta["failures"]
+    assert "market_code_mismatch" in meta["bindings"]["canonical"]["semantic_reason"]
+
+    # End-to-end policy consumption must still fail closed.  Do not couple this
+    # assertion to the older downstream loader wording because the bundle is
+    # now rejected before lookup.
     ds = pd.DataFrame([
         {"date": D1, "entry_date": D2, "code": "600001", "log_amount20": 20.0},
     ])
@@ -164,7 +253,7 @@ with tempfile.TemporaryDirectory() as td:
         try:
             bt._historical_candidate_pool(ds, cfg, pd.to_datetime([D1, D2, D3]))
         except RuntimeError as exc:
-            assert "market/code mismatch" in str(exc)
+            assert "historical ST/PIT evidence not qualified" in str(exc)
         else:
             raise AssertionError("market/code mismatch must fail closed")
 
