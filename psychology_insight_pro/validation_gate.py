@@ -32,7 +32,7 @@ def main() -> int:
         "mode": a.mode,
         "status": "PASS" if proc.returncode == 0 else "FAIL",
         "exit_code": proc.returncode,
-        "github_sha": os.environ.get("GITHUB_SHA"),
+        "github_run_id": os.environ.get("GITHUB_RUN_ID"), "github_run_attempt": os.environ.get("GITHUB_RUN_ATTEMPT"), "github_sha": (os.environ.get("PSYCHOLOGY_SOURCE_SHA") or os.environ.get("GITHUB_SHA")),
         "python": sys.version,
         "stdout": proc.stdout[-12000:],
         "stderr": proc.stderr[-12000:],

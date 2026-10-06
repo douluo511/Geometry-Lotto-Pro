@@ -33,13 +33,13 @@ def main() -> int:
     ):
         raise SystemExit(2)
 
-    report["github_sha"] = os.environ.get("GITHUB_SHA")
+    report["github_sha"] = (os.environ.get("PSYCHOLOGY_SOURCE_SHA") or os.environ.get("GITHUB_SHA"))
     report["exe_sha256"] = sha256(exe)
     report["schema"] = "physical-gui-click-smoke-bound-v2"
     evidence_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps({
         "status": report["status"],
-        "github_sha": report["github_sha"],
+        "github_run_id": os.environ.get("GITHUB_RUN_ID"), "github_run_attempt": os.environ.get("GITHUB_RUN_ATTEMPT"), "github_sha": report["github_sha"],
         "exe_sha256": report["exe_sha256"],
         "button_count": len(buttons),
     }, ensure_ascii=False))

@@ -79,7 +79,7 @@ def main() -> int:
     report = {
         "schema": "psychology-business-validation-v1",
         "status": "PASS" if business_validation and counterexample_validation and reversal_validation else "FAIL",
-        "github_sha": os.environ.get("GITHUB_SHA"),
+        "github_run_id": os.environ.get("GITHUB_RUN_ID"), "github_run_attempt": os.environ.get("GITHUB_RUN_ATTEMPT"), "github_sha": (os.environ.get("PSYCHOLOGY_SOURCE_SHA") or os.environ.get("GITHUB_SHA")),
         "business_validation": "PASS" if business_validation else "FAIL",
         "counterexample_validation": "PASS" if counterexample_validation else "FAIL",
         "reversal_validation": "PASS" if reversal_validation else "FAIL",
@@ -96,7 +96,7 @@ def main() -> int:
         json.dumps(report, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
-    print(json.dumps(report, ensure_ascii=False))
+    print(json.dumps(report, ensure_ascii=True))
     return 0 if report["status"] == "PASS" else 2
 
 

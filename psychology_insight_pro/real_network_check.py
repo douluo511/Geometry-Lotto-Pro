@@ -18,7 +18,7 @@ def main() -> int:
     report = {
         "schema": "psychology-real-network-v2",
         "status": "FAIL",
-        "github_sha": os.environ.get("GITHUB_SHA"),
+        "github_run_id": os.environ.get("GITHUB_RUN_ID"), "github_run_attempt": os.environ.get("GITHUB_RUN_ATTEMPT"), "github_sha": (os.environ.get("PSYCHOLOGY_SOURCE_SHA") or os.environ.get("GITHUB_SHA")),
         "network_gate": "FAIL",
         "source_count": 0,
         "sources": [],

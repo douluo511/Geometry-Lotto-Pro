@@ -3,13 +3,9 @@ name: Psychology Insight Pro - Full Release Gate
 on:
   push:
     branches: [main]
-    paths:
-      - 'psychology_insight_pro/**'
-      - '.github/workflows/psychology-insight-pro-windows.yml'
+    paths: ['psychology_insight_pro/**', '.github/workflows/psychology-insight-pro-windows.yml', '.github/scripts/psychology_physical_gui_click_smoke.ps1']
   pull_request:
-    paths:
-      - 'psychology_insight_pro/**'
-      - '.github/workflows/psychology-insight-pro-windows.yml'
+    paths: ['psychology_insight_pro/**', '.github/workflows/psychology-insight-pro-windows.yml', '.github/scripts/psychology_physical_gui_click_smoke.ps1']
   workflow_dispatch:
 
 permissions:
@@ -19,160 +15,130 @@ jobs:
   full-release-gate:
     runs-on: windows-2022
     timeout-minutes: 30
+    env:
+      PYTHONUTF8: '1'
+      PYTHONIOENCODING: 'utf-8'
+      PSYCHOLOGY_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      PSYCHOLOGY_DATA_ROOT: ${{ github.workspace }}/psychology_gate_data
+      PSYCHOLOGY_GUI_AUDIT: ${{ github.workspace }}/psychology_insight_pro/gui_operations.jsonl
+      PSYCHOLOGY_GUI_LAYOUT: ${{ github.workspace }}/psychology_insight_pro/current_gui_layout.json
     defaults:
       run:
         shell: pwsh
-
     steps:
-      - name: Checkout exact commit
-        uses: actions/checkout@v4
-
-      - name: Setup Python x64
-        uses: actions/setup-python@v5
+      - name: Checkout exact product head
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          python-version: '3.12'
-          architecture: 'x64'
-
-      - name: Install build dependencies
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Setup pinned Python x64
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.11.9'
+          architecture: x64
+      - name: Install pinned build dependencies
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install pyinstaller requests
-
-      - name: Compile gate
+          python -m pip install --disable-pip-version-check -r psychology_insight_pro/requirements-build.txt
+          if ($LASTEXITCODE -ne 0) { throw 'Dependency installation failed' }
+      - name: Static and compile
         run: |
+          $actualHead=(git rev-parse HEAD).Trim()
+          if ($LASTEXITCODE -ne 0 -or $actualHead -ne $env:PSYCHOLOGY_SOURCE_SHA) { throw 'Exact source checkout mismatch' }
+          python -c "import tkinter; app=tkinter.Tk(); app.withdraw(); app.update_idletasks(); app.destroy(); print('TCL_PREFLIGHT=PASS')"
+          if ($LASTEXITCODE -ne 0) { throw 'Native Tcl/Tk preflight failed' }
           python -m compileall -q psychology_insight_pro
-          if ($LASTEXITCODE -ne 0) { throw "Compile gate failed" }
-
-      - name: Architecture gate
+          if ($LASTEXITCODE -ne 0) { throw 'Compile gate failed' }
+          $tokens=$null; $parseErrors=$null
+          [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path '.github/scripts/psychology_physical_gui_click_smoke.ps1'),[ref]$tokens,[ref]$parseErrors)
+          if ($parseErrors.Count) { throw ($parseErrors | Out-String) }
+      - name: Architecture and business content
         run: |
           python psychology_insight_pro/architecture_gate.py
-          if ($LASTEXITCODE -ne 0) { throw "Architecture gate failed" }
-
-      - name: Business Content Gate
-        run: |
+          if ($LASTEXITCODE -ne 0) { throw 'Architecture failed' }
           python psychology_insight_pro/business_gate.py
-          if ($LASTEXITCODE -ne 0) { throw "Business Content Gate failed" }
-
-      - name: Unit Gate
-        run: |
-          python psychology_insight_pro/validation_gate.py --mode unit
-          if ($LASTEXITCODE -ne 0) { throw "Unit Gate failed" }
-
-      - name: Contract Gate
-        run: |
-          python psychology_insight_pro/validation_gate.py --mode contract
-          if ($LASTEXITCODE -ne 0) { throw "Contract Gate failed" }
-
-      - name: Fault Injection Gate
-        run: |
-          python psychology_insight_pro/validation_gate.py --mode fault
-          if ($LASTEXITCODE -ne 0) { throw "Fault Injection Gate failed" }
-
-      - name: Integration Gate
-        run: |
-          python psychology_insight_pro/validation_gate.py --mode integration
-          if ($LASTEXITCODE -ne 0) { throw "Integration Gate failed" }
-
-      - name: Full regression
-        run: |
-          python -m unittest discover -s psychology_insight_pro/tests -v
-          if ($LASTEXITCODE -ne 0) { throw "Full regression failed" }
-
-      - name: Business Counterexample Reversal Gate
-        run: |
+          if ($LASTEXITCODE -ne 0) { throw 'Business content failed' }
           python psychology_insight_pro/business_validation_gate.py
-          if ($LASTEXITCODE -ne 0) { throw "Business validation failed" }
-
-      - name: Real Network through production update path
+          if ($LASTEXITCODE -ne 0) { throw 'Business counterexample validation failed' }
+      - name: Unit contract integration and fault injection
+        run: |
+          foreach ($mode in @('unit','contract','integration','fault')) {
+            python psychology_insight_pro/validation_gate.py --mode $mode
+            if ($LASTEXITCODE -ne 0) { throw "Validation mode failed ${mode}" }
+          }
+          python -m unittest discover -s psychology_insight_pro/tests -v
+          if ($LASTEXITCODE -ne 0) { throw 'Full regression failed' }
+      - name: Independent Updater rollback fault gates
+        run: |
+          python psychology_insight_pro/updater_gate.py --output psychology_insight_pro/updater_gate.json
+          if ($LASTEXITCODE -ne 0) { throw 'Updater fault gates failed' }
+      - name: Real Network through knowledge refresh
         run: |
           python psychology_insight_pro/real_network_check.py
-          if ($LASTEXITCODE -ne 0) { throw "Real Network failed" }
-
-      - name: Native Windows Build
+          if ($LASTEXITCODE -ne 0) { throw 'Real Network failed' }
+      - name: Independent repository and real release evidence
         run: |
-          pyinstaller --noconfirm --clean --noupx --onefile --windowed --name Psychology_Insight_Pro --add-data "psychology_insight_pro/knowledge.json;." psychology_insight_pro/app.py
-          if (-not (Test-Path ".\dist\Psychology_Insight_Pro.exe")) { throw "EXE missing" }
-
-      - name: Exact Candidate Gate
+          python psychology_insight_pro/repository_independence_gate.py --repository "$env:GITHUB_REPOSITORY" --repo-root . --output psychology_insight_pro/repository_independence.json
+          if ($LASTEXITCODE -ne 0) { throw 'Repository evidence invalid' }
+          python psychology_insight_pro/real_release_evidence.py --repository "$env:GITHUB_REPOSITORY" --source-sha "$env:PSYCHOLOGY_SOURCE_SHA" --run-id "$env:GITHUB_RUN_ID" --run-attempt "$env:GITHUB_RUN_ATTEMPT" --repo-root . --output psychology_insight_pro/real_release_validation.json
+          if ($LASTEXITCODE -ne 0) { throw 'Real release evidence invalid' }
+      - name: Native Windows main and independent Updater builds
         run: |
-          python psychology_insight_pro/exact_candidate_gate.py --exe ".\dist\Psychology_Insight_Pro.exe" --output ".\psychology_insight_pro\exact_candidate_gate.json"
-          if ($LASTEXITCODE -ne 0) { throw "Exact Candidate Gate failed" }
-
-      - name: Physical GUI Click Smoke
+          python -m PyInstaller --noconfirm --clean psychology_insight_pro/PsychologyInsightPro.spec
+          if ($LASTEXITCODE -ne 0) { throw 'Main build failed' }
+          python -m PyInstaller --noconfirm --clean psychology_insight_pro/PsychologyInsightProUpdater.spec
+          if ($LASTEXITCODE -ne 0) { throw 'Independent Updater build failed' }
+          New-Item -ItemType Directory -Force dist/acceptance_bytes | Out-Null
+          Copy-Item dist/Psychology_Insight_Pro.exe dist/acceptance_bytes/Psychology_Insight_Pro.exe
+          Copy-Item dist/Psychology_Insight_Pro_Updater.exe dist/acceptance_bytes/Psychology_Insight_Pro_Updater.exe
+      - name: Exact main and independent Updater process
         run: |
-          .\.github\scripts\physical_gui_click_smoke.ps1 -ExePath ".\dist\Psychology_Insight_Pro.exe" -Points "0.45,0.43;0.90,0.43;0.45,0.79;0.90,0.79" -EvidencePath ".\psychology_insight_pro\physical_gui_click.json"
-          if ($LASTEXITCODE -ne 0) { throw "Physical GUI Click failed" }
-          python psychology_insight_pro/bind_physical_gui.py --exe ".\dist\Psychology_Insight_Pro.exe" --evidence ".\psychology_insight_pro\physical_gui_click.json"
-          if ($LASTEXITCODE -ne 0) { throw "Physical GUI evidence binding failed" }
-
-      - name: Freeze final bytes
+          python psychology_insight_pro/exact_candidate_gate.py --exe dist/Psychology_Insight_Pro.exe --output psychology_insight_pro/exact_candidate_gate.json
+          if ($LASTEXITCODE -ne 0) { throw 'Exact main candidate failed' }
+          python psychology_insight_pro/updater_exact_candidate_gate.py --exe dist/Psychology_Insight_Pro_Updater.exe --final-exe dist/acceptance_bytes/Psychology_Insight_Pro_Updater.exe --output psychology_insight_pro/updater_exact_candidate_gate.json
+          if ($LASTEXITCODE -ne 0) { throw 'Exact independent Updater self-test failed' }
+      - name: Physical mouse actions and typed backend results
         run: |
-          New-Item -ItemType Directory -Force ".\dist\final" | Out-Null
-          Copy-Item ".\dist\Psychology_Insight_Pro.exe" ".\dist\final\Psychology_Insight_Pro.exe" -Force
-
+          python psychology_insight_pro/tk_control_points.py --output psychology_insight_pro/gui_control_points.json
+          if ($LASTEXITCODE -ne 0) { throw 'Visible control positions missing' }
+          $layout=Get-Content psychology_insight_pro/gui_control_points.json -Raw | ConvertFrom-Json
+          $points=($layout.home | ForEach-Object { '{0},{1}' -f $_[0],$_[1] }) -join ';'
+          $analysisPoint='{0},{1}' -f $layout.analysis_start[0],$layout.analysis_start[1]
+          $mode=if(Test-Path -LiteralPath dist/Psychology_Insight_Pro_Update_Config.json){'ConfiguredRelease'}else{'BlockedRelease'}
+          ./.github/scripts/psychology_physical_gui_click_smoke.ps1 -ExePath ./dist/Psychology_Insight_Pro.exe -Points $points -AnalysisPoint $analysisPoint -DataDirectory $env:PSYCHOLOGY_DATA_ROOT -AcceptanceMode $mode -EvidencePath ./psychology_insight_pro/physical_gui_click.json -SettleMs 2500
+          python psychology_insight_pro/bind_gui_operations.py --exe dist/Psychology_Insight_Pro.exe --evidence psychology_insight_pro/physical_gui_click.json --audit "$env:PSYCHOLOGY_GUI_AUDIT" --data-root "$env:PSYCHOLOGY_DATA_ROOT"
+          if ($LASTEXITCODE -ne 0) { throw 'Physical actions lack current backend proof' }
       - name: Evidence-derived Final Gate and Same Hash
+        if: always()
         run: |
-          python psychology_insight_pro/collect_final_gates.py --exe ".\dist\Psychology_Insight_Pro.exe" --final-exe ".\dist\final\Psychology_Insight_Pro.exe" --physical-gui ".\psychology_insight_pro\physical_gui_click.json" --repository-independent FAIL --output ".\dist\mother_gates.json"
-          $collectorExit = $LASTEXITCODE
-
-          python psychology_insight_pro/release_gate.py --input ".\dist\mother_gates.json" --output ".\dist\final_gate.json"
-          $releaseExit = $LASTEXITCODE
-
-          $mother = Get-Content ".\dist\mother_gates.json" -Raw | ConvertFrom-Json
-          $final = Get-Content ".\dist\final_gate.json" -Raw | ConvertFrom-Json
-          if ($collectorExit -ne 0 -or $releaseExit -ne 0 -or $mother.status -ne "PASS" -or $final.final_gate -ne "PASS" -or [int]$final.hard_fail_count -ne 0) {
-            throw "Final Gate blocked: independent repository is mandatory"
-          }
-          Write-Host "PSYCHOLOGY_FINAL_SHA256=$($final.exe_sha256)"
-          Write-Host "FINAL_RELEASE_GATE=PASS"
-
-      - name: Acceptance Evidence
-        run: |
-          $final = Get-Content ".\dist\final_gate.json" -Raw | ConvertFrom-Json
-          $mother = Get-Content ".\dist\mother_gates.json" -Raw | ConvertFrom-Json
-          @(
-            "artifact=Psychology_Insight_Pro.exe"
-            "app_version=0.4.0"
-            "source_commit=$env:GITHUB_SHA"
-            "final_gate=$($final.final_gate)"
-            "hard_fail_count=$($final.hard_fail_count)"
-            "sha256=$($final.exe_sha256)"
-            "real_network=$($mother.gates.real_network)"
-            "physical_gui=$($mother.gates.gui_smoke)"
-            "same_hash=$($mother.gates.same_hash)"
-            "business_content=$($mother.gates.business_content)"
-            "counterexample_validation=$($mother.gates.counterexample_validation)"
-            "reversal_validation=$($mother.gates.reversal_validation)"
-          ) | Out-File ".\dist\acceptance.txt" -Encoding utf8
-          Get-Content ".\dist\acceptance.txt"
-
-      - name: Upload Unique Final Product
-        uses: actions/upload-artifact@v4
+          New-Item -ItemType Directory -Force dist | Out-Null
+          python psychology_insight_pro/collect_final_gates.py --exe dist/Psychology_Insight_Pro.exe --final-exe dist/acceptance_bytes/Psychology_Insight_Pro.exe --physical-gui psychology_insight_pro/physical_gui_click.json --repository-evidence psychology_insight_pro/repository_independence.json --output dist/mother_gates.json
+          $collectorExit=$LASTEXITCODE
+          python psychology_insight_pro/release_gate.py --input dist/mother_gates.json --output dist/final_gate.json
+          $releaseExit=$LASTEXITCODE
+          if ($collectorExit -ne 0 -or $releaseExit -ne 0) { throw 'Final Gate FAIL: inspect mandatory evidence and external blockers' }
+      - name: Upload unique accepted product
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: Psychology_Insight_Pro_FINAL_v0.4.0
-          path: dist/final/Psychology_Insight_Pro.exe
+          path: dist/acceptance_bytes/Psychology_Insight_Pro.exe
           if-no-files-found: error
-          retention-days: 30
           compression-level: 0
-
-      - name: Upload Audit Evidence
+          retention-days: 30
+      - name: Upload audit evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: Psychology_Insight_Pro_AUDIT_v0.4.0
           path: |
-            dist/acceptance.txt
-            dist/final_gate.json
             dist/mother_gates.json
-            psychology_insight_pro/architecture_gate.json
-            psychology_insight_pro/business_gate.json
-            psychology_insight_pro/unit_gate.json
-            psychology_insight_pro/contract_gate.json
-            psychology_insight_pro/fault_gate.json
-            psychology_insight_pro/integration_gate.json
+            dist/final_gate.json
+            psychology_insight_pro/*gate.json
             psychology_insight_pro/business_validation_gate.json
             psychology_insight_pro/real_network_evidence.json
-            psychology_insight_pro/exact_candidate_gate.json
+            psychology_insight_pro/repository_independence.json
+            psychology_insight_pro/real_release_validation.json
             psychology_insight_pro/physical_gui_click.json
+            psychology_insight_pro/gui_operations.jsonl
+            psychology_insight_pro/current_gui_layout.json
+            psychology_insight_pro/gui_screenshots/**
           if-no-files-found: error
           retention-days: 30
