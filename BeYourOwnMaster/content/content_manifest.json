@@ -1,0 +1,12 @@
+{
+  "schema": "byom-v10-frozen-corpus-import-v1",
+  "source_title": "做自己主人_1500古今成长训练全集_最终交付冻结版_V10",
+  "source_format": "owned DOCX parsed text",
+  "source_total_lines": 27629,
+  "chunk_count": 28,
+  "expected_story_cards": 1200,
+  "expected_real_case_cards": 300,
+  "expected_total_training_entries": 1500,
+  "business_boundary": "30/90-day effectiveness remains NOT VERIFIED until elapsed real-world evidence exists.",
+  "note": "The software gate validates actual imported text sections and the complete 0001-1200 and 1201-1500 identifier sets; manifest counts alone are not accepted."
+}
