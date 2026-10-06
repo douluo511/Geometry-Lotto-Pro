@@ -119,7 +119,34 @@ class ProspectiveProtocolTests(unittest.TestCase):
             self.assertEqual(first["freeze"]["record_hash"], second["freeze"]["record_hash"])
             self.assertEqual(second["status"]["freeze_count"], 1)
 
-    def test_identity_change_resets_to_new_zero_replay_cohort(self):
+    def test_docs_only_source_commit_change_does_not_reset_cohort(self):
+        draws = _draws()
+        canonical = sha256_json([d.to_dict() for d in draws])
+        builder = FakeBuilder()
+        same_behavior = "a" * 64
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            first = run_prospective_cycle(
+                draws, canonical, ledger_root=root,
+                source_commit=SOURCE_A,
+                behavior_hash_override=same_behavior,
+                prediction_builder=builder,
+            )
+            second = run_prospective_cycle(
+                draws, canonical, ledger_root=root,
+                source_commit=SOURCE_B,
+                behavior_hash_override=same_behavior,
+                prediction_builder=builder,
+            )
+            self.assertEqual(first["cohort"]["cohort_id"], second["cohort"]["cohort_id"])
+            self.assertEqual(first["freeze"]["record_hash"], second["freeze"]["record_hash"])
+            self.assertEqual(first["freeze"]["source_commit"], SOURCE_A)
+            self.assertEqual(second["freeze"]["source_commit"], SOURCE_A)
+            index = __import__("json").loads((root / "index.json").read_text(encoding="utf-8"))
+            self.assertEqual(index.get("reset_count", 0), 0)
+            self.assertEqual(len(index["cohort_history"]), 0)
+
+    def test_behavior_identity_change_resets_to_new_zero_replay_cohort(self):
         draws = _draws()
         canonical = sha256_json([d.to_dict() for d in draws])
         builder = FakeBuilder()
@@ -127,11 +154,15 @@ class ProspectiveProtocolTests(unittest.TestCase):
             root = Path(td)
             first = run_prospective_cycle(
                 draws, canonical, ledger_root=root,
-                source_commit=SOURCE_A, prediction_builder=builder,
+                source_commit=SOURCE_A,
+                behavior_hash_override="a" * 64,
+                prediction_builder=builder,
             )
             second = run_prospective_cycle(
                 draws, canonical, ledger_root=root,
-                source_commit=SOURCE_B, prediction_builder=builder,
+                source_commit=SOURCE_B,
+                behavior_hash_override="b" * 64,
+                prediction_builder=builder,
             )
             self.assertNotEqual(first["cohort"]["cohort_id"], second["cohort"]["cohort_id"])
             self.assertEqual(second["status"]["valid_replays"], 0)
