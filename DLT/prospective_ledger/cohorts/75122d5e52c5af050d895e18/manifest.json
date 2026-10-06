@@ -1,0 +1,101 @@
+{
+  "cohort_id": "75122d5e52c5af050d895e18",
+  "created_at": "2026-10-06T08:34:53Z",
+  "model_hash": "4bf5572e27f5542e21bee9b58f894b6e6db7b7a5fd6922996be5ad77bf836caf",
+  "production_dan_state": "NULL_DAN",
+  "production_edge_state": "NO_EDGE",
+  "production_rho": 0.0,
+  "promotion_authorized": false,
+  "protocol_hash": "6d1249044f6812e6b130cf5c54b7998d1709f05180f5ce5b62ad08d669d5d4ed",
+  "protocol_spec": {
+    "model_hash": "4bf5572e27f5542e21bee9b58f894b6e6db7b7a5fd6922996be5ad77bf836caf",
+    "model_spec": {
+      "base_models": [
+        "simple_frequency",
+        "recency",
+        "gap",
+        "transition",
+        "pair_graph",
+        "geometry_state",
+        "geometry_transition"
+      ],
+      "complete_space_weights": {
+        "geometry_fit": 0.16,
+        "pair_fit": 0.025
+      },
+      "ensemble_weights": {
+        "gap": 0.1,
+        "geometry_state": 0.17,
+        "geometry_transition": 0.18,
+        "pair_graph": 0.1,
+        "recency": 0.12,
+        "simple_frequency": 0.18,
+        "transition": 0.15
+      },
+      "geometry": "state+cross-draw-transition",
+      "model_version": "dlt-research-v2.1-geometry",
+      "selector_version": "dan-firewall-v2.1.2-scientific-gate"
+    },
+    "promotion_policy": {
+      "ablation_points": 240,
+      "alpha": 0.05,
+      "bootstrap_rounds": 800,
+      "dan_min_coverage": 0.6,
+      "dan_min_lift": 0.01,
+      "dan_min_rank_support": 0.6,
+      "dan_seed_jitter": 0.05,
+      "dan_wilson_z": 1.959963984540054,
+      "loeo_bootstrap_rounds": 300,
+      "loeo_permutation_rounds": 500,
+      "max_null_world_fpr": 0.1,
+      "min_back_recall_gain": 0.0,
+      "min_bootstrap_lower": 0.0,
+      "min_era_count": 3,
+      "min_front_recall_gain": 0.0,
+      "min_history": 600,
+      "min_prospective_replays": 30,
+      "min_validated_components": 1,
+      "null_worlds": 100,
+      "permutation_rounds": 1200,
+      "protocol_version": "false-edge-firewall-v2.1.2",
+      "research_dan_back_count": 1,
+      "research_dan_front_count": 2,
+      "seeds": [
+        17,
+        29,
+        43,
+        71,
+        97
+      ],
+      "synthetic_null_draws": 300,
+      "synthetic_null_max_false_edges": 0,
+      "synthetic_null_test_points": 60,
+      "synthetic_null_worlds": 6,
+      "untouched_holdout": 120,
+      "walk_forward_points": 720,
+      "windows": [
+        120,
+        240,
+        360
+      ]
+    },
+    "protocol_version": "dlt-prospective-only-v1",
+    "qualification": {
+      "areas": [
+        "front",
+        "back"
+      ],
+      "baseline": "same-target deterministic uniform random rankings",
+      "bootstrap_lower_must_exceed": 0.0,
+      "minimum_valid_replays": 30,
+      "permutation_alpha": 0.05,
+      "split_half_required": true
+    },
+    "selector_hash": "02418652a27b2e9d15362abc3141fddc47ba0e48f3d4eeaf0884fe5e7b47bf92",
+    "source_commit": "5784b2829fa3513042fa1101efab9ffe43adbdae"
+  },
+  "schema": "dlt-prospective-cohort-v1",
+  "selector_hash": "02418652a27b2e9d15362abc3141fddc47ba0e48f3d4eeaf0884fe5e7b47bf92",
+  "source_commit": "5784b2829fa3513042fa1101efab9ffe43adbdae",
+  "status": "ACTIVE"
+}
