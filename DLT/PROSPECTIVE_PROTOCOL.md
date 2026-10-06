@@ -90,3 +90,15 @@ This protocol does **not** clear:
 
 A successful prospective workflow means the protocol executed correctly. It does not mean
 predictive edge exists.
+
+## Single-writer CI governance
+
+The persistent `evidence/dlt-prospective-ledger` branch has exactly one CI writer:
+`.github/workflows/dlt-prospective-only.yml`.
+
+Windows acceptance may validate the same DLT product bytes, but it must not embed a second
+`prospective-cycle` ledger writer. Duplicate writers sharing one concurrency group can cancel
+pending exact-head runs and make evidence state ambiguous. The standalone prospective workflow
+therefore owns live Freeze/Replay mutation and also executes the 1.0.3 background-compatibility
+regression before writing evidence.
+
