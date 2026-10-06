@@ -30,6 +30,43 @@ class GuoxueZhiceTests(unittest.TestCase):
     def test_repair_gate(self):
         r = MaintenanceEngine(self.store).one_click_repair()
         self.assertEqual(r["status"], "PASS")
+        self.assertEqual(r["user_data_preservation"], "PASS")
+
+    def test_repair_corruption_preserves_original_bytes_and_revalidates(self):
+        self.store.state_path.write_bytes(b"{broken-state")
+        self.store.config_path.write_text('{"schema":1,"app_version":"0.0.0","network_policy":"http"}', encoding="utf-8")
+        self.store.cache_path.write_bytes(b"not-json")
+        self.store.index_path.write_text('{"schema":1,"knowledge_sha256":"bad","titles":[]}', encoding="utf-8")
+
+        r = MaintenanceEngine(self.store).one_click_repair()
+
+        self.assertEqual(r["status"], "PASS")
+        self.assertTrue(r["recovery_backups"])
+        backups = list(self.store.recovery_dir.iterdir())
+        self.assertTrue(any(p.name.startswith("state-") and p.read_bytes() == b"{broken-state" for p in backups))
+        self.assertEqual(self.store.load_config()["network_policy"], "https-only")
+        self.assertEqual(self.store.load_config()["app_version"], "0.2.0")
+        self.assertEqual(self.store.load_cache()["entries"], {})
+        self.assertEqual(
+            self.store.load_index()["knowledge_sha256"],
+            self.store._index_value(self.store.load_knowledge())["knowledge_sha256"],
+        )
+
+    def test_repair_missing_required_files(self):
+        self.store.knowledge_path.unlink()
+        self.store.state_path.unlink()
+        self.store.config_path.unlink()
+        self.store.cache_path.unlink()
+        self.store.index_path.unlink()
+
+        r = MaintenanceEngine(self.store).one_click_repair()
+
+        self.assertEqual(r["status"], "PASS")
+        self.store.load_knowledge()
+        self.store.load_state()
+        self.store.load_config()
+        self.store.load_cache()
+        self.store.load_index()
 
 
 if __name__ == "__main__":
