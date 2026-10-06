@@ -1,0 +1,247 @@
+name: DLT Current-Main v2.1.1 Release Baseline Preflight
+
+on:
+  pull_request:
+    paths:
+      - ".github/migration/dlt_current_main_baseline.py"
+      - ".github/workflows/dlt-current-main-baseline-preflight.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  baseline-preflight:
+    runs-on: windows-2022
+    timeout-minutes: 90
+    env:
+      CANDIDATE_SHA: 30c3d9d2c6fdfc3dd0751f6f8a0a85348ec2b4a6
+      CURRENT_VERSION: 2.1.2
+      BASELINE_VERSION: 2.1.1
+      CURRENT_MAIN_EXE_SHA256: 3fad6756d501fcefaf7c1fdb491a70e35f26351d6ee72c92d029881dcd5b60fb
+
+    steps:
+      - name: Checkout exact baseline-tool head
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Exact identity and current-main product equivalence
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          actual="$(git rev-parse HEAD)"
+          test "$actual" = "$EXPECTED_SHA"
+          git cat-file -e "${CANDIDATE_SHA}^{commit}"
+          git diff --quiet "$CANDIDATE_SHA" HEAD -- DLT .github/workflows/dlt-windows-build-acceptance.yml
+          echo "EXACT_BASELINE_TOOL_HEAD=$actual"
+          echo "CURRENT_MAIN_PRODUCT_EQUIVALENCE=PASS"
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.11.9"
+          architecture: "x64"
+
+      - name: Build exact current-main v4 seed
+        shell: pwsh
+        env:
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: python .github/migration/dlt_export.py --out "$env:RUNNER_TEMP\current-seed"
+
+      - name: Derive deterministic baseline A and B
+        shell: pwsh
+        run: |
+          python .github/migration/dlt_current_main_baseline.py --current-seed "$env:RUNNER_TEMP\current-seed" --out "$env:RUNNER_TEMP\baseline-a"
+          python .github/migration/dlt_current_main_baseline.py --current-seed "$env:RUNNER_TEMP\current-seed" --out "$env:RUNNER_TEMP\baseline-b"
+
+      - name: Verify controlled diff, checksums, and hidden workflow
+        shell: pwsh
+        run: |
+          @'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          temp = Path(os.environ["RUNNER_TEMP"])
+          cur = temp / "current-seed"
+          a = temp / "baseline-a"
+          b = temp / "baseline-b"
+
+          ma = json.loads((a / "BASELINE_MANIFEST.json").read_text(encoding="utf-8"))
+          mb = json.loads((b / "BASELINE_MANIFEST.json").read_text(encoding="utf-8"))
+          assert ma == mb
+          assert (a / "BASELINE_MANIFEST.json").read_bytes() == (b / "BASELINE_MANIFEST.json").read_bytes()
+          assert (a / "BASELINE_SHA256SUMS.txt").read_bytes() == (b / "BASELINE_SHA256SUMS.txt").read_bytes()
+          assert ma["schema"] == "dlt-current-main-release-baseline-v2"
+          assert ma["source_product_commit"] == os.environ["CANDIDATE_SHA"]
+          assert ma["current_version"] == os.environ["CURRENT_VERSION"]
+          assert ma["baseline_version"] == os.environ["BASELINE_VERSION"]
+          assert ma["controlled_changes"] == ["DLT/src/glp/constants.py"]
+          assert ma["file_count"] == 34
+          assert ma["final_eligible"] is False
+          assert ma["baseline_release_state"] == "NOT PUBLISHED"
+          assert ma["repository_independence"] == "NOT VERIFIED"
+          assert ma["prospective_research_authority"] == "EXCLUDED_NOT_ON_CURRENT_MAIN"
+
+          rows = ma["files"]
+          expected_lines = [f'{r["sha256"]}  {r["path"]}' for r in rows]
+          actual_lines = [x.rstrip() for x in (a / "BASELINE_SHA256SUMS.txt").read_text(encoding="utf-8").splitlines() if x.strip()]
+          assert actual_lines == expected_lines
+
+          for row in rows:
+              pa = a / row["path"]
+              pb = b / row["path"]
+              assert pa.is_file() and pb.is_file(), row["path"]
+              assert pa.read_bytes() == pb.read_bytes(), row["path"]
+              assert pa.stat().st_size == row["bytes"], row["path"]
+              assert hashlib.sha256(pa.read_bytes()).hexdigest() == row["sha256"], row["path"]
+
+          workflow = a / ".github/workflows/dlt-windows-build-acceptance.yml"
+          assert workflow.is_file()
+          assert workflow.read_bytes() == (cur / ".github/workflows/dlt-windows-build-acceptance.yml").read_bytes()
+
+          cur_files = {
+              p.relative_to(cur).as_posix(): p
+              for p in cur.rglob("*")
+              if p.is_file() and p.name not in {"MIGRATION_MANIFEST.json","MIGRATION_SHA256SUMS.txt"}
+          }
+          base_files = {
+              p.relative_to(a).as_posix(): p
+              for p in a.rglob("*")
+              if p.is_file() and p.name not in {"BASELINE_MANIFEST.json","BASELINE_SHA256SUMS.txt"}
+          }
+          assert set(cur_files) == set(base_files)
+          changed = [path for path in sorted(cur_files) if cur_files[path].read_bytes() != base_files[path].read_bytes()]
+          assert changed == ["DLT/src/glp/constants.py"], changed
+
+          old = b'APP_VERSION = "2.1.2"'
+          new = b'APP_VERSION = "2.1.1"'
+          cur_const = cur_files["DLT/src/glp/constants.py"].read_bytes()
+          base_const = base_files["DLT/src/glp/constants.py"].read_bytes()
+          assert cur_const.count(old) == 1
+          assert base_const == cur_const.replace(old,new,1)
+
+          print("BASELINE_CURRENT_MAIN_CONTROLLED_DIFF=PASS")
+          print("BASELINE_DETERMINISTIC=PASS")
+          print("BASELINE_HIDDEN_WINDOWS_WORKFLOW=PASS")
+          '@ | python -
+
+      - name: Build deterministic full baseline seed ZIP
+        shell: pwsh
+        run: |
+          @'
+          import hashlib
+          import json
+          import os
+          import zipfile
+          from pathlib import Path
+
+          root = Path(os.environ["RUNNER_TEMP"]) / "baseline-a"
+          out = Path(os.environ["RUNNER_TEMP"]) / "dlt-v2.1.1-current-main-baseline.zip"
+          sha = Path(os.environ["RUNNER_TEMP"]) / "dlt-v2.1.1-current-main-baseline.sha256"
+          m = json.loads((root / "BASELINE_MANIFEST.json").read_text(encoding="utf-8"))
+          files = sorted((p for p in root.rglob("*") if p.is_file()), key=lambda p:p.relative_to(root).as_posix())
+          assert len(files) == int(m["file_count"]) + 2
+
+          fixed=(1980,1,1,0,0,0)
+          with zipfile.ZipFile(out,"w",compression=zipfile.ZIP_DEFLATED,compresslevel=9) as z:
+              for p in files:
+                  rel=p.relative_to(root).as_posix()
+                  info=zipfile.ZipInfo(rel,fixed)
+                  info.compress_type=zipfile.ZIP_DEFLATED
+                  info.external_attr=(0o100644 << 16)
+                  z.writestr(info,p.read_bytes())
+
+          with zipfile.ZipFile(out,"r") as z:
+              names=set(z.namelist())
+              required={
+                  "BASELINE_MANIFEST.json",
+                  "BASELINE_SHA256SUMS.txt",
+                  "DLT/src/glp/constants.py",
+                  "DLT/GeometryLottoPro.spec",
+                  "DLT/GeometryLottoProUpdater.spec",
+                  ".github/workflows/dlt-windows-build-acceptance.yml",
+              }
+              assert not (required - names), sorted(required - names)
+              assert len(names) == len(files)
+
+          digest=hashlib.sha256(out.read_bytes()).hexdigest()
+          sha.write_text(f"{digest}  {out.name}\n",encoding="utf-8")
+          print("BASELINE_FULL_ZIP=PASS")
+          print("BASELINE_FULL_ZIP_FILE_COUNT",len(files))
+          print("BASELINE_FULL_ZIP_SHA256",digest)
+          '@ | python -
+
+      - name: Install baseline pinned dependencies
+        shell: pwsh
+        working-directory: ${{ runner.temp }}\baseline-b\DLT
+        run: python -m pip install --disable-pip-version-check -r requirements.txt
+
+      - name: Compile and test baseline
+        shell: pwsh
+        working-directory: ${{ runner.temp }}\baseline-b\DLT
+        run: |
+          $env:PYTHONPATH = "$PWD\src"
+          python -m compileall -q src scripts tests
+          python -m unittest discover -s tests -p "test_*.py" -v
+
+      - name: Reproducible Windows main baseline build
+        shell: pwsh
+        working-directory: ${{ runner.temp }}\baseline-b\DLT
+        run: |
+          $ErrorActionPreference='Stop'
+          $env:PYTHONHASHSEED='1'
+          $env:SOURCE_DATE_EPOCH='946684800'
+          pyinstaller --noconfirm --clean --distpath .\baseline-main-a --workpath .\baseline-main-work-a GeometryLottoPro.spec
+          if($LASTEXITCODE -ne 0){ throw "baseline main build A failed" }
+          pyinstaller --noconfirm --clean --distpath .\baseline-main-b --workpath .\baseline-main-work-b GeometryLottoPro.spec
+          if($LASTEXITCODE -ne 0){ throw "baseline main build B failed" }
+          $a=(Get-FileHash .\baseline-main-a\Geometry_Lotto_Pro_DLT.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          $b=(Get-FileHash .\baseline-main-b\Geometry_Lotto_Pro_DLT.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          if($a -ne $b){ throw "baseline main Same Hash failed" }
+          if($a -eq $env:CURRENT_MAIN_EXE_SHA256){ throw "baseline EXE must differ from current v2.1.2 exact EXE" }
+          Write-Host "BASELINE_MAIN_SHA256=$a"
+          Write-Host "BASELINE_MAIN_SAME_HASH=PASS"
+          Write-Host "BASELINE_DIFFERS_FROM_CURRENT_MAIN=PASS"
+
+      - name: Reproducible Windows Updater baseline build
+        shell: pwsh
+        working-directory: ${{ runner.temp }}\baseline-b\DLT
+        run: |
+          $ErrorActionPreference='Stop'
+          $env:PYTHONHASHSEED='1'
+          $env:SOURCE_DATE_EPOCH='946684800'
+          pyinstaller --noconfirm --clean --distpath .\baseline-updater-a --workpath .\baseline-updater-work-a GeometryLottoProUpdater.spec
+          if($LASTEXITCODE -ne 0){ throw "baseline updater build A failed" }
+          pyinstaller --noconfirm --clean --distpath .\baseline-updater-b --workpath .\baseline-updater-work-b GeometryLottoProUpdater.spec
+          if($LASTEXITCODE -ne 0){ throw "baseline updater build B failed" }
+          $a=(Get-FileHash .\baseline-updater-a\Geometry_Lotto_Pro_DLT_Updater.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          $b=(Get-FileHash .\baseline-updater-b\Geometry_Lotto_Pro_DLT_Updater.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          if($a -ne $b){ throw "baseline updater Same Hash failed" }
+          Write-Host "BASELINE_UPDATER_SHA256=$a"
+          Write-Host "BASELINE_UPDATER_SAME_HASH=PASS"
+
+      - name: Baseline strict boundary
+        shell: pwsh
+        run: |
+          Write-Host "BASELINE_SOURCE=PASS"
+          Write-Host "BASELINE_WINDOWS_BUILD=PASS"
+          Write-Host "BASELINE_RELEASE_STATE=NOT_PUBLISHED"
+          Write-Host "REPOSITORY_INDEPENDENCE=NOT_VERIFIED"
+          Write-Host "FINAL_ELIGIBLE=false"
+          Write-Host "FINAL_GATE=FAIL"
+
+      - name: Upload complete current-main v2.1.1 baseline seed
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: DLT-v2.1.1-CURRENT-MAIN-BASELINE-NOT-FINAL-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            ${{ runner.temp }}\dlt-v2.1.1-current-main-baseline.zip
+            ${{ runner.temp }}\dlt-v2.1.1-current-main-baseline.sha256
+          if-no-files-found: error
+          retention-days: 90
