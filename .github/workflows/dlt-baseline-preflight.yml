@@ -1,0 +1,216 @@
+name: DLT v2.1.1 Acceptance Baseline Preflight
+
+on:
+  pull_request:
+    paths:
+      - ".github/migration/dlt_acceptance_baseline.py"
+      - ".github/workflows/dlt-baseline-preflight.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  baseline-preflight:
+    runs-on: windows-2022
+    timeout-minutes: 90
+    env:
+      CANDIDATE_SHA: 289f6bf0146e5e0149940a5411943d844d8f03ea
+      CURRENT_EXE_SHA256: 45673ef0f5c07789eb615402f4bbe8b99626aa0dfa62ef50e33ac8352e19d16d
+      CURRENT_VERSION: 2.1.2
+      BASELINE_VERSION: 2.1.1
+    steps:
+      - name: Checkout exact baseline-tool head
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Exact migration-tool identity and candidate payload equivalence
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          actual="$(git rev-parse HEAD)"
+          test "$actual" = "$EXPECTED_SHA"
+          git cat-file -e "${CANDIDATE_SHA}^{commit}"
+          git diff --quiet "$CANDIDATE_SHA" HEAD -- DLT .github/workflows/dlt-windows-build-acceptance.yml .github/workflows/dlt-prospective-only.yml
+          echo "BASELINE_TOOL_HEAD=$actual"
+          echo "CANDIDATE_PAYLOAD_EQUIVALENCE=PASS"
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.11.9"
+          architecture: "x64"
+
+      - name: Build current seed for baseline derivation
+        shell: pwsh
+        env:
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: python .github/migration/dlt_export.py --out "$env:RUNNER_TEMP\current-seed"
+
+      - name: Build deterministic baseline seeds A and B
+        shell: pwsh
+        run: |
+          python .github/migration/dlt_acceptance_baseline.py --current-seed "$env:RUNNER_TEMP\current-seed" --out "$env:RUNNER_TEMP\baseline-a"
+          python .github/migration/dlt_acceptance_baseline.py --current-seed "$env:RUNNER_TEMP\current-seed" --out "$env:RUNNER_TEMP\baseline-b"
+
+      - name: Verify controlled baseline diff and deterministic seed
+        shell: pwsh
+        env:
+          EXPECTED_EXPORT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          @'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          temp = Path(os.environ["RUNNER_TEMP"])
+          current = temp / "current-seed"
+          a = temp / "baseline-a"
+          b = temp / "baseline-b"
+
+          ma = json.loads((a / "BASELINE_MANIFEST.json").read_text(encoding="utf-8"))
+          mb = json.loads((b / "BASELINE_MANIFEST.json").read_text(encoding="utf-8"))
+          assert (a / "BASELINE_MANIFEST.json").read_bytes() == (b / "BASELINE_MANIFEST.json").read_bytes()
+          assert ma == mb
+          assert ma["schema"] == "dlt-release-acceptance-baseline-v1"
+          assert ma["purpose"] == "release-n-to-n-plus-1-acceptance-only"
+          assert ma["final_eligible"] is False
+          assert ma["candidate_head"] == os.environ["CANDIDATE_SHA"]
+          assert ma["current_version"] == os.environ["CURRENT_VERSION"]
+          assert ma["baseline_version"] == os.environ["BASELINE_VERSION"]
+          assert ma["controlled_changes"] == ["DLT/src/glp/constants.py"]
+          assert ma["repository_independence"] == "NOT VERIFIED"
+          assert ma["baseline_release_state"] == "NOT PUBLISHED"
+
+          for row in ma["files"]:
+              pa = a / row["path"]
+              pb = b / row["path"]
+              assert pa.is_file() and pb.is_file(), row["path"]
+              assert pa.read_bytes() == pb.read_bytes(), row["path"]
+              assert pa.stat().st_size == row["size"], row["path"]
+              assert hashlib.sha256(pa.read_bytes()).hexdigest() == row["sha256"], row["path"]
+
+          current_files = {
+              p.relative_to(current).as_posix(): p
+              for p in current.rglob("*")
+              if p.is_file() and p.name != "MIGRATION_MANIFEST.json"
+          }
+          baseline_files = {
+              p.relative_to(a).as_posix(): p
+              for p in a.rglob("*")
+              if p.is_file() and p.name != "BASELINE_MANIFEST.json"
+          }
+          assert set(current_files) == set(baseline_files)
+          changed = []
+          for path in sorted(current_files):
+              if current_files[path].read_bytes() != baseline_files[path].read_bytes():
+                  changed.append(path)
+          assert changed == ["DLT/src/glp/constants.py"], changed
+
+          cur = (current / "DLT/src/glp/constants.py").read_bytes()
+          base = (a / "DLT/src/glp/constants.py").read_bytes()
+          old = b'APP_VERSION = "2.1.2"'
+          new = b'APP_VERSION = "2.1.1"'
+          assert cur.count(old) == 1
+          assert base == cur.replace(old, new, 1)
+          assert base.count(new) == 1 and old not in base
+
+          print("BASELINE_CONTROLLED_DIFF=PASS")
+          print("BASELINE_DETERMINISTIC_SEED=PASS")
+          print("BASELINE_FILE_COUNT", ma["file_count"])
+          '@ | python -
+
+      - name: Install baseline pinned dependencies
+        shell: pwsh
+        working-directory: ${{ runner.temp }}\baseline-a\DLT
+        run: python -m pip install --disable-pip-version-check -r requirements.txt
+
+      - name: Compile and test v2.1.1 acceptance baseline
+        shell: pwsh
+        working-directory: ${{ runner.temp }}\baseline-a\DLT
+        run: |
+          python -m compileall -q src scripts
+          python -m unittest discover -s tests -p "test_*.py" -v
+
+      - name: Reproducible Windows main baseline build
+        shell: pwsh
+        working-directory: ${{ runner.temp }}\baseline-a\DLT
+        run: |
+          $ErrorActionPreference='Stop'
+          $env:PYTHONHASHSEED='1'
+          $env:SOURCE_DATE_EPOCH='946684800'
+          pyinstaller --noconfirm --clean --distpath .\baseline-main-a --workpath .\baseline-main-work-a GeometryLottoPro.spec
+          if($LASTEXITCODE -ne 0){ throw "baseline main build A failed" }
+          pyinstaller --noconfirm --clean --distpath .\baseline-main-b --workpath .\baseline-main-work-b GeometryLottoPro.spec
+          if($LASTEXITCODE -ne 0){ throw "baseline main build B failed" }
+          $a=(Get-FileHash .\baseline-main-a\Geometry_Lotto_Pro_DLT.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          $b=(Get-FileHash .\baseline-main-b\Geometry_Lotto_Pro_DLT.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          if($a -ne $b){ throw "baseline main Same Hash failed" }
+          if($a -eq $env:CURRENT_EXE_SHA256){ throw "baseline main EXE must differ from current v2.1.2 exact EXE" }
+          Write-Host "BASELINE_MAIN_SHA256=$a"
+          Write-Host "BASELINE_MAIN_SAME_HASH=PASS"
+          Write-Host "BASELINE_DIFFERS_FROM_CURRENT=PASS"
+          New-Item -ItemType Directory -Force .\artifacts | Out-Null
+          [ordered]@{
+            schema='dlt-v211-baseline-main-build-v1'
+            status='PASS'
+            purpose='release-n-to-n-plus-1-acceptance-only'
+            final_eligible=$false
+            baseline_version=$env:BASELINE_VERSION
+            current_version=$env:CURRENT_VERSION
+            baseline_sha256=$a
+            current_v212_sha256=$env:CURRENT_EXE_SHA256
+            same_hash=$true
+            differs_from_current=($a -ne $env:CURRENT_EXE_SHA256)
+          } | ConvertTo-Json -Depth 6 | Set-Content .\artifacts\baseline_main_build.json -Encoding utf8
+
+      - name: Reproducible Windows Updater baseline build
+        shell: pwsh
+        working-directory: ${{ runner.temp }}\baseline-a\DLT
+        run: |
+          $ErrorActionPreference='Stop'
+          $env:PYTHONHASHSEED='1'
+          $env:SOURCE_DATE_EPOCH='946684800'
+          pyinstaller --noconfirm --clean --distpath .\baseline-updater-a --workpath .\baseline-updater-work-a GeometryLottoProUpdater.spec
+          if($LASTEXITCODE -ne 0){ throw "baseline updater build A failed" }
+          pyinstaller --noconfirm --clean --distpath .\baseline-updater-b --workpath .\baseline-updater-work-b GeometryLottoProUpdater.spec
+          if($LASTEXITCODE -ne 0){ throw "baseline updater build B failed" }
+          $a=(Get-FileHash .\baseline-updater-a\Geometry_Lotto_Pro_DLT_Updater.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          $b=(Get-FileHash .\baseline-updater-b\Geometry_Lotto_Pro_DLT_Updater.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          if($a -ne $b){ throw "baseline Updater Same Hash failed" }
+          Write-Host "BASELINE_UPDATER_SHA256=$a"
+          Write-Host "BASELINE_UPDATER_SAME_HASH=PASS"
+          [ordered]@{
+            schema='dlt-v211-baseline-updater-build-v1'
+            status='PASS'
+            purpose='release-n-to-n-plus-1-acceptance-only'
+            final_eligible=$false
+            baseline_version=$env:BASELINE_VERSION
+            updater_sha256=$a
+            same_hash=$true
+          } | ConvertTo-Json -Depth 6 | Set-Content .\artifacts\baseline_updater_build.json -Encoding utf8
+
+      - name: Baseline boundary
+        shell: pwsh
+        run: |
+          Write-Host "BASELINE_SOURCE=PASS"
+          Write-Host "BASELINE_WINDOWS_BUILD=PASS"
+          Write-Host "BASELINE_RELEASE_STATE=NOT_PUBLISHED"
+          Write-Host "REPOSITORY_INDEPENDENCE=NOT_VERIFIED"
+          Write-Host "FINAL_ELIGIBLE=false"
+          Write-Host "FINAL_GATE=FAIL"
+
+      - name: Upload v2.1.1 acceptance baseline seed and preflight binaries
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: DLT-v2.1.1-ACCEPTANCE-BASELINE-NOT-FINAL-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            ${{ runner.temp }}\baseline-a\BASELINE_MANIFEST.json
+            ${{ runner.temp }}\baseline-a\DLT\**
+          if-no-files-found: error
+          retention-days: 90
