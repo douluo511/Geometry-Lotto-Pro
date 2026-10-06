@@ -186,6 +186,7 @@ jobs:
         shell: pwsh
         working-directory: ${{ runner.temp }}\baseline-b\DLT
         run: |
+          $env:PYTHONPATH = "$PWD\src"
           python -m compileall -q src scripts tests
           python -m unittest discover -s tests -p "test_*.py" -v
 
