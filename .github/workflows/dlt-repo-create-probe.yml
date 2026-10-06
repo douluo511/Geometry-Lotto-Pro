@@ -95,13 +95,74 @@ jobs:
           echo "REPOSITORY_CREATE_PROBE=$state"
           cat probe-artifacts/result.json
 
+      - name: Probe GraphQL createRepository fallback
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          state="$(jq -r '.state' probe-artifacts/result.json)"
+          if [ "$state" = "EXISTING" ] || [ "$state" = "CREATED" ]; then
+            echo "GRAPHQL_CREATE_PROBE=SKIPPED_ALREADY_RESOLVED"
+            exit 0
+          fi
+
+          owner_query='query { viewer { login } repository(owner:"douluo511", name:"Geometry-Lotto-Pro") { owner { id login } } }'
+          jq -n --arg query "$owner_query" '{query:$query}' > probe-artifacts/graphql-owner-request.json
+          owner_http="$(curl -sS             -o probe-artifacts/graphql-owner.json             -w '%{http_code}'             -X POST             -H "Accept: application/vnd.github+json"             -H "Authorization: Bearer $GH_TOKEN"             -H "X-GitHub-Api-Version: 2022-11-28"             -H "Content-Type: application/json"             "$API_ROOT/graphql"             --data-binary @probe-artifacts/graphql-owner-request.json)"
+          owner_id="$(jq -r '.data.repository.owner.id // empty' probe-artifacts/graphql-owner.json 2>/dev/null || true)"
+          owner_login="$(jq -r '.data.repository.owner.login // empty' probe-artifacts/graphql-owner.json 2>/dev/null || true)"
+          viewer_login="$(jq -r '.data.viewer.login // empty' probe-artifacts/graphql-owner.json 2>/dev/null || true)"
+          owner_errors="$(jq -c '.errors // []' probe-artifacts/graphql-owner.json 2>/dev/null || echo '[]')"
+          echo "GRAPHQL_OWNER_HTTP_STATUS=$owner_http"
+          echo "GRAPHQL_OWNER_LOGIN=${owner_login:-UNAVAILABLE}"
+          echo "GRAPHQL_VIEWER_LOGIN=${viewer_login:-UNAVAILABLE}"
+          echo "GRAPHQL_OWNER_ERRORS=$owner_errors"
+
+          if [ -z "$owner_id" ]; then
+            gql_state="DENIED_INTEGRATION"
+            jq --arg gql_state "$gql_state"                --arg owner_http "$owner_http"                --arg owner_login "$owner_login"                --arg viewer_login "$viewer_login"                --argjson owner_errors "$owner_errors"                '.state=$gql_state | .graphql_owner_http_status=$owner_http | .graphql_owner_login=$owner_login | .graphql_viewer_login=$viewer_login | .graphql_owner_errors=$owner_errors'                probe-artifacts/result.json > probe-artifacts/result.tmp
+            mv probe-artifacts/result.tmp probe-artifacts/result.json
+            echo "GRAPHQL_CREATE_PROBE=$gql_state"
+            cat probe-artifacts/result.json
+            exit 0
+          fi
+
+          mutation='mutation($input:CreateRepositoryInput!){ createRepository(input:$input){ repository { nameWithOwner url visibility } } }'
+          jq -n             --arg query "$mutation"             --arg ownerId "$owner_id"             --arg name "$TARGET_NAME"             '{query:$query,variables:{input:{ownerId:$ownerId,name:$name,visibility:"PUBLIC",description:"Independent DLT release/acceptance repository for Geometry Lotto Pro"}}}'             > probe-artifacts/graphql-create-request.json
+
+          create_http="$(curl -sS             -o probe-artifacts/graphql-create.json             -w '%{http_code}'             -X POST             -H "Accept: application/vnd.github+json"             -H "Authorization: Bearer $GH_TOKEN"             -H "X-GitHub-Api-Version: 2022-11-28"             -H "Content-Type: application/json"             "$API_ROOT/graphql"             --data-binary @probe-artifacts/graphql-create-request.json)"
+          created_name="$(jq -r '.data.createRepository.repository.nameWithOwner // empty' probe-artifacts/graphql-create.json 2>/dev/null || true)"
+          gql_errors="$(jq -c '.errors // []' probe-artifacts/graphql-create.json 2>/dev/null || echo '[]')"
+          gql_messages="$(jq -r '[.errors[]?.message] | join(" | ")' probe-artifacts/graphql-create.json 2>/dev/null || true)"
+          gql_state="DENIED_INTEGRATION"
+
+          if [ "$created_name" = "$TARGET_REPO" ]; then
+            gql_state="CREATED"
+          elif echo "$gql_messages" | grep -qiE 'rate limit|secondary rate'; then
+            gql_state="THROTTLED"
+          elif echo "$gql_messages" | grep -qiE 'resource not accessible|forbidden|permission|not permitted|viewer'; then
+            gql_state="DENIED_INTEGRATION"
+          else
+            gql_state="GRAPHQL_ERROR"
+          fi
+
+          jq --arg gql_state "$gql_state"              --arg owner_http "$owner_http"              --arg owner_login "$owner_login"              --arg viewer_login "$viewer_login"              --arg create_http "$create_http"              --arg created_name "$created_name"              --argjson owner_errors "$owner_errors"              --argjson create_errors "$gql_errors"              '.state=$gql_state | .graphql_owner_http_status=$owner_http | .graphql_owner_login=$owner_login | .graphql_viewer_login=$viewer_login | .graphql_owner_errors=$owner_errors | .graphql_create_http_status=$create_http | .graphql_created_name=$created_name | .graphql_create_errors=$create_errors'              probe-artifacts/result.json > probe-artifacts/result.tmp
+          mv probe-artifacts/result.tmp probe-artifacts/result.json
+
+          echo "GRAPHQL_CREATE_HTTP_STATUS=$create_http"
+          echo "GRAPHQL_CREATED_NAME=${created_name:-NONE}"
+          echo "GRAPHQL_CREATE_ERRORS=$gql_errors"
+          echo "GRAPHQL_CREATE_PROBE=$gql_state"
+          cat probe-artifacts/result.json
+
       - name: Verify probe evidence
         shell: bash
         run: |
           set -euo pipefail
           state="$(jq -r '.state' probe-artifacts/result.json)"
           case "$state" in
-            EXISTING|CREATED|DENIED|RATE_LIMITED|THROTTLED) ;;
+            EXISTING|CREATED|DENIED|DENIED_INTEGRATION|RATE_LIMITED|THROTTLED|GRAPHQL_ERROR) ;;
             *) echo "invalid probe state: $state"; exit 2 ;;
           esac
           test "$(jq -r '.target_repository' probe-artifacts/result.json)" = "$TARGET_REPO"
