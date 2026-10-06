@@ -85,6 +85,148 @@ def _verify_bound_file(root: Path, rel_path, expected_sha):
     }
 
 
+
+def _read_json_object(path: Path):
+    try:
+        obj = json.loads(path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        return False, f"invalid_json:{type(exc).__name__}", None
+    if not isinstance(obj, dict):
+        return False, "not_object", None
+    return True, "PASS", obj
+
+
+def _validate_source_manifest_semantics(path: Path):
+    ok, reason, obj = _read_json_object(path)
+    if not ok:
+        return False, reason, None
+    if obj.get("point_in_time_only") is not True:
+        return False, "point_in_time_only", obj
+    sources = obj.get("sources")
+    if not isinstance(sources, list):
+        return False, "sources_missing", obj
+    normalized = {str(x).strip().upper() for x in sources}
+    missing = [market for market in REQUIRED_MARKETS if market not in normalized]
+    if missing:
+        return False, "sources_missing_markets:" + ",".join(missing), obj
+    return True, "PASS", {"sources": sorted(normalized), "point_in_time_only": True}
+
+
+def _validate_canonical_semantics(path: Path, start, end, expected):
+    if start is None or end is None or start > end:
+        return False, "invalid_window", None
+
+    counts = {market: 0 for market in REQUIRED_MARKETS}
+    dates = {market: set() for market in REQUIRED_MARKETS}
+    seen = set()
+    rows = 0
+
+    try:
+        handle = path.open("r", encoding="utf-8")
+    except Exception as exc:
+        return False, f"open_failed:{type(exc).__name__}", None
+
+    with handle:
+        for lineno, raw in enumerate(handle, 1):
+            text = raw.strip()
+            if not text:
+                continue
+            rows += 1
+            try:
+                row = json.loads(text)
+            except Exception as exc:
+                return False, f"malformed_jsonl:{lineno}:{type(exc).__name__}", None
+            if not isinstance(row, dict):
+                return False, f"row_not_object:{lineno}", None
+
+            day = _parse_day(row.get("date"))
+            market = str(row.get("market") or "").strip().upper()
+            code = str(row.get("code") or "").strip()
+            st = row.get("st")
+            suspended = row.get("suspended")
+
+            if day is None or day < start or day > end:
+                return False, f"date_outside_window:{lineno}", None
+            if market not in REQUIRED_MARKETS:
+                return False, f"market_invalid:{lineno}:{market}", None
+            expected_market = _market_for_code(code)
+            if expected_market is None:
+                return False, f"security_code_invalid:{lineno}:{code}", None
+            if market != expected_market:
+                return False, f"market_code_mismatch:{lineno}:{market}/{code}", None
+            if type(st) is not bool or type(suspended) is not bool:
+                return False, f"state_type_invalid:{lineno}", None
+
+            key = (day.isoformat(), code)
+            if key in seen:
+                return False, f"duplicate_key:{day.isoformat()}:{code}", None
+            seen.add(key)
+            counts[market] += 1
+            dates[market].add(day.isoformat())
+
+    if rows < 1:
+        return False, "canonical_empty", None
+    missing_markets = [market for market, count in counts.items() if count < 1]
+    if missing_markets:
+        return False, "missing_markets:" + ",".join(missing_markets), {
+            "rows": rows,
+            "market_row_counts": counts,
+        }
+
+    if expected is not None:
+        expected_iso = expected.isoformat()
+        missing_fresh = [market for market in REQUIRED_MARKETS if expected_iso not in dates[market]]
+        if missing_fresh:
+            return False, "expected_trade_date_missing_markets:" + ",".join(missing_fresh), {
+                "rows": rows,
+                "market_row_counts": counts,
+                "expected_trade_date": expected_iso,
+            }
+
+    return True, "PASS", {
+        "rows": rows,
+        "market_row_counts": counts,
+        "market_date_counts": {market: len(days) for market, days in dates.items()},
+        "market_first_date": {market: min(days) for market, days in dates.items()},
+        "market_last_date": {market: max(days) for market, days in dates.items()},
+        "expected_trade_date": expected.isoformat() if expected is not None else None,
+    }
+
+
+def _validate_market_evidence_semantics(path: Path, market: str, claim_market: dict, claim: dict):
+    ok, reason, obj = _read_json_object(path)
+    if not ok:
+        return False, reason, None
+    if obj.get("market") != market:
+        return False, "market_mismatch", obj
+    for field in ("st_identity", "suspension_state", "trading_calendar", "daily_state"):
+        if obj.get(field) != PASS or claim_market.get(field) != PASS:
+            return False, f"{field}_not_pass", obj
+    if obj.get("point_in_time_only") is not True:
+        return False, "point_in_time_only", obj
+    try:
+        if int(obj.get("future_leakage_violations", -1)) != 0:
+            return False, "future_leakage_violations", obj
+    except Exception:
+        return False, "future_leakage_violations", obj
+    if obj.get("window_start") != claim.get("window_start") or obj.get("window_end") != claim.get("window_end"):
+        return False, "window_mismatch", obj
+    if str(obj.get("canonical_sha256") or "").lower() != str(claim.get("canonical_sha256") or "").lower():
+        return False, "canonical_hash_mismatch", obj
+    try:
+        if int(obj.get("source_count", 0)) < 1:
+            return False, "source_count", obj
+    except Exception:
+        return False, "source_count", obj
+    return True, "PASS", {
+        "market": market,
+        "window_start": obj.get("window_start"),
+        "window_end": obj.get("window_end"),
+        "canonical_sha256": obj.get("canonical_sha256"),
+        "source_count": int(obj.get("source_count")),
+    }
+
+
 def evaluate_historical_st_pit(root: Path, expected_trade_date=None):
     """Fail-closed evaluator for daily historical ST/suspension PIT evidence.
 
@@ -166,6 +308,26 @@ def evaluate_historical_st_pit(root: Path, expected_trade_date=None):
     if not source_ok:
         failures.append("source_manifest_binding")
 
+    if canonical_ok:
+        canonical_semantic_ok, canonical_semantic_reason, canonical_semantic_meta = _validate_canonical_semantics(
+            Path(canonical_meta["path"]), start, end, expected
+        )
+        bindings["canonical"]["semantic_status"] = PASS if canonical_semantic_ok else WARN
+        bindings["canonical"]["semantic_reason"] = canonical_semantic_reason
+        bindings["canonical"]["semantic_meta"] = canonical_semantic_meta
+        if not canonical_semantic_ok:
+            failures.append("canonical_semantics")
+
+    if source_ok:
+        source_semantic_ok, source_semantic_reason, source_semantic_meta = _validate_source_manifest_semantics(
+            Path(source_meta["path"])
+        )
+        bindings["source_manifest"]["semantic_status"] = PASS if source_semantic_ok else WARN
+        bindings["source_manifest"]["semantic_reason"] = source_semantic_reason
+        bindings["source_manifest"]["semantic_meta"] = source_semantic_meta
+        if not source_semantic_ok:
+            failures.append("source_manifest_semantics")
+
     markets = obj.get("markets")
     if not isinstance(markets, dict):
         failures.append("markets")
@@ -201,7 +363,16 @@ def evaluate_historical_st_pit(root: Path, expected_trade_date=None):
                 "reason": evidence_reason,
                 "meta": evidence_meta,
             }
-            if not evidence_ok:
+            if evidence_ok:
+                evidence_semantic_ok, evidence_semantic_reason, evidence_semantic_meta = _validate_market_evidence_semantics(
+                    Path(evidence_meta["path"]), market, m, obj
+                )
+                bindings[market]["semantic_status"] = PASS if evidence_semantic_ok else WARN
+                bindings[market]["semantic_reason"] = evidence_semantic_reason
+                bindings[market]["semantic_meta"] = evidence_semantic_meta
+                if not evidence_semantic_ok:
+                    bad.append("evidence_semantics")
+            else:
                 bad.append("evidence_binding")
         if bad:
             market_failures[market] = bad
