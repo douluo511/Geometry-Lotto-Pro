@@ -281,6 +281,12 @@ def launch_background_worker(
     flags = 0
     for name in ("DETACHED_PROCESS", "CREATE_NEW_PROCESS_GROUP", "CREATE_NO_WINDOW"):
         flags |= int(getattr(subprocess, name, 0))
+    child_env = dict(os.environ)
+    # PyInstaller one-file child must be a fresh top-level instance because this
+    # background process intentionally outlives the GUI/launcher process.
+    # Otherwise it reuses the parent's _MEI extraction directory, which is
+    # deleted when the parent exits (breaking bundled certifi/TLS resources).
+    child_env["PYINSTALLER_RESET_ENVIRONMENT"] = "1"
     proc = subprocess.Popen(
         cmd,
         stdin=subprocess.DEVNULL,
@@ -289,6 +295,7 @@ def launch_background_worker(
         close_fds=True,
         creationflags=flags,
         shell=False,
+        env=child_env,
     )
     return {
         "schema": "dlt-background-launch-v1",
