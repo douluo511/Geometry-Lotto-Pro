@@ -12,7 +12,6 @@ sys.path.insert(0, str(PACKAGE_ROOT))
 
 import stock_ai.backtest as bt
 from stock_ai.historical_pit import evaluate_historical_st_pit
-from stock_ai.historical_pit import evaluate_historical_st_pit
 
 
 def sha(path: Path) -> str:
