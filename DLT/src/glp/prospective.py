@@ -42,6 +42,10 @@ def _require_source_commit(value: str) -> str:
     return value
 
 
+def _behavior_hash_from_files(hashes: dict[str, str]) -> str:
+    return sha256_json(dict(sorted(hashes.items())))
+
+
 def _behavior_fingerprint(override: str | None = None) -> dict[str, Any]:
     if override is not None:
         value = str(override).strip().lower()
@@ -60,7 +64,7 @@ def _behavior_fingerprint(override: str | None = None) -> dict[str, Any]:
             raise FileNotFoundError(f"behavior identity file missing: {rel}")
         hashes[rel] = hashlib.sha256(path.read_bytes()).hexdigest()
     return {
-        "behavior_hash": sha256_json(hashes),
+        "behavior_hash": _behavior_hash_from_files(hashes),
         "behavior_files": hashes,
     }
 
