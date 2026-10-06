@@ -47,10 +47,10 @@ def keep_project_file(path: Path) -> bool:
     )
 
 
-def require_exact_source_sha() -> str:
-    value = (os.environ.get("SOURCE_SHA") or os.environ.get("GITHUB_SHA") or "").strip().lower()
+def require_exact_sha(name: str, fallback: str = "") -> str:
+    value = (os.environ.get(name) or fallback).strip().lower()
     if not re.fullmatch(r"[0-9a-f]{40}", value):
-        raise SystemExit("SOURCE_SHA must be an exact 40-hex Git commit")
+        raise SystemExit(f"{name} must be an exact 40-hex Git commit")
     return value
 
 
@@ -80,7 +80,8 @@ def main() -> int:
     parser.add_argument("--out", required=True)
     args = parser.parse_args()
 
-    source_sha = require_exact_source_sha()
+    export_sha = require_exact_sha("SOURCE_SHA", os.environ.get("GITHUB_SHA", ""))
+    candidate_sha = require_exact_sha("CANDIDATE_SHA")
     out = Path(args.out).resolve()
     if out.exists():
         shutil.rmtree(out)
@@ -104,7 +105,9 @@ def main() -> int:
 
     manifest = {
         "schema": "dlt-independent-export-v3",
-        "source_commit": source_sha,
+        "source_commit": candidate_sha,
+        "candidate_head": candidate_sha,
+        "export_commit": export_sha,
         "target_repository": TARGET,
         "layout": "preserve-dlt-root",
         "required_workflows": [
@@ -125,7 +128,9 @@ def main() -> int:
         json.dumps(
             {
                 "schema": manifest["schema"],
-                "source_commit": source_sha,
+                "source_commit": candidate_sha,
+                "candidate_head": candidate_sha,
+                "export_commit": export_sha,
                 "file_count": len(rows),
                 "manifest_sha256": sha256_file(manifest_path),
                 "layout": manifest["layout"],
