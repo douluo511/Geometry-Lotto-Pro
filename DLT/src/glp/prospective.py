@@ -45,6 +45,10 @@ def _identity(source_commit: str) -> dict[str, Any]:
             "split_half_required": True,
         },
     }
+    # Persist and compare the exact JSON representation. Tuples in the frozen
+    # policy otherwise serialize as lists and would falsely look like an identity
+    # change when the manifest is read back.
+    protocol_spec = json.loads(json.dumps(protocol_spec, ensure_ascii=False, sort_keys=True))
     protocol_hash = sha256_json(protocol_spec)
     cohort_id = sha256_json(
         {
