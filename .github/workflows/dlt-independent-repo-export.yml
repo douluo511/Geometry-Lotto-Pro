@@ -54,6 +54,8 @@ jobs:
 
       - name: Verify manifest, layout, hashes, and workflow contracts
         shell: bash
+        env:
+          EXPECTED_EXPORT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
           python - <<'PY'
@@ -71,7 +73,7 @@ jobs:
           m = json.loads(ma.read_text(encoding="utf-8"))
 
           expected_candidate = os.environ["CANDIDATE_SHA"]
-          expected_export = os.environ["GITHUB_SHA"]
+          expected_export = os.environ["EXPECTED_EXPORT_SHA"]
           assert m["schema"] == "dlt-independent-export-v3"
           assert m["source_commit"] == expected_candidate
           assert m["candidate_head"] == expected_candidate
