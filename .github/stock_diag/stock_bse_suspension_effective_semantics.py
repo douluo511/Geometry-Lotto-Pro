@@ -13,6 +13,7 @@ from urllib.parse import urljoin, urlparse
 
 import requests
 from pypdf import PdfReader
+import pymupdf
 
 HERE=Path(__file__).resolve().parent
 CORPUS_PATH=HERE/"stock_bse_suspension_marketwide_corpus.py"
@@ -86,15 +87,28 @@ def fetch_pdf(session,url,attempts=2):
             time.sleep(3.0*attempt)
     return None,{"attempts":errors,"selected_attempt":None}
 
+def normalize_text(text):
+    text=re.sub(r"[ \t\u3000]+"," ",text or "")
+    text=re.sub(r"\r\n?","\n",text)
+    return text
+
 def extract_text(raw):
     reader=PdfReader(io.BytesIO(raw))
-    pages=[]
-    for p in reader.pages:
-        pages.append(p.extract_text() or "")
-    text="\n".join(pages)
-    text=re.sub(r"[ \t\u3000]+"," ",text)
-    text=re.sub(r"\r\n?","\n",text)
-    return text,len(reader.pages)
+    pypdf_pages=[p.extract_text() or "" for p in reader.pages]
+    pypdf_text=normalize_text("\n".join(pypdf_pages))
+    if len(pypdf_text.strip()) >= 20:
+        return pypdf_text,len(reader.pages),"PYPDF_TEXT"
+
+    # Deterministic second parser over the exact same official PDF bytes.
+    # This is not OCR and never substitutes publication/title metadata for
+    # an effective stop/resume date.
+    doc=pymupdf.open(stream=raw,filetype="pdf")
+    try:
+        mupdf_pages=[page.get_text("text") or "" for page in doc]
+        mupdf_text=normalize_text("\n".join(mupdf_pages))
+        return mupdf_text,len(doc),"PYMUPDF_TEXT"
+    finally:
+        doc.close()
 
 def iso(groups):
     y,m,d=map(int,groups)
@@ -270,11 +284,12 @@ def main():
         rec["transport_status"]="PASS"
         rec["pdf_sha256"]=hashlib.sha256(payload).hexdigest()
         try:
-            text,pages=extract_text(payload)
+            text,pages,text_extractor=extract_text(payload)
         except Exception as exc:
             rec["parse_error"]=f"{type(exc).__name__}: {exc}"
             records.append(rec); continue
         rec["pages"]=pages
+        rec["text_extractor"]=text_extractor
         rec["text_chars"]=len(text)
         rec["text_sha256"]=hashlib.sha256(text.encode()).hexdigest()
         rec["usable_text_extraction"]=len(text.strip()) >= 20
@@ -349,6 +364,7 @@ def main():
         "unique_stop_date_documents":stop_unique,
         "unique_resume_date_documents":resume_unique,
         "status_counts":dict(sorted(Counter(x["semantic_status"] for x in records).items())),
+        "text_extractor_counts":dict(sorted(Counter(x.get("text_extractor","NONE") for x in records if x.get("transport_status")=="PASS").items())),
         "unresolved_count":len(unresolved),
         "unresolved_sample":unresolved[:40],
       },
@@ -372,7 +388,7 @@ def main():
     }
     OUT.write_text(json.dumps(report,ensure_ascii=False,sort_keys=True,indent=2)+"\n",encoding="utf-8")
     print(json.dumps({"schema":report["schema"],"summary":report["summary"],"adjudication":report["adjudication"]},ensure_ascii=True,sort_keys=True))
-    return 0 if total>0 and pdf_transport==total else 2
+    return 0 if total>0 and pdf_transport==total and required>0 and unique==required else 3
 
 if __name__=="__main__":
     raise SystemExit(main())
