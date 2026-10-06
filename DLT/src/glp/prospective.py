@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import random
 import re
@@ -15,8 +16,22 @@ from .evidence import bootstrap_ci, permutation_p
 from .util import atomic_json, sha256_json, utc_now
 
 
-PROTOCOL_VERSION = "dlt-prospective-only-v1"
+PROTOCOL_VERSION = "dlt-prospective-only-v2-behavior-identity"
 SOURCE_COMMIT_RE = re.compile(r"^[0-9a-f]{40}([0-9a-f]{24})?$")
+BEHAVIOR_PATHS = (
+    "src/glp/constants.py",
+    "src/glp/domain.py",
+    "src/glp/net.py",
+    "src/glp/sources.py",
+    "src/glp/storage.py",
+    "src/glp/engine.py",
+    "src/glp/evidence.py",
+    "src/glp/prospective.py",
+    "src/glp/background.py",
+    "src/glp/util.py",
+    "src/main.py",
+    "scripts/prospective_snapshot.py",
+)
 
 
 def _require_source_commit(value: str) -> str:
@@ -26,12 +41,41 @@ def _require_source_commit(value: str) -> str:
     return value
 
 
-def _identity(source_commit: str) -> dict[str, Any]:
+def _behavior_fingerprint(override: str | None = None) -> dict[str, Any]:
+    if override is not None:
+        value = str(override).strip().lower()
+        if not re.fullmatch(r"[0-9a-f]{64}", value):
+            raise ValueError("behavior hash override must be 64 lowercase hex characters")
+        return {
+            "behavior_hash": value,
+            "behavior_files": {"test_override": value},
+        }
+
+    dlt_root = Path(__file__).resolve().parents[2]
+    hashes: dict[str, str] = {}
+    for rel in BEHAVIOR_PATHS:
+        path = dlt_root / rel
+        if not path.is_file():
+            raise FileNotFoundError(f"behavior identity file missing: {rel}")
+        hashes[rel] = hashlib.sha256(path.read_bytes()).hexdigest()
+    return {
+        "behavior_hash": sha256_json(hashes),
+        "behavior_files": hashes,
+    }
+
+
+def _identity(
+    source_commit: str,
+    *,
+    behavior_hash_override: str | None = None,
+) -> dict[str, Any]:
     source_commit = _require_source_commit(source_commit)
     ident = model_identity()
+    behavior = _behavior_fingerprint(behavior_hash_override)
     protocol_spec = {
         "protocol_version": PROTOCOL_VERSION,
-        "source_commit": source_commit,
+        "behavior_hash": behavior["behavior_hash"],
+        "behavior_files": behavior["behavior_files"],
         "model_hash": ident["model_hash"],
         "selector_hash": ident["selector_hash"],
         "model_spec": ident["spec"],
@@ -45,15 +89,12 @@ def _identity(source_commit: str) -> dict[str, Any]:
             "split_half_required": True,
         },
     }
-    # Persist and compare the exact JSON representation. Tuples in the frozen
-    # policy otherwise serialize as lists and would falsely look like an identity
-    # change when the manifest is read back.
     protocol_spec = json.loads(json.dumps(protocol_spec, ensure_ascii=False, sort_keys=True))
     protocol_hash = sha256_json(protocol_spec)
     cohort_id = sha256_json(
         {
             "protocol_hash": protocol_hash,
-            "source_commit": source_commit,
+            "behavior_hash": behavior["behavior_hash"],
             "model_hash": ident["model_hash"],
             "selector_hash": ident["selector_hash"],
         }
@@ -61,12 +102,13 @@ def _identity(source_commit: str) -> dict[str, Any]:
     return {
         "cohort_id": cohort_id,
         "protocol_hash": protocol_hash,
-        "source_commit": source_commit,
+        "initial_source_commit": source_commit,
+        "behavior_hash": behavior["behavior_hash"],
+        "behavior_files": behavior["behavior_files"],
         "model_hash": ident["model_hash"],
         "selector_hash": ident["selector_hash"],
         "protocol_spec": protocol_spec,
     }
-
 
 def _random_ranking(max_n: int, seed_material: Any) -> list[int]:
     seed = int(sha256_json(seed_material)[:16], 16)
@@ -130,7 +172,8 @@ class ProspectiveLedger:
 
     Immutable evidence lives in per-target freeze/replay files. Mutable index/status
     files are summaries only; their entire history remains auditable when committed
-    to Git. Any source/model/selector/protocol identity change creates a new cohort.
+    to Git. Cohort reset is driven by behavior/model/selector/protocol identity.
+    Exact source commits remain per-Freeze provenance and docs-only commits do not reset.
     """
 
     def __init__(self, root: Path):
@@ -138,12 +181,17 @@ class ProspectiveLedger:
         self.root.mkdir(parents=True, exist_ok=True)
         self.index_path = self.root / "index.json"
 
-    def activate(self, source_commit: str) -> dict[str, Any]:
-        ident = _identity(source_commit)
+    def activate(
+        self,
+        source_commit: str,
+        *,
+        behavior_hash_override: str | None = None,
+    ) -> dict[str, Any]:
+        ident = _identity(source_commit, behavior_hash_override=behavior_hash_override)
         now = utc_now()
         paths = CohortPaths(self.root, ident["cohort_id"])
         manifest = {
-            "schema": "dlt-prospective-cohort-v1",
+            "schema": "dlt-prospective-cohort-v2",
             "status": "ACTIVE",
             "created_at": now,
             **ident,
@@ -155,7 +203,7 @@ class ProspectiveLedger:
         if paths.manifest.exists():
             existing = json.loads(paths.manifest.read_text(encoding="utf-8"))
             immutable_keys = (
-                "cohort_id", "protocol_hash", "source_commit",
+                "cohort_id", "protocol_hash", "behavior_hash", "behavior_files",
                 "model_hash", "selector_hash", "protocol_spec",
             )
             if any(existing.get(k) != manifest.get(k) for k in immutable_keys):
@@ -212,8 +260,13 @@ class ProspectiveLedger:
         draws: list[Draw],
         canonical_hash: str,
         source_commit: str,
+        behavior_hash_override: str | None = None,
     ) -> dict[str, Any]:
-        manifest = self.activate(source_commit)
+        source_commit = _require_source_commit(source_commit)
+        manifest = self.activate(
+            source_commit,
+            behavior_hash_override=behavior_hash_override,
+        )
         existing_issues = {d.issue for d in draws}
         if prediction.target_issue in existing_issues:
             raise ValueError(
@@ -238,7 +291,6 @@ class ProspectiveLedger:
             if (
                 existing.get("cohort_id") != manifest["cohort_id"]
                 or existing.get("protocol_hash") != manifest["protocol_hash"]
-                or existing.get("source_commit") != manifest["source_commit"]
                 or existing_pred.model_hash != manifest["model_hash"]
                 or existing_pred.selector_hash != manifest["selector_hash"]
                 or existing_pred.canonical_hash != canonical_hash
@@ -256,7 +308,7 @@ class ProspectiveLedger:
             "schema": "dlt-prospective-freeze-v1",
             "cohort_id": manifest["cohort_id"],
             "protocol_hash": manifest["protocol_hash"],
-            "source_commit": manifest["source_commit"],
+            "source_commit": source_commit,
             "registered_at": utc_now(),
             "canonical_hash": canonical_hash,
             "latest_observed_issue": draws[-1].issue,
@@ -329,7 +381,7 @@ class ProspectiveLedger:
                 "schema": "dlt-prospective-replay-v1",
                 "cohort_id": manifest["cohort_id"],
                 "protocol_hash": manifest["protocol_hash"],
-                "source_commit": manifest["source_commit"],
+                "source_commit": freeze["source_commit"],
                 "replayed_at": utc_now(),
                 "target_issue": target,
                 "freeze_hash": pred.freeze_hash,
@@ -453,7 +505,8 @@ class ProspectiveLedger:
             "created_at": utc_now(),
             "cohort_id": manifest["cohort_id"],
             "protocol_hash": manifest["protocol_hash"],
-            "source_commit": manifest["source_commit"],
+            "initial_source_commit": manifest["initial_source_commit"],
+            "behavior_hash": manifest["behavior_hash"],
             "model_hash": manifest["model_hash"],
             "selector_hash": manifest["selector_hash"],
             "freeze_count": len(freezes),
@@ -475,6 +528,7 @@ def run_prospective_cycle(
     *,
     ledger_root: Path,
     source_commit: str,
+    behavior_hash_override: str | None = None,
     prediction_builder: Callable[[list[Draw], str, dict | None], tuple[Prediction, dict[str, Any]]] = make_prediction,
 ) -> dict[str, Any]:
     if not draws:
@@ -487,7 +541,11 @@ def run_prospective_cycle(
         raise ValueError("prospective cycle rejects duplicate issues")
 
     ledger = ProspectiveLedger(ledger_root)
-    manifest = ledger.activate(source_commit)
+    source_commit = _require_source_commit(source_commit)
+    manifest = ledger.activate(
+        source_commit,
+        behavior_hash_override=behavior_hash_override,
+    )
     replayed = ledger.replay_available(draws)
 
     prediction, trace = prediction_builder(draws, canonical_hash, None)
@@ -496,12 +554,15 @@ def run_prospective_cycle(
         draws=draws,
         canonical_hash=canonical_hash,
         source_commit=source_commit,
+        behavior_hash_override=behavior_hash_override,
     )
     status = ledger.status()
     return {
         "schema": "dlt-prospective-cycle-v1",
         "created_at": utc_now(),
         "cohort": manifest,
+        "cycle_source_commit": source_commit,
+        "behavior_hash": manifest["behavior_hash"],
         "new_replays": [x["target_issue"] for x in replayed],
         "freeze": freeze,
         "status": status,
