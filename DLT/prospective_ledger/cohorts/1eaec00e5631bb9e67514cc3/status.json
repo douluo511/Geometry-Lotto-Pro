@@ -1,0 +1,28 @@
+{
+  "cohort_id": "1eaec00e5631bb9e67514cc3",
+  "created_at": "2026-10-06T06:33:36Z",
+  "dan_state": "NULL_DAN",
+  "edge_state": "NO_EDGE",
+  "freeze_count": 1,
+  "model_hash": "4bf5572e27f5542e21bee9b58f894b6e6db7b7a5fd6922996be5ad77bf836caf",
+  "pending_targets": [
+    "26114"
+  ],
+  "production_rho": 0.0,
+  "promotion_authorized": false,
+  "protocol_hash": "253711d7fb74d636e2a0efc222038c118f5e6e221bfd47375e7037256edde332",
+  "qualification": {
+    "back": null,
+    "decision": "NOT_READY",
+    "front": null,
+    "production_rho": 0.0,
+    "promotion_authorized": false,
+    "required_replays": 30,
+    "split_halves": [],
+    "valid_replays": 0
+  },
+  "schema": "dlt-prospective-status-v1",
+  "selector_hash": "eaa627b39fc4173b94843facdf98f94eae4d21db54316a08f5f68c390d781fa9",
+  "source_commit": "f00503668bbaf6c2bdb1ef8a118e737852f7cb5c",
+  "valid_replays": 0
+}

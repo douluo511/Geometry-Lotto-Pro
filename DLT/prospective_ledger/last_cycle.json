@@ -1,0 +1,258 @@
+{
+  "cohort": {
+    "cohort_id": "1eaec00e5631bb9e67514cc3",
+    "created_at": "2026-10-06T06:33:33Z",
+    "model_hash": "4bf5572e27f5542e21bee9b58f894b6e6db7b7a5fd6922996be5ad77bf836caf",
+    "production_dan_state": "NULL_DAN",
+    "production_edge_state": "NO_EDGE",
+    "production_rho": 0.0,
+    "promotion_authorized": false,
+    "protocol_hash": "253711d7fb74d636e2a0efc222038c118f5e6e221bfd47375e7037256edde332",
+    "protocol_spec": {
+      "model_hash": "4bf5572e27f5542e21bee9b58f894b6e6db7b7a5fd6922996be5ad77bf836caf",
+      "model_spec": {
+        "base_models": [
+          "simple_frequency",
+          "recency",
+          "gap",
+          "transition",
+          "pair_graph",
+          "geometry_state",
+          "geometry_transition"
+        ],
+        "complete_space_weights": {
+          "geometry_fit": 0.16,
+          "pair_fit": 0.025
+        },
+        "ensemble_weights": {
+          "gap": 0.1,
+          "geometry_state": 0.17,
+          "geometry_transition": 0.18,
+          "pair_graph": 0.1,
+          "recency": 0.12,
+          "simple_frequency": 0.18,
+          "transition": 0.15
+        },
+        "geometry": "state+cross-draw-transition",
+        "model_version": "dlt-research-v2.1-geometry",
+        "selector_version": "dan-firewall-v2.1.2-scientific-gate"
+      },
+      "promotion_policy": {
+        "ablation_points": 240,
+        "alpha": 0.05,
+        "bootstrap_rounds": 800,
+        "dan_min_coverage": 0.6,
+        "dan_min_lift": 0.01,
+        "dan_min_rank_support": 0.6,
+        "dan_seed_jitter": 0.05,
+        "dan_wilson_z": 1.959963984540054,
+        "loeo_bootstrap_rounds": 300,
+        "loeo_permutation_rounds": 500,
+        "max_null_world_fpr": 0.1,
+        "min_back_recall_gain": 0.0,
+        "min_bootstrap_lower": 0.0,
+        "min_era_count": 3,
+        "min_front_recall_gain": 0.0,
+        "min_history": 600,
+        "min_prospective_replays": 30,
+        "min_validated_components": 1,
+        "null_worlds": 100,
+        "permutation_rounds": 1200,
+        "protocol_version": "false-edge-firewall-v2.1.2",
+        "seeds": [
+          17,
+          29,
+          43,
+          71,
+          97
+        ],
+        "synthetic_null_draws": 300,
+        "synthetic_null_max_false_edges": 0,
+        "synthetic_null_test_points": 60,
+        "synthetic_null_worlds": 6,
+        "untouched_holdout": 120,
+        "walk_forward_points": 720,
+        "windows": [
+          120,
+          240,
+          360
+        ]
+      },
+      "protocol_version": "dlt-prospective-only-v1",
+      "qualification": {
+        "areas": [
+          "front",
+          "back"
+        ],
+        "baseline": "same-target deterministic uniform random rankings",
+        "bootstrap_lower_must_exceed": 0.0,
+        "minimum_valid_replays": 30,
+        "permutation_alpha": 0.05,
+        "split_half_required": true
+      },
+      "selector_hash": "eaa627b39fc4173b94843facdf98f94eae4d21db54316a08f5f68c390d781fa9",
+      "source_commit": "f00503668bbaf6c2bdb1ef8a118e737852f7cb5c"
+    },
+    "schema": "dlt-prospective-cohort-v1",
+    "selector_hash": "eaa627b39fc4173b94843facdf98f94eae4d21db54316a08f5f68c390d781fa9",
+    "source_commit": "f00503668bbaf6c2bdb1ef8a118e737852f7cb5c",
+    "status": "ACTIVE"
+  },
+  "created_at": "2026-10-06T06:33:36Z",
+  "effect_trace": {
+    "complete_space": {
+      "back": 66,
+      "front": 324632
+    },
+    "dead_paths": [],
+    "edge_gate": "FAIL",
+    "model_hash": "4bf5572e27f5542e21bee9b58f894b6e6db7b7a5fd6922996be5ad77bf836caf",
+    "production_weights": {
+      "research_ensemble": 0.0,
+      "uniform_baseline": 1.0
+    },
+    "scientific_gate": "UNKNOWN",
+    "selector_hash": "eaa627b39fc4173b94843facdf98f94eae4d21db54316a08f5f68c390d781fa9",
+    "validated_components": []
+  },
+  "freeze": {
+    "canonical_hash": "09b35cf15eee8ebdf8223bd49769ec18bec5abb24a6b5cb93cf6f727f471c133",
+    "cohort_id": "1eaec00e5631bb9e67514cc3",
+    "latest_observed_issue": "26113",
+    "prediction": {
+      "back": [
+        5,
+        8
+      ],
+      "back_ranking": [
+        5,
+        8,
+        7,
+        2,
+        1,
+        4,
+        9,
+        12,
+        10,
+        11,
+        3,
+        6
+      ],
+      "canonical_hash": "09b35cf15eee8ebdf8223bd49769ec18bec5abb24a6b5cb93cf6f727f471c133",
+      "created_at": "2026-10-06T06:33:36Z",
+      "dan_state": "NULL_DAN",
+      "edge_state": "NO_EDGE",
+      "freeze_hash": "810414246cb019788d4dbf3196caba2b28e6f55d57a038884a5949a16d281efe",
+      "front": [
+        3,
+        9,
+        10,
+        14,
+        26
+      ],
+      "front_ranking": [
+        10,
+        3,
+        9,
+        26,
+        14,
+        12,
+        21,
+        8,
+        6,
+        16,
+        29,
+        11,
+        23,
+        18,
+        5,
+        13,
+        22,
+        2,
+        20,
+        25,
+        33,
+        28,
+        15,
+        27,
+        7,
+        4,
+        19,
+        24,
+        34,
+        17,
+        32,
+        1,
+        35,
+        31,
+        30
+      ],
+      "model_hash": "4bf5572e27f5542e21bee9b58f894b6e6db7b7a5fd6922996be5ad77bf836caf",
+      "note": "研究候选；只有严格证据门通过时才允许 EDGE_PROVEN/CERTIFIED_DAN。",
+      "prediction_id": "e2892dc8bf17a0a482a5",
+      "research_dan_back": [
+        5
+      ],
+      "research_dan_front": [
+        10,
+        3
+      ],
+      "score_hash": "ade1e50748b9f1c4cbb0aca10a57c0fe292b89c6f29f3a86766fec91a7ac33da",
+      "selector_hash": "eaa627b39fc4173b94843facdf98f94eae4d21db54316a08f5f68c390d781fa9",
+      "target_date": "2026-10-07",
+      "target_issue": "26114"
+    },
+    "production_rho": 0.0,
+    "promotion_authorized": false,
+    "protocol_hash": "253711d7fb74d636e2a0efc222038c118f5e6e221bfd47375e7037256edde332",
+    "record_hash": "150bc2dc88658bf4ae11ea5a584fb27817d657d8f1653c083f5be1b279f93866",
+    "registered_at": "2026-10-06T06:33:36Z",
+    "research_only": true,
+    "schema": "dlt-prospective-freeze-v1",
+    "source_commit": "f00503668bbaf6c2bdb1ef8a118e737852f7cb5c",
+    "target_date": "2026-10-07",
+    "target_issue": "26114"
+  },
+  "live_source": {
+    "canonical_hash": "09b35cf15eee8ebdf8223bd49769ec18bec5abb24a6b5cb93cf6f727f471c133",
+    "crosscheck_count": 20,
+    "crosscheck_status": "PASS",
+    "draw_count": 2927,
+    "freshness_gate": "PASS",
+    "latest_issue": "26113",
+    "network_gate": "PASS",
+    "source_mode": "jiangsu_full_plus_gansu"
+  },
+  "new_replays": [],
+  "production_rho": 0.0,
+  "promotion_authorized": false,
+  "schema": "dlt-prospective-cycle-v1",
+  "status": {
+    "cohort_id": "1eaec00e5631bb9e67514cc3",
+    "created_at": "2026-10-06T06:33:36Z",
+    "dan_state": "NULL_DAN",
+    "edge_state": "NO_EDGE",
+    "freeze_count": 1,
+    "model_hash": "4bf5572e27f5542e21bee9b58f894b6e6db7b7a5fd6922996be5ad77bf836caf",
+    "pending_targets": [
+      "26114"
+    ],
+    "production_rho": 0.0,
+    "promotion_authorized": false,
+    "protocol_hash": "253711d7fb74d636e2a0efc222038c118f5e6e221bfd47375e7037256edde332",
+    "qualification": {
+      "back": null,
+      "decision": "NOT_READY",
+      "front": null,
+      "production_rho": 0.0,
+      "promotion_authorized": false,
+      "required_replays": 30,
+      "split_halves": [],
+      "valid_replays": 0
+    },
+    "schema": "dlt-prospective-status-v1",
+    "selector_hash": "eaa627b39fc4173b94843facdf98f94eae4d21db54316a08f5f68c390d781fa9",
+    "source_commit": "f00503668bbaf6c2bdb1ef8a118e737852f7cb5c",
+    "valid_replays": 0
+  }
+}
