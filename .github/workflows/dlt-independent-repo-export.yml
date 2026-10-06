@@ -33,7 +33,7 @@ jobs:
           actual="$(git rev-parse HEAD)"
           test "$actual" = "$EXPECTED_SHA"
           git cat-file -e "${CANDIDATE_SHA}^{commit}"
-          git diff --quiet "$CANDIDATE_SHA" HEAD --             DLT             .github/workflows/dlt-windows-build-acceptance.yml             .github/workflows/dlt-prospective-only.yml
+          git diff --quiet "$CANDIDATE_SHA" HEAD --             DLT             .github/workflows/dlt-windows-build-acceptance.yml
           echo "EXACT_EXPORT_HEAD=$actual"
           echo "CANDIDATE_PAYLOAD_EQUIVALENCE=PASS"
           echo "CANDIDATE_HEAD=$CANDIDATE_SHA"
@@ -90,15 +90,12 @@ jobs:
               "DLT/GeometryLottoProUpdater.spec",
               "DLT/src/updater.py",
               "DLT/src/glp/delivery.py",
-              "DLT/src/glp/prospective.py",
               "DLT/src/glp/service.py",
               "DLT/tests/test_restored_updater_contract.py",
               "DLT/scripts/updater_acceptance.ps1",
               "DLT/scripts/release_update_acceptance.ps1",
               "DLT/scripts/physical_gui_failure_smoke.ps1",
-              "DLT/scripts/prospective_writer_auth.py",
               ".github/workflows/dlt-windows-build-acceptance.yml",
-              ".github/workflows/dlt-prospective-only.yml",
           }
           paths = {x["path"] for x in m["files"]}
           missing = sorted(required - paths)
@@ -125,18 +122,15 @@ jobs:
               assert p.read_bytes() == q.read_bytes(), row["path"]
 
           windows = (a / ".github/workflows/dlt-windows-build-acceptance.yml").read_text(encoding="utf-8")
-          prospective = (a / ".github/workflows/dlt-prospective-only.yml").read_text(encoding="utf-8")
           assert "working-directory: DLT" in windows
           assert "douluo511/Geometry-Lotto-Pro-DLT" in windows
-          assert "DLT/src/glp/prospective.py" in prospective
-          assert "evidence/dlt-prospective-ledger" in prospective
+          assert not (a / ".github/workflows/dlt-prospective-only.yml").exists(), (
+              "unmerged prospective research workflow must not be smuggled into current product export"
+          )
 
           src_root = Path(os.environ["GITHUB_WORKSPACE"])
-          for wf in (
-              ".github/workflows/dlt-windows-build-acceptance.yml",
-              ".github/workflows/dlt-prospective-only.yml",
-          ):
-              assert (a / wf).read_bytes() == (src_root / wf).read_bytes()
+          wf = ".github/workflows/dlt-windows-build-acceptance.yml"
+          assert (a / wf).read_bytes() == (src_root / wf).read_bytes()
 
           print("MANIFEST_HASH_LAYOUT_VERIFY=PASS")
           print("WORKFLOW_PATH_CONTRACT=PASS")
@@ -174,7 +168,7 @@ jobs:
           echo "PROJECT_ONLY_EXPORT=PASS"
           echo "STRUCTURE_PRESERVED=PASS"
           echo "WINDOWS_WORKFLOW_INCLUDED=PASS"
-          echo "PROSPECTIVE_WORKFLOW_INCLUDED=PASS"
+          echo "PROSPECTIVE_RESEARCH_EXCLUDED_FROM_CURRENT_PRODUCT=PASS"
           echo "REPOSITORY_INDEPENDENCE=NOT VERIFIED"
           echo "REAL_RELEASE_N_TO_N_PLUS_1=NOT VERIFIED"
           echo "FINAL_GATE=FAIL"
