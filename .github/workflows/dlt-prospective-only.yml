@@ -5,6 +5,7 @@ on:
     paths:
       - "DLT/src/glp/prospective.py"
       - "DLT/scripts/prospective_snapshot.py"
+      - "DLT/scripts/prospective_writer_auth.py"
       - "DLT/tests/test_prospective_protocol.py"
       - "DLT/tests/test_background_103_compat.py"
       - "DLT/PROSPECTIVE_PROTOCOL.md"
@@ -28,6 +29,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 1
+          persist-credentials: false
 
       - name: Exact source identity gate
         shell: bash
@@ -37,6 +39,26 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
           echo "EXACT_PROTOCOL_SOURCE=$EXPECTED_SHA"
+
+      - name: Prospective writer authorization self-test
+        run: python DLT/scripts/prospective_writer_auth.py --self-test
+
+      - name: Resolve prospective writer authorization
+        id: writer-auth
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          HEAD_REF: ${{ github.head_ref }}
+          REF_NAME: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          auth="$(python DLT/scripts/prospective_writer_auth.py \
+            --event-name "$EVENT_NAME" \
+            --head-ref "$HEAD_REF" \
+            --ref "$REF_NAME")"
+          test "$auth" = "true" -o "$auth" = "false"
+          echo "authorized=$auth" >> "$GITHUB_OUTPUT"
+          echo "PROSPECTIVE_LEDGER_WRITER_AUTHORIZED=$auth"
 
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
@@ -55,12 +77,23 @@ jobs:
           python -m unittest DLT.tests.test_prospective_protocol -v
           python -m unittest DLT.tests.test_background_103_compat -v
 
-      - name: Checkout persistent evidence ledger
+      - name: Checkout persistent evidence ledger - authorized writer
+        if: steps.writer-auth.outputs.authorized == 'true'
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           ref: evidence/dlt-prospective-ledger
           path: prospective-ledger
           fetch-depth: 1
+          persist-credentials: true
+
+      - name: Checkout persistent evidence ledger - validation only
+        if: steps.writer-auth.outputs.authorized != 'true'
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: evidence/dlt-prospective-ledger
+          path: prospective-ledger
+          fetch-depth: 1
+          persist-credentials: false
 
       - name: Execute live official prospective cycle
         env:
@@ -111,7 +144,19 @@ jobs:
           print("PROSPECTIVE_FAIL_CLOSED_SCHEMA=PASS")
           PY
 
+      - name: Validation-only no-push credential guard
+        if: steps.writer-auth.outputs.authorized != 'true'
+        working-directory: prospective-ledger
+        shell: bash
+        run: |
+          set -euo pipefail
+          extra="$(git config --local --get-all http.https://github.com/.extraheader || true)"
+          test -z "$extra"
+          echo "LEDGER_WRITE_AUTHORIZED=false"
+          echo "LEDGER_PERSISTED_CREDENTIAL=false"
+
       - name: Commit append-only ledger evidence
+        if: steps.writer-auth.outputs.authorized == 'true'
         id: ledger
         working-directory: prospective-ledger
         shell: bash
