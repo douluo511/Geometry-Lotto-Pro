@@ -1,0 +1,98 @@
+name: Independent Repository Seed Plan Validation
+
+on:
+  pull_request:
+    paths:
+      - "tools/bootstrap_independent_repo.ps1"
+      - ".github/workflows/independent-repo-seed-plan.yml"
+      - ".github/workflows/independent-repo-bootstrap-contract.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  plan-verified-seeds:
+    runs-on: windows-2022
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout exact bootstrap head
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Download verified SSQ seed
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $out=Join-Path $env:RUNNER_TEMP 'ssq-seed'
+          gh run download 37454181815 --repo douluo511/Geometry-Lotto-Pro --name "SSQ-INDEPENDENT-REPO-EXPORT-316ea9e0c79b8f536390b428c606b916e1c04478" --dir $out
+          if($LASTEXITCODE -ne 0){ throw 'SSQ seed artifact download failed' }
+          $manifest=Get-ChildItem -LiteralPath $out -Recurse -Filter MIGRATION_MANIFEST.json | Select-Object -First 1
+          if(-not $manifest){ throw 'SSQ seed manifest missing after artifact download' }
+          "SSQ_EXPORT_DIR=$($manifest.Directory.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Plan-only validate exact SSQ seed
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          .\tools\bootstrap_independent_repo.ps1 `
+            -ExportDir "$env:SSQ_EXPORT_DIR" `
+            -TargetRepo "douluo511/Geometry-Lotto-Pro-SSQ" `
+            -Visibility private `
+            -ExpectedSourceCommit "316ea9e0c79b8f536390b428c606b916e1c04478" `
+            -PlanOnly `
+            -EvidencePath "$env:RUNNER_TEMP\ssq-bootstrap-plan.json"
+          $e=Get-Content "$env:RUNNER_TEMP\ssq-bootstrap-plan.json" -Raw | ConvertFrom-Json
+          if($e.status -ne 'PASS'){ throw 'SSQ bootstrap plan did not PASS' }
+          if($e.remote_verification -ne 'NOT_RUN_PLAN_ONLY'){ throw 'SSQ plan unexpectedly performed remote verification' }
+          if($e.source.schema -ne 'ssq-independent-repo-export-v1'){ throw 'SSQ schema mismatch' }
+          if($e.source.source_commit -ne '316ea9e0c79b8f536390b428c606b916e1c04478'){ throw 'SSQ source SHA mismatch' }
+          if($e.source.manifest_sha256 -ne 'b6677bc94decca9f3610e5bddd590ee806cfed074566c3094d274f052ccdfd8e'){ throw 'SSQ manifest SHA mismatch' }
+          if([int]$e.source.file_count -ne 47){ throw 'SSQ file_count mismatch' }
+          Get-Content "$env:RUNNER_TEMP\ssq-bootstrap-plan.json"
+
+      - name: Download verified DLT seed
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $out=Join-Path $env:RUNNER_TEMP 'dlt-seed'
+          gh run download 37454873911 --repo douluo511/Geometry-Lotto-Pro --name "dlt-independent-repo-seed-89b6673bd77d062c5439de7ed948ff9d559108c1" --dir $out
+          if($LASTEXITCODE -ne 0){ throw 'DLT seed artifact download failed' }
+          $manifest=Get-ChildItem -LiteralPath $out -Recurse -Filter MIGRATION_MANIFEST.json | Select-Object -First 1
+          if(-not $manifest){ throw 'DLT seed manifest missing after artifact download' }
+          "DLT_EXPORT_DIR=$($manifest.Directory.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Plan-only validate exact DLT seed
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          .\tools\bootstrap_independent_repo.ps1 `
+            -ExportDir "$env:DLT_EXPORT_DIR" `
+            -TargetRepo "douluo511/Geometry-Lotto-Pro-DLT" `
+            -Visibility private `
+            -ExpectedSourceCommit "30c3d9d2c6fdfc3dd0751f6f8a0a85348ec2b4a6" `
+            -PlanOnly `
+            -EvidencePath "$env:RUNNER_TEMP\dlt-bootstrap-plan.json"
+          $e=Get-Content "$env:RUNNER_TEMP\dlt-bootstrap-plan.json" -Raw | ConvertFrom-Json
+          if($e.status -ne 'PASS'){ throw 'DLT bootstrap plan did not PASS' }
+          if($e.remote_verification -ne 'NOT_RUN_PLAN_ONLY'){ throw 'DLT plan unexpectedly performed remote verification' }
+          if($e.source.schema -ne 'dlt-independent-export-v4'){ throw 'DLT schema mismatch' }
+          if($e.source.source_commit -ne '30c3d9d2c6fdfc3dd0751f6f8a0a85348ec2b4a6'){ throw 'DLT source SHA mismatch' }
+          if($e.source.manifest_sha256 -ne '65f3095b09b86ce895505277feba7a46bd0484329a18dacded11689a4bcfe19a'){ throw 'DLT manifest SHA mismatch' }
+          if($e.source.sums_sha256 -ne 'a0d982b48397f7a33a86c2e3ccdb7d21a189044ab9dc6149fd65d8744ce463bf'){ throw 'DLT checksum-list SHA mismatch' }
+          if([int]$e.source.file_count -ne 34){ throw 'DLT file_count mismatch' }
+          Get-Content "$env:RUNNER_TEMP\dlt-bootstrap-plan.json"
+
+      - name: Upload plan-only bootstrap evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: verified-seed-bootstrap-plan-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            ${{ runner.temp }}/ssq-bootstrap-plan.json
+            ${{ runner.temp }}/dlt-bootstrap-plan.json
+          if-no-files-found: error
+          retention-days: 30
