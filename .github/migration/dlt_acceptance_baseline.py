@@ -63,13 +63,17 @@ def main() -> int:
     constants = out / CONSTANTS_PATH
     if not constants.is_file():
         raise SystemExit("DLT constants.py missing from current seed")
-    before = constants.read_text(encoding="utf-8")
-    if before.count(CURRENT_LINE) != 1:
-        raise SystemExit("current APP_VERSION declaration is not exactly one expected line")
-    if BASELINE_LINE in before:
+    before_bytes = constants.read_bytes()
+    current_bytes = CURRENT_LINE.encode("utf-8")
+    baseline_bytes = BASELINE_LINE.encode("utf-8")
+    if before_bytes.count(current_bytes) != 1:
+        raise SystemExit("current APP_VERSION declaration is not exactly one expected byte sequence")
+    if baseline_bytes in before_bytes:
         raise SystemExit("baseline APP_VERSION already present before patch")
-    after = before.replace(CURRENT_LINE, BASELINE_LINE, 1)
-    constants.write_text(after, encoding="utf-8", newline="\n")
+    expected_bytes = before_bytes.replace(current_bytes, baseline_bytes, 1)
+    constants.write_bytes(expected_bytes)
+    if constants.read_bytes() != expected_bytes:
+        raise SystemExit("baseline constants bytes differ from the single controlled replacement")
 
     current_files = {
         k: v for k, v in snapshot(current).items()
@@ -90,8 +94,8 @@ def main() -> int:
     if changed != [CONSTANTS_PATH.as_posix()]:
         raise SystemExit(f"baseline must change only constants.py, got: {changed}")
 
-    baseline_text = constants.read_text(encoding="utf-8")
-    if baseline_text.count(BASELINE_LINE) != 1 or CURRENT_LINE in baseline_text:
+    baseline_bytes_actual = constants.read_bytes()
+    if baseline_bytes_actual.count(baseline_bytes) != 1 or current_bytes in baseline_bytes_actual:
         raise SystemExit("baseline APP_VERSION patch did not apply exactly")
 
     rows = [
