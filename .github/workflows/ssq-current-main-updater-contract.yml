@@ -1,0 +1,134 @@
+name: SSQ Current-Main Updater Contract
+
+on:
+  push:
+    branches:
+      - 'migration/ssq-independent-current-main-*'
+    paths:
+      - 'SSQ/updater.py'
+      - 'SSQ/SSQ/glp/updater_client.py'
+      - 'SSQ/tools/build_updater_windows.py'
+      - 'SSQ/tools/prepare_release_manifest.py'
+      - 'SSQ/tools/updater_release_acceptance.py'
+      - 'SSQ/tests/test_updater_*.py'
+      - '.github/workflows/ssq-current-main-updater-contract.yml'
+  pull_request:
+    paths:
+      - 'SSQ/updater.py'
+      - 'SSQ/SSQ/glp/updater_client.py'
+      - 'SSQ/tools/build_updater_windows.py'
+      - 'SSQ/tools/prepare_release_manifest.py'
+      - 'SSQ/tools/updater_release_acceptance.py'
+      - 'SSQ/tests/test_updater_*.py'
+      - '.github/workflows/ssq-current-main-updater-contract.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: SSQ
+    steps:
+      - name: Checkout exact source head
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Verify exact checkout identity
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+
+      - name: Setup pinned Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.11.9'
+
+      - name: Compile updater contract
+        run: python -m compileall -q updater.py SSQ/glp/updater_client.py tools/prepare_release_manifest.py tools/updater_release_acceptance.py tools/build_updater_windows.py
+
+      - name: Updater adversarial contract tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PYTHONPATH="$PWD/SSQ:$PWD"
+          python -m unittest discover -s tests -p 'test_updater_*.py' -v
+
+      - name: Shared repository real-release gate must reject
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PYTHONPATH="$PWD/SSQ:$PWD"
+          python - <<'PY'
+          import sys
+          from pathlib import Path
+          sys.path.insert(0, str(Path("tools").resolve()))
+          import updater_release_acceptance as ura
+          try:
+              ura._require_independent_actions_context()
+          except RuntimeError as exc:
+              if "independent SSQ repository" not in str(exc):
+                  raise
+              print("REAL_RELEASE_ACCEPTANCE=BLOCKED_EXPECTED")
+              print("REASON="+str(exc))
+          else:
+              raise SystemExit("shared repository unexpectedly passed independent release context")
+          PY
+
+  updater-exact-exe:
+    needs: contract
+    runs-on: windows-2022
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: SSQ
+    steps:
+      - name: Checkout exact source head
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Setup pinned Python x64
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.11.9'
+          architecture: 'x64'
+
+      - name: Install pinned build dependencies
+        run: python -m pip install --disable-pip-version-check -r requirements-build.txt
+
+      - name: Native Windows Exact-Updater acceptance
+        shell: pwsh
+        run: |
+          $env:PYTHONPATH = "$PWD\SSQ;$PWD"
+          python tools/build_updater_windows.py
+          if ($LASTEXITCODE -ne 0) { throw "Exact Updater acceptance failed" }
+          $r = Get-Content evidence\SSQ\UPDATER_EXACT_EXE_ACCEPTANCE.json -Raw | ConvertFrom-Json
+          if ($r.status -ne "PASS" -or [int]$r.hard_fail_count -ne 0) {
+            throw "Exact Updater report is not PASS"
+          }
+          if ($r.real_release_n_to_n_plus_1 -ne "BLOCKED_PENDING_INDEPENDENT_REPOSITORY") {
+            throw "shared-repo updater acceptance overclaimed real release"
+          }
+          Write-Host "UPDATER_EXACT_EXE_SHA256=$($r.sha256)"
+          Write-Host "REAL_RELEASE_N_TO_N_PLUS_1=$($r.real_release_n_to_n_plus_1)"
+
+      - name: Upload candidate updater evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: SSQ-UPDATER-CANDIDATE-${{ github.sha }}
+          path: |
+            SSQ/dist/Geometry_Lotto_Pro_SSQ_Updater.exe
+            SSQ/evidence/SSQ/UPDATER_EXACT_EXE_ACCEPTANCE.json
+            SSQ/evidence/SSQ/UPDATER_SHA256SUMS.txt
+            SSQ/evidence/SSQ/updater-*.json
+          if-no-files-found: error
+          retention-days: 30
