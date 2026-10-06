@@ -187,15 +187,8 @@ def run_background_worker(
 
     with _WindowsMutex(root) as mutex:
         if os.name == "nt" and mutex.already_exists:
-            atomic_json(status_path, {
-                "schema": BACKGROUND_SCHEMA,
-                "status": "ALREADY_RUNNING",
-                "pid": os.getpid(),
-                "updated_at": utc_now(),
-                "interval_seconds": interval_seconds,
-                "production_poll_seconds": BACKGROUND_POLL_SECONDS,
-                "startup_mode": BACKGROUND_STARTUP_MODE,
-            })
+            # Never overwrite the shared health/status file from a duplicate launcher.
+            # The already-running worker remains the sole authority for that file.
             return 0
 
         parent_exit_observed = _wait_parent_exit(wait_parent_pid) if wait_parent_pid else None
