@@ -83,10 +83,14 @@ jobs:
         run: |
           $ErrorActionPreference='Stop'
           $bad=('0' * 64)
-          & .\tools\advance_dlt_baseline_to_current.ps1 -CurrentExportDir "$env:DLT_CURRENT_EXPORT_DIR" -TargetRepo "douluo511/Geometry-Lotto-Pro-DLT" -Visibility private -ExpectedCurrentSourceCommit "$env:CURRENT_SHA" -ExpectedCurrentManifestSha256 "$env:CURRENT_MANIFEST" -ExpectedCurrentSumsSha256 "$env:CURRENT_SUMS" -ExpectedBaselineManifestSha256 $bad -ExpectedBaselineSumsSha256 "$env:BASELINE_SUMS" -ExpectedBaselineReleaseTag "v2.1.1" -ExpectedBaselineExeSha256 "$env:BASELINE_EXE" -PlanOnly -EvidencePath (Join-Path $env:RUNNER_TEMP 'should-not-pass.json') *> (Join-Path $env:RUNNER_TEMP 'negative.log')
-          if($LASTEXITCODE -eq 0){ throw 'wrong frozen baseline identity was accepted' }
-          $text=Get-Content (Join-Path $env:RUNNER_TEMP 'negative.log') -Raw
-          if($text -notmatch 'baseline manifest SHA is not the frozen transition baseline'){ throw 'negative rejection reason mismatch' }
+          $log=Join-Path $env:RUNNER_TEMP 'negative.log'
+          $badEvidence=Join-Path $env:RUNNER_TEMP 'should-not-pass.json'
+          & pwsh -NoProfile -NonInteractive -File .\tools\advance_dlt_baseline_to_current.ps1 -CurrentExportDir "$env:DLT_CURRENT_EXPORT_DIR" -TargetRepo "douluo511/Geometry-Lotto-Pro-DLT" -Visibility private -ExpectedCurrentSourceCommit "$env:CURRENT_SHA" -ExpectedCurrentManifestSha256 "$env:CURRENT_MANIFEST" -ExpectedCurrentSumsSha256 "$env:CURRENT_SUMS" -ExpectedBaselineManifestSha256 $bad -ExpectedBaselineSumsSha256 "$env:BASELINE_SUMS" -ExpectedBaselineReleaseTag "v2.1.1" -ExpectedBaselineExeSha256 "$env:BASELINE_EXE" -PlanOnly -EvidencePath $badEvidence *> $log
+          $code=$LASTEXITCODE
+          if($code -eq 0){ throw 'wrong frozen baseline identity was accepted' }
+          $text=Get-Content -LiteralPath $log -Raw
+          if($text -notmatch 'baseline manifest SHA is not the frozen transition baseline'){ throw "negative rejection reason mismatch: $text" }
+          if(Test-Path -LiteralPath $badEvidence){ throw 'negative case unexpectedly emitted PASS-capable evidence' }
           Write-Host "TRANSITION_WRONG_BASELINE_REJECTION=PASS"
 
       - name: Upload transition plan evidence
