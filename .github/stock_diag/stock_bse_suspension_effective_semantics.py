@@ -34,6 +34,23 @@ RESUME_PATTERNS=[
 PROSPECTIVE_PREFIX=re.compile(r"(可能|拟|计划|预计)")
 ACTION_TERM_RE=re.compile(r"(停牌|暂停交易|复牌|恢复交易)")
 
+# Strict heading-bound transitions. These only accept an explicit section label
+# plus a direct "stock from DATE ... suspend/resume" relation. They do not use
+# publication dates, estimates, application dates, or generic nearby dates.
+HEADING_STOP_RE=re.compile(
+    rf"(?:停牌日期(?:及(?:预计)?复牌日期)?)[^。；\n]{{0,160}}?"
+    rf"(?:本公司股票|公司股票|股票)[^。；\n]{{0,28}}?(?:自|于)\s*{DATE}\s*(?:开市)?\s*(?:起)?停牌"
+)
+HEADING_RESUME_RE=re.compile(
+    rf"(?:复牌(?:依据及)?复牌日期)[^。；\n]{{0,180}}?"
+    rf"(?:本公司股票|公司股票|股票)[^。；\n]{{0,28}}?(?:自|于)\s*{DATE}\s*(?:开市)?\s*(?:起)?复牌"
+)
+HEADING_PAIR_RE=re.compile(
+    rf"(?:停牌日期及(?:预计)?复牌日期)[^。；\n]{{0,160}}?"
+    rf"(?:本公司股票|公司股票|股票)[^。；\n]{{0,28}}?(?:自|于)\s*{DATE}\s*(?:开市)?\s*(?:起)?停牌"
+    rf"[^。；\n]{{0,80}}?(?:并于|于|自)\s*{DATE}\s*(?:开市)?\s*(?:起)?复牌"
+)
+
 def load(name,path):
     spec=importlib.util.spec_from_file_location(name,path)
     if spec is None or spec.loader is None:
@@ -130,6 +147,62 @@ def strong_matches(text,patterns,action_word):
         dedup[(x["pattern_id"],x["date"],x["matched_text"])]=x
     return [dedup[k] for k in sorted(dedup)]
 
+def heading_transition_matches(text):
+    compact=re.sub(r"\s+","",text or "")
+    stops=[]
+    resumes=[]
+    for m in HEADING_STOP_RE.finditer(compact):
+        try:
+            value=iso(m.groups()[:3])
+        except Exception:
+            continue
+        matched=m.group(0)
+        stops.append({
+            "pattern_id":"heading_stop_date",
+            "date":value,
+            "matched_text":matched[:320],
+            "context_sha256":hashlib.sha256(matched.encode()).hexdigest(),
+        })
+    for m in HEADING_RESUME_RE.finditer(compact):
+        try:
+            value=iso(m.groups()[:3])
+        except Exception:
+            continue
+        matched=m.group(0)
+        resumes.append({
+            "pattern_id":"heading_resume_date",
+            "date":value,
+            "matched_text":matched[:320],
+            "context_sha256":hashlib.sha256(matched.encode()).hexdigest(),
+        })
+    for m in HEADING_PAIR_RE.finditer(compact):
+        groups=m.groups()
+        try:
+            stop_value=iso(groups[:3])
+            resume_value=iso(groups[3:6])
+        except Exception:
+            continue
+        matched=m.group(0)
+        ctx_hash=hashlib.sha256(matched.encode()).hexdigest()
+        stops.append({
+            "pattern_id":"heading_stop_resume_pair_stop",
+            "date":stop_value,
+            "matched_text":matched[:320],
+            "context_sha256":ctx_hash,
+        })
+        resumes.append({
+            "pattern_id":"heading_stop_resume_pair_resume",
+            "date":resume_value,
+            "matched_text":matched[:320],
+            "context_sha256":ctx_hash,
+        })
+    def dedupe(rows):
+        out={}
+        for x in rows:
+            out[(x["pattern_id"],x["date"],x["matched_text"])]=x
+        return [out[k] for k in sorted(out)]
+    return dedupe(stops),dedupe(resumes)
+
 def action_contexts(text,limit=48):
     compact=re.sub(r"\s+","",text or "")
     out=[]
@@ -199,6 +272,9 @@ def main():
         rec["action_contexts"]=action_contexts(text)
         stops=strong_matches(text,STOP_PATTERNS,"停牌")
         resumes=strong_matches(text,RESUME_PATTERNS,"复牌")
+        heading_stops,heading_resumes=heading_transition_matches(text)
+        stops.extend(heading_stops)
+        resumes.extend(heading_resumes)
         stop_dates=sorted({x["date"] for x in stops})
         resume_dates=sorted({x["date"] for x in resumes})
         rec["stop_matches"]=stops
