@@ -1,5 +1,5 @@
 from __future__ import annotations
-import hashlib, importlib.util, json
+import hashlib, importlib.util, json, time
 from pathlib import Path
 import requests
 
@@ -57,6 +57,8 @@ def warning_name_state(name):
         return 2
     if n.startswith("ST"):
         return 1
+    if n.endswith("退"):
+        return 3
     return 0
 
 def observed_name_transitions(seq):
@@ -77,8 +79,10 @@ def observed_name_transitions(seq):
                 "to_name":row.get("companyName"),
                 "title":row.get("title"),
                 "destFilePath":row.get("destFilePath"),
-                "direction":"warning_to_normal" if previous["state"]>0 and state==0 else (
-                    "normal_to_warning" if previous["state"]==0 and state>0 else "warning_level_change"
+                "direction":"warning_to_normal" if previous["state"] in {1,2} and state==0 else (
+                    "warning_to_delisting" if previous["state"] in {1,2} and state==3 else (
+                        "normal_to_warning" if previous["state"]==0 and state in {1,2} else "warning_level_change"
+                    )
                 ),
             })
         previous={"state":state,"name":row.get("companyName"),"date":row.get("publishDate")}
@@ -132,15 +136,28 @@ def main():
       rows={}; receipts=[]
       if ok:
         for p in range(pages):
-          if p==0: obj,tr=obj0,t0
-          else: obj,tr=request_company_page(session,probe,code,p)
-          recs=probe.find_records(obj) if obj is not None else []
-          ppm=probe.page_meta(obj) if obj is not None else {}
-          pok=(tr.get("status")==200 and tr.get("parse")=="PASS" and ppm.get("number")==p and ppm.get("totalPages")==pages and ppm.get("totalElements")==total and ppm.get("numberOfElements")==len(recs))
+          page_attempts=[]
+          for attempt in range(1,4):
+            if p==0 and attempt==1:
+              obj,tr=obj0,t0
+            else:
+              obj,tr=request_company_page(session,probe,code,p)
+            recs=probe.find_records(obj) if obj is not None else []
+            ppm=probe.page_meta(obj) if obj is not None else {}
+            pok=(tr.get("status")==200 and tr.get("parse")=="PASS" and ppm.get("number")==p and ppm.get("totalPages")==pages and ppm.get("totalElements")==total and ppm.get("numberOfElements")==len(recs))
+            expected_nonempty=(p < pages-1) or (total % max(1, len(recs) or 20) != 0)
+            if p < pages-1 and len(recs)==0:
+              pok=False
+            page_attempts.append({"attempt":attempt,"status":"PASS" if pok else "FAIL","rows":len(recs),"sha256":tr.get("sha256")})
+            if pok:
+              break
+            if attempt < 3:
+              time.sleep(2.0*attempt)
           ok=ok and pok
-          receipts.append({"page":p,"status":"PASS" if pok else "FAIL","rows":len(recs),"sha256":tr.get("sha256")})
-          for r in recs:
-            if str(r.get("companyCd") or "")==code: rows[ident(r)]=r
+          receipts.append({"page":p,"status":"PASS" if pok else "FAIL","rows":len(recs),"sha256":tr.get("sha256"),"attempts":page_attempts})
+          if pok:
+            for r in recs:
+              if str(r.get("companyCd") or "")==code: rows[ident(r)]=r
         objn,tn=request_company_page(session,probe,code,pages)
         sn=probe.find_records(objn) if objn is not None else []
         ok=ok and tn.get("status")==200 and tn.get("parse")=="PASS" and len(sn)==0
@@ -159,6 +176,7 @@ def main():
       implementations=[x for x in classified if x["transition_category"]=="implementation_candidate"]
       prospective=[x for x in classified if x["transition_category"]=="prospective_risk_notice"]
       name_removals=[x for x in transitions if x["direction"]=="warning_to_normal"]
+      name_delistings=[x for x in transitions if x["direction"]=="warning_to_delisting"]
       company_reports.append({
         "companyCd":code,
         "aliases":sorted(set(aliases.get(code,[]))),
@@ -179,6 +197,8 @@ def main():
         "observed_name_transitions":transitions,
         "warning_to_normal_name_transitions":name_removals,
         "warning_to_normal_name_transition_count":len(name_removals),
+        "warning_to_delisting_name_transitions":name_delistings,
+        "warning_to_delisting_name_transition_count":len(name_delistings),
         "sequence_sha256":sha(seq),
         "page_receipts":receipts,
       })
@@ -196,6 +216,7 @@ def main():
       "implementation_candidate_count":sum(x["implementation_candidate_count"] for x in company_reports),
       "prospective_risk_count":sum(x["prospective_risk_count"] for x in company_reports),
       "warning_to_normal_name_transition_count":sum(x["warning_to_normal_name_transition_count"] for x in company_reports),
+      "warning_to_delisting_name_transition_count":sum(x["warning_to_delisting_name_transition_count"] for x in company_reports),
       "adjudication":{
         "risk_company_full_sequence_transport":"PASS" if all_transport else "NOT VERIFIED",
         "company_scoped_transition_inventory":"SUPPORTED_DIAGNOSTIC" if all_transport and all_rows else "NOT VERIFIED",
@@ -224,6 +245,7 @@ def main():
           "implementations":x["implementation_candidate_count"],
           "prospective":x["prospective_risk_count"],
           "warning_to_normal_name_transitions":x["warning_to_normal_name_transition_count"],
+          "warning_to_delisting_name_transitions":x["warning_to_delisting_name_transition_count"],
         } for x in company_reports
       },
       "classified_event_count":report["classified_event_count"],
@@ -232,8 +254,10 @@ def main():
       "implementation_candidate_count":report["implementation_candidate_count"],
       "prospective_risk_count":report["prospective_risk_count"],
       "warning_to_normal_name_transition_count":report["warning_to_normal_name_transition_count"],
+      "warning_to_delisting_name_transition_count":report["warning_to_delisting_name_transition_count"],
       "removal_title_sample":[x for r in company_reports for x in r["actual_removal_title_candidates"]][:30],
       "warning_to_normal_sample":[x for r in company_reports for x in r["warning_to_normal_name_transitions"]][:30],
+      "warning_to_delisting_sample":[x for r in company_reports for x in r["warning_to_delisting_name_transitions"]][:30],
       "adjudication":report["adjudication"],
     },ensure_ascii=True,sort_keys=True))
     return 0 if all_transport else 2
