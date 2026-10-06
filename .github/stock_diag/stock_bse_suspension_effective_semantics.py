@@ -135,6 +135,14 @@ def strong_matches(text,patterns,action_word):
                 before_action=after_date[:min(positions)]
                 if "披露" in before_action:
                     continue
+                # "继续停牌" is a continuation of an already-suspended state,
+                # not a new active->suspended transition. Counting it as a
+                # second stop date creates a false ambiguity during interval
+                # reconstruction.
+                action_pos=min(positions)
+                action_prefix=after_date[max(0,action_pos-4):action_pos+4]
+                if "继续停牌" in action_prefix:
+                    continue
             try:
                 value=iso(m.groups()[:3])
             except Exception:
@@ -273,8 +281,13 @@ def main():
         stops=strong_matches(text,STOP_PATTERNS,"停牌")
         resumes=strong_matches(text,RESUME_PATTERNS,"复牌")
         heading_stops,heading_resumes=heading_transition_matches(text)
-        stops.extend(heading_stops)
-        resumes.extend(heading_resumes)
+        # An explicit "停牌日期/复牌日期" section is stronger than dates
+        # appearing in historical narrative. When present for an action,
+        # use only the heading-bound relation for that action.
+        if heading_stops:
+            stops=heading_stops
+        if heading_resumes:
+            resumes=heading_resumes
         stop_dates=sorted({x["date"] for x in stops})
         resume_dates=sorted({x["date"] for x in resumes})
         rec["stop_matches"]=stops
