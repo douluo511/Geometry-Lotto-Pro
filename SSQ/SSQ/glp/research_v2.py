@@ -376,3 +376,32 @@ def research_probabilities_from_coefficients(
             eta += beta[j + 1] * current[number][j]
         logits[number] = eta
     return _calibrate_logits_to_pick(logits, pick)
+
+
+
+def research_probabilities_from_feature_map(
+    features: dict[int, tuple[float, ...]],
+    area: str,
+    coefficients: tuple[float, ...] | list[float],
+    *,
+    zero_feature: str | None = None,
+) -> dict[int, float]:
+    """Score a precomputed past-only feature map; useful for shadow ablation."""
+    beta = tuple(float(x) for x in coefficients)
+    if len(beta) != 1 + len(FEATURE_NAMES):
+        raise ValueError("coefficient vector does not match SSQ V2 feature schema")
+    if zero_feature is not None and zero_feature not in FEATURE_NAMES:
+        raise ValueError(f"unknown V2 feature for ablation: {zero_feature}")
+    max_n, pick = _meta(area)
+    if set(features) != set(range(1, max_n + 1)):
+        raise ValueError("feature map does not cover the complete SSQ area universe")
+    zero_idx = FEATURE_NAMES.index(zero_feature) if zero_feature is not None else None
+    logits: dict[int, float] = {}
+    for number in range(1, max_n + 1):
+        eta = beta[0]
+        for j in range(len(FEATURE_NAMES)):
+            if zero_idx is not None and j == zero_idx:
+                continue
+            eta += beta[j + 1] * features[number][j]
+        logits[number] = eta
+    return _calibrate_logits_to_pick(logits, pick)
