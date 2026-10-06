@@ -3,6 +3,12 @@ name: Stock AI native Windows desktop candidate
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - fix/stock-ai-validated-resumable-research-cache-20261005
+    paths:
+      - 'StockAIPro/**'
+      - '.github/workflows/stock-ai-desktop-candidate.yml'
   pull_request:
     paths:
       - 'StockAIPro/desktop_native/**'
