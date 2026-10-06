@@ -1163,3 +1163,16 @@ This checkpoint supersedes older in-progress wording for the items below only. I
 - **Current-product migration/export:** PR #260 head `0cacdb645aaac68ee6820f04b95595bf4073b334`, based exactly on #257 `c25a5c39...`; run `37413482053` / job `112106873905` = **SUCCESS**. Product-tree byte identity, deterministic export, independent second-pass verification and deliberate tamper rejection PASS. File count **409**; manifest SHA-256 `63b988ea1c3dae4fa20eec124f875c26ed2299be2fd52a8e643382ca77dc19ae`; artifact `11389831927`; ZIP digest `sha256:6a6792ca53d3c7ebc43661711a19fd8451c1c70c1b1c46cc70fae7cb410d81ab`.
 - **Portfolio boundary:** current-product migration/export readiness = **18/18 PASS**; accessible dedicated repositories = **0/18**; connected GitHub actions expose no repository-creation mutation; Final PASS = **0/18**; Delivery = **0/18**.
 - If PR #257 changes head, PR #260 is stale immediately and the Stock migration count must be invalidated until rebound.
+
+
+## 2026-10-06 strict authority correction — #155 superseded / #257 current
+
+- Stock PR #155 was explicitly closed as superseded after ancestry/byte adjudication. Its head `e53c89e1780390cea559ca71db51f6f4300cc02e` remains historical evidence only.
+- Git compare proves #257 base `7f270b9ab58e11fd8129053a65e000c90ff9d8c1` and #155 head `e53c89e...` are product-tree byte-equivalent (one commit difference, zero changed files).
+- **Current Stock behavior candidate remains PR #257 exact head `c25a5c394363058d341b624b18943cd3733eb720`**, which is 28 commits ahead of that byte-equivalent base with real behavior changes in historical PIT loading, backtest execution parity, entry-date handling, audit binding and tests.
+- Fresh #257 source rerun `37417917201` / job `112120564211` = **SUCCESS** on the same exact head.
+- Prior #257 full-business run `37371301878` remains authoritative terminal **FAIL** evidence until a fresh terminal result replaces it: complete `historical_st_pit.json` / daily ST+suspension PIT evidence is absent, so Advanced Business is **NOT VERIFIED**.
+- Prior desktop attempt 1 records frozen corpus qualification at 3026/5461 = 55.41%, current 53.81%, delisted 90.38%; progressive cache save PASS. Rerun job `112106367690` is active and no pending downstream Advanced/Physical-GUI/Same-Hash result is promoted.
+- Separate fresh #257 desktop/business runs `37417917171` / `37417917267` are active; queued/in-progress is not PASS.
+- Cancelled-no-step diagnostic runs on #239/#244/#251 were re-triggered through failed-job reruns so they can produce terminal first-party evidence. Their scripts explicitly preserve full historical PIT / effective daily state as NOT VERIFIED unless stronger semantics are actually proven.
+- Repository capability was revalidated: only `douluo511/Geometry-Lotto-Pro` is visible and the connected GitHub action set exposes no create-repository mutation. Repository Independence remains **0/18**; Final/Delivery remain **0/18**.
