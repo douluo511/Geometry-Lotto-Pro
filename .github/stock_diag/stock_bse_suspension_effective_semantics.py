@@ -298,7 +298,15 @@ def main():
     multi=sum(1 for x in records if x.get("semantic_status")=="MULTI_DATE_AMBIGUOUS")
     stop_unique=sum(1 for x in records if x.get("stop_date_count")==1)
     resume_unique=sum(1 for x in records if x.get("resume_date_count")==1)
-    unresolved=[{"code":x.get("canonical_company_code"),"publishDate":x.get("publishDate"),"title":x.get("title"),"semantic_status":x.get("semantic_status"),"stop_dates":x.get("stop_dates",[]),"resume_dates":x.get("resume_dates",[])} for x in records if x.get("semantic_status")!="UNIQUE_TRANSITION_DATES"]
+    unresolved=[{
+        "code":x.get("canonical_company_code"),
+        "publishDate":x.get("publishDate"),
+        "title":x.get("title"),
+        "semantic_status":x.get("semantic_status"),
+        "stop_dates":x.get("stop_dates",[]),
+        "resume_dates":x.get("resume_dates",[]),
+        "action_contexts":(x.get("action_contexts") or [])[:16],
+    } for x in records if x.get("semantic_status")!="UNIQUE_TRANSITION_DATES"]
 
     report={
       "schema":"stock-bse-suspension-effective-semantics-v1",
