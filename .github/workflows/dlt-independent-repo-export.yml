@@ -161,6 +161,61 @@ jobs:
           SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: python .github/migration/dlt_export.py --out "$RUNNER_TEMP/export-a"
 
+      - name: Build deterministic full seed archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          import zipfile
+          from pathlib import Path
+
+          root = Path(os.environ["RUNNER_TEMP"]) / "export-a"
+          out = Path(os.environ["RUNNER_TEMP"]) / "dlt-independent-repo-seed.zip"
+          sha_file = Path(os.environ["RUNNER_TEMP"]) / "dlt-independent-repo-seed.sha256"
+          manifest = json.loads((root / "MIGRATION_MANIFEST.json").read_text(encoding="utf-8"))
+
+          files = sorted((p for p in root.rglob("*") if p.is_file()), key=lambda p: p.relative_to(root).as_posix())
+          expected_count = int(manifest["file_count"]) + 1
+          assert len(files) == expected_count, (len(files), expected_count)
+
+          fixed = (1980, 1, 1, 0, 0, 0)
+          with zipfile.ZipFile(out, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as z:
+              for p in files:
+                  rel = p.relative_to(root).as_posix()
+                  info = zipfile.ZipInfo(rel, fixed)
+                  info.compress_type = zipfile.ZIP_DEFLATED
+                  info.external_attr = (0o100644 << 16)
+                  z.writestr(info, p.read_bytes())
+
+          with zipfile.ZipFile(out, "r") as z:
+              names = z.namelist()
+              assert len(names) == expected_count
+              assert len(names) == len(set(names))
+              required = {
+                  "MIGRATION_MANIFEST.json",
+                  "DLT/requirements.txt",
+                  "DLT/src/glp/constants.py",
+                  ".github/workflows/dlt-windows-build-acceptance.yml",
+                  ".github/workflows/dlt-prospective-only.yml",
+              }
+              missing = sorted(required - set(names))
+              assert not missing, missing
+              for wf in (
+                  ".github/workflows/dlt-windows-build-acceptance.yml",
+                  ".github/workflows/dlt-prospective-only.yml",
+              ):
+                  assert z.read(wf) == (root / wf).read_bytes()
+
+          digest = hashlib.sha256(out.read_bytes()).hexdigest()
+          sha_file.write_text(f"{digest}  {out.name}\n", encoding="utf-8")
+          print("FULL_SEED_ARCHIVE=PASS")
+          print("FULL_SEED_ARCHIVE_FILE_COUNT", expected_count)
+          print("FULL_SEED_ARCHIVE_SHA256", digest)
+          PY
+
       - name: Migration boundary
         shell: bash
         run: |
@@ -168,14 +223,17 @@ jobs:
           echo "STRUCTURE_PRESERVED=PASS"
           echo "WINDOWS_WORKFLOW_INCLUDED=PASS"
           echo "PROSPECTIVE_WORKFLOW_INCLUDED=PASS"
+          echo "FULL_SEED_ARCHIVE=PASS"
           echo "REPOSITORY_INDEPENDENCE=NOT VERIFIED"
           echo "REAL_RELEASE_N_TO_N_PLUS_1=NOT VERIFIED"
           echo "FINAL_GATE=FAIL"
 
-      - name: Upload current-head migration seed
+      - name: Upload current-head migration seed archive
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: dlt-independent-repo-seed-${{ github.event.pull_request.head.sha || github.sha }}
-          path: ${{ runner.temp }}/export-a
+          name: dlt-independent-repo-seed-full-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            ${{ runner.temp }}/dlt-independent-repo-seed.zip
+            ${{ runner.temp }}/dlt-independent-repo-seed.sha256
           if-no-files-found: error
           retention-days: 90
