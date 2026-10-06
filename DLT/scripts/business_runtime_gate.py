@@ -14,7 +14,7 @@ from glp.storage import Store
 
 SCHEMA = "dlt-business-runtime-gate-v1"
 INDEPENDENT_REPOSITORY = "douluo511/Geometry-Lotto-Pro-DLT"
-SCOPE_IDS = ("B01", "B02", "B03", "B04", "B05", "B06", "B07")
+SCOPE_IDS = ("B01", "B02", "B03", "B04", "B05", "B06", "B07", "B08")
 ENTRY_IDS = ("predict", "update", "repair", "audit")
 GUI_IDS = (1001, 1002, 1003, 1004)
 
@@ -157,6 +157,7 @@ def derive(evidence_dir: Path, exe: Path) -> dict[str, Any]:
     gui_failure = load_json(root / "physical_gui_failure.json")
     gui_repair_failure = load_json(root / "physical_gui_repair_failure.json")
     updater = load_json(root / "updater_acceptance.json")
+    background = load_json(root / "background_acceptance.json")
 
     baseline_ok = (
         baseline.get("schema") == "dlt-business-acceptance-baseline-v1"
@@ -392,6 +393,25 @@ def derive(evidence_dir: Path, exe: Path) -> dict[str, Any]:
         and fault_ok
     )
 
+    background_checks = background.get("checks") or {}
+    background_ok = (
+        background.get("schema") == "dlt-background-acceptance-v1"
+        and background.get("status") == "PASS"
+        and background.get("exe_sha256") == exe_hash
+        and background.get("github_sha") == github_sha
+        and str(background.get("github_run_id")) == str(github_run_id)
+        and int(background.get("production_poll_seconds") or 0) == 1800
+        and background.get("startup_mode") == "manual_app_launch_required_after_login"
+        and background.get("autostart_registered") is False
+        and all(background_checks.get(name) is True for name in (
+            "launch_status", "launch_shell_false", "child_is_separate",
+            "exact_exe_hash_bound", "parent_exit_observed", "production_poll_1800",
+            "startup_requires_manual_open", "worker_completed_cycle",
+            "live_network_pass", "next_prediction_frozen", "default_two_front_dan",
+            "production_not_promoted",
+        ))
+    )
+
     tasks = {
         "B01": task(
             pass_or_fail(live_ok and update_ok and fault_ok),
@@ -431,6 +451,12 @@ def derive(evidence_dir: Path, exe: Path) -> dict[str, Any]:
             ["maintenance_runtime", "self_test", "network_fault_gate"],
             None if maintenance_ok else maintenance.get("error"),
         ),
+        "B08": task(
+            pass_or_fail(background_ok),
+            "Detached 30-minute background official polling after GUI close, automatic replay/next Freeze, 2-dan default, immutable historical one-dan compatibility, and explicit manual reopen-after-login boundary.",
+            ["background_acceptance", "exact_exe", "live_official_network"],
+            None if background_ok else "exact-EXE detached background continuity proof is incomplete",
+        ),
     }
 
     states = [tasks[x]["status"] for x in SCOPE_IDS]
@@ -463,7 +489,7 @@ def derive(evidence_dir: Path, exe: Path) -> dict[str, Any]:
         "event": event,
         "ref": ref,
         "release_authorized": business_content == "PASS" and no_shell_ok,
-        "rule": "runtime evidence is required; static interface PASS alone never promotes business_content/no_shell; generic 100% delivery language never manufactures scope approval; B05 requires real independent Release N->N+1; update/repair negative physical GUI failure evidence is mandatory",
+        "rule": "runtime evidence is required; static interface PASS alone never promotes business_content/no_shell; generic 100% delivery language never manufactures scope approval; B05 requires real independent Release N->N+1; B08 requires exact-EXE detached 1800-second background continuity evidence; update/repair negative physical GUI failure evidence is mandatory",
     }
     return report
 
