@@ -14,7 +14,12 @@ from glp.constants import (
 )
 from glp.domain import Draw, Prediction
 from glp.engine import model_identity
-from glp.prospective import ProspectiveLedger, run_prospective_cycle
+from glp.prospective import (
+    BEHAVIOR_PATHS,
+    ProspectiveLedger,
+    _behavior_hash_from_files,
+    run_prospective_cycle,
+)
 from glp.util import next_draw_date, next_issue, parse_date, sha256_json
 
 
@@ -83,6 +88,18 @@ class FakeBuilder:
 
 
 class ProspectiveProtocolTests(unittest.TestCase):
+    def test_service_dependency_is_part_of_behavior_identity(self):
+        self.assertIn("src/glp/service.py", BEHAVIOR_PATHS)
+        before = _behavior_hash_from_files({
+            "src/glp/background.py": "a" * 64,
+            "src/glp/service.py": "b" * 64,
+        })
+        after = _behavior_hash_from_files({
+            "src/glp/background.py": "a" * 64,
+            "src/glp/service.py": "c" * 64,
+        })
+        self.assertNotEqual(before, after)
+
     def test_cohort_is_bound_to_current_103_behavior_baseline(self):
         self.assertEqual(BACKGROUND_POLL_SECONDS, 1800)
         self.assertEqual(BACKGROUND_STARTUP_MODE, "manual_app_launch_required_after_login")
