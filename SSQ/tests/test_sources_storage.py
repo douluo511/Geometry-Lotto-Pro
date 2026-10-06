@@ -8,14 +8,15 @@ from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
+from urllib.parse import urlencode
 
 import requests
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "SSQ"))
 
-from glp.constants import HEBEI_ANNOUNCE_URL, HEBEI_URL, NATIONAL_URL, SHANGHAI_URL  # noqa: E402
+from glp.constants import HEBEI_ANNOUNCE_URL, HEBEI_URL, NATIONAL_URL, SHANGHAI_HISTORY_URL, SHANGHAI_URL  # noqa: E402
 from glp.domain import CanonicalDataset, Draw, SourceReceipt  # noqa: E402
-from glp.sources import SourceError, _date, _validate_history, build_canonical, fetch_national_page, parse_shanghai_history  # noqa: E402
+from glp.sources import SourceError, _date, _validate_history, build_canonical, fetch_national_page, fetch_shanghai_full_history, parse_shanghai_history  # noqa: E402
 from glp.service import LottoService  # noqa: E402
 from glp.storage import Store  # noqa: E402
 from glp.util import sha256_bytes, sha256_json, utc_now  # noqa: E402
@@ -88,6 +89,61 @@ class SourceParsingTests(unittest.TestCase):
         raw = f"{year}001 {day} 010203040506 07 {year}001 {day} 010203040506 08"
         with self.assertRaises(SourceError):
             parse_shanghai_history(raw)
+
+    def test_shanghai_full_history_retries_one_transient_empty_200_and_preserves_both(self) -> None:
+        year = datetime.now(timezone.utc).year
+        today = datetime.now(timezone.utc).date().isoformat()
+        spec = {
+            "sequence": "1", "view": "previous", "limit": "100",
+            "start_issue": "2013001", "end_issue": f"{year}999",
+        }
+        params = {k: spec[k] for k in ("view", "limit", "start_issue", "end_issue")}
+        url = f"{SHANGHAI_HISTORY_URL}?{urlencode(params)}"
+        good = (
+            f"2013001 2013-01-01 010203040506 07 "
+            f"{year}001 {today} 070809101112 13"
+        ).encode()
+        responses = [
+            FakeResponse(b"", url=url, content_type="text/html"),
+            FakeResponse(good, url=url, content_type="text/html"),
+        ]
+        captured = []
+        with patch("glp.sources._shanghai_full_chunk_specs", return_value=[spec]):
+            with patch("glp.sources._get_official", side_effect=responses):
+                draws, receipt, manifest = fetch_shanghai_full_history(
+                    record_raw=lambda metadata, raw: captured.append((metadata, raw))
+                )
+        self.assertEqual(receipt.status, "PASS")
+        self.assertEqual(draws[0].issue, "2013001")
+        self.assertEqual(draws[-1].issue, f"{year}001")
+        self.assertEqual(manifest[0]["semantic_attempts"], 2)
+        self.assertEqual(len(captured), 2)
+        self.assertEqual(captured[0][0]["bytes"], 0)
+        self.assertEqual(captured[0][1], b"")
+        self.assertGreater(captured[1][0]["bytes"], 0)
+
+    def test_shanghai_full_history_three_empty_200s_still_fail_closed(self) -> None:
+        year = datetime.now(timezone.utc).year
+        spec = {
+            "sequence": "1", "view": "previous", "limit": "100",
+            "start_issue": "2013001", "end_issue": f"{year}999",
+        }
+        params = {k: spec[k] for k in ("view", "limit", "start_issue", "end_issue")}
+        url = f"{SHANGHAI_HISTORY_URL}?{urlencode(params)}"
+        responses = [
+            FakeResponse(b"", url=url, content_type="text/html"),
+            FakeResponse(b"", url=url, content_type="text/html"),
+            FakeResponse(b"", url=url, content_type="text/html"),
+        ]
+        captured = []
+        with patch("glp.sources._shanghai_full_chunk_specs", return_value=[spec]):
+            with patch("glp.sources._get_official", side_effect=responses):
+                with self.assertRaises(SourceError):
+                    fetch_shanghai_full_history(
+                        record_raw=lambda metadata, raw: captured.append((metadata, raw))
+                    )
+        self.assertEqual(len(captured), 3)
+        self.assertTrue(all(metadata["bytes"] == 0 for metadata, _raw in captured))
 
     def test_stale_latest_draw_is_rejected(self) -> None:
         old = Draw("2020001", "2020-01-01", (1, 2, 3, 4, 5, 6), (7,))
