@@ -13,7 +13,7 @@ from architecture_gate import (  # noqa: E402
 )
 
 
-class SupplyChainGateTests(unittest.TestCase):
+# CI synchronize marker: exact-head hardening validation\nclass SupplyChainGateTests(unittest.TestCase):
     def write_workflow(self, root: Path, body: str) -> None:
         path = root / ".github" / "workflows" / "ssq-windows-build-acceptance.yml"
         path.parent.mkdir(parents=True, exist_ok=True)
