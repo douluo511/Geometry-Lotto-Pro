@@ -1,0 +1,152 @@
+name: SSQ Current-Main Independent Repository Bootstrap
+
+on:
+  push:
+    branches:
+      - 'bootstrap/ssq-independent-current-main-20261006'
+    paths:
+      - 'tools/bootstrap_independent_repo.ps1'
+      - 'tools/tests/test_bootstrap_integrity.py'
+      - '.github/workflows/ssq-current-main-repo-bootstrap.yml'
+      - 'SSQ/**'
+      - '.github/workflows/ssq-windows-build-acceptance.yml'
+      - '.github/workflows/ssq-current-main-updater-contract.yml'
+      - '.github/scripts/ssq_physical_gui_click_smoke.ps1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      TARGET_REPO: douluo511/Geometry-Lotto-Pro-SSQ
+      GH_TOKEN: ${{ secrets.SSQ_REPO_ADMIN_TOKEN }}
+      EXPORT_DIR: ${{ runner.temp }}/ssq-independent-current
+    steps:
+      - name: Checkout exact bootstrap head
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+
+      - name: Verify exact checkout identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+
+      - name: Setup pinned Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.11.9'
+
+      - name: Re-run independent-export adversarial tests
+        run: python SSQ/tests/test_independent_repo_export.py
+
+      - name: Bootstrap integrity adversarial tests
+        run: python -m unittest discover -s tools/tests -p 'test_bootstrap_integrity.py' -v
+
+      - name: Export exact current seed
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf "$EXPORT_DIR"
+          python SSQ/tools/export_independent_repo.py             --destination "$EXPORT_DIR"             --source-commit "$GITHUB_SHA"             | tee "$RUNNER_TEMP/SSQ_BOOTSTRAP_EXPORT_PROOF.json"
+          python SSQ/tools/export_independent_repo.py             --destination "$EXPORT_DIR"             --verify-only             | tee "$RUNNER_TEMP/SSQ_BOOTSTRAP_VERIFY_PROOF.json"
+          grep -q '"status": "PASS"' "$RUNNER_TEMP/SSQ_BOOTSTRAP_VERIFY_PROOF.json"
+
+      - name: Audit repository-admin prerequisite
+        id: prereq
+        shell: pwsh
+        run: |
+          $present = -not [string]::IsNullOrWhiteSpace($env:GH_TOKEN)
+          $audit = [ordered]@{
+            schema = "ssq-current-main-repository-admin-prerequisite-v1"
+            status = $(if($present){"PRESENT_NOT_YET_VERIFIED"}else{"BLOCKED"})
+            target_repository = $env:TARGET_REPO
+            source_commit = $env:GITHUB_SHA
+            secret_name = "SSQ_REPO_ADMIN_TOKEN"
+            secret_present = $present
+            secret_value_recorded = $false
+            github_run_id = $env:GITHUB_RUN_ID
+          }
+          $audit | ConvertTo-Json -Depth 6 | Set-Content "SSQ_REPOSITORY_ADMIN_PREREQUISITE.json" -Encoding utf8
+          "present=$($present.ToString().ToLowerInvariant())" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          Write-Host ("ACCOUNT_TOKEN_PRESENT=" + $present.ToString().ToUpperInvariant())
+
+      - name: Verify account identity and bootstrap real independent repository
+        if: steps.prereq.outputs.present == 'true'
+        shell: pwsh
+        run: |
+          $login = (& gh api user --jq .login).Trim()
+          if ($LASTEXITCODE -ne 0) { throw "account-token GitHub identity lookup failed" }
+          if ($login -ne "douluo511") { throw "account-token identity mismatch: $login" }
+          Write-Host "TOKEN_IDENTITY=VERIFIED"
+          gh auth setup-git
+          if ($LASTEXITCODE -ne 0) { throw "gh auth setup-git failed" }
+
+          & ./tools/bootstrap_independent_repo.ps1             -ExportDir $env:EXPORT_DIR             -TargetRepo $env:TARGET_REPO             -Visibility public             -ExpectedSourceCommit $env:GITHUB_SHA             -UseExistingEmptyRepository             -EvidencePath "independent-repo-bootstrap-evidence.json"
+          if ($LASTEXITCODE -ne 0) { throw "independent repository bootstrap failed" }
+
+          $r = Get-Content "independent-repo-bootstrap-evidence.json" -Raw | ConvertFrom-Json
+          if ($r.status -ne "PASS" -or $r.remote_verification -ne "PASS" -or -not $r.pushed_main) {
+            throw "remote bootstrap evidence is not PASS"
+          }
+          Write-Host "REPOSITORY_BOOTSTRAP=PASS"
+          Write-Host "REMOTE_MAIN_COMMIT=$($r.remote_main_commit)"
+
+      - name: Record blocked bootstrap when account token is absent
+        if: steps.prereq.outputs.present != 'true'
+        shell: pwsh
+        run: |
+          $blocked = [ordered]@{
+            schema = "independent-repo-bootstrap-v2"
+            status = "BLOCKED"
+            target_repository = $env:TARGET_REPO
+            source_commit = $env:GITHUB_SHA
+            repository_created = $false
+            pushed_main = $false
+            remote_verification = "NOT_RUN"
+            blocker = "SSQ_REPO_ADMIN_TOKEN_ABSENT"
+            secret_value_recorded = $false
+            github_run_id = $env:GITHUB_RUN_ID
+          }
+          $blocked | ConvertTo-Json -Depth 6 | Set-Content "independent-repo-bootstrap-evidence.json" -Encoding utf8
+          Write-Host "REPOSITORY_BOOTSTRAP=BLOCKED"
+          Write-Host "BLOCKER=SSQ_REPO_ADMIN_TOKEN_ABSENT"
+
+      - name: Upload bootstrap evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: SSQ-CURRENT-MAIN-REPO-BOOTSTRAP-${{ github.sha }}
+          path: |
+            independent-repo-bootstrap-evidence.json
+            SSQ_REPOSITORY_ADMIN_PREREQUISITE.json
+            ${{ runner.temp }}/SSQ_BOOTSTRAP_EXPORT_PROOF.json
+            ${{ runner.temp }}/SSQ_BOOTSTRAP_VERIFY_PROOF.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Surface exact bootstrap state
+        if: always()
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "independent-repo-bootstrap-evidence.json")) {
+            throw "bootstrap evidence missing"
+          }
+          $r = Get-Content "independent-repo-bootstrap-evidence.json" -Raw | ConvertFrom-Json
+          Write-Host "BOOTSTRAP_STATUS=$($r.status)"
+          Write-Host "TARGET_REPOSITORY=$($r.target_repository)"
+          Write-Host "SOURCE_COMMIT=$($r.source_commit)"
+          if ($r.status -eq "PASS") {
+            if ($r.remote_verification -ne "PASS") { throw "PASS without remote verification" }
+            Write-Host "REMOTE_VERIFICATION=PASS"
+          } elseif ($r.status -eq "BLOCKED") {
+            Write-Host "REMOTE_VERIFICATION=NOT_RUN"
+          } else {
+            throw "bootstrap status is neither PASS nor expected BLOCKED"
+          }
