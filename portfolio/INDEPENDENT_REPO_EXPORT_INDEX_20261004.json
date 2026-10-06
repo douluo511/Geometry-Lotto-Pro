@@ -14,12 +14,12 @@
   },
   "aggregate": {
     "projects_total": 18,
-    "export_verification_pass": 18,
-    "export_verification_nonpass": 0,
+    "export_verification_pass": 17,
+    "export_verification_nonpass": 1,
     "real_independent_repository_pass": 0,
     "final_delivery_allowed": 0,
-    "current_product_bound_export_pass": 18,
-    "current_product_bound_export_not_verified": 0
+    "current_product_bound_export_pass": 17,
+    "current_product_bound_export_not_verified": 1
   },
   "projects": [
     {
@@ -252,12 +252,12 @@
       "export_pr": 181,
       "export_head": "a567dae423d0e015d06107ca3e99db696fa5e65b",
       "export_run": 37289868886,
-      "export_status": "PASS",
+      "export_status": "STALE_PRODUCT_HEAD_REBIND_REQUIRED",
       "repository_independence": "BLOCKED",
       "final_gate": "FAIL",
-      "source_product_pr": 155,
-      "source_product_head": "43168d9e75c70ab55be808d8a51f0c0eb14d83d5",
-      "source_product_status": "CURRENT_HEAD_SOURCE_BUSINESS_DESKTOP_TERMINAL_TECHNICAL_PASS_FINAL_BLOCKED",
+      "source_product_pr": 210,
+      "source_product_head": "e53c89e1780390cea559ca71db51f6f4300cc02e",
+      "source_product_status": "POST_MERGE_REVALIDATION_IN_PROGRESS",
       "export_artifact_id": 11335343870,
       "export_artifact_digest": "sha256:920e575d88eef56a5af90f27ed9a293b8a643a4f330a6b13a73029937a114d8d",
       "source_current_head_evidence": {
@@ -501,8 +501,8 @@
       "superseded_export_pr": 138,
       "product_byte_identity": "PASS",
       "product_base_ancestry": "PASS",
-      "current_product_head": "43168d9e75c70ab55be808d8a51f0c0eb14d83d5",
-      "current_product_binding_status": "PASS",
+      "current_product_head": "e53c89e1780390cea559ca71db51f6f4300cc02e",
+      "current_product_binding_status": "NOT VERIFIED",
       "previous_verified_export": {
         "pr": 157,
         "head": "e27586e82fa1187fb85e43076302d8ce54021430",
@@ -510,11 +510,12 @@
         "product_head": "f9d610aafe910cb73b036701a688329d9899399b",
         "status": "PASS"
       },
-      "note": "Stock current head remains 43168d9e with source/full-business/native-desktop and migration PASS at candidate scope. Shanghai historical daily suspension is current-state SUPPORTED_SHANGHAI_ONLY via PR #209. Official SSE risk-warning bulletin source is machine-query supported via PR #211, and sample effective-date semantics are supported via PR #213, but market-wide Shanghai historical ST-name PIT is still NOT VERIFIED because global corpus pagination/completeness is unresolved. Beijing/full HISTORICAL_ST_PIT, production Release, repository independence and Final remain non-PASS.",
+      "note": "PR #210 merged as e53c89e1780390cea559ca71db51f6f4300cc02e after exact-head source/full-business/native-desktop checks passed on 7f270b9a. Prior export PR #181 is stale because it binds 43168d9e, not the new product head. Post-merge source/full-business revalidation is in progress. Advanced business remains NOT VERIFIED on HISTORICAL_ST_PIT=WARN; production updater/release and repository independence remain BLOCKED; Final FAIL.",
       "exact_head_checkout_required": true,
       "current_windows_run": 37289727787,
       "current_windows_status": "SUCCESS_CANDIDATE_ONLY_FINAL_BLOCKED",
       "final_non_pass_gates": [
+        "current_product_binding",
         "advanced_business_qualification",
         "positive_production_update",
         "repository_independence",
