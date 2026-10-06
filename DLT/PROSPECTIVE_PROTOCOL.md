@@ -12,16 +12,18 @@ therefore be evaluated on predictions frozen **before** the corresponding offici
 
 A prospective cohort is bound to all of the following:
 
-- exact source commit;
+- byte-level behavior fingerprint over the DLT data/model/evidence/prospective/background code;
 - model hash;
 - selector hash;
 - complete model specification;
 - complete promotion policy / hyperparameters;
 - protocol version.
 
-The cohort id is derived from these identities. If any identity changes, the active cohort
-changes and the qualifying replay count restarts from zero. Old cohorts remain preserved as
-evidence and are never merged into the new count.
+The exact Git source commit is still recorded on every immutable Freeze as provenance, but a
+documentation-only or CI-governance-only commit does **not** reset the scientific cohort when
+the behavior fingerprint is unchanged. If the behavior fingerprint, model, selector, promotion
+policy or protocol changes, the active cohort changes and the qualifying replay count restarts
+from zero. Old cohorts remain preserved as evidence and are never merged into the new count.
 
 ## Immutable evidence
 
@@ -102,3 +104,17 @@ pending exact-head runs and make evidence state ambiguous. The standalone prospe
 therefore owns live Freeze/Replay mutation and also executes the 1.0.3 background-compatibility
 regression before writing evidence.
 
+
+
+## Behavior identity rule
+
+The behavior fingerprint is computed from exact bytes of the DLT modules that can change
+canonical data, prediction, qualification, replay, or 1.0.3 background lifecycle behavior.
+This prevents two opposite false outcomes:
+
+- **false reset**: docs-only commits must not erase accumulated prospective evidence;
+- **false carry-forward**: any behavior-affecting code change must create a new zero-replay cohort.
+
+The Freeze itself still records the exact source commit used to create that prediction. Thus
+provenance remains exact even when multiple documentation-only commits share one scientific
+cohort.
