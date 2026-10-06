@@ -257,7 +257,7 @@
       "final_gate": "FAIL",
       "source_product_pr": 268,
       "source_product_head": "d88906aac87e009cd6647e6f93e5f889fdab32a7",
-      "source_product_status": "CURRENT_HARDENING_CANDIDATE_REVALIDATION_IN_PROGRESS_DATE_AXIS_FAIL_CLOSED",
+      "source_product_status": "POST_MERGE_SOURCE_AND_FULL_BUSINESS_PASS_DESKTOP_EXACT_HEAD_RERUN_IN_PROGRESS",
       "export_artifact_id": 11389831927,
       "export_artifact_digest": "sha256:6a6792ca53d3c7ebc43661711a19fd8451c1c70c1b1c46cc70fae7cb410d81ab",
       "source_current_head_evidence": {
@@ -503,7 +503,7 @@
         "post_merge_rank_ic": -0.10357488511079711,
         "desktop_exact_head_hardening_pr": 262,
         "desktop_exact_head_run": 37417850096,
-        "desktop_exact_head_status": "IN_PROGRESS",
+        "desktop_exact_head_status": "IN_PROGRESS_RERUN",
         "current_stable_behavior_head": "c25a5c394363058d341b624b18943cd3733eb720",
         "current_hardening_pr": 268,
         "current_hardening_head": "d88906aac87e009cd6647e6f93e5f889fdab32a7",
@@ -558,7 +558,19 @@
         "bse_bounded_state_replay_artifact_digest": "sha256:d67670541583ab71eaeac75d4ae8da2a3ee8a6d06e8ad4a938b131aa16efdc06",
         "bse_ordinary_non_st_restore_count": 0,
         "bse_trading_day_aligned_state_replay": "NOT VERIFIED",
-        "bse_effective_state_reconstruction": "NOT VERIFIED"
+        "bse_effective_state_reconstruction": "NOT VERIFIED",
+        "desktop_exact_head_attempt": 2,
+        "desktop_attempt1_failure": {
+          "failed_step": "Exact-head real-network research corpus qualification prerequisite",
+          "covered_symbols": 3402,
+          "target_symbols": 5461,
+          "coverage": 0.6229628273210035,
+          "current_coverage": 0.6101110685561087,
+          "delisted_coverage": 0.9037656903765691,
+          "qualification_status": "NOT VERIFIED",
+          "cache_restore": "MISS",
+          "cache_saved_after_failure": "PASS"
+        }
       },
       "product_tree_byte_identity": "PASS",
       "superseded_export_prs": [
@@ -579,7 +591,7 @@
         "product_head": "f9d610aafe910cb73b036701a688329d9899399b",
         "status": "PASS"
       },
-      "note": "Stable behavior base remains c25a5c394363058d341b624b18943cd3733eb720. Current PR #268 head d88906aac87e009cd6647e6f93e5f889fdab32a7 adds semantic and date-axis fail-closed checks after reverse review found that a three-row bundle could otherwise claim an 8-year daily-state window. All evidence from earlier #268 head 2edbf8a is stale. New Source/Business/Desktop runs are in progress. Export #260 remains stale. BSE diagnostics now support bounded five-company calendar state replay, with 920305 delisting-name from 2026-07-09 and 920680 from 2025-12-11, no ordinary non-ST restoration observed, but trading-day alignment, full BSE denominator, BSE/full historical PIT and Final remain NOT VERIFIED.",
+      "note": "Post-merge source/full-business are PASS. Desktop exact-head attempt 1 failed only at the frozen >=90% research-corpus gate after a PR-scoped cache miss; Windows build/Exact EXE/repair passed. Attempt 2 is in progress on the same run and restored its own progressive cache. Export #181 remains stale. Historical ST PIT, production updater/release, repository independence and Final remain non-PASS.",
       "exact_head_checkout_required": true,
       "current_windows_run": 37423579270,
       "current_windows_status": "IN_PROGRESS_CURRENT_HARDENING_CANDIDATE",
