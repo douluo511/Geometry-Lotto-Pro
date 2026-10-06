@@ -73,7 +73,7 @@ class NetClient:
             pass
         return response
 
-    def get(self, url: str, *, params=None, headers=None, timeout=None, allow_redirects=True):
+    def get(self, url: str, params=None, headers=None, timeout=None, allow_redirects=True):
         url = str(url)
         if not url.startswith("https://"):
             raise ValueError("production sources must use HTTPS")

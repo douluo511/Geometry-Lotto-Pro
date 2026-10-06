@@ -1,0 +1,252 @@
+name: DLT Final Production Bootstrap
+
+on:
+  push:
+    branches:
+      - fix/dlt-delivery-boundaries-20261001
+      - validation/dlt-negative-gui-20261002
+    paths:
+      - '.github/workflows/dlt-final-production-bootstrap.yml'
+      - 'DLT/**'
+      - 'tools/export_independent_project_repo.py'
+      - 'tools/bootstrap_independent_repo.ps1'
+  workflow_dispatch:
+    inputs:
+      visibility:
+        description: Independent repository visibility
+        required: true
+        default: public
+        type: choice
+        options:
+          - public
+          - private
+      use_existing_empty_repository:
+        description: Use the intended existing empty DLT repository instead of creating it
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  bootstrap-final:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    env:
+      TARGET_REPO: douluo511/Geometry-Lotto-Pro-DLT
+      GH_TOKEN: ${{ secrets.DLT_REPO_ADMIN_TOKEN }}
+      BOOTSTRAP_VISIBILITY: ${{ inputs.visibility || 'public' }}
+      BOOTSTRAP_USE_EXISTING: ${{ inputs.use_existing_empty_repository || 'true' }}
+    steps:
+      - name: Checkout exact source commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup pinned Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.11.9'
+
+      - name: Record repository-admin prerequisite audit
+        shell: pwsh
+        run: |
+          $present = -not [string]::IsNullOrWhiteSpace($env:GH_TOKEN)
+          $audit = [ordered]@{
+            schema = "dlt-repository-admin-prerequisite-v1"
+            project = "DLT"
+            target_repository = "$env:TARGET_REPO"
+            github_repository = "$env:GITHUB_REPOSITORY"
+            github_sha = "$env:GITHUB_SHA"
+            github_run_id = "$env:GITHUB_RUN_ID"
+            admin_secret_name = "DLT_REPO_ADMIN_TOKEN"
+            admin_secret_present = $present
+            secret_value_recorded = $false
+            status = $(if($present){"PASS"}else{"BLOCKED"})
+            completed_at_utc = [DateTime]::UtcNow.ToString("o")
+          }
+          $audit | ConvertTo-Json -Depth 6 | Set-Content "$env:GITHUB_WORKSPACE/DLT_REPOSITORY_ADMIN_PREREQUISITE.json" -Encoding utf8
+          Write-Host ("DLT_REPOSITORY_ADMIN_PREREQUISITE=" + $(if($present){"PASS"}else{"BLOCKED"}))
+
+      - name: Fail closed without repository-admin token
+        shell: pwsh
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:GH_TOKEN)) {
+            throw "DLT_REPO_ADMIN_TOKEN is required and must be able to create/push $env:TARGET_REPO"
+          }
+          gh auth status
+          if ($LASTEXITCODE -ne 0) { throw "GitHub admin token authentication failed" }
+
+      - name: Export exact independent DLT repository package
+        id: export
+        shell: pwsh
+        run: |
+          $dest = Join-Path $env:RUNNER_TEMP "dlt-export"
+          if (Test-Path $dest) { Remove-Item -Recurse -Force $dest }
+          python tools/export_independent_project_repo.py --project dlt --destination $dest --source-commit $env:GITHUB_SHA
+          if ($LASTEXITCODE -ne 0) { throw "DLT independent repository export failed" }
+          python tools/export_independent_project_repo.py --destination $dest --verify-only
+          if ($LASTEXITCODE -ne 0) { throw "DLT independent repository export verification failed" }
+          "path=$dest" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Create or seed independent repository with remote re-verification
+        id: bootstrap
+        shell: pwsh
+        run: |
+          $evidence = Join-Path $env:RUNNER_TEMP "dlt-independent-repo-bootstrap-evidence.json"
+          $args = @(
+            "-ExportDir", "${{ steps.export.outputs.path }}",
+            "-TargetRepo", $env:TARGET_REPO,
+            "-Visibility", $env:BOOTSTRAP_VISIBILITY,
+            "-ExpectedSourceCommit", $env:GITHUB_SHA,
+            "-EvidencePath", $evidence
+          )
+          if ($env:BOOTSTRAP_USE_EXISTING -eq "true") {
+            $args += "-UseExistingEmptyRepository"
+          }
+          & ./tools/bootstrap_independent_repo.ps1 @args
+          if ($LASTEXITCODE -ne 0) { throw "DLT independent repository bootstrap failed" }
+          $r = Get-Content $evidence -Raw | ConvertFrom-Json
+          if ($r.status -ne "PASS" -or $r.remote_verification -ne "PASS") {
+            throw "DLT independent repository remote verification did not PASS"
+          }
+          "remote_commit=$($r.remote_main_commit)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          Copy-Item $evidence "$env:GITHUB_WORKSPACE/dlt-independent-repo-bootstrap-evidence.json"
+
+      - name: Wait for baseline Windows acceptance run
+        id: baseline
+        shell: pwsh
+        run: |
+          $expected = "${{ steps.bootstrap.outputs.remote_commit }}"
+          $found = $null
+          for ($i=0; $i -lt 120; $i++) {
+            $rows = gh run list --repo $env:TARGET_REPO --workflow "Windows build and exact-package acceptance" --branch main --limit 20 --json databaseId,headSha,status,conclusion,event | ConvertFrom-Json
+            $candidate = @($rows | Where-Object { $_.headSha -eq $expected } | Select-Object -First 1)
+            if ($candidate.Count -gt 0) {
+              $found = $candidate[0]
+              if ($found.status -eq "completed") { break }
+            }
+            Start-Sleep -Seconds 10
+          }
+          if ($null -eq $found -or $found.status -ne "completed") {
+            throw "DLT baseline Windows acceptance run did not complete"
+          }
+          "run_id=$($found.databaseId)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          Write-Host "BASELINE_RUN_ID=$($found.databaseId)"
+          Write-Host "BASELINE_RUN_CONCLUSION=$($found.conclusion)"
+
+      - name: Verify v2.1.2 baseline prerelease identity
+        shell: pwsh
+        run: |
+          $release = gh release view v2.1.2 --repo $env:TARGET_REPO --json tagName,isPrerelease,assets | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) { throw "v2.1.2 baseline prerelease missing" }
+          if ($release.tagName -ne "v2.1.2" -or $release.isPrerelease -ne $true) {
+            throw "v2.1.2 baseline must remain a prerelease before N-to-N+1 proof"
+          }
+          $names = @($release.assets | ForEach-Object { $_.name })
+          foreach ($required in @("Geometry_Lotto_Pro_DLT.exe","Geometry_Lotto_Pro_DLT_Updater.exe","dlt-2.1.2-manifest.json")) {
+            if ($names -notcontains $required) { throw "baseline release missing asset: $required" }
+          }
+
+      - name: Clone independent repository and advance only software release version
+        id: candidate
+        shell: pwsh
+        run: |
+          gh auth setup-git
+          $clone = Join-Path $env:RUNNER_TEMP "dlt-independent"
+          if (Test-Path $clone) { Remove-Item -Recurse -Force $clone }
+          git clone "https://github.com/$($env:TARGET_REPO).git" $clone
+          if ($LASTEXITCODE -ne 0) { throw "DLT independent repository clone failed" }
+          $constants = Join-Path $clone "DLT/src/glp/constants.py"
+          $source = [System.IO.File]::ReadAllText($constants)
+          $old = 'APP_VERSION = "2.1.2"'
+          $new = 'APP_VERSION = "2.1.3"'
+          $matches = ([regex]::Matches($source, [regex]::Escape($old))).Count
+          if ($matches -ne 1) { throw "expected exactly one APP_VERSION 2.1.2 declaration" }
+          [System.IO.File]::WriteAllText($constants, $source.Replace($old, $new), [System.Text.UTF8Encoding]::new($false))
+          git -C $clone config user.name "DLT Finalization Bot"
+          git -C $clone config user.email "dlt-finalization@users.noreply.github.com"
+          git -C $clone add DLT/src/glp/constants.py
+          git -C $clone diff --cached --exit-code
+          if ($LASTEXITCODE -eq 0) { throw "candidate version advance produced no diff" }
+          git -C $clone commit -m "Release: advance independently validated DLT candidate to 2.1.3"
+          if ($LASTEXITCODE -ne 0) { throw "candidate release commit failed" }
+          $sha = (git -C $clone rev-parse HEAD).Trim()
+          git -C $clone push origin HEAD:main
+          if ($LASTEXITCODE -ne 0) { throw "candidate release push failed" }
+          "sha=$sha" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          Write-Host "CANDIDATE_MAIN_SHA=$sha"
+
+      - name: Wait for v2.1.3 full Final Gate
+        id: final_run
+        shell: pwsh
+        run: |
+          $expected = "${{ steps.candidate.outputs.sha }}"
+          $found = $null
+          for ($i=0; $i -lt 180; $i++) {
+            $rows = gh run list --repo $env:TARGET_REPO --workflow "Windows build and exact-package acceptance" --branch main --limit 20 --json databaseId,headSha,status,conclusion,event | ConvertFrom-Json
+            $candidate = @($rows | Where-Object { $_.headSha -eq $expected } | Select-Object -First 1)
+            if ($candidate.Count -gt 0) {
+              $found = $candidate[0]
+              if ($found.status -eq "completed") { break }
+            }
+            Start-Sleep -Seconds 10
+          }
+          if ($null -eq $found -or $found.status -ne "completed") {
+            throw "DLT candidate Windows Final Gate run did not complete"
+          }
+          if ($found.conclusion -ne "success") {
+            throw "DLT candidate Final Gate run was not SUCCESS; run_id=$($found.databaseId), conclusion=$($found.conclusion)"
+          }
+          "run_id=$($found.databaseId)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Verify formal Final Release and artifact
+        shell: pwsh
+        run: |
+          $release = gh release view v2.1.3 --repo $env:TARGET_REPO --json tagName,isDraft,isPrerelease,assets,url | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) { throw "v2.1.3 formal release missing" }
+          if ($release.isDraft -or $release.isPrerelease) { throw "v2.1.3 was not promoted after Final Gate" }
+          $names = @($release.assets | ForEach-Object { $_.name })
+          foreach ($required in @("Geometry_Lotto_Pro_DLT.exe","Geometry_Lotto_Pro_DLT_Updater.exe","dlt-2.1.3-manifest.json")) {
+            if ($names -notcontains $required) { throw "formal DLT release missing asset: $required" }
+          }
+
+          $runId = "${{ steps.final_run.outputs.run_id }}"
+          $artifacts = gh api "repos/$($env:TARGET_REPO)/actions/runs/$runId/artifacts" | ConvertFrom-Json
+          $final = @($artifacts.artifacts | Where-Object { $_.name -eq "Geometry-Lotto-Pro-DLT-Windows-Acceptance" })
+          if ($final.Count -ne 1) { throw "DLT Final Actions artifact missing" }
+
+          $summary = [ordered]@{
+            schema = "dlt-final-production-bootstrap-v1"
+            status = "PASS"
+            repository = $env:TARGET_REPO
+            baseline_version = "2.1.2"
+            candidate_version = "2.1.3"
+            final_run_id = [int64]$runId
+            final_artifact_id = [int64]$final[0].id
+            release_url = [string]$release.url
+            completed_at_utc = [DateTime]::UtcNow.ToString("o")
+          }
+          $summary | ConvertTo-Json -Depth 6 | Set-Content "$env:GITHUB_WORKSPACE/DLT_FINAL_PRODUCTION_BOOTSTRAP.json" -Encoding utf8
+          Write-Host ($summary | ConvertTo-Json -Compress -Depth 6)
+
+      - name: Upload repository-admin prerequisite audit
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: DLT-REPOSITORY-ADMIN-PREREQUISITE-${{ github.sha }}
+          path: DLT_REPOSITORY_ADMIN_PREREQUISITE.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload bootstrap audit
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: DLT-FINAL-PRODUCTION-BOOTSTRAP-${{ github.sha }}
+          path: |
+            dlt-independent-repo-bootstrap-evidence.json
+            DLT_FINAL_PRODUCTION_BOOTSTRAP.json
+          if-no-files-found: error
+          retention-days: 30

@@ -12,29 +12,58 @@ on:
       - 'DLT/**'
       - '.github/workflows/dlt-windows-build-acceptance.yml'
 
+permissions:
+  contents: write
+  actions: read
+
 defaults:
   run:
     working-directory: DLT
 
 jobs:
   build-and-accept:
-    runs-on: windows-latest
+    runs-on: windows-2022
     timeout-minutes: 120
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: '3.11.9'
           architecture: 'x64'
       - name: Install pinned dependencies
         run: python -m pip install --disable-pip-version-check -r requirements.txt
       - name: Source compile check
-        run: python -m compileall -q src
+        run: python -m compileall -q src scripts
+      - name: PowerShell acceptance script syntax gate
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          foreach($script in @(
+            '.\scripts\windows_acceptance.ps1',
+            '.\scripts\updater_acceptance.ps1',
+            '.\scripts\release_update_acceptance.ps1',
+            '.\scripts\physical_gui_click_smoke.ps1',
+            '.\scripts\physical_gui_failure_smoke.ps1'
+          )){
+            $tokens=$null
+            $errors=$null
+            $null=[System.Management.Automation.Language.Parser]::ParseFile(
+              (Resolve-Path $script), [ref]$tokens, [ref]$errors
+            )
+            if($errors.Count -gt 0){ throw ($errors | Out-String) }
+          }
+      - name: Service isolation and false-PASS regression tests
+        run: python -m unittest discover -s tests -p "test_*.py" -v
       - name: Source self-test
         shell: pwsh
         run: |
           $env:PYTHONPATH = "$PWD\src"
           python -c "from glp.service import self_test; import json; x=self_test(); print(json.dumps(x,ensure_ascii=False,indent=2)); raise SystemExit(0 if x['status']=='PASS' else 2)"
+
+      - name: Business content + no-shell gate
+        run: |
+          $env:PYTHONPATH = "$PWD\src"
+          python scripts/business_no_shell_gate.py
 
       - name: Network Contract Gate
         run: python scripts/network_contract_gate.py
@@ -45,18 +74,126 @@ jobs:
       - name: Live official-network evidence gate
         run: python scripts/real_network_check.py
 
-      - name: Native Windows PyInstaller build
-        run: pyinstaller --noconfirm --clean GeometryLottoPro.spec
+      - name: Native Windows main build + reproducible Same Hash
+        shell: pwsh
+        run: |
+          $env:PYTHONHASHSEED='1'
+          $env:SOURCE_DATE_EPOCH='946684800'
+          pyinstaller --noconfirm --clean GeometryLottoPro.spec
+          if ($LASTEXITCODE -ne 0) { throw 'primary main build failed' }
+          $primary=(Get-FileHash .\dist\Geometry_Lotto_Pro_DLT.exe -Algorithm SHA256).Hash.ToLower()
+
+          New-Item -ItemType Directory -Force .\reproducible_build\main-dist | Out-Null
+          pyinstaller --noconfirm --clean --distpath .\reproducible_build\main-dist --workpath .\reproducible_build\main-work GeometryLottoPro.spec
+          if ($LASTEXITCODE -ne 0) { throw 'reproducible main build failed' }
+          $rebuilt=(Get-FileHash .\reproducible_build\main-dist\Geometry_Lotto_Pro_DLT.exe -Algorithm SHA256).Hash.ToLower()
+          $same=($primary -eq $rebuilt)
+          New-Item -ItemType Directory -Force .\artifacts | Out-Null
+          $r=[ordered]@{
+            schema='dlt-reproducible-main-build-v1'
+            status=$(if($same){'PASS'}else{'FAIL'})
+            github_sha=$env:GITHUB_SHA
+            github_run_id=$env:GITHUB_RUN_ID
+            primary_sha256=$primary
+            rebuild_sha256=$rebuilt
+            same_hash=$same
+            pythonhashseed=$env:PYTHONHASHSEED
+            source_date_epoch=$env:SOURCE_DATE_EPOCH
+          }
+          $r | ConvertTo-Json -Depth 5 | Set-Content .\artifacts\reproducible_main_build.json -Encoding utf8
+          Get-Content .\artifacts\reproducible_main_build.json
+          if(-not $same){ throw 'main EXE reproducible Same Hash failed' }
+
+      - name: Native Windows independent Updater build + reproducible Same Hash
+        shell: pwsh
+        run: |
+          $env:PYTHONHASHSEED='1'
+          $env:SOURCE_DATE_EPOCH='946684800'
+          pyinstaller --noconfirm --clean --distpath .\dist --workpath .\updater_primary_work GeometryLottoProUpdater.spec
+          if ($LASTEXITCODE -ne 0) { throw 'primary updater build failed' }
+          $primary=(Get-FileHash .\dist\Geometry_Lotto_Pro_DLT_Updater.exe -Algorithm SHA256).Hash.ToLower()
+
+          New-Item -ItemType Directory -Force .\reproducible_build\updater-dist | Out-Null
+          pyinstaller --noconfirm --clean --distpath .\reproducible_build\updater-dist --workpath .\reproducible_build\updater-work GeometryLottoProUpdater.spec
+          if ($LASTEXITCODE -ne 0) { throw 'reproducible updater build failed' }
+          $rebuilt=(Get-FileHash .\reproducible_build\updater-dist\Geometry_Lotto_Pro_DLT_Updater.exe -Algorithm SHA256).Hash.ToLower()
+          if($primary -ne $rebuilt){ throw 'Updater reproducible Same Hash failed' }
+
       - name: Exact-package Windows acceptance
         shell: pwsh
         run: ./scripts/windows_acceptance.ps1
+
+      - name: Publish hash-bound current-version prerelease on independent main
+        if: github.repository == 'douluo511/Geometry-Lotto-Pro-DLT' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $env:PYTHONPATH="$PWD\src"
+          $version=(python -c "from glp.constants import APP_VERSION; print(APP_VERSION)").Trim()
+          if($version -notmatch '^\d+\.\d+\.\d+$'){ throw 'APP_VERSION is not stable semver' }
+          $tag="v$version"
+          $exe=(Resolve-Path ".\dist\Geometry_Lotto_Pro_DLT.exe").Path
+          $updater=(Resolve-Path ".\dist\Geometry_Lotto_Pro_DLT_Updater.exe").Path
+          $sha=(Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          $bytes=(Get-Item $exe).Length
+          New-Item -ItemType Directory -Force ".\artifacts" | Out-Null
+          $manifestName="dlt-$version-manifest.json"
+          $manifestPath=(Resolve-Path ".\artifacts").Path + "\$manifestName"
+          $artifactUrl="https://github.com/douluo511/Geometry-Lotto-Pro-DLT/releases/download/$tag/Geometry_Lotto_Pro_DLT.exe"
+          $manifest=[ordered]@{
+            schema='dlt-software-update-manifest-v1'
+            app='Geometry Lotto Pro DLT'
+            version=$version
+            artifact_url=$artifactUrl
+            artifact_sha256=$sha
+            artifact_bytes=[int64]$bytes
+            github_sha=$env:GITHUB_SHA
+            github_run_id=$env:GITHUB_RUN_ID
+          }
+          $manifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $manifestPath -Encoding utf8
+          gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
+          if($LASTEXITCODE -ne 0){
+            gh release create $tag --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --prerelease --title "DLT $version acceptance prerelease" --notes "Hash-bound prerelease for real N-to-N+1 updater acceptance. Not Final until Final Gate PASS."
+            if($LASTEXITCODE -ne 0){ throw 'failed to create acceptance prerelease' }
+          }
+          gh release upload $tag $exe $updater $manifestPath --repo $env:GITHUB_REPOSITORY --clobber
+          if($LASTEXITCODE -ne 0){ throw 'failed to upload hash-bound prerelease assets' }
+
+      - name: Independent Updater exact-process / rollback / data-network acceptance
+        shell: pwsh
+        run: |
+          .\scripts\updater_acceptance.ps1 `
+            -UpdaterExe ".\dist\Geometry_Lotto_Pro_DLT_Updater.exe" `
+            -MainExe ".\dist\Geometry_Lotto_Pro_DLT.exe" `
+            -RebuiltUpdaterExe ".\reproducible_build\updater-dist\Geometry_Lotto_Pro_DLT_Updater.exe" `
+            -EvidencePath ".\artifacts\updater_acceptance.json"
+
+      - name: Independent repository real Release N-to-N+1 updater acceptance
+        if: github.repository == 'douluo511/Geometry-Lotto-Pro-DLT' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $env:PYTHONPATH="$PWD\src"
+          $current=(python -c "from glp.constants import APP_VERSION; print(APP_VERSION)").Trim()
+          $parts=$current.Split('.')
+          if($parts.Count -ne 3 -or [int]$parts[2] -le 0){ throw 'current APP_VERSION cannot derive previous patch release' }
+          $previous="$($parts[0]).$($parts[1]).$([int]$parts[2]-1)"
+          .\scripts\release_update_acceptance.ps1 `
+            -UpdaterExe ".\dist\Geometry_Lotto_Pro_DLT_Updater.exe" `
+            -CurrentMainExe ".\dist\Geometry_Lotto_Pro_DLT.exe" `
+            -UpdaterEvidencePath ".\artifacts\updater_acceptance.json" `
+            -EvidencePath ".\artifacts\real_release_update.json" `
+            -CurrentVersion $current `
+            -PreviousVersion $previous
 
       - name: Exact EXE GUI construction gate
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force ".\\artifacts" | Out-Null
           $out = (Resolve-Path ".\\artifacts").Path + "\\gui_self_test.json"
-          $p = Start-Process -FilePath ".\\dist\\Geometry_Lotto_Pro_DLT.exe" -ArgumentList @("--gui-self-test","--result-file",$out) -PassThru -Wait
+          $p = Start-Process -FilePath ".\\dist\\Geometry_Lotto_Pro_DLT.exe" -ArgumentList @("--gui-self-test","--result-file",$out) -PassThru -Wait -WindowStyle Hidden
           if ($p.ExitCode -ne 0) { throw "Exact EXE GUI construction self-test failed with exit code $($p.ExitCode)" }
           if (-not (Test-Path $out)) { throw "Exact EXE GUI construction evidence missing" }
           $r = Get-Content $out -Raw | ConvertFrom-Json
@@ -70,98 +207,96 @@ jobs:
             -ExePath ".\dist\Geometry_Lotto_Pro_DLT.exe" `
             -Points "0.14,0.15;0.38,0.15;0.14,0.24;0.38,0.24" `
             -ButtonTexts "预测下一期;一键更新;一键修复;高级分析" `
-            -EvidencePath ".\artifacts\physical_gui_click.json"
+            -PreconditionIndex 1 `
+            -EvidencePath ".\artifacts\physical_gui_click.json" `
+            -BackendEvidencePath ".\artifacts\physical_gui_backend.json" `
+            -BackendTimeoutSeconds 1800
+
+      - name: Physical GUI Update Fail-Closed Click
+        shell: pwsh
+        run: |
+          .\scripts\physical_gui_failure_smoke.ps1 `
+            -ExePath ".\dist\Geometry_Lotto_Pro_DLT.exe" `
+            -UpdaterExePath ".\dist\Geometry_Lotto_Pro_DLT_Updater.exe" `
+            -SuccessBackendPath ".\artifacts\physical_gui_backend.json" `
+            -Operation update `
+            -EvidencePath ".\artifacts\physical_gui_failure.json"
+
+      - name: Physical GUI Repair Fail-Closed Click
+        shell: pwsh
+        run: |
+          .\scripts\physical_gui_failure_smoke.ps1 `
+            -ExePath ".\dist\Geometry_Lotto_Pro_DLT.exe" `
+            -UpdaterExePath ".\dist\Geometry_Lotto_Pro_DLT_Updater.exe" `
+            -SuccessBackendPath ".\artifacts\physical_gui_backend.json" `
+            -Operation repair `
+            -OperationTimeoutSeconds 900 `
+            -EvidencePath ".\artifacts\physical_gui_repair_failure.json"
+
+      - name: Runtime B01-B07 business and no-shell evidence gate
+        shell: pwsh
+        run: |
+          $env:PYTHONPATH="$PWD\src"
+          python scripts/business_runtime_gate.py `
+            --evidence-dir ".\artifacts" `
+            --exe ".\dist\Geometry_Lotto_Pro_DLT.exe" `
+            --report ".\artifacts\business_runtime_gate.json"
+          if($LASTEXITCODE -ne 0){ throw 'DLT runtime business evidence derivation failed' }
+          Get-Content ".\artifacts\business_runtime_gate.json"
 
       - name: Evidence-derived Final Gate
         shell: pwsh
         run: |
-          $contract = Get-Content artifacts\network_contract_gate.json -Raw | ConvertFrom-Json
-          $fault = Get-Content artifacts\network_fault_gate.json -Raw | ConvertFrom-Json
-          $live = Get-Content artifacts\real_network_check.json -Raw | ConvertFrom-Json
-          $accept = Get-Content artifacts\acceptance.json -Raw | ConvertFrom-Json
-          $gui = Get-Content artifacts\physical_gui_click.json -Raw | ConvertFrom-Json
-          $exe = Resolve-Path dist\Geometry_Lotto_Pro_DLT.exe
-          $hash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLower()
-          $repositoryIndependence = 'FAIL'
-          $updaterProcess = 'FAIL'
-          $updaterExactExe = 'FAIL'
-          $updaterAtomicRollback = 'FAIL'
-          $updaterRealNetwork = 'FAIL'
-          $updaterSameHash = 'FAIL'
-          $updaterReportPath = 'artifacts\updater_acceptance.json'
-          $updaterExePath = 'dist\Geometry_Lotto_Pro_DLT_Updater.exe'
-          if ((Test-Path $updaterReportPath) -and (Test-Path $updaterExePath)) {
-            $updater = Get-Content $updaterReportPath -Raw | ConvertFrom-Json
-            $updaterHash = (Get-FileHash $updaterExePath -Algorithm SHA256).Hash.ToLower()
-            $updaterBound = (
-              $updater.schema -eq 'dlt-updater-exact-acceptance-v1' -and
-              $updater.github_sha -eq $env:GITHUB_SHA -and
-              $updater.github_run_id -eq $env:GITHUB_RUN_ID -and
-              $updater.updater_sha256 -eq $updaterHash
-            )
-            if ($updaterBound) {
-              $updaterProcess = [string]$updater.updater_process
-              $updaterExactExe = [string]$updater.updater_exact_exe
-              $updaterAtomicRollback = [string]$updater.updater_atomic_rollback
-              $updaterRealNetwork = [string]$updater.updater_real_network
-              $updaterSameHash = [string]$updater.updater_same_hash
-            }
+          python scripts/final_gate.py `
+            --evidence-dir ".\artifacts" `
+            --exe ".\dist\Geometry_Lotto_Pro_DLT.exe" `
+            --report ".\artifacts\final_gate.json"
+          $exit=$LASTEXITCODE
+          $final=Get-Content ".\artifacts\final_gate.json" -Raw | ConvertFrom-Json
+          Get-Content ".\artifacts\final_gate.json"
+          if($exit -ne 0 -or $final.final_gate -ne 'PASS' -or [int]$final.hard_fail_count -ne 0){
+            throw "DLT Final Gate blocked: $($final.non_pass_gates -join ', ')"
           }
-
-          $ok = (
-            $repositoryIndependence -eq 'PASS' -and
-            $updaterProcess -eq 'PASS' -and
-            $updaterExactExe -eq 'PASS' -and
-            $updaterAtomicRollback -eq 'PASS' -and
-            $updaterRealNetwork -eq 'PASS' -and
-            $updaterSameHash -eq 'PASS' -and
-            $contract.status -eq 'PASS' -and
-            $fault.status -eq 'PASS' -and
-            $live.status -eq 'PASS' -and
-            $accept.final_release_gate -eq 'PASS' -and
-            $accept.exe_sha256 -eq $hash -and
-            $gui.status -eq 'PASS'
-          )
-          $final = [ordered]@{
-            schema = 'dlt-evidence-derived-final-gate-v2'
-            final_gate = $(if ($ok) { 'PASS' } else { 'FAIL' })
-            exe_sha256 = $hash
-            contract_gate = $contract.status
-            fault_injection_gate = $fault.status
-            real_network_gate = $live.status
-            exact_exe_gate = $accept.final_release_gate
-            physical_gui_click_gate = $gui.status
-            updater_process = $updaterProcess
-            updater_exact_exe = $updaterExactExe
-            updater_atomic_rollback = $updaterAtomicRollback
-            updater_real_network = $updaterRealNetwork
-            updater_same_hash = $updaterSameHash
-            repository_independence = $repositoryIndependence
-          }
-          $final | ConvertTo-Json -Depth 6 | Set-Content artifacts\final_gate.json -Encoding utf8
-          Get-Content artifacts\final_gate.json
-          if (-not $ok) { throw 'DLT Final Gate blocked: inspect repository independence and updater hard gates' }
 
       - name: Upload exact EXE and evidence only after all hard gates pass
         if: success()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: Geometry-Lotto-Pro-DLT-Windows-Acceptance
           # upload-artifact is an action (not a run step), so defaults.run.working-directory
           # does not apply. Paths must be repository-root relative.
           path: |
             DLT/dist/Geometry_Lotto_Pro_DLT.exe
+            DLT/dist/Geometry_Lotto_Pro_DLT_Updater.exe
             DLT/artifacts/**
           if-no-files-found: error
           retention-days: 30
 
+      - name: Promote current release only after Final Gate and final artifact upload PASS
+        if: success() && github.repository == 'douluo511/Geometry-Lotto-Pro-DLT' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $env:PYTHONPATH="$PWD\src"
+          $version=(python -c "from glp.constants import APP_VERSION; print(APP_VERSION)").Trim()
+          $tag="v$version"
+          $final=Get-Content ".\artifacts\final_gate.json" -Raw | ConvertFrom-Json
+          if($final.final_gate -ne 'PASS' -or [int]$final.hard_fail_count -ne 0){ throw 'cannot promote non-PASS Final Gate' }
+          gh release edit $tag --repo $env:GITHUB_REPOSITORY --prerelease=false --draft=false --title "Geometry Lotto Pro DLT $version FINAL"
+          if($LASTEXITCODE -ne 0){ throw 'failed to promote DLT Final release' }
 
-      - name: Upload DLT audit evidence
+
+      - name: Upload DLT diagnostic candidate and evidence - NOT FINAL
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: Geometry-Lotto-Pro-DLT-AUDIT-repository-independence
+          name: Geometry-Lotto-Pro-DLT-CANDIDATE-NOT-FINAL
           path: |
+            DLT/dist/Geometry_Lotto_Pro_DLT.exe
+            DLT/dist/Geometry_Lotto_Pro_DLT_Updater.exe
             DLT/artifacts/**
           if-no-files-found: warn
           retention-days: 90
+
+# Hard-gate revalidation trigger: DLT negative GUI failure gates + fail-closed scope review

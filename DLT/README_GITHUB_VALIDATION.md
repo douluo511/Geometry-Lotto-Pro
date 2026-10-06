@@ -14,4 +14,15 @@ The workflow blocks release unless the **same EXE bytes** pass:
 
 `NO_EDGE / NULL_DAN` is not a release failure. A network failure, GUI failure, missing check, exception, or non-zero process exit is a hard failure.
 
-The workflow to run is **Windows build and exact-package acceptance**. Download the single Actions artifact only when the job is green and `acceptance.json` contains `final_release_gate: PASS`.
+The workflow is **Windows build and exact-package acceptance**. The executable's
+`acceptance.json` describes narrow service checks only: `exact_acceptance_gate`
+may be PASS while `final_release_gate` must remain PENDING. Only the external,
+evidence-derived `final_gate.json` can judge the complete release.
+
+The diagnostic artifact is explicitly **CANDIDATE / NOT FINAL**. Its existence,
+window liveness, or screenshot changes do not establish backend completion.
+Independent updater, complete business/no-shell evidence, exact GUI backend
+effects, and independent repository remain required. Missing evidence blocks
+delivery; no percentages or full-product PASS are inferred from test counts.
+
+See `DELIVERY_ARCHITECTURE.md` for the current interfaces and remaining gaps.

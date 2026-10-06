@@ -10,7 +10,7 @@ from typing import Callable
 
 import requests
 
-from .constants import NATIONAL_URL
+from .constants import DATA_FRESHNESS_MAX_DAYS, NATIONAL_URL
 from .net_client import NetClient
 from .domain import CanonicalDataset, Draw, SourceReceipt
 from .util import canonical_json, sha256_bytes, sha256_json, utc_now
@@ -398,7 +398,7 @@ def fetch_jiangsu_recent(limit: int = 100):
     raise SourceError("江苏体彩两个官方路径均失败: " + " | ".join(failures[-4:]))
 
 
-def _validate_freshness(draws: list[Draw], max_age_days: int = 7) -> None:
+def _validate_freshness(draws: list[Draw], max_age_days: int = DATA_FRESHNESS_MAX_DAYS) -> None:
     if not draws:
         raise SourceError("官方数据为空，无法验证时效")
     latest = datetime.strptime(draws[-1].draw_date[:10], "%Y-%m-%d").date()

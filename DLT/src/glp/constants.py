@@ -7,6 +7,7 @@ FRONT_MAX = 35
 FRONT_PICK = 5
 BACK_MAX = 12
 BACK_PICK = 2
+DATA_FRESHNESS_MAX_DAYS = 7
 
 NATIONAL_URL = "https://webapi.sporttery.cn/gateway/lottery/getHistoryPageListV1.qry"
 JIANGSU_URL = "https://api.js-lottery.com/wfzq/dlt/data"
