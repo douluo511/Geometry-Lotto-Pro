@@ -1,0 +1,11 @@
+{
+  "schema_version": "1.0",
+  "project_id": "",
+  "baseline_id": "",
+  "frozen_at_utc": null,
+  "max_evidence_age_seconds": null,
+  "max_report_age_seconds": null,
+  "criteria": [],
+  "entry_points": [],
+  "network_sources": []
+}

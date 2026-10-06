@@ -12,6 +12,7 @@ import json
 import math
 import os
 import re
+import sqlite3
 import sys
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -25,6 +26,29 @@ REQUIRED_EXE_CHECKS = frozenset({
     "update", "science", "random-world-101", "random-world-202",
     "random-world-303", "predict", "audit", "gui",
     "unicode-path-no-python-path", "default-gui-launch",
+})
+
+# A nonempty subset, truthy string (including "FAIL"), or bool-as-int count
+# must not turn a partial/static report into an acceptance PASS.
+REQUIRED_BUSINESS_CHECKS = frozenset({
+    "business_game_contract", "business_official_sources", "business_four_entries",
+    "business_model_inventory", "business_walk_forward", "business_statistics",
+    "business_ablation", "business_leakage_and_confirmation",
+    "business_freeze_audit_isolation", "business_no_overclaim",
+})
+REQUIRED_NETCLIENT_CHECKS = frozenset({
+    "https_only", "timeout_pair_required", "429_retry_then_success",
+    "separate_connect_read_timeout", "https_redirect_downgrade_fail_closed",
+    "retry_cap_exception_fail_closed", "retry_after_hard_cap",
+    "raw_payload_evidence", "wrong_content_type_fail_closed",
+    "empty_payload_fail_closed",
+})
+REQUIRED_SCIENCE_CHECKS = frozenset({
+    "Walk-forward OOS", "Random Baseline", "Bootstrap",
+    "Permutation + Holm Reality Check", "Temporal LOEO",
+    "Ablation Remove/Shuffle/Random", "Leakage Sentinel", "Null-world FPR",
+    "Untouched Holdout", "Dual Final Confirmation",
+    "Wilson/Coverage/Rank Support", "Prospective Replay",
 })
 
 
@@ -86,37 +110,93 @@ def _require_source_result(
     return report
 
 
+def _strict_count(value: Any, minimum: int = 0) -> bool:
+    return type(value) is int and value >= minimum
+
+
+def _finite_number(value: Any) -> bool:
+    return type(value) in (int, float) and math.isfinite(value)
+
+
+def _frozen_science_policy(policy: Any) -> dict[str, Any]:
+    # Compare the complete current policy, not a caller-selected alpha/FPR.
+    # Canonical JSON also rejects NaN/Infinity and bool-as-number substitutions.
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "SSQ"))
+    from glp.constants import PROMOTION_POLICY
+    if (not isinstance(policy, dict)
+            or json.dumps(policy, sort_keys=True, allow_nan=False)
+            != json.dumps(PROMOTION_POLICY, sort_keys=True, allow_nan=False)):
+        raise ValueError("science policy differs from the frozen current policy")
+    return PROMOTION_POLICY
+
+
 def _verify_science_contract(report: dict[str, Any]) -> dict[str, Any]:
     court = report.get("result")
     if not isinstance(court, dict):
         raise ValueError("science result has no evidence court")
     final = court.get("final_validation")
     walk = court.get("walk_forward")
-    policy = court.get("pre_registered_policy")
+    policy = _frozen_science_policy(court.get("pre_registered_policy"))
     gates = court.get("gates")
     five_why = court.get("five_why")
     reverse = court.get("reverse_validation")
-    if (court.get("software_verdict") != "PASS"
+    unsigned = dict(court)
+    court_hash = unsigned.pop("court_hash", None)
+    calculated_hash = hashlib.sha256(json.dumps(
+        unsigned, ensure_ascii=False, sort_keys=True, separators=(",", ":"),
+        allow_nan=False,
+    ).encode("utf-8")).hexdigest()
+    from glp.engine import model_identity
+    identity = model_identity()
+    if (court.get("schema") != "evidence-court-v8"
+            or court_hash != calculated_hash
+            or not _utc_recent(court.get("created_at"))
+            or court.get("model_hash") != identity["model_hash"]
+            or court.get("selector_hash") != identity["selector_hash"]
+            or court.get("software_verdict") != "PASS"
             or not isinstance(final, dict) or final.get("status") != "PASS"
-            or int(final.get("hard_fail_count", -1)) != 0
+            or type(final.get("hard_fail_count")) is not int or final["hard_fail_count"] != 0
             or not isinstance(walk, dict)
-            or int(walk.get("development_oos_n", 0)) < 1200
-            or int(walk.get("untouched_holdout_n", 0)) < 120
-            or int(walk.get("leakage_violations", -1)) != 0
-            or not isinstance(policy, dict)
-            or float(policy.get("alpha", 1.0)) > 0.01
-            or not isinstance(gates, list) or not gates
+            or not _strict_count(walk.get("development_oos_n"), policy["min_walk_forward"])
+            or not _strict_count(walk.get("untouched_holdout_n"), policy["min_confirmation_n"])
+            or not _strict_count(walk.get("total_oos_n"))
+            or walk["total_oos_n"] != walk["development_oos_n"] + walk["untouched_holdout_n"]
+            or type(walk.get("leakage_violations")) is not int or walk["leakage_violations"] != 0
+            or type(court.get("leakage_violations")) is not int or court["leakage_violations"] != 0
+            or not isinstance(gates, list) or len(gates) != len(REQUIRED_SCIENCE_CHECKS)
             or any(not isinstance(row, dict) or row.get("status") != "PASS" for row in gates)
-            or not isinstance(five_why, dict) or len(five_why) < 5
+            or {row.get("name") for row in gates} != REQUIRED_SCIENCE_CHECKS
+            or not isinstance(five_why, dict)
+            or any(not isinstance(five_why.get(f"why{i}"), str) or not five_why[f"why{i}"].strip()
+                   for i in range(1, 6))
             or not isinstance(reverse, dict)
             or not all(reverse.get(key) is True for key in ("remove", "shuffle", "random_replace"))):
         raise ValueError("science evidence court did not satisfy the frozen validation contract")
     edge_state = court.get("edge_state")
     dan_state = court.get("dan_state")
-    if edge_state == "NO_EDGE" and dan_state != "NULL_DAN":
-        raise ValueError("NO_EDGE science result attempted to certify dan")
-    if final.get("edge_proven") is False and edge_state != "NO_EDGE":
-        raise ValueError("science edge state contradicts final validation")
+    if (edge_state not in {"NO_EDGE", "EDGE_PROVEN"}
+            or dan_state not in {"NULL_DAN", "CERTIFIED_DAN"}
+            or type(final.get("edge_proven")) is not bool
+            or type(final.get("dan_certified")) is not bool
+            or final["edge_proven"] != (edge_state == "EDGE_PROVEN")
+            or final["dan_certified"] != (dan_state == "CERTIFIED_DAN")
+            or (final["dan_certified"] and not final["edge_proven"])
+            or court.get("decision") != ("ACCEPT_EDGE" if final["edge_proven"] else "REJECT_EDGE")):
+        raise ValueError("science edge/dan states contradict final validation")
+    # Matching self-reported booleans and a recomputed hash cannot prove an
+    # edge. Positive promotion remains blocked until an independent verifier
+    # re-derives every frozen statistical prerequisite from retained inputs.
+    # Honest NO_EDGE execution is supported, never rebranded as predictive gain.
+    if edge_state != "NO_EDGE" or dan_state != "NULL_DAN":
+        raise ValueError("positive model promotion lacks independent statistical proof")
+    weights = court.get("production_weights")
+    if (not isinstance(weights, dict)
+            or set(weights) != {"uniform_baseline", "research_ensemble"}
+            or not all(_finite_number(value) for value in weights.values())
+            or weights["uniform_baseline"] != 1 or weights["research_ensemble"] != 0
+            or court.get("lifecycle") != {"Champion": "uniform_baseline",
+                "Challenger": "research_ensemble", "Shadow": "research_ensemble"}):
+        raise ValueError("unqualified research model entered production")
     return {
         "court_hash": court.get("court_hash"),
         "edge_state": edge_state,
@@ -132,18 +212,30 @@ def _verify_counterexample_contract(
 ) -> dict[str, Any]:
     court = science.get("result")
     null_world = court.get("null_world") if isinstance(court, dict) else None
-    policy = court.get("pre_registered_policy") if isinstance(court, dict) else None
-    if not isinstance(null_world, dict) or not isinstance(policy, dict):
+    policy = _frozen_science_policy(court.get("pre_registered_policy") if isinstance(court, dict) else None)
+    if not isinstance(null_world, dict):
         raise ValueError("science null-world evidence is missing")
-    worlds = int(null_world.get("worlds", 0))
-    fpr = float(null_world.get("false_positive_rate", 1.0))
-    if (worlds < int(policy.get("null_worlds", 300))
-            or fpr > float(policy.get("max_null_world_fpr", 0.05))
-            or len(random_worlds) != 3):
+    worlds = null_world.get("worlds")
+    promotions = null_world.get("false_promotions")
+    fpr = null_world.get("false_positive_rate")
+    percentile = null_world.get("observed_percentile")
+    if (not _strict_count(worlds, policy["null_worlds"])
+            or not _strict_count(promotions) or promotions > worlds
+            or not _finite_number(fpr) or not 0 <= fpr <= policy["max_null_world_fpr"]
+            or not math.isclose(fpr, promotions / worlds, rel_tol=0.0, abs_tol=1e-12)
+            or not _finite_number(percentile) or not 0 <= percentile <= 1
+            or not isinstance(random_worlds, list) or len(random_worlds) != 3):
         raise ValueError("counterexample/null-world firewall did not satisfy policy")
-    for report in random_worlds:
-        result = report.get("result")
-        if not isinstance(result, dict) or result.get("status") not in {None, "PASS"}:
+    for report, seed in zip(random_worlds, (101, 202, 303)):
+        result = report.get("result") if isinstance(report, dict) else None
+        if (not isinstance(result, dict) or result.get("status") not in {None, "PASS"}
+                or report.get("status") != "PASS" or report.get("scope") != f"random-world-{seed}"
+                or type(result.get("seed")) is not int or result["seed"] != seed
+                or result.get("edge_state") != "NO_EDGE" or result.get("dan_state") != "NULL_DAN"
+                or result.get("software_verdict") != "PASS"
+                or type(result.get("leakage_violations")) is not int or result["leakage_violations"] != 0
+                or not isinstance(result.get("court_hash"), str)
+                or not re.fullmatch(r"[0-9a-f]{64}", result["court_hash"])):
             raise ValueError("random-world evidence is malformed")
     return {"worlds": worlds, "false_positive_rate": fpr, "exact_random_world_checks": 3}
 
@@ -667,6 +759,61 @@ def _reparse_manifest(manifest: dict[str, Any], evidence_dir: Path,
                        "verification": verification}
 
 
+def _verify_gui_update_source(data_dir: Path, observed: dict[str, Any]) -> dict[str, Any]:
+    """Reparse the bytes produced by this GUI click, not a separate CLI run."""
+    source_path = data_dir / "source_evidence.json"
+    canonical_path = data_dir / "canonical_history.json"
+    manifest = _read(source_path)
+    canonical = _read(canonical_path)
+    if not manifest or not canonical:
+        raise ValueError("GUI update source manifest/canonical history is missing")
+    # Includes the Store's provenance/hash/freshness checks for every raw byte
+    # record, then independently reconstructs parsing and source agreement.
+    reparsed, reparse_proof = _reparse_manifest(manifest, data_dir)
+    digest = _canonical_hash(reparsed)
+    if (canonical.get("game") != "SSQ"
+            or canonical.get("schema") != 4
+            or canonical.get("draws") != reparsed
+            or canonical.get("canonical_hash") != digest
+            or manifest.get("canonical_hash") != digest
+            or observed.get("display_token") != digest):
+        raise ValueError("GUI update raw/canonical/displayed ledger token mismatch")
+    # Bind the same click's source receipts and data to its exact ledger event.
+    # Merely presenting a different valid manifest next to a PASS ledger fails.
+    event_id = observed.get("experiment_id")
+    if isinstance(event_id, bool) or not isinstance(event_id, int) or event_id <= 0:
+        raise ValueError("GUI update has no exact ledger event ID")
+    db_path = (data_dir / "ledger.sqlite3").resolve()
+    db = sqlite3.connect(db_path.as_uri() + "?mode=ro", uri=True)
+    try:
+        row = db.execute(
+            "SELECT kind,status,payload_json FROM experiments WHERE id=?", (event_id,),
+        ).fetchone()
+    finally:
+        db.close()
+    if row is None or row[0] != "official_update" or row[1] != "PASS":
+        raise ValueError("GUI update ledger event is not an official update PASS")
+    payload = json.loads(row[2])
+    if (not isinstance(payload, dict)
+            or payload.get("canonical_hash") != digest
+            or payload.get("source_receipts") != manifest.get("source_receipts")
+            or payload.get("draw_count") != len(reparsed)
+            or payload.get("latest") != reparsed[-1]
+            or payload.get("latest_issue") != reparsed[-1]["issue"]
+            or payload.get("crosscheck_status") != "PASS"
+            or payload.get("crosscheck_count") != manifest.get("crosscheck_count")
+            or payload.get("verification") != manifest.get("verification")):
+        raise ValueError("GUI update ledger/source evidence binding mismatch")
+    return {
+        "manifest_sha256": _hash(source_path),
+        "canonical_sha256": _hash(canonical_path),
+        "canonical_hash": digest,
+        "raw_response_count": len(manifest["raw_responses"]),
+        "canonical_reparse": "PASS",
+        "reparse": reparse_proof,
+    }
+
+
 def _verify_gui_evidence(physical: dict[str, Any], evidence_dir: Path, exe: Path,
                          acceptance_ok: bool) -> dict[str, Any]:
     if (not acceptance_ok or not exe.is_file()
@@ -742,14 +889,13 @@ def _verify_gui_evidence(physical: dict[str, Any], evidence_dir: Path, exe: Path
                 or not all(effect.get(field) == observed.get(field) for field in fields)):
             raise ValueError(f"physical GUI row {index} is not backed by a matching ledger event")
         if operation == "update":
-            sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "SSQ"))
-            from glp.storage import Store
-            source_manifest = _read(data_dir / "source_evidence.json")
-            if not source_manifest or Store.validate_raw_evidence(source_manifest, data_dir) < 1:
-                raise ValueError("GUI update did not preserve verified official raw responses")
+            source_proof = _verify_gui_update_source(data_dir, observed)
         ledger_path = data_dir / "ledger.sqlite3"
-        ledgers.append({"operation": operation, "experiment_id": observed["experiment_id"],
-                        "ledger_sha256": _hash(ledger_path)})
+        ledger_proof = {"operation": operation, "experiment_id": observed["experiment_id"],
+                        "ledger_sha256": _hash(ledger_path)}
+        if operation == "update":
+            ledger_proof["source_evidence"] = source_proof
+        ledgers.append(ledger_proof)
     return {"ledgers": ledgers}
 
 
@@ -936,13 +1082,15 @@ def derive(evidence: Path, exe: Path, repository_independence: str = "FAIL") -> 
         contract = _require_current_report(
             evidence, "NETCLIENT_CONTRACT_GATE.json", "ssq-netclient-contract-gate-v2"
         )
-        if int(contract.get("hard_fail_count", -1)) != 0:
+        hard_fail_count = contract.get("hard_fail_count")
+        if type(hard_fail_count) is not int or hard_fail_count != 0:
             raise ValueError("NetClient contract hard failures are nonzero")
         checks = contract.get("checks")
-        if not isinstance(checks, dict) or not checks or any(
+        if (not isinstance(checks, dict) or not REQUIRED_NETCLIENT_CHECKS.issubset(checks)
+                or any(
             not isinstance(row, dict) or row.get("status") != "PASS"
             for row in checks.values()
-        ):
+        )):
             raise ValueError("NetClient contract check set is incomplete")
         gates["contract_test"] = "PASS"
         gates["netclient"] = "PASS" if gates["netclient"] == "PASS" else "FAIL"
@@ -960,7 +1108,8 @@ def derive(evidence: Path, exe: Path, repository_independence: str = "FAIL") -> 
             evidence, "BUSINESS_GATE.json", "ssq-business-gate-v1"
         )
         checks = business.get("checks")
-        if not isinstance(checks, dict) or not checks or not all(checks.values()):
+        if (not isinstance(checks, dict) or not REQUIRED_BUSINESS_CHECKS.issubset(checks)
+                or any(value is not True for value in checks.values())):
             raise ValueError("business content checks are incomplete")
         gates["business_content"] = "PASS"
         proofs["business_content"] = {
@@ -1128,7 +1277,7 @@ def derive(evidence: Path, exe: Path, repository_independence: str = "FAIL") -> 
             gates["gui_smoke"] = "PASS"
             proofs["gui_smoke"] = {"report": str(physical_path),
                                    "report_sha256": _hash(physical_path), **gui_proof}
-        except (OSError, TypeError, ValueError, KeyError) as exc:
+        except (OSError, TypeError, ValueError, KeyError, sqlite3.Error) as exc:
             gates["gui_smoke"] = "FAIL"
             proofs["gui_smoke"] = {"error": f"{type(exc).__name__}: {exc}"}
             gates["same_hash"] = "FAIL"

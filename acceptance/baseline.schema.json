@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Independently approved acceptance inventory, not an execution certificate",
+  "type": "object", "additionalProperties": false,
+  "required": ["schema_version", "project_id", "baseline_id", "frozen_at_utc", "max_evidence_age_seconds", "max_report_age_seconds", "criteria", "entry_points", "network_sources"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "project_id": {"type": "string", "minLength": 1},
+    "baseline_id": {"type": "string", "minLength": 1},
+    "frozen_at_utc": {"type": "string", "minLength": 1},
+    "max_evidence_age_seconds": {"type": "integer", "minimum": 1, "maximum": 31536000},
+    "max_report_age_seconds": {"type": "integer", "minimum": 1, "maximum": 31536000},
+    "criteria": {
+      "type": "array", "minItems": 2,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["criterion_id", "stream", "weight", "mandatory", "allowed_evidence_modes", "required_evidence_kinds"],
+        "properties": {
+          "criterion_id": {"type": "string", "minLength": 1},
+          "stream": {"enum": ["engineering", "business"]},
+          "weight": {"type": "number", "exclusiveMinimum": 0, "maximum": 100},
+          "mandatory": {"type": "boolean"},
+          "allowed_evidence_modes": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["OBSERVED", "CONTROLLED_FAULT", "UNIT_FIXTURE"]}},
+          "required_evidence_kinds": {"$ref": "#/$defs/nonemptyIds"}
+        }
+      }
+    },
+    "entry_points": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["entry_id", "kind", "requirement_id", "required_test_kinds", "required_effect_kinds"],
+        "properties": {
+          "entry_id": {"type": "string", "minLength": 1},
+          "kind": {"enum": ["button", "module", "model", "updater", "network", "analysis", "other"]},
+          "requirement_id": {"type": "string", "minLength": 1},
+          "required_test_kinds": {"$ref": "#/$defs/nonemptyIds"},
+          "required_effect_kinds": {"$ref": "#/$defs/nonemptyIds"}
+        }
+      }
+    },
+    "network_sources": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["source_id", "source_uri", "source_role", "required_success"],
+        "properties": {
+          "source_id": {"type": "string", "minLength": 1},
+          "source_uri": {"type": "string", "pattern": "^https://[^/]+/"},
+          "source_role": {"enum": ["primary", "fallback"]},
+          "required_success": {"type": "boolean"}
+        }
+      }
+    }
+  },
+  "$defs": {"nonemptyIds": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}}
+}
