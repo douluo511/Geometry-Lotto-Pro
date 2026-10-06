@@ -6,10 +6,11 @@ import hashlib
 from io import BytesIO
 import json
 from pathlib import Path
-from urllib.parse import urlencode, urlparse
-from urllib.request import Request, urlopen
+import time
+from urllib.parse import urlparse
 
 from openpyxl import load_workbook
+import requests
 
 ENDPOINT = "https://www.szse.cn/api/report/ShowReport"
 CURRENT_PARAMS = {"SHOWTYPE": "xlsx", "CATALOGID": "1110", "TABKEY": "tab1", "random": "0.3141592653589793"}
@@ -26,29 +27,52 @@ def sha256_bytes(data: bytes) -> str:
 
 
 def fetch(params: dict[str, str]) -> tuple[bytes, dict]:
-    url = ENDPOINT + "?" + urlencode(params)
-    req = Request(url, headers=HEADERS, method="GET")
-    with urlopen(req, timeout=35) as response:
-        raw = response.read()
-        final_url = response.geturl()
-        status = int(getattr(response, "status", 0) or 0)
-        content_type = str(response.headers.get("Content-Type") or "")
-    host = (urlparse(final_url).hostname or "").lower()
-    if status != 200:
-        raise RuntimeError(f"SZSE HTTP {status}: {final_url}")
-    if host != "www.szse.cn" and not host.endswith(".szse.cn"):
-        raise RuntimeError(f"non-SZSE redirect: {final_url}")
-    if not raw.startswith(b"PK"):
-        raise RuntimeError(f"SZSE response is not XLSX ZIP bytes; prefix={raw[:16]!r}")
-    return raw, {
-        "request_url": url,
-        "resolved_url": final_url,
-        "http_status": status,
-        "content_type": content_type,
-        "bytes": len(raw),
-        "sha256": sha256_bytes(raw),
-        "official_host": True,
-    }
+    attempts: list[dict] = []
+    last_error: Exception | None = None
+    for attempt in range(1, 4):
+        try:
+            response = requests.get(
+                ENDPOINT,
+                params=params,
+                headers=HEADERS,
+                timeout=(15, 35),
+                allow_redirects=True,
+            )
+            final_url = response.url
+            status = int(response.status_code)
+            content_type = str(response.headers.get("Content-Type") or "")
+            host = (urlparse(final_url).hostname or "").lower()
+            attempts.append({"attempt": attempt, "status": status, "resolved_url": final_url})
+            if host != "www.szse.cn" and not host.endswith(".szse.cn"):
+                raise RuntimeError(f"non-SZSE redirect: {final_url}")
+            if status == 429 or 500 <= status <= 599:
+                if attempt == 3:
+                    raise RuntimeError(f"retryable SZSE HTTP {status}: {final_url}")
+            elif status != 200:
+                raise RuntimeError(f"non-retryable SZSE HTTP {status}: {final_url}")
+            else:
+                raw = response.content
+                if not raw.startswith(b"PK"):
+                    raise RuntimeError(f"SZSE response is not XLSX ZIP bytes; prefix={raw[:16]!r}")
+                return raw, {
+                    "request_url": response.request.url,
+                    "resolved_url": final_url,
+                    "http_status": status,
+                    "content_type": content_type,
+                    "bytes": len(raw),
+                    "sha256": sha256_bytes(raw),
+                    "official_host": True,
+                    "attempt_count": attempt,
+                    "attempts": attempts,
+                }
+        except requests.RequestException as exc:
+            last_error = exc
+            attempts.append({"attempt": attempt, "transport_error": f"{type(exc).__name__}: {exc}"})
+        if attempt < 3:
+            time.sleep((2 ** (attempt - 1)) + (0.2 * attempt))
+    if last_error is not None:
+        raise RuntimeError(f"SZSE transport failed after 3 bounded attempts: {last_error}; attempts={attempts}") from last_error
+    raise RuntimeError(f"SZSE request failed after 3 bounded attempts: {attempts}")
 
 
 def norm_code(value: object) -> str:
