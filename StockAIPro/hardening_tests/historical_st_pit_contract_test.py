@@ -57,7 +57,7 @@ def complete(root: Path):
                     "daily_state": "PASS",
                     "point_in_time_only": True,
                     "future_leakage_violations": 0,
-                    "window_start": "2018-01-01",
+                    "window_start": "2026-09-30",
                     "window_end": "2026-09-30",
                     "canonical_sha256": canonical_sha,
                     "source_count": 1,
@@ -82,7 +82,7 @@ def complete(root: Path):
         "daily_state_complete": True,
         "point_in_time_only": True,
         "future_leakage_violations": 0,
-        "window_start": "2018-01-01",
+        "window_start": "2026-09-30",
         "window_end": "2026-09-30",
         "canonical_path": canonical_path,
         "canonical_sha256": canonical_sha,
@@ -188,6 +188,16 @@ with tempfile.TemporaryDirectory() as td:
     status, _, meta = evaluate_historical_st_pit(root, "2026-09-30")
     assert status == "WARN"
     assert "source_manifest_semantics" in meta["failures"]
+
+    # A byte-consistent three-market bundle with only one observed date must
+    # not claim a multi-year daily-state window.
+    x = complete(root)
+    x["window_start"] = "2018-01-01"
+    write_claim(root, x)
+    status, _, meta = evaluate_historical_st_pit(root, "2026-09-30")
+    assert status == "WARN"
+    assert "canonical_semantics" in meta["failures"]
+    assert meta["bindings"]["canonical"]["semantic_reason"].startswith("date_axis_too_sparse:")
 
     x = complete(root)
     write_claim(root, x)
