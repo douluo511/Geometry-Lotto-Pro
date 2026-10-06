@@ -19,6 +19,7 @@ from glp.util import next_draw_date, next_issue, parse_date, sha256_json
 
 
 # Trigger-path regression: test-only changes must not alter the production behavior fingerprint.
+# This second marker exists only to exercise the repaired workflow parser/trigger path.
 SOURCE_A = "1" * 40
 SOURCE_B = "2" * 40
 
