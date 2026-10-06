@@ -1,3 +1,12 @@
+<!-- exact-checkpoint-20261006-rmf250-terminal -->
+## 2026-10-06 RMF #250 terminal rerun
+
+- RMF PR #250 exact head `0ffaaa76a43fb734d69d8a3f0170e9d97b176518`, workflow run `37366837461`, rerun job `112113533557` = **SUCCESS**.
+- Dense official SSE historical-membership crosscheck = **PASS**: 60 sample dates, 58 comparable, 58 matched, 0 mismatches, 96.6667% comparison coverage.
+- Artifact `11390719309`; ZIP SHA-256 `e80a38f69ccf51d04bbabcab77f8dfd7b9c48ee58c22c6bb99f0b7472b23712a`.
+- Adjudication remains strict: historical membership reconstruction = SUPPORTED; `historical_pit_availability=NOT VERIFIED`; `survivorship_selection_control=NOT VERIFIED`; capital deployment = false; Final Gate = FAIL.
+- Therefore the transient cancelled-job problem is resolved, but RMF Business completion is **not increased** by this diagnostic alone.
+
 <!-- exact-checkpoint-20261006-continued-execution -->
 ## 2026-10-06 strict continuation — portfolio blockers and live remediation
 
