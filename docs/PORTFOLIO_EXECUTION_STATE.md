@@ -1176,3 +1176,15 @@ This checkpoint supersedes older in-progress wording for the items below only. I
 - Separate fresh #257 desktop/business runs `37417917171` / `37417917267` are active; queued/in-progress is not PASS.
 - Cancelled-no-step diagnostic runs on #239/#244/#251 were re-triggered through failed-job reruns so they can produce terminal first-party evidence. Their scripts explicitly preserve full historical PIT / effective daily state as NOT VERIFIED unless stronger semantics are actually proven.
 - Repository capability was revalidated: only `douluo511/Geometry-Lotto-Pro` is visible and the connected GitHub action set exposes no create-repository mutation. Repository Independence remains **0/18**; Final/Delivery remain **0/18**.
+
+
+## 2026-10-06 Stock authority advanced to #268 — semantic PIT false-PASS closed
+
+- **Current Stock behavior candidate:** PR #268 exact head `74a8b66fd8d0b29e80baa1e1ebe822aeec29c338`, based directly on superseded #257 head `c25a5c394363058d341b624b18943cd3733eb720`.
+- #268 closes a verified false-PASS path: historical PIT evaluation previously recomputed file hashes but could accept a semantically incomplete canonical/source/market bundle that claimed SSE/SZSE/BSE completeness. #268 now validates canonical row schema/uniqueness/date/market/code/state, required-market presence/freshness, source-manifest PIT semantics and each market evidence file's semantic agreement with the claim.
+- This is a product acceptance-behavior change. **No #257 Source/Business/Windows/Exact-EXE/GUI/Same-Hash result is inherited.** PRs #257 and duplicate #263 are closed as superseded.
+- Migration PR #260 was exact-bound to #257 `c25a5c39...` and is therefore stale; it has been closed. Current-product migration/export readiness is temporarily **17/18**, not 18/18.
+- #268 fresh exact-head runs: source `37419508160`, business `37419508026`, desktop `37419508059` were active at this checkpoint; pending is **NOT VERIFIED**.
+- Repository capability re-probe via PR #271 / run `37419494668` found `ACCOUNT_TOKEN_PRESENT=FALSE`, `TOKEN_IDENTITY=NOT VERIFIED`, `REPOSITORY_CREATION=BLOCKED`; target `douluo511/Geometry-Lotto-Pro-SSQ` was not created. Dedicated repositories remain **0/18**; Final/Delivery remain **0/18**.
+- SSE taxonomy diagnostic #251 terminal run `37366817737` / artifact `11392260941`: 667 selected documents, 606 date-required actions, 61 non-new transitions, 0 unclassified; taxonomy/denominator = SUPPORTED_DIAGNOSTIC only, full historical PIT = NOT VERIFIED.
+- BSE suspension semantic diagnostic #244 terminal rerun before parser hardening: 85/85 PDF transport/text PASS; 74 unique transition documents, 11 unresolved (8 no strong transition date, 3 multi-date ambiguous); daily BSE suspension PIT = NOT VERIFIED. Narrow heading-bound parser fix committed as `e458bac4abc4c4fa164e6558bfd221b5389c88cd`; fresh diagnostic run active, with no result pre-promoted.
