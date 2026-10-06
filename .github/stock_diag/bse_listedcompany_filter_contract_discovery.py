@@ -135,6 +135,11 @@ def extract_literal_values(snips: list[dict]) -> list[dict]:
         for pat in patterns:
             for m in re.finditer(pat, c, flags=re.I):
                 value = m.group(1).strip()
+                # A JavaScript concatenation fragment such as "+s+" is not a
+                # literal enum value. Only preserve directly observed numeric
+                # literals; semantic labels remain a separate proof burden.
+                if not re.fullmatch(r"\\d+", value):
+                    continue
                 rec = {
                     "value": value,
                     "source": s["source"],
@@ -246,6 +251,15 @@ def main() -> int:
         "endpoint_sources": endpoint_sources,
         "xxfcbj_sources": xxfcbj_sources,
         "literal_xxfcbj_values": literal_values,
+        "xxfcbj_contexts": [
+            {
+                "source": s["source"],
+                "context_sha256": s["context_sha256"],
+                "context": s["context"],
+            }
+            for s in all_snips
+            if "xxfcbj" in s["context"]
+        ][:20],
         "adjudication": report["adjudication"],
     }, ensure_ascii=False, sort_keys=True))
     return 0 if discovery_ok else 2
