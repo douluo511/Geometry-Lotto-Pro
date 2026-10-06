@@ -12,6 +12,7 @@ sys.path.insert(0, str(PACKAGE_ROOT))
 
 import stock_ai.backtest as bt
 from stock_ai.historical_pit import evaluate_historical_st_pit
+from stock_ai.historical_pit import evaluate_historical_st_pit
 
 
 def sha(path: Path) -> str:
@@ -120,6 +121,23 @@ with tempfile.TemporaryDirectory() as td:
     ])
     cfg = {"universe": {"min_turnover_cny": 0, "live_top_n": 1, "exclude_st": True}}
     with patch.object(bt, "ROOT", root):
+        pit_status, pit_detail, pit_meta = evaluate_historical_st_pit(root, D3)
+        print("BACKTEST_POLICY_FIXTURE_EVALUATOR=" + json.dumps({
+            "status": pit_status,
+            "detail": pit_detail,
+            "failures": pit_meta.get("failures"),
+            "market_failures": pit_meta.get("market_failures"),
+            "bindings": {
+                key: {
+                    "status": value.get("status"),
+                    "reason": value.get("reason"),
+                    "semantic_status": value.get("semantic_status"),
+                    "semantic_reason": value.get("semantic_reason"),
+                }
+                for key, value in (pit_meta.get("bindings") or {}).items()
+            },
+        }, sort_keys=True))
+        assert pit_status == "PASS", (pit_detail, pit_meta)
         out, ev = bt._historical_candidate_pool(ds, cfg, pd.to_datetime([D1, D2, D3]))
     assert out["code"].tolist() == ["600002"], out
     assert ev["signal_st_excluded"] == 1
