@@ -82,6 +82,15 @@ PATTERNS = [
     ),
 ]
 
+# Dates of disclosures, notices, decisions, hearings or other historical
+# documents are not terminal-listing effective dates merely because the
+# surrounding title/text mentions termination. Direct date->terminal rules
+# must reject those non-effective contexts. Explicit terminal-date labels
+# remain independently admissible.
+TERMINAL_NON_EFFECTIVE_CONTEXT_RE = re.compile(
+    r"(?:披露|发布|刊登|风险提示|收到|获悉|作出|审议|决定)"
+)
+
 
 def load_module(name: str, path: Path):
     spec = importlib.util.spec_from_file_location(name, path)
@@ -115,6 +124,16 @@ def extract_semantic_hits(text: str) -> list[dict]:
                 dt = iso_date(groups)
             except Exception:
                 continue
+            matched = re.sub(r"\s+", " ", match.group(0)).strip()
+            if role == "terminal" and rule in {"DATE_TO_TERMINATION", "DATE_THEN_TERMINATION"}:
+                term_positions = [
+                    pos for pos in (matched.find("终止上市"), matched.find("摘牌"))
+                    if pos >= 0
+                ]
+                if term_positions:
+                    before_terminal = matched[:min(term_positions)]
+                    if TERMINAL_NON_EFFECTIVE_CONTEXT_RE.search(before_terminal):
+                        continue
             left = max(0, match.start() - 180)
             right = min(len(text), match.end() + 260)
             context = re.sub(r"\s+", " ", text[left:right]).strip()
