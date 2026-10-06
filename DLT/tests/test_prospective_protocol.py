@@ -5,6 +5,13 @@ import unittest
 from datetime import date, timedelta
 from pathlib import Path
 
+from glp.constants import (
+    BACKGROUND_POLL_SECONDS,
+    BACKGROUND_STARTUP_MODE,
+    DEFAULT_RESEARCH_DAN_FRONT_COUNT,
+    DEFAULT_RESEARCH_DAN_BACK_COUNT,
+    PROMOTION_POLICY,
+)
 from glp.domain import Draw, Prediction
 from glp.engine import model_identity
 from glp.prospective import ProspectiveLedger, run_prospective_cycle
@@ -74,6 +81,20 @@ class FakeBuilder:
 
 
 class ProspectiveProtocolTests(unittest.TestCase):
+    def test_cohort_is_bound_to_current_103_behavior_baseline(self):
+        self.assertEqual(BACKGROUND_POLL_SECONDS, 1800)
+        self.assertEqual(BACKGROUND_STARTUP_MODE, "manual_app_launch_required_after_login")
+        self.assertEqual(DEFAULT_RESEARCH_DAN_FRONT_COUNT, 2)
+        self.assertEqual(DEFAULT_RESEARCH_DAN_BACK_COUNT, 1)
+        self.assertEqual(
+            PROMOTION_POLICY["research_dan_front_count"],
+            DEFAULT_RESEARCH_DAN_FRONT_COUNT,
+        )
+        self.assertEqual(
+            PROMOTION_POLICY["research_dan_back_count"],
+            DEFAULT_RESEARCH_DAN_BACK_COUNT,
+        )
+
     def test_same_target_freeze_is_immutable_and_idempotent(self):
         draws = _draws()
         canonical = sha256_json([d.to_dict() for d in draws])
