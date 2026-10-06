@@ -192,11 +192,24 @@ class LottoService:
         draws, canonical_hash = self.store.load_draws()
         selector_hash = model_identity()["selector_hash"]
         prospective = self.store.prospective_replays(selector_hash)
+        freeze_before = len(self.store.freezes())
         court = run_evidence_court(draws, prospective, progress)
-        prediction = self.predict(progress)
-        trace = prediction.get("effect_trace", {})
+        # Audit is observational. It may compute the current scoring trace, but it
+        # must never call predict(), which persists a formal production Freeze.
+        _shadow_prediction, trace = make_prediction(draws, canonical_hash, court)
+        freeze_after = len(self.store.freezes())
+        if freeze_after != freeze_before:
+            raise RuntimeError(
+                f"Evidence Court mutated formal Freeze state: {freeze_before}->{freeze_after}"
+            )
         ors = build_ors_record(court, trace)
-        payload = {"court": court, "ors": ors}
+        payload = {
+            "court": court,
+            "ors": ors,
+            "formal_freeze_written": False,
+            "freeze_before": freeze_before,
+            "freeze_after": freeze_after,
+        }
         self.store.append_experiment("evidence_court", court["software_verdict"], canonical_hash, court["model_hash"], payload)
         return payload
 
