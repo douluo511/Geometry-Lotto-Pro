@@ -21,7 +21,7 @@ SOURCE_COMMIT_RE = re.compile(r"^[0-9a-f]{40}([0-9a-f]{24})?$")
 BEHAVIOR_PATHS = (
     "src/glp/constants.py",
     "src/glp/domain.py",
-    "src/glp/net.py",
+    "src/glp/net_client.py",
     "src/glp/sources.py",
     "src/glp/storage.py",
     "src/glp/engine.py",
