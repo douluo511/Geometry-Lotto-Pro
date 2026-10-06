@@ -1,0 +1,98 @@
+name: DLT Baseline-to-Current Transition Contract
+
+on:
+  pull_request:
+    paths:
+      - "tools/advance_dlt_baseline_to_current.ps1"
+      - "tools/bootstrap_independent_repo.ps1"
+      - ".github/workflows/dlt-baseline-to-current-transition-contract.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  transition-contract:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      CURRENT_SHA: 30c3d9d2c6fdfc3dd0751f6f8a0a85348ec2b4a6
+      CURRENT_MANIFEST: ebbbb919518b93da72929d742569ed8f1466742a0844030726278ec951fe8a59
+      CURRENT_SUMS: a0d982b48397f7a33a86c2e3ccdb7d21a189044ab9dc6149fd65d8744ce463bf
+      BASELINE_MANIFEST: 2cb5635c43b8908cc9b1e269cb002b9b5f3f397701056ce06ab54d7bd4cc94b1
+      BASELINE_SUMS: 51d189a62eca66ec0d9696eab2651d1bbe9addfbfeb67fbfe80e028020b0e680
+      BASELINE_EXE: aa177556b9f18e448861553871ead6bf722aff85ebe4cc39dfb82f7589d1338e
+
+    steps:
+      - name: Checkout exact transition head
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: PowerShell syntax gate
+        shell: pwsh
+        run: |
+          $tokens=$null
+          $errors=$null
+          $null=[System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path '.\tools\advance_dlt_baseline_to_current.ps1'),
+            [ref]$tokens,
+            [ref]$errors
+          )
+          if($errors.Count -ne 0){ throw ($errors | Out-String) }
+          Write-Host "TRANSITION_POWERSHELL_SYNTAX=PASS"
+
+      - name: Download verified current-main DLT seed
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $out=Join-Path $env:RUNNER_TEMP 'dlt-current-seed'
+          gh run download 37455953563 --repo douluo511/Geometry-Lotto-Pro --name "dlt-independent-repo-seed-5b9a8a16b16c7eb78eb4fb7a55a9ad6b43256abd" --dir $out
+          if($LASTEXITCODE -ne 0){ throw 'current DLT seed download failed' }
+          $manifest=Get-ChildItem -LiteralPath $out -Recurse -Filter MIGRATION_MANIFEST.json | Select-Object -First 1
+          if(-not $manifest){ throw 'current DLT migration manifest missing' }
+          "DLT_CURRENT_EXPORT_DIR=$($manifest.Directory.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: PlanOnly validate frozen baseline-to-current transition
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $evidence=Join-Path $env:RUNNER_TEMP 'dlt-transition-plan.json'
+          .\tools\advance_dlt_baseline_to_current.ps1 -CurrentExportDir "$env:DLT_CURRENT_EXPORT_DIR" -TargetRepo "douluo511/Geometry-Lotto-Pro-DLT" -Visibility private -ExpectedCurrentSourceCommit "$env:CURRENT_SHA" -ExpectedCurrentManifestSha256 "$env:CURRENT_MANIFEST" -ExpectedCurrentSumsSha256 "$env:CURRENT_SUMS" -ExpectedBaselineManifestSha256 "$env:BASELINE_MANIFEST" -ExpectedBaselineSumsSha256 "$env:BASELINE_SUMS" -ExpectedBaselineReleaseTag "v2.1.1" -ExpectedBaselineExeSha256 "$env:BASELINE_EXE" -PlanOnly -EvidencePath $evidence
+          if($LASTEXITCODE -ne 0){ throw 'transition PlanOnly failed' }
+          $e=Get-Content -LiteralPath $evidence -Raw | ConvertFrom-Json
+          if($e.status -ne 'PASS'){ throw 'transition PlanOnly evidence not PASS' }
+          if($e.remote_current_verification -ne 'NOT_RUN_PLAN_ONLY'){ throw 'transition PlanOnly touched remote state' }
+          if($e.current_source.schema -ne 'dlt-independent-export-v4'){ throw 'transition current schema mismatch' }
+          if($e.current_source.source_commit -ne $env:CURRENT_SHA){ throw 'transition source SHA mismatch' }
+          if($e.current_source.manifest_sha256 -ne $env:CURRENT_MANIFEST){ throw 'transition current manifest mismatch' }
+          if($e.current_source.sums_sha256 -ne $env:CURRENT_SUMS){ throw 'transition current sums mismatch' }
+          if($e.pushed_current_main -ne $false){ throw 'transition PlanOnly unexpectedly pushed main' }
+          Get-Content -LiteralPath $evidence
+
+      - name: Wrong frozen baseline identity must fail closed
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $bad=('0' * 64)
+          & .\tools\advance_dlt_baseline_to_current.ps1 -CurrentExportDir "$env:DLT_CURRENT_EXPORT_DIR" -TargetRepo "douluo511/Geometry-Lotto-Pro-DLT" -Visibility private -ExpectedCurrentSourceCommit "$env:CURRENT_SHA" -ExpectedCurrentManifestSha256 "$env:CURRENT_MANIFEST" -ExpectedCurrentSumsSha256 "$env:CURRENT_SUMS" -ExpectedBaselineManifestSha256 $bad -ExpectedBaselineSumsSha256 "$env:BASELINE_SUMS" -ExpectedBaselineReleaseTag "v2.1.1" -ExpectedBaselineExeSha256 "$env:BASELINE_EXE" -PlanOnly -EvidencePath (Join-Path $env:RUNNER_TEMP 'should-not-pass.json') *> (Join-Path $env:RUNNER_TEMP 'negative.log')
+          if($LASTEXITCODE -eq 0){ throw 'wrong frozen baseline identity was accepted' }
+          $text=Get-Content (Join-Path $env:RUNNER_TEMP 'negative.log') -Raw
+          if($text -notmatch 'baseline manifest SHA is not the frozen transition baseline'){ throw 'negative rejection reason mismatch' }
+          Write-Host "TRANSITION_WRONG_BASELINE_REJECTION=PASS"
+
+      - name: Upload transition plan evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: dlt-baseline-to-current-transition-plan-${{ matrix.os }}-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/dlt-transition-plan.json
+          if-no-files-found: error
+          retention-days: 30
