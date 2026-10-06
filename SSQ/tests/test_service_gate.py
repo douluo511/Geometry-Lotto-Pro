@@ -15,6 +15,37 @@ class _Prediction:
 
 
 class ServiceGateTests(unittest.TestCase):
+    def test_update_failure_records_auditable_fail_event(self) -> None:
+        class FakeStore:
+            def baseline_integrity_check(self):
+                return {"ok": True}
+
+            def integrity_check(self):
+                return {"ok": False}
+
+            def save_failure_evidence(self, value):
+                return "unused"
+
+        service = LottoService.__new__(LottoService)
+        service.store = FakeStore()
+        service.ensure_seed = lambda: None
+        service._load_draws = lambda: []
+        events = []
+        service._append_experiment = lambda *args: events.append(args)
+
+        with patch("glp.service.build_canonical", side_effect=ConnectionError("injected offline")):
+            with self.assertRaisesRegex(ConnectionError, "injected offline"):
+                service.update()
+
+        self.assertEqual(len(events), 1)
+        kind, status, input_hash, payload = events[0]
+        self.assertEqual(kind, "official_update")
+        self.assertEqual(status, "FAIL")
+        self.assertEqual(payload["status"], "FAIL")
+        self.assertEqual(payload["error_type"], "ConnectionError")
+        self.assertIn("injected offline", payload["error"])
+        self.assertEqual(payload["attempt_id"], input_hash)
+
     def test_offline_run_never_reuses_historical_pass(self) -> None:
         service = LottoService.__new__(LottoService)
         service.ensure_seed = lambda: None
