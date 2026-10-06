@@ -186,7 +186,7 @@ def main():
             client, "000001", ROWS, ticker_override="000001.SS"
         )
         try:
-            l1_snapshot = fetch_current_l1_snapshot(client, "600000")
+            l1_snapshot = fetch_l1_snapshot_failover(client, "600000")
         except Exception as exc:
             l1_snapshot = {
                 "diagnostic_execution_status": "NOT VERIFIED",
@@ -232,7 +232,7 @@ def main():
     last_quoted_limits = l1_snapshot.get("last_quoted_session_limit_price_evidence", "NOT VERIFIED")
 
     report = {
-        "schema": "rmf-liquidity-capacity-diagnostic-v2",
+        "schema": "rmf-liquidity-capacity-diagnostic-v3",
         "status": "PASS",
         "symbol": "600000",
         "source_provider": meta.get("provider"),
