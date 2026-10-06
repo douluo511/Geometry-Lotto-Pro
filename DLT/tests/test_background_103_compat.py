@@ -148,6 +148,8 @@ class Background103CompatibilityTests(unittest.TestCase):
         self.assertIn("shell=False", source)
         self.assertIn("DETACHED_PROCESS", source)
         self.assertIn("CREATE_NEW_PROCESS_GROUP", source)
+        self.assertIn("PYINSTALLER_RESET_ENVIRONMENT", source)
+        self.assertIn('child_env["PYINSTALLER_RESET_ENVIRONMENT"] = "1"', source)
 
 
 if __name__ == "__main__":
