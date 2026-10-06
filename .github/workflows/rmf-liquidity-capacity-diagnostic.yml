@@ -43,6 +43,7 @@ jobs:
         working-directory: RealMoneyFinance
         run: python tests/liquidity_capacity_diagnostic.py
       - name: Upload diagnostic evidence
+        if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: RMF-LIQUIDITY-CAPACITY-DIAGNOSTIC-${{ github.sha }}
@@ -50,6 +51,7 @@ jobs:
           if-no-files-found: error
           retention-days: 30
       - name: Assert and print fail-closed evidence boundary
+        if: always()
         working-directory: RealMoneyFinance
         shell: bash
         run: |
@@ -92,6 +94,7 @@ jobs:
           print("AMOUNT_BASED_PARTICIPATION_CAPACITY=SUPPORTED")
           print("CURRENT_L1_SPREAD=" + str(boundary.get("current_bid_ask_spread_snapshot")))
           print("CURRENT_LIMIT_PRICE=" + str(boundary.get("current_limit_price_snapshot")))
+          print("LAST_QUOTED_L1_SPREAD=" + str(boundary.get("last_quoted_session_bid_ask_spread_snapshot")))
           print("LAST_QUOTED_LIMIT_PRICE=" + str(boundary.get("last_quoted_session_limit_price_snapshot")))
           print("SNAPSHOT_FRESHNESS=" + str(snapshot.get("snapshot_freshness", "NOT VERIFIED")))
           print("OBSERVED_MARKET_IMPACT=NOT VERIFIED")
