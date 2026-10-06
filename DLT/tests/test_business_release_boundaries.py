@@ -60,7 +60,7 @@ class BusinessReleaseBoundaries(unittest.TestCase):
         self.assertIn(approval["status"], {"PENDING", "APPROVED"})
         self.assertTrue(approval["original_requirements_preserved"])
         self.assertTrue(approval["no_scope_reduction"])
-        self.assertEqual(approval["scope_ids"], ["B01", "B02", "B03", "B04", "B05", "B06", "B07"])
+        self.assertEqual(approval["scope_ids"], ["B01", "B02", "B03", "B04", "B05", "B06", "B07", "B08"])
         self.assertEqual(approval["entry_inventory"], ["predict", "update", "repair", "audit"])
         if approval["status"] == "PENDING":
             self.assertIsNone(approval["approved_by"])
