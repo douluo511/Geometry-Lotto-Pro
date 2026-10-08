@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import time
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -39,7 +40,18 @@ def main():
         "diagnostic_only": True,
     }
     try:
-        r = requests.get(URL, headers=HEADERS, timeout=(8, 30), allow_redirects=True)
+        errors = []
+        for attempt in range(1, 6):
+            try:
+                r = requests.get(URL, headers=HEADERS, timeout=(8, 30), allow_redirects=True)
+                break
+            except requests.RequestException as exc:
+                errors.append({"attempt": attempt, "error": f"{type(exc).__name__}: {exc}"})
+                if attempt == 5:
+                    result["transport_attempt_errors"] = errors
+                    raise
+                time.sleep(min(2 ** (attempt - 1), 8))
+        result["transport_attempt_errors"] = errors
         result["http_status"] = r.status_code
         result["resolved_url"] = r.url
         result["content_type"] = r.headers.get("Content-Type")
