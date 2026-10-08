@@ -41,6 +41,10 @@ jobs:
         run: python -m py_compile StockAIPro/staging/Stock_AI_Pro/versions/4.3.0/stock_ai/historical_pit.py StockAIPro/hardening_tests/historical_native_source_authority_failclosed_test.py
       - name: Prove forged full three-market source universe cannot earn product PASS
         run: python StockAIPro/hardening_tests/historical_native_source_authority_failclosed_test.py
+      - name: Install pinned production-model dependencies for unit policy
+        run: python -m pip install --disable-pip-version-check --no-input "numpy>=1.26,<2.5" "pandas>=2.2,<3.1" "scikit-learn>=1.8,<1.10" "joblib>=1.5,<2" "requests>=2.32,<3" "cryptography>=46,<51"
+      - name: Recheck signal-day ST vs entry-day suspension using explicitly TEST-ONLY stub
+        run: python StockAIPro/hardening_tests/historical_pit_backtest_policy_contract_test.py
       - name: Compute exact stage source and projected nested manifest hashes
         shell: bash
         run: |
