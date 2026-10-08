@@ -52,6 +52,12 @@ class NoEdgeUniformProductionRegression(unittest.TestCase):
         # change when only the speculative research rankings are swapped.
         self.assertEqual(first.front, opposite.front)
         self.assertEqual(first.back, opposite.back)
+        # rho=0 forbids unqualified research score drift even from changing
+        # formal production ID. Re-ranking alone is not a new released Freeze.
+        self.assertEqual(first.score_hash, opposite.score_hash,
+                         "FALSE BUSINESS PASS: rho=0 identity depends on research scores")
+        self.assertEqual(first.prediction_id, opposite.prediction_id,
+                         "FALSE BUSINESS PASS: rho=0 freeze ID depends on research scores")
         self.assertNotEqual(first.front_ranking, opposite.front_ranking)
         self.assertNotEqual(first.back_ranking, opposite.back_ranking)
 
