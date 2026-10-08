@@ -1,0 +1,48 @@
+name: Stock SSE exact full-source artifact verification
+on:
+  pull_request:
+    paths:
+      - '.github/stock_diag/stock_sse_full_source_verify.py'
+      - '.github/workflows/stock-sse-full-source-verify.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  exact-source-candidate-redownload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      PRODUCT_BASE_SHA: 895fab5d4eb4be3d0b06e2c6c82c473911f4b8d1
+      PYTHONUTF8: '1'
+      PYTHONIOENCODING: 'utf-8'
+    steps:
+      - name: Checkout exact verification head
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          fetch-depth: 0
+      - name: Verify exact head and unchanged product
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          git merge-base --is-ancestor "$PRODUCT_BASE_SHA" HEAD
+          test -z "$(git diff --name-only "$PRODUCT_BASE_SHA"..HEAD -- StockAIPro)"
+          echo 'PRODUCT_BYTES_UNCHANGED=PASS'
+      - name: Native source semantics and exact archive adversarial controls
+        run: |
+          python .github/stock_diag/stock_sse_suspend_source.py --self-test
+          python .github/stock_diag/stock_sse_full_source_verify.py --self-test
+      - name: Redownload exact three capture archives and recompute every page and row
+        env:
+          DIAG_GITHUB_TOKEN: ${{ github.token }}
+        run: python .github/stock_diag/stock_sse_full_source_verify.py --output "$RUNNER_TEMP/sse-full-source-verified"
+      - name: Preserve complete exact-source coverage and dedupe ledger
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: STOCK-SSE-VERIFIED-FULL-SOURCE-${{ env.SOURCE_SHA }}
+          path: ${{ runner.temp }}/sse-full-source-verified
+          retention-days: 30
+          if-no-files-found: error

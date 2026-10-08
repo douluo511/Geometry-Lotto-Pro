@@ -1,0 +1,541 @@
+"""Read-only source-native SSE suspension discovery; never qualifies product PIT."""
+import argparse
+import concurrent.futures
+import hashlib
+import json
+import os
+import re
+import io
+import zipfile
+import socket
+import time
+from datetime import date, datetime, timezone
+from html.parser import HTMLParser
+from pathlib import Path
+from urllib.error import HTTPError, URLError
+from urllib.parse import parse_qs, urlencode, urljoin, urlsplit
+from urllib.request import Request, build_opener, HTTPRedirectHandler
+
+PAGE = "https://www.sse.com.cn/disclosure/dealinstruc/suspension/"
+PRODUCT_BASE = "895fab5d4eb4be3d0b06e2c6c82c473911f4b8d1"
+LIMIT = 8 * 1024 * 1024
+
+def sha(payload):
+    return hashlib.sha256(payload).hexdigest()
+
+def official(url):
+    parts = urlsplit(url)
+    return parts.scheme == "https" and not parts.username and not parts.password and parts.port in (None, 443) and (parts.hostname == "sse.com.cn" or (parts.hostname or "").endswith(".sse.com.cn"))
+
+class Redirect(HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        if not official(newurl):
+            raise ValueError("redirect outside official HTTPS SSE origin")
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+class Scripts(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.urls = []
+    def handle_starttag(self, tag, attrs):
+        values = dict(attrs)
+        if tag.lower() == "script" and values.get("src"):
+            self.urls.append(urljoin(PAGE, values["src"]))
+        # SSE declares page modules on js_require_on_page, loaded via RequireJS.
+        if values.get("js_files"):
+            self.urls.extend(urljoin(PAGE, value.strip()) for value in values["js_files"].split(",") if value.strip())
+
+def decode(raw, media):
+    encodings = []
+    match = re.search(r"charset\s*=\s*([A-Za-z0-9_-]+)", media, re.I)
+    if match:
+        encodings.append(match.group(1))
+    encodings += ["utf-8-sig", "gb18030"]
+    for encoding in dict.fromkeys(encodings):
+        try:
+            return raw.decode(encoding), encoding
+        except (UnicodeError, LookupError):
+            pass
+    raise ValueError("source bytes cannot be decoded with declared/UTF8/GB18030 charset")
+
+def fetch(url, directory, index):
+    if not official(url):
+        return {"url": url, "status": "REJECTED", "reason": "nonofficial_or_insecure_url"}
+    errors = []
+    for attempt in range(1, 3):
+        recorded = datetime.now(timezone.utc).isoformat()
+        try:
+            req = Request(url, headers={"User-Agent": "Mozilla/5.0 (compatible; read-only source research)", "Referer": PAGE, "Accept": "*/*"})
+            with build_opener(Redirect()).open(req, timeout=20) as response:
+                actual = response.geturl()
+                if not official(actual) or response.status != 200:
+                    raise ValueError("source HTTP identity/status rejected")
+                raw = response.read(LIMIT + 1)
+                if len(raw) > LIMIT or not raw:
+                    raise ValueError("empty or oversized primary source")
+                media = response.headers.get("Content-Type", "")
+                last_modified = response.headers.get("Last-Modified")
+            text, encoding = decode(raw, media)
+            if index != 0 and "<html" in text[:1000].lower():
+                raise ValueError("script endpoint returned HTML challenge/error")
+            path = directory / f"source-{index:03d}.raw"
+            path.write_bytes(raw)
+            return {"url": url, "actual_url": actual, "status": "PASS", "http_status": 200, "attempt": attempt, "recorded_at_utc": recorded, "response_last_modified": last_modified, "publication_time": "NOT VERIFIED", "sha256": sha(raw), "bytes": len(raw), "content_type": media, "encoding": encoding, "raw_path": path.name, "text": text}
+        except (HTTPError, URLError, socket.timeout, TimeoutError, ValueError) as exc:
+            errors.append({"attempt": attempt, "type": type(exc).__name__, "http_status": getattr(exc, "code", None)})
+            if isinstance(exc, HTTPError) and exc.code not in (429, 500, 502, 503, 504):
+                break
+            if isinstance(exc, ValueError):
+                break
+            time.sleep(0.8)
+    return {"url": url, "status": "FAIL", "errors": errors}
+
+def candidates(receipts):
+    result = []
+    for receipt in receipts:
+        text = receipt.get("text", "")
+        # Technical query identifiers are evidence candidates ONLY; no JS is executed.
+        for match in re.finditer(r"['\"]?(?:sqlId|SQLID|sqlid)['\"]?\s*[:=]\s*['\"]([^'\"]+)['\"]", text):
+            result.append({"sql_id": match.group(1), "source_url": receipt["url"], "source_sha256": receipt["sha256"], "offset": match.start(), "context": text[max(0, match.start()-500):match.end()+1500]})
+    return result
+
+def source_contexts(receipts):
+    result = []
+    for receipt in receipts:
+        text = receipt.get("text", "")
+        count = 0
+        previous_end = -1
+        for match in re.finditer(r"COMMON_SSE|sqlId|SQLID|sseQueryUrl|query\.sse|suspension|commonQuery|pageHelp|startDate|endDate|searchDate|START_DATE|END_DATE|js_files", text, re.I):
+            if match.start() < previous_end:
+                continue
+            begin, end = max(0, match.start()-400), min(len(text), match.end()+2000)
+            result.append({"source_url": receipt["url"], "source_sha256": receipt.get("sha256"), "offset": match.start(), "context": text[begin:end]})
+            previous_end = end
+            count += 1
+            if count >= 12:
+                break
+    return result
+
+def self_test():
+    assert official(PAGE)
+    for invalid in ("http://www.sse.com.cn/x", "https://sse.com.cn.evil.example/x", "https://evil.example/x", "https://user:pass@www.sse.com.cn/x", "https://www.sse.com.cn:8443/x"):
+        assert not official(invalid), invalid
+    parsed = Scripts()
+    parsed.feed('<script src="./actual.js"></script><script src="//query.sse.com.cn/a.js"></script>')
+    assert parsed.urls == [urljoin(PAGE, "./actual.js"), "https://query.sse.com.cn/a.js"]
+    modules = Scripts()
+    modules.feed('<div class="js_require_on_page" js_files="/actual/declared.js"></div>')
+    assert modules.urls == ["https://www.sse.com.cn/actual/declared.js"]
+    assert decode("停复牌".encode("gb18030"), "text/html; charset=gb18030")[0] == "停复牌"
+    assert candidates([{"url": PAGE, "sha256": "a"*64, "text": "sqlId: 'REAL_SOURCE_ID'"}])[0]["sql_id"] == "REAL_SOURCE_ID"
+    assert candidates([{"url": PAGE, "sha256": "b"*64, "text": '"sqlId": "REAL_QUOTED_ID"'}])[0]["sql_id"] == "REAL_QUOTED_ID"
+    print("SSE FIRST-PARTY SOURCE DISCOVERY BOUNDARIES 11/11 PASS")
+
+def discover(directory):
+    directory.mkdir(parents=True, exist_ok=False)
+    page = fetch(PAGE, directory, 0)
+    receipts = [page]
+    if page["status"] == "PASS":
+        parser = Scripts()
+        parser.feed(page["text"])
+        urls = list(dict.fromkeys(parser.urls))
+        if len(urls) > 60:
+            raise ValueError("source page script count exceeds explicit bounded discovery")
+        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
+            receipts += list(pool.map(lambda pair: fetch(pair[1], directory, pair[0]), enumerate(urls, 1)))
+    found = candidates(receipts)
+    report = {
+        "schema": "stock-sse-official-suspension-discovery-v1",
+        "source_product_base_sha": PRODUCT_BASE,
+        "diagnostic_head_sha": os.environ.get("SOURCE_SHA"),
+        "source_page": PAGE,
+        "status": "PASS" if page["status"] == "PASS" and found else "FAIL",
+        "scope": "actual official HTML/JS query-source discovery only",
+        "receipts": [{k: v for k, v in receipt.items() if k != "text"} for receipt in receipts],
+        "native_query_candidates": found,
+        "observed_technical_source_contexts": source_contexts(receipts),
+        "query_parameter_semantics": "NOT VERIFIED",
+        "historical_daily_state": "NOT VERIFIED",
+        "SSE_SZSE_BSE_qualified_historical_pit": "NOT VERIFIED",
+        "repository_independence": "NOT VERIFIED",
+        "final_gate": "FAIL",
+    }
+    (directory / "discovery.json").write_text(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True)+"\n", encoding="utf-8")
+    print(json.dumps(report, ensure_ascii=False, sort_keys=True))
+    return 0 if report["status"] == "PASS" else 2
+
+MODULE = "https://www.sse.com.cn/xhtml/home/2021public/querySearch/search_tradeTip_2021.js"
+MODULE_SHA = "32fc98ea41e599f457609247ba68defb82e6d855aa2551da6923dbf7e44153a7"
+FULL_WINDOWS = [("2018-01-01", "2020-12-31"), ("2021-01-01", "2023-12-31"), ("2024-01-01", "2026-10-08")]
+FULL_MAX_PAGES = 1000
+FULL_MAX_SECONDS = 1200
+WINDOWS = [("2018-11-19", "2018-11-20"), ("2025-01-06", "2025-01-07"), ("2026-09-29", "2026-09-30")]
+BOND_BUSINESS = {"CP": "convertible_bond", "GP": "convertible_bond", "CB": "conversion", "GB": "conversion", "CR": "repurchase", "GR": "repurchase"}
+INTRADAY = {"930": "09:30-10:30", "AM": "morning", "PM": "afternoon"}
+
+def day(value, compact=False):
+    pattern = r"[0-9]{8}" if compact else r"[0-9]{4}-[0-9]{2}-[0-9]{2}"
+    if not isinstance(value, str) or not re.fullmatch(pattern, value):
+        raise ValueError("noncanonical_native_day")
+    if compact:
+        value = value[:4]+"-"+value[4:6]+"-"+value[6:]
+    return date.fromisoformat(value)
+
+def integer(value):
+    if isinstance(value, bool):
+        raise ValueError("boolean_pagination")
+    if isinstance(value, int) and value >= 0:
+        return value
+    if isinstance(value, str) and re.fullmatch(r"[0-9]+", value):
+        return int(value)
+    raise ValueError("invalid_pagination_integer")
+
+def parse_page(raw, page_number, page_size, prior=None):
+    text = raw.decode("utf-8-sig")
+    # Parse JSON as data only. No callback or remote JS execution.
+    obj = json.loads(text)
+    if not isinstance(obj, dict) or not isinstance(obj.get("result"), list) or not isinstance(obj.get("pageHelp"), dict):
+        raise ValueError("missing_result_or_native_pagination")
+    meta = obj["pageHelp"]
+    counts = {key: integer(meta[key]) for key in ("pageNo", "pageSize", "pageCount", "total")}
+    if counts["pageNo"] != page_number or counts["pageSize"] != page_size:
+        raise ValueError("wrong_native_page_identity")
+    expected_pages = (counts["total"]+page_size-1)//page_size
+    if counts["pageCount"] not in ({0, 1} if counts["total"] == 0 else {expected_pages}):
+        raise ValueError("native_page_count_disagrees_with_total")
+    if prior is not None and any(counts[key] != prior[key] for key in ("pageSize", "pageCount", "total")):
+        raise ValueError("native_page_denominator_drift")
+    expected_rows = max(0, min(page_size, counts["total"]-(page_number-1)*page_size))
+    if len(obj["result"]) != expected_rows:
+        raise ValueError("missing_or_extra_native_page_rows")
+    if any(not isinstance(row, dict) for row in obj["result"]):
+        raise ValueError("native_row_not_object")
+    return obj["result"], counts
+
+def complete_pages(pages, expected):
+    if len(pages) != max(1, expected["pageCount"]):
+        raise ValueError("missing_native_page")
+    rows = [row for page in pages for row in page]
+    if len(rows) != expected["total"]:
+        raise ValueError("full_native_row_denominator_mismatch")
+    digests = [sha(json.dumps(row, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode("utf-8")) for row in rows]
+    if len(digests) != len(set(digests)):
+        raise ValueError("duplicate_native_row_across_pages")
+    return rows
+
+def event_candidate(row, flavor, begin, end):
+    parsed_end = None
+    display_interval = None
+    if flavor == "legacy":
+        code = row.get("PRODUCT_CODE")
+        name = row.get("PRODUCT_NAME")
+        native_start = row.get("STOP_DATE")
+        native_end = None
+        # The real native '-' sentinel has NO event date. SHOW_* and text are
+        # preserved verbatim and never substituted for effective/as-of dates.
+        unknown_start = native_start == "-"
+        parsed_start = None if unknown_start else (day(native_start[:10]) if isinstance(native_start, str) else None)
+        display_interval = [row.get("SHOW_START_DATE"), row.get("SHOW_END_DATE")]
+        business = row.get("CONTROLTYPE")
+        duration = row.get("STOP_TIME")
+        reason = row.get("STOP_REASON")
+    else:
+        code = row.get("productCode")
+        name = row.get("productName")
+        native_start = row.get("startStopDate")
+        native_end = row.get("endStopDate")
+        unknown_start = False
+        parsed_start = day(native_start, compact=True) if native_start else None
+        if native_end:
+            parsed_end = day(native_end, compact=True)
+        business = row.get("controlType")
+        duration = row.get("stopTime")
+        reason = row.get("stopReason")
+    if not isinstance(code, str) or not re.fullmatch(r"[0-9]{6}", code):
+        raise ValueError("native_security_code_missing_or_nonASCII")
+    if parsed_start is None and not unknown_start:
+        raise ValueError("native_effective_start_missing")
+    if parsed_start is not None and parsed_start > day(end):
+        raise ValueError("native_effective_date_after_requested_window")
+    if not isinstance(name, str) or not name.strip():
+        raise ValueError("native_security_name_missing")
+    business_scope = BOND_BUSINESS.get(business, "UNRESOLVED_NATIVE_BUSINESS_TYPE")
+    if business in BOND_BUSINESS:
+        identity = "EXCLUDED_BOND_BUSINESS"
+    elif code.startswith(("600", "601", "603", "605", "688")):
+        identity = "EQUITY_CODE_CANDIDATE_ONLY"
+    else:
+        identity = "UNRESOLVED_SECURITY_CLASS"
+    duration_scope = "REPORTED_FULL_DAY_ONLY" if duration == "WH" else ("REPORTED_INTRADAY_ONLY" if duration in INTRADAY else "UNRESOLVED_NATIVE_DURATION")
+    return {
+        "native_security_code": code, "native_security_name": name,
+        "native_business_type": business, "business_scope": business_scope,
+        "identity_status": identity, "asof_issuer_authority": "NOT VERIFIED",
+        "native_effective_start": native_start, "native_effective_end": native_end,
+        "explicit_start_day": parsed_start.isoformat() if parsed_start else None,
+        "explicit_end_day": parsed_end.isoformat() if parsed_end else None,
+        "event_date_status": "UNKNOWN_NATIVE_NO_EVENT_DAY" if unknown_start else "NATIVE_EXPLICIT_START_ONLY",
+        "native_display_interval": display_interval,
+        "native_duration": duration, "duration_scope": duration_scope,
+        "native_reason": reason, "native_record_type": row.get("type"),
+        "source_query_window": [begin, end], "publication_time": "NOT VERIFIED",
+        "future_end_visible_after_query_asof": parsed_end > day(end) if parsed_end else None,
+        "asof_information_availability": "NOT VERIFIED",
+        "actual_observed_resume": "NOT VERIFIED", "daily_ST": "NOT VERIFIED",
+        "qualified_daily_suspension": "NOT VERIFIED",
+        "raw_row_sha256": sha(json.dumps(row, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode("utf-8")),
+    }
+
+def historical_self_test():
+    def fails(function):
+        try:
+            function()
+        except (ValueError, KeyError, TypeError, json.JSONDecodeError):
+            return
+        raise AssertionError("FALSE SOURCE PASS: malformed or incomplete native evidence accepted")
+    def payload(rows, **updates):
+        meta = {"pageNo": 1, "pageSize": 2, "pageCount": 1, "total": len(rows)}
+        meta.update(updates)
+        return json.dumps({"result": rows, "pageHelp": meta}).encode()
+    sample = {"productCode": "600000", "productName": "TEST ONLY", "startStopDate": "20260930", "endStopDate": "", "controlType": "", "stopTime": "WH", "stopReason": "test"}
+    parsed, counts = parse_page(payload([sample]), 1, 2)
+    assert complete_pages([parsed], counts) == [sample]
+    bad = [b"[]", b'{"result":[]}', payload([sample], pageNo=2), payload([sample], pageSize=3), payload([sample], pageCount=2), payload([sample], total=2)]
+    for item in bad:
+        fails(lambda item=item: parse_page(item, 1, 2))
+    fails(lambda: complete_pages([], counts))
+    fails(lambda: complete_pages([[sample], [sample]], {"total": 2, "pageCount": 2}))
+    fails(lambda: parse_page(payload([sample], total=1), 1, 2, {"total": 2, "pageCount": 1, "pageSize": 2}))
+    fails(lambda: event_candidate(dict(sample, startStopDate="20261008"), "new", "2026-09-30", "2026-09-30"))
+    fails(lambda: event_candidate(dict(sample, startStopDate="20260230"), "new", "2026-09-30", "2026-09-30"))
+    bond = event_candidate(dict(sample, controlType="CB"), "new", "2026-09-30", "2026-09-30")
+    assert bond["identity_status"] == "EXCLUDED_BOND_BUSINESS"
+    intraday = event_candidate(dict(sample, stopTime="930"), "new", "2026-09-30", "2026-09-30")
+    assert intraday["duration_scope"] == "REPORTED_INTRADAY_ONLY" and intraday["qualified_daily_suspension"] == "NOT VERIFIED"
+    empty, empty_counts = parse_page(payload([]), 1, 2)
+    assert complete_pages([empty], empty_counts) == []
+    assert event_candidate(sample, "new", "2026-09-30", "2026-09-30")["daily_ST"] == "NOT VERIFIED"
+    # Actual source layout counterexample: original native 2018-11-20 JSON
+    # SHA c3e15ffb... has no STOP_DATE on continuing suspension display rows.
+    real_missing_event_date = {"PRODUCT_CODE": "600145", "PRODUCT_NAME": "*ST新亿", "STOP_DATE": "-", "SHOW_START_DATE": "2015-11-10", "SHOW_END_DATE": "2020-06-30", "STOP_TIME": "自2015-12-07起连续停牌", "STOP_REASON": "刊登重要公告", "CONTROLTYPE": "TR", "BULLETIN_TYPE": "3"}
+    try:
+        unknown = event_candidate(real_missing_event_date, "legacy", "2018-11-19", "2018-11-20")
+    except ValueError as exc:
+        raise AssertionError("REAL SOURCE FALSE FAIL: native '-' must remain UNKNOWN, not silently substituted or discarded") from exc
+    assert unknown["explicit_start_day"] is None
+    assert unknown["event_date_status"] == "UNKNOWN_NATIVE_NO_EVENT_DAY"
+    assert unknown["native_display_interval"] == ["2015-11-10", "2020-06-30"]
+    assert unknown["qualified_daily_suspension"] == "NOT VERIFIED"
+    later_native_end = event_candidate(dict(sample, endStopDate="20261013"), "new", "2026-09-29", "2026-09-30")
+    assert later_native_end["future_end_visible_after_query_asof"] is True
+    assert later_native_end["asof_information_availability"] == "NOT VERIFIED"
+    fails(lambda: event_candidate(dict(real_missing_event_date, STOP_DATE="--"), "legacy", "2018-11-19", "2018-11-20"))
+    print("SSE REAL NATIVE MISSING DATE / DISPLAY≠EFFECTIVE / FUTURE END CONTROLS 3/3 PASS")
+    print("SSE NATIVE PAGINATION / WRONG DATE / BOND / INTRADAY / ABSENCE CONTROLS 16/16 PASS")
+
+PINNED_ARTIFACT = 11555007580
+PINNED_RUN = 37788151706
+PINNED_HEAD = "1d3a2a56a65a7223aed0ab03f8d4d0f43537fd2d"
+PINNED_ZIP_SHA = "bcd67832286151ce42e3add4f9024f48bd5d2169b5136f1665595dd9deba8d4f"
+PINNED_ZIP_SIZE = 161524
+
+class NoRedirect(HTTPRedirectHandler):
+    def redirect_request(self, *args, **kwargs):
+        return None
+
+def restore_schema(directory):
+    directory.mkdir(parents=True, exist_ok=False)
+    report = {"schema": "stock-sse-pinned-source-schema-binding-v1", "status": "FAIL", "source_schema_scope": "HISTORICAL_PINNED_QUERY_SCHEMA_ONLY", "artifact_id": PINNED_ARTIFACT, "source_run_id": PINNED_RUN, "source_head_sha": PINNED_HEAD, "source_zip_sha256": PINNED_ZIP_SHA, "diagnostic_head_sha": os.environ.get("SOURCE_SHA"), "fresh_HTML_source_gate": "NOT VERIFIED", "final_gate": "FAIL"}
+    try:
+        opener = build_opener(NoRedirect())
+        base = "https://api.github.com/repos/douluo511/Geometry-Lotto-Pro/actions/artifacts/"+str(PINNED_ARTIFACT)
+        def request(url):
+            return Request(url, headers={"Authorization": "Bearer "+os.environ["DIAG_GITHUB_TOKEN"], "Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28"})
+        with opener.open(request(base), timeout=30) as response:
+            metadata = json.load(response)
+        if metadata["id"] != PINNED_ARTIFACT or metadata["expired"] or metadata["workflow_run"]["id"] != PINNED_RUN or metadata["workflow_run"]["head_sha"] != PINNED_HEAD or metadata["digest"] != "sha256:"+PINNED_ZIP_SHA or metadata["size_in_bytes"] != PINNED_ZIP_SIZE:
+            raise ValueError("historical_schema_artifact_identity_rejected")
+        try:
+            opener.open(request(base+"/zip"), timeout=30)
+            raise ValueError("artifact_endpoint_did_not_redirect")
+        except HTTPError as redirect:
+            if redirect.code not in (301, 302, 303, 307, 308):
+                raise
+            signed = redirect.headers["Location"]
+        parts = urlsplit(signed)
+        if parts.scheme != "https" or not ((parts.hostname or "").endswith(".blob.core.windows.net") or (parts.hostname or "").endswith(".githubusercontent.com")):
+            raise ValueError("artifact_storage_origin_rejected")
+        # No Authorization header is sent to the signed artifact storage URL.
+        with build_opener().open(Request(signed), timeout=60) as response:
+            archive = response.read(PINNED_ZIP_SIZE+1)
+        if len(archive) != PINNED_ZIP_SIZE or sha(archive) != PINNED_ZIP_SHA:
+            raise ValueError("historical_schema_archive_hash_or_size_mismatch")
+        allowed = {"discovery.json", "source-000.raw", "source-007.raw", "source-101.raw"}
+        selected = {}
+        with zipfile.ZipFile(io.BytesIO(archive)) as zipped:
+            for item in zipped.infolist():
+                name = Path(item.filename).name
+                if name not in allowed:
+                    continue
+                if name in selected or item.file_size > 250000:
+                    raise ValueError("ambiguous_or_oversized_fixed_source_file")
+                selected[name] = zipped.read(item)
+        if set(selected) != allowed:
+            raise ValueError("required_fixed_source_schema_files_missing")
+        discovery = json.loads(selected["discovery.json"])
+        if discovery["diagnostic_head_sha"] != PINNED_HEAD or discovery["status"] != "PASS":
+            raise ValueError("historical_source_discovery_head_or_scope_mismatch")
+        for name in ("source-000.raw", "source-007.raw"):
+            receipt = next(row for row in discovery["receipts"] if row["raw_path"] == name)
+            if receipt["status"] != "PASS" or sha(selected[name]) != receipt["sha256"]:
+                raise ValueError("historical_first_party_raw_binding_mismatch")
+        if sha(selected["source-007.raw"]) != MODULE_SHA or sha(selected["source-101.raw"]) != "c3e15ffb8198594acf0dc70cf2a9646f0ec69c969cec9005f40c69e4cba90fa3":
+            raise ValueError("pinned_query_module_or_prior_native_response_mismatch")
+        for name, raw in selected.items():
+            (directory / name).write_bytes(raw)
+        prior = json.loads(selected["source-101.raw"])
+        report["prior_2018_native_response_inspection"] = {"raw_sha256": sha(selected["source-101.raw"]), "native_pagination": {key: prior.get("pageHelp", {}).get(key) for key in ("pageNo", "pageSize", "pageCount", "total")}, "sample_rows": prior.get("result", [])[:4], "scope": "HISTORICAL_EXACT_RAW_RECORD_INSPECTION_ONLY"}
+        report["status"] = "PASS"
+    except Exception as exc:
+        report["error_type"] = type(exc).__name__
+        report["error"] = str(exc) if isinstance(exc, ValueError) else "fixed_source_schema_download_failed"
+    finally:
+        (directory / "historical-source-binding.json").write_text(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True)+"\n", encoding="utf-8")
+        print(json.dumps(report, ensure_ascii=False, sort_keys=True))
+    return 0 if report["status"] == "PASS" else 2
+
+def capture(source_directory, directory, full_window=None):
+    windows = [FULL_WINDOWS[full_window]] if full_window is not None else WINDOWS
+    flavors = ("new",) if full_window is not None else ("legacy", "new")
+    page_budget = FULL_MAX_PAGES if full_window is not None else 40
+    seconds_budget = FULL_MAX_SECONDS if full_window is not None else 600
+    started = time.monotonic()
+    directory.mkdir(parents=True, exist_ok=False)
+    report = {"schema": "stock-sse-historical-suspension-source-capture-v1", "status": "FAIL", "scope": "frozen full historical new-native-source transport/pagination ONLY" if full_window is not None else "three explicit two-day sample windows, native source transport/pagination ONLY", "source_product_base_sha": PRODUCT_BASE, "diagnostic_head_sha": os.environ.get("SOURCE_SHA"), "windows": windows, "frozen_coverage_target": ["2018-01-01", "2026-10-08"] if full_window is not None else None, "bounded_max_pages_per_query": page_budget, "bounded_max_seconds": seconds_budget, "queries": [], "event_candidates": [], "historical_daily_state": "NOT VERIFIED", "SSE_SZSE_BSE_qualified_historical_pit": "NOT VERIFIED", "final_gate": "FAIL"}
+    try:
+        discovery = json.loads((source_directory / "discovery.json").read_text(encoding="utf-8"))
+        if discovery.get("status") != "PASS":
+            raise ValueError("failed_source_schema_discovery")
+        if discovery.get("diagnostic_head_sha") != os.environ.get("SOURCE_SHA"):
+            historical = json.loads((source_directory / "historical-source-binding.json").read_text(encoding="utf-8"))
+            if historical.get("status") != "PASS" or historical.get("artifact_id") != PINNED_ARTIFACT or historical.get("source_run_id") != PINNED_RUN or historical.get("source_head_sha") != PINNED_HEAD or historical.get("source_zip_sha256") != PINNED_ZIP_SHA or discovery.get("diagnostic_head_sha") != PINNED_HEAD or historical.get("diagnostic_head_sha") != os.environ.get("SOURCE_SHA"):
+                raise ValueError("historical_schema_artifact_binding_rejected")
+            report["source_schema_scope"] = "HISTORICAL_PINNED_QUERY_SCHEMA_ONLY"
+            report["source_schema_binding"] = {key: historical[key] for key in ("artifact_id", "source_run_id", "source_head_sha", "source_zip_sha256")}
+            report["fresh_HTML_source_gate"] = "NOT VERIFIED"
+        else:
+            report["source_schema_scope"] = "CURRENT_RUN_FIRST_PARTY_QUERY_SCHEMA"
+        module = next(item for item in discovery["receipts"] if item["url"] == MODULE)
+        module_raw = (source_directory / module["raw_path"]).read_bytes()
+        if sha(module_raw) != MODULE_SHA or module["sha256"] != MODULE_SHA:
+            raise ValueError("official_native_query_module_drift")
+        page_receipt = discovery["receipts"][0]
+        html_raw = (source_directory / page_receipt["raw_path"]).read_bytes()
+        if sha(html_raw) != page_receipt["sha256"]:
+            raise ValueError("official_page_source_binding_mismatch")
+        html = decode(html_raw, page_receipt["content_type"])[0]
+        native = decode(module_raw, module["content_type"])[0]
+        match = re.search(r'var\s+sseQueryURL\s*=\s*["\']([^"\']+)["\']', html)
+        if match is None:
+            raise ValueError("source_native_query_origin_missing")
+        origin = urljoin(PAGE, match.group(1))
+        if not official(origin):
+            raise ValueError("source_native_query_origin_not_officialHTTPS")
+        for token in ("COMMON_SSE_XXPL_JYTS_TFPXX_L", "SEARCH_DATE", "sseQuery/commonQuery.do", "GW_PL_JYTS_TFPXX", "commonSoaQuery.do", "startStopDate", "endStopDate", "pageHelp.pageCount", "pageHelp.total", "pageHelp.pageNo", "pageHelp.pageSize"):
+            if token not in native:
+                raise ValueError("source_native_query_contract_missing:"+token)
+        report["query_source_binding"] = {"html_sha256": sha(html_raw), "module_url": MODULE, "module_sha256": sha(module_raw), "query_origin": origin, "retrieved_at_utc": module["recorded_at_utc"], "publication_time": "NOT VERIFIED"}
+        index = 100
+        for begin, end in windows:
+            for flavor in flavors:
+                if flavor == "legacy":
+                    endpoint = urljoin(origin, "sseQuery/commonQuery.do")
+                    params = {"isPagination": "true", "sqlId": "COMMON_SSE_XXPL_JYTS_TFPXX_L", "SEARCH_DATE": end, "pageHelp.pageSize": 25, "pageHelp.pageNo": 1, "pageHelp.beginPage": 1, "pageHelp.cacheSize": 1, "pageHelp.endPage": 1}
+                else:
+                    endpoint = urljoin(origin, "commonSoaQuery.do")
+                    params = {"isPagination": "true", "sqlId": "GW_PL_JYTS_TFPXX", "pageHelp.pageSize": 25, "pageHelp.pageNo": 1, "productCode": "", "keyWords": "", "startStopDate": begin.replace("-", ""), "endStopDate": end.replace("-", "")}
+                query = {"flavor": flavor, "window": [begin, end], "endpoint": endpoint, "params": dict(params), "status": "FAIL", "receipts": [], "publication_time": "NOT VERIFIED"}
+                report["queries"].append(query)
+                pages, expected, page_number = [], None, 1
+                while True:
+                    if time.monotonic()-started > seconds_budget:
+                        raise ValueError("native_history_bounded_time_budget_exhausted")
+                    params["pageHelp.pageNo"] = page_number
+                    if flavor == "legacy":
+                        params["pageHelp.beginPage"] = page_number
+                        params["pageHelp.endPage"] = page_number
+                    index += 1
+                    receipt = fetch(endpoint+"?"+urlencode(params), directory, index)
+                    query["receipts"].append({k: v for k, v in receipt.items() if k != "text"})
+                    if receipt["status"] != "PASS":
+                        raise ValueError("native_history_transport_failed")
+                    raw = (directory / receipt["raw_path"]).read_bytes()
+                    rows, counts = parse_page(raw, page_number, 25, expected)
+                    expected = expected or counts
+                    query["native_pagination"] = expected
+                    if expected["pageCount"] > page_budget:
+                        raise ValueError("native_history_bounded_page_budget_exhausted")
+                    pages.append(rows)
+                    if page_number >= max(1, expected["pageCount"]):
+                        break
+                    page_number += 1
+                    time.sleep(0.2)
+                native_rows = complete_pages(pages, expected)
+                query["native_pagination"] = expected
+                query["native_row_count"] = len(native_rows)
+                query["record_date_fields"] = sorted({key for row in native_rows for key in row if "date" in key.lower() or "time" in key.lower()})
+                query["native_fields"] = sorted({key for row in native_rows for key in row})
+                query["sample_rows"] = native_rows[:3]
+                query["raw_row_sha256_sequence"] = [sha(json.dumps(row, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode("utf-8")) for row in native_rows]
+                query["native_record_type_counts"] = {value: sum(str(row.get("type")) == value for row in native_rows) for value in sorted({str(row.get("type")) for row in native_rows})}
+                query["native_business_type_counts"] = {value: sum(str(row.get("controlType") if flavor == "new" else row.get("CONTROLTYPE")) == value for row in native_rows) for value in sorted({str(row.get("controlType") if flavor == "new" else row.get("CONTROLTYPE")) for row in native_rows})}
+                query["unresolved_native_rows"] = []
+                candidates = []
+                for row in native_rows:
+                    try:
+                        candidate = event_candidate(row, flavor, begin, end)
+                        candidate["query_index"] = len(report["queries"])-1
+                        candidates.append(candidate)
+                    except (ValueError, TypeError) as exc:
+                        query["unresolved_native_rows"].append({"raw_row": row, "error": type(exc).__name__+": "+str(exc), "qualified_daily_suspension": "NOT VERIFIED"})
+                report["event_candidates"].extend(candidates)
+                query["status"] = "PASS" if not query["unresolved_native_rows"] else "FAIL"
+        report["status"] = "PASS" if all(query["status"] == "PASS" for query in report["queries"]) else "FAIL"
+    except Exception as exc:
+        report["error"] = type(exc).__name__+": "+str(exc)
+    finally:
+        report["qualified_record_count"] = 0
+        report["candidate_count"] = len(report["event_candidates"])
+        report["elapsed_seconds"] = round(time.monotonic()-started, 3)
+        report["native_query_row_count"] = sum(query.get("native_row_count", 0) for query in report["queries"])
+        report["observed_pages"] = sum(len(query["receipts"]) for query in report["queries"])
+        report["current_completed_day_asof_acceptance"] = "NOT VERIFIED"
+        report["native_query_row_denominator_scope"] = "API returned rows ONLY; not the full historical A-share issuer/day denominator"
+        report["zero_record_absence_semantics"] = "UNKNOWN; never NORMAL"
+        report["publication_availability_coverage"] = "NOT VERIFIED"
+        report["normalized_daily_halt_coverage"] = "NOT VERIFIED"
+        (directory / "historical-capture.json").write_text(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True)+"\n", encoding="utf-8")
+        print(json.dumps({key: value for key, value in report.items() if key not in ("event_candidates", "queries")}, ensure_ascii=False, sort_keys=True))
+        print(json.dumps({"schema": "stock-sse-capture-query-summary-v1", "diagnostic_head_sha": report["diagnostic_head_sha"], "queries": [{key: value for key, value in query.items() if key not in ("sample_rows", "unresolved_native_rows", "raw_row_sha256_sequence", "receipts")} for query in report["queries"]], "qualified_record_count": 0}, ensure_ascii=False, sort_keys=True))
+    return 0 if report["status"] == "PASS" else 2
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--self-test", action="store_true")
+    parser.add_argument("--output", type=Path)
+    parser.add_argument("--capture-from", type=Path)
+    parser.add_argument("--capture-output", type=Path)
+    parser.add_argument("--restore-schema", type=Path)
+    parser.add_argument("--full-window", type=int, choices=range(len(FULL_WINDOWS)))
+    args = parser.parse_args()
+    if args.self_test:
+        self_test()
+        historical_self_test()
+    elif args.restore_schema:
+        raise SystemExit(restore_schema(args.restore_schema))
+    elif args.capture_from and args.capture_output:
+        raise SystemExit(capture(args.capture_from, args.capture_output, args.full_window))
+    elif args.output:
+        raise SystemExit(discover(args.output))
+    else:
+        parser.error("--self-test or --output required")
