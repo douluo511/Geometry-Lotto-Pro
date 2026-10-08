@@ -63,6 +63,16 @@ def _json_get(client: NetClient, url: str) -> dict[str, Any]:
     return parsed
 
 
+
+def _validate_frozen_prediction_payload(
+    freeze: dict[str, Any], target_issue: str, observed_at: datetime,
+) -> tuple[dict[str, Any], str, str]:
+    """Strict reusable payload gate for the live GitHub push and later re-fetch."""
+    prediction, commit, date_text = _validate_frozen_prediction_payload(
+        freeze, target_issue, observed_at,
+    )
+    return prediction, commit, date_text
+
 def verify_github_freeze_receipt(
     *,
     run_id: int,
