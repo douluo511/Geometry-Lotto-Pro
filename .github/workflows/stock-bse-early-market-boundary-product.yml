@@ -49,12 +49,12 @@ jobs:
           inner=base/"versions/4.3.0/PACKAGE_MANIFEST.json"
           outer=base/"PACKAGE_MANIFEST.json"
           H=lambda b:hashlib.sha256(b).hexdigest()
-          old="668b93bcbe55181b0c84268464768031cc66bb3410c98b47e531cec619bc9063"
+          old="065460df3f0c415a4e65997b5c677b2b94d89071b268634029c3a26ce0f0d4fd"
           current=H(code.read_bytes())
           inner_text=inner.read_text(encoding="utf-8")
           outer_text=outer.read_text(encoding="utf-8")
           old_inner=H(inner.read_bytes())
-          expected_outer_hash='5d82e07a2ec6915427bda880b2fd8e1a5596e45f5713ae36f10253496cc27612'
+          expected_outer_hash='8890f3a2f652696234b6f7e1f7c6907221ef4c1186db38cdca4d65f3e96fc58a'
           if old_inner!=expected_outer_hash and old_inner not in outer_text:
               raise RuntimeError("nested staging manifest is not bound to root manifest")
           projected=inner_text.replace('"stock_ai/historical_pit.py": "'+old+'"',
