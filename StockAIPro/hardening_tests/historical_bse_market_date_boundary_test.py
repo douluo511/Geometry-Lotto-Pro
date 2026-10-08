@@ -119,3 +119,12 @@ for invalid in ("920１２３", "600١٢٣", "300１２３"):
     cases.append("non-ascii-identity-rejected:" + repr(invalid))
 assert len(cases) == 17, cases
 print("STOCK BSE IMPOSSIBLE HISTORICAL DATE BUSINESS TESTS 17/17 PASS")
+
+# Source-native historical effective dates must be canonical YYYY-MM-DD.
+# CPython date.fromisoformat also silently accepts YYYYMMDD and ISO-week
+# notation. Neither is the declared calendar/PIT JSON wire format.
+for noncanonical in ("20260930", "2026-W40-3", "2026W403"):
+    assert pit._parse_day(noncanonical) is None, (
+        "FALSE BUSINESS PASS: noncanonical PIT effective date accepted: " + noncanonical)
+assert pit._parse_day("2026-09-30").isoformat() == "2026-09-30"
+print("STOCK PIT CANONICAL DATE WIRE FORMAT 4/4 PASS")
