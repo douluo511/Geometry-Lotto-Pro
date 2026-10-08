@@ -11,6 +11,7 @@ from pathlib import Path
 from glp.constants import APP_NAME, APP_VERSION
 from glp.gui import gui_self_test, run_gui
 from glp.service import LottoService, self_test
+from glp.background import launch_background_worker, run_background_worker
 from glp.util import sha256_bytes, utc_now
 
 
@@ -45,7 +46,9 @@ def run_acceptance(result_file: str | None = None) -> int:
         "windows_runtime_gate": "UNKNOWN",
         "four_entry_gate": "UNKNOWN",
         "exact_package_gate": "UNKNOWN",
-        "final_release_gate": "NOT_PASS",
+        "exact_acceptance_gate": "FAIL",
+        "final_release_gate": "PENDING",
+        "validation_scope": "EXACT_EXE_SERVICE_CHECKS_ONLY",
     }
 
     def checkpoint(phase: str, detail=None) -> None:
@@ -132,7 +135,7 @@ def run_acceptance(result_file: str | None = None) -> int:
             report["exact_package_gate"] = "PASS" if bool(report["exe_sha256"]) else "FAIL"
 
             hard_fail = any(c["status"] != "PASS" for c in checks)
-            report["final_release_gate"] = "PASS" if (
+            report["exact_acceptance_gate"] = "PASS" if (
                 not hard_fail
                 and report["windows_runtime_gate"] == "PASS"
                 and report["four_entry_gate"] == "PASS"
@@ -140,6 +143,9 @@ def run_acceptance(result_file: str | None = None) -> int:
                 and report["scientific_gate"] == "PASS"
                 and report["exact_package_gate"] == "PASS"
             ) else "NOT_PASS"
+            # The executable cannot certify its own release. GUI, background,
+            # updater, repository independence and Same Hash are external gates.
+            report["final_release_gate"] = "PENDING"
     except Exception as exc:
         report["error"] = {"type": type(exc).__name__, "message": str(exc), "traceback": traceback.format_exc()}
     finally:
@@ -148,7 +154,7 @@ def run_acceptance(result_file: str | None = None) -> int:
         _write_json(result_file, report)
         print(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True))
 
-    return 0 if report["final_release_gate"] == "PASS" else 2
+    return 0 if report["exact_acceptance_gate"] == "PASS" else 2
 
 
 def main() -> int:
@@ -156,6 +162,11 @@ def main() -> int:
     parser.add_argument("--self-test", action="store_true")
     parser.add_argument("--acceptance", action="store_true")
     parser.add_argument("--gui-self-test", action="store_true")
+    parser.add_argument("--background-worker", action="store_true")
+    parser.add_argument("--background-launch", action="store_true")
+    parser.add_argument("--background-interval-seconds", type=int, default=1800)
+    parser.add_argument("--background-max-cycles", type=int, default=0)
+    parser.add_argument("--background-wait-parent-pid", type=int, default=0)
     parser.add_argument("--result-file")
     args = parser.parse_args()
 
@@ -171,7 +182,27 @@ def main() -> int:
         _write_json(args.result_file, value)
         print(json.dumps(value, ensure_ascii=False, indent=2))
         return 0 if value.get("status") == "PASS" else 2
+    if args.background_worker:
+        return run_background_worker(
+            interval_seconds=args.background_interval_seconds,
+            max_cycles=args.background_max_cycles,
+            wait_parent_pid=args.background_wait_parent_pid,
+        )
+    if args.background_launch:
+        value = launch_background_worker(
+            interval_seconds=args.background_interval_seconds,
+            max_cycles=args.background_max_cycles,
+            wait_parent_exit=True,
+        )
+        _write_json(args.result_file, value)
+        print(json.dumps(value, ensure_ascii=False, indent=2))
+        return 0
 
+    # Normal interactive launch starts one detached worker. It intentionally survives
+    # GUI close, polls official data every 1800 seconds, and is not registered for
+    # login/reboot autostart. Opening the app after login starts it again.
+    if os.environ.get("GLP_DISABLE_BACKGROUND") != "1" and not os.environ.get("GLP_GUI_ACCEPTANCE_DIR"):
+        launch_background_worker()
     run_gui()
     return 0
 
