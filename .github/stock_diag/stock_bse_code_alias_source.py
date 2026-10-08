@@ -165,6 +165,9 @@ if __name__=="__main__":
         "official_source":URL, "status":result["actual_http_receipt"],
         "rows_count":result.get("observed",{}).get("rows_count"),
         "pre_BSE_original_listing_count":result.get("observed",{}).get("pre_BSE_original_listing_count"),
+        "attempt_errors":[str(v.get("error",""))[:350] for v in result["attempts"]],
+        "http_statuses":[v.get("status_code") for v in result["attempts"]],
+        "resolved_hosts":[urlparse(v.get("final_url",URL)).hostname for v in result["attempts"]],
         "adjudication":result["adjudication"]
     },sort_keys=True))
     raise SystemExit(0 if result["actual_http_receipt"]=="PASS" else 2)
