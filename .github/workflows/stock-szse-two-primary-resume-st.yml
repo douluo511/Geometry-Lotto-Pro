@@ -112,8 +112,22 @@ jobs:
               row=next(r for r in rows if r["index"]==d["index"])
               (p/row["raw_path"]).write_bytes(b"FAKE HTTP PASS WITH NO OFFICIAL FIRST PARTY")
               check("original captured raw SHA tamper rejected",lambda:m.build(temp))
-          assert len(cases)==10,(len(cases),cases)
-          print("STOCK TWO REAL NOTICE NEGATIVE/ANTI-FUTURE-LEAKAGE 10/10 PASS")
+          old_notice_day=m.SOURCE["000981"]["notice_date"]
+          try:
+              m.SOURCE["000981"]["notice_date"]="2018-11-18"
+              check("2018 exchange publication date must match first-party dated URL",
+                    lambda:m.load_primary("000981",root))
+          finally:
+              m.SOURCE["000981"]["notice_date"]=old_notice_day
+          old_notice_day=m.SOURCE["300630"]["notice_date"]
+          try:
+              m.SOURCE["300630"]["notice_date"]="2025-01-05"
+              check("2025 ST notice publication date must match first-party dated URL",
+                    lambda:m.load_primary("300630",root))
+          finally:
+              m.SOURCE["300630"]["notice_date"]=old_notice_day
+          assert len(cases)==12,(len(cases),cases)
+          print("STOCK TWO REAL NOTICE NEGATIVE/ANTI-FUTURE-LEAKAGE 12/12 PASS")
           PY
       - name: Preserve official primary notice-directed dates and NO-PIT boundary
         if: always()
