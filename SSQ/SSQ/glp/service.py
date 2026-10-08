@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import marshal
 import shutil
 import sqlite3
 import sys
@@ -11,6 +12,7 @@ from typing import Any, Callable
 from glp.constants import APP_VERSION, BACK_MAX, BACK_PICK, FRONT_MAX, FRONT_PICK, GAME
 from glp.engine import make_prediction, model_identity
 from glp.domain import Draw
+from glp import evidence as evidence_module
 from glp.evidence import run_evidence_court
 from glp.ors import build_ors_record
 from glp.sources import build_canonical
@@ -272,8 +274,32 @@ class LottoService:
         finally:
             db.close()
 
+    @classmethod
+    def _scientific_policy_hash(cls) -> str:
+        """Exact code fingerprint; changed science code invalidates old Court PASS.
+
+        Marshal's code-object representation works in both source and frozen
+        Python, and also changes when compiled source semantics or constants
+        change. Rebuild/source-path differences conservatively invalidate a
+        cache instead of inheriting stale evidence.
+        """
+        return sha256_json({
+            "schema": "ssq-scientific-policy-code-v1",
+            "evidence_court": sha256_bytes(marshal.dumps(
+                evidence_module.run_evidence_court.__code__
+            )),
+            "prospective_authority": sha256_bytes(marshal.dumps(
+                evidence_module._prospective_provenance_gate.__code__
+            )),
+            "prospective_service": sha256_bytes(marshal.dumps(
+                cls._prospective_replays.__code__
+            )),
+            "court_service": sha256_bytes(marshal.dumps(cls._court.__code__)),
+        })
+
     def _court(self, draws, canonical_hash: str, progress=None) -> dict[str, Any]:
         identity = model_identity()
+        scientific_policy_hash = self._scientific_policy_hash()
         cached = self.latest_court()
         if cached:
             unsigned = dict(cached)
@@ -282,6 +308,7 @@ class LottoService:
                 and cached.get("canonical_hash") == canonical_hash
                 and cached.get("model_hash") == identity["model_hash"]
                 and cached.get("selector_hash") == identity["selector_hash"]
+                and cached.get("scientific_policy_hash") == scientific_policy_hash
                 and cached.get("software_verdict") == "PASS"
                 and cached.get("final_validation", {}).get("status") == "PASS"
                 and cached.get("prospective_authority", {}).get("authority")
@@ -293,6 +320,7 @@ class LottoService:
         prospective = self._prospective_replays(identity["selector_hash"])
         court = run_evidence_court(draws, prospective=prospective, progress=progress)
         court["prospective_authority"] = self._prospective_audit
+        court["scientific_policy_hash"] = scientific_policy_hash
         court["canonical_hash"] = canonical_hash
         court.pop("court_hash", None)
         court["court_hash"] = sha256_json(court)
