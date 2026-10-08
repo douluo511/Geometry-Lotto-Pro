@@ -1,0 +1,123 @@
+name: Stock SZSE independent LIVE raw source and A-share dated event witness
+on:
+  push:
+    branches:
+      - fix/stock-szse-independent-raw-date-witness-20261008
+    paths:
+      - ".github/stock_diag/stock_szse_independent_raw_witness.py"
+      - ".github/workflows/stock-szse-independent-raw-date-witness.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  independent-source-witness:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact dependent candidate
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Verify unchanged real Stock Product and live date chain
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.sha }}"
+          git merge-base --is-ancestor 26732e0b168f8ca0a51fa9b79ff12c7417e43bda HEAD
+          git merge-base --is-ancestor 9969490c89ccb4cc10536f66416976c5bf40caef HEAD
+          test -z "$(git diff --name-only 9969490c89ccb4cc10536f66416976c5bf40caef..HEAD -- StockAIPro)"
+          echo "STOCK_PRODUCTION_BYTESTREAM=UNCHANGED"
+      - name: Pinned Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.11.9"
+          check-latest: false
+      - name: Fetch exact current-live dates and A-share candidate source-bound ledger #351
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location --retry 3 --retry-all-errors --connect-timeout 20 --max-time 120 \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            --header "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/11534347688/zip" \
+            --output pinned_live_dated_a.zip
+          echo "5cf0eaf2ac5c38d1fe90d4908dde929d60276a5f1aa9382c5fb426bbbb3aa27c  pinned_live_dated_a.zip" | sha256sum --check
+          unzip -oq pinned_live_dated_a.zip
+      - name: Fetch exact current-live 1849 primary body corpus #347
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location --retry 3 --retry-all-errors --connect-timeout 20 --max-time 120 \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            --header "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/11534220613/zip" \
+            --output pinned_live_sources_b.zip
+          echo "d3fb2abbdd97b9e53d4a46787bf755a064e6e3a090028898d1bcac9bff81eeb5  pinned_live_sources_b.zip" | sha256sum --check
+          unzip -oq pinned_live_sources_b.zip
+      - name: Fetch INDEPENDENT current first-party raw HTML reparse source #342
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location --retry 3 --retry-all-errors --connect-timeout 20 --max-time 120 \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            --header "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/11534340886/zip" \
+            --output pinned_independent_raw_source_c.zip
+          echo "90d25b1d9fd81c02f6aa04764303fd8128bca4def01f0859f0099a4c3ad6dbac  pinned_independent_raw_source_c.zip" | sha256sum --check
+          unzip -oq pinned_independent_raw_source_c.zip
+      - name: Verify exact 1849 live notice raw source bytes and article SHA across two independent runs
+        run: |
+          python .github/stock_diag/stock_szse_independent_raw_witness.py \
+            --live stock_szse_current_live_rebound_corpus.json \
+            --raw szse_1849_merged_source.json \
+            --dated stock_szse_current_live_dated_341.json \
+            --review stock_szse_current_live_ashare_event_review.json \
+            --out stock_szse_independent_full_raw_witness.json
+      - name: Real full-source reverse attacks reject tampering, stale/date swaps, fake Final
+        run: |
+          python - <<'PY'
+          import copy,importlib.util,json
+          from pathlib import Path
+          f=Path(".github/stock_diag/stock_szse_independent_raw_witness.py")
+          spec=importlib.util.spec_from_file_location("source_witness",f)
+          module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+          paths=["stock_szse_current_live_rebound_corpus.json","szse_1849_merged_source.json",
+                 "stock_szse_current_live_dated_341.json","stock_szse_current_live_ashare_event_review.json"]
+          original=[json.load(open(p,encoding="utf-8")) for p in paths]
+          assert module.verify(*original)["adjudication"]["final_gate"]=="FAIL"
+          mutations=[
+             ("forged raw response SHA",lambda a:a[1]["evidence"][0].__setitem__("raw_sha256","0"*64)),
+             ("forged article body SHA",lambda a:a[1]["evidence"][0].__setitem__("body_sha256","0"*64)),
+             ("missing independent reparse",lambda a:a[1]["evidence"].pop()),
+             ("duplicate live row",lambda a:a[0]["records"].append(copy.deepcopy(a[0]["records"][0]))),
+             ("changed current source",lambda a:a[0]["records"][0]["transport"].__setitem__("sha256","0"*64)),
+             ("forged raw independent count",lambda a:a[1].__setitem__("raw_response_sha256_unique",0)),
+             ("stale official source on different URL",lambda a:a[1]["evidence"][0].__setitem__("url","https://evil.example/")),
+             ("altered as-of state from notice",lambda a:a[3]["human_review_event_candidates"][0].__setitem__("actual_realized_transition","PASS")),
+             ("fabricated final business release",lambda a:a[3]["adjudication"].__setitem__("final_gate","PASS")),
+             ("missing actual A-share witness",lambda a:a[3]["human_review_event_candidates"].pop()),
+             ("forged review source hash",lambda a:a[3].__setitem__("input_live_source_sha256","f"*64)),
+             ("bad source article",lambda a:a[0]["records"][0].__setitem__("body_text_sha256","0"*64)),
+          ]
+          for name,alter in mutations:
+              a=copy.deepcopy(original);alter(a)
+              try:module.verify(*a)
+              except (ValueError,KeyError,TypeError):continue
+              raise AssertionError("FAIL OPEN: "+name)
+          print("STOCK INDEPENDENT REAL-SOURCE-BYTE SHA ADVERSARIAL 12/12 PASS")
+          PY
+      - name: Preserve raw cross-run witness and still-unverified PIT statuses
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: STOCK-SZSE-INDEPENDENT-RAW-EVENT-WITNESS-${{ github.sha }}
+          path: stock_szse_independent_full_raw_witness.json
+          if-no-files-found: warn
+          retention-days: 30
