@@ -74,4 +74,22 @@ with tempfile.TemporaryDirectory(prefix="stock-freeze-issue-identity-") as temp:
         reason, count,
     )
 
+# Legacy 32-gate Windows offline suite detected a second-order regression:
+# malformed but syntactically valid JSON top-level manifest caused a runtime
+# AttributeError when the new verifier accessed m.get("asof"). It must fail
+# closed with a normal (False, reason, 0) decision, never crash monitoring.
+for invalid in ("[]", "null", '"not-an-object"', "42"):
+    with tempfile.TemporaryDirectory(prefix="stock-bad-manifest-root-") as temp:
+        root = Path(temp)
+        issue, manifest = prepare(root)
+        (issue / "manifest.json").write_text(invalid, encoding="utf-8")
+        try:
+            ok, reason, count = verify_prediction_chain(root)
+        except Exception as exc:
+            raise AssertionError(
+                "UNHANDLED MANIFEST FORMAT: " + repr(invalid) + " " + type(exc).__name__
+            ) from exc
+        assert ok is False and count == 0 and reason, (
+            "FALSE EVIDENCE PASS for malformed manifest root", invalid, ok, reason, count)
+print("STOCK FROZEN MANIFEST INVALID ROOT TYPE 4/4 PASS")
 print("STOCK FROZEN ISSUE MANIFEST/DATE PROVENANCE 3/3 PASS")
