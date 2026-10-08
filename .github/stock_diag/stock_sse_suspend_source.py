@@ -91,8 +91,20 @@ def candidates(receipts):
     for receipt in receipts:
         text = receipt.get("text", "")
         # Technical query identifiers are evidence candidates ONLY; no JS is executed.
-        for match in re.finditer(r"(?:sqlId|SQLID|sqlid)\s*[:=]\s*['\"]([^'\"]+)['\"]", text):
+        for match in re.finditer(r"['\"]?(?:sqlId|SQLID|sqlid)['\"]?\s*[:=]\s*['\"]([^'\"]+)['\"]", text):
             result.append({"sql_id": match.group(1), "source_url": receipt["url"], "source_sha256": receipt["sha256"], "offset": match.start(), "context": text[max(0, match.start()-500):match.end()+1500]})
+    return result
+
+def source_contexts(receipts):
+    result = []
+    for receipt in receipts:
+        text = receipt.get("text", "")
+        count = 0
+        for match in re.finditer(r"COMMON_SSE|sqlId|SQLID|停复牌|suspension|searchDate|BEGIN_DATE|END_DATE|query\.sse", text, re.I):
+            result.append({"source_url": receipt["url"], "source_sha256": receipt.get("sha256"), "offset": match.start(), "context": text[max(0, match.start()-600):match.end()+1600]})
+            count += 1
+            if count >= 10:
+                break
     return result
 
 def self_test():
@@ -104,7 +116,8 @@ def self_test():
     assert parsed.urls == [urljoin(PAGE, "./actual.js"), "https://query.sse.com.cn/a.js"]
     assert decode("停复牌".encode("gb18030"), "text/html; charset=gb18030")[0] == "停复牌"
     assert candidates([{"url": PAGE, "sha256": "a"*64, "text": "sqlId: 'REAL_SOURCE_ID'"}])[0]["sql_id"] == "REAL_SOURCE_ID"
-    print("SSE FIRST-PARTY SOURCE DISCOVERY BOUNDARIES 9/9 PASS")
+    assert candidates([{"url": PAGE, "sha256": "b"*64, "text": '"sqlId": "REAL_QUOTED_ID"'}])[0]["sql_id"] == "REAL_QUOTED_ID"
+    print("SSE FIRST-PARTY SOURCE DISCOVERY BOUNDARIES 10/10 PASS")
 
 def discover(directory):
     directory.mkdir(parents=True, exist_ok=False)
@@ -128,6 +141,7 @@ def discover(directory):
         "scope": "actual official HTML/JS query-source discovery only",
         "receipts": [{k: v for k, v in receipt.items() if k != "text"} for receipt in receipts],
         "native_query_candidates": found,
+        "observed_technical_source_contexts": source_contexts(receipts),
         "query_parameter_semantics": "NOT VERIFIED",
         "historical_daily_state": "NOT VERIFIED",
         "SSE_SZSE_BSE_qualified_historical_pit": "NOT VERIFIED",
