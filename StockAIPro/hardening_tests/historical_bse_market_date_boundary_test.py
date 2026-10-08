@@ -85,8 +85,15 @@ check_invalid("2020-12-23", "830001", "bse_before_market_open")
 check_invalid("2021-11-14", "830001", "bse_before_market_open")
 check_valid_structure("2021-11-15", "830001")
 
-# First 6 BSE 920-code pilots activated 2025-05-06; remaining 242 on
-# 2025-10-09. These tests only impose an unambiguous earliest-day bound.
+# Official BSE 2024-04-19 rules: NEW 920-company listings begin in 2024,
+# whereas the 248 OLD legacy companies migrate in 2025 (6 May/242 Oct).
+# First confirmed BSE 920 IPO: Wanda Bearing 920002 on 2024-05-30.
+# Source: https://www.bse.cn/disclosure/2024/2024-05-27/1716806650_280194.pdf
+# Do NOT erase its original eligible day solely due to old-company conversion.
+check_valid_structure("2024-05-30", "920002")
+
+# First 6 EXISTING 920-code pilots switched 2025-05-06; other 242 on
+# 2025-10-09. Those dates are not a global 920 IPO boundary.
 check_invalid("2024-04-08", "920931", "bse_920_before_first_activation")
 check_invalid("2025-05-05", "920931", "bse_920_before_first_activation")
 check_valid_structure("2025-10-09", "920931")
@@ -98,5 +105,5 @@ check_valid_structure("2025-10-08", "830001")  # boundary only; not issuer proof
 check_invalid("2025-10-09", "830001", "bse_legacy_after_unified_switch")
 check_invalid("2026-09-30", "430001", "bse_legacy_after_unified_switch")
 
-assert len(cases) == 10, cases
-print("STOCK BSE IMPOSSIBLE HISTORICAL DATE BUSINESS TESTS 10/10 PASS")
+assert len(cases) == 11, cases
+print("STOCK BSE IMPOSSIBLE HISTORICAL DATE BUSINESS TESTS 11/11 PASS")
