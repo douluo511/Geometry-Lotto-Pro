@@ -90,7 +90,8 @@ jobs:
           assert d["total_asof_code_routing_witnesses"]==1984
           assert d["code_routing_status_counts"]=={
             "NOT_A_BSE_MARKET_DAY":496,
-            "EXCHANGE_ANNOUNCED_OLD_CODE_ROUTING":980,
+            "HISTORICAL_ALIAS_NOT_SOURCE_VERIFIED_ASOF":248,
+            "EXCHANGE_ANNOUNCED_OLD_CODE_ROUTING":732,
             "EXCHANGE_ANNOUNCED_NEW_920_CODE_ROUTING":508}
           assert all(row["historical_issuer_BSE_membership"]=="NOT VERIFIED"
                      and row["historical_SecurityType1_daily_master"]=="NOT VERIFIED"
