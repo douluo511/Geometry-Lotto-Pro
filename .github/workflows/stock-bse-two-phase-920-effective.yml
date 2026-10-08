@@ -1,0 +1,112 @@
+name: Stock BSE primary two-phase 920 code routing as-of dates
+on:
+  push:
+    branches:
+      - fix/stock-bse-two-phase-920-effective-20261008
+    paths:
+      - ".github/stock_diag/stock_bse_two_phase_920_effective.py"
+      - ".github/stock_diag/test_stock_bse_two_phase_920_effective.py"
+      - ".github/workflows/stock-bse-two-phase-920-effective.yml"
+  pull_request:
+    paths:
+      - ".github/stock_diag/stock_bse_two_phase_920_effective.py"
+      - ".github/stock_diag/test_stock_bse_two_phase_920_effective.py"
+      - ".github/workflows/stock-bse-two-phase-920-effective.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  two-phase-firstparty-BSE:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact dated BSE code-cutover contract
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Check exact code history and no product changes
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
+          git merge-base --is-ancestor 3541f5a0625378ac691d6c467ea4559c99fbdefd HEAD
+          git merge-base --is-ancestor 9969490c89ccb4cc10536f66416976c5bf40caef HEAD
+          test -z "$(git diff --name-only 9969490c89ccb4cc10536f66416976c5bf40caef..HEAD -- StockAIPro)"
+          echo "NO_STOCK_PRODUCT_BEHAVIOR_MUTATION=PASS"
+      - name: Pinned Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.11.9"
+          check-latest: false
+      - name: Pinned HTML and HTTPS libraries
+        run: python -m pip install --disable-pip-version-check --no-input "requests==2.34.2" "beautifulsoup4==4.15.0"
+      - name: 22/22 anti-ancestry-leakage and two-phase date offline controls
+        run: python .github/stock_diag/test_stock_bse_two_phase_920_effective.py
+      - name: Import original 248-firstparty-row BSE alias mapping, signed ZIP SHA
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location --retry 3 --retry-all-errors --connect-timeout 20 --max-time 120 \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            --header "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/11534539821/zip" \
+            --output official_current_bse_248_mapping.zip
+          echo "b3cd87028a7cdb812ca1403fc54bde429a0fc65fe426446cebfe404c95333e43  official_current_bse_248_mapping.zip" | sha256sum --check
+          unzip -oq official_current_bse_248_mapping.zip
+          test -f stock_bse_current_code_alias_evidence.json
+          test -f stock_bse_current_code_alias_raw.html
+      - name: Independently reparse original 248 current issuer alias firstparty bytes
+        run: |
+          python - <<'PY'
+          import importlib.util,json,hashlib
+          from pathlib import Path
+          f=Path(".github/stock_diag/stock_bse_code_alias_source.py")
+          spec=importlib.util.spec_from_file_location("native_firstparty",f)
+          mod=importlib.util.module_from_spec(spec);spec.loader.exec_module(mod)
+          j=json.load(open("stock_bse_current_code_alias_evidence.json",encoding="utf-8"))
+          raw=Path("stock_bse_current_code_alias_raw.html").read_bytes()
+          assert hashlib.sha256(raw).hexdigest()==j["raw_sha256"]
+          assert mod.parse(raw,j["attempts"][-1]["content_type"])==j["observed"]
+          assert (j["observed"]["rows_count"],j["observed"]["pre_BSE_original_listing_count"])==(248,68)
+          print("ACTUAL_ORIGINAL_248_BSE_CURRENT_MAPPING_NATIVE_HTML_REPARSE=PASS")
+          PY
+      - name: Fetch and validate THREE distinct actual official BSE phased activation bulletins
+        run: |
+          python .github/stock_diag/stock_bse_two_phase_920_effective.py \
+            --current stock_bse_current_code_alias_evidence.json \
+            --out stock_bse_248_two_phase_primary_asof.json \
+            --evidence bse_original_three_announcements
+      - name: Freeze all 248 past-code observations without invented ST or market membership
+        run: |
+          python - <<'PY'
+          import json
+          d=json.load(open("stock_bse_248_two_phase_primary_asof.json",encoding="utf-8"))
+          assert (d["source_current_alias_count"],d["pilot_count"],d["remaining_count"])==(248,6,242)
+          assert d["pilot_switch_effective_day_announced"]=="2025-05-06"
+          assert d["remaining_switch_effective_day_announced"]=="2025-10-09"
+          assert d["total_asof_code_routing_witnesses"]==1984
+          assert d["code_routing_status_counts"]=={
+            "NOT_A_BSE_MARKET_DAY":496,
+            "EXCHANGE_ANNOUNCED_OLD_CODE_ROUTING":980,
+            "EXCHANGE_ANNOUNCED_NEW_920_CODE_ROUTING":508}
+          assert all(row["historical_issuer_BSE_membership"]=="NOT VERIFIED"
+                     and row["historical_SecurityType1_daily_master"]=="NOT VERIFIED"
+                     and row["realized_daily_ST_suspension_or_trade"]=="NOT VERIFIED"
+                     and row["qualified_business_PIT"]=="NOT VERIFIED"
+                     for row in d["asof_issuer_code_routing_only"])
+          assert d["adjudication"]["final_gate"]=="FAIL"
+          print("TWO_PHASE_FIRSTPARTY_BSE_ASOF_CODE_ROUTING=PASS; ACTUAL_DAILY_ST_PIT=NOT VERIFIED")
+          PY
+      - name: Preserve raw first-party exchange bulletin bytes and exact date routing ledger
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: STOCK-BSE-248-PHASED-920-PRIMARY-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            bse_original_three_announcements/
+            stock_bse_248_two_phase_primary_asof.json
+          if-no-files-found: warn
+          retention-days: 30
