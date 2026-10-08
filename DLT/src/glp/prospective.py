@@ -14,7 +14,7 @@ from .constants import PROMOTION_POLICY
 from .domain import Draw, Prediction
 from .engine import make_prediction, model_identity, replay_prediction
 from .evidence import bootstrap_ci, permutation_p
-from .util import atomic_json, sha256_json, utc_now
+from .util import atomic_json, next_draw_date, next_issue, parse_date, sha256_json, utc_now
 
 
 PROTOCOL_VERSION = "dlt-prospective-only-v2-behavior-identity"
@@ -162,6 +162,59 @@ def _require_pre_draw_freeze(
         raise ValueError("late/post-draw prospective freeze: prediction created after registration")
     if registered.astimezone(DRAW_TIMEZONE).date() >= target:
         raise ValueError("late/post-draw prospective freeze: registered on/after China target date")
+
+
+def _validate_prediction_shape(prediction: Prediction) -> None:
+    """Reject malformed candidate lists/rankings before they become research evidence.
+
+    Hashing a malformed ranking only makes a malformed result immutable; it does
+    not make its denominator, score or claimed dan scientifically meaningful.
+    """
+    for name, picked, count, universe in (
+        ("front", prediction.front, 5, 35),
+        ("back", prediction.back, 2, 12),
+    ):
+        if (
+            not isinstance(picked, (tuple, list))
+            or len(picked) != count
+            or any(type(x) is not int for x in picked)
+            or sorted(picked) != list(picked)
+            or len(set(picked)) != count
+            or not all(1 <= x <= universe for x in picked)
+        ):
+            raise ValueError(f"prospective {name} combination malformed")
+        ranking = getattr(prediction, f"{name}_ranking")
+        if (
+            not isinstance(ranking, (tuple, list))
+            or len(ranking) != universe
+            or any(type(x) is not int for x in ranking)
+            or set(ranking) != set(range(1, universe + 1))
+        ):
+            raise ValueError(f"prospective {name} ranking invalid or incomplete")
+
+    if prediction.edge_state != "NO_EDGE" or prediction.dan_state != "NULL_DAN":
+        raise ValueError("prospective research cohort must stay NO_EDGE / NULL_DAN")
+
+    front_dan, back_dan = prediction.research_dan_front, prediction.research_dan_back
+    if (
+        not isinstance(front_dan, (tuple, list))
+        or len(front_dan) not in (1, 2)
+        or list(front_dan) != list(prediction.front_ranking[:len(front_dan)])
+    ):
+        raise ValueError("prospective front research dan does not match exact ranking")
+    if (
+        not isinstance(back_dan, (tuple, list))
+        or len(back_dan) != 1
+        or list(back_dan) != list(prediction.back_ranking[:1])
+    ):
+        raise ValueError("prospective back research dan does not match exact ranking")
+
+    for field in ("canonical_hash", "model_hash", "selector_hash", "score_hash"):
+        if not re.fullmatch(r"[0-9a-f]{64}", str(getattr(prediction, field))):
+            raise ValueError(f"prospective {field} must be SHA-256")
+    if not re.fullmatch(r"[0-9a-f]{20}", str(prediction.prediction_id)):
+        raise ValueError("prospective prediction_id must be 20 lowercase hex chars")
+    _require_utc_timestamp(prediction.created_at, "prediction creation")
 
 
 def _freeze_hash(payload: dict[str, Any]) -> str:
@@ -324,6 +377,11 @@ class ProspectiveLedger:
             raise ValueError("prospective research cohort must stay NO_EDGE / NULL_DAN")
         if prediction.target_date <= draws[-1].draw_date:
             raise ValueError("prospective target date is not after latest official draw")
+        _validate_prediction_shape(prediction)
+        expected_issue = next_issue(draws[-1].issue, draws[-1].draw_date)
+        expected_date = next_draw_date(parse_date(draws[-1].draw_date)).isoformat()
+        if prediction.target_issue != expected_issue or prediction.target_date != expected_date:
+            raise ValueError("prospective target issue/date inconsistent with canonical schedule")
 
         # Do not trust a stale-but-structurally-valid official baseline: its next
         # target may already have happened even if that issue is absent in draws.
@@ -395,6 +453,7 @@ class ProspectiveLedger:
             if expected != sha256_json(check):
                 raise ValueError(f"prospective freeze record hash mismatch: {file.name}")
             pred = Prediction(**value["prediction"])
+            _validate_prediction_shape(pred)
             _require_pre_draw_freeze(
                 registered_at=value.get("registered_at"),
                 prediction_created_at=pred.created_at,
