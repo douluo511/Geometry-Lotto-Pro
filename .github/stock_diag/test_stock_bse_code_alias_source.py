@@ -6,10 +6,12 @@ s=importlib.util.spec_from_file_location("bse_alias",Path(__file__).with_name("s
 m=importlib.util.module_from_spec(s);s.loader.exec_module(m)
 cases=[]
 
-def fixture(*rows, header=None):
+NOTE="注：由全国股转系统原精选层平移进入北交所的上市公司，上表中上市日期字段为其在原精选层的挂牌日期。"
+def fixture(*rows, header=None, note=NOTE):
     header=header or ["序号","证券简称","上市日期","旧代码","新代码"]
     part=lambda vals:"<tr>"+"".join("<td>"+str(x)+"</td>" for x in vals)+"</tr>"
-    return ("<html><body><table>"+part(header)+"".join(part(row) for row in rows)+"</table></body></html>").encode()
+    tail=('<tr><td colspan="5">'+note+'</td></tr>') if note is not None else ""
+    return ("<html><body><table>"+part(header)+"".join(part(row) for row in rows)+tail+"</table></body></html>").encode()
 early=("1","2020挂牌股份","2020/12/23","832000","920000")
 late=("2","无锡鼎邦","2024/4/8","872931","920931")
 VALID=fixture(early,late)
@@ -45,6 +47,8 @@ rejected("row sequence gap rejected",fixture(("2","股","2024/4/8","872931","920
 rejected("duplicate header table rejected",b"<html>"+VALID+VALID+b"</html>")
 rejected("extra column cannot silently be ignored",fixture(("1","股","2024/4/8","872931","920931","BAD")))
 rejected("missing row column rejected",fixture(("1","股","2024/4/8","872931")))
+rejected("missing official early-selected-tier historical-date note",fixture(early,late,note=None))
+rejected("changed official early-selected-tier historical-date note",fixture(early,late,note="注：上市日期均视为北交所上市日。"))
 class Response:
     def __init__(self,url,body,status=200,ctype="text/html; charset=utf-8"):
         self.url=url;self.content=body;self.status_code=status;self.headers={"Content-Type":ctype}
@@ -79,5 +83,5 @@ def malformed_source():
     out,_=m.fetch_and_review(Session(Response(m.URL,b"<html>missing table</html>")))
     assert out["actual_http_receipt"]=="NOT VERIFIED"
 passed("HTTP 200 without official table cannot be PASS",malformed_source)
-assert len(cases)==20,(len(cases),cases)
-print("STOCK BSE CURRENT ALIAS AS-OF CONTROLS 20/20 PASS")
+assert len(cases)==22,(len(cases),cases)
+print("STOCK BSE CURRENT ALIAS AS-OF CONTROLS 22/22 PASS")
