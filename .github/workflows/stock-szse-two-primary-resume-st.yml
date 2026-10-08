@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - fix/stock-szse-two-primary-resume-st-witnesses-20261008
+      - fix/stock-szse-primary-notice-date-source-binding-20261008
     paths:
       - ".github/stock_diag/stock_szse_two_primary_resume_st.py"
       - ".github/workflows/stock-szse-two-primary-resume-st.yml"
