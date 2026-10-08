@@ -1,0 +1,77 @@
+name: Stock BSE native securityinfo - equity/NEEQ anti-forgery
+on:
+  push:
+    branches: [diagnostic/stock-bse-source-native-equity-20261008]
+    paths:
+      - ".github/stock_diag/stock_bse_native_securityinfo.py"
+      - ".github/stock_diag/test_stock_bse_native_securityinfo.py"
+      - ".github/workflows/stock-bse-native-securityinfo-contract.yml"
+  pull_request:
+    paths:
+      - ".github/stock_diag/stock_bse_native_securityinfo.py"
+      - ".github/stock_diag/test_stock_bse_native_securityinfo.py"
+      - ".github/workflows/stock-bse-native-securityinfo-contract.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  native-stock-class-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact diagnostic SHA
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Freeze product-byte identity and source lineage
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
+          git merge-base --is-ancestor 9969490c89ccb4cc10536f66416976c5bf40caef HEAD
+          test -z "$(git diff --name-only 9969490c89ccb4cc10536f66416976c5bf40caef..HEAD -- StockAIPro)"
+          echo "STOCK_PRODUCT_BYTES_UNCHANGED=PASS"
+      - name: Setup pinned Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.11.9"
+          check-latest: false
+      - name: Falsify BSE stock classification, NEEQ leakage and source forgery
+        run: python .github/stock_diag/test_stock_bse_native_securityinfo.py
+      - name: Write machine-readable non-PIT verdict
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          out={
+            "schema":"stock-bse-native-xml-contract-only-v1",
+            "source_interface":"BSE/NEEQ 2023 section 3.1 bj_securityinfo_YYYYMMDD.xml",
+            "native_security_type_1":"BSE listed continuous-auction stock",
+            "native_security_types_2_3":"NEEQ excluded",
+            "offline_counterexamples":"PASS",
+            "offline_test_count":25,
+            "actual_first_party_xml_bytes_obtained":"NOT VERIFIED",
+            "native_official_gateway_access":"NOT VERIFIED",
+            "historical_full_BSE_listing_universe":"NOT VERIFIED",
+            "actual_snapshot_availability":"NOT VERIFIED",
+            "historical_BSE_ST_suspension_calendar":"NOT VERIFIED",
+            "SSE_SZSE_BSE_full_historical_pit":"NOT VERIFIED",
+            "advanced_business":"NOT VERIFIED",
+            "production_historical_st_pit":"NOT VERIFIED",
+            "final_gate":"FAIL",
+          }
+          Path("stock_bse_native_contract_only.json").write_text(
+            json.dumps(out,indent=2,sort_keys=True)+"\n",encoding="utf-8")
+          assert out["actual_first_party_xml_bytes_obtained"]=="NOT VERIFIED"
+          assert out["final_gate"]=="FAIL"
+          print("BSE_NATIVE_PARSER_OFFLINE_TESTS=PASS; ACTUAL_RAW_HISTORY=NOT VERIFIED; FINAL_GATE=FAIL")
+          PY
+      - name: Upload only offline schema verdict
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: STOCK-BSE-NATIVE-CONTRACT-NOT-PIT-${{ github.event.pull_request.head.sha || github.sha }}
+          path: stock_bse_native_contract_only.json
+          if-no-files-found: error
+          retention-days: 30
