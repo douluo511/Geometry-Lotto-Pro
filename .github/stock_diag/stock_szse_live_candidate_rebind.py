@@ -72,6 +72,7 @@ def rebind(frozen, docs, *, expected_total=TOTAL):
     if not isinstance(docs,dict) or len(docs)!=SHARDS:
         raise ValueError("missing live shard")
     live=[]
+    ordered_links=sorted(old,key=lambda x:(x[0],x[1]))
     for i in range(SHARDS):
         d=docs.get(i)
         if not isinstance(d,dict):
@@ -84,6 +85,10 @@ def rebind(frozen, docs, *, expected_total=TOTAL):
         rows=d.get("records")
         if not isinstance(rows,list) or len(rows)!=d.get("selected") or len(rows)!=d.get("pass") or d.get("nonpass")!=0:
             raise ValueError(f"incomplete_live_shard_{i}")
+        expected_shard_keys=set(ordered_links[i::SHARDS])
+        actual_shard_keys={(row.get("archive_date"),row.get("url")) for row in rows if isinstance(row,dict)}
+        if len(rows)!=len(actual_shard_keys) or actual_shard_keys!=expected_shard_keys:
+            raise ValueError(f"wrong_current_live_shard_assignment_{i}")
         if d.get("adjudication",{}).get("daily_st_suspension_pit")!="NOT VERIFIED" or d.get("adjudication",{}).get("final_gate")!="FAIL":
             raise ValueError("unearned_daily_pit_promotion")
         live.extend(rows)
