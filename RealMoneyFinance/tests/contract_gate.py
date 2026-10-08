@@ -3,7 +3,9 @@ from __future__ import annotations
 from pathlib import Path
 import json
 import tempfile
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
+
+from app.freshness import expected_latest_completed_session
 from types import SimpleNamespace
 
 from app.domain import DailyBar
@@ -26,7 +28,7 @@ class FakeClient:
             url=url,
         )
         rows = []
-        start = date(2026, 7, 1)
+        start = date.fromisoformat(expected_latest_completed_session()) - timedelta(days=39)
         for i in range(40):
             day = (start + timedelta(days=i)).isoformat()
             rows.append(f"{day},10,10.1,10.2,9.9,{1000+i},{100000+i*1000},1,1.0,0.1,{2.0+i/100}")
@@ -45,7 +47,7 @@ class FakeTencentClient:
             content_type_policy="provider-mislabeled-strict-json-body",
         )
         rows = []
-        start = date(2026, 7, 1)
+        start = date.fromisoformat(expected_latest_completed_session()) - timedelta(days=39)
         for i in range(40):
             day = (start + timedelta(days=i)).isoformat()
             rows.append([day, "10", "10.1", "10.2", "9.9", str(1000+i), {"meta": i}])
@@ -63,7 +65,7 @@ class FakeTencentFullClient:
             content_type_policy="strict-assignment-json",
         )
         rows = []
-        start = date(2026, 7, 1)
+        start = date.fromisoformat(expected_latest_completed_session()) - timedelta(days=39)
         for i in range(40):
             day = (start + timedelta(days=i)).isoformat()
             rows.append([
@@ -89,6 +91,8 @@ class FakeTencentFullPagedClient:
         start = date(year, 1, 1)
         for i in range(410):
             day_obj = start + timedelta(days=i)
+            if day_obj.isoformat() > expected_latest_completed_session():
+                continue
             day = day_obj.isoformat()
             ordinal = day_obj.toordinal()
             base = 10.0 + (ordinal % 1000) / 10000.0
@@ -137,7 +141,8 @@ class FakeYahooClient:
             content_type="application/json; charset=utf-8",
             content_type_policy="header-json",
         )
-        base = 1780000000
+        last = date.fromisoformat(expected_latest_completed_session())
+        base = int(datetime.combine(last - timedelta(days=39), datetime.min.time(), tzinfo=timezone.utc).timestamp())
         timestamps = [base + i * 86400 for i in range(40)]
         quote = {
             "open": [10 + i / 100 for i in range(40)],
