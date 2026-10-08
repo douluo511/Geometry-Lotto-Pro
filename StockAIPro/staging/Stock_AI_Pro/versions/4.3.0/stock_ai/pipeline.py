@@ -15,6 +15,7 @@ from .drift import feature_drift
 from .backup import maybe_snapshot
 from .valuation import refresh_valuation_histories
 from .decision import decide
+from .historical_pit import evaluate_historical_st_pit
 from .rnd import build_shadow_frame, run_rnd_cycle
 
 def _checkpoint(phase, logger, status="RUNNING"):
@@ -47,6 +48,26 @@ def _maintenance_business_status(maintenance):
     if maintenance.get("audit") not in ("PASS", "MEDIUM", "HIGH"):
         return "BLOCKED"
     return "PASS"
+
+
+def _enforce_pit_trade_gate(decision, pit_status, pit_reason):
+    """Keep research scores, but never label an unqualified PIT as TRADE.
+
+    The daily prediction Freeze is written after this guard. Historical
+    source authority must come from evaluate_historical_st_pit, not a
+    caller-controlled PASS field or a successful network/process exit.
+    """
+    guarded = dict(decision)
+    guarded["historical_pit_status"] = pit_status
+    if pit_status != "PASS":
+        guarded["decision"] = "NO_TRADE"
+        guarded["model_trust"] = "LOW"
+        reasons = list(guarded.get("reasons") or [])
+        why = "官方历史ST/停复牌PIT未验证，禁止交易：" + str(pit_reason)
+        if why not in reasons:
+            reasons.append(why)
+        guarded["reasons"] = reasons
+    return guarded
 
 
 def _run_locked(cfg,logger,force,run_maintenance):
@@ -93,7 +114,13 @@ def _run_locked(cfg,logger,force,run_maintenance):
         lambda:enrich_industries(top_codes,logger),
         _valuation,
     )
-    scored=add_scores(pred,snapshot,cfg,regime,industries); decision=decide(scored,cfg,regime,drift.get("status","PASS"),metrics.get("rank_ic")); portfolios=make_portfolios(scored,cfg,regime); rnd_shadow=build_shadow_frame(scored)
+    scored=add_scores(pred,snapshot,cfg,regime,industries)
+    decision=decide(scored,cfg,regime,drift.get("status","PASS"),metrics.get("rank_ic"))
+    # Enforce source-backed historical eligibility BEFORE an immutable
+    # prediction, trade decision or portfolio shortlist is frozen.
+    pit_status,pit_reason,_pit_meta=evaluate_historical_st_pit(ROOT,expected_trade_date=asof)
+    decision=_enforce_pit_trade_gate(decision,pit_status,pit_reason)
+    portfolios=make_portfolios(scored,cfg,regime); rnd_shadow=build_shadow_frame(scored)
     persist_model(models,weights,asof,metrics,cfg)
     summary={"version":"4.3.0-deliverable","asof":asof,"generated_at":now_iso(),"live_universe_size":len(snapshot),"research_master_size":len(master),"research_training_symbols":len(training_hist),"research_extra_symbols":extra_count,"dev_train_rows":len(dev),"production_train_rows":len(final_train),"validation_rows":len(valid),"model_names":metrics.get("model_names",[]),"horizon_days":h,"validation_embargo_days":h,"entry_assumption":"next_open","top_k":int(cfg["model"]["top_k"]),"market_regime":regime["regime"],"model_rank_ic":metrics.get("rank_ic"),"ensemble_mode":metrics.get("ensemble_mode","validation_dynamic"),"feature_drift":drift.get("status"),"bootstrap_coverage":bootstrap.get("coverage"),"delisted_coverage":bootstrap.get("delisted_coverage"),"valuation_history_coverage":valuation_status.get("coverage"),"spot_provider":str(snapshot["spot_provider"].mode().iloc[0]) if "spot_provider" in snapshot and not snapshot.empty else "unknown","history_provider_counts":upd.get("provider_counts",{}),"expected_trade_date":expected,"decision":decision["decision"],"model_trust":decision["model_trust"],"note":"评分是横截面相对排序，不是上涨概率。成本、估值和Net Alpha已进入同一生产决策链；历史估值覆盖不足时不会冒充已验证。"}
     data_quality=dict(live_quality); data_quality["feature_drift"]=drift
