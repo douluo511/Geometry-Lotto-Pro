@@ -31,4 +31,14 @@ with tempfile.TemporaryDirectory() as td:
     )
     assert "native_source_authority_unverified" in meta.get("failures", []), meta.get("failures")
 
-print("STOCK FORGED SELF-BOUND NATIVE-UNIVERSE BUSINESS GATE 1/1 PASS")
+    # A user-controlled claim may claim official verification or have
+    # SHA256-valid additional bytes. Neither is an independent native master.
+    claim["native_source_authority"] = "PASS"
+    claim["native_source_authority_verifier"] = "untrusted_self_attestation"
+    claim["full_historical_st_pit"] = "PASS"
+    old["write_claim"](root, claim)
+    fake_status, _, forged_meta = evaluate_historical_st_pit(root, "2026-09-30")
+    assert fake_status == "WARN", ("FALSE PASS self-asserted native authority",fake_status)
+    assert "native_source_authority_unverified" in forged_meta.get("failures", [])
+
+print("STOCK FORGED SELF-BOUND NATIVE-UNIVERSE BUSINESS GATE 2/2 PASS")
