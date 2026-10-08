@@ -33,11 +33,15 @@ jobs:
         run: python .github/stock_diag/stock_sse_suspend_source.py --self-test
       - name: Fetch actual official HTML and linked query scripts
         run: python .github/stock_diag/stock_sse_suspend_source.py --output "$RUNNER_TEMP/sse-source-discovery"
+      - name: Capture bounded historical native rows with complete pagination
+        run: python .github/stock_diag/stock_sse_suspend_source.py --capture-from "$RUNNER_TEMP/sse-source-discovery" --capture-output "$RUNNER_TEMP/sse-historical-capture"
       - name: Preserve exact official source receipts and raw bytes
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: STOCK-SSE-SOURCE-DISCOVERY-${{ env.SOURCE_SHA }}
-          path: ${{ runner.temp }}/sse-source-discovery
+          path: |
+            ${{ runner.temp }}/sse-source-discovery
+            ${{ runner.temp }}/sse-historical-capture
           retention-days: 30
           if-no-files-found: error
