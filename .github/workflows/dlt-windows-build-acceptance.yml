@@ -62,6 +62,12 @@ jobs:
           $env:PYTHONPATH = "$PWD\src"
           python -m unittest discover -s tests -p "test_background_103_compat.py" -v
 
+      - name: NO_EDGE uniform production and research-isolation regression
+        shell: pwsh
+        run: |
+          $env:PYTHONPATH = "$PWD\\src"
+          python -m unittest discover -s tests -p "test_no_edge_uniform_production.py" -v
+
       - name: External Final Gate authority regression
         shell: pwsh
         run: |
