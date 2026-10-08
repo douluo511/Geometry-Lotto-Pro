@@ -104,6 +104,15 @@ class Background103CompatibilityTests(unittest.TestCase):
         self.assertEqual(svc.predict_calls, 1)
         self.assertEqual(svc.update_calls, 2)
         self.assertEqual(first["research_dan_front"], [1, 2])
+        self.assertEqual(first["research_dan_back"], [1])
+
+    def test_background_cycle_rejects_wrong_back_dan_count(self):
+        svc = FakeService()
+        payload = svc.predict()["prediction"]
+        payload["research_dan_back"] = []
+        svc.store.freezes_by_issue[payload["target_issue"]] = Prediction(**payload)
+        with self.assertRaisesRegex(RuntimeError, "back research-dan length"):
+            background_cycle(svc)
 
     def test_old_one_dan_freeze_is_never_overwritten_by_two_dan_default(self):
         with tempfile.TemporaryDirectory(prefix="dlt-one-dan-compat-") as td:
