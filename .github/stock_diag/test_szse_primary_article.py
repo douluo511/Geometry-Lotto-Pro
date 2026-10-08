@@ -61,4 +61,47 @@ checks.append(check(
     False,
 ))
 assert len(checks) == 5
-print("SZSE PRIMARY ARTICLE 5/5 OFFLINE REGRESSION PASS")
+
+# Retry success must retain the original failure ledger; PASS is never invented.
+fetched = []
+slept = []
+def successful_retry(item):
+    fetched.append(item["url"])
+    return {"url": item["url"], "archive_date": item["date"], "status": "PASS",
+            "transport": {"status": "PASS", "sha256": "real-source-byte-hash"}}
+original = [
+    {"url": "https://www.szse.cn/detail/a", "archive_date": "2025-12-09",
+     "status": "NOT VERIFIED", "errors": [{"error": "Network is unreachable"}]},
+]
+replayed, meta = module.retry_unverified(
+    original, fetch_fn=successful_retry, sleep_fn=slept.append)
+assert meta["second_pass_recovered"] == 1 and len(fetched) == 1
+assert replayed[0]["first_pass"]["errors"][0]["error"] == "Network is unreachable"
+assert replayed[0]["recovery_attempted"] is True and replayed[0]["status"] == "PASS"
+checks.append("recovered request retains original failure")
+
+# A second network failure may never become a PASS.
+def failed_retry(item):
+    return {"url": item["url"], "archive_date": item["date"],
+            "status": "NOT VERIFIED", "errors": [{"error": "Network still unreachable"}]}
+again, status = module.retry_unverified(
+    [{"url": "https://www.szse.cn/detail/b", "archive_date": "2026-01-02",
+      "status": "NOT VERIFIED", "errors": [{"error": "initial error"}]}],
+    fetch_fn=failed_retry, sleep_fn=lambda _: None)
+assert status["second_pass_recovered"] == 0
+assert again[0]["status"] == "NOT VERIFIED"
+assert again[0]["first_pass"]["errors"][0]["error"] == "initial error"
+checks.append("unresolved retry is still NOT VERIFIED")
+
+# Reaching the bounded retry budget fails closed, rather than dropping rows.
+never_called = lambda item: (_ for _ in ()).throw(AssertionError("must not retry"))
+skipped, cap = module.retry_unverified([
+    {"url": "https://www.szse.cn/detail/1", "status": "NOT VERIFIED"},
+    {"url": "https://www.szse.cn/detail/2", "status": "NOT VERIFIED"},
+], fetch_fn=never_called, sleep_fn=lambda _: None, max_retry_items=1)
+assert cap["retry_cap_exceeded"] and cap["second_pass_attempted"] == 0
+assert all(row["status"] == "NOT VERIFIED" for row in skipped)
+checks.append("retry budget exhausted fails closed")
+
+assert len(checks) == 8
+print("SZSE PRIMARY ARTICLE + NETWORK REPLAY 8/8 OFFLINE REGRESSIONS PASS")
