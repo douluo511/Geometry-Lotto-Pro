@@ -46,6 +46,35 @@ def decode_response(r: requests.Response) -> str:
     return r.content.decode(enc, errors="replace")
 
 
+# Never count global navigation, footer, sidebar or arbitrary whole-page text
+# as first-party announcement content. Unrecognized layouts remain NOT VERIFIED.
+ARTICLE_SELECTORS = (
+    "article", "[itemprop='articleBody']", "#article", "#articleContent",
+    ".article-content", ".articleContent", ".news-content", "#news-content",
+    ".news-con", ".newsCon", ".u-content", ".m-con", ".content-article",
+    ".article", ".txt-content", ".content", "#content",
+)
+ARTICLE_TERMS = ("停牌", "复牌", "暂停交易", "恢复交易")
+
+
+def extract_primary_article(soup: BeautifulSoup) -> tuple[str, str | None]:
+    for selector in ARTICLE_SELECTORS:
+        for candidate in soup.select(selector):
+            # Work on an isolated copy: never mutate evidence used by title parsing.
+            scoped = BeautifulSoup(str(candidate), "html.parser")
+            for non_body in scoped.select(
+                "nav, header, footer, aside, script, style, form, "
+                ".breadcrumb, .breadcrumbs, .nav, .menu, .footer, "
+                ".related, .sidebar, .pagination"
+            ):
+                non_body.decompose()
+            body = re.sub(r"\s+", "", scoped.get_text("\n", strip=True))
+            # A generic container and a page title alone are not primary text.
+            if len(body) >= 25 and any(term in body for term in ARTICLE_TERMS):
+                return body, selector
+    return "", None
+
+
 def fetch_one(item: dict) -> dict:
     url = str(item["url"])
     errors = []
@@ -80,7 +109,7 @@ def fetch_one(item: dict) -> dict:
 
             text = decode_response(r)
             soup = BeautifulSoup(text, "html.parser")
-            compact = re.sub(r"\s+", "", soup.get_text("\n", strip=True))
+            compact, article_source = extract_primary_article(soup)
 
             title_candidates = []
             for tag in ("h1", "h2", "h3", "title"):
@@ -121,6 +150,8 @@ def fetch_one(item: dict) -> dict:
                 "transport": {**meta, "status": "PASS", "prior_errors": errors},
                 "title": title,
                 "title_candidates": title_candidates[:12],
+                "article_body_status": "PASS" if article_source else "NOT VERIFIED",
+                "article_source": article_source,
                 "body_text_chars": len(compact),
                 "body_text_sha256": sha256(compact.encode("utf-8")),
                 "security_codes": codes,
@@ -168,7 +199,12 @@ def main() -> int:
     passed = [x for x in records if x.get("status") == "PASS"]
     failed = [x for x in records if x.get("status") != "PASS"]
     title_ok = [x for x in passed if x.get("title")]
-    body_ok = [x for x in passed if int(x.get("body_text_chars") or 0) > 0]
+    body_ok = [
+        x for x in passed
+        if x.get("article_body_status") == "PASS"
+        and x.get("article_source")
+        and int(x.get("body_text_chars") or 0) >= 25
+    ]
     code_rows = [x for x in passed if x.get("security_codes")]
     stop_rows = [x for x in passed if x.get("stop_terms")]
     resume_rows = [x for x in passed if x.get("resume_terms")]
@@ -187,6 +223,8 @@ def main() -> int:
             "stop_terms": x.get("stop_terms"),
             "resume_terms": x.get("resume_terms"),
             "body_text_sha256": x.get("body_text_sha256"),
+            "article_body_status": x.get("article_body_status"),
+            "article_source": x.get("article_source"),
         }
         for x in records
     ]
@@ -232,7 +270,8 @@ def main() -> int:
         },
         "boundary": (
             "This stage validates primary SZSE detail-page transport and extracts literal title/body/code/stop-resume "
-            "semantics. It does not infer a daily suspension interval from publication dates or URL IDs. Effective "
+            "semantics from a named primary announcement DOM container only; page navigation and footer "
+            "do not qualify as article text. It does not infer a daily suspension interval from publication dates or URL IDs. Effective "
             "stop/resume dates and deterministic daily-state replay remain separate gates."
         ),
     }
