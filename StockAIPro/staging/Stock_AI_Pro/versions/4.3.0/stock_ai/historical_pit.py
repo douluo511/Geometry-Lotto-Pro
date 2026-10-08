@@ -15,10 +15,13 @@ HEX64 = re.compile(r"^[0-9a-f]{64}$")
 PASS = "PASS"
 WARN = "WARN"
 MARKET_LIFECYCLE_START = {"BSE": date(2021, 11, 15)}
-# The first 920-code stock pilots became active 2025-05-06, and remaining
-# BSE stock-code switches on 2025-10-09 (separate BSE official bulletins).
-# Earliest possible date is NECESSARY but NEVER proves actual market status.
-BSE_920_EARLIEST_ACTIVATION = date(2025, 5, 6)
+# BSE official new-company 920 issuance rules applied from 2024-04-22.
+# First independently published 920 *stock listing*: 920002, 2024-05-30.
+# This is NOT the 2025 switch of OLD legacy-listed BSE companies: six old
+# stocks migrated May 6, remaining 242 migrated Oct 9. Code shape / broad
+# earliest date cannot establish any individual issuer's as-of lifecycle.
+# Sources: BSE first-party rule 200021617 and original Wanda 920002 IPO.
+BSE_920_EARLIEST_ACTIVATION = date(2024, 5, 30)
 BSE_LEGACY_UNIFIED_SWITCH_DAY = date(2025, 10, 9)
 
 
@@ -51,9 +54,11 @@ def _market_for_code(code: str):
 def _impossible_market_code_day(market: str, code: str, day: date):
     """Reject objectively impossible exchange/code dates, never assert membership.
 
-    For 2025-05-06..2025-10-08, only six independently evidenced BSE pilots
-    used 920 codes. This earliest-day gate does NOT establish pilot identity,
-    daily BSE eligible stock membership, actual ST/suspension or full PIT.
+    New BSE issuers used 920 codes beginning 2024; the first independently
+    evidenced listed example is 920002 at 2024-05-30. Six OLD BSE companies
+    switched in May 2025, 242 remaining OLD companies in Oct 2025.
+    This global lower bound never qualifies per-code historical eligibility,
+    a legacy alias, actual daily trading, ST, suspension, or a full PIT.
     """
     if market == "BSE":
         if day < MARKET_LIFECYCLE_START["BSE"]:
