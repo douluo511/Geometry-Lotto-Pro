@@ -19,7 +19,7 @@ These checks are **necessary, not sufficient**: archived JSON digests do not ind
 
 ## Current-main staging authority — 2026-10-08
 
-This exact-current v2.1.5 research protocol is stacked on DLT business fixes #381, #383, #386 and #390, product candidate `6e4497ede87fb5dc0673e53aa0e993ef4674694c`. The independently validated PR #382 protocol source was for the older monorepo product and its cohort MUST NOT be inherited. It supersedes the stale product-code basis in draft PR #293. The new exact source/behavior fingerprint must start an independent prospective cohort; no historical replay can be inherited.
+This exact-current v2.1.6 research protocol is stacked on DLT business fixes #381, #383, #386 and #390, product candidate `b1051e320691a7b9798092f797751a2f13a4b1cc` (China UTC+08 pre-draw safety fix). The independently validated PR #382 protocol source was for the older monorepo product and its cohort MUST NOT be inherited. It supersedes the stale product-code basis in draft PR #293. The new exact source/behavior fingerprint must start an independent prospective cohort; no historical replay can be inherited.
 
 **STAGING / VALIDATION ONLY:** CI has read-only GitHub contents permissions, cannot push to the persistent prospective ledger, and only uploads temporary research evidence. Neither a CI SUCCESS nor an artifact is a qualified 30-replay cohort or a Final/independent release. An explicitly governed, fixed-source writer and persistent ledger must be separately reviewed before prospective collection counts. Production remains NO_EDGE / NULL_DAN / rho=0.
 
