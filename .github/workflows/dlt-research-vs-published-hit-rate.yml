@@ -1,0 +1,26 @@
+name: DLT research versus published hit-rate truth
+on:
+  pull_request:
+    paths:
+      - "DLT/src/glp/evidence.py"
+      - "DLT/src/glp/gui.py"
+      - "DLT/src/glp/constants.py"
+      - "DLT/tests/test_research_vs_published_hit_rate.py"
+      - ".github/workflows/dlt-research-vs-published-hit-rate.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  dual-scorecard-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Compile DLT real evidence module and adversarial tests
+        run: python -m compileall -q DLT/src/glp/evidence.py DLT/tests/test_research_vs_published_hit_rate.py
+      - name: Verify no research-score cherry-picking or false formal edge
+        env:
+          PYTHONPATH: DLT/src
+        run: python -m unittest discover -s DLT/tests -p 'test_research_vs_published_hit_rate.py' -v

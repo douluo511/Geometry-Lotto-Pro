@@ -59,6 +59,24 @@ class ProspectiveHitRateTruthTests(unittest.TestCase):
                                replay_prediction(pred, self.actual))
         self.assertEqual(self.valid_rows(), [])
 
+    def test_utc_prior_day_is_same_china_draw_day_and_must_be_rejected(self):
+        # China UTC+08: 2026-10-06 17:00 UTC = 2026-10-07 01:00.
+        # Previous UTC calendar date is NOT sufficient to prove pre-draw-day.
+        pred = self.freeze(created_at="2026-10-06T17:00:00Z")
+        self.store.save_replay(pred.prediction_id, self.actual.issue,
+                               replay_prediction(pred, self.actual))
+        self.assertEqual(
+            self.valid_rows(), [],
+            "FALSE SCIENTIFIC PASS: Chinese same-day Freeze counted from UTC date",
+        )
+
+    def test_last_minute_of_prior_china_day_remains_eligible(self):
+        # China UTC+08: 2026-10-06 15:59:59 UTC = 23:59:59 Oct 6.
+        pred = self.freeze(created_at="2026-10-06T15:59:59Z")
+        self.store.save_replay(pred.prediction_id, self.actual.issue,
+                               replay_prediction(pred, self.actual))
+        self.assertEqual(len(self.valid_rows()), 1)
+
     def test_tampered_replay_cannot_report_perfect_hit_rate(self):
         pred = self.freeze()
         wrong = replay_prediction(pred, self.actual)

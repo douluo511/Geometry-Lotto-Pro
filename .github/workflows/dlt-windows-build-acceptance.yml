@@ -74,6 +74,12 @@ jobs:
           $env:PYTHONPATH = "$PWD\\src"
           python -m unittest discover -s tests -p "test_prospective_hit_rate_truth.py" -v
 
+      - name: Research-versus-published hit-rate and anti-cherry-pick regression
+        shell: pwsh
+        run: |
+          $env:PYTHONPATH = "$PWD\\src"
+          python -m unittest discover -s tests -p "test_research_vs_published_hit_rate.py" -v
+
       - name: External Final Gate authority regression
         shell: pwsh
         run: |
