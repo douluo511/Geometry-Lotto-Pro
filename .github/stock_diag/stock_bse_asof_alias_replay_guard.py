@@ -66,10 +66,20 @@ def reject_false_asof(report:dict, raw:bytes, source) -> dict:
     stamped=report.get("retrieved_at_utc")
     try:
         retrieval=datetime.fromisoformat(stamped.replace("Z","+00:00"))
-        if retrieval.tzinfo is None:raise ValueError("time_zone_missing")
-        observed_day=retrieval.astimezone(timezone.utc).date()
+        if retrieval.tzinfo is None:
+            raise ValueError("report_observation_time_zone_missing")
+        # A historical/as-of source claim must be tied to the successful
+        # first-party HTTP attempt's own recorded clock instant, not a
+        # separately mutable report field. Equivalent UTC offsets are valid.
+        actual_receipt_raw=success.get("at_utc")
+        actual_receipt=datetime.fromisoformat(actual_receipt_raw.replace("Z","+00:00"))
+        if actual_receipt.tzinfo is None:
+            raise ValueError("successful_HTTP_receipt_time_zone_missing")
+        if retrieval.astimezone(timezone.utc)!=actual_receipt.astimezone(timezone.utc):
+            raise ValueError("asof_report_timestamp_not_bound_to_successful_HTTP_receipt")
+        observed_day=actual_receipt.astimezone(timezone.utc).date()
     except (AttributeError,ValueError,TypeError) as exc:
-        raise ValueError("snapshot_observation_time_invalid") from exc
+        raise ValueError("snapshot_observation_or_primary_receipt_time_invalid") from exc
     old_codes=set();new_codes=set();historical=[]
     for idx,row in enumerate(rows,1):
         if not isinstance(row,dict):
