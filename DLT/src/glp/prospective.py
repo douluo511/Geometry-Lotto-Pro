@@ -217,6 +217,20 @@ def _validate_prediction_shape(prediction: Prediction) -> None:
     _require_utc_timestamp(prediction.created_at, "prediction creation")
 
 
+def _verify_canonical_history_binding(draws: list[Draw], canonical_hash: str) -> None:
+    """Verify that a caller-supplied canonical digest actually describes its draws.
+
+    A purportedly official hash must not be blindly inherited through a Freeze:
+    otherwise a forged/stale history can be relabeled with an arbitrary hash.
+    """
+    if (
+        not isinstance(canonical_hash, str)
+        or not re.fullmatch(r"[0-9a-f]{64}", canonical_hash)
+        or sha256_json([d.to_dict() for d in draws]) != canonical_hash
+    ):
+        raise ValueError("prospective canonical history hash does not match actual draws")
+
+
 def _freeze_hash(payload: dict[str, Any]) -> str:
     value = json.loads(json.dumps(payload, ensure_ascii=False, sort_keys=True))
     value["freeze_hash"] = ""
@@ -358,6 +372,7 @@ class ProspectiveLedger:
         behavior_hash_override: str | None = None,
     ) -> dict[str, Any]:
         source_commit = _require_source_commit(source_commit)
+        _verify_canonical_history_binding(draws, canonical_hash)
         manifest = self.activate(
             source_commit,
             behavior_hash_override=behavior_hash_override,
@@ -743,6 +758,7 @@ def run_prospective_cycle(
         raise ValueError("prospective cycle requires chronological draws")
     if len({d.issue for d in draws}) != len(draws):
         raise ValueError("prospective cycle rejects duplicate issues")
+    _verify_canonical_history_binding(draws, canonical_hash)
 
     ledger = ProspectiveLedger(ledger_root)
     source_commit = _require_source_commit(source_commit)
