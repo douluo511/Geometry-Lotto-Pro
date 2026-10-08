@@ -1,3 +1,14 @@
+## Official actual-draw qualification firewall — 2026-10-08
+
+Replay score verification now requires **two separate evidence layers**:
+
+1. The immutable Freeze and Replay must be internally consistent: predicted rankings, actual intersections, seeded random baseline, reported effect and record hashes are recalculated.
+2. Before `qualification` or `status` can count a Replay, the replayed winning draw must **exactly match the current freshly verified official canonical draw** for the same issue, including issue, date, five front numbers and two back numbers.
+
+When no official canonical draws are supplied, the decision is `NOT_READY` with `OFFICIAL_ACTUALS_NOT_BOUND`, **zero qualified Replay count** and a separate unverified-record count, even if 30 self-reported scores appear positive. Missing official actuals, duplicate official issue IDs and mismatched draw bytes fail closed. The live official-source workflow passes the canonical draws to this gate and checks `official_actuals_bound=true`.
+
+This closes an important loophole: an attacker could previously forge a statistically flattering but internally consistent result, recompute all hashes and scores against the *forged* actual numbers, and have it counted. A hash certifies bytes only; an independently retrieved official draw certifies the outcome. The remaining gate still requires independent Git-committed pre-draw timestamps, cohort stability and sufficient future draws. No production promotion follows from this repair.
+
 ## Prospective time and replay-score firewall — 2026-10-08
 
 A canonical source report showing a still-unseen target issue is **not** proof that its draw has not already happened. A new immutable Freeze is eligible only when its UTC registration and creation timestamps are valid, the prediction existed before registration, and registration occurred **before the Chinese civil date of the target draw** (UTC+08). Because no independently verified same-day lottery cutoff-time contract has been established, same-day predictions are conservatively rejected from the qualified prospective cohort even when a ticket might still be purchasable. This is intentional fail-closed behavior; a future cutoff policy change must reset the behavior-bound cohort.
