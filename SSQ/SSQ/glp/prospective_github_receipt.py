@@ -68,9 +68,70 @@ def _validate_frozen_prediction_payload(
     freeze: dict[str, Any], target_issue: str, observed_at: datetime,
 ) -> tuple[dict[str, Any], str, str]:
     """Strict reusable payload gate for the live GitHub push and later re-fetch."""
-    prediction, commit, date_text = _validate_frozen_prediction_payload(
-        freeze, target_issue, observed_at,
-    )
+    if not isinstance(freeze, dict) or freeze.get("schema") != "ssq-prospective-freeze-v1":
+        raise ValueError("unexpected SSQ research freeze schema")
+    prediction = freeze.get("prediction")
+    if not isinstance(prediction, dict):
+        raise ValueError("missing frozen prediction payload")
+    date_text = prediction.get("target_date")
+    try:
+        target_date = date.fromisoformat(date_text)
+    except (ValueError, TypeError) as exc:
+        raise ValueError("invalid target date") from exc
+    if (
+        prediction.get("target_issue") != target_issue
+        or target_date.year != int(target_issue[:4])
+        or observed_at.astimezone(_UTC8).date() >= target_date
+        or _utc(prediction.get("created_at")) > observed_at
+    ):
+        raise ValueError("target mismatch or GitHub server attestation after draw-day cutoff")
+
+    for key in ("canonical_hash", "score_hash", "model_hash", "selector_hash"):
+        if not isinstance(prediction.get(key), str) or not _HEX64.fullmatch(prediction[key]):
+            raise ValueError(f"missing frozen prediction {key}")
+    commit = freeze.get("model_source_commit")
+    if not isinstance(commit, str) or not _HEX40.fullmatch(commit):
+        raise ValueError("model source commit not pinned")
+    if prediction.get("edge_state") != "NO_EDGE" or prediction.get("dan_state") != "NULL_DAN":
+        raise ValueError("research receipt cannot self-promote an unverified model")
+
+    front = prediction.get("front_ranking")
+    back = prediction.get("back_ranking")
+    if not isinstance(front, dict) or not isinstance(back, dict):
+        raise ValueError("missing complete model rankings")
+    fr, br = front.get("numbers"), back.get("numbers")
+    if (
+        not isinstance(fr, list)
+        or not isinstance(br, list)
+        or any(type(x) is not int for x in fr + br)
+        or len(fr) != FRONT_MAX
+        or set(fr) != set(range(1, FRONT_MAX + 1))
+        or len(br) != BACK_MAX
+        or set(br) != set(range(1, BACK_MAX + 1))
+        or prediction.get("front") != fr[:FRONT_PICK]
+        or prediction.get("back") != br[:BACK_PICK]
+    ):
+        raise ValueError("invalid frozen ranking permutation/combination")
+
+    score_hash = prediction["score_hash"]
+    if prediction.get("prediction_id") != sha256_json(
+        {"score_hash": score_hash, "created_for": target_issue}
+    )[:32]:
+        raise ValueError("frozen prediction id differs from score hash")
+    freeze_core = {
+        "prediction_id": prediction["prediction_id"],
+        "target_issue": target_issue,
+        "target_date": date_text,
+        "canonical_hash": prediction["canonical_hash"],
+        "model_hash": prediction["model_hash"],
+        "selector_hash": prediction["selector_hash"],
+        "score_hash": score_hash,
+        "edge_state": "NO_EDGE",
+        "dan_state": "NULL_DAN",
+    }
+    if prediction.get("freeze_hash") != sha256_json(freeze_core):
+        raise ValueError("frozen prediction hash mismatch")
+
     return prediction, commit, date_text
 
 def verify_github_freeze_receipt(
@@ -140,70 +201,9 @@ def verify_github_freeze_receipt(
         freeze = json.loads(raw)
     except (UnicodeError, ValueError) as exc:
         raise ValueError("malformed frozen SSQ prediction JSON") from exc
-    if not isinstance(freeze, dict) or freeze.get("schema") != "ssq-prospective-freeze-v1":
-        raise ValueError("unexpected SSQ research freeze schema")
-    prediction = freeze.get("prediction")
-    if not isinstance(prediction, dict):
-        raise ValueError("missing frozen prediction payload")
-    date_text = prediction.get("target_date")
-    try:
-        target_date = date.fromisoformat(date_text)
-    except (ValueError, TypeError) as exc:
-        raise ValueError("invalid target date") from exc
-    if (
-        prediction.get("target_issue") != target_issue
-        or target_date.year != int(target_issue[:4])
-        or observed_at.astimezone(_UTC8).date() >= target_date
-        or _utc(prediction.get("created_at")) > observed_at
-    ):
-        raise ValueError("target mismatch or GitHub server attestation after draw-day cutoff")
-
-    for key in ("canonical_hash", "score_hash", "model_hash", "selector_hash"):
-        if not isinstance(prediction.get(key), str) or not _HEX64.fullmatch(prediction[key]):
-            raise ValueError(f"missing frozen prediction {key}")
-    commit = freeze.get("model_source_commit")
-    if not isinstance(commit, str) or not _HEX40.fullmatch(commit):
-        raise ValueError("model source commit not pinned")
-    if prediction.get("edge_state") != "NO_EDGE" or prediction.get("dan_state") != "NULL_DAN":
-        raise ValueError("research receipt cannot self-promote an unverified model")
-
-    front = prediction.get("front_ranking")
-    back = prediction.get("back_ranking")
-    if not isinstance(front, dict) or not isinstance(back, dict):
-        raise ValueError("missing complete model rankings")
-    fr, br = front.get("numbers"), back.get("numbers")
-    if (
-        not isinstance(fr, list)
-        or not isinstance(br, list)
-        or any(type(x) is not int for x in fr + br)
-        or len(fr) != FRONT_MAX
-        or set(fr) != set(range(1, FRONT_MAX + 1))
-        or len(br) != BACK_MAX
-        or set(br) != set(range(1, BACK_MAX + 1))
-        or prediction.get("front") != fr[:FRONT_PICK]
-        or prediction.get("back") != br[:BACK_PICK]
-    ):
-        raise ValueError("invalid frozen ranking permutation/combination")
-
-    score_hash = prediction["score_hash"]
-    if prediction.get("prediction_id") != sha256_json(
-        {"score_hash": score_hash, "created_for": target_issue}
-    )[:32]:
-        raise ValueError("frozen prediction id differs from score hash")
-    freeze_core = {
-        "prediction_id": prediction["prediction_id"],
-        "target_issue": target_issue,
-        "target_date": date_text,
-        "canonical_hash": prediction["canonical_hash"],
-        "model_hash": prediction["model_hash"],
-        "selector_hash": prediction["selector_hash"],
-        "score_hash": score_hash,
-        "edge_state": "NO_EDGE",
-        "dan_state": "NULL_DAN",
-    }
-    if prediction.get("freeze_hash") != sha256_json(freeze_core):
-        raise ValueError("frozen prediction hash mismatch")
-
+    prediction, commit, date_text = _validate_frozen_prediction_payload(
+        freeze, target_issue, observed_at,
+    )
     return {
         "schema": "ssq-github-predraw-receipt-v1",
         "authority": "GITHUB_SERVER_RUN_PLUS_EXACT_COMMIT_BLOB",
