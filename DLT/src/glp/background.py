@@ -112,6 +112,8 @@ def background_cycle(service: LottoService | None = None) -> dict[str, Any]:
         DEFAULT_RESEARCH_DAN_FRONT_COUNT,
     }:
         raise RuntimeError("background freeze has unsupported front research-dan length")
+    if len(prediction.get("research_dan_back") or []) != DEFAULT_RESEARCH_DAN_BACK_COUNT:
+        raise RuntimeError("background freeze has unsupported back research-dan length")
 
     result = {
         "schema": "dlt-background-cycle-v1",
