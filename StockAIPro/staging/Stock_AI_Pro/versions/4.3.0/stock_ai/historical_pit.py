@@ -20,6 +20,15 @@ MARKET_LIFECYCLE_START = {"BSE": date(2021, 11, 15)}
 # Earliest possible date is NECESSARY but NEVER proves actual market status.
 BSE_920_EARLIEST_ACTIVATION = date(2025, 5, 6)
 BSE_LEGACY_UNIFIED_SWITCH_DAY = date(2025, 10, 9)
+# BSE issued 920 numbers for NEW IPOs from 2024-04-22, BEFORE the
+# 2025-05-06 six-company conversion of pre-existing stock identities.
+# Primary exchange authorities:
+# https://www.bse.cn/important_news/200021617.html (2024 rule)
+# https://www.bse.cn/issue_report_meeting/200021986.html (920002 actual IPO)
+# This is ONLY an independently named single-stock exception, NOT a complete
+# historical issuer register or a substitute for daily exchange-native evidence.
+BSE_NEW_920_CODE_LAUNCH = date(2024, 4, 22)
+BSE_PRE_PILOT_OFFICIAL_NEW_ISSUE_LISTINGS = {"920002": date(2024, 5, 30)}
 
 
 def _parse_day(value):
@@ -59,7 +68,13 @@ def _impossible_market_code_day(market: str, code: str, day: date):
         if day < MARKET_LIFECYCLE_START["BSE"]:
             return "bse_before_market_open"
         if str(code).startswith("92") and day < BSE_920_EARLIEST_ACTIVATION:
-            return "bse_920_before_first_activation"
+            if day < BSE_NEW_920_CODE_LAUNCH:
+                return "bse_920_before_2024_code_launch"
+            first_party_listing = BSE_PRE_PILOT_OFFICIAL_NEW_ISSUE_LISTINGS.get(str(code))
+            if first_party_listing is None:
+                return "bse_920_before_first_activation"
+            if day < first_party_listing:
+                return "bse_920_before_official_issuer_listing"
         if str(code).startswith(("4", "8")) and day >= BSE_LEGACY_UNIFIED_SWITCH_DAY:
             return "bse_legacy_after_unified_switch"
     return None
