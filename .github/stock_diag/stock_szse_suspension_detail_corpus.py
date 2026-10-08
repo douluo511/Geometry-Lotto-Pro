@@ -49,6 +49,7 @@ def decode_response(r: requests.Response) -> str:
 # Never count global navigation, footer, sidebar or arbitrary whole-page text
 # as first-party announcement content. Unrecognized layouts remain NOT VERIFIED.
 ARTICLE_SELECTORS = (
+    "#desContent", ".news-detail-con .des-content",
     "article", "[itemprop='articleBody']", "#article", "#articleContent",
     ".article-content", ".articleContent", ".news-content", "#news-content",
     ".news-con", ".newsCon", ".u-content", ".m-con", ".content-article",
@@ -60,6 +61,15 @@ ARTICLE_TERMS = ("停牌", "复牌", "暂停交易", "恢复交易")
 def extract_primary_article(soup: BeautifulSoup) -> tuple[str, str | None]:
     for selector in ARTICLE_SELECTORS:
         for candidate in soup.select(selector):
+            # Real first-party SZSE detail pages (2018/2020/2026 probes) put
+            # their official body in #desContent inside .news-detail-con, with
+            # a distinct .des-header .title. Never treat a similarly named
+            # navigation/sidebar div as a primary announcement.
+            if selector in ("#desContent", ".news-detail-con .des-content"):
+                wrapper = candidate.find_parent(class_="news-detail-con")
+                heading = wrapper.select_one(".des-header .title") if wrapper else None
+                if heading is None or not heading.get_text(strip=True):
+                    continue
             ancestor = candidate
             excluded = False
             while ancestor is not None:
