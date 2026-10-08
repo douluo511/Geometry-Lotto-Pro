@@ -41,7 +41,12 @@ jobs:
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           test "$(git -C historical-v215 rev-parse HEAD)" = "3711ddc778caa9592227a571ff877aca662b769c"
           test "$(git -C successor-v216 rev-parse HEAD)" = "825e4fc8b0a661a7ad5a42b77122965a1146b803"
-          git diff --quiet 825e4fc8b0a661a7ad5a42b77122965a1146b803 HEAD -- DLT .github/migration/dlt_export.py .github/workflows/dlt-independent-repo-export.yml .github/workflows/dlt-windows-build-acceptance.yml
+          # The checkouts are intentionally shallow and separate. Compare actual bytes,
+          # never ask the release-bridge checkout for a commit object it lacks.
+          diff -qr DLT successor-v216/DLT
+          for file in .github/migration/dlt_export.py .github/workflows/dlt-independent-repo-export.yml .github/workflows/dlt-windows-build-acceptance.yml; do
+            cmp "$file" "successor-v216/$file"
+          done
           echo "TWO_REAL_HISTORICAL_SOURCES=PASS"
       - name: Export ACTUAL previous version
         shell: bash
