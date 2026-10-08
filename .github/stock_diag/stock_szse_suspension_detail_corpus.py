@@ -49,6 +49,9 @@ def decode_response(r: requests.Response) -> str:
 # Never count global navigation, footer, sidebar or arbitrary whole-page text
 # as first-party announcement content. Unrecognized layouts remain NOT VERIFIED.
 ARTICLE_SELECTORS = (
+    # Verified 2026-06-26 first-party HTML: #desContent is nested below
+    # .news-detail-con; do not accept an identically named page-chrome node.
+    ".news-detail-con #desContent", ".news-detail-con .des-content",
     "article", "[itemprop='articleBody']", "#article", "#articleContent",
     ".article-content", ".articleContent", ".news-content", "#news-content",
     ".news-con", ".newsCon", ".u-content", ".m-con", ".content-article",
