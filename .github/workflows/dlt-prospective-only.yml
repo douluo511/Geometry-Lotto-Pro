@@ -126,6 +126,11 @@ jobs:
           assert status["dan_state"] == "NULL_DAN"
           assert status["production_rho"] == 0.0
           assert status["promotion_authorized"] is False
+          # Research eligibility needs a fresh official actual for every Replay.
+          # A self-consistent ledger without official draw binding cannot qualify.
+          assert status["official_actuals_bound"] is True
+          assert status["unverified_replay_files"] == 0
+          assert status["valid_replays"] == status["qualification"]["valid_replays"]
           assert status["qualification"]["decision"] in {
               "NOT_READY", "NO_EDGE", "PROSPECTIVE_EDGE_CANDIDATE"
           }
