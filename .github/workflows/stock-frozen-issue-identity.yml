@@ -1,0 +1,37 @@
+name: Stock Freeze Manifest/Issue Identity - FAIL-FIRST
+
+on:
+  pull_request:
+    paths:
+      - 'StockAIPro/staging/Stock_AI_Pro/versions/4.3.0/stock_ai/storage.py'
+      - 'StockAIPro/staging/Stock_AI_Pro/versions/4.3.0/PACKAGE_MANIFEST.json'
+      - 'StockAIPro/staging/Stock_AI_Pro/PACKAGE_MANIFEST.json'
+      - 'StockAIPro/hardening_tests/stock_frozen_issue_provenance_test.py'
+      - '.github/workflows/stock-frozen-issue-identity.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  immutable-evidence-falsification:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact candidate source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Setup Python 3.11.9
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11.9'
+      - name: Run synthetic manifest/date adversarial source contract
+        shell: bash
+        run: python StockAIPro/hardening_tests/stock_frozen_issue_provenance_test.py
+      - name: Distinguish narrow test from full acceptance
+        if: always()
+        run: |
+          echo 'SCOPE=STOCK_FROZEN_ISSUE_IDENTITY_ONLY'
+          echo 'REAL_OFFICIAL_PIT=NOT_VERIFIED'
+          echo 'INDEPENDENT_REPO=NOT_VERIFIED'
+          echo 'STOCK_FINAL_GATE=FAIL'

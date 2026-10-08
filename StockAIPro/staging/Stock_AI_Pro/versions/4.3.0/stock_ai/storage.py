@@ -1,5 +1,6 @@
 from __future__ import annotations
 import json, re, shutil
+from datetime import date
 from pathlib import Path
 from .config import ROOT
 from .utils import write_json, sha256_file, now_iso
@@ -87,9 +88,29 @@ def verify_prediction_chain(root: Path | None = None):
             m = json.loads((d / "manifest.json").read_text(encoding="utf-8"))
         except (OSError, ValueError) as e:
             return False, f"{d.name} manifest 无法读取: {e}", expected_seq - 1
+        # Bind immutable issue identity across directory, manifest and
+        # SHA-verified summary. A self-consistent payload hash is not enough
+        # to certify the claimed trading date or chronological chain.
+        try:
+            canonical_day = (
+                re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", d.name) is not None
+                and date.fromisoformat(d.name).isoformat() == d.name
+            )
+        except ValueError:
+            canonical_day = False
+        if not canonical_day:
+            return False, f"{d.name} 非规范交易日目录", expected_seq - 1
+        if m.get("asof") != d.name:
+            return False, f"{d.name} manifest.asof 与冻结目录不一致", expected_seq - 1
         payload_ok, payload_msg = verify_prediction_payloads(d, m)
         if not payload_ok:
             return False, f"{d.name}: {payload_msg}", expected_seq - 1
+        try:
+            summary = json.loads((d / "summary.json").read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, ValueError) as exc:
+            return False, f"{d.name} 冻结摘要无法读取: {type(exc).__name__}", expected_seq - 1
+        if not isinstance(summary, dict) or summary.get("asof") != d.name:
+            return False, f"{d.name} summary.asof 与冻结目录不一致", expected_seq - 1
         sequence = m.get("chain_sequence")
         if type(sequence) is not int or sequence != expected_seq:
             return False, f"{d.name} chain_sequence 不连续", expected_seq - 1
