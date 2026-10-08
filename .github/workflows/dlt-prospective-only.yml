@@ -1,0 +1,161 @@
+name: DLT Current-Product Prospective Read-Only Validation
+
+on:
+  pull_request:
+    paths:
+      # Any DLT model/source/evidence/service change must revalidate the prospective firewall.
+      - "DLT/**"
+      - "DLT/src/glp/prospective.py"
+      - "DLT/scripts/prospective_snapshot.py"
+      - "DLT/scripts/prospective_writer_auth.py"
+      - "DLT/tests/test_prospective_protocol.py"
+      - "DLT/tests/test_background_103_compat.py"
+      - "DLT/PROSPECTIVE_PROTOCOL.md"
+      - ".github/workflows/dlt-prospective-only.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dlt-prospective-ledger
+  cancel-in-progress: false
+
+jobs:
+  prospective-cycle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout exact protocol source head
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Exact source identity gate
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          echo "EXACT_PROTOCOL_SOURCE=$EXPECTED_SHA"
+
+      - name: Prospective writer authorization self-test
+        run: python DLT/scripts/prospective_writer_auth.py --self-test
+
+      - name: Resolve prospective writer authorization
+        id: writer-auth
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          HEAD_REF: ${{ github.head_ref }}
+          REF_NAME: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          auth="$(python DLT/scripts/prospective_writer_auth.py \
+            --event-name "$EVENT_NAME" \
+            --head-ref "$HEAD_REF" \
+            --ref "$REF_NAME")"
+          test "$auth" = "false" # no draft/CI run may authorize a ledger mutation
+          echo "authorized=$auth" >> "$GITHUB_OUTPUT"
+          echo "PROSPECTIVE_LEDGER_WRITER_AUTHORIZED=$auth"
+          echo "PROSPECTIVE_VALIDATION_ONLY=true"
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.11.9"
+
+      - name: Install pinned dependencies
+        run: python -m pip install --disable-pip-version-check -r DLT/requirements.txt
+
+      - name: Compile prospective protocol
+        run: python -m compileall -q DLT/src/glp/prospective.py DLT/scripts/prospective_snapshot.py
+
+      - name: Prospective protocol and 1.0.3 compatibility tests
+        env:
+          PYTHONPATH: DLT/src
+        run: |
+          python -m unittest DLT.tests.test_prospective_protocol -v
+          python -m unittest DLT.tests.test_background_103_compat -v
+
+      - name: Checkout persistent evidence ledger - validation only
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: evidence/dlt-prospective-ledger
+          path: prospective-ledger
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Execute live official prospective cycle
+        env:
+          GLP_SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          python DLT/scripts/prospective_snapshot.py \
+            --ledger-dir prospective-ledger/DLT/prospective_ledger
+
+      - name: Fail-closed prospective evidence schema
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+
+          p = Path("prospective-ledger/DLT/prospective_ledger/last_cycle.json")
+          x = json.loads(p.read_text(encoding="utf-8"))
+          live = x["live_source"]
+          status = x["status"]
+          freeze = x["freeze"]
+          cohort = x["cohort"]
+
+          assert x["cycle_source_commit"] == os.environ["EXPECTED_SHA"]
+          assert isinstance(x["behavior_hash"], str) and len(x["behavior_hash"]) == 64
+          assert cohort["behavior_hash"] == x["behavior_hash"]
+          assert cohort["protocol_spec"]["behavior_hash"] == x["behavior_hash"]
+          assert live["network_gate"] == "PASS"
+          assert live["freshness_gate"] == "PASS"
+          assert live["crosscheck_status"] == "PASS"
+          assert freeze["target_issue"] != live["latest_issue"]
+          assert freeze["research_only"] is True
+          assert freeze["production_rho"] == 0.0
+          assert freeze["promotion_authorized"] is False
+          assert freeze["prediction"]["edge_state"] == "NO_EDGE"
+          assert freeze["prediction"]["dan_state"] == "NULL_DAN"
+          assert len(freeze["prediction"]["research_dan_front"]) in {1, 2}
+          assert status["edge_state"] == "NO_EDGE"
+          assert status["dan_state"] == "NULL_DAN"
+          assert status["production_rho"] == 0.0
+          assert status["promotion_authorized"] is False
+          # Research eligibility needs a fresh official actual for every Replay.
+          # A self-consistent ledger without official draw binding cannot qualify.
+          assert status["official_actuals_bound"] is True
+          assert status["unverified_replay_files"] == 0
+          assert status["valid_replays"] == status["qualification"]["valid_replays"]
+          assert status["qualification"]["decision"] in {
+              "NOT_READY", "NO_EDGE", "PROSPECTIVE_EDGE_CANDIDATE"
+          }
+          if status["qualification"]["decision"] == "PROSPECTIVE_EDGE_CANDIDATE":
+              assert status["qualification"]["promotion_authorized"] is False
+              assert status["qualification"]["production_rho"] == 0.0
+          print("PROSPECTIVE_FAIL_CLOSED_SCHEMA=PASS")
+          PY
+
+      - name: Validation-only no-push credential guard
+        working-directory: prospective-ledger
+        shell: bash
+        run: |
+          set -euo pipefail
+          extra="$(git config --local --get-all http.https://github.com/.extraheader || true)"
+          test -z "$extra"
+          echo "LEDGER_WRITE_AUTHORIZED=false"
+          echo "LEDGER_PERSISTED_CREDENTIAL=false"
+
+      - name: Upload exact prospective evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: DLT-PROSPECTIVE-${{ github.event.pull_request.head.sha || github.sha }}
+          path: prospective-ledger/DLT/prospective_ledger
+          if-no-files-found: error
+          retention-days: 90
