@@ -46,7 +46,9 @@ def run_acceptance(result_file: str | None = None) -> int:
         "windows_runtime_gate": "UNKNOWN",
         "four_entry_gate": "UNKNOWN",
         "exact_package_gate": "UNKNOWN",
-        "final_release_gate": "NOT_PASS",
+        "exact_acceptance_gate": "FAIL",
+        "final_release_gate": "PENDING",
+        "validation_scope": "EXACT_EXE_SERVICE_CHECKS_ONLY",
     }
 
     def checkpoint(phase: str, detail=None) -> None:
@@ -133,7 +135,7 @@ def run_acceptance(result_file: str | None = None) -> int:
             report["exact_package_gate"] = "PASS" if bool(report["exe_sha256"]) else "FAIL"
 
             hard_fail = any(c["status"] != "PASS" for c in checks)
-            report["final_release_gate"] = "PASS" if (
+            report["exact_acceptance_gate"] = "PASS" if (
                 not hard_fail
                 and report["windows_runtime_gate"] == "PASS"
                 and report["four_entry_gate"] == "PASS"
@@ -141,6 +143,9 @@ def run_acceptance(result_file: str | None = None) -> int:
                 and report["scientific_gate"] == "PASS"
                 and report["exact_package_gate"] == "PASS"
             ) else "NOT_PASS"
+            # The executable cannot certify its own release. GUI, background,
+            # updater, repository independence and Same Hash are external gates.
+            report["final_release_gate"] = "PENDING"
     except Exception as exc:
         report["error"] = {"type": type(exc).__name__, "message": str(exc), "traceback": traceback.format_exc()}
     finally:
@@ -149,7 +154,7 @@ def run_acceptance(result_file: str | None = None) -> int:
         _write_json(result_file, report)
         print(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True))
 
-    return 0 if report["final_release_gate"] == "PASS" else 2
+    return 0 if report["exact_acceptance_gate"] == "PASS" else 2
 
 
 def main() -> int:
