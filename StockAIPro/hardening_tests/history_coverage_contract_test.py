@@ -70,6 +70,23 @@ def daily_invalid_cache(folder):
     assert status["covered_symbols"] == 0 and status["coverage"] == 0, status
 
 
+def independent_current_coverage(folder):
+    history = folder / "data" / "history"
+    history.mkdir(parents=True)
+    codes = [str(i).zfill(6) for i in range(1, 21)]
+    # Overall 18/20=90%, delisted 10/10=100%, current 8/10=80%.
+    for code in codes[:8] + codes[10:]:
+        canonical(code).to_csv(history / (code + ".csv"), index=False)
+    master = pd.DataFrame({"code": codes, "status": ["current"] * 10 + ["delisted"] * 10})
+    def unavailable(selected, *args, **kwargs):
+        return [(code, None, "fixture unavailable") for code in selected]
+    with patch.object(data_source, "ROOT", folder), \
+            patch.object(data_source, "_run_history_batch", side_effect=unavailable):
+        status = data_source.qualify_research_pool_coverage(master, CFG)
+    assert status["coverage"] == 0.90 and status["current_coverage"] == 0.80, status
+    assert status["qualification_status"] == "NOT VERIFIED", status
+
+
 def main():
     checks = []
     def run(name, action):
@@ -108,6 +125,7 @@ def main():
         run("qualification_cap_preserves_full_master", lambda: capped_coverage(folder / "qualified"))
         run("daily_cap_preserves_full_master", lambda: capped_coverage(folder / "daily", daily=True))
         run("daily_cache_counts_valid_payloads_only", lambda: daily_invalid_cache(folder / "invalid"))
+        run("current_population_keeps_its_own_ninety_percent_gate", lambda: independent_current_coverage(folder / "current-subpopulation"))
     report = {"schema": "stock-ai-history-coverage-contract-v1",
               "source_sha": __import__("os").environ.get("STOCK_SOURCE_SHA"),
               "status": "PASS" if all(x["status"] == "PASS" for x in checks) else "FAIL",
