@@ -43,6 +43,23 @@ jobs:
           check-latest: false
       - name: FAIL FIRST official 2024-05-30 920002 real IPO vs blanket 2025 boundary
         run: python StockAIPro/hardening_tests/historical_bse_market_date_boundary_test.py
+      - name: Calculate exact new staged Stock production source SHA and nested/root manifest hashes
+        shell: bash
+        run: |
+          python - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          base=Path("StockAIPro/staging/Stock_AI_Pro")
+          code=base/"versions/4.3.0/stock_ai/historical_pit.py"
+          inner=base/"versions/4.3.0/PACKAGE_MANIFEST.json"
+          outer=base/"PACKAGE_MANIFEST.json"
+          H=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
+          print("CURRENT_PRODUCTION_STOCK_HISTORICAL_PIT_SHA256="+H(code))
+          print("CURRENT_STAGED_INNER_MANIFEST_SHA256="+H(inner))
+          print("CURRENT_STAGED_OUTER_MANIFEST_SHA256="+H(outer))
+          print("INNER_MANIFEST_EXPECTED_CODE_HASH="+json.loads(inner.read_text())["files"]["stock_ai/historical_pit.py"])
+          print("OUTER_MANIFEST_EXPECTED_INNER_HASH="+json.loads(outer.read_text())["files"]["versions/4.3.0/PACKAGE_MANIFEST.json"])
+          PY
       - name: Fetch TWO original official BSE HTML primary sources, never synthetic pass
         shell: bash
         run: |
