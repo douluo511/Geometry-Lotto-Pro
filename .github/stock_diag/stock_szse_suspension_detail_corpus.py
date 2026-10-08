@@ -60,6 +60,19 @@ ARTICLE_TERMS = ("停牌", "复牌", "暂停交易", "恢复交易")
 def extract_primary_article(soup: BeautifulSoup) -> tuple[str, str | None]:
     for selector in ARTICLE_SELECTORS:
         for candidate in soup.select(selector):
+            ancestor = candidate
+            excluded = False
+            while ancestor is not None:
+                if getattr(ancestor, "name", None) in {"nav", "header", "footer", "aside"}:
+                    excluded = True
+                    break
+                classes = set(ancestor.get("class", [])) if hasattr(ancestor, "get") else set()
+                if classes & {"nav", "menu", "footer", "sidebar", "breadcrumb", "related"}:
+                    excluded = True
+                    break
+                ancestor = ancestor.parent
+            if excluded:
+                continue
             # Work on an isolated copy: never mutate evidence used by title parsing.
             scoped = BeautifulSoup(str(candidate), "html.parser")
             for non_body in scoped.select(
