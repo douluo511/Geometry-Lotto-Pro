@@ -55,6 +55,7 @@ jobs:
           inner_text=inner.read_text(encoding="utf-8")
           outer_text=outer.read_text(encoding="utf-8")
           old_inner=H(inner.read_bytes())
+          print("CURRENT_BSE_NEW_ISSUE_NESTED_MANIFEST_SHA256="+old_inner, flush=True)
           expected_outer_hash='5d82e07a2ec6915427bda880b2fd8e1a5596e45f5713ae36f10253496cc27612'
           if old_inner!=expected_outer_hash and old_inner not in outer_text:
               raise RuntimeError("nested staging manifest is not bound to root manifest")
