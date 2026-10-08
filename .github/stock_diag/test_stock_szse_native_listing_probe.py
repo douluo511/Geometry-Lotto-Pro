@@ -11,6 +11,9 @@ m=importlib.util.module_from_spec(spec)
 spec.loader.exec_module(m)
 cases=[]
 
+def assert_true(ok):
+    assert ok
+
 def check(name,fn):
     fn();cases.append(name)
 
@@ -99,7 +102,5 @@ bad,raw=m.fetch(m.PDF_URL,"PDF",session=FakeSession(FakeHTTP(m.PDF_URL,b"<html>f
 check("HTTP-200 non-PDF must not be valid listing proof",
       lambda:assert_true(bad["status"]=="NOT VERIFIED" and len(bad["attempts"])==3 and raw is None))
 
-def assert_true(ok):
-    assert ok
 assert len(cases)==19,cases
 print("SZSE FIRST-PARTY LISTING SOURCE FAULT CONTROLS 19/19 PASS")
