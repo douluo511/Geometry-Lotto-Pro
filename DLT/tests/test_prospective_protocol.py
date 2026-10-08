@@ -383,23 +383,61 @@ class ProspectiveProtocolTests(unittest.TestCase):
             self.assertIn(target_issue, second["new_replays"])
             self.assertNotEqual(second["freeze"]["target_issue"], target_issue)
 
-    def test_30_replay_gate_is_hard_and_never_self_promotes(self):
+    def test_rehashed_internally_consistent_false_actual_fails_against_official(self):
+        draws = _draws()
+        canonical = sha256_json([d.to_dict() for d in draws])
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            first = run_prospective_cycle(
+                draws, canonical, ledger_root=root,
+                source_commit=SOURCE_A, prediction_builder=FakeBuilder(),
+            )
+            target = first["freeze"]["target_issue"]
+            target_date = first["freeze"]["target_date"]
+            fake = Draw(target, target_date, (2, 7, 12, 17, 22), (2, 8))
+            real = Draw(target, target_date, (1, 6, 11, 16, 21), (1, 7))
+            ledger = ProspectiveLedger(root)
+            ledger.replay_available(draws + [fake])
+            # The fake replay is internally self-consistent and SHA-bound:
+            # the previous validation would incorrectly count it.
+            self.assertEqual(len(ledger.replay_records()), 1)
+            with self.assertRaisesRegex(ValueError, "differs from live official canonical"):
+                ledger.qualification(official_draws=draws + [real])
+            with self.assertRaisesRegex(ValueError, "differs from live official canonical"):
+                ledger.status(official_draws=draws + [real])
+
+    def test_30_replay_gate_requires_official_actuals_and_never_self_promotes(self):
         with tempfile.TemporaryDirectory() as td:
             ledger = ProspectiveLedger(Path(td))
             ledger.activate(SOURCE_A)
-            positive = {
-                "front_gain_vs_random": 0.2,
-                "back_gain_vs_random": 0.2,
-            }
-            ledger.replay_records = lambda _cohort=None: [dict(positive) for _ in range(29)]
-            not_ready = ledger.qualification()
+            official = _draws(30)
+            positive = [
+                {
+                    "target_issue": d.issue,
+                    "actual": d.to_dict(),
+                    "front_gain_vs_random": 0.2,
+                    "back_gain_vs_random": 0.2,
+                }
+                for d in official
+            ]
+            ledger.replay_records = lambda _cohort=None: positive[:29]
+            not_ready = ledger.qualification(official_draws=official)
             self.assertEqual(not_ready["decision"], "NOT_READY")
+            self.assertEqual(not_ready["valid_replays"], 29)
             self.assertFalse(not_ready["promotion_authorized"])
-            self.assertEqual(not_ready["production_rho"], 0.0)
 
-            ledger.replay_records = lambda _cohort=None: [dict(positive) for _ in range(30)]
-            qualified = ledger.qualification()
+            ledger.replay_records = lambda _cohort=None: positive
+            no_source = ledger.qualification()
+            self.assertEqual(no_source["decision"], "NOT_READY")
+            self.assertEqual(no_source["reason"], "OFFICIAL_ACTUALS_NOT_BOUND")
+            self.assertEqual(no_source["valid_replays"], 0)
+            self.assertEqual(no_source["unverified_replay_files"], 30)
+
+            # Artificial contract inputs exercise the statistical threshold,
+            # not real draw performance or a production edge verdict.
+            qualified = ledger.qualification(official_draws=official)
             self.assertEqual(qualified["decision"], "PROSPECTIVE_EDGE_CANDIDATE")
+            self.assertEqual(qualified["valid_replays"], 30)
             self.assertFalse(qualified["promotion_authorized"])
             self.assertEqual(qualified["production_rho"], 0.0)
 
