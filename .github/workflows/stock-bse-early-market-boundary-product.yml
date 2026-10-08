@@ -73,12 +73,14 @@ jobs:
           print("STOCK_STAGED_NESTED_CURRENT_SHA256="+old_inner)
           print("STOCK_ORIGINAL_IMMUTABLE_ARCHIVE_UNTOUCHED=true")
           PY
+      - name: Install pinned official HTTPS source client
+        run: python -m pip install --disable-pip-version-check --no-input "requests==2.34.2"
       - name: Verify first-party BSE 2024 new-issue code authority and original 920002 listing
         shell: bash
         run: |
           set -euo pipefail
           python - <<'PY'
-          import hashlib,html,json,re,urllib.request
+          import hashlib,html,json,re,requests
           from pathlib import Path
           from urllib.parse import urlparse
           original={
@@ -92,13 +94,16 @@ jobs:
           out=Path("stock_bse_official_2024_new_920_source");out.mkdir(exist_ok=True)
           ledger={}
           for key,url in original.items():
-              request=urllib.request.Request(url,headers={
-                  "User-Agent":"Mozilla/5.0","Accept":"text/html"})
-              with urllib.request.urlopen(request,timeout=35) as reply:
-                  raw=reply.read(3000001)
-                  resolved=reply.geturl()
-                  if reply.status!=200 or resolved!=url or len(raw)==0 or len(raw)>3000000:
-                      raise RuntimeError("first-party 2024 source not authentic: "+key)
+              response=requests.get(url,headers={
+                  "User-Agent":"Mozilla/5.0","Accept":"text/html"},
+                  timeout=(8,25),allow_redirects=True)
+              raw=response.content
+              resolved=response.url
+              if (response.status_code!=200 or resolved!=url
+                  or len(raw)==0 or len(raw)>3000000):
+                  raise RuntimeError("first-party 2024 source not authentic: "+
+                                     key+" HTTP="+str(response.status_code)+
+                                     " final="+str(resolved))
               page=html.unescape(re.sub(r"<[^>]*>","",raw.decode("utf-8","strict")))
               compact=re.sub(r"\s+","",page)
               for phrase in required[key]:
@@ -133,6 +138,7 @@ jobs:
           print("STOCK_STAGED_PRODUCT_SOURCE_AND_TWO_MANIFEST_SHA_BINDINGS=PASS")
           PY
       - name: Run thirteen actual false-PASS business counterexamples
+        if: always()
         run: python StockAIPro/hardening_tests/historical_bse_market_date_boundary_test.py
       - name: Run existing full historical PIT contract
         run: python StockAIPro/hardening_tests/historical_st_pit_contract_test.py
