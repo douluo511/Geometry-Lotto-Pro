@@ -1,0 +1,82 @@
+name: Stock BSE two real first-party current surfaces - no historical PIT
+on:
+  push:
+    branches: [diagnostic/stock-bse-current-two-source-code-crosscheck-20261008]
+    paths:
+      - ".github/stock_diag/stock_bse_current_two_source_check.py"
+      - ".github/stock_diag/test_stock_bse_current_two_source_check.py"
+      - ".github/workflows/stock-bse-two-official-current-surfaces.yml"
+  pull_request:
+    paths:
+      - ".github/stock_diag/stock_bse_current_two_source_check.py"
+      - ".github/stock_diag/test_stock_bse_current_two_source_check.py"
+      - ".github/workflows/stock-bse-two-official-current-surfaces.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  reconcile-native-current-claims:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - name: Checkout exact candidate head
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Preserve original stock code byte identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
+          git merge-base --is-ancestor 9969490c89ccb4cc10536f66416976c5bf40caef HEAD
+          test -z "$(git diff --name-only 9969490c89ccb4cc10536f66416976c5bf40caef..HEAD -- StockAIPro)"
+          echo "STOCK_PRODUCT_BYTES_IDENTICAL=PASS"
+      - name: Setup Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.11.9"
+          check-latest: false
+      - name: Install bounded first-party HTTP parser
+        run: python -m pip install --disable-pip-version-check --no-input "requests==2.34.2" "beautifulsoup4==4.15.0"
+      - name: Falsify cross-source missing counts and false historical identity
+        run: python .github/stock_diag/test_stock_bse_current_two_source_check.py
+      - name: Fetch two independently served CURRENT official BSE surfaces
+        shell: bash
+        run: |
+          set -euo pipefail
+          python .github/stock_diag/stock_bse_current_two_source_check.py \
+            --out stock_bse_current_two_source_witness.json --raw-dir stock_bse_filter2_raw
+      - name: Hold current source reconciliation below actual as-of issuer/PIT threshold
+        shell: bash
+        if: always()
+        run: |
+          set -euo pipefail
+          test -f stock_bse_current_two_source_witness.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path("stock_bse_current_two_source_witness.json").read_text(encoding="utf-8"))
+          assert d["alias_total"]==248
+          assert d["alias_pre_BSE_display_dates"]==68
+          assert d["filter2_query_total"]==len(d["joined"])
+          assert d["linked_current_query_rows"]+d["query_rows_without_mapping"]==d["filter2_query_total"]
+          assert d["linked_current_query_rows"]+d["unlinked_alias_rows"]==d["alias_total"]
+          assert d["adjudication"]["historic_complete_BSE_issuer_membership"]=="NOT VERIFIED"
+          assert d["adjudication"]["historical_920_alias_code_effective_date"]=="NOT VERIFIED"
+          assert d["adjudication"]["BSE_filter2_query_complete_listed_company_semantics"]=="NOT VERIFIED"
+          assert d["adjudication"]["final_gate"]=="FAIL"
+          assert not Path("historical_st_pit.json").exists()
+          print("TWO_CURRENT_BSE_SURFACES=PASS; BSE_ASOF_LIFECYCLE=NOT VERIFIED; FINAL_GATE=FAIL")
+          PY
+      - name: Upload exact first-party current HTTP receipts and raw bytes
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: STOCK-BSE-TWO-CURRENT-SURFACES-NOT-PIT-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            stock_bse_current_two_source_witness.json
+            stock_bse_alias_original_source.html
+            stock_bse_filter2_raw/**
+          if-no-files-found: warn
+          retention-days: 30
