@@ -868,6 +868,15 @@ def evaluate_historical_st_pit(root: Path, expected_trade_date=None):
     if market_failures:
         failures.append("market_coverage")
 
+    # SHA256 over self-authored normalized JSON is not a genuine exchange
+    # original SSE, SZSE or BSE native issuer master / historical ST source.
+    # Until three independent exchange-native historical masters and their
+    # day-by-security coverage have real source-bound validation, even fully
+    # self-consistent canonical/calendar/denominator bytes MUST NOT qualify.
+    # Missing historical notices never proves NORMAL/non-suspended. A claimed
+    # "verified" boolean inside the same untrusted JSON cannot lift this gate.
+    failures.append("native_source_authority_unverified")
+
     # Stable order makes machine evidence deterministic and easier to diff.
     failures = list(dict.fromkeys(failures))
 
