@@ -7,6 +7,7 @@ from statistics import median
 from typing import Iterable
 
 from .domain import DailyBar, validate_market_rows
+from .market_lineage import market_series_commitments, commitment_index_digest
 from .netclient import NetClient
 
 EASTMONEY_DATACENTER_URL = "https://datacenter-web.eastmoney.com/api/data/v1/get"
@@ -147,6 +148,20 @@ def verify_corporate_action_lineage(
         return {"status": "NOT VERIFIED", "reason": "source payload hash lineage is incomplete or malformed", **hashes}
     if hashes["qfq_payload_sha256"] == hashes["raw_payload_sha256"]:
         return {"status": "NOT VERIFIED", "reason": "qfq/raw payloads are not independently distinguishable", **hashes}
+
+    def source_hashes(meta):
+        values = meta.get("source_payload_sha256s", [meta.get("payload_sha256")])
+        return values if (isinstance(values,list) and values
+                         and all(isinstance(x,str) and re.fullmatch(r"[0-9a-f]{64}",x) for x in values)) else []
+    qfq_source_hashes = source_hashes(qfq_meta)
+    raw_source_hashes = source_hashes(raw_meta)
+    source_content_bound = bool(qfq_source_hashes and raw_source_hashes) and all(
+        row.provider == providers[kind] and row.raw_sha256 in payloads
+        for kind, source_rows, payloads in (("qfq",qfq,qfq_source_hashes),("raw",raw,raw_source_hashes))
+        for row in source_rows
+    )
+    qfq_commitments = market_series_commitments(qfq)
+    raw_commitments = market_series_commitments(raw)
 
     qmap = {x.trade_date: x for x in qfq}
     rmap = {x.trade_date: x for x in raw}
@@ -371,14 +386,43 @@ def verify_corporate_action_lineage(
             "calendar_days_after_ex_date": delta,
         })
 
+    # Preserve direct price observations around each announced action and each
+    # unexplained shift. These contexts diagnose the unchanged factor model;
+    # they never qualify an action or relax its frozen tolerances.
+    contexts = []
+    for label,pivot,event in (
+        [("announced_action",e["ex_dividend_date"],e) for e in valid_events]
+        + [("unexplained_shift",x["trade_date"],None) for x in unexplained]
+    ):
+        nearest = min(range(len(dates)),key=lambda i:abs((date.fromisoformat(dates[i])-date.fromisoformat(pivot)).days))
+        observations = []
+        for d in dates[max(0,nearest-5):min(len(dates),nearest+6)]:
+            qrow,rrow = qmap[d],rmap[d]
+            observations.append({
+                "trade_date":d,
+                "qfq_ohlc":{k:getattr(qrow,k) for k in ("open","high","low","close")},
+                "raw_ohlc":{k:getattr(rrow,k) for k in ("open","high","low","close")},
+                "qfq_minus_raw_ohlc":{k:float(getattr(qrow,k))-float(getattr(rrow,k)) for k in ("open","high","low","close")},
+                "qfq_payload_sha256":qrow.raw_sha256,"raw_payload_sha256":rrow.raw_sha256,
+                "factor_point":factor_points[dates.index(d)],
+            })
+        contexts.append({"kind":label,"pivot_date":pivot,"event":event,"observations":observations})
+
     unmatched_events = [e for i, e in enumerate(valid_events) if i not in used_events]
     observed_matching = bool(matched) and not unexplained
-    point_in_time = observed_matching and not unmatched_events and not invalid_notice_events
+    point_in_time = source_content_bound and observed_matching and not unmatched_events and not invalid_notice_events
     return {
         "status": "PASS" if point_in_time else "NOT VERIFIED",
         "point_in_time_lineage": "PASS" if point_in_time else "NOT VERIFIED",
         "observed_factor_event_matching_status": "PASS" if observed_matching else "NOT VERIFIED",
         "scope": "overlapping qfq/raw dates only; the consumer must bind the complete research window",
+        "source_content_bound": "PASS" if source_content_bound else "NOT VERIFIED",
+        "qfq_series_sha256": commitment_index_digest(qfq_commitments),
+        "raw_series_sha256": commitment_index_digest(raw_commitments),
+        "qfq_row_commitments": qfq_commitments,
+        "qfq_series_rows": len(qfq_commitments),
+        "qfq_source_payload_sha256s": qfq_source_hashes,
+        "raw_source_payload_sha256s": raw_source_hashes,
         "symbol": qfq[0].symbol,
         "overlap_start": dates[0],
         "overlap_end": dates[-1],
@@ -397,6 +441,7 @@ def verify_corporate_action_lineage(
         "matched_events": matched,
         "unexplained_changes": unexplained,
         "unmatched_valid_events": unmatched_events,
+        "action_factor_contexts":contexts,
         "invalid_notice_events": invalid_notice_events,
         "source_providers": providers,
         **hashes,

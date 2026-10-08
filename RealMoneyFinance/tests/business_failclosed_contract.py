@@ -54,8 +54,8 @@ class BusinessBoundaries(unittest.TestCase):
         evidence = self._valid_corporate_action_evidence()
         self.assertEqual(evidence["overlap_rows"], 150)
         got = qualify_research(
-            bars(300),
-            {"provider": "production_fixture", "qualification_scope": "production_real_network",
+            self._valid_corporate_action_research_rows(300),
+            {"provider": "tencent_public_full_kline", "payload_sha256":"b"*64, "qualification_scope": "production_real_network",
              "price_adjustment": "qfq"},
             corporate_action_evidence=evidence,
         )
@@ -275,8 +275,14 @@ class BusinessBoundaries(unittest.TestCase):
         self.assertEqual(meta["payload_sha256"], "e" * 64)
         self.assertEqual(client.params["reportName"], "RPT_SHAREBONUS_DET")
 
+    def _valid_corporate_action_research_rows(self, count=150):
+        return [replace(row, **{field:getattr(row,field)*(0.9 if i<80 else 1.0)
+                               for field in ("open","close","high","low")},
+                        provider="tencent_public_full_kline", raw_sha256="b"*64)
+                for i,row in enumerate(bars(count))]
+
     def _valid_corporate_action_evidence(self):
-        raw = bars(150)
+        raw = [replace(row,provider="tencent_public_full_kline",raw_sha256="c"*64) for row in bars(150)]
         change_index = 80
         qfq = []
         for i, row in enumerate(raw):
@@ -324,8 +330,8 @@ class BusinessBoundaries(unittest.TestCase):
         for broken in forged:
             with self.subTest(broken=broken):
                 got = qualify_research(
-                    bars(150),
-                    {"provider": "production_fixture", "qualification_scope": "production_real_network",
+                    self._valid_corporate_action_research_rows(),
+                    {"provider": "tencent_public_full_kline", "payload_sha256":"b"*64, "qualification_scope": "production_real_network",
                      "price_adjustment": "qfq"},
                     corporate_action_evidence=broken,
                 )
@@ -352,6 +358,34 @@ class BusinessBoundaries(unittest.TestCase):
                 self.assertEqual(len(evidence["invalid_notice_events"]), 1)
                 self.assertEqual(evidence["status"], "NOT VERIFIED")
 
+    def test_corporate_binding_rejects_wrong_payload_provider_or_numeric_feature(self):
+        evidence = self._valid_corporate_action_evidence()
+        rows = self._valid_corporate_action_research_rows()
+        meta = {"provider":"tencent_public_full_kline", "payload_sha256":"b"*64,
+                "qualification_scope":"production_real_network", "price_adjustment":"qfq"}
+        cases = [
+            ([replace(row,open=row.open+0.001) if i==30 else row for i,row in enumerate(rows)],meta),
+            ([replace(row,amount=row.amount+1) if i==30 else row for i,row in enumerate(rows)],meta),
+            ([replace(row,raw_sha256="c"*64) if i==30 else row for i,row in enumerate(rows)],meta),
+            ([replace(row,provider="foreign_provider") if i==30 else row for i,row in enumerate(rows)],meta),
+            (rows,{**meta,"payload_sha256":"c"*64}),
+            (rows,{**meta,"provider":"foreign_provider"}),
+            (rows,{**meta,"source_payload_sha256s":["b"*64,"c"*64]}),
+        ]
+        for actual,source in cases:
+            with self.subTest(source=source,content=actual[30]):
+                got = qualify_research(actual,source,corporate_action_evidence=evidence)
+                self.assertEqual(got["gates"]["corporate_action_adjustment"],"NOT VERIFIED")
+        for broken in (
+            {key:value for key,value in evidence.items() if key!="qfq_row_commitments"},
+            {**evidence,"qfq_series_sha256":"a"*64},
+            {**evidence,"qfq_series_rows":len(rows)+1},
+            {**evidence,"source_content_bound":"NOT VERIFIED"},
+        ):
+            with self.subTest(evidence=broken):
+                got = qualify_research(rows,meta,corporate_action_evidence=broken)
+                self.assertEqual(got["gates"]["corporate_action_adjustment"],"NOT VERIFIED")
+
     def test_corporate_action_requires_independent_event_and_factor_lineage(self):
         evidence = self._valid_corporate_action_evidence()
         self.assertEqual(evidence["status"], "PASS")
@@ -365,8 +399,8 @@ class BusinessBoundaries(unittest.TestCase):
         )
 
         got = qualify_research(
-            bars(150),
-            {"provider": "production_fixture", "qualification_scope": "production_real_network", "price_adjustment": "qfq"},
+            self._valid_corporate_action_research_rows(),
+            {"provider": "tencent_public_full_kline", "payload_sha256":"b"*64, "qualification_scope": "production_real_network", "price_adjustment": "qfq"},
             corporate_action_evidence=evidence,
         )
         self.assertEqual(got["gates"]["corporate_action_adjustment"], "PASS")
@@ -377,15 +411,15 @@ class BusinessBoundaries(unittest.TestCase):
         evidence = self._valid_corporate_action_evidence()
         broken = {**evidence, "event_payload_sha256": "short"}
         got = qualify_research(
-            bars(150),
-            {"provider": "production_fixture", "qualification_scope": "production_real_network", "price_adjustment": "qfq"},
+            self._valid_corporate_action_research_rows(),
+            {"provider": "tencent_public_full_kline", "payload_sha256":"b"*64, "qualification_scope": "production_real_network", "price_adjustment": "qfq"},
             corporate_action_evidence=broken,
         )
         self.assertEqual(got["gates"]["corporate_action_adjustment"], "NOT VERIFIED")
 
         got = qualify_research(
-            bars(150),
-            {"provider": "production_fixture", "qualification_scope": "production_real_network", "price_adjustment": "qfq"},
+            self._valid_corporate_action_research_rows(),
+            {"provider": "tencent_public_full_kline", "payload_sha256":"b"*64, "qualification_scope": "production_real_network", "price_adjustment": "qfq"},
             corporate_action_evidence={**evidence, "unexplained_factor_changes": 1},
         )
         self.assertEqual(got["gates"]["corporate_action_adjustment"], "NOT VERIFIED")
@@ -406,8 +440,8 @@ class BusinessBoundaries(unittest.TestCase):
         for forged in forged_cases:
             with self.subTest(forged=forged):
                 got = qualify_research(
-                    bars(150),
-                    {"provider": "production_fixture", "qualification_scope": "production_real_network",
+                    self._valid_corporate_action_research_rows(),
+                    {"provider": "tencent_public_full_kline", "payload_sha256":"b"*64, "qualification_scope": "production_real_network",
                      "price_adjustment": "qfq"},
                     corporate_action_evidence=forged,
                 )
@@ -440,24 +474,24 @@ class BusinessBoundaries(unittest.TestCase):
         for forged in forged_detail_cases:
             with self.subTest(detail_forged=forged):
                 got = qualify_research(
-                    bars(150),
-                    {"provider": "production_fixture", "qualification_scope": "production_real_network",
+                    self._valid_corporate_action_research_rows(),
+                    {"provider": "tencent_public_full_kline", "payload_sha256":"b"*64, "qualification_scope": "production_real_network",
                      "price_adjustment": "qfq"},
                     corporate_action_evidence=forged,
                 )
                 self.assertEqual(got["gates"]["corporate_action_adjustment"], "NOT VERIFIED")
 
         got = qualify_research(
-            bars(150),
-            {"provider": "production_fixture", "qualification_scope": "production_real_network",
+            self._valid_corporate_action_research_rows(),
+            {"provider": "tencent_public_full_kline", "payload_sha256":"b"*64, "qualification_scope": "production_real_network",
              "price_adjustment": "unadjusted"},
             corporate_action_evidence=evidence,
         )
         self.assertEqual(got["gates"]["corporate_action_adjustment"], "NOT VERIFIED")
 
         got = qualify_research(
-            bars(150),
-            {"provider": "production_fixture", "qualification_scope": "production_real_network",
+            self._valid_corporate_action_research_rows(),
+            {"provider": "tencent_public_full_kline", "payload_sha256":"b"*64, "qualification_scope": "production_real_network",
              "price_adjustment": "qfq", "symbol": "000001"},
             corporate_action_evidence=evidence,
         )
