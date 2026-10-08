@@ -85,6 +85,12 @@ check_invalid("2020-12-23", "830001", "bse_before_market_open")
 check_invalid("2021-11-14", "830001", "bse_before_market_open")
 check_valid_structure("2021-11-15", "830001")
 
+# FIRST-PARTY BSE counterexample to the mistaken global May 2025 gate:
+# https://www.bse.cn/important_news/200021617.html : new-issue 920 codes
+# authorized 2024-04-22; https://www.bse.cn/issue_report_meeting/200021986.html
+# confirms genuine 920002 (万达轴承) listed 2024-05-30.
+# This is only a proved single-issuer boundary; not a complete BSE master.
+check_valid_structure("2024-05-30", "920002")
 # First 6 BSE 920-code pilots activated 2025-05-06; remaining 242 on
 # 2025-10-09. These tests only impose an unambiguous earliest-day bound.
 check_invalid("2024-04-08", "920931", "bse_920_before_first_activation")
@@ -98,5 +104,5 @@ check_valid_structure("2025-10-08", "830001")  # boundary only; not issuer proof
 check_invalid("2025-10-09", "830001", "bse_legacy_after_unified_switch")
 check_invalid("2026-09-30", "430001", "bse_legacy_after_unified_switch")
 
-assert len(cases) == 10, cases
-print("STOCK BSE IMPOSSIBLE HISTORICAL DATE BUSINESS TESTS 10/10 PASS")
+assert len(cases) == 11, cases
+print("STOCK BSE IMPOSSIBLE HISTORICAL DATE BUSINESS TESTS 11/11 PASS")
