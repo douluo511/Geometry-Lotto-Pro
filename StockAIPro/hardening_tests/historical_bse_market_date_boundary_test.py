@@ -102,5 +102,14 @@ check_valid_structure("2025-10-08", "830001")  # boundary only; not issuer proof
 check_invalid("2025-10-09", "830001", "bse_legacy_after_unified_switch")
 check_invalid("2026-09-30", "430001", "bse_legacy_after_unified_switch")
 
-assert len(cases) == 11, cases
-print("STOCK BSE IMPOSSIBLE HISTORICAL DATE BUSINESS TESTS 11/11 PASS")
+# BSE native 920 new-security IDs have a THREE-digit 920 prefix, not
+# generic 92xxxx.  A 921/929 prefix must not silently enter an official BSE
+# issuer/ST PIT under the six-digit code-shape helper.
+for invalid in ("921001", "929999"):
+    assert pit._market_for_code(invalid) is None, (
+        "FALSE PASS: non-920 native BSE equity code classified as listed BSE: "+invalid)
+    cases.append("reject-non-920-prefix:"+invalid)
+assert pit._market_for_code("920002")=="BSE"
+cases.append("allow-920-prefix-structural-only")
+assert len(cases) == 14, cases
+print("STOCK BSE IMPOSSIBLE HISTORICAL DATE BUSINESS TESTS 14/14 PASS")
