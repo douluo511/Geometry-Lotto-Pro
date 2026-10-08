@@ -92,6 +92,8 @@ jobs:
           if($text -notmatch 'baseline manifest SHA is not the frozen transition baseline'){ throw "negative rejection reason mismatch: $text" }
           if(Test-Path -LiteralPath $badEvidence){ throw 'negative case unexpectedly emitted PASS-capable evidence' }
           Write-Host "TRANSITION_WRONG_BASELINE_REJECTION=PASS"
+          # Child's expected failure leaves LASTEXITCODE=1; the validated rejection is success.
+          exit 0
 
       - name: Upload transition plan evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
