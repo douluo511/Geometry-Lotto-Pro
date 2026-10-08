@@ -89,7 +89,7 @@ def negative_off_host(folder):
     result = one(folder, lambda url, **kwargs: Response("https://example.org/notice", VALID))
     assert result["status"] == "NOT VERIFIED"
     assert all("off-host" in a["error"] for a in result["attempts"])
-    assert not list(folder.iterdir())
+    assert not folder.exists()
     return result
 
 
@@ -144,6 +144,14 @@ def reject_archive(source, expected_error=None):
     raise AssertionError("untrusted archive unexpectedly accepted")
 
 
+def reject_bad_index(source, idx):
+    try:
+        m.run(source, idx, Path("no_write"), getter=None)
+    except ValueError:
+        return
+    raise AssertionError("invalid index accepted")
+
+
 original = m.ARCHIVE_SHA256
 archive = fake_archive()
 m.ARCHIVE_SHA256 = archive["corpus"]["canonical_sha256"]
@@ -178,16 +186,6 @@ try:
         check("100 first shard complete but global non-PASS", lambda: replay_100(archive, root / "shard0"))
         check("last shard always 49 of fixed 1849", lambda: final_49(archive, root / "shard18"))
         check("negative shard index rejected", lambda: reject_bad_index(archive, -1))
-except NameError as exc:
-    if "reject_bad_index" not in str(exc):
-        raise
-    def reject_bad_index(source, idx):
-        try:
-            m.run(source, idx, Path("no_write"), getter=None)
-        except ValueError:
-            return
-        raise AssertionError("invalid index accepted")
-    check("negative shard index rejected", lambda: reject_bad_index(archive, -1))
 finally:
     m.ARCHIVE_SHA256 = original
 
