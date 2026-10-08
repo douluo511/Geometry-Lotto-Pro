@@ -120,6 +120,16 @@ def fetch_one(item: dict) -> dict:
             if not same_szse(str(r.url)):
                 raise RuntimeError(f"detail redirect left official SZSE host: {r.url}")
 
+            # Forensic snapshots from *actual* batch-success source path: preserve
+            # exact first-party bytes, not a guessed article body or synthesized DOM.
+            # These samples cannot promote the full-corpus or historical PIT gates.
+            sample_names = {
+                "t20180102_507883.html": "stock_szse_primary_sample_20180102.html",
+                "t20260930_623154.html": "stock_szse_primary_sample_20260930.html",
+            }
+            for suffix, filename in sample_names.items():
+                if url.endswith("/" + suffix):
+                    Path(filename).write_bytes(r.content)
             text = decode_response(r)
             soup = BeautifulSoup(text, "html.parser")
             compact, article_source = extract_primary_article(soup)
