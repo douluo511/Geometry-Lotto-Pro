@@ -39,7 +39,8 @@ jobs:
             '.\scripts\updater_acceptance.ps1',
             '.\scripts\release_update_acceptance.ps1',
             '.\scripts\physical_gui_click_smoke.ps1',
-            '.\scripts\physical_gui_failure_smoke.ps1'
+            '.\scripts\physical_gui_failure_smoke.ps1',
+            '.\scripts\background_acceptance.ps1'
           )){
             $tokens=$null
             $errors=$null
@@ -54,6 +55,12 @@ jobs:
         run: |
           $env:PYTHONPATH = "$PWD\src"
           python -m unittest discover -s tests -p "test_restored_updater_contract.py" -v
+
+      - name: Restored 1.0.3 background compatibility regression
+        shell: pwsh
+        run: |
+          $env:PYTHONPATH = "$PWD\src"
+          python -m unittest discover -s tests -p "test_background_103_compat.py" -v
 
       - name: Source self-test
         shell: pwsh
@@ -155,6 +162,14 @@ jobs:
           Get-Content $out
           if ($r.status -ne "PASS") { throw "Exact EXE GUI construction gate failed" }
 
+      - name: Exact EXE detached 1800-second background continuity
+        shell: pwsh
+        run: |
+          .\scripts\background_acceptance.ps1 `
+            -MainExe ".\dist\Geometry_Lotto_Pro_DLT.exe" `
+            -EvidencePath ".\artifacts\background_acceptance.json" `
+            -TimeoutSeconds 1800
+
       - name: Physical GUI Click Smoke
         shell: pwsh
         run: |
@@ -199,6 +214,7 @@ jobs:
           $guiBackend = Get-Content artifacts\physical_gui_backend.json -Raw | ConvertFrom-Json
           $guiFailure = Get-Content artifacts\physical_gui_failure.json -Raw | ConvertFrom-Json
           $guiRepairFailure = Get-Content artifacts\physical_gui_repair_failure.json -Raw | ConvertFrom-Json
+          $background = Get-Content artifacts\background_acceptance.json -Raw | ConvertFrom-Json
           $repro = Get-Content artifacts\reproducible_main_build.json -Raw | ConvertFrom-Json
           $exe = Resolve-Path dist\Geometry_Lotto_Pro_DLT.exe
           $hash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLower()
@@ -228,6 +244,30 @@ jobs:
             }
           }
 
+          $backgroundChecks = $background.checks
+          $backgroundBound = (
+            $background.schema -eq 'dlt-background-acceptance-v1' -and
+            $background.status -eq 'PASS' -and
+            $background.github_sha -eq $env:GITHUB_SHA -and
+            $background.github_run_id -eq $env:GITHUB_RUN_ID -and
+            $background.exe_sha256 -eq $hash -and
+            [int]$background.production_poll_seconds -eq 1800 -and
+            $background.startup_mode -eq 'manual_app_launch_required_after_login' -and
+            $background.autostart_registered -eq $false -and
+            $backgroundChecks.launch_status -eq $true -and
+            $backgroundChecks.launch_shell_false -eq $true -and
+            $backgroundChecks.child_is_separate -eq $true -and
+            $backgroundChecks.exact_exe_hash_bound -eq $true -and
+            $backgroundChecks.parent_exit_observed -eq $true -and
+            $backgroundChecks.production_poll_1800 -eq $true -and
+            $backgroundChecks.startup_requires_manual_open -eq $true -and
+            $backgroundChecks.worker_completed_cycle -eq $true -and
+            $backgroundChecks.live_network_pass -eq $true -and
+            $backgroundChecks.next_prediction_frozen -eq $true -and
+            $backgroundChecks.default_two_front_dan -eq $true -and
+            $backgroundChecks.production_not_promoted -eq $true
+          )
+
           $ok = (
             $repositoryIndependence -eq 'PASS' -and
             $updaterProcess -eq 'PASS' -and
@@ -247,7 +287,8 @@ jobs:
             $gui.status -eq 'PASS' -and
             $guiBackend.status -eq 'PASS' -and
             $guiFailure.status -eq 'PASS' -and
-            $guiRepairFailure.status -eq 'PASS'
+            $guiRepairFailure.status -eq 'PASS' -and
+            $backgroundBound
           )
           $final = [ordered]@{
             schema = 'dlt-evidence-derived-final-gate-v2'
@@ -261,6 +302,7 @@ jobs:
             physical_gui_backend_gate = $guiBackend.status
             physical_gui_update_failclosed_gate = $guiFailure.status
             physical_gui_repair_failclosed_gate = $guiRepairFailure.status
+            background_1800_gate = $(if($backgroundBound){'PASS'}else{'FAIL'})
             same_hash_gate = $(if($repro.status -eq 'PASS' -and $repro.same_hash -eq $true -and $repro.primary_sha256 -eq $hash -and $repro.rebuild_sha256 -eq $hash){'PASS'}else{'FAIL'})
             updater_process = $updaterProcess
             updater_exact_exe = $updaterExactExe
