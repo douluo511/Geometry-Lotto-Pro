@@ -3,10 +3,42 @@ import json,subprocess,sys
 import pandas as pd
 import streamlit as st
 from stock_ai.config import ROOT,CODE_ROOT
+from stock_ai.historical_pit import evaluate_historical_st_pit
 
 def j(path,default=None):
     try:return json.loads(path.read_text(encoding='utf-8'))
     except Exception:return default
+
+def _effective_display_decision(frozen,last,freeze_asof,pit_status,pit_reason):
+    """Never promote historical immutable research Freeze into a trading signal.
+
+    All three must agree: official live historical PIT authority, currently
+    qualified daily business status, and the exact frozen issue/day provenance.
+    This is a display overlay; the original Freeze hash/bytes never change.
+    """
+    decision = dict(frozen) if isinstance(frozen, dict) else {}
+    current = isinstance(last, dict) and (
+        last.get("status") == "PASS"
+        and last.get("business_status") == "PASS"
+        and last.get("execution_status") == "PASS"
+        and last.get("asof") == freeze_asof
+    )
+    verified = (
+        current and pit_status == "PASS"
+        and decision.get("historical_pit_status") == "PASS"
+    )
+    decision["display_authority"] = "VERIFIED" if verified else "BLOCKED"
+    decision["display_pit_status"] = pit_status
+    if not verified:
+        decision["decision"] = "NO_TRADE"
+        decision["model_trust"] = "LOW"
+        reasons = list(decision.get("reasons") or [])
+        warning = "历史Freeze仅供研究，官方ST/停复牌PIT或当日业务证明未合格：" + str(pit_reason)
+        if warning not in reasons:
+            reasons.append(warning)
+        decision["reasons"] = reasons
+    return decision
+
 
 def main():
     st.set_page_config(page_title='Stock AI Pro 4.3',layout='wide')
@@ -14,8 +46,18 @@ def main():
     st.caption('评分是相对排序，不是上涨概率；软件不保证收益。')
     latest=ROOT/'predictions'/'latest'; last=j(ROOT/'state'/'last_run.json',{}) or {}; bootstrap=j(ROOT/'cache'/'bootstrap_status.json',{}) or {}; audit=j(ROOT/'reports'/'audit_report.json',{}) or {}; drift=j(ROOT/'reports'/'drift_report.json',{}) or {}; update=j(ROOT/'cache'/'last_update_status.json',{}) or {}; vs=j(ROOT/'cache'/'valuation_status.json',{}) or {}; rnd=j(ROOT/'reports'/'rnd_report.json',{}) or {}; chain=j(ROOT/'state'/'prediction_chain.json',{}) or {}; rnd_evidence=j(ROOT/'reports'/'rnd_evidence.json',{}) or {}; rnd_registry=j(ROOT/'reports'/'rnd_candidate_registry.json',{}) or {}
     if last.get('status')=='FAIL': st.error('最近一次自动流程失败：'+str(last.get('error','未知错误'))+'。当前显示最后一次有效冻结预测。')
+    if last.get('status')=='BLOCKED': st.warning('最近一次日常执行完成，但历史PIT业务证据仍被阻断；既有Freeze为研究记录，非交易建议。')
     if not latest.exists(): st.warning('尚无冻结预测。请运行 ONE_CLICK_START.bat 或 RUN_DAILY.bat。'); st.stop()
-    summary=j(latest/'summary.json',{}) or {}; regime=j(latest/'market_regime.json',{}) or {}; metrics=j(latest/'model_metrics.json',{}) or {}; dq=j(latest/'data_quality.json',{}) or {}; decision=j(latest/'decision.json',{}) or {}; pred=pd.read_csv(latest/'predictions.csv',dtype={'code':str})
+    summary=j(latest/'summary.json',{}) or {}; regime=j(latest/'market_regime.json',{}) or {}; metrics=j(latest/'model_metrics.json',{}) or {}; dq=j(latest/'data_quality.json',{}) or {}; frozen_decision=j(latest/'decision.json',{}) or {}; pred=pd.read_csv(latest/'predictions.csv',dtype={'code':str})
+    try:
+        pit_status,pit_reason,_=evaluate_historical_st_pit(ROOT,expected_trade_date=summary.get('asof'))
+    except Exception as err:
+        pit_status,pit_reason="WARN","官方历史PIT核验异常："+type(err).__name__
+    decision=_effective_display_decision(frozen_decision,last,summary.get('asof'),pit_status,pit_reason)
+    if decision["display_authority"]!="VERIFIED":
+        st.error("历史Freeze仅供研究；官方历史ST/停复牌PIT或当前业务状态未验证，禁止据此交易。")
+    if frozen_decision.get("decision")!=decision.get("decision"):
+        st.caption("原冻结文件完整保留；页面交易结论经独立来源验证后安全降级。")
     cols=st.columns(8); vals=[('交易日',summary.get('asof','-')),('决策',decision.get('decision',summary.get('decision','-'))),('市场',regime.get('regime','-')),('MODEL TRUST',decision.get('model_trust',audit.get('trust','待审计'))),('Rank IC',f"{metrics.get('rank_ic',0):.3f}" if metrics.get('rank_ic') is not None else '-'),('漂移',drift.get('status','待检查')),('研究池',f"{float(bootstrap.get('coverage',0))*100:.1f}%"),('估值PIT',f"{float(vs.get('coverage',0))*100:.1f}%")]
     for c,(k,v) in zip(cols,vals): c.metric(k,v)
     tabs=st.tabs(['今日Top20','股票诊断','三套组合','回测','估值与成本','模型审计','研发闭环','证据链','系统健康'])
