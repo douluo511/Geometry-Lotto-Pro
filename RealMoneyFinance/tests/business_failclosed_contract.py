@@ -34,6 +34,22 @@ def bars(count=150):
 
 class BusinessBoundaries(unittest.TestCase):
 
+    def test_corporate_evidence_must_bind_actual_research_price_content(self):
+        evidence = self._valid_corporate_action_evidence()
+        # Same dates, plausible provider/payload identity and qfq label, but the
+        # actual research prices are raw, while audited qfq pre-action prices
+        # were multiplied by0.9. Identity strings cannot certify other prices.
+        wrong_prices = [replace(row, provider="tencent_public_full_kline", raw_sha256="b"*64)
+                        for row in bars(150)]
+        got = qualify_research(
+            wrong_prices,
+            {"provider":"tencent_public_full_kline", "payload_sha256":"b"*64,
+             "qualification_scope":"production_real_network", "price_adjustment":"qfq"},
+            corporate_action_evidence=evidence,
+        )
+        self.assertEqual(got["gates"]["corporate_action_adjustment"], "NOT VERIFIED")
+
+
     def test_corporate_action_partial_window_cannot_qualify_full_research(self):
         evidence = self._valid_corporate_action_evidence()
         self.assertEqual(evidence["overlap_rows"], 150)
