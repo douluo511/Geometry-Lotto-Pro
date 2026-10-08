@@ -1,33 +1,27 @@
+"""Current-main DLT prospective STAGING: no PR/head can write the ledger.
+
+Account-authorized promotion requires a separately reviewed, version-frozen
+writer workflow. PlanOnly/live CI cannot mutate historical cohorts.
+"""
 from __future__ import annotations
 
 import argparse
 
 
-AUTHORIZED_BRANCH = "research/dlt-prospective-protocol-v2-20261006"
-
-
 def writer_authorized(event_name: str, head_ref: str, ref: str) -> bool:
-    event_name = str(event_name or "").strip()
-    head_ref = str(head_ref or "").strip()
-    ref = str(ref or "").strip()
-    if event_name == "pull_request":
-        return head_ref == AUTHORIZED_BRANCH
-    if event_name == "workflow_dispatch":
-        return ref == f"refs/heads/{AUTHORIZED_BRANCH}"
+    # Explicit deny-by-default. Never interpret PR branch names as authority.
     return False
 
 
 def _self_test() -> None:
-    assert writer_authorized("pull_request", AUTHORIZED_BRANCH, "refs/pull/293/merge")
-    assert not writer_authorized(
-        "pull_request", "fix/dlt-prospective-service-fingerprint-20261006", "refs/pull/306/merge"
+    probes = (
+        ("pull_request", "research/dlt-prospective-protocol-v2-20261006", "refs/pull/293/merge"),
+        ("pull_request", "research/dlt-current-main-prospective-readonly-20261008", "refs/pull/380/merge"),
+        ("workflow_dispatch", "", "refs/heads/main"),
+        ("workflow_dispatch", "", "refs/heads/research/dlt-current-main-prospective-readonly-20261008"),
+        ("push", "main", "refs/heads/main"),
     )
-    assert not writer_authorized("pull_request", "feature/untrusted", "refs/pull/999/merge")
-    assert writer_authorized(
-        "workflow_dispatch", "", f"refs/heads/{AUTHORIZED_BRANCH}"
-    )
-    assert not writer_authorized("workflow_dispatch", "", "refs/heads/main")
-    assert not writer_authorized("push", AUTHORIZED_BRANCH, f"refs/heads/{AUTHORIZED_BRANCH}")
+    assert all(not writer_authorized(*probe) for probe in probes)
 
 
 def main() -> int:
@@ -39,13 +33,9 @@ def main() -> int:
     args = parser.parse_args()
     if args.self_test:
         _self_test()
-        print("PROSPECTIVE_WRITER_AUTH_SELF_TEST=PASS")
+        print("PROSPECTIVE_READ_ONLY_AUTH_SELF_TEST=PASS")
         return 0
-    print(
-        "true"
-        if writer_authorized(args.event_name, args.head_ref, args.ref)
-        else "false"
-    )
+    print("true" if writer_authorized(args.event_name, args.head_ref, args.ref) else "false")
     return 0
 
 
