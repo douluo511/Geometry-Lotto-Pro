@@ -25,9 +25,18 @@ BSE_LEGACY_UNIFIED_SWITCH_DAY = date(2025, 10, 9)
 
 
 def _parse_day(value):
+    """Accept only the canonical as-of YYYY-MM-DD wire date or exact date objects.
+
+    date.fromisoformat also parses YYYYMMDD and ISO-week dates; admitting these
+    silently weakens official market-calendar and effective-event contracts.
+    """
+    if type(value) is date:
+        return value
+    if not isinstance(value, str) or re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", value) is None:
+        return None
     try:
-        return date.fromisoformat(str(value))
-    except Exception:
+        return date.fromisoformat(value)
+    except ValueError:
         return None
 
 
