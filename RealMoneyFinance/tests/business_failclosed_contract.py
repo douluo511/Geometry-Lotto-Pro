@@ -34,6 +34,33 @@ def bars(count=150):
 
 class BusinessBoundaries(unittest.TestCase):
 
+    def test_cash_offset_source_shape_must_match_without_becoming_historical_pit(self):
+        raw = [replace(row,high=row.open+2,low=row.open-2,
+                       provider="tencent_public_full_kline",raw_sha256="c"*64) for row in bars(300)]
+        ex_date = "2025-07-16"
+        qfq = [replace(row,**{field:getattr(row,field)-(0.41 if row.trade_date<ex_date else 0)
+                              for field in ("open","close","high","low")},raw_sha256="b"*64) for row in raw]
+        event = {"symbol":"600000","plan_notice_date":"2025-03-29","ex_dividend_date":ex_date,
+                 "pretax_bonus_rmb":4.1,"bonus_ratio":0.0,"transfer_ratio":0.0}
+        official = {"symbol":"600000","ex_dividend_date":ex_date,"cash_per_share":0.41,
+                    "cash_unit":"CNY_PER_SHARE","published_date":"2025-07-09",
+                    "url":"https://news.spdb.com.cn/investor_relation/company_report/202507/P020250709652132836194.pdf",
+                    "payload_sha256":"e"*64,"document_cash_match":"PASS","document_date_match":"PASS",
+                    "historical_asof_availability":"NOT VERIFIED"}
+        evidence = verify_corporate_action_lineage(
+            qfq,raw,[event],
+            {"provider":"tencent_public_full_kline","price_adjustment":"qfq","payload_sha256":"b"*64,
+             "adjustment_model_contract":"tencent_600000_cash_offset_v1"},
+            {"provider":"tencent_public_full_kline","price_adjustment":"unadjusted","payload_sha256":"c"*64},
+            {"provider":"eastmoney_share_bonus_datacenter","payload_sha256":"d"*64,
+             "cash_unit":"CNY_PER_10_SHARES","official_cash_action_evidence":[official]},
+        )
+        observed = evidence.get("adjustment_matching_status",evidence.get("observed_factor_event_matching_status"))
+        self.assertEqual(observed,"PASS")
+        self.assertEqual(evidence["point_in_time_lineage"],"NOT VERIFIED")
+        self.assertEqual(evidence["status"],"NOT VERIFIED")
+
+
     def test_corporate_evidence_must_bind_actual_research_price_content(self):
         evidence = self._valid_corporate_action_evidence()
         # Same dates, plausible provider/payload identity and qfq label, but the
