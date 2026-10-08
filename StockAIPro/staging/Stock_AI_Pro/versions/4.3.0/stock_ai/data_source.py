@@ -725,8 +725,13 @@ def _history_cache_entry_valid(path: Path, code: str, cfg: dict | None = None) -
         minimum = max(30, int(cfg.get("model", {}).get("min_history_days", 240)))
         if len(frame) < minimum or not required.issubset(frame.columns):
             return False
-        dates = frame["date"]
-        if dates.isna().any() or dates.duplicated().any() or not dates.is_monotonic_increasing:
+        dates = pd.to_datetime(frame["date"], errors="coerce")
+        if (
+            dates.isna().any() or dates.duplicated().any()
+            or not dates.is_monotonic_increasing
+            or not dates.eq(dates.dt.normalize()).all()
+            or dates.dt.date.gt(datetime.now().date()).any()
+        ):
             return False
         symbols = frame["code"]
         if symbols.isna().any() or not symbols.astype(str).eq(str(code)).all():
@@ -855,7 +860,11 @@ def qualify_research_pool_coverage(master: pd.DataFrame, cfg: dict, logger=None)
 
     while True:
         snap = _research_coverage_snapshot(m, validated_existing)
-        if snap["coverage"] >= target and snap["delisted_coverage"] >= delisted_target:
+        if (
+            snap["coverage"] >= target
+            and (not snap["current_target"] or snap["current_coverage"] >= target)
+            and snap["delisted_coverage"] >= delisted_target
+        ):
             return persist(snap, "PASS")
         if time.monotonic() - started >= max_seconds:
             return persist(snap, "NOT VERIFIED")

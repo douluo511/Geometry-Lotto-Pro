@@ -233,20 +233,54 @@ def _reality_check(hist: pd.DataFrame, trials: int, seed=4242):
         if stat>=observed:exceed+=1
     return {"status":"PASS","p_value":float((exceed+1)/(int(trials)+1)),"paired_points":int(n),"observed_max_mean_improvement":observed}
 
-def _seed_window_stability(diff, trials, minpts, seeds, windows):
-    a=pd.Series(diff).dropna().astype(float)
-    checks=[]
-    for window in windows:
-        w=int(window)
-        sample=a.tail(min(len(a),w)) if w>0 else a
-        if len(sample)<minpts:
-            checks.append({"window":w,"status":"WAITING","n":int(len(sample))})
-            continue
-        for seed in seeds:
-            lo,hi=_bootstrap_ci(sample,trials,int(seed))
-            checks.append({"window":w,"seed":int(seed),"n":int(len(sample)),"ci":[lo,hi],"status":"PASS" if lo is not None and lo>0 else "FAIL"})
-    evaluated=[x for x in checks if x["status"]!="WAITING"]
-    return {"status":"PASS" if evaluated and all(x["status"]=="PASS" for x in evaluated) else "FAIL","checks":checks}
+def _seed_window_stability(diff, trials, minpts, seeds, windows, signal_dates=None):
+    """Qualify every declared window using distinct actual paired signal dates."""
+    try:
+        values = pd.to_numeric(pd.Series(diff), errors="coerce").reset_index(drop=True)
+        dates = pd.to_datetime(pd.Series(signal_dates), errors="coerce").reset_index(drop=True)
+        required_windows = [int(w) for w in windows]
+        required_seeds = [int(seed) for seed in seeds]
+        minpts = int(minpts)
+        if signal_dates is None or len(dates) != len(values):
+            raise ValueError("actual paired signal dates are required for every observation")
+        if dates.isna().any():
+            raise ValueError("paired signal dates must be valid")
+        dates = dates.dt.normalize()
+        if dates.duplicated().any() or not dates.is_monotonic_increasing:
+            raise ValueError("paired signal dates must be distinct and chronological")
+        if dates.gt(pd.Timestamp.now().normalize()).any():
+            raise ValueError("future signal dates cannot qualify realized windows")
+        if not np.isfinite(values.to_numpy(dtype=float)).all():
+            raise ValueError("paired observations must be finite")
+        if minpts < 1 or int(trials) < 1 or not required_windows or not required_seeds:
+            raise ValueError("window, seed and sample requirements must be nonempty")
+        if any(w < 1 for w in required_windows):
+            raise ValueError("declared windows must be positive")
+        checks = []
+        for w in required_windows:
+            sample = values.tail(w)
+            paired_dates = dates.tail(w)
+            bounds = {
+                "start_date": paired_dates.iloc[0].strftime("%Y-%m-%d") if len(paired_dates) else None,
+                "end_date": paired_dates.iloc[-1].strftime("%Y-%m-%d") if len(paired_dates) else None,
+            }
+            if w < minpts or len(sample) < w or len(sample) < minpts:
+                checks.append({"window": w, "status": "WAITING", "n": int(len(sample)),
+                               "required_points": max(w, minpts), **bounds})
+                continue
+            for seed in required_seeds:
+                lo, hi = _bootstrap_ci(sample, trials, seed)
+                checks.append({"window": w, "seed": seed, "n": int(len(sample)),
+                               "ci": [lo, hi], **bounds,
+                               "status": "PASS" if lo is not None and lo > 0 else "FAIL"})
+        # A missing long window cannot be ignored because a shorter one passed.
+        if any(check["status"] == "WAITING" for check in checks):
+            status = "WAITING"
+        else:
+            status = "PASS" if checks and all(check["status"] == "PASS" for check in checks) else "FAIL"
+        return {"status": status, "checks": checks, "available_paired_dates": int(len(dates))}
+    except (TypeError, ValueError, OverflowError, AttributeError) as exc:
+        return {"status": "WAITING", "checks": [], "reason": str(exc)}
 
 def _promotion_gates(hist,summary,cfg,audit):
     rcfg=cfg.get("rnd",{}) or {}
@@ -266,7 +300,7 @@ def _promotion_gates(hist,summary,cfg,audit):
         n=int(len(diff));mean_imp=float(diff.mean()) if n else None;win=float((diff>0).mean()) if n else None;lo,hi=_bootstrap_ci(diff,trials)
         raw_p[challenger]=_positive_bootstrap_p(diff,trials,42)
         ch_dd=(summary.get(challenger) or {}).get("max_drawdown")
-        stability=_seed_window_stability(diff,trials,minpts,seeds,windows)
+        stability=_seed_window_stability(diff,trials,minpts,seeds,windows,signal_dates=m["signal_date"])
         tests={
             "sample_size": n>=minpts,
             "mean_improvement": mean_imp is not None and mean_imp>=minimp,
@@ -292,7 +326,7 @@ def _promotion_gates(hist,summary,cfg,audit):
         g["tests"]["multiple_testing_correction"]=g["holm_adjusted_p"]<=alpha
         g["tests"]["reality_check"]=reality_pass
         n=g["paired_points"]
-        g["status"]="PROMOTABLE_REVIEW" if all(g["tests"].values()) else ("WAITING" if n<minpts else "REJECT")
+        g["status"]="PROMOTABLE_REVIEW" if all(g["tests"].values()) else ("WAITING" if n<minpts or g["seed_window_stability"]["status"]=="WAITING" else "REJECT")
     return gates
 
 def _five_why(degradation,gates):

@@ -122,6 +122,15 @@ def main():
             run(name, action)
         frame = canonical().iloc[::-1]
         run("nonchronological_dates", lambda: reject(folder, "reversed", frame))
+        invalid_dates = canonical()
+        invalid_dates["date"] = ["invalid-" + str(i).zfill(6) for i in range(240)]
+        run("invalid_date_strings_rejected", lambda: reject(folder, "invalid_dates", invalid_dates))
+        intraday_dates = canonical()
+        intraday_dates["date"] = pd.date_range("2024-01-02 00:01:00", periods=240, freq="min")
+        run("intraday_rows_cannot_count_as_daily_sessions", lambda: reject(folder, "intraday_dates", intraday_dates))
+        future_dates = canonical()
+        future_dates["date"] = pd.bdate_range(pd.Timestamp.today().normalize() + pd.Timedelta(days=30), periods=240)
+        run("future_dates_cannot_count_as_research_history", lambda: reject(folder, "future_dates", future_dates))
         run("qualification_cap_preserves_full_master", lambda: capped_coverage(folder / "qualified"))
         run("daily_cap_preserves_full_master", lambda: capped_coverage(folder / "daily", daily=True))
         run("daily_cache_counts_valid_payloads_only", lambda: daily_invalid_cache(folder / "invalid"))
