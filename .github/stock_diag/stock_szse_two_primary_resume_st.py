@@ -75,7 +75,7 @@ def load_primary(code,root):
     # The actual first-party notice URL encodes its publication day.  A
     # free-standing manually frozen day is not source evidence on its own.
     filename=spec["official_url"].rsplit("/",1)[-1]
-    match=re.fullmatch(r"t(20\\d{6})_\\d+\\.html",filename)
+    match=re.fullmatch(r"t(20\d{6})_\d+\.html",filename)
     if match is None:
         raise ValueError("unverifiable_official_notice_URL_day")
     url_day=match.group(1)
