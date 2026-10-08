@@ -75,11 +75,18 @@ def positive(row,detail):
     return (
         row.get("status")=="PASS" and t.get("status")=="PASS"
         and _official(row.get("url") or "")
+        and t.get("http_status")==200
+        and t.get("same_official_host") is True
+        and isinstance(t.get("resolved_url"),str)
+        and urlparse(t["resolved_url"]).scheme=="https"
+        and urlparse(t["resolved_url"]).hostname in ("szse.cn","www.szse.cn")
         and isinstance(t.get("sha256"),str) and HEX.fullmatch(t["sha256"])
         and row.get("article_body_status")=="PASS"
         and isinstance(row.get("article_source"),str)
-        and bool(row["article_source"])
+        and row["article_source"] in (".news-detail-con #desContent",".news-detail-con .des-content")
         and int(row.get("body_text_chars") or 0)>=25
+        and isinstance(row.get("semantic_sample"),str)
+        and hashlib.sha256(row["semantic_sample"].encode("utf-8")).hexdigest()==row.get("semantic_sample_sha256")
         and isinstance(row.get("body_text_sha256"),str)
         and HEX.fullmatch(row["body_text_sha256"])
         and bool(row.get("title"))
