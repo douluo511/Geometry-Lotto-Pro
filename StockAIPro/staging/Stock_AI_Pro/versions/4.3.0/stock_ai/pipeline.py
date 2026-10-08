@@ -33,6 +33,22 @@ def _parallel_pair(left,right):
             raise
     return lv,rv
 
+def _maintenance_business_status(maintenance):
+    """Business qualification is NOT the same as successful daily execution.
+
+    A generated prediction or an on-time process cannot authorize a business
+    PASS when historical PIT backtest is unqualified, skipped or audit LOW.
+    Original freezes remain immutable; no unavailable source is fabricated.
+    """
+    if not isinstance(maintenance, dict) or maintenance.get("due") is not True:
+        return "NOT_VERIFIED"
+    if maintenance.get("backtest") != "PASS":
+        return "BLOCKED"
+    if maintenance.get("audit") not in ("PASS", "MEDIUM", "HIGH"):
+        return "BLOCKED"
+    return "PASS"
+
+
 def _run_locked(cfg,logger,force,run_maintenance):
     logger.info("=== Stock AI Pro 4.3 每日闭环开始 ===")
     _checkpoint("full_universe",logger)
@@ -92,7 +108,10 @@ def _run_locked(cfg,logger,force,run_maintenance):
         except Exception as e: logger.warning("R&D闭环失败但不阻断生产预测: %s",e); rnd_status="FAIL_NONBLOCKING"
     _checkpoint("maintenance_backtest_audit",logger)
     maintenance=maybe_run_maintenance(cfg,logger) if run_maintenance else None; backup=maybe_snapshot(cfg,logger)
-    write_json(ROOT/"state"/"last_run.json",{"status":"PASS","asof":asof,"finished_at":now_iso(),"prediction_dir":str(out),"maintenance":maintenance,"backup":backup,"drift":drift.get("status"),"decision":decision,"rnd_status":rnd_status})
+    business_status=_maintenance_business_status(maintenance)
+    if business_status!="PASS":
+        logger.warning("每日執行已完成，但歷史回測/審計未獲業務資格：%s；保留 Freeze，禁止冒充 PASS",business_status)
+    write_json(ROOT/"state"/"last_run.json",{"status":"PASS" if business_status=="PASS" else "BLOCKED","execution_status":"PASS","business_status":business_status,"asof":asof,"finished_at":now_iso(),"prediction_dir":str(out),"maintenance":maintenance,"backup":backup,"drift":drift.get("status"),"decision":decision,"rnd_status":rnd_status})
     _checkpoint("complete",logger,"COMPLETE")
     logger.info("=== 每日闭环完成: %s / %s ===",asof,decision["decision"]); return out
 

@@ -128,3 +128,33 @@ for noncanonical in ("20260930", "2026-W40-3", "2026W403"):
         "FALSE BUSINESS PASS: noncanonical PIT effective date accepted: " + noncanonical)
 assert pit._parse_day("2026-09-30").isoformat() == "2026-09-30"
 print("STOCK PIT CANONICAL DATE WIRE FORMAT 4/4 PASS")
+
+# A successful process and frozen prediction are NOT successful stock business
+# qualification when maintenance backtest fails due to missing official PIT.
+# Read the real deployed pipeline source without importing pandas/AkShare.
+import ast
+
+_pipeline_path = ROOT / "staging" / "Stock_AI_Pro" / "versions" / "4.3.0" / "stock_ai" / "pipeline.py"
+_pipeline_source = _pipeline_path.read_text(encoding="utf-8")
+assert '"status":"PASS","asof":asof' not in _pipeline_source, (
+    "FALSE BUSINESS PASS: daily pipeline publishes last_run.status=PASS even "
+    "when automatic historical PIT backtest reports FAIL")
+_tree = ast.parse(_pipeline_source)
+_helpers = [n for n in _tree.body if isinstance(n, ast.FunctionDef)
+            and n.name == "_maintenance_business_status"]
+assert len(_helpers) == 1, "missing real production maintenance/business-status guard"
+_ns = {}
+exec(compile(ast.Module(body=_helpers, type_ignores=[]), str(_pipeline_path), "exec"), _ns)
+_status = _ns["_maintenance_business_status"]
+for maintenance, wanted in (
+    ({"due": True, "backtest": "FAIL: historical_st_pit.json missing", "audit": "LOW"}, "BLOCKED"),
+    ({"due": True, "backtest": "PASS", "audit": "MEDIUM"}, "PASS"),
+    ({"due": True, "backtest": "PASS", "audit": "FAIL: no valid source"}, "BLOCKED"),
+    ({"due": False, "backtest": None, "audit": None}, "NOT_VERIFIED"),
+    (None, "NOT_VERIFIED"),
+):
+    observed = _status(maintenance)
+    assert observed == wanted, (maintenance, wanted, observed)
+assert '"business_status":business_status' in _pipeline_source, (
+    "FALSE PASS: business qualification not explicitly emitted in last_run JSON")
+print("STOCK DAILY BACKTEST VS BUSINESS STATUS FAIL-CLOSED CONTRACT 5/5 PASS")
