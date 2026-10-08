@@ -234,3 +234,22 @@ assert "decision=_effective_display_decision(" in _app_source, (
 assert _app_source.index("decision=_effective_display_decision(") < _app_source.index("cols=st.columns(8)"), (
     "FALSE TRADE: dashboard displays metrics before source-date safety")
 print("STOCK LEGACY FREEZE DASHBOARD PIT TRADE REFUSAL 7/7 PASS")
+
+
+# Even a byte-bound official PIT document MUST NOT qualify if the caller
+# supplied malformed as-of date. Optional None is the only deliberate
+# 'no current expected date' mode; invalid values must not silently fall back.
+with tempfile.TemporaryDirectory() as rootdir:
+    for invalid in ("20260930", "2026-W40-3", "2026-02-30", "", "not-a-date", 20260930):
+        status, reason, details = pit.evaluate_historical_st_pit(Path(rootdir), expected_trade_date=invalid)
+        assert status != "PASS", ("FALSE BUSINESS PASS: invalid as-of qualified", invalid)
+        assert details.get("reason") == "invalid_expected_trade_date", (
+            "FALSE BUSINESS PASS: invalid as-of silently treated as omitted: "
+            + repr(invalid) + " " + repr(details))
+    # A valid wire date and deliberate None must get normal source diagnostics,
+    # not be mislabeled invalid. Missing sources still do NOT earn PASS.
+    for accepted in ("2026-09-30", date(2026,9,30), None):
+        status, reason, details = pit.evaluate_historical_st_pit(Path(rootdir), expected_trade_date=accepted)
+        assert status != "PASS", ("FALSE BUSINESS PASS: absent source qualified", accepted)
+        assert details.get("reason") == "evidence_missing", (accepted, details)
+print("STOCK INVALID EXPECTED MARKET DATE FAIL-CLOSED 9/9 PASS")
