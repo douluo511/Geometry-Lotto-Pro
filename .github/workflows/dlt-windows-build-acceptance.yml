@@ -265,6 +265,7 @@ jobs:
             $backgroundChecks.live_network_pass -eq $true -and
             $backgroundChecks.next_prediction_frozen -eq $true -and
             $backgroundChecks.default_two_front_dan -eq $true -and
+            $backgroundChecks.default_one_back_dan -eq $true -and
             $backgroundChecks.production_not_promoted -eq $true
           )
 
