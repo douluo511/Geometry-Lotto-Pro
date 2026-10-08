@@ -332,14 +332,18 @@ def verify_corporate_action_lineage(
         changes.append(strongest)
 
     valid_events = []
+    invalid_notice_events = []
     for event in events:
         ex = _date_text(event.get("ex_dividend_date"))
         notice = _date_text(event.get("plan_notice_date"))
-        if not ex or not notice or notice > ex:
-            continue
-        if ex < dates[0] or ex > dates[-1]:
+        if not ex or ex < dates[0] or ex > dates[-1]:
             continue
         if not any(float(event.get(k) or 0) > 0 for k in ("pretax_bonus_rmb", "bonus_ratio", "transfer_ratio")):
+            continue
+        if not notice or notice > ex:
+            # A known action with unavailable/late notice lineage is a gap,
+            # not an action that can silently disappear from the denominator.
+            invalid_notice_events.append({**event, "ex_dividend_date": ex, "plan_notice_date": notice})
             continue
         valid_events.append({**event, "ex_dividend_date": ex, "plan_notice_date": notice})
 
@@ -368,14 +372,18 @@ def verify_corporate_action_lineage(
         })
 
     unmatched_events = [e for i, e in enumerate(valid_events) if i not in used_events]
-    point_in_time = bool(matched) and not unexplained
+    observed_matching = bool(matched) and not unexplained
+    point_in_time = observed_matching and not unmatched_events and not invalid_notice_events
     return {
         "status": "PASS" if point_in_time else "NOT VERIFIED",
         "point_in_time_lineage": "PASS" if point_in_time else "NOT VERIFIED",
+        "observed_factor_event_matching_status": "PASS" if observed_matching else "NOT VERIFIED",
+        "scope": "overlapping qfq/raw dates only; the consumer must bind the complete research window",
         "symbol": qfq[0].symbol,
         "overlap_start": dates[0],
         "overlap_end": dates[-1],
         "overlap_rows": len(dates),
+        "overlap_dates": dates,
         "factor_change_tolerance": factor_change_tolerance,
         "factor_detection_method": "persistent_median_adjacent_certified_regime_shift_v2",
         "factor_estimator": "quantized_ohlc_interval_v2",
@@ -389,14 +397,15 @@ def verify_corporate_action_lineage(
         "matched_events": matched,
         "unexplained_changes": unexplained,
         "unmatched_valid_events": unmatched_events,
+        "invalid_notice_events": invalid_notice_events,
         "source_providers": providers,
         **hashes,
         "boundary": (
-            "PASS proves observed persistent Tencent qfq/raw factor-regime shifts are explained by independently retrieved "
-            "Eastmoney announced corporate-action dates in the overlapping window. It does not prove "
+            "PASS covers observed persistent Tencent qfq/raw factor-regime shifts and every valid announced action "
+            "in the explicitly listed overlapping dates; partial overlap cannot qualify a larger research window. It does not prove "
             "historical point-in-time availability of every research feature or execution-cost calibration."
         ),
         "reason": None if point_in_time else (
-            "requires at least one announced event matched to an observed persistent qfq/raw factor-regime shift and no unexplained persistent shifts"
+            "requires matched announced action/factor shifts with no unexplained shifts, unmatched valid actions or missing notice lineage"
         ),
     }
