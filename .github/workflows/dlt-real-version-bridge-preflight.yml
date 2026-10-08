@@ -1,0 +1,178 @@
+name: DLT Real Historical 2.1.5 to 2.1.6 Release Bridge Preflight
+on:
+  pull_request:
+    paths:
+      - '.github/migration/dlt_two_real_versions_preflight.py'
+      - '.github/workflows/dlt-real-version-bridge-preflight.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify-two-real-seeds:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout exact release-bridge tool head
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Checkout ACTUAL 2.1.5 predecessor export
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 3711ddc778caa9592227a571ff877aca662b769c
+          path: historical-v215
+          persist-credentials: false
+      - name: Checkout ACTUAL 2.1.6 successor export
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 825e4fc8b0a661a7ad5a42b77122965a1146b803
+          path: successor-v216
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.11.9"
+      - name: Exact immutable commit and previous/product equivalence
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(git -C historical-v215 rev-parse HEAD)" = "3711ddc778caa9592227a571ff877aca662b769c"
+          test "$(git -C successor-v216 rev-parse HEAD)" = "825e4fc8b0a661a7ad5a42b77122965a1146b803"
+          git diff --quiet 825e4fc8b0a661a7ad5a42b77122965a1146b803 HEAD -- DLT .github/migration/dlt_export.py .github/workflows/dlt-independent-repo-export.yml .github/workflows/dlt-windows-build-acceptance.yml
+          echo "TWO_REAL_HISTORICAL_SOURCES=PASS"
+      - name: Export ACTUAL previous version
+        shell: bash
+        env:
+          SOURCE_SHA: 3711ddc778caa9592227a571ff877aca662b769c
+          CANDIDATE_SHA: 6e4497ede87fb5dc0673e53aa0e993ef4674694c
+        run: python historical-v215/.github/migration/dlt_export.py --out "$GITHUB_WORKSPACE/bridge-seeds/previous"
+      - name: Export ACTUAL current version
+        shell: bash
+        env:
+          SOURCE_SHA: 825e4fc8b0a661a7ad5a42b77122965a1146b803
+          CANDIDATE_SHA: b1051e320691a7b9798092f797751a2f13a4b1cc
+        run: python successor-v216/.github/migration/dlt_export.py --out "$GITHUB_WORKSPACE/bridge-seeds/current"
+      - name: Verify authentic manifests, exact four-file behavior repair and complete payloads
+        shell: bash
+        run: |
+          set -euo pipefail
+          python .github/migration/dlt_two_real_versions_preflight.py \
+            --previous bridge-seeds/previous --current bridge-seeds/current \
+            --report bridge-seeds/REAL_TWO_VERSIONS_EVIDENCE.json
+          echo "REAL_VERSION_N_TO_NPLUS1_SOURCE_DIFF=PASS"
+      - name: Deliberately tamper current seed and reject false PASS
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp -a bridge-seeds/current "$RUNNER_TEMP/tampered-current"
+          printf '\nCORRUPTION' >> "$RUNNER_TEMP/tampered-current/DLT/requirements.txt"
+          if python .github/migration/dlt_two_real_versions_preflight.py \
+             --previous bridge-seeds/previous --current "$RUNNER_TEMP/tampered-current" \
+             --report "$RUNNER_TEMP/must-not-pass.json"; then
+            echo "FALSE PASS: tampered seed accepted" >&2; exit 2
+          fi
+          cp -a bridge-seeds/current "$RUNNER_TEMP/extra-file-current"
+          printf 'malicious' > "$RUNNER_TEMP/extra-file-current/DLT/EXTRA_SOURCE.txt"
+          if python .github/migration/dlt_two_real_versions_preflight.py \
+             --previous bridge-seeds/previous --current "$RUNNER_TEMP/extra-file-current" \
+             --report "$RUNNER_TEMP/must-not-pass-extra.json"; then
+            echo "FALSE PASS: extra source accepted" >&2; exit 2
+          fi
+          echo "HASH_TAMPER_AND_EXTRA_SOURCE_REJECTION=PASS"
+      - name: Upload authenticated real two-source bridge, not Windows release
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: DLT-ACTUAL-v215-v216-SOURCE-BRIDGE-${{ github.event.pull_request.head.sha || github.sha }}
+          path: bridge-seeds/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 90
+  windows-exact-two-builds:
+    needs: verify-two-real-seeds
+    runs-on: windows-2022
+    timeout-minutes: 100
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: DLT-ACTUAL-v215-v216-SOURCE-BRIDGE-${{ github.event.pull_request.head.sha || github.sha }}
+          path: bridge-seeds
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.11.9"
+          architecture: "x64"
+      - name: Pinned dependency installation
+        shell: pwsh
+        run: python -m pip install --disable-pip-version-check -r bridge-seeds/current/DLT/requirements.txt
+      - name: Test both REAL-version sources and model business boundaries
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          foreach($ver in @('previous','current')){
+            Push-Location (Join-Path $PWD "bridge-seeds/$ver/DLT")
+            try{
+              $env:PYTHONPATH="$PWD/src"
+              python -m compileall -q src tests
+              python -m unittest discover -s tests -p 'test_no_edge_uniform_production.py' -v
+              if($LASTEXITCODE -ne 0){throw "rho-zero source regression FAIL $ver"}
+              python -m unittest discover -s tests -p 'test_prospective_hit_rate_truth.py' -v
+              if($LASTEXITCODE -ne 0){throw "prospective source regression FAIL $ver"}
+              python -m unittest discover -s tests -p 'test_research_vs_published_hit_rate.py' -v
+              if($LASTEXITCODE -ne 0){throw "paired scorecard FAIL $ver"}
+            }finally{Pop-Location}
+          }
+      - name: Build authentic Windows N and N+1 main EXEs, current two deterministic copies
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $env:PYTHONHASHSEED='1'
+          $env:SOURCE_DATE_EPOCH='946684800'
+          $root=$PWD.Path
+          foreach($item in @(@('previous','one'),@('current','one'),@('current','two'))){
+            $ver=$item[0]; $variant=$item[1]
+            Push-Location (Join-Path $root "bridge-seeds/$ver/DLT")
+            try{
+              pyinstaller --noconfirm --clean --distpath "dist-$variant" --workpath "work-$variant" GeometryLottoPro.spec
+              if($LASTEXITCODE -ne 0){throw "native build FAILED $ver / $variant"}
+            }finally{Pop-Location}
+          }
+          $old=Join-Path $root 'bridge-seeds/previous/DLT/dist-one/Geometry_Lotto_Pro_DLT.exe'
+          $new=Join-Path $root 'bridge-seeds/current/DLT/dist-one/Geometry_Lotto_Pro_DLT.exe'
+          $rebuild=Join-Path $root 'bridge-seeds/current/DLT/dist-two/Geometry_Lotto_Pro_DLT.exe'
+          $oh=(Get-FileHash -LiteralPath $old -Algorithm SHA256).Hash.ToLowerInvariant()
+          $nh=(Get-FileHash -LiteralPath $new -Algorithm SHA256).Hash.ToLowerInvariant()
+          $rh=(Get-FileHash -LiteralPath $rebuild -Algorithm SHA256).Hash.ToLowerInvariant()
+          if($oh -eq $nh){throw 'FALSE PASS: real historical and fixed version hashes equal'}
+          if($nh -ne $rh){throw 'FALSE PASS: current Exact EXE not reproducible Same Hash'}
+          $report=[ordered]@{
+            schema='dlt-real-cross-version-windows-binary-preflight-v1'
+            status='PASS'
+            previous_version='2.1.5'
+            current_version='2.1.6'
+            previous_exe_sha256=$oh
+            current_exe_sha256=$nh
+            current_rebuild_sha256=$rh
+            real_source_transition='PASS'
+            windows_native_build='PASS'
+            current_same_hash='PASS'
+            distinct_version_hash='PASS'
+            independent_repository='NOT VERIFIED'
+            real_network_release_updater='NOT VERIFIED'
+            physical_gui_both_versions='NOT VERIFIED'
+            final_gate='FAIL'
+          }
+          $report|ConvertTo-Json -Depth 8|Set-Content -LiteralPath (Join-Path $root 'bridge-seeds/REAL_TWO_WINDOWS_BINARIES.json') -Encoding utf8
+          Write-Host 'TWO_AUTHENTIC_WINDOWS_EXES=PASS'
+          Write-Host 'EXACT_CURRENT_SAME_HASH=PASS'
+          Write-Host "OLD_EXE_SHA256=$oh"
+          Write-Host "CURRENT_EXE_SHA256=$nh"
+      - name: Upload exact binary transition evidence only, NOT final downloadable release
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: DLT-REAL-VERSIONS-WINDOWS-PREFLIGHT-${{ github.event.pull_request.head.sha || github.sha }}
+          path: bridge-seeds/REAL_TWO_WINDOWS_BINARIES.json
+          if-no-files-found: warn
+          retention-days: 90
