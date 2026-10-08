@@ -144,7 +144,13 @@ def build(alias_report,bulletins):
                   "2025-05-05","2025-05-06","2025-10-08",
                   "2025-10-09","2026-10-08"):
             day=date.fromisoformat(q)
+            # The later first-party 2025 BSE notices and current alias
+            # mapping cannot establish an as-of 2024 issuer code identity.
+            # 2025 notice rules can bound routing only after their publication,
+            # never retrospectively qualify historical SecurityType=1.
             code_from_notice=("NOT_A_BSE_MARKET_DAY" if day<OPEN
+              else "HISTORICAL_ALIAS_NOT_SOURCE_VERIFIED_ASOF"
+                   if day<date(2025,4,11)
               else "EXCHANGE_ANNOUNCED_OLD_CODE_ROUTING" if day<start
               else "EXCHANGE_ANNOUNCED_NEW_920_CODE_ROUTING")
             history.append({
