@@ -51,6 +51,7 @@ fail("lost page receipt",lambda:m.join(ALIAS,{**QUERY,"pages":2}))
 fail("duplicate current query code",lambda:m.join(ALIAS,{**QUERY,"rows":[QUERY["rows"][0]]*3}))
 fail("duplicate official alias source",lambda:m.join({**ALIAS,"observed":{"rows_count":3,"rows":[ALIAS["observed"]["rows"][0]]*3}},QUERY))
 fail("source alias collision in new code",lambda:m.join({**ALIAS,"observed":{"rows_count":3,"rows":[ALIAS["observed"]["rows"][0],{**ALIAS["observed"]["rows"][1],"new_code":"920000"},ALIAS["observed"]["rows"][2]]}},QUERY))
+fail("one issuer appears in both old and new current query code",lambda:m.join(ALIAS,{**QUERY,"rows":[{"code":"832000"},{"code":"920000"},{"code":"920931"},{"code":"920999"}],"server_reported_total":4}))
 
 class Response:
     def __init__(self,payload,url=m.API,status=200):
@@ -88,5 +89,5 @@ fail("HTTP 429 cannot be accepted",lambda:m.fetch_pages(session=Sess([Response(p
 fail("future impossible native date",lambda:m.fetch_pages(session=Sess([Response(page(0,[row("830001","20240230"),row("830002")]))])))
 fail("native dates disagree",lambda:m.fetch_pages(session=Sess([Response(page(0,[{**row("830001"),"fxssrq":"20240110"},row("830002")]))])))
 fail("filtered page lacks native security class",lambda:m.fetch_pages(session=Sess([Response(page(0,[{"xxzqdm":"830001"},row("830002")]))])))
-assert len(CASE)==18,(len(CASE),CASE)
-print("STOCK BSE DUAL-CURRENT-SOURCE FALSIFICATION 18/18 PASS")
+assert len(CASE)==19,(len(CASE),CASE)
+print("STOCK BSE DUAL-CURRENT-SOURCE FALSIFICATION 19/19 PASS")
