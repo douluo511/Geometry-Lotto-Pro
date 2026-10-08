@@ -1,0 +1,113 @@
+name: Stock BSE 2024 IPO fix native Windows Exact-EXE candidate smoke
+on:
+  push:
+    branches:
+      - fix/stock-bse-920-new-ipo-2024-contradiction-20261008
+    paths:
+      - "StockAIPro/staging/Stock_AI_Pro/versions/4.3.0/stock_ai/historical_pit.py"
+      - "StockAIPro/staging/Stock_AI_Pro/versions/4.3.0/PACKAGE_MANIFEST.json"
+      - "StockAIPro/staging/Stock_AI_Pro/PACKAGE_MANIFEST.json"
+      - ".github/workflows/stock-bse-920-ipo-2024-windows-smoke.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  new-head-native-Windows-package-smoke:
+    runs-on: windows-2022
+    timeout-minutes: 90
+    env:
+      PYTHONUTF8: '1'
+      PYTHONIOENCODING: 'utf-8'
+      SOURCE_COMMIT: ${{ github.sha }}
+    defaults:
+      run:
+        working-directory: StockAIPro
+    steps:
+      - name: Checkout exact candidate with immutable restored version untouched
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Verify exact git SHA and prior Stock #367 parent
+        shell: pwsh
+        run: |
+          $head=(git rev-parse HEAD).Trim()
+          if ($head -ne $env:SOURCE_COMMIT) { throw "stale candidate source" }
+          git merge-base --is-ancestor 462f4a5637fc0f3f247ce4cdb6c26eee4cbce871 HEAD
+          if ($LASTEXITCODE -ne 0) { throw "unrelated Stock production parent" }
+          $changed = git diff --name-only 462f4a5637fc0f3f247ce4cdb6c26eee4cbce871 HEAD -- StockAIPro/recovered_exact
+          if ($changed) { throw "original immutable recovery mutated: $changed" }
+      - name: Setup pinned native Windows Python x64
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.11.9"
+          architecture: x64
+      - name: Verify two hash-bound staged manifests before native build
+        shell: pwsh
+        run: |
+          python -c "import hashlib,json,pathlib; p=pathlib.Path('staging/Stock_AI_Pro'); H=lambda q:hashlib.sha256(q.read_bytes()).hexdigest(); code=p/'versions/4.3.0/stock_ai/historical_pit.py'; inner=p/'versions/4.3.0/PACKAGE_MANIFEST.json'; outer=p/'PACKAGE_MANIFEST.json'; a=json.loads(inner.read_text());b=json.loads(outer.read_text()); assert a['files']['stock_ai/historical_pit.py']==H(code);assert b['files']['versions/4.3.0/stock_ai/historical_pit.py']==H(code);assert b['files']['versions/4.3.0/PACKAGE_MANIFEST.json']==H(inner);print('STOCK_WINDOWS_NESTED_PACKAGE_HASH=PASS',H(code),H(inner))"
+          if ($LASTEXITCODE -ne 0) { throw "staging package bytes not source-bound" }
+      - name: Run actual 13/13 BSE date and full historical source semantics on Windows
+        shell: pwsh
+        run: |
+          python hardening_tests/historical_bse_market_date_boundary_test.py
+          if ($LASTEXITCODE -ne 0) { throw "BSE 2024 IPO false negative" }
+          python hardening_tests/historical_st_pit_contract_test.py
+          if ($LASTEXITCODE -ne 0) { throw "historical ST PIT provenance contract" }
+      - name: Install native build toolchain and runtime
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check --no-input -r staging/Stock_AI_Pro/versions/4.3.0/requirements.txt
+          if ($LASTEXITCODE -ne 0) { throw "native runtime pip dependencies fail" }
+          python -m pip install --disable-pip-version-check --no-input pyinstaller==6.11.1 pywinauto==0.6.9 pillow==11.3.0
+          if ($LASTEXITCODE -ne 0) { throw "native builder requirements fail" }
+      - name: Desktop application/repair/updater service contracts
+        shell: pwsh
+        run: |
+          python hardening_tests/desktop_native_contract_test.py
+          if ($LASTEXITCODE -ne 0) { throw "native desktop service contracts FAIL" }
+          python hardening_tests/desktop_gui_physical_click_gate.py --contract-test
+          if ($LASTEXITCODE -ne 0) { throw "GUI static contract FAIL" }
+      - name: Native Windows PyInstaller main and independently built Updater
+        shell: pwsh
+        run: ./desktop_native/build_windows.ps1
+      - name: Exact executable selftest and before/after SHA equality
+        shell: pwsh
+        run: |
+          $exe=(Resolve-Path ./dist/StockAIPro/StockAIPro.exe).Path
+          $up=(Resolve-Path ./dist/StockAIPro/StockAIUpdater.exe).Path
+          $before=(Get-FileHash -Algorithm SHA256 $exe).Hash.ToLowerInvariant()
+          $upHash=(Get-FileHash -Algorithm SHA256 $up).Hash.ToLowerInvariant()
+          $proc=Start-Process -FilePath $exe -ArgumentList '--self-test' -Wait -PassThru -WindowStyle Hidden
+          if ($proc.ExitCode -ne 0) { throw "new-head Exact EXE selftest FAIL rc=$($proc.ExitCode)" }
+          $after=(Get-FileHash -Algorithm SHA256 $exe).Hash.ToLowerInvariant()
+          if ($before -ne $after) { throw "EXE changed on exact-head selftest" }
+          [ordered]@{
+            status='PASS'
+            exact_source_commit=$env:SOURCE_COMMIT
+            native_windows_build='PASS'
+            main_exe=$exe
+            main_exe_sha256_before=$before
+            main_exe_sha256_after=$after
+            independent_updater_sha256=$upHash
+            same_hash_for_selftest='PASS'
+            real_primary_2024_BSE_original_download='NOT VERIFIED'
+            full_three_market_business='NOT VERIFIED'
+            physical_gui_click='NOT VERIFIED'
+            real_updater_release='NOT VERIFIED'
+            independent_repository='BLOCKED'
+            final_gate='FAIL'
+          } | ConvertTo-Json -Depth 5 | Set-Content -Encoding UTF8 ./desktop_bse_2024_native_smoke.json
+          Write-Host "NEW_HEAD_NATIVE_WINDOWS_EXACT_EXE_SELFTEST_SHA=PASS:$before; FINAL_GATE=FAIL"
+      - name: Save candidate binaries and exact-source evidence, no release promotion
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: STOCK-BSE-2024-NEWIPO-WINDOWS-CANDIDATE-${{ github.sha }}
+          path: |
+            StockAIPro/desktop_windows_build_evidence.json
+            StockAIPro/desktop_native_contract_evidence.json
+            StockAIPro/desktop_bse_2024_native_smoke.json
+            StockAIPro/dist/StockAIPro/**
+          if-no-files-found: warn
+          retention-days: 14
