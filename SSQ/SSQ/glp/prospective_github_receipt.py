@@ -124,6 +124,45 @@ def _verify_append_only_branch(
     }
 
 
+
+def _verify_successful_run_exact_freeze_commit(
+    client: NetClient, head_sha: str, target_issue: str,
+) -> dict[str, str]:
+    """Reject borrowing a later green run for an earlier unverified Freeze.
+
+    The seed..HEAD *aggregate* compare cannot bind a particular issue to the
+    successful push: two files added in an older commit plus an empty commit
+    can have identical aggregate ahead-by and file counts. Fetch the server's
+    immutable exact commit and require precisely one newly added issue file.
+    """
+    path = f"SSQ/prospective_ledger/freezes/{target_issue}.json"
+    commit = _json_get(client, f"{_API}/commits/{head_sha}")
+    parents = commit.get("parents")
+    files = commit.get("files")
+    valid = (
+        commit.get("sha") == head_sha
+        and isinstance(parents, list)
+        and len(parents) == 1
+        and isinstance(parents[0], dict)
+        and isinstance(parents[0].get("sha"), str)
+        and bool(_HEX40.fullmatch(parents[0]["sha"]))
+        and isinstance(files, list)
+        and len(files) == 1
+        and isinstance(files[0], dict)
+        and files[0].get("filename") == path
+        and files[0].get("status") == "added"
+    )
+    if not valid:
+        raise ValueError(
+            "SSQ target Freeze not added by exact successful GitHub run commit"
+        )
+    return {
+        "exact_successful_run_commit": head_sha,
+        "parent_commit": parents[0]["sha"],
+        "new_freeze_path": path,
+    }
+
+
 def _validate_frozen_prediction_payload(
     freeze: dict[str, Any], target_issue: str, observed_at: datetime,
 ) -> tuple[dict[str, Any], str, str]:
@@ -235,6 +274,9 @@ def verify_github_freeze_receipt(
         raise ValueError("GitHub run lacks an exact immutable commit SHA")
     observed_at = _utc(run.get("created_at"))  # GitHub SERVER time, not git author date
     branch_provenance = _verify_append_only_branch(net, sha, target_issue)
+    exact_commit_provenance = _verify_successful_run_exact_freeze_commit(
+        net, sha, target_issue,
+    )
 
     path = f"SSQ/prospective_ledger/freezes/{target_issue}.json"
     source = _json_get(net, f"{_API}/contents/{path}?ref={sha}")
@@ -276,6 +318,7 @@ def verify_github_freeze_receipt(
         "target_date": date_text,
         "model_source_commit": commit,
         "trusted_branch_provenance": branch_provenance,
+        "exact_run_commit_provenance": exact_commit_provenance,
         "freeze_hash": prediction["freeze_hash"],
         "verified_scope": "PRE_DRAW_EXISTENCE_CANDIDATE_ONLY",
         # Official draw receipt, cohort completeness, immutable governance,

@@ -82,6 +82,11 @@ class FakeGitHub:
             "created_at": "2026-10-01T10:00:00Z",
         }
         self.file_override = None
+        self.commit = {
+            "sha": GIT_SHA,
+            "parents": [{"sha": "c" * 40}],
+            "files": [{"filename": PATH, "status": "added"}],
+        }
         self.compare = {
             "status": "ahead",
             "ahead_by": 1,
@@ -96,6 +101,8 @@ class FakeGitHub:
         self.requests.append((url, kwargs))
         if url == f"https://api.github.com/repos/{REPO}/actions/runs/1234":
             body = self.run
+        elif url == f"https://api.github.com/repos/{REPO}/commits/{GIT_SHA}":
+            body = self.commit
         elif url == f"https://api.github.com/repos/{REPO}/compare/{_TRUSTED_SEED_SHA}...{GIT_SHA}":
             body = self.compare
         elif url == f"https://api.github.com/repos/{REPO}/contents/{PATH}?ref={GIT_SHA}":
@@ -124,8 +131,58 @@ class ReadOnlyGitHubReceiptTests(unittest.TestCase):
         self.assertFalse(result["promotion_authorized"])
         self.assertFalse(result["official_outcome_verified"])
         self.assertEqual(result["production_rho"], 0.0)
-        self.assertEqual(len(remote.requests), 3)
+        self.assertEqual(len(remote.requests), 4)
+        self.assertEqual(result["exact_run_commit_provenance"]["exact_successful_run_commit"], GIT_SHA)
+        self.assertEqual(result["exact_run_commit_provenance"]["new_freeze_path"], PATH)
         self.assertTrue(all(call["allow_redirects"] is False for _, call in remote.requests))
+
+    def test_successful_later_run_cannot_launder_earlier_unverified_freeze(self):
+        # Cumulative compare is deceptively valid (2 ahead, 2 added files).
+        # The current successful push added OTHER; this issue was added in an
+        # earlier, potentially unsuccessful push and must not borrow this run.
+        remote = FakeGitHub()
+        other = "SSQ/prospective_ledger/freezes/2026101.json"
+        remote.compare["ahead_by"] = 2
+        remote.compare["files"] = [
+            {"filename": PATH, "status": "added"},
+            {"filename": other, "status": "added"},
+        ]
+        remote.commit["files"] = [{"filename": other, "status": "added"}]
+        with self.assertRaisesRegex(ValueError, "not added by exact successful"):
+            verify_github_freeze_receipt(run_id=1234, target_issue=ISSUE, client=remote)
+
+    def test_bulk_add_commit_cannot_be_authenticated_by_aggregate_file_count(self):
+        remote = FakeGitHub()
+        other = "SSQ/prospective_ledger/freezes/2026101.json"
+        remote.compare["ahead_by"] = 2
+        remote.compare["files"] = [
+            {"filename": PATH, "status": "added"},
+            {"filename": other, "status": "added"},
+        ]
+        remote.commit["files"] = [
+            {"filename": PATH, "status": "added"},
+            {"filename": other, "status": "added"},
+        ]
+        with self.assertRaisesRegex(ValueError, "not added by exact successful"):
+            verify_github_freeze_receipt(run_id=1234, target_issue=ISSUE, client=remote)
+
+    def test_wrong_or_merge_commit_metadata_cannot_authenticate_receipt(self):
+        for mutation in (
+            {"sha": "f" * 40},
+            {"parents": []},
+            {"parents": [{"sha": "c" * 40}, {"sha": "d" * 40}]},
+            {"parents": [{"sha": "not-a-sha"}]},
+            {"files": []},
+            {"files": [{"filename": PATH, "status": "modified"}]},
+            {"files": [{"filename": PATH, "status": "renamed"}]},
+        ):
+            with self.subTest(mutation=mutation):
+                remote = FakeGitHub()
+                remote.commit.update(mutation)
+                with self.assertRaisesRegex(ValueError, "not added by exact successful"):
+                    verify_github_freeze_receipt(
+                        run_id=1234, target_issue=ISSUE, client=remote,
+                    )
 
     def test_modified_workflow_or_source_in_prior_branch_commit_fails(self):
         remote = FakeGitHub()
