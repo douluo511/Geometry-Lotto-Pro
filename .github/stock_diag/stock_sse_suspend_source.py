@@ -36,10 +36,12 @@ class Scripts(HTMLParser):
         super().__init__()
         self.urls = []
     def handle_starttag(self, tag, attrs):
-        if tag.lower() == "script":
-            value = dict(attrs).get("src")
-            if value:
-                self.urls.append(urljoin(PAGE, value))
+        values = dict(attrs)
+        if tag.lower() == "script" and values.get("src"):
+            self.urls.append(urljoin(PAGE, values["src"]))
+        # SSE declares page modules on js_require_on_page, loaded via RequireJS.
+        if values.get("js_files"):
+            self.urls.extend(urljoin(PAGE, value.strip()) for value in values["js_files"].split(",") if value.strip())
 
 def decode(raw, media):
     encodings = []
@@ -100,10 +102,15 @@ def source_contexts(receipts):
     for receipt in receipts:
         text = receipt.get("text", "")
         count = 0
-        for match in re.finditer(r"COMMON_SSE|sqlId|SQLID|停复牌|suspension|searchDate|BEGIN_DATE|END_DATE|query\.sse", text, re.I):
-            result.append({"source_url": receipt["url"], "source_sha256": receipt.get("sha256"), "offset": match.start(), "context": text[max(0, match.start()-600):match.end()+1600]})
+        previous_end = -1
+        for match in re.finditer(r"COMMON_SSE|sqlId|SQLID|sseQueryUrl|query\.sse|suspension|commonQuery|pageHelp|startDate|endDate|searchDate|START_DATE|END_DATE|js_files", text, re.I):
+            if match.start() < previous_end:
+                continue
+            begin, end = max(0, match.start()-400), min(len(text), match.end()+2000)
+            result.append({"source_url": receipt["url"], "source_sha256": receipt.get("sha256"), "offset": match.start(), "context": text[begin:end]})
+            previous_end = end
             count += 1
-            if count >= 10:
+            if count >= 12:
                 break
     return result
 
@@ -114,10 +121,13 @@ def self_test():
     parsed = Scripts()
     parsed.feed('<script src="./actual.js"></script><script src="//query.sse.com.cn/a.js"></script>')
     assert parsed.urls == [urljoin(PAGE, "./actual.js"), "https://query.sse.com.cn/a.js"]
+    modules = Scripts()
+    modules.feed('<div class="js_require_on_page" js_files="/actual/declared.js"></div>')
+    assert modules.urls == ["https://www.sse.com.cn/actual/declared.js"]
     assert decode("停复牌".encode("gb18030"), "text/html; charset=gb18030")[0] == "停复牌"
     assert candidates([{"url": PAGE, "sha256": "a"*64, "text": "sqlId: 'REAL_SOURCE_ID'"}])[0]["sql_id"] == "REAL_SOURCE_ID"
     assert candidates([{"url": PAGE, "sha256": "b"*64, "text": '"sqlId": "REAL_QUOTED_ID"'}])[0]["sql_id"] == "REAL_QUOTED_ID"
-    print("SSE FIRST-PARTY SOURCE DISCOVERY BOUNDARIES 10/10 PASS")
+    print("SSE FIRST-PARTY SOURCE DISCOVERY BOUNDARIES 11/11 PASS")
 
 def discover(directory):
     directory.mkdir(parents=True, exist_ok=False)
