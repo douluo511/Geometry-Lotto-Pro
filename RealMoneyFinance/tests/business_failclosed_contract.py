@@ -33,6 +33,44 @@ def bars(count=150):
 
 
 class BusinessBoundaries(unittest.TestCase):
+
+    def test_corporate_action_partial_window_cannot_qualify_full_research(self):
+        evidence = self._valid_corporate_action_evidence()
+        self.assertEqual(evidence["overlap_rows"], 150)
+        got = qualify_research(
+            bars(300),
+            {"provider": "production_fixture", "qualification_scope": "production_real_network",
+             "price_adjustment": "qfq"},
+            corporate_action_evidence=evidence,
+        )
+        self.assertEqual(got["gates"]["corporate_action_adjustment"], "NOT VERIFIED")
+
+    def test_unmatched_announced_action_cannot_be_ignored(self):
+        raw = bars(150)
+        qfq = [
+            replace(row, **{field: getattr(row, field) * (0.9 if i < 80 else 1.0)
+                           for field in ("open", "close", "high", "low")},
+                    raw_sha256="b" * 64)
+            for i, row in enumerate(raw)
+        ]
+        events = [
+            {"symbol": "600000", "plan_notice_date": raw[70].trade_date,
+             "ex_dividend_date": raw[80].trade_date, "pretax_bonus_rmb": 1.0,
+             "bonus_ratio": 0.0, "transfer_ratio": 0.0},
+            {"symbol": "600000", "plan_notice_date": raw[20].trade_date,
+             "ex_dividend_date": raw[30].trade_date, "pretax_bonus_rmb": 0.5,
+             "bonus_ratio": 0.0, "transfer_ratio": 0.0},
+        ]
+        evidence = verify_corporate_action_lineage(
+            qfq, raw, events,
+            {"provider": "tencent_public_full_kline", "price_adjustment": "qfq", "payload_sha256": "b"*64},
+            {"provider": "tencent_public_full_kline", "price_adjustment": "unadjusted", "payload_sha256": "c"*64},
+            {"provider": "eastmoney_share_bonus_datacenter", "payload_sha256": "d"*64},
+        )
+        self.assertEqual(evidence["verified_event_count"], 1)
+        self.assertEqual(len(evidence["unmatched_valid_events"]), 1)
+        self.assertEqual(evidence["status"], "NOT VERIFIED")
+
     def test_official_regulatory_cost_rules_are_partial_evidence_only(self):
         parsed = parse_official_cost_rules(
             "<html>A股 经手费 成交金额的0.00341%（双向）</html>",
