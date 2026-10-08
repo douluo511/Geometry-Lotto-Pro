@@ -84,5 +84,40 @@ check("intraday overrides otherwise explicit stop",
 check("no actual resume from planned later announcement",
       row("公司股票2019年2月11日开市起停牌，待相关条件满足后复牌。"),
       "EXPLICIT_STOP_CANDIDATE_ONLY")
-assert len(tests)==18
-print("STOCK SOURCE-BOUND PIT SEMANTIC COUNTEREXAMPLES 18/18 PASS")
+# Positive evidence candidates must never turn into realized daily PIT.
+resume="深圳证券交易所公告，证券代码002628于2018年1月3日开市起复牌。"
+r=check("dated official resume only candidate", row(resume), "EXPLICIT_RESUME_CANDIDATE_ONLY")
+assert r["explicit_effective_resume_date_candidates"]==["2018-01-03"]
+r=check("resume stated as restored trading only candidate",
+        row("证券代码002628于2020年9月11日交易日起恢复交易。"),
+        "EXPLICIT_RESUME_CANDIDATE_ONLY")
+assert r["explicit_effective_resume_date_candidates"]==["2020-09-11"]
+check("proposed resume cannot be completed",
+      row("公司拟于2018年1月3日开市起复牌，仍待批复。"),
+      "EFFECTIVE_DATE_UNRESOLVED")
+check("pending condition cannot be completed",
+      row("待审核完成后于2018年1月3日开市起复牌，条件仍未满足。"),
+      "EFFECTIVE_DATE_UNRESOLVED")
+check("impossible resume date refused",
+      row("证券代码002628于2018年2月30日开市起复牌。"),
+      "EFFECTIVE_DATE_UNRESOLVED")
+check("publication date cannot be promoted to resumed state",
+      row("2018年1月3日交易所公告复牌申请事项，尚待批准。"),
+      "EFFECTIVE_DATE_UNRESOLVED")
+r=check("stop and resume claims require full transition replay",
+      row("公司股票于2018年1月2日开市起停牌，2018年1月3日开市起复牌。"),
+      "MULTIPLE_TRANSITIONS_UNRESOLVED")
+assert r["explicit_effective_stop_date_candidates"]==["2018-01-02"]
+assert r["explicit_effective_resume_date_candidates"]==["2018-01-03"]
+check("intraday resume is not all-day trading history",
+      row("证券代码300885于2018年1月3日13时28分起复牌。",codes=["300885"]),
+      "INTRADAY_NOT_FULL_DAY")
+check("multiple contradictory resume dates unresolved",
+      row("证券代码002628于2018年1月3日开市起复牌，2018年1月4日开市起复牌。"),
+      "EFFECTIVE_DATE_UNRESOLVED")
+bad=row(resume);bad["transport"]["status"]="NOT VERIFIED"
+check("resume on unavailable source must not qualify", bad,
+      "SOURCE_NOT_VERIFIED", "source_transport")
+
+assert len(tests)==28
+print("STOCK SOURCE-BOUND PIT SEMANTIC COUNTEREXAMPLES 28/28 PASS")
