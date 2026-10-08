@@ -1,0 +1,392 @@
+name: Stock exact artifact narrow diagnostic
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/stock-exact-artifact-diagnostic.yml'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  exact-artifact-diagnostic:
+    if: github.event.action == 'opened'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Download only two exact-bound artifacts and print fixed summaries
+        env:
+          DIAG_GITHUB_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          python - <<'PY'
+          import hashlib, json, math, os, tempfile, urllib.request, urllib.error, urllib.parse, zipfile
+          from pathlib import PurePosixPath
+          REPO = "douluo511/Geometry-Lotto-Pro"
+          SPECS = [
+              {"id":11414741892,"run":37437015424,"head":"e67eaa9cabc34728fee3549262a2f1535d7e8383",
+               "sha":"98bdab18664b889a214703102feb19b1ecb3a2c4b90caf047d53d8ade28a9e71",
+               "allowed":{"desktop_worker_diagnostic.json","desktop_frozen_advanced_evidence.json","desktop_research_corpus_evidence.json"}},
+              {"id":11526806075,"run":37722834042,"head":"900d1a582fcb59979fa51803769c05718c0df14b",
+               "sha":"1b7fc754c899e568c05964d5e0870f00026b32815daeeb27de854ba3074068a2",
+               "allowed":{"source_recovery_evidence.json","source_recovery_evidence.log"}},
+          ]
+          HEAD_KEYS = ("source_commit","source_sha","head_sha")
+          SAFE_STRINGS = {"PASS","FAIL","NOT VERIFIED","LOW","MEDIUM","HIGH","UNKNOWN",
+                          "RuntimeError","ValueError","TypeError","FileNotFoundError","KeyError",
+                          "AttributeError","AssertionError","OSError","TimeoutError","COMPLETE","RUNNING"}
+          SAFE_MODULES = {"worker.py","backtest.py","historical_pit.py","storage.py","audit.py",
+                          "pipeline.py","config.py","data_source.py","utils.py"}
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self,*args,**kwargs): return None
+          opener = urllib.request.build_opener(NoRedirect)
+          def api(path):
+              req=urllib.request.Request("https://api.github.com/repos/"+REPO+path,
+                  headers={"Authorization":"Bearer "+os.environ["DIAG_GITHUB_TOKEN"],
+                           "Accept":"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28"})
+              return req
+          def clean_status(value):
+              return value if isinstance(value,str) and value in SAFE_STRINGS else "UNRECOGNIZED"
+          def numeric(value):
+              return value if type(value) in (int,float) and math.isfinite(value) else None
+          def digest(value):
+              return value if isinstance(value,str) and len(value)==64 and all(c in "0123456789abcdefABCDEF" for c in value) else None
+          def summarize(name,obj):
+              result={}
+              if name=="desktop_worker_diagnostic.json":
+                  for action in ("core","advanced","repair"):
+                      worker=obj.get("workers",{}).get(action)
+                      if not isinstance(worker,dict): continue
+                      frames=[{"module":f.get("module") if f.get("module") in SAFE_MODULES else "OTHER",
+                               "line":numeric(f.get("line"))} for f in worker.get("frames",[])[:12] if isinstance(f,dict)]
+                      result[action]={"status":clean_status(worker.get("status")),"frozen":worker.get("frozen") is True,
+                                      "exception_type":clean_status(worker.get("exception_type")),"frames":frames}
+              elif name=="desktop_frozen_advanced_evidence.json":
+                  for key in ("status","execution_status","technical_validation","validation_error_type"):
+                      if key in obj:result[key]=clean_status(obj[key])
+                  result["exe_sha256"]=digest(obj.get("exe_sha256"))
+                  business=obj.get("business_validation",{})
+                  if isinstance(business,dict):result["business_status"]=clean_status(business.get("status"))
+              elif name=="desktop_research_corpus_evidence.json":
+                  result["status"]=clean_status(obj.get("status"))
+                  q=obj.get("qualification",{})
+                  for key in ("coverage","current_coverage","delisted_coverage","covered_symbols","target_symbols",
+                              "current_target","delisted_target","downloaded","qualification_elapsed_seconds"):
+                      result[key]=numeric(q.get(key)) if isinstance(q,dict) else None
+                  result["history_file_count"]=numeric(obj.get("history_file_count"))
+                  result["history_manifest_sha256"]=digest(obj.get("history_manifest_sha256"))
+              else:
+                  for key in ("status","offline_regression","static_compile"):
+                      result[key]=clean_status(obj.get(key))
+                  result["offline_gate_count"]=numeric(obj.get("offline_gate_count"))
+                  result["offline_exit_code"]=numeric(obj.get("offline_exit_code"))
+                  for key in ("immutable_import","immutable_import_after_tests"):
+                      result[key+"_files"]=numeric((obj.get(key) or {}).get("verified_files"))
+              return result
+          try:
+              for spec in SPECS:
+                  with opener.open(api("/actions/artifacts/"+str(spec["id"])),timeout=30) as response:
+                      metadata=json.load(response)
+                  assert metadata["workflow_run"]["head_sha"]==spec["head"]
+                  assert metadata["workflow_run"]["id"]==spec["run"] and not metadata["expired"]
+                  assert metadata["digest"]=="sha256:"+spec["sha"]
+                  assert metadata["size_in_bytes"]<=220000000
+                  try:
+                      opener.open(api("/actions/artifacts/"+str(spec["id"])+"/zip"),timeout=30)
+                      raise AssertionError("artifact endpoint did not redirect")
+                  except urllib.error.HTTPError as redirect:
+                      assert redirect.code in (301,302,303,307,308)
+                      location=redirect.headers["Location"]
+                  host=urllib.parse.urlsplit(location)
+                  assert host.scheme=="https" and (host.hostname.endswith(".blob.core.windows.net") or
+                      host.hostname.endswith(".githubusercontent.com"))
+                  with tempfile.TemporaryFile() as archive:
+                      hasher=hashlib.sha256();size=0
+                      # Authorization is deliberately absent from the signed storage request.
+                      with urllib.request.urlopen(urllib.request.Request(location),timeout=60) as response:
+                          while True:
+                              chunk=response.read(1048576)
+                              if not chunk:break
+                              size+=len(chunk);assert size<=220000000
+                              hasher.update(chunk);archive.write(chunk)
+                      assert size==metadata["size_in_bytes"] and hasher.hexdigest()==spec["sha"]
+                      archive.seek(0)
+                      found=set()
+                      with zipfile.ZipFile(archive) as zipped:
+                          for entry in zipped.infolist():
+                              name=PurePosixPath(entry.filename).name
+                              if name not in spec["allowed"]:continue
+                              assert name not in found and entry.file_size<=2000000
+                              found.add(name);raw=zipped.read(entry)
+                              receipt={"artifact_id":spec["id"],"artifact_head":spec["head"],"file":name,
+                                       "file_sha256":hashlib.sha256(raw).hexdigest()}
+                              if name.endswith(".json"):
+                                  obj=json.loads(raw.decode("utf-8-sig"));assert isinstance(obj,dict)
+                                  bound=[obj[k] for k in HEAD_KEYS if k in obj]
+                                  assert bound and all(x==spec["head"] for x in bound)
+                                  receipt["summary"]=summarize(name,obj)
+                              else:
+                                  # Publish only exact known offline-test result lines; no other log text.
+                                  markers=("PREDICTION PAYLOAD / CROSS-PERIOD HASH CHAIN TEST PASS",
+                                           "STORAGE FREEZE TEST PASS","AUDIT / 5WHY / REVERSE VALIDATION TEST PASS",
+                                           "ALL ENGINEERING ACCEPTANCE: PASS")
+                                  lines=[]
+                                  for line in raw.decode("utf-8",errors="replace").splitlines():
+                                      for marker in markers:
+                                          if line.startswith(marker):
+                                              suffix=line[len(marker):].strip()
+                                              if marker.startswith("PREDICTION PAYLOAD"):
+                                                  assert suffix.endswith("negative scenarios") and suffix.split()[0].isdigit()
+                                              elif suffix:assert suffix in {"LOW","MEDIUM","HIGH"}
+                                              lines.append(marker+(" "+suffix if suffix else ""))
+                                  receipt["test_results"]=lines
+                              print(json.dumps(receipt,sort_keys=True))
+                      for missing in sorted(spec["allowed"]-found):
+                          print(json.dumps({"artifact_id":spec["id"],"file":missing,"status":"MISSING_IN_ARTIFACT"}))
+          except Exception as exc:
+              print(json.dumps({"diagnostic_status":"FAIL","error_type":type(exc).__name__}))
+              raise SystemExit(2)
+          print("EXACT_ARTIFACT_DIAGNOSTIC=PASS; PRODUCT_FINAL=FAIL")
+          
+          PY
+
+  rnd-window-first-fail:
+    if: github.event.action == 'opened'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout frozen e67 product bytes only
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: e67eaa9cabc34728fee3549262a2f1535d7e8383
+          persist-credentials: false
+      - name: Setup Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.11.9'
+      - name: Install only numerical import dependencies
+        run: python -m pip install --disable-pip-version-check numpy==2.2.4 pandas==2.2.3 requests==2.32.3
+      - name: Execute exact legacy function counterexample and 36-point positive control
+        run: |
+          python - <<'PY'
+          import hashlib,json,sys
+          from pathlib import Path
+          import pandas as pd
+          root=Path("StockAIPro/staging/Stock_AI_Pro/versions/4.3.0").resolve()
+          sys.path.insert(0,str(root))
+          import stock_ai.rnd as rnd
+          source=Path(rnd.__file__).resolve()
+          assert source==root/"stock_ai/rnd.py"
+          digest=hashlib.sha256(source.read_bytes()).hexdigest()
+          assert digest=="a0900cb5f161112d216593948847a76215e4292bdc0df7993a81288fd33d5e67"
+          def observations(n):
+              paired=pd.DataFrame({"signal_date":pd.date_range("2026-01-01",periods=n).strftime("%Y-%m-%d"),
+                                   "production":[.005]*n,"challenger":[.015]*n})
+              return paired["challenger"]-paired["production"]
+          short=rnd._seed_window_stability(observations(12),300,12,[1,2,3],[12,24,36])
+          positive=rnd._seed_window_stability(observations(36),300,12,[1,2,3],[12,24,36])
+          report={"head":"e67eaa9cabc34728fee3549262a2f1535d7e8383","rnd_sha256":digest,
+                  "trials":300,"minpts":12,"seeds":[1,2,3],"windows":[12,24,36],
+                  "short_12_paired_observations":short,"positive_36_paired_observations":positive}
+          Path("rnd_window_first_fail_e67.json").write_text(json.dumps(report,indent=2)+"\n",encoding="utf-8")
+          print(json.dumps(report,sort_keys=True),flush=True)
+          assert positive["status"]=="PASS",positive
+          assert short["status"]!="PASS","FIRST-FAIL: 12 observations falsely pass advertised 24/36-point windows"
+          
+          PY
+        shell: bash
+      - name: Preserve exact first-failure JSON
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: Stock-RND-window-first-FAIL-e67-${{ github.run_id }}
+          path: rnd_window_first_fail_e67.json
+          if-no-files-found: error
+
+  rm-candidate-redownload:
+    if: github.event.action == 'opened'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Verify one exact RM candidate artifact and fixed evidence files
+        env:
+          DIAG_GITHUB_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          python - <<'PY'
+          import hashlib,json,os,tempfile,urllib.request,urllib.error,urllib.parse,zipfile
+          from pathlib import PurePosixPath
+          REPO="douluo511/Geometry-Lotto-Pro"
+          HEAD="b8c3a4b8847668b2be6640898485ff163f8995a5"
+          RUN=37723602739;ARTIFACT=11526269152
+          ZIP_SHA="716ca4a1c7498bc1132180c3e61da7dcac7e5106b3c533b2e2920d397462aa18"
+          EXPECTED_EXES={"RealMoneyFinance.exe":"01698e553f9d3e8bcc58c093ca59b0e09326f8120f214d9c1fb3b498be3a2e16",
+                         "RealMoneyFinanceUpdater.exe":"7f1f5196eadc3e746e71eff7c78f0e5defecae8d57226f6bc4af6914b048ba57"}
+          EXPECTED_CONTRACT="c67f91fc183f5f290425a77da1619e1f7d2b2e38a6dedde62a44b92c29d305b9"
+          GIT_CONTRACT_LF="44b587bdff9154feaaa520b865341d62ee06dadab756555222a8e73a5e459500"
+          ENGINEERING=["requirements_purpose_model","five_why","risk_boundary","domain_model","architecture","function_inventory","interface_contracts","data_sources","netclient","storage","engine","evidence","service","ui","self_test","contract_test","fault_injection","real_network","cross_source_validation","windows_build","exact_exe","physical_gui","updater_contract","positive_production_update","repository_independence","real_release_n_to_n_plus_1","same_hash_current_bytes","formal_release_redownload_same_hash"]
+          BUSINESS=["public_l1_identity_boundary","observable_activity_analysis","source_freshness","cost_slippage_calibration","liquidity_capacity","corporate_action_point_in_time","leakage_point_in_time","survivorship_precommitted_universe","walk_forward_holdout_power","dependence_aware_bootstrap","ablation_replication","regime_stability","multiple_testing_search_family","baseline_comparison","economic_signal_qualification_decision","capital_deployment_safety"]
+          ALLOWED={"candidate_manifest.json","ACCEPTANCE_CONTRACT.json","windows_build_evidence.json",
+                   "exact_exe_evidence.json","gui_click_evidence.json"}|set(EXPECTED_EXES)
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self,*args,**kwargs):return None
+          opener=urllib.request.build_opener(NoRedirect)
+          def api(path):
+              return urllib.request.Request("https://api.github.com/repos/"+REPO+path,
+                 headers={"Authorization":"Bearer "+os.environ["DIAG_GITHUB_TOKEN"],
+                          "Accept":"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28"})
+          def completion(manifest,key,names):
+              obj=manifest[key];gates=obj["gate_statuses"]
+              assert set(gates)==set(names)
+              assert all(gates[n] in {"PASS","FAIL","BLOCKED","NOT VERIFIED"} for n in names)
+              passed=sum(gates[n]=="PASS" for n in names)
+              assert obj["passed"]==passed and obj["required"]==len(names)
+              assert obj["percent"]==round(100*passed/len(names),1)
+              return {"passed":passed,"required":len(names),"percent":obj["percent"],
+                      "gate_statuses":{n:gates[n] for n in names}}
+          try:
+              with opener.open(api("/actions/artifacts/"+str(ARTIFACT)),timeout=30) as response:
+                  metadata=json.load(response)
+              assert not metadata["expired"] and metadata["workflow_run"]["head_sha"]==HEAD
+              assert metadata["workflow_run"]["id"]==RUN and metadata["digest"]=="sha256:"+ZIP_SHA
+              assert metadata["size_in_bytes"]==30264842
+              try:
+                  opener.open(api("/actions/artifacts/"+str(ARTIFACT)+"/zip"),timeout=30)
+                  raise AssertionError("expected signed-storage redirect")
+              except urllib.error.HTTPError as redirect:
+                  assert redirect.code in (301,302,303,307,308)
+                  location=redirect.headers["Location"]
+              parsed=urllib.parse.urlsplit(location)
+              assert parsed.scheme=="https" and (parsed.hostname.endswith(".blob.core.windows.net") or
+                  parsed.hostname.endswith(".githubusercontent.com"))
+              with tempfile.TemporaryFile() as archive:
+                  size=0;whole=hashlib.sha256()
+                  # Never forward the repository authorization header to signed storage.
+                  with urllib.request.urlopen(urllib.request.Request(location),timeout=60) as response:
+                      while True:
+                          chunk=response.read(1048576)
+                          if not chunk:break
+                          size+=len(chunk);assert size<=40000000
+                          whole.update(chunk);archive.write(chunk)
+                  assert size==metadata["size_in_bytes"] and whole.hexdigest()==ZIP_SHA
+                  archive.seek(0);objects={};hashes={};exe_receipts={};seen=set()
+                  with zipfile.ZipFile(archive) as zipped:
+                      for entry in zipped.infolist():
+                          name=PurePosixPath(entry.filename).name
+                          if name not in ALLOWED:continue
+                          assert name not in seen;seen.add(name)
+                          if name in EXPECTED_EXES:
+                              assert 0<entry.file_size<100000000
+                              actual=hashlib.sha256();count=0
+                              with zipped.open(entry) as stream:
+                                  while True:
+                                      chunk=stream.read(1048576)
+                                      if not chunk:break
+                                      count+=len(chunk);assert count<=100000000;actual.update(chunk)
+                              assert count==entry.file_size and actual.hexdigest()==EXPECTED_EXES[name]
+                              exe_receipts[name]={"bytes":count,"sha256":actual.hexdigest()}
+                          else:
+                              assert entry.file_size<=2000000
+                              raw=zipped.read(entry);hashes[name]=hashlib.sha256(raw).hexdigest()
+                              objects[name]=json.loads(raw.decode("utf-8-sig"))
+                              if name=="ACCEPTANCE_CONTRACT.json":
+                                  assert hashes[name]==EXPECTED_CONTRACT
+                                  # Windows Git checkout uses CRLF; bind semantics to exact Git LF bytes too.
+                                  assert hashlib.sha256(raw.replace(b"\r\n",b"\n")).hexdigest()==GIT_CONTRACT_LF
+                  assert seen==ALLOWED
+              candidate=objects["candidate_manifest.json"]
+              assert candidate["source_sha"]==HEAD and str(candidate["workflow_run_id"])==str(RUN)
+              assert candidate["main_sha256"]==EXPECTED_EXES["RealMoneyFinance.exe"]
+              assert candidate["updater_sha256"]==EXPECTED_EXES["RealMoneyFinanceUpdater.exe"]
+              assert candidate["acceptance_contract_sha256"]==hashes["ACCEPTANCE_CONTRACT.json"]
+              assert candidate["final_gate"]=="FAIL" and candidate["delivery_allowed"] is False
+              assert candidate["capital_deployment_ready"] is False
+              acceptance=objects["ACCEPTANCE_CONTRACT.json"]
+              assert acceptance["engineering_required"]==ENGINEERING and acceptance["business_required"]==BUSINESS
+              build=objects["windows_build_evidence.json"];exact=objects["exact_exe_evidence.json"]
+              assert build["source_sha"]==HEAD and exact["source_sha"]==HEAD
+              assert build["main_sha256"]==EXPECTED_EXES["RealMoneyFinance.exe"]
+              assert build["updater_sha256"]==EXPECTED_EXES["RealMoneyFinanceUpdater.exe"]
+              health=exact["health"]
+              assert health["source_sha"]==HEAD and health["exe_sha256"]==EXPECTED_EXES["RealMoneyFinance.exe"]
+              for key in ("exe_sha256_before","exe_sha256_after"):
+                  assert exact[key]==EXPECTED_EXES["RealMoneyFinance.exe"]
+                  assert objects["gui_click_evidence.json"][key]==EXPECTED_EXES["RealMoneyFinance.exe"]
+              receipt={"scope":"current candidate artifact redownload only","artifact_id":ARTIFACT,
+                 "artifact_run_id":RUN,"source_sha":HEAD,"artifact_zip_bytes":size,"artifact_zip_sha256":ZIP_SHA,
+                 "exe_bytes":exe_receipts,"acceptance_current_head":"PASS",
+                 "acceptance_contract_sha256":hashes["ACCEPTANCE_CONTRACT.json"],
+                 "git_contract_normalized_sha256":GIT_CONTRACT_LF,
+                 "candidate_manifest_sha256":hashes["candidate_manifest.json"],
+                 "engineering_completion":completion(candidate,"engineering_completion",ENGINEERING),
+                 "business_completion":completion(candidate,"business_completion",BUSINESS),
+                 "candidate_artifact_redownload_same_hash":"PASS",
+                 "formal_release_redownload_same_hash":"NOT VERIFIED","final_gate":"FAIL",
+                 "delivery_allowed":False,"capital_deployment_ready":False}
+              print(json.dumps(receipt,sort_keys=True))
+          except Exception as exc:
+              print(json.dumps({"candidate_artifact_redownload_same_hash":"FAIL","error_type":type(exc).__name__,
+                                "formal_release_redownload_same_hash":"NOT VERIFIED","final_gate":"FAIL"}))
+              raise SystemExit(2)
+          
+          PY
+
+  stock-history-date-first-fail:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact original coverage repair bytes
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 50fc0c4d539b68d2bf4bba321458dd0a2d021f0a
+          persist-credentials: false
+      - name: Setup Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.11.9'
+      - name: Install only numerical import dependencies
+        run: python -m pip install --disable-pip-version-check numpy==2.2.4 pandas==2.2.3 requests==2.32.3
+      - name: Execute actual persisted-history date counterexamples
+        shell: bash
+        run: |
+          python - <<'PY'
+          import hashlib,json,sys,tempfile
+          from pathlib import Path
+          from unittest.mock import patch
+          import pandas as pd
+          root=Path("StockAIPro/staging/Stock_AI_Pro/versions/4.3.0").resolve()
+          sys.path.insert(0,str(root))
+          from stock_ai import data_source
+          source=Path(data_source.__file__).resolve()
+          assert source==root/"stock_ai/data_source.py"
+          digest=hashlib.sha256(source.read_bytes()).hexdigest()
+          assert digest=="6624174f59d542ab943c6ef2eab81e8ca0a9e94cc4234c63af7b5a2fe0ae0947"
+          cfg={"model":{"min_history_days":240},"universe":{"history_adjust":"hfq"}}
+          values=[10+i*.01 for i in range(240)]
+          def frame(dates):
+              return pd.DataFrame({"date":dates,"code":["000001"]*240,"schema_version":[3]*240,
+                "provider":["eastmoney"]*240,"adjust_mode":["hfq"]*240,"open":values,"close":values,
+                "high":[x+1 for x in values],"low":[x-1 for x in values],"volume":[1000]*240,
+                "amount":[10000]*240,"turnover_rate":[.01]*240})
+          fixtures={"positive_240_business_days":pd.bdate_range("2024-01-02",periods=240),
+                    "invalid_240_date_strings":[f"invalid-{i:06d}" for i in range(240)],
+                    "single_day_240_minutes":pd.date_range("2024-01-02",periods=240,freq="min")}
+          accepted={}
+          with tempfile.TemporaryDirectory() as td,patch.object(data_source,"load_config",return_value=cfg):
+              for name,dates in fixtures.items():
+                  path=Path(td)/(name+".csv");frame(dates).to_csv(path,index=False)
+                  accepted[name]=bool(data_source._history_cache_entry_valid(path,"000001"))
+          report={"source_head":"50fc0c4d539b68d2bf4bba321458dd0a2d021f0a","data_source_sha256":digest,
+                  "minimum_history_days":240,"rows_per_fixture":240,"schema_version":3,
+                  "provider":"eastmoney","adjust_mode":"hfq","original_acceptance":accepted}
+          Path("stock_history_date_first_fail.json").write_text(json.dumps(report,indent=2)+"\n",encoding="utf-8")
+          print(json.dumps(report,sort_keys=True),flush=True)
+          assert accepted["positive_240_business_days"],"positive full canonical fixture was rejected"
+          assert not accepted["invalid_240_date_strings"] and not accepted["single_day_240_minutes"],"FIRST-FAIL: invalid dates and intraday rows counted as complete daily history"
+          
+          PY
+      - name: Preserve original date first-failure JSON
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: Stock-history-date-first-FAIL-50fc-${{ github.run_id }}
+          path: stock_history_date_first_fail.json
+          if-no-files-found: error
