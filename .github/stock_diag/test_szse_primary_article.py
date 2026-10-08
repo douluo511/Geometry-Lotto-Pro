@@ -60,7 +60,43 @@ checks.append(check(
     '</nav><p>目录</p></article></body></html>',
     False,
 ))
-assert len(checks) == 5
+# First-party DOM confirmed by exact raw HTML SHA-256
+# 4736ab3f4db36f46300b03a890123c03c743c4df932ff218b2f20ddc5e91b9a0.
+checks.append(check(
+    "real SZSE news-detail-con / desContent article scope",
+    '<html><body><div class="g-container"><div class="news-detail-con g-conbox">'
+    '<div class="des-header">关于公司股票临时停牌的公告</div>'
+    '<div id="desContent" class="des-content"><p>“N惠科股份”（001399）盘中成交价'
+    '达到相关触发标准，本所自今日09时32分43秒起实施临时停牌，'
+    '于09时42分44秒复牌。</p><p>深圳证券交易所特此公告。</p></div>'
+    '</div></div></body></html>',
+    True,
+    ".news-detail-con #desContent",
+))
+checks.append(check(
+    "spoofed desContent outside first-party article is not accepted",
+    '<html><body><div id="desContent" class="des-content">'
+    '新闻导览 股票000001 停牌安排将另行公告，盘中临时停牌的行情查询示例。'
+    '</div></body></html>',
+    False,
+))
+checks.append(check(
+    "first-party-shaped article in page navigation is rejected",
+    '<html><body><nav><div class="news-detail-con">'
+    '<div id="desContent" class="des-content">股票000001于2026年07月23日开市停牌，'
+    '通知详见本所发布的交易安排以及公告全文。</div>'
+    '</div></nav></body></html>',
+    False,
+))
+checks.append(check(
+    "official-looking wrapper without actual suspension text is rejected",
+    '<html><body><div class="news-detail-con">'
+    '<div id="desContent" class="des-content">'
+    '本文为一般业务说明，提供用户参考，无交易安排或生效日期。'
+    '</div></div></body></html>',
+    False,
+))
+assert len(checks) == 9
 
 # Retry success must retain the original failure ledger; PASS is never invented.
 fetched = []
@@ -103,5 +139,5 @@ assert cap["retry_cap_exceeded"] and cap["second_pass_attempted"] == 0
 assert all(row["status"] == "NOT VERIFIED" for row in skipped)
 checks.append("retry budget exhausted fails closed")
 
-assert len(checks) == 8
-print("SZSE PRIMARY ARTICLE + NETWORK REPLAY 8/8 OFFLINE REGRESSIONS PASS")
+assert len(checks) == 12
+print("SZSE PRIMARY ARTICLE + NETWORK REPLAY 12/12 OFFLINE REGRESSIONS PASS")
