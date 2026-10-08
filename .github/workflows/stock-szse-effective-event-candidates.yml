@@ -1,0 +1,106 @@
+name: Stock SZSE dated stop-resume candidate audit — fail closed
+on:
+  push:
+    branches:
+      - fix/stock-szse-resume-evidence-candidates-20261008
+    paths:
+      - ".github/stock_diag/stock_szse_effective_event_audit.py"
+      - ".github/stock_diag/test_szse_effective_event_audit.py"
+      - ".github/workflows/stock-szse-effective-event-candidates.yml"
+  pull_request:
+    paths:
+      - ".github/stock_diag/stock_szse_effective_event_audit.py"
+      - ".github/stock_diag/test_szse_effective_event_audit.py"
+      - ".github/workflows/stock-szse-effective-event-candidates.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  dated-transition-candidates-only:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact PR head and preserve production source identity
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Refuse unrelated product changes and stale source ancestry
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
+          git merge-base --is-ancestor 9969490c89ccb4cc10536f66416976c5bf40caef HEAD
+          git merge-base --is-ancestor 33f67bbdf28f862e6c956980a4d00a61c755c914 HEAD
+          test -z "$(git diff --name-only 9969490c89ccb4cc10536f66416976c5bf40caef..HEAD -- StockAIPro)"
+          echo "EXACT_HEAD_AND_STOCK_PRODUCT_BYTES=PASS"
+      - name: Setup pinned Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.11.9"
+          check-latest: false
+      - name: Execute all 28 adversarial dated-event and provenance controls
+        shell: bash
+        run: |
+          set -euo pipefail
+          python .github/stock_diag/test_szse_effective_event_audit.py
+      - name: Download historical first-party source with exact artifact digest
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location --retry 3 --retry-all-errors --connect-timeout 20 --max-time 120 \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            --header "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/11532256260/zip" \
+            --output verified_historical_notice_source.zip
+          echo "89e065870802432a2c53585886f38479b3691785759604caae8ecb8526235593  verified_historical_notice_source.zip" | sha256sum --check
+          unzip -oq verified_historical_notice_source.zip
+          test -f stock_szse_suspension_detail_corpus.json
+          echo "HISTORICAL_SOURCE_PIN=PASS; CURRENT_NETWORK_NOT_INFERRED"
+      - name: Recompute historical 1849-record source-bound effective-event diagnostics
+        shell: bash
+        run: |
+          set -euo pipefail
+          python .github/stock_diag/stock_szse_effective_event_audit.py \
+            stock_szse_suspension_detail_corpus.json \
+            --out stock_szse_effective_event_candidates.json
+      - name: Reject any source-to-qualified-daily-state promotion
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          src = json.loads(Path("stock_szse_suspension_detail_corpus.json").read_text(encoding="utf-8"))
+          evidence = json.loads(Path("stock_szse_effective_event_candidates.json").read_text(encoding="utf-8"))
+          assert src["schema"] == "stock-szse-suspension-detail-corpus-v1"
+          assert evidence["schema"] == "szse-effective-event-diagnostic-v1"
+          assert evidence["source_frozen_denominator"] == 1849
+          assert len(src["records"]) == len(evidence["rows"]) == 1849
+          assert evidence["source_archive_sha256"] == "589fddec93bb26e05a067824dbca352129e2dc5db3c2f0027abd3a1d54ffad6e"
+          assert sum(evidence["classification_counts"].values()) == 1849
+          assert evidence["adjudication"]["source_record_denominator"] == "PASS"
+          assert evidence["adjudication"]["diagnostic_classification"] == "PASS"
+          for gate in ("effective_dates_complete", "actual_full_day_suspension",
+                       "actual_resumption_state", "historical_daily_st_suspension_pit_sse_szse_bse",
+                       "advanced_business"):
+              assert evidence["adjudication"][gate] == "NOT VERIFIED", gate
+          assert evidence["adjudication"]["final_gate"] == "FAIL"
+          for row in evidence["rows"]:
+              assert row["qualified_daily_st_or_suspension"] == "NOT VERIFIED"
+              assert row["qualified_actual_resumption"] == "NOT VERIFIED"
+          assert not Path("historical_st_pit.json").exists()
+          print("HISTORICAL_1849_NOTICE_DIAGNOSTIC=PASS; ACTUAL_EFFECTIVE_STATE=NOT VERIFIED; FINAL_GATE=FAIL")
+          PY
+      - name: Preserve hash-bound candidate-only diagnostic
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: STOCK-SZSE-EFFECTIVE-DATE-CANDIDATES-${{ github.event.pull_request.head.sha || github.sha }}
+          path: stock_szse_effective_event_candidates.json
+          if-no-files-found: warn
+          retention-days: 30
