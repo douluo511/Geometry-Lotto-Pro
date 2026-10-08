@@ -20,7 +20,7 @@ sys.path.insert(0, str(ROOT / "SSQ" / "SSQ"))
 from glp.net_client import NetClient  # noqa: E402
 from glp.prospective_github_receipt import (  # noqa: E402
     _API, _BRANCH, _REPO, _WORKFLOW, _json_get, _utc,
-    _validate_frozen_prediction_payload,
+    _validate_frozen_prediction_payload, _verify_append_only_branch,
 )
 
 _FREEZE = re.compile(r"SSQ/prospective_ledger/freezes/(20[0-9]{5})\.json\Z")
@@ -81,6 +81,7 @@ def main() -> int:
     ):
         raise ValueError("SSQ GH push attestation lacks exact server run/branch binding")
     created_at = _utc(run.get("created_at"))
+    ancestry = _verify_append_only_branch(client, head, issue)
     pred, model_commit, target_date = _validate_frozen_prediction_payload(
         prediction, issue, created_at,
     )
@@ -93,6 +94,7 @@ def main() -> int:
         "target_issue": issue,
         "target_date": target_date,
         "model_source_commit": model_commit,
+        "trusted_ancestry": ancestry,
         "freeze_hash": pred["freeze_hash"],
         "qualified_count": 0,
         "promotion_authorized": False,
