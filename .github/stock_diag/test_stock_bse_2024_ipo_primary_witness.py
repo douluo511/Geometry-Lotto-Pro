@@ -7,6 +7,9 @@ spec=importlib.util.spec_from_file_location("bse2024",Path(__file__).with_name("
 m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
 cases=[]
 
+def assert_true(ok):
+    assert ok
+
 def pass_case(label,callback):
     callback();cases.append(label)
 def reject(label,callback):
@@ -34,8 +37,6 @@ pass_case("BSE new IPO chronology separate from 248 old issuers",positive)
 pass_case("original raw byte SHA stable",lambda:assert_true(
     m.parse("real_2024_920_ipo",html("real_2024_920_ipo"))["original_html_sha256"]==
     m.sha(html("real_2024_920_ipo"))))
-def assert_true(ok):
-    assert ok
 reject("forged 2025 effective date for BSE 920 new IPO rule",lambda:m.parse(
     "new_ipo_920_rule",html("new_ipo_920_rule","2024年4月22日起施行")))
 reject("2024 listed 920098 without original date",lambda:m.parse(
