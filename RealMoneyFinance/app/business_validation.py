@@ -60,7 +60,7 @@ def _strict_dates(rows: list[DailyBar]) -> bool:
     return len(dates) == len(set(dates)) and dates == sorted(dates)
 
 
-def _corporate_action_evidence_qualified(source_meta: dict, evidence: dict) -> bool:
+def _corporate_action_evidence_qualified(source_meta: dict, evidence: dict, *, research_dates: list[str]) -> bool:
     if source_meta.get("qualification_scope") != "production_real_network":
         return False
     if str(source_meta.get("price_adjustment", "")).lower() != "qfq":
@@ -96,6 +96,36 @@ def _corporate_action_evidence_qualified(source_meta: dict, evidence: dict) -> b
     source_symbol = str(source_meta.get("symbol") or "")
     evidence_symbol = str(evidence.get("symbol") or "")
     if overlap_rows < 60:
+        return False
+    # A short recent overlap cannot qualify an older or longer research window.
+    # Bind every actual research date, not only the endpoints or row count.
+    overlap_dates = evidence.get("overlap_dates")
+    if (
+        not isinstance(overlap_dates, list)
+        or len(overlap_dates) != overlap_rows
+        or not all(isinstance(x, str) for x in overlap_dates)
+        or len(set(overlap_dates)) != len(overlap_dates)
+        or overlap_dates != sorted(overlap_dates)
+        or not research_dates
+    ):
+        return False
+    try:
+        if any(date.fromisoformat(x).isoformat() != x for x in overlap_dates):
+            return False
+    except (TypeError, ValueError):
+        return False
+    if (
+        evidence.get("overlap_start") != overlap_dates[0]
+        or evidence.get("overlap_end") != overlap_dates[-1]
+        or not set(research_dates).issubset(set(overlap_dates))
+    ):
+        return False
+    unmatched_events = evidence.get("unmatched_valid_events")
+    invalid_notice_events = evidence.get("invalid_notice_events")
+    if (
+        not isinstance(unmatched_events, list) or unmatched_events
+        or not isinstance(invalid_notice_events, list) or invalid_notice_events
+    ):
         return False
     if source_symbol and evidence_symbol != source_symbol:
         return False
@@ -150,6 +180,12 @@ def _corporate_action_evidence_qualified(source_meta: dict, evidence: dict) -> b
         except Exception:
             return False
         if notice_day > ex_day or previous_day >= trade_day or trade_day < ex_day:
+            return False
+        if (
+            previous_trade_date not in overlap_dates
+            or trade_date not in overlap_dates
+            or not overlap_dates[0] <= ex_date <= overlap_dates[-1]
+        ):
             return False
         days_after = item.get("calendar_days_after_ex_date")
         actual_days_after = (trade_day - ex_day).days
@@ -508,7 +544,10 @@ def qualify_research(
         corporate_source_meta["symbol"] = research_symbol
     corporate_action = (
         "PASS"
-        if _corporate_action_evidence_qualified(corporate_source_meta, corporate_evidence)
+        if _corporate_action_evidence_qualified(
+            corporate_source_meta, corporate_evidence,
+            research_dates=[row.trade_date for row in ordered],
+        )
         else "NOT VERIFIED"
     )
     positive_amount = sum(1 for x in ordered if float(x.amount or 0.0) > 0)
@@ -693,7 +732,7 @@ def qualify_research(
     gaps = {
         "cost_slippage_model": "Illustrative basis-point assumptions lack current exchange/broker calibration and observed execution slippage.",
         "liquidity_capacity": "No order notional, executable participation, spread/impact or limit/suspension fill evidence.",
-        "corporate_action_adjustment": "Provider qfq label alone is insufficient; PASS requires independently hashed action dates plus matched qfq/raw factor changes with no unexplained changes.",
+        "corporate_action_adjustment": "PASS requires qfq/raw coverage for every actual research date and independently hashed action dates; no unexplained factor change, unmatched valid action or missing notice lineage may remain.",
         "leakage_safe_time_split": "Lagged execution is implemented, but historical point-in-time source availability is unverified.",
         "survivorship_selection_control": "User-selected single symbol lacks a precommitted survivorship-safe investable universe.",
         "oos_walk_forward": "Frozen holdout-power target lacks sufficient current real-network OOS evidence; computing an INSUFFICIENT decision is not a power PASS.",

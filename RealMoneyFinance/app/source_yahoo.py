@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from .domain import DailyBar, validate_market_rows
+from .domain import DailyBar
+from .freshness import select_completed_market_rows
 from .netclient import NetClient
 
 
@@ -92,10 +93,10 @@ def fetch_daily_bars_yahoo(
             raw_sha256=meta.payload_sha256,
         ))
     rows.sort(key=lambda x: x.trade_date)
+    rows, completed_selection = select_completed_market_rows(rows)
     rows = rows[-max(30, min(int(limit), 1200)):]
     if len(rows) < 30:
         raise ValueError("Yahoo response has insufficient valid daily rows")
-    validate_market_rows(rows)
     return rows, {
         "provider": "yahoo_public_chart",
         "url": meta.url,
@@ -103,6 +104,7 @@ def fetch_daily_bars_yahoo(
         "payload_sha256": meta.payload_sha256,
         "retrieved_at_unix": meta.retrieved_at_unix,
         "row_count": len(rows),
+        "completed_session_selection": completed_selection,
         "price_adjustment": "unadjusted",
         "content_type": meta.content_type,
         "content_type_policy": meta.content_type_policy,

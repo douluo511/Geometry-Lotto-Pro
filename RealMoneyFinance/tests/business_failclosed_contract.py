@@ -69,6 +69,7 @@ class BusinessBoundaries(unittest.TestCase):
         )
         self.assertEqual(evidence["verified_event_count"], 1)
         self.assertEqual(len(evidence["unmatched_valid_events"]), 1)
+        self.assertEqual(evidence["observed_factor_event_matching_status"], "PASS")
         self.assertEqual(evidence["status"], "NOT VERIFIED")
 
     def test_official_regulatory_cost_rules_are_partial_evidence_only(self):
@@ -290,6 +291,51 @@ class BusinessBoundaries(unittest.TestCase):
             {"provider": "eastmoney_share_bonus_datacenter", "payload_sha256": "d" * 64},
         )
 
+    def test_corporate_action_window_requires_each_date_and_complete_event_lists(self):
+        evidence = self._valid_corporate_action_evidence()
+        dates = evidence["overlap_dates"]
+        gap_dates = dates[:40] + dates[41:]
+        forged = [
+            {**evidence, "overlap_dates": gap_dates, "overlap_rows": len(gap_dates)},
+            {**evidence, "overlap_dates": dates[:-1] + [dates[-2]]},
+            {**evidence, "overlap_start": "2024-01-01"},
+            {**evidence, "overlap_dates": [*dates[:-1], "bad-date"]},
+            {**evidence, "unmatched_valid_events": [{"ex_dividend_date": dates[30]}]},
+            {**evidence, "invalid_notice_events": [{"ex_dividend_date": dates[30]}]},
+            {key: value for key, value in evidence.items() if key != "unmatched_valid_events"},
+            {key: value for key, value in evidence.items() if key != "invalid_notice_events"},
+        ]
+        for broken in forged:
+            with self.subTest(broken=broken):
+                got = qualify_research(
+                    bars(150),
+                    {"provider": "production_fixture", "qualification_scope": "production_real_network",
+                     "price_adjustment": "qfq"},
+                    corporate_action_evidence=broken,
+                )
+                self.assertEqual(got["gates"]["corporate_action_adjustment"], "NOT VERIFIED")
+
+    def test_known_positive_action_without_timely_notice_cannot_disappear(self):
+        raw = bars(150)
+        qfq = [replace(row, **{field: getattr(row, field) * (0.9 if i < 80 else 1.0)
+                              for field in ("open", "close", "high", "low")},
+                       raw_sha256="b" * 64) for i, row in enumerate(raw)]
+        base_event = {"symbol": "600000", "plan_notice_date": raw[70].trade_date,
+                      "ex_dividend_date": raw[80].trade_date, "pretax_bonus_rmb": 1.0,
+                      "bonus_ratio": 0.0, "transfer_ratio": 0.0}
+        for bad_notice in (None, raw[31].trade_date):
+            with self.subTest(notice=bad_notice):
+                evidence = verify_corporate_action_lineage(
+                    qfq, raw, [base_event, {**base_event, "ex_dividend_date": raw[30].trade_date,
+                                           "plan_notice_date": bad_notice}],
+                    {"provider": "tencent_public_full_kline", "price_adjustment": "qfq", "payload_sha256": "b"*64},
+                    {"provider": "tencent_public_full_kline", "price_adjustment": "unadjusted", "payload_sha256": "c"*64},
+                    {"provider": "eastmoney_share_bonus_datacenter", "payload_sha256": "d"*64},
+                )
+                self.assertEqual(evidence["observed_factor_event_matching_status"], "PASS")
+                self.assertEqual(len(evidence["invalid_notice_events"]), 1)
+                self.assertEqual(evidence["status"], "NOT VERIFIED")
+
     def test_corporate_action_requires_independent_event_and_factor_lineage(self):
         evidence = self._valid_corporate_action_evidence()
         self.assertEqual(evidence["status"], "PASS")
@@ -303,7 +349,7 @@ class BusinessBoundaries(unittest.TestCase):
         )
 
         got = qualify_research(
-            bars(300),
+            bars(150),
             {"provider": "production_fixture", "qualification_scope": "production_real_network", "price_adjustment": "qfq"},
             corporate_action_evidence=evidence,
         )
@@ -315,14 +361,14 @@ class BusinessBoundaries(unittest.TestCase):
         evidence = self._valid_corporate_action_evidence()
         broken = {**evidence, "event_payload_sha256": "short"}
         got = qualify_research(
-            bars(300),
+            bars(150),
             {"provider": "production_fixture", "qualification_scope": "production_real_network", "price_adjustment": "qfq"},
             corporate_action_evidence=broken,
         )
         self.assertEqual(got["gates"]["corporate_action_adjustment"], "NOT VERIFIED")
 
         got = qualify_research(
-            bars(300),
+            bars(150),
             {"provider": "production_fixture", "qualification_scope": "production_real_network", "price_adjustment": "qfq"},
             corporate_action_evidence={**evidence, "unexplained_factor_changes": 1},
         )
@@ -344,7 +390,7 @@ class BusinessBoundaries(unittest.TestCase):
         for forged in forged_cases:
             with self.subTest(forged=forged):
                 got = qualify_research(
-                    bars(300),
+                    bars(150),
                     {"provider": "production_fixture", "qualification_scope": "production_real_network",
                      "price_adjustment": "qfq"},
                     corporate_action_evidence=forged,
@@ -378,7 +424,7 @@ class BusinessBoundaries(unittest.TestCase):
         for forged in forged_detail_cases:
             with self.subTest(detail_forged=forged):
                 got = qualify_research(
-                    bars(300),
+                    bars(150),
                     {"provider": "production_fixture", "qualification_scope": "production_real_network",
                      "price_adjustment": "qfq"},
                     corporate_action_evidence=forged,
@@ -386,7 +432,7 @@ class BusinessBoundaries(unittest.TestCase):
                 self.assertEqual(got["gates"]["corporate_action_adjustment"], "NOT VERIFIED")
 
         got = qualify_research(
-            bars(300),
+            bars(150),
             {"provider": "production_fixture", "qualification_scope": "production_real_network",
              "price_adjustment": "unadjusted"},
             corporate_action_evidence=evidence,
@@ -394,7 +440,7 @@ class BusinessBoundaries(unittest.TestCase):
         self.assertEqual(got["gates"]["corporate_action_adjustment"], "NOT VERIFIED")
 
         got = qualify_research(
-            bars(300),
+            bars(150),
             {"provider": "production_fixture", "qualification_scope": "production_real_network",
              "price_adjustment": "qfq", "symbol": "000001"},
             corporate_action_evidence=evidence,
@@ -508,8 +554,8 @@ class BusinessBoundaries(unittest.TestCase):
                 qualify_research(malformed, {})
 
     def test_unadjusted_tencent_fallback_cannot_claim_qfq(self):
-        rows = [[x.trade_date, str(x.open), str(x.close), str(x.high), str(x.low), str(x.volume)]
-                for x in bars()[:30]]
+        obj, _ = FakeTencentClient().get_json("https://fixture.invalid", {}, headers={})
+        rows = obj["data"]["sh600000"]["qfqday"]
         meta = SimpleNamespace(payload_sha256="b"*64, url="https://fixture.invalid", status=200,
                                retrieved_at_unix=0, content_type="application/json", content_type_policy="strict")
         client = SimpleNamespace(get_json=lambda *args, **kwargs: ({"data": {"sh600000": {"day": rows}}}, meta))
