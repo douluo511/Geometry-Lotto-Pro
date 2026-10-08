@@ -6,6 +6,7 @@ import random
 import re
 import statistics
 from dataclasses import dataclass
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable
 
@@ -125,6 +126,42 @@ def _random_ranking(max_n: int, seed_material: Any) -> list[int]:
 
 def _recall(ranking: list[int], actual: tuple[int, ...], k: int) -> float:
     return len(set(ranking[:k]) & set(actual)) / float(k)
+
+
+# Chinese DLT draws use China civil dates. A same-day Freeze is excluded until a
+# separately verified official draw cutoff-time contract is available. This
+# conservative boundary prevents back-dated / stale-history qualification.
+DRAW_TIMEZONE = timezone(timedelta(hours=8))
+
+
+def _require_utc_timestamp(value: str, field: str) -> datetime:
+    if not isinstance(value, str) or not (value.endswith("Z") or value.endswith("+00:00")):
+        raise ValueError(f"{field} must be an explicit UTC timestamp")
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError(f"{field} invalid UTC timestamp") from exc
+    if parsed.utcoffset() != timedelta(0):
+        raise ValueError(f"{field} must use UTC")
+    return parsed.astimezone(timezone.utc)
+
+
+def _require_pre_draw_freeze(
+    *,
+    registered_at: str,
+    prediction_created_at: str,
+    target_date: str,
+) -> None:
+    registered = _require_utc_timestamp(registered_at, "freeze registration")
+    predicted = _require_utc_timestamp(prediction_created_at, "prediction creation")
+    try:
+        target = date.fromisoformat(target_date)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("prospective target date invalid") from exc
+    if predicted > registered:
+        raise ValueError("late/post-draw prospective freeze: prediction created after registration")
+    if registered.astimezone(DRAW_TIMEZONE).date() >= target:
+        raise ValueError("late/post-draw prospective freeze: registered on/after China target date")
 
 
 def _freeze_hash(payload: dict[str, Any]) -> str:
@@ -288,6 +325,15 @@ class ProspectiveLedger:
         if prediction.target_date <= draws[-1].draw_date:
             raise ValueError("prospective target date is not after latest official draw")
 
+        # Do not trust a stale-but-structurally-valid official baseline: its next
+        # target may already have happened even if that issue is absent in draws.
+        registration_time = utc_now()
+        _require_pre_draw_freeze(
+            registered_at=registration_time,
+            prediction_created_at=prediction.created_at,
+            target_date=prediction.target_date,
+        )
+
         paths = CohortPaths(self.root, manifest["cohort_id"])
         existing_path = paths.freezes / f"{prediction.target_issue}.json"
         if existing_path.exists():
@@ -303,6 +349,11 @@ class ProspectiveLedger:
                 raise ValueError("existing prospective freeze identity mismatch")
             if _freeze_hash(existing_pred.to_dict()) != existing_pred.freeze_hash:
                 raise ValueError("existing prospective freeze hash mismatch")
+            _require_pre_draw_freeze(
+                registered_at=existing["registered_at"],
+                prediction_created_at=existing_pred.created_at,
+                target_date=existing["target_date"],
+            )
             return existing
 
         p = prediction.to_dict()
@@ -314,7 +365,7 @@ class ProspectiveLedger:
             "cohort_id": manifest["cohort_id"],
             "protocol_hash": manifest["protocol_hash"],
             "source_commit": source_commit,
-            "registered_at": utc_now(),
+            "registered_at": registration_time,
             "canonical_hash": canonical_hash,
             "latest_observed_issue": draws[-1].issue,
             "target_issue": frozen.target_issue,
@@ -344,6 +395,11 @@ class ProspectiveLedger:
             if expected != sha256_json(check):
                 raise ValueError(f"prospective freeze record hash mismatch: {file.name}")
             pred = Prediction(**value["prediction"])
+            _require_pre_draw_freeze(
+                registered_at=value.get("registered_at"),
+                prediction_created_at=pred.created_at,
+                target_date=value.get("target_date"),
+            )
             if _freeze_hash(pred.to_dict()) != pred.freeze_hash:
                 raise ValueError(f"prospective prediction freeze hash mismatch: {file.name}")
             values.append(value)
@@ -431,6 +487,7 @@ class ProspectiveLedger:
                 and value.get("selector_hash") == freeze["prediction"].get("selector_hash")
                 and value.get("model_hash") == freeze["prediction"].get("model_hash")
                 and value.get("target_issue") == value.get("actual", {}).get("issue")
+                and value.get("actual", {}).get("draw_date") == freeze.get("target_date")
                 and value.get("target_issue") == value.get("replay", {}).get("actual_issue")
             )
             if not valid:
