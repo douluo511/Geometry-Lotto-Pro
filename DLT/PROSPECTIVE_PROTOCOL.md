@@ -1,3 +1,11 @@
+## Prospective time and replay-score firewall — 2026-10-08
+
+A canonical source report showing a still-unseen target issue is **not** proof that its draw has not already happened. A new immutable Freeze is eligible only when its UTC registration and creation timestamps are valid, the prediction existed before registration, and registration occurred **before the Chinese civil date of the target draw** (UTC+08). Because no independently verified same-day lottery cutoff-time contract has been established, same-day predictions are conservatively rejected from the qualified prospective cohort even when a ticket might still be purchasable. This is intentional fail-closed behavior; a future cutoff policy change must reset the behavior-bound cohort.
+
+Replays are never qualified using self-reported `front_gain_vs_random` or `back_gain_vs_random` alone. Every stored actual draw is validated, the exact prediction's winning intersection/ranks are recomputed, and the same frozen random seeds and score formula are re-evaluated before the 30-valid-replay threshold. Rehashing a tampered score or actual after the draw does not turn it into a valid replay.
+
+These checks are **necessary, not sufficient**: archived JSON digests do not independently prove pre-draw GitHub persistence. Durable qualification also requires timestamped, immutable GitHub ledger commits and separate authorized writer/release governance. PR CI artifacts remain `VALIDATION ONLY` and never count toward the production cohort.
+
 ## Current-main staging authority — 2026-10-08
 
 This port is based on actual monorepo main `c2b0db6876d2aae874f8cf4d08f52455c8eaf152` after DLT background restoration PR #326. It supersedes the stale product-code basis in draft PR #293. The new exact source/behavior fingerprint must start an independent prospective cohort; no historical replay can be inherited.
