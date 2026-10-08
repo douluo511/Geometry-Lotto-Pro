@@ -23,8 +23,8 @@ DATE_STOP = re.compile(
 # exchange state transition: approval, calendar, intraday scope and PIT history
 # must still be independently verified.
 DATE_RESUME = re.compile(
-    r"(?P<year>20\\d\\d)年(?P<month>0?[1-9]|1[0-2])月"
-    r"(?P<day>0?[1-9]|[12]\\d|3[01])日"
+    r"(?P<year>20\d\d)年(?P<month>0?[1-9]|1[0-2])月"
+    r"(?P<day>0?[1-9]|[12]\d|3[01])日"
     r"(?P<context>.{0,32}?)"
     r"(?:开市起|交易日起|起|开始)(?:.{0,14}?)(?:正式)?(?:复牌|恢复交易)"
 )
