@@ -85,4 +85,43 @@ check("no actual resume from planned later announcement",
       row("公司股票2019年2月11日开市起停牌，待相关条件满足后复牌。"),
       "EXPLICIT_STOP_CANDIDATE_ONLY")
 assert len(tests)==18
+# Source-bound instrument scope is orthogonal to effective-date classification.
+def check_scope(name, record, expected, eq=(), convert=()):
+    result=m.classify(record)
+    assert result["instrument_scope"]==expected,(name,result)
+    assert result["equity_code_candidates"]==list(eq),(name,result)
+    assert result["convertible_code_candidates"]==list(convert),(name,result)
+    assert result["instrument_qualification"]=="NOT VERIFIED"
+    assert result["qualified_daily_st_or_suspension"]=="NOT VERIFIED"
+    tests.append(name)
+
+check_scope("one equity stock notice",row(explicit),"SINGLE_EQUITY_CODE_NOTICE",("002628",))
+check_scope("single bond must not become stock PIT",
+            row("蓝帆转债（128108）今日盘中实施临时停牌。",title="关于蓝帆转债盘中临时停牌的公告",codes=["128108"]),
+            "CONVERTIBLE_BOND_NOTICE",(),("128108",))
+check_scope("debt with no restricted-prefix code is separate non-stock",
+            row("恒大公司债券（149128）盘中临时停牌，本所对该债券实施停牌。",
+                title="关于20恒大02盘中临时停牌的公告",codes=[]),
+            "OTHER_BOND_NOTICE")
+check_scope("fund with stock in fund name is not stock",
+            row("南方香港优选股票型证券投资基金（基金代码160125）临时停牌。",
+                title="南方香港优选股票型证券投资基金临时停牌公告",codes=[]),
+            "FUND_NOTICE")
+check_scope("equity and convertible in same notice remain two classes",
+            row("股票（证券代码300197）及衍生品种铁汉转债（证券代码123004）开市停牌。",
+                title="关于铁汉生态股票临时停牌的公告",codes=["123004","300197"]),
+            "MIXED_EQUITY_AND_CONVERTIBLE_NOTICE",("300197",),("123004",))
+check_scope("AB two stock share classes not one ambiguous bond",
+            row("公司A股000613及B股200613于今日开市起临时停牌。",
+                title="关于海南大东海股票临时停牌的公告",codes=["000613","200613"]),
+            "MULTI_CLASS_EQUITY_NOTICE",("000613","200613"))
+check_scope("stock AB and derivative all preserved",
+            row("本钢板材000761和本钢板B200761及本钢转债127018股票临时停牌。",
+                title="关于本钢板材股票临时停牌的公告",codes=["000761","200761","127018"]),
+            "MIXED_EQUITY_AND_CONVERTIBLE_NOTICE",("000761","200761"),("127018",))
+bad=row(explicit);bad["transport"]["sha256"]="invalid"
+check_scope("invalid source cannot claim even scoped stock",bad,"SOURCE_OR_IDENTITY_UNVERIFIED")
+
+assert len(tests)==26
+print("STOCK SECURITY ASSET SCOPE NEGATIVE CONTROLS 8/8 PASS")
 print("STOCK SOURCE-BOUND PIT SEMANTIC COUNTEREXAMPLES 18/18 PASS")
