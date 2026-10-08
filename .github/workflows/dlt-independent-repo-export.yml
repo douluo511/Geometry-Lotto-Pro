@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      CANDIDATE_SHA: 6e4497ede87fb5dc0673e53aa0e993ef4674694c
+      CANDIDATE_SHA: b1051e320691a7b9798092f797751a2f13a4b1cc
     steps:
       - name: Checkout exact migration head
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -154,7 +154,7 @@ jobs:
           assert "dlt-published-combination-only-v1" in engine
           assert "dlt-uniform-without-replacement-v1" in engine
           constants = (a / "DLT/src/glp/constants.py").read_text(encoding="utf-8")
-          assert 'APP_VERSION = "2.1.5"' in constants
+          assert 'APP_VERSION = "2.1.6"' in constants
           storage = (a / "DLT/src/glp/storage.py").read_text(encoding="utf-8")
           evidence = (a / "DLT/src/glp/evidence.py").read_text(encoding="utf-8")
           assert "replay payload mismatch / tampered hit count" in storage
