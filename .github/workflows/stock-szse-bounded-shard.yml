@@ -1,0 +1,114 @@
+name: Stock SZSE bounded live source shard - evidence only
+
+on:
+  push:
+    branches:
+      - fix/stock-szse-bounded-shard-evidence-20261008
+    paths:
+      - ".github/stock_diag/stock_szse_bounded_shard.py"
+      - ".github/stock_diag/test_szse_bounded_shard.py"
+      - ".github/workflows/stock-szse-bounded-shard.yml"
+  pull_request:
+    paths:
+      - ".github/stock_diag/stock_szse_bounded_shard.py"
+      - ".github/stock_diag/test_szse_bounded_shard.py"
+      - ".github/workflows/stock-szse-bounded-shard.yml"
+  workflow_dispatch:
+    inputs:
+      shard_index:
+        description: "0..18; fixed 100-notice shards over 1849 official notice URLs"
+        type: number
+        default: 0
+        required: true
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  exact-head-shard:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      SHARD_INDEX: ${{ inputs.shard_index || '0' }}
+    steps:
+      - name: Checkout exact source head
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Prove frozen Stock product tree remains unchanged
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected="${{ github.event.pull_request.head.sha || github.sha }}"
+          test "$(git rev-parse HEAD)" = "$expected"
+          git merge-base --is-ancestor 9969490c89ccb4cc10536f66416976c5bf40caef HEAD
+          test -z "$(git diff --name-only 9969490c89ccb4cc10536f66416976c5bf40caef..HEAD -- StockAIPro)"
+          echo "STOCK_PRODUCT_BYTES_UNCHANGED=PASS"
+      - name: Setup pinned Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.11.9"
+          check-latest: false
+      - name: Install pinned parser and network dependencies
+        run: python -m pip install --disable-pip-version-check --no-input "requests==2.34.2" "beautifulsoup4==4.15.0"
+      - name: Run frozen denominator, raw evidence and bounded retry fault controls
+        run: python .github/stock_diag/test_szse_bounded_shard.py
+      - name: Retrieve historical first-party frozen URL index with pinned artifact digest
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location --retry 3 --retry-all-errors \
+            --connect-timeout 15 --max-time 120 \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            --header "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/11532256260/zip" \
+            --output frozen_source_artifact.zip
+          echo "89e065870802432a2c53585886f38479b3691785759604caae8ecb8526235593  frozen_source_artifact.zip" | sha256sum --check
+          unzip -oq frozen_source_artifact.zip
+          test -f stock_szse_suspension_static_archive.json
+          echo "HISTORICAL_INDEX_ONLY=HASH_VERIFIED; CURRENT_SOURCE_NOT_INHERITED"
+      - name: Fresh bounded official SZSE shard - fail closed
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "${SHARD_INDEX}" =~ ^(0|[1-9][0-9]?)$ ]]
+          test "${SHARD_INDEX}" -ge 0
+          test "${SHARD_INDEX}" -le 18
+          python .github/stock_diag/stock_szse_bounded_shard.py \
+            --archive stock_szse_suspension_static_archive.json \
+            --shard-index "${SHARD_INDEX}" \
+            --raw-dir szse_shard_raw --report szse_shard_report.json
+      - name: Preserve source/PIT/Final distinction on every outcome
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f szse_shard_report.json
+          python - <<'PY'
+          import json
+          s=json.load(open("szse_shard_report.json",encoding="utf-8"))
+          a=s["adjudication"]
+          assert s["full_frozen_denominator"] == 1849
+          assert s["verified"] + s["missing"] == s["requested"]
+          assert len(s["records"]) == s["requested"]
+          assert a["entire_1849_current_network"] == "NOT VERIFIED"
+          assert a["historical_daily_st_suspension_pit_sse_szse_bse"] == "NOT VERIFIED"
+          assert a["advanced_business"] == "NOT VERIFIED"
+          assert a["final_gate"] == "FAIL"
+          print("CURRENT_SHARD_CAPTURE=" + a["shard_http_primary_body"])
+          print("GLOBAL_SOURCE=NOT VERIFIED; HISTORICAL_PIT=NOT VERIFIED; FINAL_GATE=FAIL")
+          PY
+      - name: Upload raw first-party evidence, attempted URLs and failures
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: STOCK-SZSE-SHARD-${{ env.SHARD_INDEX }}-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            szse_shard_report.json
+            szse_shard_raw/
+          if-no-files-found: warn
+          retention-days: 30
