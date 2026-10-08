@@ -90,5 +90,17 @@ reject_case("untrusted external DTD", normal.replace(b"<SecurityInfo>", b'<!DOCT
 reject_case("duplicate native SecurityType tag", xml(stock, extra="<SecurityType>1</SecurityType>"))
 reject_case("unsupported GB bytes", normal + b"\xff")
 reject_case("empty raw response", b"")
-assert len(cases) == 25, (len(cases), cases)
-print("BSE NATIVE SECURITYINFO OFFLINE CONTRACTS 25/25 PASS")
+# The as-of observation must not precede the native snapshot day in the
+# exchange's Asia/Shanghai clock, even when the input offset looks newer.
+reject_case("source snapshot dated tomorrow in Beijing cannot be observed today UTC",
+            normal, stamp="2026-10-07T15:59:59+00:00")
+reject_case("source snapshot dated tomorrow in Beijing cannot be observed from UTC+9",
+            normal, stamp="2026-10-08T00:59:59+09:00")
+def midnight_beijing_is_only_eligible_snapshot_date_not_release_proof():
+    result=m.parse(normal,NAME,acquired_at_utc="2026-10-07T16:00:00+00:00")
+    assert result["snapshot_day_not_proof_of_actual_daily_trade"]=="2026-10-08"
+    assert result["adjudication"]["historical_snapshot_availability"]=="NOT VERIFIED"
+pass_case("Beijing date boundary permits parse, never establishes intraday release availability",
+          midnight_beijing_is_only_eligible_snapshot_date_not_release_proof)
+assert len(cases) == 28, (len(cases), cases)
+print("BSE NATIVE SECURITYINFO OFFLINE CONTRACTS 28/28 PASS")
