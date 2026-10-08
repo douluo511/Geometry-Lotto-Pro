@@ -37,7 +37,7 @@ def _hex64(value) -> bool:
 
 def _market_for_code(code: str):
     code = str(code)
-    if re.fullmatch(r"\d{6}", code) is None:
+    if re.fullmatch(r"[0-9]{6}", code) is None:
         return None
     # Scope is mainland A-share / BSE equity codes only.  BSE includes both
     # legacy 4/8 prefixes and ONLY the 920xxx unified securities code.
