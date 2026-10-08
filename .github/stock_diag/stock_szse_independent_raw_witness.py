@@ -78,6 +78,16 @@ def verify(live:dict,raw:dict,dated:dict,review:dict):
         raise ValueError("date_and_equity_candidate_research_not_from_exact_live_source")
     candidates=review.get("human_review_event_candidates")
     if not isinstance(candidates,list): raise ValueError("no_current_live_event_candidates")
+    classes=review.get("notice_pair_classification_counts")
+    if not isinstance(classes,dict) or sum(classes.values())!=A+B:
+        raise ValueError("live_candidate_classification_denominator_drift")
+    if classes.get("B_SHARE_OUTSIDE_PRODUCT_A_SHARE_SCOPE")!=B:
+        raise ValueError("original_B_share_exclusion_dropped")
+    date_candidate_count=(classes.get("UNCONFIRMED_EXPLICIT_STOP_DATE",0)
+         +classes.get("UNCONFIRMED_EXPLICIT_RESUME_DATE",0))
+    if len(candidates)!=date_candidate_count:
+        raise ValueError("candidate_review_rows_dropped_or_injected")
+
     controls=[]
     unique=set()
     for candidate in candidates:
