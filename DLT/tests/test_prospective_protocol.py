@@ -383,6 +383,34 @@ class ProspectiveProtocolTests(unittest.TestCase):
             self.assertIn(target_issue, second["new_replays"])
             self.assertNotEqual(second["freeze"]["target_issue"], target_issue)
 
+    def test_cycle_refuses_forged_canonical_hash_without_creating_cohort(self):
+        draws = _draws()
+        actual_hash = sha256_json([d.to_dict() for d in draws])
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            with self.assertRaisesRegex(ValueError, "canonical history hash"):
+                run_prospective_cycle(
+                    draws, "f" * 64, ledger_root=root,
+                    source_commit=SOURCE_A, prediction_builder=FakeBuilder(),
+                )
+            self.assertNotEqual(actual_hash, "f" * 64)
+            self.assertFalse((root / "index.json").exists())
+            self.assertFalse((root / "cohorts").exists())
+
+    def test_direct_freeze_registration_cannot_bypass_canonical_digest(self):
+        draws = _draws()
+        wrong_hash = "f" * 64
+        prediction, _ = FakeBuilder()(draws, wrong_hash, None)
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            ledger = ProspectiveLedger(root)
+            with self.assertRaisesRegex(ValueError, "canonical history hash"):
+                ledger.register_freeze(
+                    prediction,
+                    draws=draws, canonical_hash=wrong_hash, source_commit=SOURCE_A,
+                )
+            self.assertFalse((root / "index.json").exists())
+
     def test_rehashed_internally_consistent_false_actual_fails_against_official(self):
         draws = _draws()
         canonical = sha256_json([d.to_dict() for d in draws])
