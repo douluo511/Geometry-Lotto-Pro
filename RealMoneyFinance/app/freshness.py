@@ -4,6 +4,8 @@ from datetime import date, datetime, time as clock_time, timedelta, timezone
 import math
 from typing import Any
 
+from .domain import DailyBar, validate_market_rows
+
 
 CHINA_STANDARD_TIME = timezone(timedelta(hours=8))
 SSE_2026_SCHEDULE_SOURCE = (
@@ -61,6 +63,50 @@ def expected_latest_completed_session(now: datetime | None = None) -> str:
             return probe.isoformat()
         probe -= timedelta(days=1)
     raise FreshnessCalendarUnavailable("could not resolve a completed SSE session within 40 days")
+
+
+
+def select_completed_market_rows(
+    rows: list[DailyBar], *, now: datetime | None = None,
+) -> tuple[list[DailyBar], dict[str, Any]]:
+    """Select completed daily bars without hiding stale, future or malformed data.
+
+    Only today's SSE-session bar before the frozen 15:30 settlement margin can
+    be excluded. Every other date after the completed-session oracle is invalid;
+    the returned latest date must equal that oracle. Raw payload hashes remain
+    those of the unchanged provider response.
+    """
+    validate_market_rows(rows)
+    current = now or datetime.now(timezone.utc)
+    if current.tzinfo is None:
+        raise ValueError("now must be timezone-aware")
+    local = current.astimezone(CHINA_STANDARD_TIME)
+    expected = expected_latest_completed_session(current)
+    unfinished_today = (
+        is_sse_session(local.date())
+        and local.time() < DAILY_BAR_SETTLEMENT_MARGIN
+    )
+    selected = []
+    discarded = []
+    for row in rows:
+        if row.trade_date <= expected:
+            selected.append(row)
+        elif unfinished_today and row.trade_date == local.date().isoformat():
+            discarded.append(row.trade_date)
+        else:
+            raise ValueError("provider contains a date after the completed SSE session outside today's unfinished bar")
+    if not selected or selected[-1].trade_date != expected:
+        raise ValueError("provider is missing the latest completed SSE session")
+    return selected, {
+        "policy": "SSE completed session; only today's unfinished daily bar excluded",
+        "expected_completed_session": expected,
+        "china_time": local.isoformat(),
+        "settlement_margin_local": DAILY_BAR_SETTLEMENT_MARGIN.isoformat(),
+        "raw_row_count": len(rows),
+        "completed_row_count": len(selected),
+        "discarded_unfinished_dates": discarded,
+        "raw_payload_hashes_preserved": True,
+    }
 
 
 def qualify_source_freshness(
