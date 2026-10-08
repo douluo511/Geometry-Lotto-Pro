@@ -15,6 +15,13 @@ HEX64 = re.compile(r"^[0-9a-f]{64}$")
 PASS = "PASS"
 WARN = "WARN"
 MARKET_LIFECYCLE_START = {"BSE": date(2021, 11, 15)}
+# BSE rule published 2024-04-19: NEW IPOs may use 920 codes from
+# 2024-04-22, unlike 248 PRE-EXISTING issuers switching in two separate
+# phases on 2025-05-06 (6 pilots) and 2025-10-09 (remaining 242).
+# These are only necessary date bounds, NOT membership or as-of evidence.
+BSE_920_NEW_IPO_CODE_START = date(2024, 4, 22)
+BSE_LEGACY_PILOT_SWITCH_DAY = date(2025, 5, 6)
+BSE_LEGACY_UNIFIED_SWITCH_DAY = date(2025, 10, 9)
 
 
 def _parse_day(value):
@@ -40,6 +47,24 @@ def _market_for_code(code: str):
         return "SSE"
     if code.startswith(("000", "001", "002", "003", "300", "301")):
         return "SZSE"
+    return None
+
+
+def _impossible_market_code_day(market: str, code: str, day: date):
+    """Reject objectively impossible exchange/code dates, never assert membership.
+
+    During 2024-04-22..2025-10-08 a 920 code may identify a newly
+    listed IPO, while the pre-existing 248 issuers switched in phases.
+    A code prefix or these date bounds cannot establish issuer identity,
+    pilot identity, actual trading, daily ST/suspension, or full PIT.
+    """
+    if market == "BSE":
+        if day < MARKET_LIFECYCLE_START["BSE"]:
+            return "bse_before_market_open"
+        if str(code).startswith("92") and day < BSE_920_NEW_IPO_CODE_START:
+            return "bse_920_before_new_ipo_activation"
+        if str(code).startswith(("4", "8")) and day >= BSE_LEGACY_UNIFIED_SWITCH_DAY:
+            return "bse_legacy_after_unified_switch"
     return None
 
 
@@ -219,6 +244,9 @@ def _validate_raw_provenance(root: Path, path: Path, market: str):
                 return False, f"raw_security_market_code:{idx}:{sec_idx}:{code}", raw_obj
             if listing is None:
                 return False, f"raw_security_listing_date:{idx}:{sec_idx}:{code}", raw_obj
+            impossible = _impossible_market_code_day(market, code, listing)
+            if impossible:
+                return False, f"{impossible}:raw:{idx}:{sec_idx}:{code}", raw_obj
             if delisting is not None and delisting < listing:
                 return False, f"raw_security_lifecycle_order:{idx}:{sec_idx}:{code}", raw_obj
 
@@ -283,6 +311,9 @@ def _read_lifecycle(path: Path, market: str):
                 return False, f"market_code_mismatch:{lineno}", None
             if listing is None:
                 return False, f"listing_date_invalid:{lineno}", None
+            impossible = _impossible_market_code_day(market, code, listing)
+            if impossible:
+                return False, f"{impossible}:lifecycle:{lineno}:{code}", None
             if delisting is not None and delisting < listing:
                 return False, f"lifecycle_order:{lineno}", None
             if code in seen:
@@ -496,6 +527,9 @@ def _validate_canonical_semantics(path: Path, start, end, expected):
                 return False, f"security_code_invalid:{lineno}:{code}", None
             if market != expected_market:
                 return False, f"market_code_mismatch:{lineno}:{market}/{code}", None
+            impossible = _impossible_market_code_day(market, code, day)
+            if impossible:
+                return False, f"{impossible}:daily:{lineno}:{code}", None
             if type(st) is not bool or type(suspended) is not bool:
                 return False, f"state_type_invalid:{lineno}", None
 
@@ -943,6 +977,12 @@ def load_historical_st_pit_subset(root: Path, required_keys, expected_trade_date
                 raise RuntimeError(
                     f"historical PIT market/code mismatch at line {lineno}: "
                     f"{market}/{code} expected={expected_market}"
+                )
+            impossible = _impossible_market_code_day(market, code, day)
+            if impossible:
+                raise RuntimeError(
+                    f"historical PIT impossible exchange/code day at line {lineno}: "
+                    f"{impossible}:{market}/{code}/{day.isoformat()}"
                 )
             if type(st) is not bool or type(suspended) is not bool:
                 raise RuntimeError(f"historical PIT state types invalid at line {lineno}")
