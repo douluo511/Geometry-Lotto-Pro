@@ -1,0 +1,28 @@
+name: DLT prospective hit-rate truth / anti-leakage
+on:
+  pull_request:
+    paths:
+      - 'DLT/src/glp/storage.py'
+      - 'DLT/src/glp/service.py'
+      - 'DLT/src/glp/evidence.py'
+      - 'DLT/src/glp/gui.py'
+      - 'DLT/src/glp/constants.py'
+      - 'DLT/tests/test_prospective_hit_rate_truth.py'
+      - '.github/workflows/dlt-prospective-hit-rate-truth.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  fail-first-prospective-truth:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Compile current product code
+        run: python -m compileall -q DLT/src/glp/storage.py DLT/src/glp/evidence.py DLT/tests/test_prospective_hit_rate_truth.py
+      - name: Verify immutable predraw hit-rate correctness and adversarial examples
+        env:
+          PYTHONPATH: DLT/src
+        run: python -m unittest discover -s DLT/tests -p 'test_prospective_hit_rate_truth.py' -v
