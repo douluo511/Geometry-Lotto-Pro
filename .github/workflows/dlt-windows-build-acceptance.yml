@@ -371,7 +371,7 @@ jobs:
             'background_1800_gate', 'same_hash_gate',
             'updater_process', 'updater_exact_exe', 'updater_atomic_rollback', 'updater_same_hash'
           )
-          $notPass = @($technical | Where-Object { $final.$_ -ne 'PASS' })
+          $notPass = @($technical | Where-Object { $final.PSObject.Properties[$_].Value -ne 'PASS' })
           $eligible = (
             $final.schema -eq 'dlt-evidence-derived-final-gate-v2' -and
             $final.final_gate -eq 'FAIL' -and
