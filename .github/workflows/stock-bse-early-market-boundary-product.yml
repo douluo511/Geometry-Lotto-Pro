@@ -1,7 +1,7 @@
 name: Stock PIT impossible BSE dates - PRODUCT fail first
 on:
   push:
-    branches: [fix/stock-pit-bse-impossible-historical-dates-20261008]
+    branches: [fix/stock-pit-bse-impossible-historical-dates-20261008, fix/stock-bse-new-ipo-920-before-2025-20261008]
     paths:
       - "StockAIPro/staging/Stock_AI_Pro/versions/4.3.0/stock_ai/historical_pit.py"
       - "StockAIPro/hardening_tests/historical_bse_market_date_boundary_test.py"
@@ -51,6 +51,7 @@ jobs:
           H=lambda b:hashlib.sha256(b).hexdigest()
           old="668b93bcbe55181b0c84268464768031cc66bb3410c98b47e531cec619bc9063"
           current=H(code.read_bytes())
+          print("CURRENT_BSE_NEW_ISSUE_STAGED_CODE_SHA256="+current, flush=True)
           inner_text=inner.read_text(encoding="utf-8")
           outer_text=outer.read_text(encoding="utf-8")
           old_inner=H(inner.read_bytes())
