@@ -2,6 +2,7 @@
 import copy
 import hashlib
 import json
+import os
 from pathlib import Path
 import tempfile
 
@@ -74,7 +75,14 @@ try:
         for i in range(2):
             folder=parts/f"shard-{i:02d}"
             folder.mkdir()
-            report=capture.run(source,i,folder/"szse_shard_raw",getter=mock_response,sleep=lambda _:None)
+            previous=Path.cwd()
+            os.chdir(folder)
+            try:
+                # Production records store relative artifact-root paths, never
+                # a runner's absolute, ephemeral workspace path.
+                report=capture.run(source,i,Path("szse_shard_raw"),getter=mock_response,sleep=lambda _:None)
+            finally:
+                os.chdir(previous)
             (folder/"szse_shard_report.json").write_text(json.dumps(report,ensure_ascii=False),encoding="utf-8")
         merged=merge.merge(source,parts)
         check("full raw and canonical first-party source accepted",lambda:(
