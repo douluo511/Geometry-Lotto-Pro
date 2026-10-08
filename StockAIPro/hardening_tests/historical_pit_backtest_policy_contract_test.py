@@ -198,6 +198,39 @@ def install_claim(root: Path, rows: list[dict], calendar_dates=None) -> None:
     )
 
 
+def load_synthetic_st_pit_for_policy_unit_only(root, required_keys, expected_trade_date=None):
+    """TEST-ONLY stub for signal/entry ranking logic. Never qualifies the real PIT.
+
+    The production evaluator remains WARN without independent source-native
+    historical issuer/master/ST-halt authority from all three exchanges.
+    """
+    root = Path(root)
+    claim = json.loads((root / "cache" / "historical_st_pit.json").read_text(encoding="utf-8"))
+    cal = root / claim["calendar_manifest_path"]
+    canonical = root / claim["canonical_path"]
+    source_calendar = json.loads(cal.read_text(encoding="utf-8"))
+    available = {}
+    for raw in canonical.read_text(encoding="utf-8").splitlines():
+        row = json.loads(raw)
+        available[(row["date"],row["code"])] = {
+            "market": row["market"], "st": row["st"],
+            "suspended": row["suspended"],
+        }
+    required = {(str(day),str(code)) for day,code in required_keys}
+    missing = sorted(required-set(available))
+    if missing:
+        raise RuntimeError(f"TEST_ONLY synthetic unit PIT state missing: {missing}")
+    return {key:available[key] for key in required},{
+        "status":"TEST_ONLY_SYNTHETIC_UNIT",
+        "market_dates":{market:source_calendar["markets"][market]["dates"]
+                        for market in ("SSE","SZSE","BSE")},
+        "canonical_sha256":sha(canonical),
+        "calendar_manifest_sha256":sha(cal),
+        "window_start":claim["window_start"],
+        "window_end":claim["window_end"],
+    }
+
+
 D1, D2, D3 = "2026-01-05", "2026-01-06", "2026-01-07"
 rows = [
     # SSE high-liquidity name is ST on signal day and must be removed BEFORE Top-N.
@@ -230,7 +263,9 @@ with tempfile.TemporaryDirectory() as td:
         {"date": D1, "entry_date": D2, "code": "600002", "log_amount20": 20.0},
     ])
     cfg = {"universe": {"min_turnover_cny": 0, "live_top_n": 1, "exclude_st": True}}
-    with patch.object(bt, "ROOT", root):
+    with patch.object(bt, "ROOT", root), patch.object(
+        bt, "load_historical_st_pit_subset", load_synthetic_st_pit_for_policy_unit_only
+    ):
         pit_status, pit_detail, pit_meta = evaluate_historical_st_pit(root, D3)
         print("BACKTEST_POLICY_FIXTURE_EVALUATOR=" + json.dumps({
             "status": pit_status,
@@ -247,7 +282,8 @@ with tempfile.TemporaryDirectory() as td:
                 for key, value in (pit_meta.get("bindings") or {}).items()
             },
         }, sort_keys=True))
-        assert pit_status == "PASS", (pit_detail, pit_meta)
+        assert pit_status == "WARN", (pit_detail, pit_meta)
+        assert "native_source_authority_unverified" in pit_meta["failures"]
         out, ev = bt._historical_candidate_pool(ds, cfg, pd.to_datetime([D1, D2, D3]))
     assert out["code"].tolist() == ["600002"], out
     assert ev["signal_st_excluded"] == 1
@@ -264,7 +300,9 @@ with tempfile.TemporaryDirectory() as td:
         {"date": D1, "entry_date": D2, "code": "600003", "log_amount20": 20.0},
     ])
     cfg = {"universe": {"min_turnover_cny": 0, "live_top_n": 0, "exclude_st": True}}
-    with patch.object(bt, "ROOT", root):
+    with patch.object(bt, "ROOT", root), patch.object(
+        bt, "load_historical_st_pit_subset", load_synthetic_st_pit_for_policy_unit_only
+    ):
         try:
             bt._historical_candidate_pool(ds, cfg, pd.to_datetime([D1, D2, D3]))
         except RuntimeError as exc:
@@ -280,7 +318,9 @@ with tempfile.TemporaryDirectory() as td:
         {"date": D1, "entry_date": D3, "code": "600002", "log_amount20": 20.0},
     ])
     cfg = {"universe": {"min_turnover_cny": 0, "live_top_n": 0, "exclude_st": True}}
-    with patch.object(bt, "ROOT", root):
+    with patch.object(bt, "ROOT", root), patch.object(
+        bt, "load_historical_st_pit_subset", load_synthetic_st_pit_for_policy_unit_only
+    ):
         try:
             bt._historical_candidate_pool(ds, cfg, pd.to_datetime([D1, D2, D3]))
         except RuntimeError as exc:
@@ -350,4 +390,4 @@ with tempfile.TemporaryDirectory() as td:
         else:
             raise AssertionError("market/code mismatch must fail closed")
 
-print("HISTORICAL PIT BACKTEST POLICY / TOP-N / FUTURE-SAFETY CONTRACT PASS")
+print("HISTORICAL PIT SYNTHETIC UNIT TOP-N/FUTURE-SAFETY CONTRACT PASS; PRODUCT SOURCE-NATIVE=NOT VERIFIED")
