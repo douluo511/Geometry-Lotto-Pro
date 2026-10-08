@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - diagnostic/stock-szse-effective-event-audit-20261008
+      - fix/stock-szse-resume-evidence-candidates-20261008
     paths:
       - ".github/stock_diag/stock_szse_effective_event_audit.py"
       - ".github/stock_diag/test_szse_effective_event_audit.py"
