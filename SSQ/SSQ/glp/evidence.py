@@ -548,6 +548,33 @@ def _support_gate(draws: list[Draw]) -> dict[str, Any]:
     }
 
 
+def _prospective_provenance_gate(
+    prospective: list[dict[str, Any]], selector_hash: str,
+) -> dict[str, Any]:
+    """Never confuse a local Replay row with an externally time-anchored Freeze.
+
+    A local created_at, a matching SHA and even a correct official outcome
+    cannot independently prove that a forecast existed before that outcome.
+    Reject every unanchored row; count locally present rows only as audit.
+    """
+    if not isinstance(prospective, list):
+        raise TypeError("unqualified prospective records must be a list")
+    return {
+        "schema": "ssq-prospective-authority-gate-v1",
+        "authority": "EXTERNAL_PREDRAW_GIT_LEDGER_NOT_VERIFIED",
+        "qualified_count": 0,
+        "unverified_count": len(prospective),
+        "selector_consistent": all(
+            isinstance(row, dict)
+            and isinstance(row.get("selector_hash"), str)
+            and bool(row.get("selector_hash"))
+            and row["selector_hash"] == selector_hash
+            for row in prospective
+        ),
+        "promotion_authorized": False,
+    }
+
+
 def run_evidence_court(
     draws: list[Draw],
     prospective: list[dict[str, Any]] | None = None,
@@ -606,11 +633,12 @@ def run_evidence_court(
     nulls = _null_worlds(len(holdout_vals), _mean(holdout_vals))
     support = _support_gate(draws)
 
-    prospective_n = len(prospective)
-    prospective_selector_consistent = all(
-        (not isinstance(x, dict)) or (not x.get("selector_hash")) or x.get("selector_hash") == identity["selector_hash"]
-        for x in prospective
-    )
+    # Read-only local Replay observations are not a scientifically qualified
+    # pre-draw cohort; this separately testable gate rejects unsupported inputs.
+    provenance = _prospective_provenance_gate(prospective, identity["selector_hash"])
+    unverified_prospective_n = provenance["unverified_count"]
+    prospective_n = provenance["qualified_count"]
+    prospective_selector_consistent = provenance["selector_consistent"]
 
     alpha = float(PROMOTION_POLICY["alpha"])
     predictive_pass = (
@@ -627,10 +655,16 @@ def run_evidence_court(
         nulls["false_positive_rate"] <= float(PROMOTION_POLICY["max_null_world_fpr"])
         and nulls["observed_percentile"] >= float(PROMOTION_POLICY["min_null_percentile"])
     )
-    edge_proven = all((
+    historical_edge_candidate = all((
         predictive_pass, loeo_pass, holdout_pass, dual["passed"],
         ablation["passed"], leakage_pass, null_pass,
     ))
+    # A historical edge candidate is NOT a verified future prediction edge.
+    edge_proven = (
+        historical_edge_candidate
+        and prospective_n >= int(PROMOTION_POLICY["min_prospective"])
+        and prospective_selector_consistent
+    )
     certified_dan = (
         edge_proven
         and support["passed"]
@@ -681,6 +715,9 @@ def run_evidence_court(
         "dual_final_confirmation": dual,
         "support_gate": support,
         "prospective_n": prospective_n,
+        "unverified_prospective_n": unverified_prospective_n,
+        "prospective_authority": "EXTERNAL_PREDRAW_GIT_LEDGER_NOT_VERIFIED",
+        "historical_edge_candidate": historical_edge_candidate,
         "prospective_selector_consistent": prospective_selector_consistent,
         "leakage_violations": wf["leakage_violations"],
         "software_verdict": software_verdict,

@@ -1,0 +1,38 @@
+# SSQ 前瞻 Replay 科學資格硬閘（2026-10-08，獨立修復候選）
+
+狀態：**研究候選／FAIL-CLOSED**，不代表模型已取得可證明的命中優勢，也不代表 Windows 最終 EXE 驗收通過。
+
+## 根因（5 Why）
+
+本地 SQLite `freezes` + `replays` 可以記錄預測及開獎後的回顧，卻**無法單憑自報的時間或 SHA-256 證明該筆預測確實在官方開獎前已對外不可變地公示**。舊版 Evidence Court 僅依 selector 查詢並按 Replay 行數計數；空白 selector／非 dict 可被視作一致。這允許重複、補登或造假的 Replay 污染前瞻樣本數。
+
+## 科學裁決 Exact-Code 快取隔離
+
+- Evidence Court 快取現在必須同時匹配本輪 `scientific_policy_hash`，此摘要從正在執行的 Evidence Court、前瞻來源資格閘門、Service 入口程式碼的 Python code objects 計算，而不是只相信 APP_VERSION 或舊模型／selector hash。
+- 驗證算法、快取條件、來源資格判斷程式碼變更、或 Windows frozen-build 的編譯指紋不一致時，歷史 `software_verdict=PASS` 不能繼續沿用，必須重新運行本輪 Evidence Court。
+- 新增反例：若把過去的 verifier 編譯程式碼替換成行為不同的版本，fingerprint 必須改變；即使上一筆快取宣稱 `NO_EDGE / NULL_DAN / prospective_n=0` 並重新計算 court_hash，過期的 `scientific_policy_hash` 仍被拒絕。
+- Code-object fingerprint 是「本地快取相容性門檻」，**不是**可信任的外部開獎前時間戳、GitHub 真實來源授權或預測優勢證明。
+
+## 此修復的硬邊界
+
+- 本機 Replay 繼續保留作為**歷史回顧／故障分析**，不作為已資格確認的前瞻樣本。
+- `LottoService._prospective_replays` 現將本機資料全部列為未核實，記錄 `local_replay_rows`、`selector_matched_local_rows`、`qualified_replays=0`，並只向正式 Evidence Court 提供空的已核實清單。
+- `run_evidence_court` **獨立保留第二道硬閘**：直接輸入的 Replay JSON 同樣不得自我授權，`qualified_count=0`，必須區分 `historical_edge_candidate` 與經未來期號驗證的 `EDGE_PROVEN`；不滿足前瞻最低數量則為 `NO_EDGE / NULL_DAN`。
+- 空白、遺失或類型錯誤的 selector 一律視為不一致；偽造 `provenance_verified: true` 不構成授權。
+- 舊 Evidence Court 快取即使原來聲稱 PASS／EDGE_PROVEN／CERTIFIED_DAN，也不能跳過新資格硬閘。
+- **不得**把這道保護解釋成「30 期資格已完成」。真正業務阻斷仍未解除。
+
+## 只讀 GitHub 伺服器前瞻時間憑證（研究候選，已實作檢查器）
+
+新增 `SSQ/SSQ/glp/prospective_github_receipt.py`，它從 GitHub API 即時讀取 Actions Run 的**伺服器時間**、同一 Run 的 exact `head_sha`，再以該 SHA 讀取指定期號的 Freeze 原始 Git Blob，重新驗證 Git Blob SHA、完整的 33 紅／16 藍排序、6+1 選號、`prediction_id`、`freeze_hash`、模型來源提交、期號／日期、開獎前中國日期邊界。Run 必須為指定的 `push` 分支、指定工作流程、成功結束。任意自填的 Git Commit author/committer timestamp 或 `verified:true` **不被視作證據**。
+
+此階段 **只產生 `PRE_DRAW_EXISTENCE_CANDIDATE_ONLY`**；輸出固定 `qualified_count=0`、`official_outcome_verified=false`、`promotion_authorized=false`。尚須正式建立經治理的工作流程及每期持久 Freeze、即時官方開獎核對、未漏期 cohort、完整重算和獨立發布，才可能計入 **SSQ 120 期**門檻。GitHub Actions 單元測試所使用的 FakeGitHub 回應只測程式契約，**不**構成真實網路認證的歷史 Freeze。
+
+## 將來允許驗證的證據要求（尚未實施，不是假 PASS）
+
+1. 獨立且可追溯的 GitHub（或具同等證明力）開獎前持久不可變 Freeze，簽定 exact 代碼／模型／selector／源資料摘要、實際預測和當時時間；後補禁止。
+2. 每期重取官方來源並核對真實 6 紅 + 1 藍、期號／日期、來源原始資料及驗證雜湊。
+3. 按 Freeze 重算 Replay 和隨機基線，拒絕重複及不匹配 cohort，達成 **SSQ 目前已凍結的 `PROMOTION_POLICY.min_prospective=120` 筆**真實且獨立驗證的未來開獎記錄後，仍需統計／逆轉驗證及額外生產升格授權。**30 筆是 DLT 研究門檻，不能冒用為 SSQ 門檻。**
+4. 同步完成 SSQ 自己的獨立 Repository、原生 Windows Build、Exact EXE、實體 GUI、Same Hash、獨立 Updater N→N+1、Final Gate。
+
+SSQ 與 DLT 的代碼、模型、數據、發布仍然完全獨立。這份候選修復不修改 DLT 產品或其研究 Protocol，也不合併獨立成品。

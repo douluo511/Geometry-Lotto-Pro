@@ -1,16 +1,20 @@
 from __future__ import annotations
 
 import json
+import marshal
 import shutil
 import sqlite3
 import sys
 from dataclasses import asdict
 from pathlib import Path
+from types import FunctionType
 from typing import Any, Callable
 
 from glp.constants import APP_VERSION, BACK_MAX, BACK_PICK, FRONT_MAX, FRONT_PICK, GAME
 from glp.engine import make_prediction, model_identity
 from glp.domain import Draw
+from glp import engine as engine_module
+from glp import evidence as evidence_module
 from glp.evidence import run_evidence_court
 from glp.ors import build_ors_record
 from glp.sources import build_canonical
@@ -97,14 +101,35 @@ class LottoService:
                 raise RuntimeError("invalid SSQ blue-ball record")
 
     def _prospective_replays(self, selector_hash: str) -> list[dict[str, Any]]:
+        """No local SQLite replay has independently witnessed pre-draw provenance.
+
+        Local replays remain available to post-draw analysis and audit, but a
+        same-database freeze timestamp, selector field and SHA cannot prove
+        that a prediction existed before an official result was published.
+        This fail-closed boundary must not be replaced by a self-reported
+        `verified` boolean. A separately authenticated, immutable external
+        pre-draw ledger and official outcome verifier are prerequisites.
+        """
         db = self._db()
         try:
-            rows = db.execute(
-                "SELECT r.payload_json FROM replays r JOIN freezes f ON f.prediction_id=r.prediction_id "
-                "WHERE f.selector_hash=? ORDER BY f.target_issue",
+            total = int(db.execute("SELECT COUNT(*) FROM replays").fetchone()[0])
+            selected = int(db.execute(
+                "SELECT COUNT(*) FROM replays r JOIN freezes f "
+                "ON f.prediction_id=r.prediction_id WHERE f.selector_hash=?",
                 (selector_hash,),
-            ).fetchall()
-            return [json.loads(r[0]) for r in rows]
+            ).fetchone()[0])
+            self._prospective_audit = {
+                "schema": "ssq-prospective-provenance-v1",
+                "authority": "EXTERNAL_PREDRAW_GIT_LEDGER_NOT_VERIFIED",
+                "local_replay_rows": total,
+                "selector_matched_local_rows": selected,
+                "qualified_replays": 0,
+                "scientific_state": "NO_EDGE",
+                "dan_state": "NULL_DAN",
+                "promotion_authorized": False,
+                "reason": "local timestamps/hashes do not prove independent pre-draw existence",
+            }
+            return []
         finally:
             db.close()
 
@@ -251,8 +276,39 @@ class LottoService:
         finally:
             db.close()
 
+    @classmethod
+    def _scientific_policy_hash(cls) -> str:
+        """Conservatively invalidate scientific evidence after *transitive* code changes.
+
+        Merely hashing run_evidence_court's entrypoint misses changes to imported
+        bootstrap/permutation/ablation helpers and model feature calculations.
+        Marshal binds the exact executing code objects (also in frozen EXEs);
+        differences invalidate cached evidence, never preserve old PASS.
+        """
+        def all_science_functions(module) -> dict[str, str]:
+            return {
+                name: sha256_bytes(marshal.dumps(value.__code__))
+                for name, value in sorted(vars(module).items())
+                if isinstance(value, FunctionType)
+                and value.__module__ == module.__name__
+            }
+
+        return sha256_json({
+            "schema": "ssq-scientific-policy-code-v2-transitive",
+            "evidence_functions": all_science_functions(evidence_module),
+            "engine_functions": all_science_functions(engine_module),
+            "service_functions": {
+                name: sha256_bytes(marshal.dumps(getattr(cls, name).__code__))
+                for name in (
+                    "_prospective_replays", "_court", "_load_draws",
+                    "_canonical_hash", "_release_gate", "predict"
+                )
+            },
+        })
+
     def _court(self, draws, canonical_hash: str, progress=None) -> dict[str, Any]:
         identity = model_identity()
+        scientific_policy_hash = self._scientific_policy_hash()
         cached = self.latest_court()
         if cached:
             unsigned = dict(cached)
@@ -261,11 +317,19 @@ class LottoService:
                 and cached.get("canonical_hash") == canonical_hash
                 and cached.get("model_hash") == identity["model_hash"]
                 and cached.get("selector_hash") == identity["selector_hash"]
+                and cached.get("scientific_policy_hash") == scientific_policy_hash
                 and cached.get("software_verdict") == "PASS"
-                and cached.get("final_validation", {}).get("status") == "PASS"):
+                and cached.get("final_validation", {}).get("status") == "PASS"
+                and cached.get("prospective_authority", {}).get("authority")
+                    == "EXTERNAL_PREDRAW_GIT_LEDGER_NOT_VERIFIED"
+                and cached.get("prospective_n") == 0
+                and cached.get("dan_state") == "NULL_DAN"
+                and cached.get("edge_state") == "NO_EDGE"):
                 return cached
         prospective = self._prospective_replays(identity["selector_hash"])
         court = run_evidence_court(draws, prospective=prospective, progress=progress)
+        court["prospective_authority"] = self._prospective_audit
+        court["scientific_policy_hash"] = scientific_policy_hash
         court["canonical_hash"] = canonical_hash
         court.pop("court_hash", None)
         court["court_hash"] = sha256_json(court)

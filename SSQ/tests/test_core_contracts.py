@@ -255,9 +255,20 @@ class NetClientUnitTests(unittest.TestCase):
 
 class SourceFailoverTests(unittest.TestCase):
     def test_primary_failure_full_shanghai_can_reverify_unverified_baseline(self):
+        # This is a mocked official-source unit fixture, not a live-network PASS.
+        # A fixed 2026-09-29 latest issue becomes stale when the CI clock moves.
+        # Use the latest *past* Tue/Thu/Sun SSQ draw calendar day while keeping
+        # the actual production MAX_LATEST_AGE_DAYS freshness gate unchanged.
+        today = datetime.now(timezone.utc).date()
+        recent = max(
+            today - timedelta(days=delta)
+            for delta in range(1, 8)
+            if (today - timedelta(days=delta)).weekday() in (1, 3, 6)
+        )
+        recent_issue = f"{recent.year}113"
         draws = [
             Draw("2013001", "2013-01-01", (1, 2, 3, 4, 5, 6), (1,)),
-            Draw("2026113", "2026-09-29", (3, 4, 20, 24, 29, 30), (11,)),
+            Draw(recent_issue, recent.isoformat(), (3, 4, 20, 24, 29, 30), (11,)),
         ]
         latest = draws[-1]
         sh_receipt = receipt("official_shanghai_L1", latest)
