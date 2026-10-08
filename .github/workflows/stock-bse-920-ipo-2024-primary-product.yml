@@ -36,36 +36,48 @@ jobs:
           git merge-base --is-ancestor 462f4a5637fc0f3f247ce4cdb6c26eee4cbce871 HEAD
           test -z "$(git diff --name-only 462f4a5637fc0f3f247ce4cdb6c26eee4cbce871..HEAD -- StockAIPro/recovered_exact)"
           echo "UNCHANGED_IMMUTABLE_STOCK_RECOVERY=PASS"
-      - name: Setup pinned Python 3.11.9 and first-party PDF reader
+      - name: Setup pinned Python 3.11.9
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: "3.11.9"
           check-latest: false
-      - name: Install bounded PDF source reader
-        run: python -m pip install --disable-pip-version-check --no-input "pymupdf==1.24.14"
-      - name: Independently fetch ORIGINAL BSE 2024 pre-2025 920002 IPO public PDF
+      - name: FAIL FIRST official 2024-05-30 920002 real IPO vs blanket 2025 boundary
+        run: python StockAIPro/hardening_tests/historical_bse_market_date_boundary_test.py
+      - name: Fetch TWO original official BSE HTML primary sources, never synthetic pass
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p firstparty_2024_920002
           curl --fail --silent --show-error --location --retry 3 --retry-all-errors --connect-timeout 20 --max-time 120 \
-            "https://www.bse.cn/disclosure/2024/2024-05-27/1716806650_280194.pdf" \
-            -o firstparty_2024_920002/bse_20240527_920002_listing.pdf
+            -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/155.0.0.0" \
+            "https://www.bse.cn/issue_report_meeting/200021986.html" \
+            -o firstparty_2024_920002/official_20240530_920002_listing.html
+          curl --fail --silent --show-error --location --retry 3 --retry-all-errors --connect-timeout 20 --max-time 120 \
+            -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/155.0.0.0" \
+            "https://www.bse.cn/important_news/200021617.html" \
+            -o firstparty_2024_920002/official_20240419_920_rule.html
           python - <<'PY'
-          import hashlib,fitz,re
+          import hashlib,re
+          from html import unescape
           from pathlib import Path
-          raw=Path("firstparty_2024_920002/bse_20240527_920002_listing.pdf").read_bytes()
-          assert raw.startswith(b"%PDF-") and 1000<len(raw)<10_000_000
-          text="".join(re.sub(r"\s+","",p.get_text()) for p in fitz.open(stream=raw,filetype="pdf"))
-          for phrase in ("江苏万达特种轴承股份有限公司","2024年5月30日","万达轴承","920002","北京证券交易所上市"):
-              assert phrase in text,("PRIMARY_SOURCE_MISSING_ISSUER_DAY_OR_SECURITY",phrase)
-          digest=hashlib.sha256(raw).hexdigest()
-          Path("firstparty_2024_920002/raw_sha256.txt").write_text(digest+"\n")
-          print("BSE_OFFICIAL_2024_920002_NEW_COMPANY_LISTING_PDF=PASS")
-          print("BSE_2024_920002_ORIGINAL_PDF_SHA256="+digest)
+          import fitz
+          root=Path("firstparty_2024_920002")
+          items=[
+            ("official_20240530_920002_listing.html",
+             ("万达轴承成功登陆北交所","2024年5月30日","920002")),
+            ("official_20240419_920_rule.html",
+             ("证券代码","2024年4月22日","920号段")),
+          ]
+          for fname,patterns in items:
+            raw=(root/fname).read_bytes()
+            if not 300<len(raw)<3_000_000:raise ValueError("missing_actual_firstparty_HTML")
+            normalized=re.sub(r"\\s+","",unescape(raw.decode("utf-8-sig")))
+            if not all(p in normalized for p in patterns):
+              raise AssertionError("BSE_ORIGINAL_WEB_ARTICLE_DATE_CODE_NOT_VERIFIED:"+fname)
+            d=hashlib.sha256(raw).hexdigest()
+            (root/(fname+".sha256")).write_text(d+"  "+fname+"\\n")
+            print("BSE_OFFICIAL_2024_NEW_920_IPO_HTML_PRIMARY=PASS",fname,d)
           PY
-      - name: Fail-first real official 920002 2024-05-30 product boundary + all regression cases
-        run: python StockAIPro/hardening_tests/historical_bse_market_date_boundary_test.py
       - name: All legacy BSE and source-to-lifecycle byte-contract regressions
         run: python StockAIPro/hardening_tests/historical_st_pit_contract_test.py
       - name: Print candidate code and nested manifest actual SHA256 for REQUIRED rebinding
