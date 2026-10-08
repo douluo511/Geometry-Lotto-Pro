@@ -222,6 +222,29 @@ rows = [
     {"date": D3, "market": "BSE",  "code": "920023", "st": False, "suspended": False},
 ]
 
+# Unit-only adapter for downstream Top-N/next-open algorithm tests.  This
+# deliberately bypasses the source loader ONLY inside mock-scoped tests.
+# The real product loader must continue rejecting all synthetic SSE/SZSE/BSE
+# market-master fixtures as native_source_authority_unverified.
+def synthetic_policy_adapter(_root, keys, expected_trade_date=None):
+    lookup = {(item["date"], item["code"]): item for item in rows}
+    states = {}
+    for key in keys:
+        if key not in lookup:
+            raise RuntimeError("synthetic unit adapter state missing:" + str(key))
+        x = lookup[key]
+        states[key] = {"market": x["market"], "st": x["st"],
+                       "suspended": x["suspended"]}
+    return states, {
+        "status": "SYNTHETIC_POLICY_UNIT_ONLY",
+        "canonical_sha256": "unit-only-canonical",
+        "calendar_manifest_sha256": "unit-only-calendar",
+        "market_dates": {market: [D1, D2, D3]
+                         for market in ("SSE", "SZSE", "BSE")},
+        "window_start": D1, "window_end": D3
+    }
+
+
 with tempfile.TemporaryDirectory() as td:
     root = Path(td)
     install_claim(root, rows)
@@ -247,8 +270,19 @@ with tempfile.TemporaryDirectory() as td:
                 for key, value in (pit_meta.get("bindings") or {}).items()
             },
         }, sort_keys=True))
-        assert pit_status == "PASS", (pit_detail, pit_meta)
-        out, ev = bt._historical_candidate_pool(ds, cfg, pd.to_datetime([D1, D2, D3]))
+        assert pit_status == "WARN", (pit_detail, pit_meta)
+        assert pit_meta["failures"] == ["native_source_authority_unverified"]
+        try:
+            bt._historical_candidate_pool(ds, cfg, pd.to_datetime([D1, D2, D3]))
+        except RuntimeError as exc:
+            assert "not qualified" in str(exc)
+            assert "native_source_authority_unverified" in str(exc)
+        else:
+            raise AssertionError("synthetic three-market PIT escaped product authority hard gate")
+        # Separately test pure policy selection only with an explicit unit
+        # adapter; never register these made-up rows as eligible real history.
+        with patch.object(bt, "load_historical_st_pit_subset", side_effect=synthetic_policy_adapter):
+            out, ev = bt._historical_candidate_pool(ds, cfg, pd.to_datetime([D1, D2, D3]))
     assert out["code"].tolist() == ["600002"], out
     assert ev["signal_st_excluded"] == 1
     assert ev["liquidity_ranking_after_signal_pit"] is True
@@ -264,7 +298,9 @@ with tempfile.TemporaryDirectory() as td:
         {"date": D1, "entry_date": D2, "code": "600003", "log_amount20": 20.0},
     ])
     cfg = {"universe": {"min_turnover_cny": 0, "live_top_n": 0, "exclude_st": True}}
-    with patch.object(bt, "ROOT", root):
+    with patch.object(bt, "ROOT", root), patch.object(
+        bt, "load_historical_st_pit_subset", side_effect=synthetic_policy_adapter
+    ):
         try:
             bt._historical_candidate_pool(ds, cfg, pd.to_datetime([D1, D2, D3]))
         except RuntimeError as exc:
@@ -280,7 +316,9 @@ with tempfile.TemporaryDirectory() as td:
         {"date": D1, "entry_date": D3, "code": "600002", "log_amount20": 20.0},
     ])
     cfg = {"universe": {"min_turnover_cny": 0, "live_top_n": 0, "exclude_st": True}}
-    with patch.object(bt, "ROOT", root):
+    with patch.object(bt, "ROOT", root), patch.object(
+        bt, "load_historical_st_pit_subset", side_effect=synthetic_policy_adapter
+    ):
         try:
             bt._historical_candidate_pool(ds, cfg, pd.to_datetime([D1, D2, D3]))
         except RuntimeError as exc:
