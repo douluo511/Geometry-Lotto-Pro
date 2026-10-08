@@ -1,0 +1,111 @@
+name: Stock SZSE exact-live source to A-share evidence intake
+on:
+  push:
+    branches:
+      - fix/stock-szse-live-to-equity-candidate-intake-20261008
+    paths:
+      - ".github/stock_diag/stock_szse_live_candidate_rebind.py"
+      - ".github/stock_diag/test_stock_szse_live_candidate_rebind.py"
+      - ".github/workflows/stock-szse-live-source-equity-intake.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  exact-live-to-stock-candidates:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact source-to-business intake candidate
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Verify exact product and fixed source ancestor
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.sha }}"
+          git merge-base --is-ancestor f3965d5b47458b2e0574be6c07302a5c507cbb24 HEAD
+          git merge-base --is-ancestor 9969490c89ccb4cc10536f66416976c5bf40caef HEAD
+          test -z "$(git diff --name-only 9969490c89ccb4cc10536f66416976c5bf40caef..HEAD -- StockAIPro)"
+          echo "STOCK_PRODUCTION_BYTES_CHANGED=FALSE"
+      - name: Setup exact Python runtime
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.11.9"
+          check-latest: false
+      - name: Run 16 anti-fabrication and cross-snapshot drift controls
+        run: python .github/stock_diag/test_stock_szse_live_candidate_rebind.py
+      - name: Download original frozen official source URL registry and verify exact SHA
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location --retry 3 --retry-all-errors --connect-timeout 20 --max-time 120 \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            --header "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/11532256260/zip" \
+            --output signed_original_registry.zip
+          echo "89e065870802432a2c53585886f38479b3691785759604caae8ecb8526235593  signed_original_registry.zip" | sha256sum --check
+          unzip -oq signed_original_registry.zip
+          test -f stock_szse_suspension_detail_corpus.json
+      - name: Download CURRENT independent 13-part real SZSE network run
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p live_exact_37741192429 live_flat
+          gh run download 37741192429 --repo "${GITHUB_REPOSITORY}" \
+            --pattern 'STOCK-SZSE-LIVE-SHARD-*' --dir live_exact_37741192429
+          find live_exact_37741192429 -type f -name 'shard-*.json' -print -exec cp -n {} live_flat/ \;
+          test "$(find live_flat -maxdepth 1 -type f -name 'shard-*.json' | wc -l)" -eq 13
+      - name: Rebind every new first-party byte/hash and diff old official snapshot
+        run: |
+          python .github/stock_diag/stock_szse_live_candidate_rebind.py \
+            --original stock_szse_suspension_detail_corpus.json \
+            --shards live_flat \
+            --out stock_szse_current_live_rebound_corpus.json
+      - name: Extract actual effective stop semantic notices from CURRENT live corpus
+        run: |
+          python .github/stock_diag/stock_szse_effective_event_audit.py \
+            stock_szse_current_live_rebound_corpus.json \
+            --out stock_szse_current_live_effective_event_audit.json
+      - name: Filter CURRENT live SZSE A-share stock candidates using exact source binding
+        run: |
+          python .github/stock_diag/stock_szse_ashare_candidate_gate.py \
+            stock_szse_current_live_effective_event_audit.json \
+            --output stock_szse_current_live_ashare_intake.json
+      - name: Fail closed on actual semantically changed source; never synthesize daily PIT
+        run: |
+          python - <<'PY'
+          import json
+          live=json.load(open("stock_szse_current_live_rebound_corpus.json",encoding="utf-8"))
+          scopes=json.load(open("stock_szse_current_live_ashare_intake.json",encoding="utf-8"))
+          ad=live["adjudication"]
+          assert len(live["records"])==1849
+          assert ad["live_official_notice_primary_body"]=="PASS"
+          assert ad["cross_snapshot_semantics"]=="PASS", live["source_lineage"]["security_code_semantics_changes"][:8]
+          assert ad["three_market_ST_suspension_daily_PIT"]=="NOT VERIFIED"
+          assert (scopes["equity_notice_rows"],scopes["equity_notice_code_candidates"],
+                  scopes["szse_a_share_candidate_pairs"],scopes["szse_b_share_excluded_pairs"])==(961,967,958,9)
+          assert all(x["actual_daily_suspension_qualified"]=="NOT VERIFIED" for x in scopes["a_share_candidates"])
+          assert scopes["adjudication"]["production_historical_st_pit"]=="NOT VERIFIED"
+          assert scopes["adjudication"]["final_gate"]=="FAIL"
+          print("EXACT_LIVE_SOURCE_TO_ASHARE_CANDIDATE_CHAIN=PASS; FROZEN=1849; A_SHARE=958; B_SHARE=9")
+          print("HISTORICAL_THREE_MARKET_DAILY_ST_PIT=NOT VERIFIED; FINAL_GATE=FAIL")
+          PY
+      - name: Preserve bound current live corpus, drift ledger and candidate intake evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: STOCK-EXACT-LIVE-SZSE-TO-ASHARE-CANDIDATES-${{ github.sha }}
+          path: |
+            stock_szse_current_live_rebound_corpus.json
+            stock_szse_current_live_effective_event_audit.json
+            stock_szse_current_live_ashare_intake.json
+          if-no-files-found: warn
+          retention-days: 30
