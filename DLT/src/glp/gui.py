@@ -22,17 +22,25 @@ BTN_AUDIT = 1004
 def _format_prediction(value: dict) -> str:
     p = value["prediction"]
     t = value.get("effect_trace", {})
+    note = str(p.get("note") or "")
+    if note.startswith("UNIFORM_BASELINE_V1"):
+        output_label = "随机基线"
+    elif note.startswith("QUALIFIED_RESEARCH"):
+        output_label = "经验证模型"
+    else:
+        # Previously immutable Freeze values must not be relabeled retroactively.
+        output_label = "历史/研究候选"
     return (
         f"{p['edge_state']} · {p['dan_state']}\r\n\r\n"
         f"目标期号  {p['target_issue']}    预计开奖日  {p['target_date']}\r\n\r\n"
-        f"研究候选  前区 {' '.join(f'{n:02d}' for n in p['front'])}\r\n"
+        f"{output_label}  前区 {' '.join(f'{n:02d}' for n in p['front'])}\r\n"
         f"          后区 {' '.join(f'{n:02d}' for n in p['back'])}\r\n\r\n"
         f"研究胆观察  前区 {' '.join(f'{n:02d}' for n in p['research_dan_front'])}  ·  后区 {' '.join(f'{n:02d}' for n in p['research_dan_back'])}\r\n"
         f"正式胆码状态  {p['dan_state']}\r\n真实优势状态  {p['edge_state']}\r\n"
         f"Scientific Gate  {t.get('scientific_gate','UNKNOWN')}  · Edge Gate {t.get('edge_gate','FAIL')}\r\n\r\n"
         f"完整评分空间  前区 {t.get('complete_space',{}).get('front',324632):,} / 后区 {t.get('complete_space',{}).get('back',66):,}\r\n"
         f"Freeze Hash  {p['freeze_hash']}\r\nSelector Hash {p['selector_hash']}\r\n\r\n"
-        "注意：研究候选不代表更高中奖概率；只有严格 OOS/holdout 证据通过才允许 EDGE_PROVEN/CERTIFIED_DAN。"
+        "注意：随机基线和研究候选均不意味着更高中奖概率；历史冻结记录不追认为新模型结果。"
     )
 
 
