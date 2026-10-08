@@ -309,7 +309,7 @@ class Store:
         payloads are checked against recomputation rather than counted blindly.
         No same-day freeze can qualify without a trusted draw-time receipt.
         """
-        from datetime import date, datetime
+        from datetime import date, datetime, timedelta, timezone
         from .engine import replay_prediction
 
         if not selector_hash or not model_hash or not draws:
@@ -355,10 +355,20 @@ class Store:
                 raise ValueError("invalid prospective timestamp") from exc
             if pred.target_date != actual.draw_date:
                 continue
-            if freeze_time.date() >= draw_date:
+            # DLT's draw_date is the China civil day (UTC+08), not UTC day.
+            # A UTC previous-day Freeze after 16:00Z can already be same-day
+            # in China, so comparing naive UTC .date() leaks invalid cases.
+            china_zone = timezone(timedelta(hours=8))
+            freeze_china_day = freeze_time.replace(
+                tzinfo=timezone.utc
+            ).astimezone(china_zone).date()
+            replay_china_day = replay_time.replace(
+                tzinfo=timezone.utc
+            ).astimezone(china_zone).date()
+            if freeze_china_day >= draw_date:
                 continue
-            if replay_time.date() < draw_date:
-                raise ValueError("replay recorded before official draw date")
+            if replay_china_day < draw_date:
+                raise ValueError("replay recorded before official China draw date")
             try:
                 stored = json.loads(row["replay_json"])
             except (TypeError, ValueError) as exc:
