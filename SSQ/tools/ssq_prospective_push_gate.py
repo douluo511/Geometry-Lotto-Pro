@@ -44,6 +44,21 @@ def main() -> int:
     ).strip().split()
     if len(parents) != 1:
         raise ValueError("SSQ Freeze commit must have one parent (no merge/initial reset)")
+    # A GitHub push can contain multiple commits. Examining HEAD alone could
+    # launder a malicious prior commit, including edits to this workflow.
+    # Verify the *server supplied webhook* records exactly this one commit.
+    event_path = os.environ.get("GITHUB_EVENT_PATH")
+    if not event_path:
+        raise ValueError("GitHub push webhook evidence path missing")
+    payload = json.loads(Path(event_path).read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError("GitHub push webhook must be an object")
+    if payload.get("forced") is True or payload.get("created") is True or payload.get("deleted") is True:
+        raise ValueError("SSQ evidence push cannot be forced, created or deleted")
+    if payload.get("after") != head:
+        raise ValueError("GitHub webhook after SHA is not exact checked out head")
+    if payload.get("before") != parents[0]:
+        raise ValueError("SSQ evidence push must be a single-commit change")
     files = subprocess.check_output(
         ["git", "diff-tree", "--no-commit-id", "--name-only", "-r", "HEAD"],
         cwd=ROOT, text=True,
