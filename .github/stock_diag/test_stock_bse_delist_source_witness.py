@@ -65,7 +65,7 @@ def audit_both():
     def fake_open(*args,**kwargs):
         # Choose fake document based on caller bytes: all fake RAW identical
         # Instead, use two different PDF bytes preserving %PDF header.
-        if args[0].get("stream")==b"%PDF-FIRST"+b"0"*1100:
+        if kwargs.get("stream")==b"%PDF-FIRST"+b"0"*1100:
             return Doc(body("920305"))
         return Doc(body("920680"))
     raws={"920305":b"%PDF-FIRST"+b"0"*1100,"920680":b"%PDF-SECOND"+b"1"*1100}
