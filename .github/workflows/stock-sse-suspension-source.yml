@@ -31,16 +31,17 @@ jobs:
           test -z "$(git diff --name-only "$PRODUCT_BASE_SHA"..HEAD -- StockAIPro)"
           echo 'PRODUCT_BYTES_UNCHANGED=PASS'
       - name: Source boundary adversarial controls
+        id: boundaries
         run: python .github/stock_diag/stock_sse_suspend_source.py --self-test
       - name: Fetch actual official HTML and linked query scripts
         run: python .github/stock_diag/stock_sse_suspend_source.py --output "$RUNNER_TEMP/sse-source-discovery"
       - name: Independently restore exact historical official query schema and inspect original native dates
-        if: always()
+        if: always() && steps.boundaries.outcome == 'success'
         env:
           DIAG_GITHUB_TOKEN: ${{ github.token }}
         run: python .github/stock_diag/stock_sse_suspend_source.py --restore-schema "$RUNNER_TEMP/sse-pinned-schema"
       - name: Independently capture current official historical API bytes using pinned query schema
-        if: always()
+        if: always() && steps.boundaries.outcome == 'success'
         run: python .github/stock_diag/stock_sse_suspend_source.py --capture-from "$RUNNER_TEMP/sse-pinned-schema" --capture-output "$RUNNER_TEMP/sse-historical-capture"
       - name: Preserve exact official source receipts and raw bytes
         if: always()

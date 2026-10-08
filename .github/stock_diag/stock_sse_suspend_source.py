@@ -301,6 +301,22 @@ def historical_self_test():
     empty, empty_counts = parse_page(payload([]), 1, 2)
     assert complete_pages([empty], empty_counts) == []
     assert event_candidate(sample, "new", "2026-09-30", "2026-09-30")["daily_ST"] == "NOT VERIFIED"
+    # Actual source layout counterexample: original native 2018-11-20 JSON
+    # SHA c3e15ffb... has no STOP_DATE on continuing suspension display rows.
+    real_missing_event_date = {"PRODUCT_CODE": "600145", "PRODUCT_NAME": "*ST新亿", "STOP_DATE": "-", "SHOW_START_DATE": "2015-11-10", "SHOW_END_DATE": "2020-06-30", "STOP_TIME": "自2015-12-07起连续停牌", "STOP_REASON": "刊登重要公告", "CONTROLTYPE": "TR", "BULLETIN_TYPE": "3"}
+    try:
+        unknown = event_candidate(real_missing_event_date, "legacy", "2018-11-19", "2018-11-20")
+    except ValueError as exc:
+        raise AssertionError("REAL SOURCE FALSE FAIL: native '-' must remain UNKNOWN, not silently substituted or discarded") from exc
+    assert unknown["explicit_start_day"] is None
+    assert unknown["event_date_status"] == "UNKNOWN_NATIVE_NO_EVENT_DAY"
+    assert unknown["native_display_interval"] == ["2015-11-10", "2020-06-30"]
+    assert unknown["qualified_daily_suspension"] == "NOT VERIFIED"
+    later_native_end = event_candidate(dict(sample, endStopDate="20261013"), "new", "2026-09-29", "2026-09-30")
+    assert later_native_end["future_end_visible_after_query_asof"] is True
+    assert later_native_end["asof_information_availability"] == "NOT VERIFIED"
+    fails(lambda: event_candidate(dict(real_missing_event_date, STOP_DATE="--"), "legacy", "2018-11-19", "2018-11-20"))
+    print("SSE REAL NATIVE MISSING DATE / DISPLAY≠EFFECTIVE / FUTURE END CONTROLS 3/3 PASS")
     print("SSE NATIVE PAGINATION / WRONG DATE / BOND / INTRADAY / ABSENCE CONTROLS 16/16 PASS")
 
 PINNED_ARTIFACT = 11555007580
