@@ -7,6 +7,7 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+  actions: read
 jobs:
   official-source-discovery:
     runs-on: ubuntu-latest
@@ -33,8 +34,14 @@ jobs:
         run: python .github/stock_diag/stock_sse_suspend_source.py --self-test
       - name: Fetch actual official HTML and linked query scripts
         run: python .github/stock_diag/stock_sse_suspend_source.py --output "$RUNNER_TEMP/sse-source-discovery"
-      - name: Capture bounded historical native rows with complete pagination
-        run: python .github/stock_diag/stock_sse_suspend_source.py --capture-from "$RUNNER_TEMP/sse-source-discovery" --capture-output "$RUNNER_TEMP/sse-historical-capture"
+      - name: Independently restore exact historical official query schema and inspect original native dates
+        if: always()
+        env:
+          DIAG_GITHUB_TOKEN: ${{ github.token }}
+        run: python .github/stock_diag/stock_sse_suspend_source.py --restore-schema "$RUNNER_TEMP/sse-pinned-schema"
+      - name: Independently capture current official historical API bytes using pinned query schema
+        if: always()
+        run: python .github/stock_diag/stock_sse_suspend_source.py --capture-from "$RUNNER_TEMP/sse-pinned-schema" --capture-output "$RUNNER_TEMP/sse-historical-capture"
       - name: Preserve exact official source receipts and raw bytes
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -43,5 +50,6 @@ jobs:
           path: |
             ${{ runner.temp }}/sse-source-discovery
             ${{ runner.temp }}/sse-historical-capture
+            ${{ runner.temp }}/sse-pinned-schema
           retention-days: 30
           if-no-files-found: error

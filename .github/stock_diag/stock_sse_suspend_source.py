@@ -5,6 +5,8 @@ import hashlib
 import json
 import os
 import re
+import io
+import zipfile
 import socket
 import time
 from datetime import date, datetime, timezone
@@ -301,13 +303,93 @@ def historical_self_test():
     assert event_candidate(sample, "new", "2026-09-30", "2026-09-30")["daily_ST"] == "NOT VERIFIED"
     print("SSE NATIVE PAGINATION / WRONG DATE / BOND / INTRADAY / ABSENCE CONTROLS 16/16 PASS")
 
+PINNED_ARTIFACT = 11555007580
+PINNED_RUN = 37788151706
+PINNED_HEAD = "1d3a2a56a65a7223aed0ab03f8d4d0f43537fd2d"
+PINNED_ZIP_SHA = "bcd67832286151ce42e3add4f9024f48bd5d2169b5136f1665595dd9deba8d4f"
+PINNED_ZIP_SIZE = 161524
+
+class NoRedirect(HTTPRedirectHandler):
+    def redirect_request(self, *args, **kwargs):
+        return None
+
+def restore_schema(directory):
+    directory.mkdir(parents=True, exist_ok=False)
+    report = {"schema": "stock-sse-pinned-source-schema-binding-v1", "status": "FAIL", "source_schema_scope": "HISTORICAL_PINNED_QUERY_SCHEMA_ONLY", "artifact_id": PINNED_ARTIFACT, "source_run_id": PINNED_RUN, "source_head_sha": PINNED_HEAD, "source_zip_sha256": PINNED_ZIP_SHA, "diagnostic_head_sha": os.environ.get("SOURCE_SHA"), "fresh_HTML_source_gate": "NOT VERIFIED", "final_gate": "FAIL"}
+    try:
+        opener = build_opener(NoRedirect())
+        base = "https://api.github.com/repos/douluo511/Geometry-Lotto-Pro/actions/artifacts/"+str(PINNED_ARTIFACT)
+        def request(url):
+            return Request(url, headers={"Authorization": "Bearer "+os.environ["DIAG_GITHUB_TOKEN"], "Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28"})
+        with opener.open(request(base), timeout=30) as response:
+            metadata = json.load(response)
+        if metadata["id"] != PINNED_ARTIFACT or metadata["expired"] or metadata["workflow_run"]["id"] != PINNED_RUN or metadata["workflow_run"]["head_sha"] != PINNED_HEAD or metadata["digest"] != "sha256:"+PINNED_ZIP_SHA or metadata["size_in_bytes"] != PINNED_ZIP_SIZE:
+            raise ValueError("historical_schema_artifact_identity_rejected")
+        try:
+            opener.open(request(base+"/zip"), timeout=30)
+            raise ValueError("artifact_endpoint_did_not_redirect")
+        except HTTPError as redirect:
+            if redirect.code not in (301, 302, 303, 307, 308):
+                raise
+            signed = redirect.headers["Location"]
+        parts = urlsplit(signed)
+        if parts.scheme != "https" or not ((parts.hostname or "").endswith(".blob.core.windows.net") or (parts.hostname or "").endswith(".githubusercontent.com")):
+            raise ValueError("artifact_storage_origin_rejected")
+        # No Authorization header is sent to the signed artifact storage URL.
+        with build_opener().open(Request(signed), timeout=60) as response:
+            archive = response.read(PINNED_ZIP_SIZE+1)
+        if len(archive) != PINNED_ZIP_SIZE or sha(archive) != PINNED_ZIP_SHA:
+            raise ValueError("historical_schema_archive_hash_or_size_mismatch")
+        allowed = {"discovery.json", "source-000.raw", "source-007.raw", "source-101.raw"}
+        selected = {}
+        with zipfile.ZipFile(io.BytesIO(archive)) as zipped:
+            for item in zipped.infolist():
+                name = Path(item.filename).name
+                if name not in allowed:
+                    continue
+                if name in selected or item.file_size > 250000:
+                    raise ValueError("ambiguous_or_oversized_fixed_source_file")
+                selected[name] = zipped.read(item)
+        if set(selected) != allowed:
+            raise ValueError("required_fixed_source_schema_files_missing")
+        discovery = json.loads(selected["discovery.json"])
+        if discovery["diagnostic_head_sha"] != PINNED_HEAD or discovery["status"] != "PASS":
+            raise ValueError("historical_source_discovery_head_or_scope_mismatch")
+        for name in ("source-000.raw", "source-007.raw"):
+            receipt = next(row for row in discovery["receipts"] if row["raw_path"] == name)
+            if receipt["status"] != "PASS" or sha(selected[name]) != receipt["sha256"]:
+                raise ValueError("historical_first_party_raw_binding_mismatch")
+        if sha(selected["source-007.raw"]) != MODULE_SHA or sha(selected["source-101.raw"]) != "c3e15ffb8198594acf0dc70cf2a9646f0ec69c969cec9005f40c69e4cba90fa3":
+            raise ValueError("pinned_query_module_or_prior_native_response_mismatch")
+        for name, raw in selected.items():
+            (directory / name).write_bytes(raw)
+        prior = json.loads(selected["source-101.raw"])
+        report["prior_2018_native_response_inspection"] = {"raw_sha256": sha(selected["source-101.raw"]), "native_pagination": prior.get("pageHelp"), "sample_rows": prior.get("result", [])[:4], "scope": "HISTORICAL_EXACT_RAW_RECORD_INSPECTION_ONLY"}
+        report["status"] = "PASS"
+    except Exception as exc:
+        report["error_type"] = type(exc).__name__
+        report["error"] = str(exc) if isinstance(exc, ValueError) else "fixed_source_schema_download_failed"
+    finally:
+        (directory / "historical-source-binding.json").write_text(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True)+"\n", encoding="utf-8")
+        print(json.dumps(report, ensure_ascii=False, sort_keys=True))
+    return 0 if report["status"] == "PASS" else 2
+
 def capture(source_directory, directory):
     directory.mkdir(parents=True, exist_ok=False)
     report = {"schema": "stock-sse-historical-suspension-source-capture-v1", "status": "FAIL", "scope": "three explicit two-day sample windows, native source transport/pagination ONLY", "source_product_base_sha": PRODUCT_BASE, "diagnostic_head_sha": os.environ.get("SOURCE_SHA"), "windows": WINDOWS, "queries": [], "event_candidates": [], "historical_daily_state": "NOT VERIFIED", "SSE_SZSE_BSE_qualified_historical_pit": "NOT VERIFIED", "final_gate": "FAIL"}
     try:
         discovery = json.loads((source_directory / "discovery.json").read_text(encoding="utf-8"))
-        if discovery.get("diagnostic_head_sha") != os.environ.get("SOURCE_SHA") or discovery.get("status") != "PASS":
-            raise ValueError("wrong_head_or_failed_source_discovery")
+        if discovery.get("status") != "PASS":
+            raise ValueError("failed_source_schema_discovery")
+        if discovery.get("diagnostic_head_sha") != os.environ.get("SOURCE_SHA"):
+            historical = json.loads((source_directory / "historical-source-binding.json").read_text(encoding="utf-8"))
+            if historical.get("status") != "PASS" or historical.get("artifact_id") != PINNED_ARTIFACT or historical.get("source_run_id") != PINNED_RUN or historical.get("source_head_sha") != PINNED_HEAD or historical.get("source_zip_sha256") != PINNED_ZIP_SHA or discovery.get("diagnostic_head_sha") != PINNED_HEAD or historical.get("diagnostic_head_sha") != os.environ.get("SOURCE_SHA"):
+                raise ValueError("historical_schema_artifact_binding_rejected")
+            report["source_schema_scope"] = "HISTORICAL_PINNED_QUERY_SCHEMA_ONLY"
+            report["source_schema_binding"] = {key: historical[key] for key in ("artifact_id", "source_run_id", "source_head_sha", "source_zip_sha256")}
+            report["fresh_HTML_source_gate"] = "NOT VERIFIED"
+        else:
+            report["source_schema_scope"] = "CURRENT_RUN_FIRST_PARTY_QUERY_SCHEMA"
         module = next(item for item in discovery["receipts"] if item["url"] == MODULE)
         module_raw = (source_directory / module["raw_path"]).read_bytes()
         if sha(module_raw) != MODULE_SHA or module["sha256"] != MODULE_SHA:
@@ -393,10 +475,13 @@ if __name__ == "__main__":
     parser.add_argument("--output", type=Path)
     parser.add_argument("--capture-from", type=Path)
     parser.add_argument("--capture-output", type=Path)
+    parser.add_argument("--restore-schema", type=Path)
     args = parser.parse_args()
     if args.self_test:
         self_test()
         historical_self_test()
+    elif args.restore_schema:
+        raise SystemExit(restore_schema(args.restore_schema))
     elif args.capture_from and args.capture_output:
         raise SystemExit(capture(args.capture_from, args.capture_output))
     elif args.output:
