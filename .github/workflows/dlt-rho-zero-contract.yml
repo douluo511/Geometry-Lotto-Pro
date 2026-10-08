@@ -1,0 +1,25 @@
+name: DLT rho-zero uniform production contract
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'DLT/src/glp/engine.py'
+      - 'DLT/src/glp/constants.py'
+      - 'DLT/tests/test_no_edge_uniform_production.py'
+      - '.github/workflows/dlt-rho-zero-contract.yml'
+
+jobs:
+  fail-first-research-isolation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Compile actual production source and regression test
+        run: python -m compileall -q DLT/src/glp DLT/tests/test_no_edge_uniform_production.py
+      - name: Verify production rho=0 does not consume research rankings
+        env:
+          PYTHONPATH: DLT/src
+        run: python -m unittest discover -s DLT/tests -p test_no_edge_uniform_production.py -v
