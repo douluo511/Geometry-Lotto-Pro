@@ -1,7 +1,7 @@
 {
   "product": "Stock AI Pro Distribution",
   "version": "4.3.0-deliverable",
-  "generated_at": "2026-10-08T14:00:00+00:00",
+  "generated_at": "2026-10-08T14:17:20+00:00",
   "file_count": 191,
   "files": {
     "ACCEPTANCE_REPORT.md": "5b221a4550deab2650016dcf936d6733bc5f19f18e2d4983dcd841f278a0eda8",
@@ -128,7 +128,7 @@
     "versions/4.3.0/FIRST_TIME_SETUP.bat": "b4ff8111302cb5dcd65cc2e5a575d8c31182147d05a66b8958010e6e8afa2016",
     "versions/4.3.0/healthcheck.py": "3fce152d6716e3119654f2b3945159c5b1d8bf20acbc4aee103a93511b4c84e5",
     "versions/4.3.0/ONE_CLICK_START.bat": "4c39c1441f1838093838ed1d67da3b7a7bdbd3b5878fd3ffa7ec79ee94767de1",
-    "versions/4.3.0/PACKAGE_MANIFEST.json": "896fbe5b01ae47dcaf7653340662b20768c4263c74f4840735daa91a83227854",
+    "versions/4.3.0/PACKAGE_MANIFEST.json": "ee6f9f89a7bbf595919146da62bb35977740bf3dfe7cd5b94056edfba9c8f8ed",
     "versions/4.3.0/README_CN.md": "7a3a280d0beaebffaa8c74ca3a773263ebb58e96ef024d3fabdc6dea13200703",
     "versions/4.3.0/REMOVE_AUTO_UPDATE.bat": "b3936b2d4f655ce5c7b0bb522e0088881ed900b9a20d4ac61a5ecd79866afdb3",
     "versions/4.3.0/REPAIR_ENV.bat": "a8e33f1a6f1a002091edbb394858d8aa5325fba3b6d3022a8f0b96e82ae15793",
@@ -161,7 +161,7 @@
     "versions/4.3.0/stock_ai/features.py": "0002477065fc72595719b4baa27c24885a4947b7cea8bd088637bcd9f8fa6b33",
     "versions/4.3.0/stock_ai/maintenance.py": "bd5824ce32048873c7f200fb5a596ea8e5ddb5e2d19737ba31cefb7df432af91",
     "versions/4.3.0/stock_ai/model.py": "dba1979c09647092f715fca0a3d750819c5371357126783f498c6d3281fe767a",
-    "versions/4.3.0/stock_ai/pipeline.py": "5f762a6c136cab58b37b8a0a273fdfe593174f5e22024f25c607b408f9463868",
+    "versions/4.3.0/stock_ai/pipeline.py": "d56f0816d5233dbe6e3dd2dae2c37d640749bb5d9f71ceb79dda705dbc730de5",
     "versions/4.3.0/stock_ai/regime.py": "c8194f0142531fb646c90da5625d631759ee1a760a88c5037e33acffe5920da5",
     "versions/4.3.0/stock_ai/rnd.py": "4c8639a535e69c2267bbbb9dcbcd4b068bc8d3d6956c810bca41dc7711bf187d",
     "versions/4.3.0/stock_ai/scoring.py": "7eb1436dd834713f8e5434a11b33e475c0b501067aaf72922c254a0a112baa7a",
@@ -194,6 +194,6 @@
     "WINDOWS_FIRST_RUN_ACCEPTANCE.bat": "2513d682de4e43f8e3a9056afd045e710d4c548abeb60c53c12717a50d01fc92",
     "versions/4.3.0/stock_ai/netclient.py": "c9d6acc6324a06c69089e1e525057472a4ec0ff35f0414b3f0e772b96f2ce0e8",
     "versions/4.3.0/stock_ai/historical_pit.py": "40284442cd9885908fb33ea2c7770b9c684b40b0f0dbe479e01011979a22483d",
-    "versions/4.3.0/stock_ai/completed_session.py": "63ff5ebc9a8471d7273825d1cac95319aa8814354845daed7ac62813e8345899"
+    "versions/4.3.0/stock_ai/completed_session.py": "d0b79559475eab0c84e3ef2fbf0dab5daac8e8779c436acd9229b4672d5cd784"
   }
 }

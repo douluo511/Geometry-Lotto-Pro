@@ -77,6 +77,8 @@ def completed_session_context(now: datetime | None = None, markets=("SSE", "SZSE
 def validated_daily_dates(values) -> pd.Series:
     series = pd.Series(values)
     for value in series:
+        if not isinstance(value, (str, date, datetime, pd.Timestamp, np.datetime64)):
+            raise ValueError("daily source dates require explicit calendar-date identity; numeric/boolean scalars are forbidden")
         if isinstance(value, str) and re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", value) is None:
             raise ValueError("daily source dates must be canonical YYYY-MM-DD")
     dates = pd.to_datetime(series, errors="coerce")

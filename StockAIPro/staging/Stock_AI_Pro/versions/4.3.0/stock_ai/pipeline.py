@@ -168,7 +168,7 @@ def run(force=False,run_maintenance=True):
         with process_lock(ROOT/"state"/"daily.lock",cfg["safety"].get("stale_lock_hours",4)): return _run_locked(cfg,logger,force,run_maintenance)
     except Exception as e:
         if isinstance(e,CompletedSessionUnavailable):
-            write_json(ROOT/"state"/"last_run.json",{"status":"BLOCKED","execution_status":"NOT VERIFIED","business_status":"NOT_VERIFIED","failed_at":now_iso(),"error":str(e),"decision":{"decision":"NO_TRADE","reasons":[str(e)]}}); logger.warning("完成交易日未验证，禁止新预测: %s",e)
+            write_json(ROOT/"state"/"last_run.json",{"status":"BLOCKED","execution_status":"NOT VERIFIED","business_status":"NOT VERIFIED","failed_at":now_iso(),"error":str(e),"decision":{"decision":"NO_TRADE","reasons":[str(e)]}}); logger.warning("完成交易日未验证，禁止新预测: %s",e)
         elif "已有流程正在运行" not in str(e): write_json(ROOT/"state"/"last_run.json",{"status":"FAIL","failed_at":now_iso(),"error":str(e)}); logger.exception("每日闭环失败: %s",e)
         else: logger.warning("跳过重复启动: %s",e)
         raise

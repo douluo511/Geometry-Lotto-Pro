@@ -150,6 +150,11 @@ class CompletedSessionContracts(unittest.TestCase):
                     DATE_SCALAR_OBSERVED.append({"value":scalar,"type":type(scalar).__name__,"result":"accepted","dates":accepted["date"].dt.strftime("%Y-%m-%d").tolist()})
                     self.fail("Product accepted a numeric/boolean scalar as a daily-session identity")
 
+        for valid in ("2026-09-30",datetime(2026,9,30).date(),datetime(2026,9,30),pd.Timestamp("2026-09-30"),np.datetime64("2026-09-30")):
+            with self.subTest(valid_type=type(valid).__name__):
+                accepted, _ = cs.select_completed_daily_frame(frame([valid]),market="SSE",now=INTRADAY)
+                self.assertEqual(accepted["date"].max().strftime("%Y-%m-%d"),"2026-09-30")
+
     def test_real_update_primary_and_fallback_apply_completion_before_commit(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td); (root/"data"/"history").mkdir(parents=True)
@@ -257,7 +262,7 @@ class CompletedSessionContracts(unittest.TestCase):
                 with self.assertRaises(cs.CompletedSessionUnavailable): pipeline.run()
             receipt = json.loads((root/"state"/"last_run.json").read_text())
             self.assertEqual(receipt["status"],"BLOCKED")
-            self.assertEqual(receipt["business_status"],"NOT_VERIFIED")
+            self.assertEqual(receipt["business_status"],"NOT VERIFIED")
             self.assertEqual(receipt["decision"]["decision"],"NO_TRADE")
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 {
   "product": "Stock AI Pro Core",
   "version": "4.3.0-deliverable",
-  "generated_at": "2026-10-08T14:00:00+00:00",
+  "generated_at": "2026-10-08T14:17:20+00:00",
   "file_count": 74,
   "files": {
     "app.py": "218ac0702e4d55b5dc91fabeb79cfb3c4477b94c2ebb3d94c68092c6d33ebeeb",
@@ -45,7 +45,7 @@
     "stock_ai/features.py": "0002477065fc72595719b4baa27c24885a4947b7cea8bd088637bcd9f8fa6b33",
     "stock_ai/maintenance.py": "bd5824ce32048873c7f200fb5a596ea8e5ddb5e2d19737ba31cefb7df432af91",
     "stock_ai/model.py": "dba1979c09647092f715fca0a3d750819c5371357126783f498c6d3281fe767a",
-    "stock_ai/pipeline.py": "5f762a6c136cab58b37b8a0a273fdfe593174f5e22024f25c607b408f9463868",
+    "stock_ai/pipeline.py": "d56f0816d5233dbe6e3dd2dae2c37d640749bb5d9f71ceb79dda705dbc730de5",
     "stock_ai/regime.py": "c8194f0142531fb646c90da5625d631759ee1a760a88c5037e33acffe5920da5",
     "stock_ai/rnd.py": "4c8639a535e69c2267bbbb9dcbcd4b068bc8d3d6956c810bca41dc7711bf187d",
     "stock_ai/scoring.py": "7eb1436dd834713f8e5434a11b33e475c0b501067aaf72922c254a0a112baa7a",
@@ -77,6 +77,6 @@
     "VERSION": "328fc98df37ff4f37f53e1566d36d10b40f1a5855ba27fa0dc652d43f2a4c433",
     "stock_ai/netclient.py": "c9d6acc6324a06c69089e1e525057472a4ec0ff35f0414b3f0e772b96f2ce0e8",
     "stock_ai/historical_pit.py": "40284442cd9885908fb33ea2c7770b9c684b40b0f0dbe479e01011979a22483d",
-    "stock_ai/completed_session.py": "63ff5ebc9a8471d7273825d1cac95319aa8814354845daed7ac62813e8345899"
+    "stock_ai/completed_session.py": "d0b79559475eab0c84e3ef2fbf0dab5daac8e8779c436acd9229b4672d5cd784"
   }
 }
