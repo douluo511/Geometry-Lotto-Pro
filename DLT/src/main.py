@@ -11,6 +11,7 @@ from pathlib import Path
 from glp.constants import APP_NAME, APP_VERSION
 from glp.gui import gui_self_test, run_gui
 from glp.service import LottoService, self_test
+from glp.background import launch_background_worker, run_background_worker
 from glp.util import sha256_bytes, utc_now
 
 
@@ -156,6 +157,11 @@ def main() -> int:
     parser.add_argument("--self-test", action="store_true")
     parser.add_argument("--acceptance", action="store_true")
     parser.add_argument("--gui-self-test", action="store_true")
+    parser.add_argument("--background-worker", action="store_true")
+    parser.add_argument("--background-launch", action="store_true")
+    parser.add_argument("--background-interval-seconds", type=int, default=1800)
+    parser.add_argument("--background-max-cycles", type=int, default=0)
+    parser.add_argument("--background-wait-parent-pid", type=int, default=0)
     parser.add_argument("--result-file")
     args = parser.parse_args()
 
@@ -171,7 +177,27 @@ def main() -> int:
         _write_json(args.result_file, value)
         print(json.dumps(value, ensure_ascii=False, indent=2))
         return 0 if value.get("status") == "PASS" else 2
+    if args.background_worker:
+        return run_background_worker(
+            interval_seconds=args.background_interval_seconds,
+            max_cycles=args.background_max_cycles,
+            wait_parent_pid=args.background_wait_parent_pid,
+        )
+    if args.background_launch:
+        value = launch_background_worker(
+            interval_seconds=args.background_interval_seconds,
+            max_cycles=args.background_max_cycles,
+            wait_parent_exit=True,
+        )
+        _write_json(args.result_file, value)
+        print(json.dumps(value, ensure_ascii=False, indent=2))
+        return 0
 
+    # Normal interactive launch starts one detached worker. It intentionally survives
+    # GUI close, polls official data every 1800 seconds, and is not registered for
+    # login/reboot autostart. Opening the app after login starts it again.
+    if os.environ.get("GLP_DISABLE_BACKGROUND") != "1" and not os.environ.get("GLP_GUI_ACCEPTANCE_DIR"):
+        launch_background_worker()
     run_gui()
     return 0
 
