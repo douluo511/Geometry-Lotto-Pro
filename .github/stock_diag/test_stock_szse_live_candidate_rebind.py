@@ -54,7 +54,9 @@ def rejected(name,func):
 rejected("missing one exact-run live shard",lambda y,x:x.pop(12))
 rejected("fabricated first-party shard PASS",lambda y,x:x[0].update(pass_=0,**{"pass":0}))
 rejected("mutated official URL list",lambda y,x:x[0]["records"][0].update(url="https://www.szse.cn/disclosure/notice/temp/other.html"))
-rejected("swapped shards not accepted",lambda y,x:(x[0]["records"],x[1]["records"])==(x[1]["records"],x[0]["records"]))
+def swap_live_shards(y,x):
+    x[0]["records"],x[1]["records"]=x[1]["records"],x[0]["records"]
+rejected("swapped shards not accepted",swap_live_shards)
 rejected("bad first-party response SHA",lambda y,x:x[1]["records"][0]["transport"].update(sha256="bad"))
 rejected("cross-origin redirect rejected",lambda y,x:x[1]["records"][0]["transport"].update(resolved_url="https://bad.example/"))
 rejected("generic DOM cannot qualify live body",lambda y,x:x[1]["records"][0].update(article_source=".content"))
