@@ -35,7 +35,8 @@ Invoke-BoundedExe @('--self-test','--result-file','artifacts\self_test.json') 60
 Invoke-BoundedExe @('--acceptance','--result-file','artifacts\acceptance.json') 6300 'artifacts\acceptance.json' 'full-acceptance'
 
 $report = Get-Content artifacts\acceptance.json -Raw | ConvertFrom-Json
-if ($report.final_release_gate -ne 'PASS') { throw "final_release_gate=$($report.final_release_gate)" }
+if ($report.exact_acceptance_gate -ne 'PASS') { throw "exact_acceptance_gate=$($report.exact_acceptance_gate)" }
+if ($report.final_release_gate -ne 'PENDING') { throw "EXE must not self-certify final release: $($report.final_release_gate)" }
 if ($report.exe_sha256 -ne $hash) { throw "acceptance hash does not match built EXE hash" }
 
 # 3. GUI process smoke: default launch must stay alive long enough to create the real main window.
