@@ -548,6 +548,33 @@ def _support_gate(draws: list[Draw]) -> dict[str, Any]:
     }
 
 
+def _prospective_provenance_gate(
+    prospective: list[dict[str, Any]], selector_hash: str,
+) -> dict[str, Any]:
+    """Never confuse a local Replay row with an externally time-anchored Freeze.
+
+    A local created_at, a matching SHA and even a correct official outcome
+    cannot independently prove that a forecast existed before that outcome.
+    Reject every unanchored row; count locally present rows only as audit.
+    """
+    if not isinstance(prospective, list):
+        raise TypeError("unqualified prospective records must be a list")
+    return {
+        "schema": "ssq-prospective-authority-gate-v1",
+        "authority": "EXTERNAL_PREDRAW_GIT_LEDGER_NOT_VERIFIED",
+        "qualified_count": 0,
+        "unverified_count": len(prospective),
+        "selector_consistent": all(
+            isinstance(row, dict)
+            and isinstance(row.get("selector_hash"), str)
+            and bool(row.get("selector_hash"))
+            and row["selector_hash"] == selector_hash
+            for row in prospective
+        ),
+        "promotion_authorized": False,
+    }
+
+
 def run_evidence_court(
     draws: list[Draw],
     prospective: list[dict[str, Any]] | None = None,
@@ -606,18 +633,12 @@ def run_evidence_court(
     nulls = _null_worlds(len(holdout_vals), _mean(holdout_vals))
     support = _support_gate(draws)
 
-    # Self-reported Replay JSON is *not* independent evidence of a prediction
-    # frozen before the draw. Even 30 well-shaped, selector-matched local rows
-    # can be created after the fact. No raw input is qualified until a separate
-    # cryptographically/timestamp-anchored pre-draw ledger verifier exists.
-    unverified_prospective_n = len(prospective)
-    prospective_n = 0
-    prospective_selector_consistent = all(
-        isinstance(x, dict)
-        and x.get("selector_hash") == identity["selector_hash"]
-        and bool(x.get("selector_hash"))
-        for x in prospective
-    )
+    # Read-only local Replay observations are not a scientifically qualified
+    # pre-draw cohort; this separately testable gate rejects unsupported inputs.
+    provenance = _prospective_provenance_gate(prospective, identity["selector_hash"])
+    unverified_prospective_n = provenance["unverified_count"]
+    prospective_n = provenance["qualified_count"]
+    prospective_selector_consistent = provenance["selector_consistent"]
 
     alpha = float(PROMOTION_POLICY["alpha"])
     predictive_pass = (
