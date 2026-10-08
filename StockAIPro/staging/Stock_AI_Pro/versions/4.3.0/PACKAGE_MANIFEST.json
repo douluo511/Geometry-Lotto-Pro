@@ -45,7 +45,7 @@
     "stock_ai/features.py": "0002477065fc72595719b4baa27c24885a4947b7cea8bd088637bcd9f8fa6b33",
     "stock_ai/maintenance.py": "bd5824ce32048873c7f200fb5a596ea8e5ddb5e2d19737ba31cefb7df432af91",
     "stock_ai/model.py": "dba1979c09647092f715fca0a3d750819c5371357126783f498c6d3281fe767a",
-    "stock_ai/pipeline.py": "381e4854d0b346e8c9f07d6bc260e022bdb7e4addcd2114ee54d81635b28cbdb",
+    "stock_ai/pipeline.py": "20ca79f1c8651a2ccde5286c6d35bb584baf4db9a8fca19d16119d7040ff5ec9",
     "stock_ai/regime.py": "c8194f0142531fb646c90da5625d631759ee1a760a88c5037e33acffe5920da5",
     "stock_ai/rnd.py": "4c8639a535e69c2267bbbb9dcbcd4b068bc8d3d6956c810bca41dc7711bf187d",
     "stock_ai/scoring.py": "7eb1436dd834713f8e5434a11b33e475c0b501067aaf72922c254a0a112baa7a",

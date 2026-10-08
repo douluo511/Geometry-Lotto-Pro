@@ -158,3 +158,38 @@ for maintenance, wanted in (
 assert '"business_status":business_status' in _pipeline_source, (
     "FALSE PASS: business qualification not explicitly emitted in last_run JSON")
 print("STOCK DAILY BACKTEST VS BUSINESS STATUS FAIL-CLOSED CONTRACT 5/5 PASS")
+
+
+# Research-only ranks MUST NOT produce TRADE/WATCH when the official historical
+# SSE/SZSE/BSE ST and suspension source gate is WARN/missing, even if the
+# recorded maintenance process itself completed. Validate the actual extracted
+# production guard as a pure function; never fabricate original PIT acceptance.
+_guards = [n for n in _tree.body if isinstance(n, ast.FunctionDef)
+           and n.name == "_enforce_pit_trade_gate"]
+assert len(_guards) == 1, "P0: missing pre-Freeze PIT trade decision guard"
+_ns = {}
+exec(compile(ast.Module(body=_guards, type_ignores=[]),
+             str(_pipeline_path), "exec"), _ns)
+_gate = _ns["_enforce_pit_trade_gate"]
+for label, proposed, status, expected in (
+    ("strong_signal", {"decision":"TRADE","model_trust":"HIGH","reasons":[]}, "WARN", "NO_TRADE"),
+    ("watch_signal", {"decision":"WATCH","model_trust":"MEDIUM","reasons":[]}, "WARN", "NO_TRADE"),
+    ("missing_gate", {"decision":"TRADE","model_trust":"HIGH","reasons":[]}, "UNKNOWN", "NO_TRADE"),
+    ("qualified", {"decision":"TRADE","model_trust":"HIGH","reasons":[]}, "PASS", "TRADE"),
+    ("existing_no_trade", {"decision":"NO_TRADE","model_trust":"LOW","reasons":[]}, "WARN", "NO_TRADE"),
+):
+    immutable = dict(proposed)
+    guarded = _gate(proposed, status, "official historical PIT missing")
+    assert proposed == immutable, ("mutated original decision",label)
+    assert guarded["decision"] == expected, ("FALSE TRADE: unqualified PIT",label,guarded)
+    assert guarded["historical_pit_status"] == status, (label,guarded)
+    if status != "PASS":
+        assert guarded["model_trust"] == "LOW", (label,guarded)
+        assert guarded["reasons"], (label,guarded)
+assert 'evaluate_historical_st_pit(ROOT,expected_trade_date=asof)' in _pipeline_source, (
+    "FALSE BUSINESS PASS: full official historical PIT never evaluated before forecast freeze")
+assert 'decision=_enforce_pit_trade_gate(decision,pit_status,pit_reason)' in _pipeline_source, (
+    "FALSE TRADE: evaluated PIT does not control published decision")
+assert _pipeline_source.index('decision=_enforce_pit_trade_gate(decision,pit_status,pit_reason)') < _pipeline_source.index('freeze_prediction(asof,'), (
+    "FALSE BUSINESS PASS: a tradable Freeze was committed before PIT safety")
+print("STOCK HISTORICAL PIT PRE-FREEZE TRADE AUTHORITY 5/5 PASS")
