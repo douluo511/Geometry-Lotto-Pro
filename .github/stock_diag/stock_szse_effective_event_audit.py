@@ -19,6 +19,20 @@ DATE_STOP = re.compile(
     r"(?P<context>.{0,32}?)"
     r"(?:开市起|交易日起|起|开始)(?:.{0,14}?)(?:临时)?停牌"
 )
+# A dated resumption is only a notice-level candidate. Do NOT infer a completed
+# exchange state transition: approval, calendar, intraday scope and PIT history
+# must still be independently verified.
+DATE_RESUME = re.compile(
+    r"(?P<year>20\\d\\d)年(?P<month>0?[1-9]|1[0-2])月"
+    r"(?P<day>0?[1-9]|[12]\\d|3[01])日"
+    r"(?P<context>.{0,32}?)"
+    r"(?:开市起|交易日起|起|开始)(?:.{0,14}?)(?:正式)?(?:复牌|恢复交易)"
+)
+RESUME_NOT_REALIZED = re.compile(
+    r"(?:拟|计划|预计|可能|争取|待|尚未|申请|建议|预期|视情况|如果|若)"
+    r".{0,50}?(?:复牌|恢复交易)"
+)
+
 INTRADAY = re.compile(r"盘中|[上下]午\d{1,2}时|(?:\d{1,2}时\d{1,2}分)|(?:\d{1,2}:\d{2})")
 PROSPECTIVE = re.compile(r"拟.{0,40}停牌|计划.{0,40}停牌|预计.{0,40}停牌")
 CONTINUING = re.compile(r"继续停牌|仍将停牌|继续实施停牌")
@@ -36,6 +50,21 @@ def explicit_start(text: str):
     for match in DATE_STOP.finditer(text):
         near = text[max(0, match.start()-24):match.end()]
         if PROSPECTIVE.search(near) or CONTINUING.search(near) or NOT_EFFECTIVE_CONTEXT.search(match['context']):
+            continue
+        try:
+            day = date(int(match["year"]), int(match["month"]), int(match["day"]))
+        except ValueError:
+            continue
+        results.append(day.isoformat())
+    return sorted(set(results))
+
+
+def explicit_resume(text: str):
+    """Conservative *candidate* extraction; never validates realized resumption."""
+    results = []
+    for match in DATE_RESUME.finditer(text):
+        near = text[max(0, match.start() - 28):match.end()]
+        if RESUME_NOT_REALIZED.search(near) or NOT_EFFECTIVE_CONTEXT.search(match["context"]):
             continue
         try:
             day = date(int(match["year"]), int(match["month"]), int(match["day"]))
@@ -78,6 +107,7 @@ def classify(row: dict) -> dict:
     continuing = bool(CONTINUING.search(valid_sample)) if valid_sample else False
     conditional_resume = bool(CONDITIONAL_RESUME.search(valid_sample)) if valid_sample else False
     candidates = explicit_start(valid_sample) if valid_sample else []
+    resume_candidates = explicit_resume(valid_sample) if valid_sample else []
     if not valid_sample:
         kind = "SOURCE_NOT_VERIFIED"
     elif intraday:
@@ -86,10 +116,14 @@ def classify(row: dict) -> dict:
         kind = "PROSPECTIVE_NOT_REALIZED"
     elif continuing:
         kind = "CONTINUATION_NOT_NEW_STOP"
-    elif len(candidates) != 1:
-        kind = "EFFECTIVE_DATE_UNRESOLVED"
-    else:
+    elif len(candidates) == 1 and not resume_candidates:
         kind = "EXPLICIT_STOP_CANDIDATE_ONLY"
+    elif len(resume_candidates) == 1 and not candidates and not conditional_resume:
+        kind = "EXPLICIT_RESUME_CANDIDATE_ONLY"
+    elif candidates and resume_candidates:
+        kind = "MULTIPLE_TRANSITIONS_UNRESOLVED"
+    else:
+        kind = "EFFECTIVE_DATE_UNRESOLVED"
 
     return {
         "archive_date": row.get("archive_date"),
@@ -101,6 +135,7 @@ def classify(row: dict) -> dict:
         "identity_candidates": codes,
         "classification": kind,
         "explicit_effective_stop_date_candidates": candidates,
+        "explicit_effective_resume_date_candidates": resume_candidates,
         "intraday": intraday,
         "prospective_stop": future,
         "continuing_stop": continuing,
