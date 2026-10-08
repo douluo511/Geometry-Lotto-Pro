@@ -97,14 +97,35 @@ class LottoService:
                 raise RuntimeError("invalid SSQ blue-ball record")
 
     def _prospective_replays(self, selector_hash: str) -> list[dict[str, Any]]:
+        """No local SQLite replay has independently witnessed pre-draw provenance.
+
+        Local replays remain available to post-draw analysis and audit, but a
+        same-database freeze timestamp, selector field and SHA cannot prove
+        that a prediction existed before an official result was published.
+        This fail-closed boundary must not be replaced by a self-reported
+        `verified` boolean. A separately authenticated, immutable external
+        pre-draw ledger and official outcome verifier are prerequisites.
+        """
         db = self._db()
         try:
-            rows = db.execute(
-                "SELECT r.payload_json FROM replays r JOIN freezes f ON f.prediction_id=r.prediction_id "
-                "WHERE f.selector_hash=? ORDER BY f.target_issue",
+            total = int(db.execute("SELECT COUNT(*) FROM replays").fetchone()[0])
+            selected = int(db.execute(
+                "SELECT COUNT(*) FROM replays r JOIN freezes f "
+                "ON f.prediction_id=r.prediction_id WHERE f.selector_hash=?",
                 (selector_hash,),
-            ).fetchall()
-            return [json.loads(r[0]) for r in rows]
+            ).fetchone()[0])
+            self._prospective_audit = {
+                "schema": "ssq-prospective-provenance-v1",
+                "authority": "EXTERNAL_PREDRAW_GIT_LEDGER_NOT_VERIFIED",
+                "local_replay_rows": total,
+                "selector_matched_local_rows": selected,
+                "qualified_replays": 0,
+                "scientific_state": "NO_EDGE",
+                "dan_state": "NULL_DAN",
+                "promotion_authorized": False,
+                "reason": "local timestamps/hashes do not prove independent pre-draw existence",
+            }
+            return []
         finally:
             db.close()
 
@@ -262,10 +283,16 @@ class LottoService:
                 and cached.get("model_hash") == identity["model_hash"]
                 and cached.get("selector_hash") == identity["selector_hash"]
                 and cached.get("software_verdict") == "PASS"
-                and cached.get("final_validation", {}).get("status") == "PASS"):
+                and cached.get("final_validation", {}).get("status") == "PASS"
+                and cached.get("prospective_authority", {}).get("authority")
+                    == "EXTERNAL_PREDRAW_GIT_LEDGER_NOT_VERIFIED"
+                and cached.get("prospective_n") == 0
+                and cached.get("dan_state") == "NULL_DAN"
+                and cached.get("edge_state") == "NO_EDGE"):
                 return cached
         prospective = self._prospective_replays(identity["selector_hash"])
         court = run_evidence_court(draws, prospective=prospective, progress=progress)
+        court["prospective_authority"] = self._prospective_audit
         court["canonical_hash"] = canonical_hash
         court.pop("court_hash", None)
         court["court_hash"] = sha256_json(court)
