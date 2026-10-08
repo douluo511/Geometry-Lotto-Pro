@@ -90,6 +90,13 @@ check_valid_structure("2021-11-15", "830001")
 # CRITICAL: official BSE 2024-04-19 bulletin authorizes NEW 920 IPOs from
 # 2024-04-22, distinct from the 2025 switch of 248 EXISTING issuers.
 # Official first-party BSE 2024-12-05 920098 IPO must not be rejected.
+# Independent additional exchange-original IPO witness: 万达轴承 920002.
+# https://www.bse.cn/issue_report_meeting/200021986.html
+# BSE itself records its 2024-05-30 listing; such a structurally possible
+# code/day is NOT a qualified historical issuer universe or daily ST truth.
+check_valid_structure("2024-05-30", "920002")
+check_valid_structure("2025-05-05", "920002")
+check_invalid("2024-04-08", "920002", "bse_920_before_new_ipo_activation")
 check_valid_structure("2024-12-05", "920098")
 check_valid_structure("2025-05-05", "920098")
 check_invalid("2024-04-08", "920098", "bse_920_before_new_ipo_activation")
@@ -102,5 +109,5 @@ check_valid_structure("2025-10-08", "830001")  # boundary only; not issuer proof
 check_invalid("2025-10-09", "830001", "bse_legacy_after_unified_switch")
 check_invalid("2026-09-30", "430001", "bse_legacy_after_unified_switch")
 
-assert len(cases) == 11, cases
-print("STOCK BSE IMPOSSIBLE HISTORICAL DATE BUSINESS TESTS 11/11 PASS")
+assert len(cases) == 14, cases
+print("STOCK BSE IMPOSSIBLE HISTORICAL DATE BUSINESS TESTS 14/14 PASS")
