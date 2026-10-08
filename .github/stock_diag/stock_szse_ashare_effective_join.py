@@ -5,6 +5,7 @@ matched document. Even 1849-source network PASS does not establish those facts.
 """
 from __future__ import annotations
 import argparse
+from datetime import date, datetime
 import hashlib
 import json
 from pathlib import Path
@@ -21,6 +22,44 @@ def canonical(obj):
 
 def sha(x):
     return isinstance(x,str) and bool(HEX.fullmatch(x))
+
+
+ALLOWED_KINDS = {
+    "SOURCE_NOT_VERIFIED", "INTRADAY_NOT_FULL_DAY",
+    "PROSPECTIVE_NOT_REALIZED", "CONTINUATION_NOT_NEW_STOP",
+    "EXPLICIT_STOP_CANDIDATE_ONLY", "EXPLICIT_RESUME_CANDIDATE_ONLY",
+    "MULTIPLE_TRANSITIONS_UNRESOLVED", "EFFECTIVE_DATE_UNRESOLVED",
+}
+SINGLE_CODE_DATED_KINDS = {
+    "EXPLICIT_STOP_CANDIDATE_ONLY", "EXPLICIT_RESUME_CANDIDATE_ONLY",
+}
+
+
+def checked_archive_day(value):
+    """A source publishing date, never a substitute for a trading effective date."""
+    if not isinstance(value, str) or re.fullmatch(r"20\\d{6}", value) is None:
+        raise ValueError("source archive date absent or malformed")
+    try:
+        parsed = datetime.strptime(value, "%Y%m%d")
+    except ValueError as exc:
+        raise ValueError("impossible source archive date") from exc
+    if parsed.strftime("%Y%m%d") != value:
+        raise ValueError("noncanonical source archive date")
+    return value
+
+
+def checked_candidate_days(values):
+    if not isinstance(values, list) or len(set(map(str, values))) != len(values):
+        raise ValueError("duplicate or malformed effective date candidate list")
+    for value in values:
+        if not isinstance(value, str) or DATE.fullmatch(value) is None:
+            raise ValueError("malformed explicit notice date claim")
+        try:
+            if date.fromisoformat(value).isoformat() != value:
+                raise ValueError("noncanonical effective date candidate")
+        except ValueError as exc:
+            raise ValueError("calendar-impossible effective date candidate") from exc
+    return values
 
 
 def join(share:dict, dated:dict, *, expected_notices=1849, expected_a=958, expected_b=9):
@@ -60,6 +99,15 @@ def join(share:dict, dated:dict, *, expected_notices=1849, expected_a=958, expec
             raise ValueError("duplicated/untrusted notice source provenance")
         if row.get("qualified_daily_st_or_suspension")!="NOT VERIFIED" or row.get("qualified_actual_resumption")!="NOT VERIFIED":
             raise ValueError("daily-source evidence illegally promoted")
+        # Missing evidence cannot be silently treated as an empty error list.
+        missing = row.get("missing_evidence")
+        if not isinstance(missing, list) or any(not isinstance(e, str) or not e for e in missing):
+            raise ValueError("unverifiable missing-evidence field")
+        if row.get("classification") not in ALLOWED_KINDS:
+            raise ValueError("unknown notice classification")
+        checked_archive_day(row.get("archive_date"))
+        checked_candidate_days(row.get("explicit_effective_stop_date_candidates"))
+        checked_candidate_days(row.get("explicit_effective_resume_date_candidates"))
         row_map[url]=row
     out=[]
     seen=set()
@@ -78,17 +126,22 @@ def join(share:dict, dated:dict, *, expected_notices=1849, expected_a=958, expec
             row=row_map.get(url)
             if row is None or pair.get("official_response_sha256")!=row["official_response_sha256"] or pair.get("semantic_excerpt_sha256")!=row["semantic_excerpt_sha256"]:
                 raise ValueError("source or excerpt digest does not match independent dated notice")
+            if pair.get("archive_date_not_effective_date") != row["archive_date"]:
+                raise ValueError("notice and share-candidate publication-date provenance mismatch")
             if (pair.get("actual_stock_lifecycle_qualified")!="NOT VERIFIED"
                     or pair.get("actual_daily_suspension_qualified")!="NOT VERIFIED"):
                 raise ValueError("share candidate falsely qualified")
             # Multi-code and conflicting notices remain unresolved, even if a
             # parser happens to produce a plausible stop or resume date.
-            unresolved=row.get("missing_evidence") or []
-            source_bound=(not unresolved and row.get("code")==code)
-            stop=row.get("explicit_effective_stop_date_candidates",[])
-            resume=row.get("explicit_effective_resume_date_candidates",[])
-            if (not isinstance(stop,list) or not isinstance(resume,list) or any(not DATE.fullmatch(v) for v in stop+resume)):
-                raise ValueError("malformed explicit notice date claim")
+            unresolved=row["missing_evidence"]
+            cls=row["classification"]
+            # No effective-day claim survives source gaps, mixed stop/resume,
+            # intraday-only notices, or notices outside the dated candidate class.
+            source_bound=(not unresolved and row.get("code")==code
+                          and cls in SINGLE_CODE_DATED_KINDS
+                          and row.get("intraday") is False)
+            stop=row["explicit_effective_stop_date_candidates"]
+            resume=row["explicit_effective_resume_date_candidates"]
             candidate_scope=("SINGLE_CODE_NOTICE_DIAGNOSTIC" if source_bound
                              else "MULTI_OR_UNQUALIFIED_NOTICE_REVIEW")
             out.append({
@@ -97,8 +150,8 @@ def join(share:dict, dated:dict, *, expected_notices=1849, expected_a=958, expec
                 "semantic_excerpt_sha256":row["semantic_excerpt_sha256"],
                 "notice_classification":row.get("classification"),
                 "candidate_claim_scope":candidate_scope,
-                "notice_stop_date_candidates":stop if source_bound else [],
-                "notice_resume_date_candidates":resume if source_bound else [],
+                "notice_stop_date_candidates":stop if source_bound and cls=="EXPLICIT_STOP_CANDIDATE_ONLY" else [],
+                "notice_resume_date_candidates":resume if source_bound and cls=="EXPLICIT_RESUME_CANDIDATE_ONLY" else [],
                 "notice_date_metadata_not_effective_date":pair.get("archive_date_not_effective_date"),
                 "intraday_only_or_unresolved":bool(row.get("intraday")) or not source_bound,
                 "actual_equity_asof_master":"NOT VERIFIED",
