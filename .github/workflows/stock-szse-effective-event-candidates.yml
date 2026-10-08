@@ -33,7 +33,7 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
           git merge-base --is-ancestor 9969490c89ccb4cc10536f66416976c5bf40caef HEAD
-          git merge-base --is-ancestor 33f67bbdf28f862e6c956980a4d00a61c755c914 HEAD
+          git merge-base --is-ancestor 6a4424c01b589452310f4dce66f1c647c0890748 HEAD
           test -z "$(git diff --name-only 9969490c89ccb4cc10536f66416976c5bf40caef..HEAD -- StockAIPro)"
           echo "EXACT_HEAD_AND_STOCK_PRODUCT_BYTES=PASS"
       - name: Setup pinned Python
