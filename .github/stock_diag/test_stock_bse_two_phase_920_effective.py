@@ -34,7 +34,7 @@ for name,spec in m.ANNOUNCEMENTS.items():
 tests.append("all 3 synthetic official phrase schemas parse with dated header")
 r=m.build(current,notices)
 assert r["pilot_count"]==6 and r["remaining_count"]==242
-assert r["total_asof_code_routing_witnesses"]==248*8
+assert r["total_asof_code_routing_witnesses"]==248*11
 assert r["adjudication"]["final_gate"]=="FAIL"
 assert all(row["historical_issuer_BSE_membership"]=="NOT VERIFIED" for row in r["asof_issuer_code_routing_only"])
 def phase(day):
@@ -47,6 +47,16 @@ early=[x for x in r["asof_issuer_code_routing_only"] if x["historical_query_day"
 assert len(early)==248
 assert all(x["official_notice_code_routing_asof"]=="HISTORICAL_ALIAS_NOT_SOURCE_VERIFIED_ASOF"
            for x in early), "2024 aliases are exposed by a later 2025/26 source"
+# No official Apr 25 activation instruction may be treated as already
+# known on Apr 11/24; even Apr 25 is intraday-UNKNOWN absent a
+# verified exact first-party publication time relative to a signal.
+for no_knowledge_day in ("2025-04-11","2025-04-24","2025-04-25"):
+    matching=[x for x in r["asof_issuer_code_routing_only"]
+              if x["historical_query_day"]==no_knowledge_day]
+    assert len(matching)==248
+    assert all(x["official_notice_code_routing_asof"]==
+               "HISTORICAL_ALIAS_NOT_SOURCE_VERIFIED_ASOF" for x in matching), (
+               "FALSE PASS: future Apr 25 bulletin leaks into "+no_knowledge_day)
 assert len(phase("2025-05-05"))==0
 assert len(phase("2025-05-06"))==6
 assert len(phase("2025-10-08"))==6

@@ -141,16 +141,20 @@ def build(alias_report,bulletins):
         if row["BSE_asof_old_or_new_code_validity"]!="NOT VERIFIED":
             raise ValueError("current_table_forged_historical_effective_state")
         for q in ("2020-01-02","2021-11-14","2024-04-22",
+                  "2025-04-11","2025-04-24","2025-04-25",
                   "2025-05-05","2025-05-06","2025-10-08",
                   "2025-10-09","2026-10-08"):
             day=date.fromisoformat(q)
-            # The later first-party 2025 BSE notices and current alias
-            # mapping cannot establish an as-of 2024 issuer code identity.
-            # 2025 notice rules can bound routing only after their publication,
-            # never retrospectively qualify historical SecurityType=1.
+            # Apr 11 ONLY selects pilots and explicitly defers the activation
+            # schedule.  Apr 25 is the FIRST verified authoritative launch
+            # instruction (May 6 six pilots, 242 remain old); date-only sources
+            # lack an independent intraday release clock, so fail closed for
+            # as-of queries ON Apr 25 as well as every earlier day.
+            # The newer 248-row source remains NOT a SecurityType=1 issuer
+            # membership register even when code routing is published.
             code_from_notice=("NOT_A_BSE_MARKET_DAY" if day<OPEN
               else "HISTORICAL_ALIAS_NOT_SOURCE_VERIFIED_ASOF"
-                   if day<date(2025,4,11)
+                   if day<=date(2025,4,25)
               else "EXCHANGE_ANNOUNCED_OLD_CODE_ROUTING" if day<start
               else "EXCHANGE_ANNOUNCED_NEW_920_CODE_ROUTING")
             history.append({
