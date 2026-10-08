@@ -90,12 +90,19 @@ check_valid_structure("2021-11-15", "830001")
 # First confirmed BSE 920 IPO: Wanda Bearing 920002 on 2024-05-30.
 # Source: https://www.bse.cn/disclosure/2024/2024-05-27/1716806650_280194.pdf
 # Do NOT erase its original eligible day solely due to old-company conversion.
+check_invalid("2024-05-29", "920002", "bse_920_before_first_activation")
 check_valid_structure("2024-05-30", "920002")
+# Independent actual new IPO listing examples require source-native identity
+# before production state; positive below checks format/date only.
+check_valid_structure("2024-08-29", "920008")
 
 # First 6 EXISTING 920-code pilots switched 2025-05-06; other 242 on
 # 2025-10-09. Those dates are not a global 920 IPO boundary.
 check_invalid("2024-04-08", "920931", "bse_920_before_first_activation")
-check_invalid("2025-05-05", "920931", "bse_920_before_first_activation")
+# 920931 is a historically OLD company alias; without the issuer-native
+# as-of mapping, the shape/date guard alone cannot determine identity.
+# Source-as-of lifecycle MUST remain NOT VERIFIED, even when structural valid.
+check_valid_structure("2025-05-05", "920931")
 check_valid_structure("2025-10-09", "920931")
 check_valid_structure("2026-09-30", "920001")
 
@@ -105,5 +112,5 @@ check_valid_structure("2025-10-08", "830001")  # boundary only; not issuer proof
 check_invalid("2025-10-09", "830001", "bse_legacy_after_unified_switch")
 check_invalid("2026-09-30", "430001", "bse_legacy_after_unified_switch")
 
-assert len(cases) == 11, cases
-print("STOCK BSE IMPOSSIBLE HISTORICAL DATE BUSINESS TESTS 11/11 PASS")
+assert len(cases) == 13, cases
+print("STOCK BSE IMPOSSIBLE HISTORICAL DATE BUSINESS TESTS 13/13 PASS")
