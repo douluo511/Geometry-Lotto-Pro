@@ -45,7 +45,7 @@ jobs:
             --header "Accept: application/vnd.github+json" \
             "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/11532954627/zip" \
             --output primary_20181119.zip
-          echo "88919ed5b83d606458fc1b404f8a10decbe3c1aa263c3dfb77d0  primary_20181119.zip" | sha256sum --check
+          echo "88919ed5b83d606458fc1b404f8a10decbe3c1aa263c3e25c02a6c6a3dfb77d0  primary_20181119.zip" | sha256sum --check
           unzip -oq primary_20181119.zip -d original_primary_raw/shard-03
       - name: Download SHA-pinned original 2025-01-06 official raw-html shard
         env:
