@@ -182,6 +182,7 @@ def fetch_daily_bars_tencent_full(
         "history_window_count": len(metas),
         "price_adjustment": adjustment_label,
         "requested_adjustment": fq,
+        "adjustment_model_contract": ("tencent_600000_cash_offset_v1" if code=="sh600000" and fq=="qfq" else "UNVERIFIED_PROVIDER_MODEL"),
         "content_type": latest_meta.content_type,
         "content_type_policy": latest_meta.content_type_policy,
         "field_contract": "date/open/close/high/low/volume/turnover/amount",

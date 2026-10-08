@@ -9,6 +9,7 @@ from typing import Iterable
 from .domain import DailyBar, validate_market_rows
 from .market_lineage import market_series_commitments, commitment_index_digest
 from .netclient import NetClient
+from .cash_adjustment import CASH_MODEL, verify_cash_offset
 
 EASTMONEY_DATACENTER_URL = "https://datacenter-web.eastmoney.com/api/data/v1/get"
 REPORT_NAME = "RPT_SHAREBONUS_DET"
@@ -100,6 +101,7 @@ def fetch_share_bonus_events(client: NetClient, symbol: str, page_size: int = 10
         "payload_sha256": meta.payload_sha256,
         "retrieved_at_unix": meta.retrieved_at_unix,
         "event_count": len(events),
+        "cash_unit": "CNY_PER_10_SHARES",
         "schema_fields": [
             "SECURITY_CODE", "PLAN_NOTICE_DATE", "EX_DIVIDEND_DATE",
             "PRETAX_BONUS_RMB", "BONUS_RATIO", "TRANSFER_RATIO", "ASSIGN_PROGRESS",
@@ -168,6 +170,26 @@ def verify_corporate_action_lineage(
     dates = sorted(set(qmap) & set(rmap))
     if len(dates) < 60:
         return {"status": "NOT VERIFIED", "reason": "qfq/raw overlap is too short", "overlap_rows": len(dates), **hashes}
+
+
+    common_lineage = {
+        "source_content_bound":"PASS" if source_content_bound else "NOT VERIFIED",
+        "qfq_series_sha256":commitment_index_digest(qfq_commitments),
+        "raw_series_sha256":commitment_index_digest(raw_commitments),
+        "qfq_row_commitments":qfq_commitments,"qfq_series_rows":len(qfq_commitments),
+        "qfq_source_payload_sha256s":qfq_source_hashes,"raw_source_payload_sha256s":raw_source_hashes,
+        "symbol":qfq[0].symbol,"overlap_start":dates[0],"overlap_end":dates[-1],
+        "overlap_rows":len(dates),"overlap_dates":dates,"source_providers":providers,
+        "factor_change_tolerance":factor_change_tolerance,
+        "max_match_calendar_days":max_match_calendar_days,**hashes,
+    }
+    profile=qfq_meta.get("adjustment_model_contract","multiplicative_factor_v2")
+    if profile==CASH_MODEL:
+        return {**common_lineage,**verify_cash_offset(qfq,raw,events,event_meta,
+                                                     source_content_bound=source_content_bound)}
+    if profile!="multiplicative_factor_v2":
+        return {**common_lineage,"status":"NOT VERIFIED","point_in_time_lineage":"NOT VERIFIED",
+                "adjustment_matching_status":"NOT VERIFIED","reason":"unknown adjustment model profile"}
 
     # One rounded close is too weak to identify an adjustment factor: both qfq
     # and raw prices are cent-rounded, so a single ratio can jump when price
@@ -410,11 +432,17 @@ def verify_corporate_action_lineage(
 
     unmatched_events = [e for i, e in enumerate(valid_events) if i not in used_events]
     observed_matching = bool(matched) and not unexplained
-    point_in_time = source_content_bound and observed_matching and not unmatched_events and not invalid_notice_events
+    complete_matching = source_content_bound and observed_matching and not unmatched_events and not invalid_notice_events
+    # Observed current factors and printed notice dates do not establish the
+    # values available at each historical feature as-of date. No such receipt
+    # and causal reconstruction contract is implemented in this verifier.
+    point_in_time = False
     return {
         "status": "PASS" if point_in_time else "NOT VERIFIED",
         "point_in_time_lineage": "PASS" if point_in_time else "NOT VERIFIED",
         "observed_factor_event_matching_status": "PASS" if observed_matching else "NOT VERIFIED",
+        "adjustment_matching_status":"PASS" if complete_matching else "NOT VERIFIED",
+        "adjustment_model_contract":"multiplicative_factor_v2",
         "scope": "overlapping qfq/raw dates only; the consumer must bind the complete research window",
         "source_content_bound": "PASS" if source_content_bound else "NOT VERIFIED",
         "qfq_series_sha256": commitment_index_digest(qfq_commitments),
@@ -451,6 +479,6 @@ def verify_corporate_action_lineage(
             "historical point-in-time availability of every research feature or execution-cost calibration."
         ),
         "reason": None if point_in_time else (
-            "requires matched announced action/factor shifts with no unexplained shifts, unmatched valid actions or missing notice lineage"
+            "historical as-of availability and causal feature reconstruction are not established by current factor matching"
         ),
     }

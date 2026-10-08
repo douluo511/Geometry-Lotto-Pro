@@ -17,6 +17,7 @@ from app.source_universe import SSE_UNIVERSE_URL, UNIVERSE_URLS, build_prospecti
 from app.source_tencent_full import fetch_daily_bars_tencent_full
 from app.source_yahoo import fetch_daily_bars_yahoo
 from app.source_cost_rules import fetch_official_cost_rules
+from app.source_official_cash import fetch_official_cash_documents
 from tests.business_failclosed_contract import run_contract
 
 QUALIFICATION_HISTORY_ROWS = 1200
@@ -447,9 +448,10 @@ def _corporate_action_lineage(client: NetClient, research_rows, research_meta) -
         qfq_rows, qfq_meta = research_rows, research_meta
         raw_rows, raw_meta = fetch_daily_bars_tencent_full(client, "600000", QUALIFICATION_HISTORY_ROWS, adjustment="raw")
         events, event_meta = fetch_share_bonus_events(client, "600000", 100)
-        return verify_corporate_action_lineage(
-            qfq_rows, raw_rows, events, qfq_meta, raw_meta, event_meta
-        )
+        event_meta["official_cash_action_evidence"]=fetch_official_cash_documents(client)
+        evidence=verify_corporate_action_lineage(qfq_rows,raw_rows,events,qfq_meta,raw_meta,event_meta)
+        evidence["official_cash_action_evidence"]=event_meta["official_cash_action_evidence"]
+        return evidence
     except Exception as exc:
         return {
             "status": "NOT VERIFIED",
