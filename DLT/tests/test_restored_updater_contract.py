@@ -91,8 +91,10 @@ class RestoredUpdaterContractTests(unittest.TestCase):
             def load_draws(self):
                 return [], "canonical-hash"
 
-            def prospective_replays(self, selector_hash):
+            def prospective_replays(self, selector_hash, *, model_hash, draws):
                 self.selector_hash = selector_hash
+                self.model_hash = model_hash
+                self.draws = draws
                 return []
 
             def freezes(self):
@@ -112,7 +114,7 @@ class RestoredUpdaterContractTests(unittest.TestCase):
             "edge_state": "NO_EDGE",
             "dan_state": "NULL_DAN",
         }
-        with patch("glp.service.model_identity", return_value={"selector_hash": "selector"}), \
+        with patch("glp.service.model_identity", return_value={"selector_hash": "selector", "model_hash": "model-hash"}), \
              patch("glp.service.run_evidence_court", return_value=court), \
              patch("glp.service.make_prediction", return_value=(object(), {"trace": "shadow"})), \
              patch("glp.service.build_ors_record", return_value={"ors": "PASS"}):
@@ -124,6 +126,9 @@ class RestoredUpdaterContractTests(unittest.TestCase):
         self.assertEqual(len(store.freezes()), 2)
         self.assertEqual(result["court"]["edge_state"], "NO_EDGE")
         self.assertEqual(result["court"]["software_verdict"], "PASS")
+        self.assertEqual(store.selector_hash, "selector")
+        self.assertEqual(store.model_hash, "model-hash")
+        self.assertEqual(store.draws, [])
         self.assertEqual(len(store.experiments), 1)
 
 
