@@ -37,7 +37,7 @@ SINGLE_CODE_DATED_KINDS = {
 
 def checked_archive_day(value):
     """A source publishing date, never a substitute for a trading effective date."""
-    if not isinstance(value, str) or re.fullmatch(r"20\\d{6}", value) is None:
+    if not isinstance(value, str) or re.fullmatch(r"20\d{6}", value) is None:
         raise ValueError("source archive date absent or malformed")
     try:
         parsed = datetime.strptime(value, "%Y%m%d")
