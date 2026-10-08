@@ -606,9 +606,16 @@ def run_evidence_court(
     nulls = _null_worlds(len(holdout_vals), _mean(holdout_vals))
     support = _support_gate(draws)
 
-    prospective_n = len(prospective)
+    # Self-reported Replay JSON is *not* independent evidence of a prediction
+    # frozen before the draw. Even 30 well-shaped, selector-matched local rows
+    # can be created after the fact. No raw input is qualified until a separate
+    # cryptographically/timestamp-anchored pre-draw ledger verifier exists.
+    unverified_prospective_n = len(prospective)
+    prospective_n = 0
     prospective_selector_consistent = all(
-        (not isinstance(x, dict)) or (not x.get("selector_hash")) or x.get("selector_hash") == identity["selector_hash"]
+        isinstance(x, dict)
+        and x.get("selector_hash") == identity["selector_hash"]
+        and bool(x.get("selector_hash"))
         for x in prospective
     )
 
@@ -627,10 +634,16 @@ def run_evidence_court(
         nulls["false_positive_rate"] <= float(PROMOTION_POLICY["max_null_world_fpr"])
         and nulls["observed_percentile"] >= float(PROMOTION_POLICY["min_null_percentile"])
     )
-    edge_proven = all((
+    historical_edge_candidate = all((
         predictive_pass, loeo_pass, holdout_pass, dual["passed"],
         ablation["passed"], leakage_pass, null_pass,
     ))
+    # A historical edge candidate is NOT a verified future prediction edge.
+    edge_proven = (
+        historical_edge_candidate
+        and prospective_n >= int(PROMOTION_POLICY["min_prospective"])
+        and prospective_selector_consistent
+    )
     certified_dan = (
         edge_proven
         and support["passed"]
@@ -681,6 +694,9 @@ def run_evidence_court(
         "dual_final_confirmation": dual,
         "support_gate": support,
         "prospective_n": prospective_n,
+        "unverified_prospective_n": unverified_prospective_n,
+        "prospective_authority": "EXTERNAL_PREDRAW_GIT_LEDGER_NOT_VERIFIED",
+        "historical_edge_candidate": historical_edge_candidate,
         "prospective_selector_consistent": prospective_selector_consistent,
         "leakage_violations": wf["leakage_violations"],
         "software_verdict": software_verdict,
