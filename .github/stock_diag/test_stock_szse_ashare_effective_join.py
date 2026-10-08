@@ -18,13 +18,13 @@ notices=[
 
 def fixtures():
     rows=[
-        {"official_url":notices[0],"official_response_sha256":"1"*64,
+        {"official_url":notices[0],"archive_date":"20180102","official_response_sha256":"1"*64,
          "semantic_excerpt_sha256":"2"*64,"qualified_daily_st_or_suspension":"NOT VERIFIED",
          "qualified_actual_resumption":"NOT VERIFIED","code":"000001","missing_evidence":[],
          "classification":"EXPLICIT_STOP_CANDIDATE_ONLY",
          "explicit_effective_stop_date_candidates":["2018-01-02"],
          "explicit_effective_resume_date_candidates":[],"intraday":False},
-        {"official_url":notices[1],"official_response_sha256":"3"*64,
+        {"official_url":notices[1],"archive_date":"20180103","official_response_sha256":"3"*64,
          "semantic_excerpt_sha256":"4"*64,"qualified_daily_st_or_suspension":"NOT VERIFIED",
          "qualified_actual_resumption":"NOT VERIFIED","code":None,
          "missing_evidence":["unambiguous_instrument_identity"],
@@ -103,5 +103,45 @@ fail_case("malformed effective day",lambda s,d:d["rows"][0].update({"explicit_ef
 fail_case("pair count truncated",lambda s,d:s["b_share_exclusion_ledger"].clear())
 fail_case("incorrect source denominator",lambda s,d:s.update({"source_frozen_denominator":1}))
 fail_case("source schema counterfeit",lambda s,d:d.update({"schema":"qualified-production-history"}))
-assert len(cases)==15,cases
-print("STOCK SZSE ASHARE/DATE JOIN CONTRACTS 15/15 PASS")
+# FAIL-FIRST counterexamples: old code must not accept absent evidence or
+# inconsistent source/date metadata merely because two recorded SHA strings agree.
+fail_case("missing evidence list is not proof of clean source",
+          lambda s,d:d["rows"][0].pop("missing_evidence"))
+fail_case("null evidence list is not proof of clean source",
+          lambda s,d:d["rows"][0].update({"missing_evidence":None}))
+fail_case("notice archive date disagrees with frozen share pair",
+          lambda s,d:d["rows"][0].update({"archive_date":"20180104"}))
+fail_case("share candidate archive date disagrees with official notice",
+          lambda s,d:s["a_share_candidates"][0].update({"archive_date_not_effective_date":"20180104"}))
+fail_case("calendar-impossible effective date despite valid yyyy-mm-dd syntax",
+          lambda s,d:d["rows"][0].update({"explicit_effective_stop_date_candidates":["2018-02-30"]}))
+fail_case("unknown classifier cannot emit dated claims",
+          lambda s,d:d["rows"][0].update({"classification":"SYNTHETIC_FULL_DAY_PASS"}))
+
+def mixed_transition_stays_unqualified():
+    s,d=fixtures()
+    row=d["rows"][0]
+    row["classification"]="MULTIPLE_TRANSITIONS_UNRESOLVED"
+    row["explicit_effective_resume_date_candidates"]=["2018-01-03"]
+    out=m.join(s,d,expected_notices=2,expected_a=1,expected_b=1)
+    pair=next(x for x in out["pairs"] if x["candidate_asset_class"]=="A_SHARE_CANDIDATE")
+    assert pair["candidate_claim_scope"]=="MULTI_OR_UNQUALIFIED_NOTICE_REVIEW",pair
+    assert pair["notice_stop_date_candidates"]==[],pair
+    assert pair["notice_resume_date_candidates"]==[],pair
+pass_case("mixed stop and resume cannot emit single-code dated candidates",
+          mixed_transition_stays_unqualified)
+
+def intraday_stays_unqualified():
+    s,d=fixtures()
+    row=d["rows"][0]
+    row["classification"]="INTRADAY_NOT_FULL_DAY"
+    row["intraday"]=True
+    out=m.join(s,d,expected_notices=2,expected_a=1,expected_b=1)
+    pair=next(x for x in out["pairs"] if x["candidate_asset_class"]=="A_SHARE_CANDIDATE")
+    assert pair["candidate_claim_scope"]=="MULTI_OR_UNQUALIFIED_NOTICE_REVIEW",pair
+    assert pair["notice_stop_date_candidates"]==[],pair
+pass_case("intraday halt cannot masquerade as full-day effective date candidate",
+          intraday_stays_unqualified)
+
+assert len(cases)==23,cases
+print("STOCK SZSE ASHARE/DATE JOIN CONTRACTS 23/23 PASS")
