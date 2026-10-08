@@ -16,7 +16,7 @@ SHA = re.compile(r"^[0-9a-f]{64}$")
 DATE_STOP = re.compile(
     r"(?P<year>20\d\d)年(?P<month>0?[1-9]|1[0-2])月"
     r"(?P<day>0?[1-9]|[12]\d|3[01])日"
-    r"(?P<context>.{0,32}?)"
+    r"(?P<context>[^0-9年月]{0,32}?)"
     r"(?:开市起|交易日起|起|开始)(?:.{0,14}?)(?:临时)?停牌"
 )
 # A dated resumption is only a notice-level candidate. Do NOT infer a completed
@@ -25,7 +25,7 @@ DATE_STOP = re.compile(
 DATE_RESUME = re.compile(
     r"(?P<year>20\d\d)年(?P<month>0?[1-9]|1[0-2])月"
     r"(?P<day>0?[1-9]|[12]\d|3[01])日"
-    r"(?P<context>.{0,32}?)"
+    r"(?P<context>[^0-9年月]{0,32}?)"
     r"(?:开市起|交易日起|起|开始)(?:.{0,14}?)(?:正式)?(?:复牌|恢复交易)"
 )
 RESUME_NOT_REALIZED = re.compile(
