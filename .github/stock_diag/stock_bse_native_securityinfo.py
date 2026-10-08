@@ -9,7 +9,7 @@ A synthetically made XML fixture is only for regression tests.
 """
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timezone, timedelta
 import hashlib
 import json
 from pathlib import Path
@@ -84,6 +84,14 @@ def parse(raw: bytes, filename: str, *, acquired_at_utc: str) -> dict:
     timestamp = timestamp.astimezone(timezone.utc)
     if timestamp.year < 2023:
         raise ValueError("invalid receipt timestamp preceding interface")
+    # Exchange-local market day matters: offsets other than UTC can conceal
+    # a future-dated file. This is ONLY a temporal consistency check; it
+    # cannot prove independent first-party publication/receipt availability.
+    exchange_receipt_day = timestamp.astimezone(
+        timezone(timedelta(hours=8))
+    ).date()
+    if native_day > exchange_receipt_day:
+        raise ValueError("BSE native snapshot day later than claimed exchange-local receipt day")
     nodes = [node for node in root.iter() if _tag(node.tag).lower() == "security"]
     if not nodes:
         raise ValueError("native XML has no security records")
