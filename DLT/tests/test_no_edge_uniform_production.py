@@ -11,7 +11,9 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from glp.domain import Draw, Ranking
-from glp.engine import make_prediction
+from glp.engine import make_prediction, model_identity
+from glp.gui import _format_prediction
+from glp.constants import APP_VERSION
 
 
 def fake_complete_space(_draws, area, _enabled_models=None, *, descending=False):
@@ -76,6 +78,21 @@ class NoEdgeUniformProductionRegression(unittest.TestCase):
         self.assertEqual(len(set(first.back)), 2)
         self.assertEqual(first.back, sorted(first.back))
         self.assertTrue(all(1 <= n <= 12 for n in first.back))
+
+    def test_stale_research_freeze_is_not_mislabeled_as_uniform(self):
+        fresh, trace = self.predict_with_research()
+        fresh_display = _format_prediction({"prediction": fresh.to_dict(), "effect_trace": trace})
+        self.assertIn("随机基线", fresh_display)
+        old_record = fresh.to_dict()
+        old_record["note"] = "研究候选；历史 2.1.2 Freeze，不允许事后重写"
+        old_display = _format_prediction({"prediction": old_record, "effect_trace": {}})
+        self.assertIn("历史/研究候选", old_display)
+        self.assertNotIn("随机基线  前区", old_display)
+
+    def test_new_version_and_model_hash_bind_uniform_algorithm(self):
+        self.assertEqual(APP_VERSION, "2.1.3")
+        self.assertEqual(model_identity()["spec"]["uniform_fallback"],
+                         "dlt-uniform-without-replacement-v1")
 
     def test_strong_evidence_requires_all_scientific_gates(self):
         proven = {
