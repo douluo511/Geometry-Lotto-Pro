@@ -4,7 +4,8 @@ from datetime import date
 import hashlib
 import math
 
-from .domain import DailyBar, validate_market_rows
+from .domain import DailyBar
+from .freshness import select_completed_market_rows
 from .netclient import NetClient
 from .source_tencent import _code
 
@@ -155,10 +156,10 @@ def fetch_daily_bars_tencent_full(
             by_date[trade_date] = parsed
 
     rows = [by_date[key] for key in sorted(by_date)]
+    rows, completed_selection = select_completed_market_rows(rows)
     rows = rows[-target:]
     if len(rows) < 30:
         raise ValueError("Tencent full response has insufficient unique valid rows")
-    validate_market_rows(rows)
 
     if len(payload_hashes) == 1:
         lineage_hash = payload_hashes[0]
@@ -175,6 +176,7 @@ def fetch_daily_bars_tencent_full(
         "source_payload_sha256s": payload_hashes,
         "retrieved_at_unix": max(float(m.retrieved_at_unix) for m in metas),
         "row_count": len(rows),
+        "completed_session_selection": completed_selection,
         "requested_row_count": target,
         "history_coverage_satisfied": len(rows) >= target,
         "history_window_count": len(metas),
