@@ -1,0 +1,96 @@
+name: Stock BSE two unmatched aliases - native first-party delist PDFs
+on:
+  push:
+    branches: [diagnostic/stock-bse-2-unmatched-official-delisting-20261008]
+    paths:
+      - ".github/stock_diag/stock_bse_delist_source_witness.py"
+      - ".github/stock_diag/test_stock_bse_delist_source_witness.py"
+      - ".github/workflows/stock-bse-two-unmatched-native-delist.yml"
+  pull_request:
+    paths:
+      - ".github/stock_diag/stock_bse_delist_source_witness.py"
+      - ".github/stock_diag/test_stock_bse_delist_source_witness.py"
+      - ".github/workflows/stock-bse-two-unmatched-native-delist.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  two-exact-official-announcements:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 16
+    steps:
+      - name: Checkout exact first-party evidence candidate
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Verify unchanged Stock source bytes on current exact checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
+          git merge-base --is-ancestor 9969490c89ccb4cc10536f66416976c5bf40caef HEAD
+          test -z "$(git diff --name-only 9969490c89ccb4cc10536f66416976c5bf40caef..HEAD -- StockAIPro)"
+      - name: Setup Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.11.9"
+          check-latest: false
+      - name: Install pinned PDF and native HTTPS parser
+        run: python -m pip install --disable-pip-version-check --no-input "requests==2.34.2" "pymupdf==1.24.14"
+      - name: Run 19 source-date and false-realized-state adversarial cases
+        run: python .github/stock_diag/test_stock_bse_delist_source_witness.py
+      - name: Fetch original exact BSE current-code source witness immutable ZIP
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location --retry 3 --retry-all-errors \
+            --connect-timeout 20 --max-time 120 \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            --header "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/11536991169/zip" \
+            --output stock_bse_current_witness.zip
+          echo "9cf35a1da1419b926809985d37aacc1928b82af532c10e70d2c7dfff591cddb2  stock_bse_current_witness.zip" | sha256sum -c
+          unzip -oq stock_bse_current_witness.zip
+          test -f stock_bse_current_two_source_witness.json
+      - name: Fetch and verify genuine two primary issuer delisting notices
+        shell: bash
+        run: |
+          set -euo pipefail
+          python .github/stock_diag/stock_bse_delist_source_witness.py \
+            --two-current stock_bse_current_two_source_witness.json \
+            --out stock_bse_two_delist_notices.json
+      - name: Deny fake BSE historical stock-day qualification
+        shell: bash
+        if: always()
+        run: |
+          set -euo pipefail
+          test -f stock_bse_two_delist_notices.json
+          python - <<'PY'
+          import json
+          x=json.load(open("stock_bse_two_delist_notices.json",encoding="utf-8"))
+          assert x["schema"]=="stock-bse-two-absent-current-code-delist-notice-witness-v1"
+          assert x["notice_count"]==2 and x["unlinked_alias_denominator"]==2
+          actual={r["code"]:r["issuer_announced_exchange_delist_date"] for r in x["first_party_original_issuer_announcements"]}
+          assert actual=={"920305":"2026-07-30","920680":"2026-01-05"},actual
+          for r in x["first_party_original_issuer_announcements"]:
+              assert r["realized_exchange_delisting_register_verified"]=="NOT VERIFIED"
+          assert x["adjudication"]["historical_BSE_actual_market_register_execution"]=="NOT VERIFIED"
+          assert x["adjudication"]["production_historical_st_pit"]=="NOT VERIFIED"
+          assert x["adjudication"]["final_gate"]=="FAIL"
+          print("BSE_2_OFFICIAL_DELIST_NOTICE_DATES=PASS; REALIZED_EXCHANGE_REGISTER=NOT VERIFIED; FINAL_GATE=FAIL")
+          PY
+      - name: Upload two raw first-party PDFs with result/attempt ledger
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: STOCK-BSE-TWO-OFFICIAL-DELIST-NOT-PIT-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            stock_bse_two_delist_notices.json
+            stock_bse_delist_920305.pdf
+            stock_bse_delist_920680.pdf
+          if-no-files-found: warn
+          retention-days: 30
