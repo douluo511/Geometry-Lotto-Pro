@@ -73,7 +73,66 @@ jobs:
           print("STOCK_STAGED_NESTED_CURRENT_SHA256="+old_inner)
           print("STOCK_ORIGINAL_IMMUTABLE_ARCHIVE_UNTOUCHED=true")
           PY
-      - name: Run seven actual false-PASS business counterexamples
+      - name: Verify first-party BSE 2024 new-issue code authority and original 920002 listing
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,html,json,re,urllib.request
+          from pathlib import Path
+          from urllib.parse import urlparse
+          original={
+              "first_new_issue_920_rule":"https://www.bse.cn/important_news/200021617.html",
+              "real_2024_920002_listing":"https://www.bse.cn/issue_report_meeting/200021986.html",
+          }
+          required={
+              "first_new_issue_920_rule":("2024年4月22日","920","发行人"),
+              "real_2024_920002_listing":("2024年5月30日","920002","万达轴承"),
+          }
+          out=Path("stock_bse_official_2024_new_920_source");out.mkdir(exist_ok=True)
+          ledger={}
+          for key,url in original.items():
+              request=urllib.request.Request(url,headers={
+                  "User-Agent":"Mozilla/5.0","Accept":"text/html"})
+              with urllib.request.urlopen(request,timeout=35) as reply:
+                  raw=reply.read(3000001)
+                  resolved=reply.geturl()
+                  if reply.status!=200 or resolved!=url or len(raw)==0 or len(raw)>3000000:
+                      raise RuntimeError("first-party 2024 source not authentic: "+key)
+              page=html.unescape(re.sub(r"<[^>]*>","",raw.decode("utf-8","strict")))
+              compact=re.sub(r"\s+","",page)
+              for phrase in required[key]:
+                  if phrase not in compact:
+                      raise RuntimeError("missing exact original BSE rule/listed issuer: "+key+" "+phrase)
+              out.joinpath(key+".html").write_bytes(raw)
+              ledger[key]={"url":url,"http_status":200,"raw_sha256":hashlib.sha256(raw).hexdigest(),
+                           "required_native_phrases":required[key],"scope":"FIRST_PARTY_EXCHANGE_TEXT_ONLY"}
+          ledger["historic_full_daily_PIT"]="NOT VERIFIED"
+          ledger["final_gate"]="FAIL"
+          out.joinpath("source_ledger.json").write_text(
+              json.dumps(ledger,ensure_ascii=False,sort_keys=True,indent=2)+"\n",encoding="utf-8")
+          print("BSE_2024_ACTUAL_FIRST_PARTY_NEW_920_AND_920002_LISTING=PASS")
+          PY
+      - name: Verify staging SHA256 bindings for changed product and nested candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          base=Path("StockAIPro/staging/Stock_AI_Pro")
+          nested=base/"versions/4.3.0/PACKAGE_MANIFEST.json"
+          source=base/"versions/4.3.0/stock_ai/historical_pit.py"
+          outer=json.loads((base/"PACKAGE_MANIFEST.json").read_text(encoding="utf-8"))
+          inner=json.loads(nested.read_text(encoding="utf-8"))
+          digest=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
+          actual=digest(source)
+          assert inner["files"]["stock_ai/historical_pit.py"]==actual
+          assert outer["files"]["versions/4.3.0/stock_ai/historical_pit.py"]==actual
+          assert outer["files"]["versions/4.3.0/PACKAGE_MANIFEST.json"]==digest(nested)
+          print("STOCK_STAGED_PRODUCT_SOURCE_AND_TWO_MANIFEST_SHA_BINDINGS=PASS")
+          PY
+      - name: Run thirteen actual false-PASS business counterexamples
         run: python StockAIPro/hardening_tests/historical_bse_market_date_boundary_test.py
       - name: Run existing full historical PIT contract
         run: python StockAIPro/hardening_tests/historical_st_pit_contract_test.py
@@ -85,3 +144,12 @@ jobs:
           echo "SSE_SZSE_BSE_COMPLETE_BUSINESS=NOT VERIFIED"
           echo "WINDOWS_EXACT_EXE_GUI_SAME_HASH=NOT VERIFIED"
           echo "FINAL_GATE=FAIL"
+
+      - name: Preserve exact first-party 2024 source bytes, but no historic PIT
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: STOCK-BSE-REAL-2024-NEW-ISSUE-SOURCE-${{ github.event.pull_request.head.sha || github.sha }}
+          path: stock_bse_official_2024_new_920_source/
+          if-no-files-found: warn
+          retention-days: 30
