@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import json
 import tempfile
 import unittest
 from datetime import date, timedelta
+from unittest.mock import patch
 from pathlib import Path
 
 from glp.constants import (
@@ -17,6 +19,7 @@ from glp.engine import model_identity
 from glp.prospective import (
     BEHAVIOR_PATHS,
     ProspectiveLedger,
+    _require_pre_draw_freeze,
     _behavior_hash_from_files,
     run_prospective_cycle,
 )
@@ -69,7 +72,7 @@ class FakeBuilder:
             prediction_id=sha256_json([canonical_hash, target_issue, self.calls])[:20],
             target_issue=target_issue,
             target_date=target_date,
-            created_at=f"2026-10-06T00:00:{self.calls:02d}+00:00",
+            created_at="2026-09-03T00:00:00+00:00",
             front=[1, 2, 3, 4, 5],
             back=[1, 2],
             front_ranking=front_ranking,
@@ -88,6 +91,64 @@ class FakeBuilder:
 
 
 class ProspectiveProtocolTests(unittest.TestCase):
+    def setUp(self):
+        # Synthetic draws end in early September. The frozen test clock is before
+        # their next target; tests never turn old draws into genuine live evidence.
+        clock = patch("glp.prospective.utc_now", return_value="2026-09-03T00:00:00Z")
+        clock.start()
+        self.addCleanup(clock.stop)
+
+    def test_china_civil_day_boundary_is_conservative(self):
+        _require_pre_draw_freeze(
+            registered_at="2026-09-04T15:59:59Z",
+            prediction_created_at="2026-09-04T15:59:58Z",
+            target_date="2026-09-05",
+        )
+        with self.assertRaisesRegex(ValueError, "late/post-draw"):
+            _require_pre_draw_freeze(
+                registered_at="2026-09-04T16:00:00Z",
+                prediction_created_at="2026-09-04T15:59:59Z",
+                target_date="2026-09-05",
+            )
+
+    def test_prediction_claimed_future_creation_time_rejected(self):
+        with self.assertRaisesRegex(ValueError, "after registration"):
+            _require_pre_draw_freeze(
+                registered_at="2026-09-03T00:00:00Z",
+                prediction_created_at="2026-09-03T00:00:01Z",
+                target_date="2026-09-05",
+            )
+
+    def test_outdated_history_cannot_register_target_already_past(self):
+        draws = _draws()
+        canonical = sha256_json([d.to_dict() for d in draws])
+        with tempfile.TemporaryDirectory() as td:
+            with patch("glp.prospective.utc_now", return_value="2026-09-10T00:00:00Z"):
+                with self.assertRaisesRegex(ValueError, "late/post-draw"):
+                    run_prospective_cycle(
+                        draws, canonical, ledger_root=Path(td),
+                        source_commit=SOURCE_A, prediction_builder=FakeBuilder(),
+                    )
+
+    def test_edited_and_rehashed_late_freeze_cannot_enter_replay(self):
+        draws = _draws()
+        canonical = sha256_json([d.to_dict() for d in draws])
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            first = run_prospective_cycle(
+                draws, canonical, ledger_root=root,
+                source_commit=SOURCE_A, prediction_builder=FakeBuilder(),
+            )
+            target = first["freeze"]["target_issue"]
+            path = root / "cohorts" / first["cohort"]["cohort_id"] / "freezes" / f"{target}.json"
+            row = json.loads(path.read_text(encoding="utf-8"))
+            row["registered_at"] = row["target_date"] + "T00:00:00Z"
+            row.pop("record_hash")
+            row["record_hash"] = sha256_json(row)
+            path.write_text(json.dumps(row), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "late/post-draw"):
+                ProspectiveLedger(root).freeze_records()
+
     def test_service_dependency_is_part_of_behavior_identity(self):
         self.assertIn("src/glp/service.py", BEHAVIOR_PATHS)
         before = _behavior_hash_from_files({
