@@ -66,7 +66,7 @@ def generate(*, source_commit: str, today_china: date | None = None,
             f"china_today={now_day.isoformat()}, "
             f"latest_official_issue={draws[-1].issue}, "
             f"latest_official_date={draws[-1].draw_date}, "
-            f"next_target_issue={prediction.target_issue}, "
+            f"next_target_issue={prediction.to_dict().get('target_issue')}, "
             f"next_target_date={prediction.target_date}; "
             "cannot freeze a same-day or already-drawn candidate without verified cutoff"
         )
