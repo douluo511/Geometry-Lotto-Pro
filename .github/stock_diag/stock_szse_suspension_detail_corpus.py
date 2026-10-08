@@ -11,6 +11,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import requests
+import threading
 from bs4 import BeautifulSoup
 
 HERE = Path(__file__).resolve().parent
@@ -19,6 +20,19 @@ OUT = Path("stock_szse_suspension_detail_corpus.json")
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/154.0 Safari/537.36"
 MAX_WORKERS = 8
 MAX_ATTEMPTS = 3
+
+# Reuse bounded HTTPS connections per worker instead of creating ~1849
+# one-shot Sessions; never share a Session between concurrent threads.
+_SESSION_LOCAL = threading.local()
+
+
+def _worker_session() -> requests.Session:
+    session = getattr(_SESSION_LOCAL, "session", None)
+    if session is None:
+        session = requests.Session()
+        _SESSION_LOCAL.session = session
+    return session
+
 
 
 def load_module(name: str, path: Path):
@@ -115,7 +129,7 @@ def fetch_one(item: dict) -> dict:
     errors = []
     for attempt in range(1, MAX_ATTEMPTS + 1):
         try:
-            r = requests.get(
+            r = _worker_session().get(
                 url,
                 headers={
                     "User-Agent": UA,
