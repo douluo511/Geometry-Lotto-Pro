@@ -1,0 +1,73 @@
+name: Stock PRODUCT 2024 BSE IPO correction and nested manifest integrity
+on:
+  push:
+    branches:
+      - fix/stock-bse-920-new-ipo-2024-contradiction-20261008
+    paths:
+      - "StockAIPro/staging/Stock_AI_Pro/versions/4.3.0/stock_ai/historical_pit.py"
+      - "StockAIPro/hardening_tests/historical_bse_market_date_boundary_test.py"
+      - "StockAIPro/staging/Stock_AI_Pro/versions/4.3.0/PACKAGE_MANIFEST.json"
+      - "StockAIPro/staging/Stock_AI_Pro/PACKAGE_MANIFEST.json"
+      - ".github/workflows/stock-bse-920-ipo-2024-staging-integrity.yml"
+  pull_request:
+    paths:
+      - "StockAIPro/staging/Stock_AI_Pro/versions/4.3.0/stock_ai/historical_pit.py"
+      - "StockAIPro/hardening_tests/historical_bse_market_date_boundary_test.py"
+      - "StockAIPro/staging/Stock_AI_Pro/versions/4.3.0/PACKAGE_MANIFEST.json"
+      - "StockAIPro/staging/Stock_AI_Pro/PACKAGE_MANIFEST.json"
+      - ".github/workflows/stock-bse-920-ipo-2024-staging-integrity.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  actual-product-code-and-packaging:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact candidate head preserving original imported bytes
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Ancestor, unchanged immutable recovered bytes and exact checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
+          git merge-base --is-ancestor 462f4a5637fc0f3f247ce4cdb6c26eee4cbce871 HEAD
+          test -z "$(git diff --name-only 462f4a5637fc0f3f247ce4cdb6c26eee4cbce871..HEAD -- StockAIPro/recovered_exact)"
+          echo "IMMUTABLE_RECOVERY_GIT_BYTES_UNCHANGED=PASS"
+      - name: Pinned Python 3.11.9
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.11.9"
+          check-latest: false
+      - name: Compile source/product tests
+        run: python -m py_compile StockAIPro/staging/Stock_AI_Pro/versions/4.3.0/stock_ai/historical_pit.py StockAIPro/hardening_tests/historical_bse_market_date_boundary_test.py
+      - name: Exact official new-vs-existing BSE IPO temporal boundary regressions
+        run: python StockAIPro/hardening_tests/historical_bse_market_date_boundary_test.py
+      - name: Original complete raw-to-lifecycle ST/PIT byte/provenance contract
+        run: python StockAIPro/hardening_tests/historical_st_pit_contract_test.py
+      - name: Verify nested and root manifest SHA and original immutable 4.2.0 package references
+        run: |
+          python - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          base=Path("StockAIPro/staging/Stock_AI_Pro")
+          code=base/"versions/4.3.0/stock_ai/historical_pit.py"
+          inner=base/"versions/4.3.0/PACKAGE_MANIFEST.json"
+          outer=base/"PACKAGE_MANIFEST.json"
+          sha=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
+          a,b=json.loads(inner.read_text()),json.loads(outer.read_text())
+          actual=sha(code)
+          assert a["files"]["stock_ai/historical_pit.py"]==actual,("inner_stale",actual)
+          assert b["files"]["versions/4.3.0/stock_ai/historical_pit.py"]==actual,("outer_code_stale",actual)
+          assert b["files"]["versions/4.3.0/PACKAGE_MANIFEST.json"]==sha(inner),("outer_nested_stale",sha(inner))
+          assert "versions/4.2.0/stock_ai/historical_pit.py" not in b["files"]
+          print("NESTED_4_3_0_SOURCE_HASH=PASS",actual)
+          print("ROOT_4_3_0_SOURCE_AND_NESTED_SHA=PASS",sha(inner))
+          print("ROOT_STAGED_DISTRIBUTION_SHA256="+sha(outer))
+          print("OFFICIAL_2024_BSE_NEW_IPO_PDF_GITHUB_RUNNER_NETWORK=NOT VERIFIED")
+          print("FULL_THREE_MARKET_HISTORICAL_DAILY_PIT=NOT VERIFIED")
+          print("WINDOWS_EXACT_EXE_GUI_SAME_HASH_RETEST=NOT VERIFIED; FINAL_GATE=FAIL")
+          PY
