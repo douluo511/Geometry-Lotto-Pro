@@ -33,7 +33,7 @@ report={
     "observed":copy.deepcopy(observed),
     "attempts":[{"attempt":1,"status_code":200,"status":"PASS",
                  "sha256":hashlib.sha256(SOURCE).hexdigest(),
-                 "raw_bytes":len(SOURCE),
+                 "raw_bytes":len(SOURCE),"at_utc":"2026-10-08T07:00:00+00:00",
                  "final_url":m.SOURCE_URL,"content_type":"text/html"}],
 }
 class Source:
@@ -86,5 +86,22 @@ bad("pretend issuer lifecycle from alias only",lambda r,b:r["observed"]["rows"][
 bad("future first selected-tier date invalid",lambda r,b:r["observed"]["rows"][0].__setitem__("source_listed_date_not_BSE_effective","2028-01-01"))
 bad("observation time cannot claim future data",lambda r,b:r.__setitem__("retrieved_at_utc","2020-01-01T00:00:00+00:00"))
 bad("duplicate successful HTTP receipts",lambda r,b:r["attempts"].append(copy.deepcopy(r["attempts"][0])))
-assert len(tests)==22,(len(tests),tests)
-print("STOCK BSE AS-OF CURRENT ALIAS ANTI-FUTURE-LEAKAGE 22/22 OFFLINE PASS")
+# A byte-identical HTML snapshot cannot be reassigned to another
+# historical/as-of observation time by editing only one JSON metadata field.
+bad("report timestamp later than actual successful HTTP receipt",
+    lambda r,b:r.__setitem__("retrieved_at_utc","2026-10-09T07:00:00+00:00"))
+bad("report timestamp earlier than actual successful HTTP receipt",
+    lambda r,b:r.__setitem__("retrieved_at_utc","2026-10-07T07:00:00+00:00"))
+bad("successful HTTP receipt time altered but report remains unchanged",
+    lambda r,b:r["attempts"][0].__setitem__("at_utc","2026-10-07T07:00:00+00:00"))
+bad("successful HTTP receipt missing timestamp",
+    lambda r,b:r["attempts"][0].pop("at_utc"))
+def equivalent_utc_offset_preserves_same_instant():
+    v=copy.deepcopy(report)
+    v["retrieved_at_utc"]="2026-10-08T15:00:00+08:00"
+    result=m.reject_false_asof(v,SOURCE,src)
+    assert result["adjudication"]["final_gate"]=="FAIL"
+    assert result["adjudication"]["BSE_historical_effective_920_code_alias"]=="NOT VERIFIED"
+tests.append("same instant in Beijing offset accepted but still no historical PIT") if (equivalent_utc_offset_preserves_same_instant() is None) else None
+assert len(tests)==27,(len(tests),tests)
+print("STOCK BSE AS-OF CURRENT ALIAS ANTI-FUTURE-LEAKAGE 27/27 OFFLINE PASS")
