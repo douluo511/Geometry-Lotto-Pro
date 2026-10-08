@@ -1,0 +1,124 @@
+name: Stock SZSE independent full article stop-resume evidence
+on:
+  push:
+    branches:
+      - diagnostic/stock-szse-full-body-effective-resume-20261008
+    paths:
+      - ".github/stock_diag/stock_szse_full_body_dated_review.py"
+      - ".github/workflows/stock-szse-full-body-dated-review.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  full-official-body-dated-audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact review branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Source-to-product exact head identity
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.sha }}"
+          git merge-base --is-ancestor f139e7a6bd206f951225b0de9cfdc50a6ed9fccb HEAD
+          git merge-base --is-ancestor 9969490c89ccb4cc10536f66416976c5bf40caef HEAD
+          test -z "$(git diff --name-only 9969490c89ccb4cc10536f66416976c5bf40caef..HEAD -- StockAIPro)"
+          echo "PRODUCT_CODE_UNCHANGED=PASS"
+      - name: Checkout independent raw HTML parsing source at original SHA #342
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: c574d684f23d3cdaf57579d85b6c58ced9f01f76
+          path: pinned_raw_capture_342
+          fetch-depth: 1
+      - name: Checkout corrected independent dated STOP/RESUME grammar SHA #341
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: d906151da9a509db8c4899bad2d0cffcb3da3955
+          path: pinned_effective_dates_341
+          fetch-depth: 1
+      - name: Require both exact independent parser source heads
+        run: |
+          set -euo pipefail
+          test "$(git -C pinned_raw_capture_342 rev-parse HEAD)" = c574d684f23d3cdaf57579d85b6c58ced9f01f76
+          test "$(git -C pinned_effective_dates_341 rev-parse HEAD)" = d906151da9a509db8c4899bad2d0cffcb3da3955
+      - name: Pinned Python 3.11
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.11.9"
+          check-latest: false
+      - name: Install pinned HTML/HTTPS parsing dependencies
+        run: python -m pip install --disable-pip-version-check --no-input "requests==2.34.2" "beautifulsoup4==4.15.0"
+      - name: Retrieve current live 1849 first-party article digest authority #347
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location --retry 3 --retry-all-errors --connect-timeout 20 --max-time 120 \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            --header "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/11534220613/zip" \
+            --output live1849.zip
+          echo "d3fb2abbdd97b9e53d4a46787bf755a064e6e3a090028898d1bcac9bff81eeb5  live1849.zip" | sha256sum --check
+          unzip -oq live1849.zip
+      - name: Retrieve exact source-hash joined dated equity ledger #351
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location --retry 3 --retry-all-errors --connect-timeout 20 --max-time 120 \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            --header "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/11534347688/zip" \
+            --output live_dated_candidate.zip
+          echo "5cf0eaf2ac5c38d1fe90d4908dde929d60276a5f1aa9382c5fb426bbbb3aa27c  live_dated_candidate.zip" | sha256sum --check
+          unzip -oq live_dated_candidate.zip
+      - name: Retrieve all NINETEEN hash-bound actual raw HTML evidence shards from run #37741294280
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p independent_primary_raw_19
+          gh run download 37741294280 --repo "${GITHUB_REPOSITORY}" \
+            --pattern 'shard-*' --dir independent_primary_raw_19
+          test "$(find independent_primary_raw_19 -mindepth 1 -maxdepth 1 -type d -name 'shard-*' | wc -l)" -eq 19
+          test "$(find independent_primary_raw_19 -type f -name '*.html' | wc -l)" -eq 1849
+          echo "OFFICIAL_FIRST_PARTY_RAW_HTML_COUNT=1849"
+      - name: Independently reparse ALL 1849 full official primary articles and compare true dated claims
+        run: |
+          python .github/stock_diag/stock_szse_full_body_dated_review.py \
+            --live stock_szse_current_live_rebound_corpus.json \
+            --joined stock_szse_current_live_dated_ashare_join.json \
+            --raw-root independent_primary_raw_19 \
+            --exact-raw-source-code pinned_raw_capture_342/.github/stock_diag/stock_szse_suspension_detail_corpus.py \
+            --exact-dated-parser-code pinned_effective_dates_341/.github/stock_diag/stock_szse_effective_event_audit.py \
+            --out stock_szse_full_primary_body_dated_witness.json
+      - name: Assert source completeness and no production ST/PIT promotion
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          x=json.loads(Path("stock_szse_full_primary_body_dated_witness.json").read_text(encoding="utf-8"))
+          assert x["real_independently_reparsed_full_primary_bodies"]==1849
+          assert len(x["A_share_full_body_candidates"])==958
+          assert x["excluded_equity_B_pairs"]==9
+          assert all(v["actual_realized_stop_resume"]=="NOT VERIFIED" for v in x["A_share_full_body_candidates"])
+          assert all(v["daily_st_suspension_pit"]=="NOT VERIFIED" for v in x["A_share_full_body_candidates"])
+          assert x["adjudication"]["full_SSE_SZSE_BSE_daily_ST_suspend"]=="NOT VERIFIED"
+          assert x["adjudication"]["final_gate"]=="FAIL"
+          print("FULL_PRIMARY_SOURCE_BODY=PASS; ACTUAL_REALIZED_RESUME=NOT VERIFIED; DAILY_PIT=NOT VERIFIED; FINAL=FAIL")
+          PY
+      - name: Upload bounded full-body date evidence without making a production PIT
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: STOCK-SZSE-1849-FULL-BODY-EFFECTIVE-REVIEW-${{ github.sha }}
+          path: stock_szse_full_primary_body_dated_witness.json
+          if-no-files-found: warn
+          retention-days: 30
