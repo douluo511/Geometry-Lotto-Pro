@@ -1,0 +1,120 @@
+name: Stock BSE 248 alias + 348 current + 2 original delist PDF source reconciliation
+on:
+  push:
+    branches:
+      - fix/stock-bse-248-current-crossdelist-asof-20261008
+    paths:
+      - ".github/stock_diag/stock_bse_crosssource_phase_delist.py"
+      - ".github/stock_diag/test_stock_bse_crosssource_phase_delist.py"
+      - ".github/workflows/stock-bse-crosssource-phase-delist.yml"
+  pull_request:
+    paths:
+      - ".github/stock_diag/stock_bse_crosssource_phase_delist.py"
+      - ".github/stock_diag/test_stock_bse_crosssource_phase_delist.py"
+      - ".github/workflows/stock-bse-crosssource-phase-delist.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  full-official-crosssource-evidence:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 16
+    steps:
+      - name: Checkout exact GitHub head and immutable Stock product authority
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Product and source-branch identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
+          git merge-base --is-ancestor c56ae6d63f6f46ddeed061ac0011ce4012c7a573 HEAD
+          git merge-base --is-ancestor 9969490c89ccb4cc10536f66416976c5bf40caef HEAD
+          test -z "$(git diff --name-only 9969490c89ccb4cc10536f66416976c5bf40caef..HEAD -- StockAIPro)"
+          echo "EXACT_STOCK_PRODUCTION_BYTES_UNCHANGED=PASS"
+      - name: Pinned Python runtime
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.11.9"
+          check-latest: false
+      - name: Fail-first 23/23 independent complete-denominator adversarial controls
+        run: python .github/stock_diag/test_stock_bse_crosssource_phase_delist.py
+      - name: Download 248 first-party current mapping and three official phased-code notices
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location --retry 3 --retry-all-errors --connect-timeout 20 --max-time 120 \
+            -H "Authorization: Bearer ${GH_TOKEN}" -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/11536049706/zip" \
+            -o original_official_BSE_248_two_phase.zip
+          echo "83d60c64c8d7a89a82b0c6cd000aa59055e6b3184618ffb062b0f8aa7a2f9204  original_official_BSE_248_two_phase.zip" | sha256sum -c
+          unzip -oq original_official_BSE_248_two_phase.zip
+          test -f stock_bse_248_two_phase_primary_asof.json
+      - name: Download 348 original official CURRENT filter2 raw-page and 248-code crosscheck
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location --retry 3 --retry-all-errors --connect-timeout 20 --max-time 120 \
+            -H "Authorization: Bearer ${GH_TOKEN}" -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/11536991169/zip" \
+            -o original_official_BSE_348_crossquery.zip
+          echo "9cf35a1da1419b926809985d37aacc1928b82af532c10e70d2c7dfff591cddb2  original_official_BSE_348_crossquery.zip" | sha256sum -c
+          unzip -oq original_official_BSE_348_crossquery.zip
+          test -f stock_bse_current_two_source_witness.json
+      - name: Download two original source-bound issuer delist PDF notice evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location --retry 3 --retry-all-errors --connect-timeout 20 --max-time 120 \
+            -H "Authorization: Bearer ${GH_TOKEN}" -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/11536902086/zip" \
+            -o original_official_BSE_2_delist_PDF.zip
+          echo "13efb01737ad27f250552cc37095c457d3766b34de008ca1518cc86d26844095  original_official_BSE_2_delist_PDF.zip" | sha256sum -c
+          unzip -oq original_official_BSE_2_delist_PDF.zip
+          test -f stock_bse_two_delist_notices.json
+      - name: Independently reconcile all 248 mapping dates, 348 current query codes and two issuer notices
+        run: |
+          python .github/stock_diag/stock_bse_crosssource_phase_delist.py \
+            --phase stock_bse_248_two_phase_primary_asof.json \
+            --current stock_bse_current_two_source_witness.json \
+            --delist stock_bse_two_delist_notices.json \
+            --output stock_bse_248_348_2_provenance_reconciliation.json
+      - name: Hard FAIL unless whole official source denominator preserved and historical PIT unqualified
+        run: |
+          python - <<'PY'
+          import json
+          x=json.load(open("stock_bse_248_348_2_provenance_reconciliation.json",encoding="utf-8"))
+          assert (x["firstparty_248_alias_denominator"],x["firstparty_348_current_filter2_denominator"],
+             x["current_filter2_matched_aliases"],x["current_filter2_not_mapped"],
+             x["current_aliases_unobserved_filter2_with_separate_PDF"])==(248,348,246,102,2)
+          assert len(x["asof_candidate_evidence"])==248
+          missing={i["new_920_code"]:i["delist_PDF_stated_effective_day"] for i in x["asof_candidate_evidence"]
+            if i["current_filter2_presence"]=="NOT_OBSERVED_IN_FILTER2_QUERY"}
+          assert missing=={"920305":"2026-07-30","920680":"2026-01-05"}, missing
+          assert all(q["historical_issuer_listing_and_delisting_lifecycle"]=="NOT VERIFIED"
+             and q["qualified_day_security_PIT"]=="NOT VERIFIED"
+             and q["delist_PDF_actual_market_register_execution"]=="NOT VERIFIED"
+             for q in x["asof_candidate_evidence"])
+          assert x["adjudication"]["complete_historical_native_issuer_universe"]=="NOT VERIFIED"
+          assert x["adjudication"]["production_historical_st_pit"]=="NOT VERIFIED"
+          assert x["adjudication"]["final_gate"]=="FAIL"
+          print("OFFICIAL_BSE_COMPLETE_248_348_2_SOURCE_DENOMINATOR=PASS")
+          print("ACTUAL_HISTORICAL_3_MARKET_DAILY_ST_PIT=NOT_VERIFIED; FINAL_GATE=FAIL")
+          PY
+      - name: Upload full first-party source provenance diagnostic, never production PIT
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: STOCK-BSE-248-348-2-CURRENT-AND-DELIST-DIAGNOSTIC-${{ github.event.pull_request.head.sha || github.sha }}
+          path: stock_bse_248_348_2_provenance_reconciliation.json
+          if-no-files-found: warn
+          retention-days: 30
