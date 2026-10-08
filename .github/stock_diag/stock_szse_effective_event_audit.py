@@ -22,6 +22,7 @@ DATE_STOP = re.compile(
 INTRADAY = re.compile(r"盘中|[上下]午\d{1,2}时|(?:\d{1,2}时\d{1,2}分)|(?:\d{1,2}:\d{2})")
 PROSPECTIVE = re.compile(r"拟.{0,40}停牌|计划.{0,40}停牌|预计.{0,40}停牌")
 CONTINUING = re.compile(r"继续停牌|仍将停牌|继续实施停牌")
+NOT_EFFECTIVE_CONTEXT = re.compile(r"发布|披露|明年|未来|决定|是否|拟|预计|计划|可能|待|公告后")
 CONDITIONAL_RESUME = re.compile(r"待.{0,80}?(?:复牌|恢复交易)|(?:披露|公告|完成|申请).{0,40}后.{0,15}复牌")
 
 
@@ -34,7 +35,7 @@ def explicit_start(text: str):
     results = []
     for match in DATE_STOP.finditer(text):
         near = text[max(0, match.start()-24):match.end()]
-        if PROSPECTIVE.search(near) or CONTINUING.search(near):
+        if PROSPECTIVE.search(near) or CONTINUING.search(near) or NOT_EFFECTIVE_CONTEXT.search(match['context']):
             continue
         try:
             day = date(int(match["year"]), int(match["month"]), int(match["day"]))
