@@ -662,6 +662,17 @@ def evaluate_historical_st_pit(root: Path, expected_trade_date=None):
     path escapes, stale evidence, or byte tampering all remain WARN.
     """
     root = Path(root)
+    # An invalid *supplied* effective date must never silently become None:
+    # otherwise the original-source freshness threshold can be skipped.
+    # None alone deliberately denotes a consumer without an as-of target.
+    expected = None
+    if expected_trade_date is not None:
+        expected = _parse_day(expected_trade_date)
+        if expected is None:
+            return WARN, "预期交易日无效；禁止绕过历史ST/PIT新鲜度验证", {
+                "reason": "invalid_expected_trade_date",
+                "expected_trade_date": str(expected_trade_date),
+            }
     path = root / "cache" / "historical_st_pit.json"
     if not path.is_file():
         return WARN, "historical_st_pit.json 缺失；历史ST/停牌逐日状态未验证", {
@@ -704,7 +715,7 @@ def evaluate_historical_st_pit(root: Path, expected_trade_date=None):
     end = _parse_day(obj.get("window_end"))
     if start is None or end is None or start > end:
         failures.append("window")
-    expected = _parse_day(expected_trade_date) if expected_trade_date else None
+    # Reuse the already validated caller date; do not reparse as optional.
     if expected is not None and (end is None or end < expected):
         failures.append("freshness")
 
