@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 APP_NAME = "Geometry Lotto Pro"
-APP_VERSION = "2.1.5"
+APP_VERSION = "2.1.6"
 GAME = "DLT"
 FRONT_MAX = 35
 FRONT_PICK = 5
@@ -24,7 +24,7 @@ DAN_STATES = ("NULL_DAN", "RESEARCH_DAN", "WATCHLIST_DAN", "CERTIFIED_DAN")
 # Frozen/preregistered protocol. Changing any value changes selector/model hashes and
 # therefore requires a new EXE build and a full acceptance run.
 PROMOTION_POLICY = {
-    "protocol_version": "false-edge-firewall-v2.1.5-research-hit-scorecard",
+    "protocol_version": "false-edge-firewall-v2.1.6-china-predraw",
     "min_history": 600,
     "windows": (120, 240, 360),
     "seeds": (17, 29, 43, 71, 97),
@@ -57,5 +57,5 @@ PROMOTION_POLICY = {
     "research_dan_back_count": DEFAULT_RESEARCH_DAN_BACK_COUNT,
 }
 
-MODEL_VERSION = "dlt-research-v2.1.5-hit-scorecard"
-SELECTOR_VERSION = "dan-firewall-v2.1.5-hit-scorecard"
+MODEL_VERSION = "dlt-research-v2.1.6-china-predraw"
+SELECTOR_VERSION = "dan-firewall-v2.1.6-china-predraw"
