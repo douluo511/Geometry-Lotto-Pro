@@ -3,7 +3,8 @@ from __future__ import annotations
 import json
 import re
 
-from .domain import DailyBar, validate_market_rows
+from .domain import DailyBar
+from .freshness import select_completed_market_rows
 from .netclient import NetClient
 
 
@@ -68,7 +69,9 @@ def fetch_daily_bars_tencent(client: NetClient, symbol: str, limit: int = 120) -
             raw_sha256=meta.payload_sha256,
         ))
     rows.sort(key=lambda x: x.trade_date)
-    validate_market_rows(rows)
+    rows, completed_selection = select_completed_market_rows(rows)
+    if len(rows) < 30:
+        raise ValueError("provider has insufficient completed daily rows")
     return rows, {
         "provider": "tencent_public_kline",
         "url": meta.url,
@@ -76,6 +79,7 @@ def fetch_daily_bars_tencent(client: NetClient, symbol: str, limit: int = 120) -
         "payload_sha256": meta.payload_sha256,
         "retrieved_at_unix": meta.retrieved_at_unix,
         "row_count": len(rows),
+        "completed_session_selection": completed_selection,
         "price_adjustment": "qfq" if stock.get("qfqday") else "unadjusted",
         "content_type": meta.content_type,
         "content_type_policy": meta.content_type_policy,

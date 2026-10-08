@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from .domain import DailyBar, validate_market_rows
+from .domain import DailyBar
+from .freshness import select_completed_market_rows
 from .netclient import NetClient
 
 
@@ -66,7 +67,9 @@ def fetch_daily_bars(client: NetClient, symbol: str, limit: int = 120) -> tuple[
             raw_sha256=meta.payload_sha256,
         ))
     rows.sort(key=lambda x: x.trade_date)
-    validate_market_rows(rows)
+    rows, completed_selection = select_completed_market_rows(rows)
+    if len(rows) < 30:
+        raise ValueError("provider has insufficient completed daily rows")
     return rows, {
         "provider": "eastmoney_public_l1",
         "url": meta.url,
@@ -74,6 +77,7 @@ def fetch_daily_bars(client: NetClient, symbol: str, limit: int = 120) -> tuple[
         "payload_sha256": meta.payload_sha256,
         "retrieved_at_unix": meta.retrieved_at_unix,
         "row_count": len(rows),
+        "completed_session_selection": completed_selection,
         "price_adjustment": "qfq",
     }
 

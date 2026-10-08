@@ -441,8 +441,8 @@ def _field_complete_ablation_replication(client: NetClient, reference_rows: list
 
 def _corporate_action_lineage(client: NetClient) -> dict:
     try:
-        qfq_rows, qfq_meta = fetch_daily_bars_tencent_full(client, "600000", 500, adjustment="qfq")
-        raw_rows, raw_meta = fetch_daily_bars_tencent_full(client, "600000", 500, adjustment="raw")
+        qfq_rows, qfq_meta = fetch_daily_bars_tencent_full(client, "600000", QUALIFICATION_HISTORY_ROWS, adjustment="qfq")
+        raw_rows, raw_meta = fetch_daily_bars_tencent_full(client, "600000", QUALIFICATION_HISTORY_ROWS, adjustment="raw")
         events, event_meta = fetch_share_bonus_events(client, "600000", 100)
         return verify_corporate_action_lineage(
             qfq_rows, raw_rows, events, qfq_meta, raw_meta, event_meta
