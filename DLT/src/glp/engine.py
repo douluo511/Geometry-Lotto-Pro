@@ -3,6 +3,7 @@ from __future__ import annotations
 import heapq
 import itertools
 import math
+import random
 from collections import Counter, defaultdict
 from typing import Iterable
 
@@ -254,6 +255,24 @@ def score_complete_space(draws: list[Draw], area: str, enabled_models: Iterable[
         feature_scores={k: {n: float(v) for n, v in s.items()} for k, s in model_scores.items()},
     )
 
+def _uniform_baseline_combination(area: str, canonical_hash: str, target_issue: str) -> list[int]:
+    """Auditable rho=0 selection: sample a legal unordered combination without replacement.
+
+    The seed is context-bound and SHA-256-derived. This is a reproducible pseudo-random
+    control, not a claim that historical draws predict the future.
+    """
+    if area not in ("front", "back") or not canonical_hash or not target_issue:
+        raise ValueError("Uniform baseline requires a valid area and frozen context")
+    maximum, pick = _meta(area)
+    seed = int(sha256_json({
+        "algorithm": "dlt-uniform-without-replacement-v1",
+        "canonical_hash": canonical_hash,
+        "target_issue": target_issue,
+        "area": area,
+    }), 16)
+    return sorted(random.Random(seed).sample(range(1, maximum + 1), pick))
+
+
 def model_identity() -> dict:
     model_spec = {
         "model_version": MODEL_VERSION,
@@ -262,6 +281,7 @@ def model_identity() -> dict:
         "ensemble_weights": ENSEMBLE_WEIGHTS,
         "complete_space_weights": COMPLETE_SPACE_WEIGHTS,
         "geometry": "state+cross-draw-transition",
+        "uniform_fallback": "dlt-uniform-without-replacement-v1",
     }
     return {
         "model_hash": sha256_json(model_spec),
@@ -294,21 +314,33 @@ def make_prediction(draws: list[Draw], canonical_hash: str, latest_court: dict |
     front_order = ranking_from_scores(front_rank.scores)
     back_order = ranking_from_scores(back_rank.scores)
     ident = model_identity()
-    if edge_proven:
-        production_weights = {"uniform_baseline": 0.0, "research_ensemble": 1.0}
-    else:
-        production_weights = ident["production_weights"]
     target_issue = next_issue(draws[-1].issue, draws[-1].draw_date)
     target_date = next_draw_date(parse_date(draws[-1].draw_date)).isoformat()
-    score_hash = sha256_json({"front": front_rank.scores, "back": back_rank.scores, "validated": validated})
+    if edge_proven:
+        production_weights = {"uniform_baseline": 0.0, "research_ensemble": 1.0}
+        published_front = sorted(front_rank.numbers)
+        published_back = sorted(back_rank.numbers)
+        selection_mode = "QUALIFIED_RESEARCH"
+    else:
+        production_weights = ident["production_weights"]
+        # CRITICAL: research scores/rankings must not influence rho=0 published numbers.
+        published_front = _uniform_baseline_combination("front", canonical_hash, target_issue)
+        published_back = _uniform_baseline_combination("back", canonical_hash, target_issue)
+        selection_mode = "UNIFORM_BASELINE_V1"
+    score_hash = sha256_json({
+        "research_front_scores": front_rank.scores, "research_back_scores": back_rank.scores,
+        "validated": validated, "published_front": published_front,
+        "published_back": published_back, "production_weights": production_weights,
+        "selection_mode": selection_mode, "model_hash": ident["model_hash"],
+    })
     prediction_id = sha256_json({"canonical_hash": canonical_hash, "target_issue": target_issue, "model_hash": ident["model_hash"], "score_hash": score_hash})[:20]
     prediction = Prediction(
         prediction_id=prediction_id,
         target_issue=target_issue,
         target_date=target_date,
         created_at=utc_now(),
-        front=sorted(front_rank.numbers),
-        back=sorted(back_rank.numbers),
+        front=published_front,
+        back=published_back,
         front_ranking=front_order,
         back_ranking=back_order,
         dan_state="CERTIFIED_DAN" if dan_certified else "NULL_DAN",
@@ -319,11 +351,14 @@ def make_prediction(draws: list[Draw], canonical_hash: str, latest_court: dict |
         model_hash=ident["model_hash"],
         selector_hash=ident["selector_hash"],
         score_hash=score_hash,
-        note="研究候选；只有严格证据门通过时才允许 EDGE_PROVEN/CERTIFIED_DAN。",
+        note=("UNIFORM_BASELINE_V1: 无已验证预测优势；研究排名仅供独立观察。" if not edge_proven
+              else "QUALIFIED_RESEARCH: 仅在严格证据门通过时使用研究模型。"),
     )
     trace = {
         "complete_space": {"front": math.comb(35, 5), "back": math.comb(12, 2)},
         "production_weights": production_weights,
+        "selection_mode": selection_mode,
+        "published_combination_hash": sha256_json({"front": published_front, "back": published_back}),
         "scientific_gate": court.get("scientific_gate", "UNKNOWN"),
         "edge_gate": court.get("edge_gate", "FAIL"),
         "validated_components": validated if edge_proven else [],
