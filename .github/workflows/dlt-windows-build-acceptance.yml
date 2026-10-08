@@ -342,6 +342,87 @@ jobs:
           Get-Content artifacts\final_gate.json
           if (-not $ok) { throw 'DLT Final Gate blocked: inspect repository independence and updater hard gates' }
 
+      # This is an optional diagnostic candidate, NEVER a final release.
+      # A network/build/GUI/update-rollback/SameHash failure suppresses this ZIP.
+      - name: Evaluate non-final DLT diagnostic EXE eligibility
+        if: failure()
+        id: diagnostic_candidate
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $appPath = 'dist\\Geometry_Lotto_Pro_DLT.exe'
+          $updaterPath = 'dist\\Geometry_Lotto_Pro_DLT_Updater.exe'
+          $finalPath = 'artifacts\\final_gate.json'
+          $acceptPath = 'artifacts\\acceptance.json'
+          $updaterReportPath = 'artifacts\\updater_acceptance.json'
+          if (-not ((Test-Path $appPath) -and (Test-Path $updaterPath) -and (Test-Path $finalPath) -and (Test-Path $acceptPath) -and (Test-Path $updaterReportPath))) {
+            Write-Host 'DLT_DIAGNOSTIC_ELIGIBLE=false: current-run binary/evidence missing'
+            exit 0
+          }
+          $final = Get-Content $finalPath -Raw | ConvertFrom-Json
+          $accept = Get-Content $acceptPath -Raw | ConvertFrom-Json
+          $updater = Get-Content $updaterReportPath -Raw | ConvertFrom-Json
+          $hash = (Get-FileHash -Algorithm SHA256 $appPath).Hash.ToLowerInvariant()
+          $updaterHash = (Get-FileHash -Algorithm SHA256 $updaterPath).Hash.ToLowerInvariant()
+          $technical = @(
+            'contract_gate', 'fault_injection_gate', 'real_network_gate',
+            'exact_exe_gate', 'physical_gui_click_gate', 'physical_gui_backend_gate',
+            'physical_gui_update_failclosed_gate', 'physical_gui_repair_failclosed_gate',
+            'background_1800_gate', 'same_hash_gate',
+            'updater_process', 'updater_exact_exe', 'updater_atomic_rollback', 'updater_same_hash'
+          )
+          $notPass = @($technical | Where-Object { $final.$_ -ne 'PASS' })
+          $eligible = (
+            $final.schema -eq 'dlt-evidence-derived-final-gate-v2' -and
+            $final.final_gate -eq 'FAIL' -and
+            $final.repository_independence -eq 'FAIL' -and
+            $final.updater_real_network -eq 'PENDING' -and
+            $final.exe_self_final_gate -eq 'PENDING' -and
+            $notPass.Count -eq 0 -and
+            $final.exe_sha256 -eq $hash -and
+            $accept.exe_sha256 -eq $hash -and
+            $accept.exact_acceptance_gate -eq 'PASS' -and
+            $updater.schema -eq 'dlt-updater-exact-acceptance-v1' -and
+            $updater.github_sha -eq $env:GITHUB_SHA -and
+            $updater.github_run_id -eq $env:GITHUB_RUN_ID -and
+            $updater.updater_sha256 -eq $updaterHash
+          )
+          if (-not $eligible) {
+            Write-Host "DLT_DIAGNOSTIC_ELIGIBLE=false: technical gates/identity not PASS ($($notPass -join ','))"
+            exit 0
+          }
+          New-Item -ItemType Directory -Force -Path diagnostic | Out-Null
+          [ordered]@{
+            schema = 'dlt-nonfinal-diagnostic-exe-v1'
+            release_authorized = $false
+            status = 'CANDIDATE_NOT_FINAL'
+            scientific_edge_proven = $false
+            source_sha = $env:GITHUB_SHA
+            github_run_id = $env:GITHUB_RUN_ID
+            exe_sha256 = $hash
+            updater_sha256 = $updaterHash
+            blockers = @('repository_independence', 'updater_real_network', 'exe_self_final_gate')
+            requirements = 'Local diagnostic evaluation ONLY. No independent release, no measured over-random predictive edge.'
+          } | ConvertTo-Json -Depth 5 | Set-Content diagnostic\\CANDIDATE_NOT_FINAL.json -Encoding utf8
+          'eligible=true' | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          Write-Host "DLT_DIAGNOSTIC_ELIGIBLE=true SHA256=$hash"
+
+      - name: Upload DLT diagnostic EXEs (not final release)
+        if: ${{ failure() && steps.diagnostic_candidate.outputs.eligible == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: DLT-DIAGNOSTIC-NOT-FINAL-${{ github.sha }}
+          path: |
+            DLT/dist/Geometry_Lotto_Pro_DLT.exe
+            DLT/dist/Geometry_Lotto_Pro_DLT_Updater.exe
+            DLT/diagnostic/CANDIDATE_NOT_FINAL.json
+            DLT/artifacts/final_gate.json
+            DLT/artifacts/acceptance.json
+            DLT/artifacts/updater_acceptance.json
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+
       - name: Upload exact EXE and evidence only after all hard gates pass
         if: success()
         uses: actions/upload-artifact@v4
