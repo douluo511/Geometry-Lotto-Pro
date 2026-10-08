@@ -129,9 +129,27 @@ def verify_prediction_chain(root: Path | None = None):
 def freeze_prediction(asof, scored, portfolios, summary, metrics, regime, data_quality,
                       force=False, valuation_status=None, cost_assumptions=None,
                       decision=None, rnd_shadow=None):
+    # Fail before any backup, new dated folder, or chain-head modification.
+    # Existing immutable successors have already bound this issue's manifest
+    # hash; inserting or forcing an earlier issue would invalidate lineage.
+    if not isinstance(asof, str) or re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", asof) is None:
+        raise ValueError("冻结交易日必须使用规范 YYYY-MM-DD")
+    try:
+        if date.fromisoformat(asof).isoformat() != asof:
+            raise ValueError("冻结交易日非规范格式")
+    except ValueError as exc:
+        raise ValueError("冻结交易日不是有效日历日期") from exc
     target = ROOT / "predictions" / asof
     if target.exists() and any(target.iterdir()) and not force:
         raise FileExistsError(f"{asof} 的预测已冻结，默认禁止覆盖。")
+    if not isinstance(summary, dict) or summary.get("asof") != asof:
+        raise ValueError("summary.asof 与冻结交易日不一致，禁止写入无效证据链")
+    parent = ROOT / "predictions"
+    if parent.is_dir() and any(
+        d.is_dir() and re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", d.name)
+        and d.name > asof for d in parent.iterdir()
+    ):
+        raise ValueError("已存在后续日期的冻结记录，禁止倒填或强制重写此前预测")
     if target.exists() and force:
         backup = ROOT / "predictions" / "_forced_backups" / f"{asof}_{now_iso().replace(':','-')}"
         backup.parent.mkdir(parents=True, exist_ok=True)
