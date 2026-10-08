@@ -40,8 +40,9 @@ def _market_for_code(code: str):
     if re.fullmatch(r"\d{6}", code) is None:
         return None
     # Scope is mainland A-share / BSE equity codes only.  BSE includes both
-    # legacy 4/8 prefixes and the current 920xxx unified securities code.
-    if code.startswith("92") or code.startswith(("4", "8")):
+    # legacy 4/8 prefixes and ONLY the 920xxx unified securities code.
+    # Other 92xxxx codes are NOT BSE listed-equity identifiers.
+    if code.startswith("920") or code.startswith(("4", "8")):
         return "BSE"
     if code.startswith(("600", "601", "603", "605", "688")):
         return "SSE"
@@ -61,7 +62,7 @@ def _impossible_market_code_day(market: str, code: str, day: date):
     if market == "BSE":
         if day < MARKET_LIFECYCLE_START["BSE"]:
             return "bse_before_market_open"
-        if str(code).startswith("92") and day < BSE_920_NEW_IPO_CODE_START:
+        if str(code).startswith("920") and day < BSE_920_NEW_IPO_CODE_START:
             return "bse_920_before_new_ipo_activation"
         if str(code).startswith(("4", "8")) and day >= BSE_LEGACY_UNIFIED_SWITCH_DAY:
             return "bse_legacy_after_unified_switch"
