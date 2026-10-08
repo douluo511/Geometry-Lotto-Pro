@@ -409,7 +409,7 @@ jobs:
 
       - name: Upload DLT diagnostic EXEs (not final release)
         if: ${{ failure() && steps.diagnostic_candidate.outputs.eligible == 'true' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4, immutable commit
         with:
           name: DLT-DIAGNOSTIC-NOT-FINAL-${{ github.sha }}
           path: |
