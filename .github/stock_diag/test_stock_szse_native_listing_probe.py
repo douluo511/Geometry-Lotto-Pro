@@ -102,5 +102,14 @@ bad,raw=m.fetch(m.PDF_URL,"PDF",session=FakeSession(FakeHTTP(m.PDF_URL,b"<html>f
 check("HTTP-200 non-PDF must not be valid listing proof",
       lambda:assert_true(bad["status"]=="NOT VERIFIED" and len(bad["attempts"])==3 and raw is None))
 
-assert len(cases)==19,cases
-print("SZSE FIRST-PARTY LISTING SOURCE FAULT CONTROLS 19/19 PASS")
+gb=html().decode("utf-8").replace(
+    "<html>", '<html><head><meta charset="gb2312"></head>'
+).encode("gb18030")
+check("explicit official GB2312 declaration may decode strict GB18030",
+      lambda:assert_true(m.parse_month(gb)["listing_date"]=="2026-06-26"))
+not_declared=html().decode("utf-8").encode("gb18030")
+reject("unlabelled GB bytes cannot silently invoke guessing",
+       lambda:m.parse_month(not_declared))
+
+assert len(cases)==21,cases
+print("SZSE FIRST-PARTY LISTING SOURCE FAULT CONTROLS 21/21 PASS")
