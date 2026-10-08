@@ -38,6 +38,7 @@ jobs:
           test "$actual" = "$EXPECTED_SHA"
           git cat-file -e "${CANDIDATE_SHA}^{commit}"
           git diff --quiet "$CANDIDATE_SHA" HEAD -- DLT .github/workflows/dlt-windows-build-acceptance.yml
+          git diff --quiet c889dc307ed70a2d3bcbc356da99cea75d0f9c28 HEAD -- .github/migration/dlt_export.py .github/workflows/dlt-independent-repo-export.yml
           echo "EXACT_BASELINE_TOOL_HEAD=$actual"
           echo "CURRENT_MAIN_PRODUCT_EQUIVALENCE=PASS"
 
@@ -52,11 +53,33 @@ jobs:
           SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: python .github/migration/dlt_export.py --out "$env:RUNNER_TEMP\current-seed"
 
+      - name: Deliberate stale-export and altered-payload counterexamples
+        shell: pwsh
+        env:
+          EXPECTED_EXPORT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $script = '.github/migration/dlt_current_main_baseline.py'
+          $seed = Join-Path $env:RUNNER_TEMP 'current-seed'
+          python $script --current-seed $seed --expected-export-commit ('f' * 40) --out "$env:RUNNER_TEMP\negative-stale"
+          if($LASTEXITCODE -eq 0){ throw 'FALSE PASS: stale exporter accepted' }
+          $tampered = Join-Path $env:RUNNER_TEMP 'current-seed-tampered'
+          Copy-Item -LiteralPath $seed -Destination $tampered -Recurse -Force
+          Add-Content -LiteralPath (Join-Path $tampered 'DLT/src/glp/constants.py') -Value '# TAMPER'
+          python $script --current-seed $tampered --expected-export-commit $env:EXPECTED_EXPORT_SHA --out "$env:RUNNER_TEMP\negative-payload"
+          if($LASTEXITCODE -eq 0){ throw 'FALSE PASS: tampered payload accepted' }
+          Write-Host 'STALE_EXPORT_REJECTION=PASS'
+          Write-Host 'TAMPERED_PAYLOAD_REJECTION=PASS'
+
       - name: Derive deterministic baseline A and B
         shell: pwsh
+        env:
+          EXPECTED_EXPORT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
-          python .github/migration/dlt_current_main_baseline.py --current-seed "$env:RUNNER_TEMP\current-seed" --out "$env:RUNNER_TEMP\baseline-a"
-          python .github/migration/dlt_current_main_baseline.py --current-seed "$env:RUNNER_TEMP\current-seed" --out "$env:RUNNER_TEMP\baseline-b"
+          python .github/migration/dlt_current_main_baseline.py --current-seed "$env:RUNNER_TEMP\current-seed" --expected-export-commit $env:EXPECTED_EXPORT_SHA --out "$env:RUNNER_TEMP\baseline-a"
+          if($LASTEXITCODE -ne 0){ throw 'baseline A derivation failed' }
+          python .github/migration/dlt_current_main_baseline.py --current-seed "$env:RUNNER_TEMP\current-seed" --expected-export-commit $env:EXPECTED_EXPORT_SHA --out "$env:RUNNER_TEMP\baseline-b"
+          if($LASTEXITCODE -ne 0){ throw 'baseline B derivation failed' }
 
       - name: Verify controlled diff, checksums, and hidden workflow
         shell: pwsh
