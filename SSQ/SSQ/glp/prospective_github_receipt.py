@@ -107,7 +107,7 @@ def _verify_append_only_branch(
             not isinstance(entry, dict) or entry.get("status") != "added"
             or not isinstance(entry.get("filename"), str)
             or not re.fullmatch(
-                r"SSQ/prospective_ledger/freezes/20[0-9]{5}\\.json",
+                r"SSQ/prospective_ledger/freezes/20[0-9]{5}\.json",
                 entry["filename"],
             )
             or entry["filename"] in paths
