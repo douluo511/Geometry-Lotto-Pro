@@ -42,6 +42,31 @@ jobs:
         with:
           python-version: "3.11.9"
           architecture: x64
+      - name: Compare Windows checkout bytes to immutable exact Git blobs and restore staging bytes without filters
+        shell: pwsh
+        run: |
+          @'
+          import hashlib
+          import pathlib
+          import subprocess
+          root=pathlib.Path("staging/Stock_AI_Pro")
+          files=sorted(p for p in root.rglob("*") if p.is_file())
+          modified=[]
+          for path in files:
+              repo_path="StockAIPro/"+path.as_posix()
+              original=subprocess.check_output(["git","show","HEAD:"+repo_path])
+              current=path.read_bytes()
+              if current!=original:
+                  modified.append(repo_path)
+                  path.write_bytes(original)
+              if path.read_bytes()!=original:
+                  raise RuntimeError("cannot restore exact git source bytes: "+repo_path)
+          print("STAGED_EXACT_GIT_BLOB_COUNT="+str(len(files)))
+          print("WINDOWS_CHECKOUT_BYTES_DIFFER_FROM_GIT="+str(len(modified)))
+          print("WINDOWS_GIT_WORKTREE_NORMALIZATION_EXAMPLES="+str(modified[:8]))
+          print("EXACT_STAGED_BYTES_GIT_BLOB_RESTORATION=PASS")
+          '@ | python -
+          if ($LASTEXITCODE -ne 0) { throw "not exact staged Git blob bytes" }
       - name: Verify two hash-bound staged manifests before native build
         shell: pwsh
         run: |
