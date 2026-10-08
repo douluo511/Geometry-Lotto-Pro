@@ -360,34 +360,31 @@ with tempfile.TemporaryDirectory() as td:
     assert "denominator_manifest_semantics" in meta["failures"]
     assert "raw_file_binding" in meta["bindings"]["denominator_manifest"]["semantic_reason"]
 
+    # Even a completely SHA-consistent three-market synthetic test fixture
+    # cannot pretend to be an independently authenticated historical exchange
+    # source. Internal structure/denominator checks may pass individually, but
+    # PRODUCT qualification stays WARN pending real native source adapters.
     x = complete(root)
     write_claim(root, x)
     status, detail, meta = evaluate_historical_st_pit(root, "2026-09-30")
-    assert status == "PASS"
-    assert not meta["failures"]
+    assert status == "WARN"
+    assert meta["failures"] == ["native_source_authority_unverified"], meta["failures"]
     assert all(v["status"] == "PASS" for v in meta["bindings"].values())
     assert meta["denominator"]["total_expected_key_count"] == 3
     assert meta["denominator"]["completeness_ratio"] == 1.0
-    assert "SSE/SZSE/BSE" in detail
-    assert "字节哈希绑定" in detail
+    assert "native_source_authority_unverified" in detail
 
-    states, subset = load_historical_st_pit_subset(
-        root, {("2026-09-30", "600000")}, "2026-09-30"
-    )
-    assert states[("2026-09-30", "600000")] == {
-        "market": "SSE", "st": False, "suspended": False
-    }
-    assert subset["status"] == "PASS"
-    assert subset["required_key_count"] == 1
-    assert subset["found_key_count"] == 1
+    # Downstream code cannot escape the trust boundary by asking for a subset
+    # of the otherwise self-consistent made-up canonical states.
+    for code in ("600000", "600001"):
+        try:
+            load_historical_st_pit_subset(
+                root, {("2026-09-30", code)}, "2026-09-30"
+            )
+        except RuntimeError as exc:
+            assert "not qualified" in str(exc), (code, str(exc))
+            assert "native_source_authority_unverified" in str(exc)
+        else:
+            raise AssertionError("untrusted historical PIT subset bypassed authority gate")
 
-    try:
-        load_historical_st_pit_subset(
-            root, {("2026-09-30", "600001")}, "2026-09-30"
-        )
-    except RuntimeError as exc:
-        assert "state missing" in str(exc)
-    else:
-        raise AssertionError("missing historical PIT key did not fail closed")
-
-print("HISTORICAL ST PIT REAL-BYTE HASH-BINDING + CONSUMPTION CONTRACT TEST PASS")
+print("HISTORICAL ST PIT REAL-BYTE HASH-BINDING + EXTERNAL-NATIVE-AUTHORITY REFUSAL CONTRACT PASS")
