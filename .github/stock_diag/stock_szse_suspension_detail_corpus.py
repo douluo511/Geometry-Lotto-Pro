@@ -40,10 +40,29 @@ def sha256(data: bytes) -> str:
 
 
 def decode_response(r: requests.Response) -> str:
-    enc = r.encoding
-    if not enc or str(enc).lower() in {"iso-8859-1", "latin-1"}:
-        enc = r.apparent_encoding or "utf-8"
-    return r.content.decode(enc, errors="replace")
+    """Strictly decode first-party HTML. Never trust heuristic Cyrillic detection.
+
+    Some valid UTF-8 SZSE pages with missing Content-Type charset were
+    previously decoded via chardet as windows-1251, losing all Chinese topic
+    terms while HTTP/response SHA remained valid. Retain raw-byte evidence.
+    Non-UTF8 bytes require an explicit GB-family source charset declaration.
+    """
+    raw = r.content
+    if not raw:
+        raise RuntimeError("empty official source bytes")
+    try:
+        return raw.decode("utf-8", errors="strict")
+    except UnicodeDecodeError as original:
+        header = str(r.encoding or "").lower().replace("_", "-").strip()
+        match = re.search(rb"charset\\s*=\\s*['\\\"]?([a-zA-Z0-9_\\-]+)", raw[:4096], flags=re.I)
+        declared = match.group(1).decode("ascii", errors="ignore").lower() if match else ""
+        accepted_gb = {"gbk", "gb2312", "gb18030", "gb-2312", "cp936"}
+        if header in accepted_gb or declared in accepted_gb:
+            try:
+                return raw.decode("gb18030", errors="strict")
+            except UnicodeDecodeError as exc:
+                raise RuntimeError("declared GB-family HTML is not valid GB18030") from exc
+        raise RuntimeError("non-UTF8 official HTML without supported declared charset") from original
 
 
 # Never count global navigation, footer, sidebar or arbitrary whole-page text
