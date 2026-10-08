@@ -1,0 +1,148 @@
+name: Stock exact artifact narrow diagnostic
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/stock-exact-artifact-diagnostic.yml'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  exact-artifact-diagnostic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Download only two exact-bound artifacts and print fixed summaries
+        env:
+          DIAG_GITHUB_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          python - <<'PY'
+          import hashlib, json, math, os, tempfile, urllib.request, urllib.error, urllib.parse, zipfile
+          from pathlib import PurePosixPath
+          REPO = "douluo511/Geometry-Lotto-Pro"
+          SPECS = [
+              {"id":11414741892,"run":37437015424,"head":"e67eaa9cabc34728fee3549262a2f1535d7e8383",
+               "sha":"98bdab18664b889a214703102feb19b1ecb3a2c4b90caf047d53d8ade28a9e71",
+               "allowed":{"desktop_worker_diagnostic.json","desktop_frozen_advanced_evidence.json","desktop_research_corpus_evidence.json"}},
+              {"id":11526806075,"run":37722834042,"head":"900d1a582fcb59979fa51803769c05718c0df14b",
+               "sha":"1b7fc754c899e568c05964d5e0870f00026b32815daeeb27de854ba3074068a2",
+               "allowed":{"source_recovery_evidence.json","source_recovery_evidence.log"}},
+          ]
+          HEAD_KEYS = ("source_commit","source_sha","head_sha")
+          SAFE_STRINGS = {"PASS","FAIL","NOT VERIFIED","LOW","MEDIUM","HIGH","UNKNOWN",
+                          "RuntimeError","ValueError","TypeError","FileNotFoundError","KeyError",
+                          "AttributeError","AssertionError","OSError","TimeoutError","COMPLETE","RUNNING"}
+          SAFE_MODULES = {"worker.py","backtest.py","historical_pit.py","storage.py","audit.py",
+                          "pipeline.py","config.py","data_source.py","utils.py"}
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self,*args,**kwargs): return None
+          opener = urllib.request.build_opener(NoRedirect)
+          def api(path):
+              req=urllib.request.Request("https://api.github.com/repos/"+REPO+path,
+                  headers={"Authorization":"Bearer "+os.environ["DIAG_GITHUB_TOKEN"],
+                           "Accept":"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28"})
+              return req
+          def clean_status(value):
+              return value if isinstance(value,str) and value in SAFE_STRINGS else "UNRECOGNIZED"
+          def numeric(value):
+              return value if type(value) in (int,float) and math.isfinite(value) else None
+          def digest(value):
+              return value if isinstance(value,str) and len(value)==64 and all(c in "0123456789abcdefABCDEF" for c in value) else None
+          def summarize(name,obj):
+              result={}
+              if name=="desktop_worker_diagnostic.json":
+                  for action in ("core","advanced","repair"):
+                      worker=obj.get("workers",{}).get(action)
+                      if not isinstance(worker,dict): continue
+                      frames=[{"module":f.get("module") if f.get("module") in SAFE_MODULES else "OTHER",
+                               "line":numeric(f.get("line"))} for f in worker.get("frames",[])[:12] if isinstance(f,dict)]
+                      result[action]={"status":clean_status(worker.get("status")),"frozen":worker.get("frozen") is True,
+                                      "exception_type":clean_status(worker.get("exception_type")),"frames":frames}
+              elif name=="desktop_frozen_advanced_evidence.json":
+                  for key in ("status","execution_status","technical_validation","validation_error_type"):
+                      if key in obj:result[key]=clean_status(obj[key])
+                  result["exe_sha256"]=digest(obj.get("exe_sha256"))
+                  business=obj.get("business_validation",{})
+                  if isinstance(business,dict):result["business_status"]=clean_status(business.get("status"))
+              elif name=="desktop_research_corpus_evidence.json":
+                  result["status"]=clean_status(obj.get("status"))
+                  q=obj.get("qualification",{})
+                  for key in ("coverage","current_coverage","delisted_coverage","covered_symbols","target_symbols",
+                              "current_target","delisted_target","downloaded","qualification_elapsed_seconds"):
+                      result[key]=numeric(q.get(key)) if isinstance(q,dict) else None
+                  result["history_file_count"]=numeric(obj.get("history_file_count"))
+                  result["history_manifest_sha256"]=digest(obj.get("history_manifest_sha256"))
+              else:
+                  for key in ("status","offline_regression","static_compile"):
+                      result[key]=clean_status(obj.get(key))
+                  result["offline_gate_count"]=numeric(obj.get("offline_gate_count"))
+                  result["offline_exit_code"]=numeric(obj.get("offline_exit_code"))
+                  for key in ("immutable_import","immutable_import_after_tests"):
+                      result[key+"_files"]=numeric((obj.get(key) or {}).get("verified_files"))
+              return result
+          try:
+              for spec in SPECS:
+                  with opener.open(api("/actions/artifacts/"+str(spec["id"])),timeout=30) as response:
+                      metadata=json.load(response)
+                  assert metadata["workflow_run"]["head_sha"]==spec["head"]
+                  assert metadata["workflow_run"]["id"]==spec["run"] and not metadata["expired"]
+                  assert metadata["digest"]=="sha256:"+spec["sha"]
+                  assert metadata["size_in_bytes"]<=220000000
+                  try:
+                      opener.open(api("/actions/artifacts/"+str(spec["id"])+"/zip"),timeout=30)
+                      raise AssertionError("artifact endpoint did not redirect")
+                  except urllib.error.HTTPError as redirect:
+                      assert redirect.code in (301,302,303,307,308)
+                      location=redirect.headers["Location"]
+                  host=urllib.parse.urlsplit(location)
+                  assert host.scheme=="https" and (host.hostname.endswith(".blob.core.windows.net") or
+                      host.hostname.endswith(".githubusercontent.com"))
+                  with tempfile.TemporaryFile() as archive:
+                      hasher=hashlib.sha256();size=0
+                      # Authorization is deliberately absent from the signed storage request.
+                      with urllib.request.urlopen(urllib.request.Request(location),timeout=60) as response:
+                          while True:
+                              chunk=response.read(1048576)
+                              if not chunk:break
+                              size+=len(chunk);assert size<=220000000
+                              hasher.update(chunk);archive.write(chunk)
+                      assert size==metadata["size_in_bytes"] and hasher.hexdigest()==spec["sha"]
+                      archive.seek(0)
+                      found=set()
+                      with zipfile.ZipFile(archive) as zipped:
+                          for entry in zipped.infolist():
+                              name=PurePosixPath(entry.filename).name
+                              if name not in spec["allowed"]:continue
+                              assert name not in found and entry.file_size<=2000000
+                              found.add(name);raw=zipped.read(entry)
+                              receipt={"artifact_id":spec["id"],"artifact_head":spec["head"],"file":name,
+                                       "file_sha256":hashlib.sha256(raw).hexdigest()}
+                              if name.endswith(".json"):
+                                  obj=json.loads(raw.decode("utf-8-sig"));assert isinstance(obj,dict)
+                                  bound=[obj[k] for k in HEAD_KEYS if k in obj]
+                                  assert bound and all(x==spec["head"] for x in bound)
+                                  receipt["summary"]=summarize(name,obj)
+                              else:
+                                  # Publish only exact known offline-test result lines; no other log text.
+                                  markers=("PREDICTION PAYLOAD / CROSS-PERIOD HASH CHAIN TEST PASS",
+                                           "STORAGE FREEZE TEST PASS","AUDIT / 5WHY / REVERSE VALIDATION TEST PASS",
+                                           "ALL ENGINEERING ACCEPTANCE: PASS")
+                                  lines=[]
+                                  for line in raw.decode("utf-8",errors="replace").splitlines():
+                                      for marker in markers:
+                                          if line.startswith(marker):
+                                              suffix=line[len(marker):].strip()
+                                              if marker.startswith("PREDICTION PAYLOAD"):
+                                                  assert suffix.endswith("negative scenarios") and suffix.split()[0].isdigit()
+                                              elif suffix:assert suffix in {"LOW","MEDIUM","HIGH"}
+                                              lines.append(marker+(" "+suffix if suffix else ""))
+                                  receipt["test_results"]=lines
+                              print(json.dumps(receipt,sort_keys=True))
+                      for missing in sorted(spec["allowed"]-found):
+                          print(json.dumps({"artifact_id":spec["id"],"file":missing,"status":"MISSING_IN_ARTIFACT"}))
+          except Exception as exc:
+              print(json.dumps({"diagnostic_status":"FAIL","error_type":type(exc).__name__}))
+              raise SystemExit(2)
+          print("EXACT_ARTIFACT_DIAGNOSTIC=PASS; PRODUCT_FINAL=FAIL")
+          
+          PY
