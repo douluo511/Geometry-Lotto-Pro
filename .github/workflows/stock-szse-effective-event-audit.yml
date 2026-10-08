@@ -92,11 +92,11 @@ jobs:
           assert x["instrument_scope_counts"]==expected_scopes, x["instrument_scope_counts"]
           assert sum(expected_scopes.values())==1849
           assert x["equity_notice_rows"]==961
-          assert x["equity_notice_code_candidates"]==966
-          assert len(x["equity_candidate_bindings"])==966
+          assert x["equity_notice_code_candidates"]==967
+          assert len(x["equity_candidate_bindings"])==967
           assert all(y["actual_stock_lifecycle_qualified"]=="NOT VERIFIED" for y in x["equity_candidate_bindings"])
           assert all(y["actual_daily_suspension_qualified"]=="NOT VERIFIED" for y in x["equity_candidate_bindings"])
-          assert len(set((y["official_url"],y["equity_code_candidate"]) for y in x["equity_candidate_bindings"]))==966
+          assert len(set((y["official_url"],y["equity_code_candidate"]) for y in x["equity_candidate_bindings"]))==967
 
           assert all(row["instrument_qualification"]=="NOT VERIFIED" for row in x["rows"])
           assert a["stock_instrument_lifecycle_qualified"]=="NOT VERIFIED"
