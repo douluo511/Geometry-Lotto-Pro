@@ -173,6 +173,24 @@ def main():
     counts = dict(sorted(Counter(row["classification"] for row in audit).items()))
     evidence_bound = sum(1 for row in audit if not row["missing_evidence"])
     scopes=dict(sorted(Counter(row["instrument_scope"] for row in audit).items()))
+    equity_notice_rows=sum(bool(row["equity_code_candidates"]) for row in audit)
+    equity_notice_code_candidates=sum(len(row["equity_code_candidates"]) for row in audit)
+    equity_candidate_bindings=[
+        {
+            "official_url":row["official_url"],
+            "official_response_sha256":row["official_response_sha256"],
+            "semantic_excerpt_sha256":row["semantic_excerpt_sha256"],
+            "archive_date_not_effective_date":row["archive_date"],
+            "equity_code_candidate":code,
+            "multi_instrument_notice":len(row["equity_code_candidates"])+len(row["convertible_code_candidates"])>1,
+            "actual_stock_lifecycle_qualified":"NOT VERIFIED",
+            "actual_daily_suspension_qualified":"NOT VERIFIED",
+        }
+        for row in audit for code in row["equity_code_candidates"]
+    ]
+    if len(equity_candidate_bindings)!=equity_notice_code_candidates:
+        raise RuntimeError("equity candidate count mismatch")
+
     if sum(scopes.values())!=frozen: raise RuntimeError("instrument scope lost source records")
     report = {
         "schema": "szse-effective-event-diagnostic-v1",
@@ -182,6 +200,9 @@ def main():
         "source_records_sha256": digest(json.dumps(records,sort_keys=True,ensure_ascii=False,separators=(",",":"))),
         "classification_counts": counts,
         "instrument_scope_counts": scopes,
+        "equity_notice_rows": equity_notice_rows,
+        "equity_notice_code_candidates": equity_notice_code_candidates,
+        "equity_candidate_bindings": equity_candidate_bindings,
         "unambiguously_identified_and_source_bound": evidence_bound,
         "rows": audit,
         "adjudication": {
@@ -206,6 +227,8 @@ def main():
     print(json.dumps({
         "denominator": frozen, "source_and_identity_bound": evidence_bound,
         "classification_counts": counts, "instrument_scope_counts": scopes,
+        "equity_notice_rows": equity_notice_rows,
+        "equity_notice_code_candidates": equity_notice_code_candidates,
         "adjudication": report["adjudication"],
     }, ensure_ascii=False, sort_keys=True))
     return 0
