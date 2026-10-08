@@ -54,3 +54,45 @@ jobs:
             ${{ runner.temp }}/sse-pinned-schema
           retention-days: 30
           if-no-files-found: error
+  full-native-history:
+    name: Full SSE native history window ${{ matrix.window }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        window: [0, 1, 2]
+    env:
+      SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      PRODUCT_BASE_SHA: 895fab5d4eb4be3d0b06e2c6c82c473911f4b8d1
+      PYTHONUTF8: '1'
+      PYTHONIOENCODING: 'utf-8'
+    steps:
+      - name: Checkout exact diagnostic head
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          fetch-depth: 0
+      - name: Verify exact head and unchanged product
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          git merge-base --is-ancestor "$PRODUCT_BASE_SHA" HEAD
+          test -z "$(git diff --name-only "$PRODUCT_BASE_SHA"..HEAD -- StockAIPro)"
+          echo 'PRODUCT_BYTES_UNCHANGED=PASS'
+      - name: All source-native adversarial controls
+        run: python .github/stock_diag/stock_sse_suspend_source.py --self-test
+      - name: Verify fixed original official query schema archive bytes
+        env:
+          DIAG_GITHUB_TOKEN: ${{ github.token }}
+        run: python .github/stock_diag/stock_sse_suspend_source.py --restore-schema "$RUNNER_TEMP/sse-pinned-schema"
+      - name: Capture every native page in frozen historical window
+        run: python .github/stock_diag/stock_sse_suspend_source.py --capture-from "$RUNNER_TEMP/sse-pinned-schema" --capture-output "$RUNNER_TEMP/sse-full-native-history" --full-window ${{ matrix.window }}
+      - name: Preserve raw pages and full denominator receipts even on failure
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: STOCK-SSE-FULL-NATIVE-${{ matrix.window }}-${{ env.SOURCE_SHA }}
+          path: ${{ runner.temp }}/sse-full-native-history
+          retention-days: 30
+          if-no-files-found: error

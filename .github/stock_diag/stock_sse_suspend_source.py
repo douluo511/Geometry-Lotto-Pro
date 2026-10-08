@@ -166,6 +166,9 @@ def discover(directory):
 
 MODULE = "https://www.sse.com.cn/xhtml/home/2021public/querySearch/search_tradeTip_2021.js"
 MODULE_SHA = "32fc98ea41e599f457609247ba68defb82e6d855aa2551da6923dbf7e44153a7"
+FULL_WINDOWS = [("2018-01-01", "2020-12-31"), ("2021-01-01", "2023-12-31"), ("2024-01-01", "2026-10-08")]
+FULL_MAX_PAGES = 1000
+FULL_MAX_SECONDS = 1200
 WINDOWS = [("2018-11-19", "2018-11-20"), ("2025-01-06", "2025-01-07"), ("2026-09-29", "2026-09-30")]
 BOND_BUSINESS = {"CP": "convertible_bond", "GP": "convertible_bond", "CB": "conversion", "GB": "conversion", "CR": "repurchase", "GR": "repurchase"}
 INTRADAY = {"930": "09:30-10:30", "AM": "morning", "PM": "afternoon"}
@@ -221,13 +224,18 @@ def complete_pages(pages, expected):
     return rows
 
 def event_candidate(row, flavor, begin, end):
+    parsed_end = None
+    display_interval = None
     if flavor == "legacy":
         code = row.get("PRODUCT_CODE")
         name = row.get("PRODUCT_NAME")
         native_start = row.get("STOP_DATE")
         native_end = None
-        # Historical source may expose a native date-time; only its explicit date is parsed.
-        parsed_start = day(native_start[:10]) if isinstance(native_start, str) else None
+        # The real native '-' sentinel has NO event date. SHOW_* and text are
+        # preserved verbatim and never substituted for effective/as-of dates.
+        unknown_start = native_start == "-"
+        parsed_start = None if unknown_start else (day(native_start[:10]) if isinstance(native_start, str) else None)
+        display_interval = [row.get("SHOW_START_DATE"), row.get("SHOW_END_DATE")]
         business = row.get("CONTROLTYPE")
         duration = row.get("STOP_TIME")
         reason = row.get("STOP_REASON")
@@ -236,17 +244,18 @@ def event_candidate(row, flavor, begin, end):
         name = row.get("productName")
         native_start = row.get("startStopDate")
         native_end = row.get("endStopDate")
+        unknown_start = False
         parsed_start = day(native_start, compact=True) if native_start else None
         if native_end:
-            day(native_end, compact=True)
+            parsed_end = day(native_end, compact=True)
         business = row.get("controlType")
         duration = row.get("stopTime")
         reason = row.get("stopReason")
     if not isinstance(code, str) or not re.fullmatch(r"[0-9]{6}", code):
         raise ValueError("native_security_code_missing_or_nonASCII")
-    if parsed_start is None:
+    if parsed_start is None and not unknown_start:
         raise ValueError("native_effective_start_missing")
-    if parsed_start > day(end):
+    if parsed_start is not None and parsed_start > day(end):
         raise ValueError("native_effective_date_after_requested_window")
     if not isinstance(name, str) or not name.strip():
         raise ValueError("native_security_name_missing")
@@ -263,10 +272,15 @@ def event_candidate(row, flavor, begin, end):
         "native_business_type": business, "business_scope": business_scope,
         "identity_status": identity, "asof_issuer_authority": "NOT VERIFIED",
         "native_effective_start": native_start, "native_effective_end": native_end,
-        "explicit_start_day": parsed_start.isoformat(), "native_duration": duration,
-        "duration_scope": duration_scope, "native_reason": reason,
-        "native_record_type": row.get("type"),
+        "explicit_start_day": parsed_start.isoformat() if parsed_start else None,
+        "explicit_end_day": parsed_end.isoformat() if parsed_end else None,
+        "event_date_status": "UNKNOWN_NATIVE_NO_EVENT_DAY" if unknown_start else "NATIVE_EXPLICIT_START_ONLY",
+        "native_display_interval": display_interval,
+        "native_duration": duration, "duration_scope": duration_scope,
+        "native_reason": reason, "native_record_type": row.get("type"),
         "source_query_window": [begin, end], "publication_time": "NOT VERIFIED",
+        "future_end_visible_after_query_asof": parsed_end > day(end) if parsed_end else None,
+        "asof_information_availability": "NOT VERIFIED",
         "actual_observed_resume": "NOT VERIFIED", "daily_ST": "NOT VERIFIED",
         "qualified_daily_suspension": "NOT VERIFIED",
         "raw_row_sha256": sha(json.dumps(row, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode("utf-8")),
@@ -380,7 +394,7 @@ def restore_schema(directory):
         for name, raw in selected.items():
             (directory / name).write_bytes(raw)
         prior = json.loads(selected["source-101.raw"])
-        report["prior_2018_native_response_inspection"] = {"raw_sha256": sha(selected["source-101.raw"]), "native_pagination": prior.get("pageHelp"), "sample_rows": prior.get("result", [])[:4], "scope": "HISTORICAL_EXACT_RAW_RECORD_INSPECTION_ONLY"}
+        report["prior_2018_native_response_inspection"] = {"raw_sha256": sha(selected["source-101.raw"]), "native_pagination": {key: prior.get("pageHelp", {}).get(key) for key in ("pageNo", "pageSize", "pageCount", "total")}, "sample_rows": prior.get("result", [])[:4], "scope": "HISTORICAL_EXACT_RAW_RECORD_INSPECTION_ONLY"}
         report["status"] = "PASS"
     except Exception as exc:
         report["error_type"] = type(exc).__name__
@@ -390,9 +404,14 @@ def restore_schema(directory):
         print(json.dumps(report, ensure_ascii=False, sort_keys=True))
     return 0 if report["status"] == "PASS" else 2
 
-def capture(source_directory, directory):
+def capture(source_directory, directory, full_window=None):
+    windows = [FULL_WINDOWS[full_window]] if full_window is not None else WINDOWS
+    flavors = ("new",) if full_window is not None else ("legacy", "new")
+    page_budget = FULL_MAX_PAGES if full_window is not None else 40
+    seconds_budget = FULL_MAX_SECONDS if full_window is not None else 600
+    started = time.monotonic()
     directory.mkdir(parents=True, exist_ok=False)
-    report = {"schema": "stock-sse-historical-suspension-source-capture-v1", "status": "FAIL", "scope": "three explicit two-day sample windows, native source transport/pagination ONLY", "source_product_base_sha": PRODUCT_BASE, "diagnostic_head_sha": os.environ.get("SOURCE_SHA"), "windows": WINDOWS, "queries": [], "event_candidates": [], "historical_daily_state": "NOT VERIFIED", "SSE_SZSE_BSE_qualified_historical_pit": "NOT VERIFIED", "final_gate": "FAIL"}
+    report = {"schema": "stock-sse-historical-suspension-source-capture-v1", "status": "FAIL", "scope": "frozen full historical new-native-source transport/pagination ONLY" if full_window is not None else "three explicit two-day sample windows, native source transport/pagination ONLY", "source_product_base_sha": PRODUCT_BASE, "diagnostic_head_sha": os.environ.get("SOURCE_SHA"), "windows": windows, "frozen_coverage_target": ["2018-01-01", "2026-10-08"] if full_window is not None else None, "bounded_max_pages_per_query": page_budget, "bounded_max_seconds": seconds_budget, "queries": [], "event_candidates": [], "historical_daily_state": "NOT VERIFIED", "SSE_SZSE_BSE_qualified_historical_pit": "NOT VERIFIED", "final_gate": "FAIL"}
     try:
         discovery = json.loads((source_directory / "discovery.json").read_text(encoding="utf-8"))
         if discovery.get("status") != "PASS":
@@ -427,8 +446,8 @@ def capture(source_directory, directory):
                 raise ValueError("source_native_query_contract_missing:"+token)
         report["query_source_binding"] = {"html_sha256": sha(html_raw), "module_url": MODULE, "module_sha256": sha(module_raw), "query_origin": origin, "retrieved_at_utc": module["recorded_at_utc"], "publication_time": "NOT VERIFIED"}
         index = 100
-        for begin, end in WINDOWS:
-            for flavor in ("legacy", "new"):
+        for begin, end in windows:
+            for flavor in flavors:
                 if flavor == "legacy":
                     endpoint = urljoin(origin, "sseQuery/commonQuery.do")
                     params = {"isPagination": "true", "sqlId": "COMMON_SSE_XXPL_JYTS_TFPXX_L", "SEARCH_DATE": end, "pageHelp.pageSize": 25, "pageHelp.pageNo": 1, "pageHelp.beginPage": 1, "pageHelp.cacheSize": 1, "pageHelp.endPage": 1}
@@ -439,6 +458,8 @@ def capture(source_directory, directory):
                 report["queries"].append(query)
                 pages, expected, page_number = [], None, 1
                 while True:
+                    if time.monotonic()-started > seconds_budget:
+                        raise ValueError("native_history_bounded_time_budget_exhausted")
                     params["pageHelp.pageNo"] = page_number
                     if flavor == "legacy":
                         params["pageHelp.beginPage"] = page_number
@@ -451,8 +472,9 @@ def capture(source_directory, directory):
                     raw = (directory / receipt["raw_path"]).read_bytes()
                     rows, counts = parse_page(raw, page_number, 25, expected)
                     expected = expected or counts
-                    if expected["pageCount"] > 40:
-                        raise ValueError("sample_query_exceeds_bounded_page_budget")
+                    query["native_pagination"] = expected
+                    if expected["pageCount"] > page_budget:
+                        raise ValueError("native_history_bounded_page_budget_exhausted")
                     pages.append(rows)
                     if page_number >= max(1, expected["pageCount"]):
                         break
@@ -464,6 +486,9 @@ def capture(source_directory, directory):
                 query["record_date_fields"] = sorted({key for row in native_rows for key in row if "date" in key.lower() or "time" in key.lower()})
                 query["native_fields"] = sorted({key for row in native_rows for key in row})
                 query["sample_rows"] = native_rows[:3]
+                query["raw_row_sha256_sequence"] = [sha(json.dumps(row, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode("utf-8")) for row in native_rows]
+                query["native_record_type_counts"] = {value: sum(str(row.get("type")) == value for row in native_rows) for value in sorted({str(row.get("type")) for row in native_rows})}
+                query["native_business_type_counts"] = {value: sum(str(row.get("controlType") if flavor == "new" else row.get("CONTROLTYPE")) == value for row in native_rows) for value in sorted({str(row.get("controlType") if flavor == "new" else row.get("CONTROLTYPE")) for row in native_rows})}
                 query["unresolved_native_rows"] = []
                 candidates = []
                 for row in native_rows:
@@ -481,8 +506,17 @@ def capture(source_directory, directory):
     finally:
         report["qualified_record_count"] = 0
         report["candidate_count"] = len(report["event_candidates"])
+        report["elapsed_seconds"] = round(time.monotonic()-started, 3)
+        report["native_query_row_count"] = sum(query.get("native_row_count", 0) for query in report["queries"])
+        report["observed_pages"] = sum(len(query["receipts"]) for query in report["queries"])
+        report["current_completed_day_asof_acceptance"] = "NOT VERIFIED"
+        report["native_query_row_denominator_scope"] = "API returned rows ONLY; not the full historical A-share issuer/day denominator"
+        report["zero_record_absence_semantics"] = "UNKNOWN; never NORMAL"
+        report["publication_availability_coverage"] = "NOT VERIFIED"
+        report["normalized_daily_halt_coverage"] = "NOT VERIFIED"
         (directory / "historical-capture.json").write_text(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True)+"\n", encoding="utf-8")
-        print(json.dumps(report, ensure_ascii=False, sort_keys=True))
+        print(json.dumps({key: value for key, value in report.items() if key not in ("event_candidates", "queries")}, ensure_ascii=False, sort_keys=True))
+        print(json.dumps({"schema": "stock-sse-capture-query-summary-v1", "diagnostic_head_sha": report["diagnostic_head_sha"], "queries": [{key: value for key, value in query.items() if key not in ("sample_rows", "unresolved_native_rows", "raw_row_sha256_sequence", "receipts")} for query in report["queries"]], "qualified_record_count": 0}, ensure_ascii=False, sort_keys=True))
     return 0 if report["status"] == "PASS" else 2
 
 if __name__ == "__main__":
@@ -492,6 +526,7 @@ if __name__ == "__main__":
     parser.add_argument("--capture-from", type=Path)
     parser.add_argument("--capture-output", type=Path)
     parser.add_argument("--restore-schema", type=Path)
+    parser.add_argument("--full-window", type=int, choices=range(len(FULL_WINDOWS)))
     args = parser.parse_args()
     if args.self_test:
         self_test()
@@ -499,7 +534,7 @@ if __name__ == "__main__":
     elif args.restore_schema:
         raise SystemExit(restore_schema(args.restore_schema))
     elif args.capture_from and args.capture_output:
-        raise SystemExit(capture(args.capture_from, args.capture_output))
+        raise SystemExit(capture(args.capture_from, args.capture_output, args.full_window))
     elif args.output:
         raise SystemExit(discover(args.output))
     else:
