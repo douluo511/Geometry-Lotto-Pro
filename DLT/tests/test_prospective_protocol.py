@@ -149,6 +149,43 @@ class ProspectiveProtocolTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "late/post-draw"):
                 ProspectiveLedger(root).freeze_records()
 
+    def test_rehashed_forged_replay_scores_and_hits_do_not_qualify(self):
+        import copy
+        draws = _draws()
+        canonical = sha256_json([d.to_dict() for d in draws])
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            first = run_prospective_cycle(
+                draws, canonical, ledger_root=root,
+                source_commit=SOURCE_A, prediction_builder=FakeBuilder(),
+            )
+            target = first["freeze"]["target_issue"]
+            actual = Draw(target, first["freeze"]["target_date"], (1, 6, 11, 16, 21), (1, 7))
+            more = draws + [actual]
+            second = run_prospective_cycle(
+                more, sha256_json([d.to_dict() for d in more]),
+                ledger_root=root, source_commit=SOURCE_A, prediction_builder=FakeBuilder(),
+            )
+            self.assertEqual(second["status"]["valid_replays"], 1)
+            replay_path = root / "cohorts" / first["cohort"]["cohort_id"] / "replays" / f"{target}.json"
+            original = json.loads(replay_path.read_text(encoding="utf-8"))
+            for mutation in ("inflated_score", "fake_hits", "wrong_actual"):
+                with self.subTest(mutation=mutation):
+                    forged = copy.deepcopy(original)
+                    if mutation == "inflated_score":
+                        forged["front_gain_vs_random"] = 1.0
+                    elif mutation == "fake_hits":
+                        forged["replay"]["front_hit_count"] += 1
+                    else:
+                        forged["actual"]["front"] = [2, 7, 12, 17, 22]
+                    forged.pop("record_hash")
+                    forged["record_hash"] = sha256_json(forged)
+                    replay_path.write_text(json.dumps(forged), encoding="utf-8")
+                    with self.assertRaisesRegex(ValueError, "recomputed"):
+                        ProspectiveLedger(root).replay_records()
+            replay_path.write_text(json.dumps(original), encoding="utf-8")
+            self.assertEqual(len(ProspectiveLedger(root).replay_records()), 1)
+
     def test_service_dependency_is_part_of_behavior_identity(self):
         self.assertIn("src/glp/service.py", BEHAVIOR_PATHS)
         before = _behavior_hash_from_files({
