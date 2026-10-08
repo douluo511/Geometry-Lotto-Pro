@@ -19,6 +19,7 @@ MARKET_LIFECYCLE_START = {"BSE": date(2021, 11, 15)}
 # BSE stock-code switches on 2025-10-09 (separate BSE official bulletins).
 # Earliest possible date is NECESSARY but NEVER proves actual market status.
 BSE_920_EARLIEST_ACTIVATION = date(2025, 5, 6)
+BSE_LEGACY_UNIFIED_SWITCH_DAY = date(2025, 10, 9)
 
 
 def _parse_day(value):
@@ -59,6 +60,8 @@ def _impossible_market_code_day(market: str, code: str, day: date):
             return "bse_before_market_open"
         if str(code).startswith("92") and day < BSE_920_EARLIEST_ACTIVATION:
             return "bse_920_before_first_activation"
+        if str(code).startswith(("4", "8")) and day >= BSE_LEGACY_UNIFIED_SWITCH_DAY:
+            return "bse_legacy_after_unified_switch"
     return None
 
 
