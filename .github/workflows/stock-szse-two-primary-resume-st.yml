@@ -1,0 +1,125 @@
+name: Stock SZSE primary exchange-directed resume and risk-warning witnesses
+on:
+  push:
+    branches:
+      - fix/stock-szse-two-primary-resume-st-witnesses-20261008
+    paths:
+      - ".github/stock_diag/stock_szse_two_primary_resume_st.py"
+      - ".github/workflows/stock-szse-two-primary-resume-st.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  primary-two-real-notice-witnesses:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact two-primary-witness head
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Prove product Stock AI bytes remain unchanged
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.sha }}"
+          git merge-base --is-ancestor 18c5acda190ba99a590f5c8957af10772852244b HEAD
+          git merge-base --is-ancestor 9969490c89ccb4cc10536f66416976c5bf40caef HEAD
+          test -z "$(git diff --name-only 9969490c89ccb4cc10536f66416976c5bf40caef..HEAD -- StockAIPro)"
+      - name: Setup pinned Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.11.9"
+          check-latest: false
+      - name: Pinned primary HTML parser dependency
+        run: python -m pip install --disable-pip-version-check --no-input "beautifulsoup4==4.15.0"
+      - name: Download SHA-pinned original 2018-11-19 official raw-html shard
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p original_primary_raw/shard-03
+          curl --fail --silent --show-error --location --retry 3 --retry-all-errors --connect-timeout 20 --max-time 120 \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            --header "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/11532954627/zip" \
+            --output primary_20181119.zip
+          echo "88919ed5b83d606458fc1b404f8a10decbe3c1aa263c3dfb77d0  primary_20181119.zip" | sha256sum --check
+          unzip -oq primary_20181119.zip -d original_primary_raw/shard-03
+      - name: Download SHA-pinned original 2025-01-06 official raw-html shard
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p original_primary_raw/shard-15
+          curl --fail --silent --show-error --location --retry 3 --retry-all-errors --connect-timeout 20 --max-time 120 \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            --header "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/11533948867/zip" \
+            --output primary_20250106.zip
+          echo "20b4b9b1687fea3e9bdf8a3dbcf787e660d0295788d8ea7f2929257b1779a174  primary_20250106.zip" | sha256sum --check
+          unzip -oq primary_20250106.zip -d original_primary_raw/shard-15
+      - name: Prove two actual named first-party directives; never promote actual executed market state
+        run: |
+          python .github/stock_diag/stock_szse_two_primary_resume_st.py \
+            --root original_primary_raw \
+            --out stock_szse_two_firstparty_resume_st_notice_witness.json
+      - name: Live primary evidence reverse checks and future-leakage prevention
+        run: |
+          python - <<'PY'
+          import copy,importlib.util,json,re,shutil,tempfile
+          from pathlib import Path
+          from bs4 import BeautifulSoup
+          spec=importlib.util.spec_from_file_location("prim",".github/stock_diag/stock_szse_two_primary_resume_st.py")
+          m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
+          root=Path("original_primary_raw")
+          result=m.build(root)
+          assert len(result["provenance"])==2
+          evidence={x["code"]:x for x in result["provenance"]}
+          assert evidence["000981"]["announced_resume_day"]=="2018-11-20"
+          assert evidence["300630"]["announced_stop_day"]=="2025-01-06"
+          assert evidence["300630"]["announced_resume_day"]=="2025-01-07"
+          assert evidence["300630"]["announced_risk_warning_start"]=="2025-01-07"
+          assert result["adjudication"]["final_gate"]=="FAIL"
+          assert all(x["actual_market_resumption_executed"]=="NOT VERIFIED" for x in evidence.values())
+          cases=[]
+          def check(name,func):
+              try:func()
+              except (ValueError,KeyError,TypeError):cases.append(name);return
+              raise AssertionError("FAIL OPEN: "+name)
+          def text_of(code):
+              d=m.SOURCE[code];p=root/f"shard-{d['shard']:02d}"
+              rows=json.loads((p/"szse_shard_report.json").read_text())["records"]
+              row=next(r for r in rows if r["index"]==d["index"])
+              html=(p/row["raw_path"]).read_bytes().decode("utf-8")
+              return re.sub(r"\s+","",BeautifulSoup(html,"html.parser").select_one(".news-detail-con #desContent").get_text("\n",strip=True))
+          a=text_of("000981");b=text_of("300630")
+          check("exchange decision cannot become mere prediction",lambda:m.parse_announced_terms("000981",a.replace("本所决定","公司预计")))
+          check("2018 resume date cannot move silently",lambda:m.parse_announced_terms("000981",a.replace("2018年11月20日","2018年11月21日")))
+          check("2018 stock code must be explicit",lambda:m.parse_announced_terms("000981",a.replace("证券代码：000981","证券代码：999999")))
+          check("2025 stop day cannot be swapped",lambda:m.parse_announced_terms("300630",b.replace("2025年1月6日开市起停牌","2025年1月5日开市起停牌")))
+          check("2025 resume day cannot be swapped",lambda:m.parse_announced_terms("300630",b.replace("2025年1月7日开市起复牌","2025年1月8日开市起复牌")))
+          check("2025 risk-warning marker is required",lambda:m.parse_announced_terms("300630",b.replace("退市风险警示","其他事项")))
+          check("2025 *ST new name is required",lambda:m.parse_announced_terms("300630",b.replace("*ST普利","普利")))
+          check("2025 stock code cannot be bond code",lambda:m.parse_announced_terms("300630",b.replace("证券代码：300630","证券代码：123099")))
+          check("unknown third issuer cannot inherit proven status",lambda:m.parse_announced_terms("000001",a))
+          with tempfile.TemporaryDirectory() as tmp:
+              temp=Path(tmp)/"r"
+              shutil.copytree(root,temp)
+              d=m.SOURCE["000981"];p=temp/f"shard-{d['shard']:02d}"
+              rows=json.loads((p/"szse_shard_report.json").read_text())["records"]
+              row=next(r for r in rows if r["index"]==d["index"])
+              (p/row["raw_path"]).write_bytes(b"FAKE HTTP PASS WITH NO OFFICIAL FIRST PARTY")
+              check("original captured raw SHA tamper rejected",lambda:m.build(temp))
+          assert len(cases)==10,(len(cases),cases)
+          print("STOCK TWO REAL NOTICE NEGATIVE/ANTI-FUTURE-LEAKAGE 10/10 PASS")
+          PY
+      - name: Preserve official primary notice-directed dates and NO-PIT boundary
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: STOCK-SZSE-TWO-PRIMARY-RESUME-AND-ST-WITNESSES-${{ github.sha }}
+          path: stock_szse_two_firstparty_resume_st_notice_witness.json
+          if-no-files-found: warn
+          retention-days: 30
