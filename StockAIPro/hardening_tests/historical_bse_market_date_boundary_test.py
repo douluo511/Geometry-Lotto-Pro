@@ -90,9 +90,9 @@ check_valid_structure("2021-11-15", "830001")
 # CRITICAL: official BSE 2024-04-19 bulletin authorizes NEW 920 IPOs from
 # 2024-04-22, distinct from the 2025 switch of 248 EXISTING issuers.
 # Official first-party BSE 2024-12-05 920098 IPO must not be rejected.
-check_invalid("2024-04-08", "920098", "bse_920_before_new_ipo_activation")
 check_valid_structure("2024-12-05", "920098")
 check_valid_structure("2025-05-05", "920098")
+check_invalid("2024-04-08", "920098", "bse_920_before_new_ipo_activation")
 check_valid_structure("2025-10-09", "920931")
 check_valid_structure("2026-09-30", "920001")
 
