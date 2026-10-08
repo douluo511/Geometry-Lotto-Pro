@@ -65,6 +65,8 @@ jobs:
           path: |
             stock_szse_suspension_static_archive.json
             stock_szse_suspension_detail_corpus.json
+            stock_szse_primary_sample_20180102.html
+            stock_szse_primary_sample_20260930.html
           if-no-files-found: warn
           retention-days: 30
 
