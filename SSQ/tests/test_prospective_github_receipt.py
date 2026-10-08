@@ -171,11 +171,18 @@ class ReadOnlyGitHubReceiptTests(unittest.TestCase):
 
 
 class PushOnlyFreezeRedTeamTests(unittest.TestCase):
-    def _attempt(self, *, overwrite=False, late=False, changed=""):
+    def _attempt(self, *, overwrite=False, late=False, changed="", before=None,
+                 after=None, forced=False):
         root = Path(self.temp)
         file_path = root / PATH
         file_path.parent.mkdir(parents=True, exist_ok=True)
         file_path.write_text(json.dumps(fixture()), encoding="utf-8")
+        event_path = root / "github_push_event.json"
+        event_path.write_text(json.dumps({
+            "before": "c" * 40 if before is None else before,
+            "after": GIT_SHA if after is None else after,
+            "forced": forced, "created": False, "deleted": False,
+        }), encoding="utf-8")
         fake = FakeGitHub()
         fake.run["status"] = "in_progress"
         fake.run["head_sha"] = GIT_SHA
@@ -198,6 +205,7 @@ class PushOnlyFreezeRedTeamTests(unittest.TestCase):
             "GITHUB_REF_NAME": BRANCH,
             "GITHUB_SHA": GIT_SHA,
             "GITHUB_RUN_ID": "1234",
+            "GITHUB_EVENT_PATH": str(event_path),
         }
         with (
             patch.object(push, "ROOT", root),
@@ -231,6 +239,20 @@ class PushOnlyFreezeRedTeamTests(unittest.TestCase):
     def test_push_after_draw_day_rejected(self):
         with self.assertRaisesRegex(ValueError, "after draw-day cutoff"):
             self._attempt(late=True)
+
+    def test_multi_commit_push_cannot_launder_unchecked_earlier_freezes(self):
+        # Existing check inspects HEAD only: a multi-commit push could hide
+        # an earlier Freeze mutation and still look like a one-file HEAD.
+        with self.assertRaisesRegex(ValueError, "single-commit"):
+            self._attempt(before="d" * 40)
+
+    def test_force_updated_evidence_branch_cannot_qualify_as_witness(self):
+        with self.assertRaisesRegex(ValueError, "forced|force"):
+            self._attempt(forced=True)
+
+    def test_push_webhook_after_must_match_checked_out_exact_head(self):
+        with self.assertRaisesRegex(ValueError, "after|exact head"):
+            self._attempt(after="e" * 40)
 
 
 if __name__ == "__main__":
