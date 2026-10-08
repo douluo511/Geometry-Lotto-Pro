@@ -1,0 +1,136 @@
+name: Current RMF main candidate artifact integrity
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/current-rmf-candidate-artifact-integrity.yml'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  rm-candidate-redownload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Verify one exact RM candidate artifact and fixed evidence files
+        env:
+          DIAG_GITHUB_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          python - <<'PY'
+          import hashlib,json,os,tempfile,urllib.request,urllib.error,urllib.parse,zipfile
+          from pathlib import PurePosixPath
+          REPO="douluo511/Geometry-Lotto-Pro"
+          HEAD="c2b0db6876d2aae874f8cf4d08f52455c8eaf152"
+          RUN=37732032471;ARTIFACT=11529509231
+          ZIP_SHA="f6b40384e840aa61e6e41682b9e94ccaf91280f181666804b78d10c4f3655319"
+          EXPECTED_EXES={"RealMoneyFinance.exe":"a91816a1a393d55e037193d959ee3a846a8635bfbf106fdf5dd3239b2373b03a",
+                         "RealMoneyFinanceUpdater.exe":"ee4e396a761def17ec5d6dcce69750da3314320cd9793550b05ef4e0d4843a45"}
+          EXPECTED_CONTRACT="c67f91fc183f5f290425a77da1619e1f7d2b2e38a6dedde62a44b92c29d305b9"
+          GIT_CONTRACT_LF="44b587bdff9154feaaa520b865341d62ee06dadab756555222a8e73a5e459500"
+          ENGINEERING=["requirements_purpose_model","five_why","risk_boundary","domain_model","architecture","function_inventory","interface_contracts","data_sources","netclient","storage","engine","evidence","service","ui","self_test","contract_test","fault_injection","real_network","cross_source_validation","windows_build","exact_exe","physical_gui","updater_contract","positive_production_update","repository_independence","real_release_n_to_n_plus_1","same_hash_current_bytes","formal_release_redownload_same_hash"]
+          BUSINESS=["public_l1_identity_boundary","observable_activity_analysis","source_freshness","cost_slippage_calibration","liquidity_capacity","corporate_action_point_in_time","leakage_point_in_time","survivorship_precommitted_universe","walk_forward_holdout_power","dependence_aware_bootstrap","ablation_replication","regime_stability","multiple_testing_search_family","baseline_comparison","economic_signal_qualification_decision","capital_deployment_safety"]
+          ALLOWED={"candidate_manifest.json","ACCEPTANCE_CONTRACT.json","windows_build_evidence.json",
+                   "exact_exe_evidence.json","gui_click_evidence.json"}|set(EXPECTED_EXES)
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self,*args,**kwargs):return None
+          opener=urllib.request.build_opener(NoRedirect)
+          def api(path):
+              return urllib.request.Request("https://api.github.com/repos/"+REPO+path,
+                 headers={"Authorization":"Bearer "+os.environ["DIAG_GITHUB_TOKEN"],
+                          "Accept":"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28"})
+          def completion(manifest,key,names):
+              obj=manifest[key];gates=obj["gate_statuses"]
+              assert set(gates)==set(names)
+              assert all(gates[n] in {"PASS","FAIL","BLOCKED","NOT VERIFIED"} for n in names)
+              passed=sum(gates[n]=="PASS" for n in names)
+              assert obj["passed"]==passed and obj["required"]==len(names)
+              assert obj["percent"]==round(100*passed/len(names),1)
+              return {"passed":passed,"required":len(names),"percent":obj["percent"],
+                      "gate_statuses":{n:gates[n] for n in names}}
+          try:
+              with opener.open(api("/actions/artifacts/"+str(ARTIFACT)),timeout=30) as response:
+                  metadata=json.load(response)
+              assert not metadata["expired"] and metadata["workflow_run"]["head_sha"]==HEAD
+              assert metadata["workflow_run"]["id"]==RUN and metadata["digest"]=="sha256:"+ZIP_SHA
+              assert metadata["size_in_bytes"]==30256312
+              try:
+                  opener.open(api("/actions/artifacts/"+str(ARTIFACT)+"/zip"),timeout=30)
+                  raise AssertionError("expected signed-storage redirect")
+              except urllib.error.HTTPError as redirect:
+                  assert redirect.code in (301,302,303,307,308)
+                  location=redirect.headers["Location"]
+              parsed=urllib.parse.urlsplit(location)
+              assert parsed.scheme=="https" and (parsed.hostname.endswith(".blob.core.windows.net") or
+                  parsed.hostname.endswith(".githubusercontent.com"))
+              with tempfile.TemporaryFile() as archive:
+                  size=0;whole=hashlib.sha256()
+                  # Never forward the repository authorization header to signed storage.
+                  with urllib.request.urlopen(urllib.request.Request(location),timeout=60) as response:
+                      while True:
+                          chunk=response.read(1048576)
+                          if not chunk:break
+                          size+=len(chunk);assert size<=40000000
+                          whole.update(chunk);archive.write(chunk)
+                  assert size==metadata["size_in_bytes"] and whole.hexdigest()==ZIP_SHA
+                  archive.seek(0);objects={};hashes={};exe_receipts={};seen=set()
+                  with zipfile.ZipFile(archive) as zipped:
+                      for entry in zipped.infolist():
+                          name=PurePosixPath(entry.filename).name
+                          if name not in ALLOWED:continue
+                          assert name not in seen;seen.add(name)
+                          if name in EXPECTED_EXES:
+                              assert 0<entry.file_size<100000000
+                              actual=hashlib.sha256();count=0
+                              with zipped.open(entry) as stream:
+                                  while True:
+                                      chunk=stream.read(1048576)
+                                      if not chunk:break
+                                      count+=len(chunk);assert count<=100000000;actual.update(chunk)
+                              assert count==entry.file_size and actual.hexdigest()==EXPECTED_EXES[name]
+                              exe_receipts[name]={"bytes":count,"sha256":actual.hexdigest()}
+                          else:
+                              assert entry.file_size<=2000000
+                              raw=zipped.read(entry);hashes[name]=hashlib.sha256(raw).hexdigest()
+                              objects[name]=json.loads(raw.decode("utf-8-sig"))
+                              if name=="ACCEPTANCE_CONTRACT.json":
+                                  assert hashes[name]==EXPECTED_CONTRACT
+                                  # Windows Git checkout uses CRLF; bind semantics to exact Git LF bytes too.
+                                  assert hashlib.sha256(raw.replace(b"\r\n",b"\n")).hexdigest()==GIT_CONTRACT_LF
+                  assert seen==ALLOWED
+              candidate=objects["candidate_manifest.json"]
+              assert candidate["source_sha"]==HEAD and str(candidate["workflow_run_id"])==str(RUN)
+              assert candidate["main_sha256"]==EXPECTED_EXES["RealMoneyFinance.exe"]
+              assert candidate["updater_sha256"]==EXPECTED_EXES["RealMoneyFinanceUpdater.exe"]
+              assert candidate["acceptance_contract_sha256"]==hashes["ACCEPTANCE_CONTRACT.json"]
+              assert candidate["final_gate"]=="FAIL" and candidate["delivery_allowed"] is False
+              assert candidate["capital_deployment_ready"] is False
+              acceptance=objects["ACCEPTANCE_CONTRACT.json"]
+              assert acceptance["engineering_required"]==ENGINEERING and acceptance["business_required"]==BUSINESS
+              build=objects["windows_build_evidence.json"];exact=objects["exact_exe_evidence.json"]
+              assert build["source_sha"]==HEAD and exact["source_sha"]==HEAD
+              assert build["main_sha256"]==EXPECTED_EXES["RealMoneyFinance.exe"]
+              assert build["updater_sha256"]==EXPECTED_EXES["RealMoneyFinanceUpdater.exe"]
+              health=exact["health"]
+              assert health["source_sha"]==HEAD and health["exe_sha256"]==EXPECTED_EXES["RealMoneyFinance.exe"]
+              for key in ("exe_sha256_before","exe_sha256_after"):
+                  assert exact[key]==EXPECTED_EXES["RealMoneyFinance.exe"]
+                  assert objects["gui_click_evidence.json"][key]==EXPECTED_EXES["RealMoneyFinance.exe"]
+              receipt={"scope":"current candidate artifact redownload only","artifact_id":ARTIFACT,
+                 "artifact_run_id":RUN,"source_sha":HEAD,"artifact_zip_bytes":size,"artifact_zip_sha256":ZIP_SHA,
+                 "exe_bytes":exe_receipts,"acceptance_current_head":"PASS",
+                 "acceptance_contract_sha256":hashes["ACCEPTANCE_CONTRACT.json"],
+                 "git_contract_normalized_sha256":GIT_CONTRACT_LF,
+                 "candidate_manifest_sha256":hashes["candidate_manifest.json"],
+                 "engineering_completion":completion(candidate,"engineering_completion",ENGINEERING),
+                 "business_completion":completion(candidate,"business_completion",BUSINESS),
+                 "candidate_artifact_redownload_same_hash":"PASS",
+                 "formal_release_redownload_same_hash":"NOT VERIFIED","final_gate":"FAIL",
+                 "delivery_allowed":False,"capital_deployment_ready":False}
+              print(json.dumps(receipt,sort_keys=True))
+          except Exception as exc:
+              print(json.dumps({"candidate_artifact_redownload_same_hash":"FAIL","error_type":type(exc).__name__,
+                                "formal_release_redownload_same_hash":"NOT VERIFIED","final_gate":"FAIL"}))
+              raise SystemExit(2)
+          
+          PY
+
