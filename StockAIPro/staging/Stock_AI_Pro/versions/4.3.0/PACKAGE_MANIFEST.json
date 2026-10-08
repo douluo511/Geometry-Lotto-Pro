@@ -76,6 +76,6 @@
     "tests/universe_parser_test.py": "847d674af0a66acea40bb018a53fab89d51b988cab41d9d7300a94e895bd1be7",
     "VERSION": "328fc98df37ff4f37f53e1566d36d10b40f1a5855ba27fa0dc652d43f2a4c433",
     "stock_ai/netclient.py": "c9d6acc6324a06c69089e1e525057472a4ec0ff35f0414b3f0e772b96f2ce0e8",
-    "stock_ai/historical_pit.py": "d69c08a80bbbb95f9dbacc1d6aeb8e2b74ad86e1dcc8ca95bc066d7a147adb4b"
+    "stock_ai/historical_pit.py": "98fd7a4fff3a23c10e079a00a46eff79469a572af9e5f79bd39aed5b94b0145d"
   }
 }
