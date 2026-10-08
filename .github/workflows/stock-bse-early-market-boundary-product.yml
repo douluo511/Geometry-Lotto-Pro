@@ -60,7 +60,11 @@ jobs:
           projected=inner_text.replace('"stock_ai/historical_pit.py": "'+old+'"',
               '"stock_ai/historical_pit.py": "'+current+'"')
           if projected==inner_text and current!=old:
-              raise RuntimeError("expected old nested hash missing")
+              # After the candidate manifest has been explicitly committed,
+              # verify it already binds the changed source rather than
+              # demanding the obsolete previous manifest entry.
+              if '"stock_ai/historical_pit.py": "'+current+'"' not in inner_text:
+                  raise RuntimeError("staging manifest neither old nor re-bound")
           projected_hash=H(projected.encode("utf-8"))
           print("STOCK_STAGED_CODE_SHA256="+current)
           print("STOCK_STAGED_NESTED_MANIFEST_AFTER_PROPOSED_UPDATE_SHA256="+projected_hash)
