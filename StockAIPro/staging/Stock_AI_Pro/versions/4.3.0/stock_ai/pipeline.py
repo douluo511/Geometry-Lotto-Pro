@@ -17,6 +17,7 @@ from .valuation import refresh_valuation_histories
 from .decision import decide
 from .historical_pit import evaluate_historical_st_pit
 from .rnd import build_shadow_frame, run_rnd_cycle
+from .completed_session import require_exact_completed_asof, CompletedSessionUnavailable
 
 def _checkpoint(phase, logger, status="RUNNING"):
     write_json(ROOT/"state"/"daily_progress.json", {"phase":phase,"status":status,"updated_at":now_iso()})
@@ -70,6 +71,23 @@ def _enforce_pit_trade_gate(decision, pit_status, pit_reason):
     return guarded
 
 
+def _completed_production_histories(histories, expected, master=None):
+    """Current production inputs need the exact completed day; explicit delisted history may end earlier."""
+    statuses = dict(zip(master["code"].astype(str), master["status"].astype(str))) if master is not None and "status" in master else {}
+    accepted = {}
+    for code, frame in histories.items():
+        try:
+            latest = pd.to_datetime(frame["date"]).max().strftime("%Y-%m-%d")
+            if statuses.get(str(code)) != "delisted":
+                require_exact_completed_asof(latest, expected)
+            elif latest > expected:
+                raise CompletedSessionUnavailable("delisted history exceeds completed session")
+            accepted[code] = frame
+        except Exception:
+            continue
+    return accepted
+
+
 def _run_locked(cfg,logger,force,run_maintenance):
     logger.info("=== Stock AI Pro 4.3 每日闭环开始 ===")
     _checkpoint("full_universe",logger)
@@ -85,16 +103,18 @@ def _run_locked(cfg,logger,force,run_maintenance):
     expected=fetch_expected_trade_date(logger); upd["expected_trade_date"]=expected; write_json(ROOT/"cache"/"last_update_status.json",upd)
     ratio=upd["ok"]/max(1,upd["total"])
     if ratio<float(cfg["safety"].get("min_live_update_ratio",.7)): raise RuntimeError(f"有效行情更新比例过低 {ratio:.1%}，停止生成新预测")
-    if expected and upd.get("latest_date") and pd.Timestamp(upd["latest_date"])<pd.Timestamp(expected): raise RuntimeError(f"个股历史数据过期：最新={upd['latest_date']}，市场基准最新交易日={expected}。停止新预测并保留旧结果。")
+    require_exact_completed_asof(upd.get("latest_date"), expected)
     _checkpoint("research_bootstrap",logger)
     bootstrap=bootstrap_research_pool(master,cfg,snapshot["code"].tolist(),logger)
-    live_hist=load_histories(snapshot["code"].tolist()); live_quality=inspect_histories(live_hist)
+    live_hist=load_histories(snapshot["code"].tolist()); live_quality=inspect_histories(live_hist, expected_trade_date=expected)
     if live_quality["good_ratio"]<.7 and cfg["safety"].get("abort_on_low_data_quality",True): raise RuntimeError(f"实时候选历史质量不足 good_ratio={live_quality['good_ratio']:.1%}")
+    live_hist=_completed_production_histories(live_hist,expected)
     _checkpoint("feature_dataset",logger)
-    all_hist=load_histories(); training_hist=select_training_histories(all_hist,snapshot["code"].tolist(),master,cfg); extra_count=max(0,len(training_hist)-len(live_hist))
+    all_hist=_completed_production_histories(load_histories(),expected,master); training_hist=select_training_histories(all_hist,snapshot["code"].tolist(),master,cfg); extra_count=max(0,len(training_hist)-len(live_hist))
     h=int(cfg["model"]["horizon_days"]); train_ds=build_dataset(training_hist,h,int(cfg["model"]["min_history_days"])); live_ds=build_dataset(live_hist,h,int(cfg["model"]["min_history_days"]))
     if train_ds.empty or live_ds.empty: raise RuntimeError("训练数据或实时候选特征为空")
     asof_dt=pd.to_datetime(live_ds["date"]).max(); asof=asof_dt.strftime("%Y-%m-%d"); current=live_ds[live_ds["date"]==asof_dt].drop_duplicates("code",keep="last").copy()
+    require_exact_completed_asof(asof, expected)
     target=cfg["model"].get("target","target_excess"); train_all=train_ds[train_ds[target].notna()].copy()
     max_rows=int(cfg["model"].get("max_train_rows",180000))
     _checkpoint("ensemble_training",logger)
@@ -147,7 +167,9 @@ def run(force=False,run_maintenance=True):
     try:
         with process_lock(ROOT/"state"/"daily.lock",cfg["safety"].get("stale_lock_hours",4)): return _run_locked(cfg,logger,force,run_maintenance)
     except Exception as e:
-        if "已有流程正在运行" not in str(e): write_json(ROOT/"state"/"last_run.json",{"status":"FAIL","failed_at":now_iso(),"error":str(e)}); logger.exception("每日闭环失败: %s",e)
+        if isinstance(e,CompletedSessionUnavailable):
+            write_json(ROOT/"state"/"last_run.json",{"status":"BLOCKED","execution_status":"NOT VERIFIED","business_status":"NOT VERIFIED","failed_at":now_iso(),"error":str(e),"decision":{"decision":"NO_TRADE","reasons":[str(e)]}}); logger.warning("完成交易日未验证，禁止新预测: %s",e)
+        elif "已有流程正在运行" not in str(e): write_json(ROOT/"state"/"last_run.json",{"status":"FAIL","failed_at":now_iso(),"error":str(e)}); logger.exception("每日闭环失败: %s",e)
         else: logger.warning("跳过重复启动: %s",e)
         raise
     finally:

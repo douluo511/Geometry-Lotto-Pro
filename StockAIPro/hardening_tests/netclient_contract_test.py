@@ -1,4 +1,5 @@
 from __future__ import annotations
+from datetime import datetime, timezone
 import inspect
 import json
 import os
@@ -166,7 +167,7 @@ def run():
             def fallback(*args, **kwargs):
                 history_calls["fallback"] += 1
                 return data_source_mod.pd.DataFrame([{
-                    "date": data_source_mod.pd.Timestamp("2026-10-03"),
+                    "date": data_source_mod.pd.Timestamp("2026-09-24"),
                     "code": "000001",
                     "close": 10.0,
                     "provider": "tencent",
@@ -183,7 +184,13 @@ def run():
                     "retry_backoff_seconds": 0.8,
                 },
             }
-            got = data_source_mod.update_symbol_history("000001", history_cfg)
+            class HistoryFixtureClock:
+                @staticmethod
+                def now(tz=None):
+                    instant = datetime(2026,9,24,10,0,tzinfo=timezone.utc)
+                    return instant.astimezone(tz) if tz is not None else instant.replace(tzinfo=None)
+            with patch.object(data_source_mod, "datetime", HistoryFixtureClock):
+                got = data_source_mod.update_symbol_history("000001", history_cfg)
             assert not got.empty and got.iloc[-1]["provider"] == "tencent"
             assert history_calls == {"primary": 1, "fallback": 1}, history_calls
         finally:

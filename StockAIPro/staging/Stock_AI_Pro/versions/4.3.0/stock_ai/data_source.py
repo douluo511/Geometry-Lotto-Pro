@@ -1,6 +1,8 @@
 
 from __future__ import annotations
-from datetime import datetime
+from datetime import datetime, timezone
+from .completed_session import (CHINA_STANDARD_TIME, completed_session_context,
+    market_for_code, select_completed_daily_frame, validated_daily_dates)
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import math
 import re
@@ -306,7 +308,7 @@ def _normalize_hist(df: pd.DataFrame, code: str, adjust_mode: str, provider: str
     if "date" not in x or "close" not in x:
         raise RuntimeError(f"{code} 历史行情字段异常 ({provider})")
 
-    x["date"] = pd.to_datetime(x["date"], errors="coerce")
+    x["date"] = validated_daily_dates(x["date"])
     x["code"] = code
     x["adjust_mode"] = adjust_mode or "none"
     x["provider"] = provider
@@ -324,12 +326,13 @@ def _normalize_hist(df: pd.DataFrame, code: str, adjust_mode: str, provider: str
     ] if c in x]
     x = (
         x[keep]
-        .dropna(subset=["date","close"])
-        .drop_duplicates("date")
         .sort_values("date")
     )
     if x.empty:
         raise RuntimeError(f"{code} 历史行情为空")
+    numeric = x[[c for c in ("open","close","high","low","volume","amount","turnover_rate") if c in x]]
+    if not np.isfinite(numeric.to_numpy(dtype=float)).all():
+        raise RuntimeError(f"{code} 历史行情存在非有限数值")
     if (x["close"] <= 0).any():
         raise RuntimeError(f"{code} 历史价格出现非正值")
     if "amount" in x and (x["amount"].dropna() < 0).any():
@@ -474,7 +477,7 @@ class _HistorySourceHealth:
             }
 
 
-def update_symbol_history(code: str, cfg: dict, logger=None, provider=None, source_health=None) -> pd.DataFrame:
+def update_symbol_history(code: str, cfg: dict, logger=None, provider=None, source_health=None, require_latest=True) -> pd.DataFrame:
     ak = provider if provider is not None else _ak()
     out = ROOT / "data" / "history" / f"{code}.csv"
     adjust = str(cfg["universe"].get("history_adjust","hfq"))
@@ -494,8 +497,12 @@ def update_symbol_history(code: str, cfg: dict, logger=None, provider=None, sour
         except Exception:
             old = pd.DataFrame()
 
-    end = datetime.now().strftime("%Y%m%d")
+    completion_time = datetime.now(timezone.utc)
+    market = market_for_code(code)
+    completed_session_context(completion_time, markets=(market,))
+    end = completion_time.astimezone(CHINA_STANDARD_TIME).strftime("%Y%m%d")
     new = None
+    completion_receipt = None
     errs = []
     nc = cfg.get("network", {}) or {}
     timeout = float(nc.get("timeout_seconds",15))
@@ -504,11 +511,14 @@ def update_symbol_history(code: str, cfg: dict, logger=None, provider=None, sour
     if primary_allowed:
         try:
             new = _fetch_history_primary(ak, code, start, end, adjust, timeout=timeout)
+            new, completion_receipt = select_completed_daily_frame(new, market=market,
+                now=completion_time, require_latest=require_latest)
             if source_health is not None:
                 source_health.record_primary_success()
         except Exception as e:
             if source_health is not None:
                 source_health.record_primary_failure(e)
+            new = None
             errs.append(f"_fetch_history_primary: {e}")
     else:
         errs.append("_fetch_history_primary: batch circuit open after repeated transient transport failures")
@@ -518,7 +528,10 @@ def update_symbol_history(code: str, cfg: dict, logger=None, provider=None, sour
         # owns its normal bounded retry/timeout policy.
         try:
             new = _fetch_history_fallback(ak, code, start, end, adjust, timeout=timeout)
+            new, completion_receipt = select_completed_daily_frame(new, market=market,
+                now=completion_time, require_latest=require_latest)
         except Exception as e:
+            new = None
             errs.append(f"_fetch_history_fallback: {e}")
 
     if new is None:
@@ -535,6 +548,13 @@ def update_symbol_history(code: str, cfg: dict, logger=None, provider=None, sour
         new["date"] = pd.to_datetime(new["date"])
         new = new.drop_duplicates("date", keep="last").sort_values("date")
 
+    new, final_completion = select_completed_daily_frame(new, market=market,
+        now=completion_time, require_latest=require_latest)
+    write_json(ROOT / "evidence" / "history_completed_sessions" / f"{code}.json", {
+        "status": "PASS", "code": code, "lifecycle_scope": "current" if require_latest else "explicit_delisted",
+        "live_freshness": "PASS" if require_latest else "NOT VERIFIED",
+        "source_selection": completion_receipt, "canonical_selection": final_completion,
+    })
     # Canonical file is always schema v3 from this write forward.
     new["schema_version"] = 3
     tmp = out.with_suffix(".csv.tmp")
@@ -543,42 +563,41 @@ def update_symbol_history(code: str, cfg: dict, logger=None, provider=None, sour
     return new
 
 def fetch_expected_trade_date(logger=None):
-    """
-    Latest completed A-share trading date from Shanghai Composite index.
-    Main source: Eastmoney; fallback: Tencent.
-    Returns date string or None if both benchmark sources fail.
-    """
+    """Return a completed date only after official three-market oracle + live index agree."""
+    current = datetime.now(timezone.utc)
+    try:
+        oracle = completed_session_context(current)
+    except Exception as exc:
+        write_json(ROOT / "evidence" / "completed_session_oracle.json",
+                   {"status": "NOT VERIFIED", "reason": str(exc), "scope": "daily completion"})
+        if logger: logger.warning("完成交易日oracle未验证，禁止新预测: %s", exc)
+        return None
     ak = _ak()
-    end = datetime.now().strftime("%Y%m%d")
-    start = (datetime.now() - pd.Timedelta(days=45)).strftime("%Y%m%d")
+    end = current.astimezone(CHINA_STANDARD_TIME).strftime("%Y%m%d")
+    start = (current - pd.Timedelta(days=45)).strftime("%Y%m%d")
     errors = []
-    try:
-        idx = ak.stock_zh_index_daily_em(
-            symbol="sh000001", start_date=start, end_date=end
-        )
-        if idx is not None and not idx.empty:
-            col = "date" if "date" in idx.columns else idx.columns[0]
-            return pd.to_datetime(idx[col], errors="coerce").dropna().max().strftime("%Y-%m-%d")
-    except Exception as e:
-        errors.append(f"eastmoney_index: {e}")
-        if logger:
-            logger.warning("交易日基准东财失败，尝试腾讯: %s", e)
-
-    try:
-        idx = ak.stock_zh_index_daily_tx(
-            symbol="sh000001", start_date=start, end_date=end
-        )
-        if idx is not None and not idx.empty:
-            col = "date" if "date" in idx.columns else idx.columns[0]
-            return pd.to_datetime(idx[col], errors="coerce").dropna().max().strftime("%Y-%m-%d")
-    except Exception as e:
-        errors.append(f"tencent_index: {e}")
-
-    if logger:
-        logger.warning("交易日基准主备源均失败，跳过新鲜度硬门禁: %s", " | ".join(errors))
+    for provider, operation in (("eastmoney", "stock_zh_index_daily_em"), ("tencent", "stock_zh_index_daily_tx")):
+        try:
+            idx = getattr(ak, operation)(symbol="sh000001", start_date=start, end_date=end)
+            if idx is None or idx.empty:
+                raise ValueError("benchmark source is empty")
+            column = "date" if "date" in idx.columns else idx.columns[0]
+            accepted, selection = select_completed_daily_frame(
+                idx, market="SSE", now=current, require_latest=True, date_column=column)
+            latest = accepted[column].max().strftime("%Y-%m-%d")
+            if latest != oracle["expected_completed_session"]:
+                raise ValueError("benchmark completed date differs from three-market oracle")
+            write_json(ROOT / "evidence" / "completed_session_oracle.json",
+                {**oracle, "benchmark_provider": provider, "benchmark_selection": selection})
+            return latest
+        except Exception as exc:
+            errors.append(provider + ": " + str(exc))
+    write_json(ROOT / "evidence" / "completed_session_oracle.json",
+        {**oracle, "status": "NOT VERIFIED", "benchmark_errors": errors})
+    if logger: logger.warning("完成交易日基准主备均未验证，禁止新预测: %s", " | ".join(errors))
     return None
 
-def _run_history_batch(codes, cfg: dict, phase: str, logger=None):
+def _run_history_batch(codes, cfg: dict, phase: str, logger=None, lifecycle=None):
     # Keep the production universe and historical date range intact. A small
     # worker bound overlaps provider I/O rather than reducing the workload.
     codes = list(dict.fromkeys(map(str, codes)))
@@ -607,7 +626,8 @@ def _run_history_batch(codes, cfg: dict, phase: str, logger=None):
 
     def fetch(code):
         try:
-            return update_symbol_history(code, cfg, logger, provider=ak, source_health=source_health)
+            return update_symbol_history(code, cfg, logger, provider=ak, source_health=source_health,
+                require_latest=(lifecycle or {}).get(code, 'current') != 'delisted')
         finally:
             time.sleep(float((cfg.get("network", {}) or {}).get("request_delay_seconds", 0.12)))
 
@@ -662,7 +682,7 @@ def bootstrap_research_pool(master: pd.DataFrame, cfg: dict, live_codes=None, lo
     m["code"] = m["code"].astype(str)
 
     max_symbols = int(cfg["universe"].get("bootstrap_max_symbols", 0))
-    existing = _validated_history_codes(set(m["code"]), cfg)
+    existing = _validated_history_codes(set(m["code"]), cfg, _master_lifecycle(m))
     download_master = m.head(max_symbols) if max_symbols > 0 else m
 
     live = set(map(str, live_codes or []))
@@ -680,17 +700,17 @@ def bootstrap_research_pool(master: pd.DataFrame, cfg: dict, live_codes=None, lo
         queue += leftovers[:batch-len(queue)]
 
     downloaded, failed = 0, []
-    for code, _, error in _run_history_batch(queue, cfg, "bootstrap_history", logger):
+    for code, _, error in _run_history_batch(queue, cfg, "bootstrap_history", logger, lifecycle=_master_lifecycle(m)):
         if error is None:
             persisted = folder / f"{code}.csv"
-            if _history_cache_entry_valid(persisted, code, cfg):
+            if _history_cache_entry_valid(persisted, code, cfg, lifecycle=_master_lifecycle(m).get(code, "current")):
                 downloaded += 1
             else:
                 failed.append({"code": code, "error": "persisted canonical history failed validation"})
         else:
             failed.append({"code":code,"error":error})
 
-    existing_after = _validated_history_codes(set(m["code"]), cfg)
+    existing_after = _validated_history_codes(set(m["code"]), cfg, _master_lifecycle(m))
     all_codes = set(m["code"])
     current_codes = set(m.loc[m["status"]=="current","code"]) if "status" in m else all_codes
     delisted_codes = set(m.loc[m["status"]=="delisted","code"]) if "status" in m else set()
@@ -713,7 +733,7 @@ def bootstrap_research_pool(master: pd.DataFrame, cfg: dict, live_codes=None, lo
     return status
 
 
-def _history_cache_entry_valid(path: Path, code: str, cfg: dict | None = None) -> bool:
+def _history_cache_entry_valid(path: Path, code: str, cfg: dict | None = None, lifecycle='current') -> bool:
     """Count only canonical, model-ready persisted histories; never infer lineage."""
     try:
         cfg = cfg if cfg is not None else load_config()
@@ -725,12 +745,15 @@ def _history_cache_entry_valid(path: Path, code: str, cfg: dict | None = None) -
         minimum = max(30, int(cfg.get("model", {}).get("min_history_days", 240)))
         if len(frame) < minimum or not required.issubset(frame.columns):
             return False
+        selected, _completion = select_completed_daily_frame(frame, market=market_for_code(code),
+            now=datetime.now(timezone.utc), require_latest=lifecycle != "delisted")
+        if len(selected) != len(frame):
+            return False
         dates = pd.to_datetime(frame["date"], errors="coerce")
         if (
             dates.isna().any() or dates.duplicated().any()
             or not dates.is_monotonic_increasing
             or not dates.eq(dates.dt.normalize()).all()
-            or dates.dt.date.gt(datetime.now().date()).any()
         ):
             return False
         symbols = frame["code"]
@@ -762,14 +785,19 @@ def _history_cache_entry_valid(path: Path, code: str, cfg: dict | None = None) -
     except Exception:
         return False
 
-def _validated_history_codes(target_codes: set[str], cfg: dict | None = None) -> set[str]:
+def _master_lifecycle(master: pd.DataFrame) -> dict:
+    """Only explicit current master status permits the historical delisted exception."""
+    return {str(row["code"]): "delisted" if row.get("status") == "delisted" else "current"
+            for row in master.to_dict("records")}
+
+def _validated_history_codes(target_codes: set[str], cfg: dict | None = None, lifecycle=None) -> set[str]:
     folder = ROOT / "data" / "history"
     valid: set[str] = set()
     if not folder.is_dir():
         return valid
     for path in folder.glob("*.csv"):
         code = str(path.stem)
-        if code in target_codes and _history_cache_entry_valid(path, code, cfg):
+        if code in target_codes and _history_cache_entry_valid(path, code, cfg, lifecycle=(lifecycle or {}).get(code, 'current')):
             valid.add(code)
     return valid
 
@@ -784,7 +812,7 @@ def _research_coverage_snapshot(
     existing = (
         set(validated_existing) & all_codes
         if validated_existing is not None
-        else _validated_history_codes(all_codes, cfg)
+        else _validated_history_codes(all_codes, cfg, _master_lifecycle(m))
     )
     if "status" in m:
         current_codes = set(m.loc[m["status"] == "current", "code"])
@@ -837,10 +865,15 @@ def qualify_research_pool_coverage(master: pd.DataFrame, cfg: dict, logger=None)
         60.0, float(cfg["universe"].get("qualification_bootstrap_max_seconds", 7200))
     )
     started = time.monotonic()
+    qualification_completed_date, completion_error = None, None
+    try:
+        qualification_completed_date = completed_session_context(datetime.now(timezone.utc))["expected_completed_session"]
+    except Exception as exc:
+        completion_error = str(exc)
     failed_once: set[str] = set()
     failures: list[dict] = []
     downloaded = 0
-    validated_existing = _validated_history_codes(set(m["code"]), cfg)
+    validated_existing = _validated_history_codes(set(m["code"]), cfg, _master_lifecycle(m))
 
     def persist(snapshot: dict, status: str) -> dict:
         clean = {k: v for k, v in snapshot.items() if not k.startswith("_")}
@@ -849,6 +882,8 @@ def qualify_research_pool_coverage(master: pd.DataFrame, cfg: dict, logger=None)
             "downloaded": downloaded,
             "failed": failures,
             "qualification_status": status,
+            "expected_completed_session": qualification_completed_date,
+            "completed_session_reason": completion_error,
             "qualification_target": target,
             "qualification_delisted_target": delisted_target,
             "qualification_failed_once_count": len(failed_once),
@@ -858,6 +893,9 @@ def qualify_research_pool_coverage(master: pd.DataFrame, cfg: dict, logger=None)
         write_json(ROOT / "cache" / "bootstrap_status.json", clean)
         return clean
 
+    if completion_error is not None:
+        return persist(_research_coverage_snapshot(m, set()), "NOT VERIFIED")
+
     while True:
         snap = _research_coverage_snapshot(m, validated_existing)
         if (
@@ -865,6 +903,14 @@ def qualify_research_pool_coverage(master: pd.DataFrame, cfg: dict, logger=None)
             and (not snap["current_target"] or snap["current_coverage"] >= target)
             and snap["delisted_coverage"] >= delisted_target
         ):
+            try:
+                current_completed_date = completed_session_context(datetime.now(timezone.utc))["expected_completed_session"]
+            except Exception as exc:
+                completion_error = str(exc)
+                return persist(snap, "NOT VERIFIED")
+            if current_completed_date != qualification_completed_date:
+                completion_error = "completed session changed during qualification; revalidation required"
+                return persist(snap, "NOT VERIFIED")
             return persist(snap, "PASS")
         if time.monotonic() - started >= max_seconds:
             return persist(snap, "NOT VERIFIED")
@@ -903,11 +949,11 @@ def qualify_research_pool_coverage(master: pd.DataFrame, cfg: dict, logger=None)
 
         before = snap["covered_symbols"]
         for code, _, error in _run_history_batch(
-            selected, cfg, "qualification_history", logger
+            selected, cfg, "qualification_history", logger, lifecycle=_master_lifecycle(m)
         ):
             if error is None:
                 persisted = ROOT / "data" / "history" / f"{code}.csv"
-                if _history_cache_entry_valid(persisted, code, cfg):
+                if _history_cache_entry_valid(persisted, code, cfg, lifecycle=_master_lifecycle(m).get(code, "current")):
                     validated_existing.add(code)
                     downloaded += 1
                 else:
@@ -937,6 +983,10 @@ def load_histories(codes=None) -> dict[str,pd.DataFrame]:
         try:
             df = pd.read_csv(p, parse_dates=["date"], dtype={"code":str})
             df = _upgrade_legacy_history(df)
+            # Historical consumers may use older realized delisted data, but
+            # never a malformed/future/unfinished daily session.
+            df, _completion = select_completed_daily_frame(df, market=market_for_code(p.stem),
+                now=datetime.now(timezone.utc), require_latest=False)
             if len(df) >= 30 and (pd.to_numeric(df["close"], errors="coerce") > 0).all():
                 out[p.stem] = df.sort_values("date")
         except Exception:

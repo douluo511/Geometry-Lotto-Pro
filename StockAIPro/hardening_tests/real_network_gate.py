@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import sys
 import traceback
+import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA_ROOT = ROOT / "_real_network_gate_data"
@@ -21,6 +22,7 @@ from stock_ai.data_source import (
     update_symbol_history,
 )
 from stock_ai.features import build_dataset
+from stock_ai.completed_session import require_exact_completed_asof
 
 
 def sha256(path: Path) -> str:
@@ -69,8 +71,10 @@ def main() -> int:
             raise RuntimeError("canonical history file was not committed")
 
         expected_trade_date = fetch_expected_trade_date()
-        quality = inspect_histories({code: hist})
-        if float(quality.get("good_ratio", 0)) <= 0:
+        actual_completed_date = pd.to_datetime(hist["date"]).max().strftime("%Y-%m-%d")
+        require_exact_completed_asof(actual_completed_date, expected_trade_date)
+        quality = inspect_histories({code: hist}, expected_trade_date=expected_trade_date)
+        if float(quality.get("good_ratio", 0)) <= 0 or quality.get("completed_session_qualification") != "PASS":
             raise RuntimeError(f"data quality failed: {quality}")
 
         features = build_dataset(
@@ -111,6 +115,8 @@ def main() -> int:
             "history_rows": int(len(hist)),
             "feature_rows": int(len(features)),
             "expected_trade_date": expected_trade_date,
+            "actual_completed_date": actual_completed_date,
+            "completed_session_qualification": quality["completed_session_qualification"],
             "canonical_snapshot_sha256": sha256(canonical_snapshot),
             "canonical_history_sha256": sha256(hist_file),
             "feature_sha256": sha256(feature_file),

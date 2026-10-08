@@ -1,8 +1,8 @@
 {
   "product": "Stock AI Pro Core",
   "version": "4.3.0-deliverable",
-  "generated_at": "2026-10-05T20:40:20+00:00",
-  "file_count": 73,
+  "generated_at": "2026-10-08T14:17:20+00:00",
+  "file_count": 74,
   "files": {
     "app.py": "218ac0702e4d55b5dc91fabeb79cfb3c4477b94c2ebb3d94c68092c6d33ebeeb",
     "BOOTSTRAP.ps1": "e63cb8bc21fd0b589bcb31dc9d4d121055f6383c2fe012a741605a811606a200",
@@ -38,14 +38,14 @@
     "stock_ai/backup.py": "e9ee152dbae61b34a0115c1c8927008d0455d2514f31411c12cf8b3da37198d8",
     "stock_ai/config.py": "301aee238332ce7387dcd04fe69a2235a2cef441a65aa886932d7794fed14d53",
     "stock_ai/cost.py": "84493b0c785c1cb0609a207a08adfd5560ebef08d155b2abedf0c32f15476755",
-    "stock_ai/data_quality.py": "ca7c73909c7c57358ce7553903ade216358a0270876171d4b1aa54c13f48c12f",
-    "stock_ai/data_source.py": "a3a384a32cf46775c1bb0308f86e10905a43c458fad19b4c73bff2c2b72d6bd1",
+    "stock_ai/data_quality.py": "dd540f0557b4a90776112c6d131c05a517301e1055e3da0f735a8c928133d1c7",
+    "stock_ai/data_source.py": "d183dda2669db9a99c25a58f8eac98adaeda093f750b54083bf2104835ec60d9",
     "stock_ai/decision.py": "e0d6bde0c4739116373efdcdce5a25c2907018e15bd8418c1c699bfc699ad4a3",
     "stock_ai/drift.py": "91e6df4296ee11fdfbcd7a7351dbde9a4e226c4b7b73b9a13b8e040a98717f66",
     "stock_ai/features.py": "0002477065fc72595719b4baa27c24885a4947b7cea8bd088637bcd9f8fa6b33",
     "stock_ai/maintenance.py": "bd5824ce32048873c7f200fb5a596ea8e5ddb5e2d19737ba31cefb7df432af91",
     "stock_ai/model.py": "dba1979c09647092f715fca0a3d750819c5371357126783f498c6d3281fe767a",
-    "stock_ai/pipeline.py": "20ca79f1c8651a2ccde5286c6d35bb584baf4db9a8fca19d16119d7040ff5ec9",
+    "stock_ai/pipeline.py": "d56f0816d5233dbe6e3dd2dae2c37d640749bb5d9f71ceb79dda705dbc730de5",
     "stock_ai/regime.py": "c8194f0142531fb646c90da5625d631759ee1a760a88c5037e33acffe5920da5",
     "stock_ai/rnd.py": "4c8639a535e69c2267bbbb9dcbcd4b068bc8d3d6956c810bca41dc7711bf187d",
     "stock_ai/scoring.py": "7eb1436dd834713f8e5434a11b33e475c0b501067aaf72922c254a0a112baa7a",
@@ -76,6 +76,7 @@
     "tests/universe_parser_test.py": "847d674af0a66acea40bb018a53fab89d51b988cab41d9d7300a94e895bd1be7",
     "VERSION": "328fc98df37ff4f37f53e1566d36d10b40f1a5855ba27fa0dc652d43f2a4c433",
     "stock_ai/netclient.py": "c9d6acc6324a06c69089e1e525057472a4ec0ff35f0414b3f0e772b96f2ce0e8",
-    "stock_ai/historical_pit.py": "40284442cd9885908fb33ea2c7770b9c684b40b0f0dbe479e01011979a22483d"
+    "stock_ai/historical_pit.py": "40284442cd9885908fb33ea2c7770b9c684b40b0f0dbe479e01011979a22483d",
+    "stock_ai/completed_session.py": "d0b79559475eab0c84e3ef2fbf0dab5daac8e8779c436acd9229b4672d5cd784"
   }
 }

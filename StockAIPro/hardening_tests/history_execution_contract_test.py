@@ -21,6 +21,21 @@ sys.path.insert(0, str(VERSION))
 from stock_ai.netclient import AkShareProxy, NetClientError
 from stock_ai import data_source
 
+# Explicit fixture clock: synthetic history methods are independent of today's
+# production oracle. Current fixtures end on the last completed fixture session.
+from datetime import datetime, timezone
+from stock_ai.completed_session import is_session
+
+FIXTURE_TIME = datetime(2026,9,24,10,0,tzinfo=timezone.utc)
+class FixtureClock:
+    @staticmethod
+    def now(tz=None):
+        return FIXTURE_TIME.astimezone(tz) if tz is not None else FIXTURE_TIME.replace(tzinfo=None)
+
+def fixture_dates(rows=240):
+    candidates = pd.bdate_range(end="2026-09-24", periods=rows+60)
+    return pd.DatetimeIndex([d for d in candidates if d.year != 2026 or is_session(d.date(),"SZSE")][-rows:])
+
 
 class Response:
     status_code = 200
@@ -149,7 +164,7 @@ def test_full_history_workload(folder):
                     first_wave.wait(timeout=5)
                 requests.get("https://example.invalid/fallback")
                 values = [9.0 + i * 0.01 for i in range(240)]
-                return pd.DataFrame({"date": pd.bdate_range("2024-01-02", periods=240),
+                return pd.DataFrame({"date": fixture_dates(),
                                      "close": values, "open": values,
                                      "high": [v + 0.1 for v in values], "low": [v - 0.1 for v in values],
                                      "volume": [100] * 240, "amount": [1000] * 240,
@@ -266,10 +281,10 @@ def test_qualification_bootstrap_reaches_frozen_coverage(folder):
         "status": ["current"] * 16 + ["delisted"] * 4,
     })
 
-    def fake_update(code, cfg, logger=None, provider=None, source_health=None):
+    def fake_update(code, cfg, logger=None, provider=None, source_health=None, require_latest=True):
         values = [9.0 + i * 0.01 for i in range(240)]
         frame = pd.DataFrame({
-            "date": pd.bdate_range("2024-01-02", periods=240),
+            "date": fixture_dates(),
             "close": values, "open": values, "code": [code] * 240, "adjust_mode": ["hfq"] * 240,
             "high": [x + 0.1 for x in values], "low": [x - 0.1 for x in values],
             "volume": [100] * 240, "amount": [1000] * 240,
@@ -307,7 +322,7 @@ def test_qualification_cache_counts_only_valid_histories(folder):
     )
     values = [10.0 + i * 0.01 for i in range(240)]
     pd.DataFrame({
-        "date": pd.bdate_range("2024-01-02", periods=240),
+        "date": fixture_dates(),
         "code": ["000002"] * 240,
         "open": values,
         "high": [x + 0.1 for x in values],
@@ -450,12 +465,13 @@ def test_prediction_freeze_fail_closed(folder):
     verify({"files": files}, "missing files")
 
 
-def main():
+def _run_contracts():
     with tempfile.TemporaryDirectory() as td:
         folder = Path(td)
         test_parallel_transport(folder)
         test_retry_classification(folder)
         test_full_history_workload(folder)
+        test_history_circuit_does_not_hide_nontransport_primary_failure(folder)
         test_qualification_bootstrap_reaches_frozen_coverage(folder)
         test_qualification_cache_counts_only_valid_histories(folder)
         test_qualification_bootstrap_fails_closed_when_sources_unavailable(folder)
@@ -464,6 +480,7 @@ def main():
         test_prediction_freeze_fail_closed(folder)
     report = {"schema": "stock-ai-history-execution-contract-v1", "status": "PASS",
               "scope": "simulated transport regression; does not certify real network, EXE or Final",
+              "fixture_clock": FIXTURE_TIME.isoformat(),
               "checks": ["four_requests_overlap_without_receipt_leakage", "unrelated_requests_use_original_transport",
                          "transport_restored_after_last_context", "none_and_oversized_timeout_bounded",
                          "only_transient_failures_retry", "single_retry_owner_three_attempts",
@@ -479,6 +496,11 @@ def main():
     (ROOT / "history_execution_contract_evidence.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(report))
     return 0
+
+
+def main():
+    with patch.object(data_source, "datetime", FixtureClock):
+        return _run_contracts()
 
 
 if __name__ == "__main__":

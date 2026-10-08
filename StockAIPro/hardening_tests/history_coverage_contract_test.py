@@ -13,13 +13,28 @@ VERSION = ROOT / "staging" / "Stock_AI_Pro" / "versions" / "4.3.0"
 sys.path.insert(0, str(VERSION))
 from stock_ai import data_source
 
+# Explicit fixture clock: synthetic history methods are independent of today's
+# production oracle. Current fixtures end on the last completed fixture session.
+from datetime import datetime, timezone
+from stock_ai.completed_session import is_session
+
+FIXTURE_TIME = datetime(2026,9,24,10,0,tzinfo=timezone.utc)
+class FixtureClock:
+    @staticmethod
+    def now(tz=None):
+        return FIXTURE_TIME.astimezone(tz) if tz is not None else FIXTURE_TIME.replace(tzinfo=None)
+
+def fixture_dates(rows=240):
+    candidates = pd.bdate_range(end="2026-09-24", periods=rows+60)
+    return pd.DatetimeIndex([d for d in candidates if d.year != 2026 or is_session(d.date(),"SZSE")][-rows:])
+
 CFG = json.loads((VERSION / "config.default.json").read_text(encoding="utf-8"))
 
 
 def canonical(code="000001", rows=240):
     prices = 10.0 + np.arange(rows) * 0.01
     return pd.DataFrame({
-        "date": pd.bdate_range("2024-01-02", periods=rows),
+        "date": fixture_dates(rows),
         "code": [code] * rows, "open": prices, "close": prices,
         "high": prices + 0.1, "low": prices - 0.1,
         "volume": [1000.0] * rows, "amount": [10000.0] * rows,
@@ -87,7 +102,7 @@ def independent_current_coverage(folder):
     assert status["qualification_status"] == "NOT VERIFIED", status
 
 
-def main():
+def _run_contracts():
     checks = []
     def run(name, action):
         try:
@@ -139,11 +154,17 @@ def main():
               "source_sha": __import__("os").environ.get("STOCK_SOURCE_SHA"),
               "status": "PASS" if all(x["status"] == "PASS" for x in checks) else "FAIL",
               "minimum_history_rows": CFG["model"]["min_history_days"],
+              "fixture_clock": FIXTURE_TIME.isoformat(),
               "scope": "synthetic negative controls; does not certify real network, EXE, GUI or Final",
               "checks": checks}
     (ROOT / "history_coverage_contract_evidence.json").write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(report, ensure_ascii=False))
     return 0 if report["status"] == "PASS" else 1
+
+
+def main():
+    with patch.object(data_source, "datetime", FixtureClock):
+        return _run_contracts()
 
 
 if __name__ == "__main__":
