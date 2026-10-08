@@ -102,6 +102,28 @@ class SSQProspectiveIntegrityTests(unittest.TestCase):
         self.assertNotEqual(old, changed)
         self.assertEqual(original, evidence_module.run_evidence_court)
 
+    def test_transitive_statistical_helper_change_invalidates_old_pass(self):
+        """Changing bootstrap code cannot inherit a previous positive court."""
+        from glp import evidence as evidence_module
+        old = LottoService._scientific_policy_hash()
+
+        def modified_bootstrap(*args, **kwargs):
+            return {"mean": 999, "lower95": 999, "upper95": 999, "n": 999}
+
+        with patch.object(evidence_module, "bootstrap_ci", modified_bootstrap):
+            self.assertNotEqual(old, LottoService._scientific_policy_hash())
+
+    def test_transitive_model_helper_change_invalidates_old_pass(self):
+        """Model helpers affect rankings although _court's entrypoint is unchanged."""
+        from glp import engine as engine_module
+        old = LottoService._scientific_policy_hash()
+
+        def modified_model(*args, **kwargs):
+            return {"model_hash": "invalid", "selector_hash": "invalid"}
+
+        with patch.object(engine_module, "model_identity", modified_model):
+            self.assertNotEqual(old, LottoService._scientific_policy_hash())
+
     def test_cached_zero_qualified_court_requires_matching_exact_policy(self):
         identity = model_identity()
         old = {
