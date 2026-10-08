@@ -42,6 +42,11 @@ def phase(day):
     assert len(dayrows)==248
     return [x for x in dayrows if x["official_notice_code_routing_asof"]=="EXCHANGE_ANNOUNCED_NEW_920_CODE_ROUTING"]
 assert len(phase("2024-04-22"))==0
+# A 2025 official list cannot be injected into a 2024 point-in-time backtest.
+early=[x for x in r["asof_issuer_code_routing_only"] if x["historical_query_day"]=="2024-04-22"]
+assert len(early)==248
+assert all(x["official_notice_code_routing_asof"]=="HISTORICAL_ALIAS_NOT_SOURCE_VERIFIED_ASOF"
+           for x in early), "2024 aliases are exposed by a later 2025/26 source"
 assert len(phase("2025-05-05"))==0
 assert len(phase("2025-05-06"))==6
 assert len(phase("2025-10-08"))==6
