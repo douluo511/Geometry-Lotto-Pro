@@ -1,0 +1,99 @@
+name: Stock SZSE actual effective-event PIT audit
+on:
+  push:
+    branches:
+      - diagnostic/stock-szse-effective-event-audit-20261008
+    paths:
+      - ".github/stock_diag/stock_szse_effective_event_audit.py"
+      - ".github/stock_diag/test_szse_effective_event_audit.py"
+      - ".github/workflows/stock-szse-effective-event-audit.yml"
+  pull_request:
+    paths:
+      - ".github/stock_diag/stock_szse_effective_event_audit.py"
+      - ".github/stock_diag/test_szse_effective_event_audit.py"
+      - ".github/workflows/stock-szse-effective-event-audit.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  effective-event-audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact diagnostic head without changing Stock product
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Verify Stock product byte identity with #329
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
+          git merge-base --is-ancestor 6a4424c01b589452310f4dce66f1c647c0890748 HEAD
+          git merge-base --is-ancestor 9969490c89ccb4cc10536f66416976c5bf40caef HEAD
+          test -z "$(git diff --name-only 9969490c89ccb4cc10536f66416976c5bf40caef..HEAD -- StockAIPro)"
+          echo "STOCK_PRODUCT_BYTE_IDENTITY=PASS"
+      - name: Setup pinned Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.11.9"
+          check-latest: false
+      - name: Run first-principles source and effective-date counterexamples
+        run: python .github/stock_diag/test_szse_effective_event_audit.py
+      - name: Retrieve immutable earlier 1849/1849 official-source corpus by exact digest
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          url="https://api.github.com/repos/${{ github.repository }}/actions/artifacts/11532256260/zip"
+          curl --fail --silent --show-error --location --retry 3 --retry-all-errors --connect-timeout 20 --max-time 120 \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            --header "Accept: application/vnd.github+json" \
+            "$url" --output frozen_source_artifact.zip
+          echo "89e065870802432a2c53585886f38479b3691785759604caae8ecb8526235593  frozen_source_artifact.zip" | sha256sum --check
+          unzip -oq frozen_source_artifact.zip
+          test -f stock_szse_suspension_detail_corpus.json
+          python - <<'PY'
+          import json
+          d=json.load(open("stock_szse_suspension_detail_corpus.json",encoding="utf-8"))
+          assert d["source_archive"]["event_rows"]==1849
+          assert d["summary"]["transport_pass"]==1849
+          assert d["summary"]["body_text_extracted"]==1849
+          assert d["adjudication"]["full_detail_page_transport"]=="PASS"
+          assert d["adjudication"]["full_detail_body_text"]=="PASS"
+          assert d["adjudication"]["full_historical_st_pit"]=="NOT VERIFIED"
+          print("PINNED_OLDER_1849_OFFICIAL_SOURCE=PASS; FULL_DAILY_PIT=NOT VERIFIED")
+          PY
+      - name: Classify actual first-party effective-date claims without synthesizing daily states
+        run: python .github/stock_diag/stock_szse_effective_event_audit.py stock_szse_suspension_detail_corpus.json
+      - name: Verify diagnostic-only fail-closed boundary
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f stock_szse_effective_event_audit.json
+          python - <<'PY'
+          import json
+          x=json.load(open("stock_szse_effective_event_audit.json",encoding="utf-8"))
+          assert x["source_frozen_denominator"]==1849
+          assert len(x["rows"])==1849
+          a=x["adjudication"]
+          assert a["source_record_denominator"]=="PASS"
+          assert a["historical_daily_st_suspension_pit_sse_szse_bse"]=="NOT VERIFIED"
+          assert a["advanced_business"]=="NOT VERIFIED"
+          assert a["final_gate"]=="FAIL"
+          assert all(row["qualified_daily_st_or_suspension"]=="NOT VERIFIED" for row in x["rows"])
+          print("SEMANTIC_SOURCE_DIAGNOSTIC=PASS; THREE_MARKET_DAILY_PIT=NOT VERIFIED; FINAL_GATE=FAIL")
+          PY
+      - name: Upload audit evidence and input digest
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: STOCK-SZSE-EFFECTIVE-EVENT-DIAGNOSTIC-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            stock_szse_effective_event_audit.json
+          if-no-files-found: warn
+          retention-days: 30
