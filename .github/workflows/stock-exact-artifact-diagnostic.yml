@@ -8,6 +8,7 @@ permissions:
   actions: read
 jobs:
   exact-artifact-diagnostic:
+    if: github.event.action == 'opened'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -146,3 +147,55 @@ jobs:
           print("EXACT_ARTIFACT_DIAGNOSTIC=PASS; PRODUCT_FINAL=FAIL")
           
           PY
+
+  rnd-window-first-fail:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout frozen e67 product bytes only
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: e67eaa9cabc34728fee3549262a2f1535d7e8383
+          persist-credentials: false
+      - name: Setup Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.11.9'
+      - name: Install only numerical import dependencies
+        run: python -m pip install --disable-pip-version-check numpy==2.2.4 pandas==2.2.3 requests==2.32.3
+      - name: Execute exact legacy function counterexample and 36-point positive control
+        run: |
+          python - <<'PY'
+          import hashlib,json,sys
+          from pathlib import Path
+          import pandas as pd
+          root=Path("StockAIPro/staging/Stock_AI_Pro/versions/4.3.0").resolve()
+          sys.path.insert(0,str(root))
+          import stock_ai.rnd as rnd
+          source=Path(rnd.__file__).resolve()
+          assert source==root/"stock_ai/rnd.py"
+          digest=hashlib.sha256(source.read_bytes()).hexdigest()
+          assert digest=="a0900cb5f161112d216593948847a76215e4292bdc0df7993a81288fd33d5e67"
+          def observations(n):
+              paired=pd.DataFrame({"signal_date":pd.date_range("2026-01-01",periods=n).strftime("%Y-%m-%d"),
+                                   "production":[.005]*n,"challenger":[.015]*n})
+              return paired["challenger"]-paired["production"]
+          short=rnd._seed_window_stability(observations(12),300,12,[1,2,3],[12,24,36])
+          positive=rnd._seed_window_stability(observations(36),300,12,[1,2,3],[12,24,36])
+          report={"head":"e67eaa9cabc34728fee3549262a2f1535d7e8383","rnd_sha256":digest,
+                  "trials":300,"minpts":12,"seeds":[1,2,3],"windows":[12,24,36],
+                  "short_12_paired_observations":short,"positive_36_paired_observations":positive}
+          Path("rnd_window_first_fail_e67.json").write_text(json.dumps(report,indent=2)+"\n",encoding="utf-8")
+          print(json.dumps(report,sort_keys=True),flush=True)
+          assert positive["status"]=="PASS",positive
+          assert short["status"]!="PASS","FIRST-FAIL: 12 observations falsely pass advertised 24/36-point windows"
+          
+          PY
+        shell: bash
+      - name: Preserve exact first-failure JSON
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: Stock-RND-window-first-FAIL-e67-${{ github.run_id }}
+          path: rnd_window_first_fail_e67.json
+          if-no-files-found: error
