@@ -60,7 +60,51 @@ checks.append(check(
     '</nav><p>目录</p></article></body></html>',
     False,
 ))
-assert len(checks) == 5
+# Live first-party HTML layout: observed on three SZSE pages covering
+# 2018, 2020 and 2026. A matching id without this wrapper/header is NOT proof.
+szse_body = (
+    '<div class="news-detail-con g-conbox">'
+    '<div class="des-header"><h2 class="title">关于股票临时停牌的公告</h2></div>'
+    '<div class="des-content" id="desContent"><p class="MsoNormal">'
+    '证券代码002628，成都路桥公司股票自2018年1月2日开市起临时停牌，'
+    '公告内容明确，待指定媒体披露后复牌。'
+    '</p></div><div class="des-footer">打印 收藏</div></div>'
+)
+checks.append(check(
+    "real official desContent in verified article wrapper is accepted",
+    '<html><body><nav>虚构代码000001 停牌</nav>' + szse_body + '</body></html>',
+    True, "#desContent",
+))
+checks.append(check(
+    "fake desContent outside primary detail wrapper cannot pass",
+    '<html><body><div id="desContent" class="des-content">'
+    '导航栏目包含证券代码000001，股票临时停牌信息，以及对应的复牌查询入口。'
+    '</div></body></html>',
+    False,
+))
+checks.append(check(
+    "wrapper without separately identified official title is not enough",
+    '<html><body><div class="news-detail-con g-conbox">'
+    '<div id="desContent" class="des-content">'
+    '导航栏目包含证券代码000001，股票临时停牌信息，以及对应的复牌查询入口。'
+    '</div></div></body></html>',
+    False,
+))
+checks.append(check(
+    "desContent embedded in footer is never primary evidence",
+    '<html><body><footer>' + szse_body + '</footer></body></html>',
+    False,
+))
+checks.append(check(
+    "verified container without stop or resume terms fails closed",
+    '<html><body><div class="news-detail-con g-conbox">'
+    '<div class="des-header"><h2 class="title">关于股票交易的信息公告</h2></div>'
+    '<div id="desContent" class="des-content">'
+    '证券代码002628，正式信息披露原文内容，但没有任何交易状态的确认。'
+    '</div></div></body></html>',
+    False,
+))
+assert len(checks) == 10
 
 # Retry success must retain the original failure ledger; PASS is never invented.
 fetched = []
@@ -103,5 +147,5 @@ assert cap["retry_cap_exceeded"] and cap["second_pass_attempted"] == 0
 assert all(row["status"] == "NOT VERIFIED" for row in skipped)
 checks.append("retry budget exhausted fails closed")
 
-assert len(checks) == 8
-print("SZSE PRIMARY ARTICLE + NETWORK REPLAY 8/8 OFFLINE REGRESSIONS PASS")
+assert len(checks) == 13
+print("SZSE PRIMARY ARTICLE + NETWORK REPLAY 13/13 OFFLINE REGRESSIONS PASS")
