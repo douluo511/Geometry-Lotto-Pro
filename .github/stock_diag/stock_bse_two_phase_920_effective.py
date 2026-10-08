@@ -60,6 +60,11 @@ def parse_announcement(key,raw):
     spec=ANNOUNCEMENTS[key]
     if spec["title"] not in compact:
         raise ValueError("official_original_announcement_title_not_found")
+    pub=date.fromisoformat(spec["publication"])
+    textual_dates=(f"{pub.year}-{pub.month:02d}-{pub.day:02d}",
+                   f"{pub.year}年{pub.month}月{pub.day}日")
+    if not any(d in compact for d in textual_dates):
+        raise ValueError("primary_announcement_publication_date_not_present")
     for phrase in spec["phrases"]:
         if re.sub(r"\s+","",phrase) not in compact:
             raise ValueError(f"missing_exchange_first_party_statement:{key}:{phrase}")
