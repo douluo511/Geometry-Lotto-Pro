@@ -300,16 +300,74 @@ class Store:
                 (prediction_id, utc_now(), issue, json.dumps(payload, ensure_ascii=False, sort_keys=True)),
             )
 
-    def prospective_replays(self, selector_hash: str | None = None) -> list[dict[str, Any]]:
-        query = "SELECT r.payload_json FROM replays r JOIN freezes f ON f.prediction_id=r.prediction_id "
-        params: tuple[Any, ...] = ()
-        if selector_hash:
-            query += "WHERE f.selector_hash=? "
-            params = (selector_hash,)
-        query += "ORDER BY f.target_issue"
+    def prospective_replays(
+        self, selector_hash: str, *, model_hash: str, draws: list[Draw],
+    ) -> list[dict[str, Any]]:
+        """Conservative LOCAL pre-draw records, not third-party timestamp proof.
+
+        The canonical actual draw is the authority for measured hits. Stored replay
+        payloads are checked against recomputation rather than counted blindly.
+        No same-day freeze can qualify without a trusted draw-time receipt.
+        """
+        from datetime import date, datetime
+        from .engine import replay_prediction
+
+        if not selector_hash or not model_hash or not draws:
+            return []
+        actual_by_issue: dict[str, Draw] = {}
+        for actual in draws:
+            actual.validate()
+            if actual.issue in actual_by_issue:
+                raise ValueError("duplicate official issue in prospective source")
+            actual_by_issue[actual.issue] = actual
         with self._connection() as db:
-            rows = db.execute(query, params).fetchall()
-        return [json.loads(r["payload_json"]) for r in rows]
+            rows = db.execute(
+                "SELECT r.payload_json AS replay_json, r.replayed_at, r.actual_issue, "
+                "f.payload_json AS frozen_json, f.created_at AS frozen_created_at, "
+                "f.model_hash AS frozen_model_hash, f.selector_hash AS frozen_selector_hash, "
+                "f.prediction_id AS frozen_prediction_id "
+                "FROM replays r JOIN freezes f ON f.prediction_id=r.prediction_id "
+                "WHERE f.selector_hash=? AND f.model_hash=? ORDER BY f.target_issue",
+                (selector_hash, model_hash),
+            ).fetchall()
+
+        eligible: list[dict[str, Any]] = []
+        for row in rows:
+            pred = Prediction(**json.loads(row["frozen_json"]))
+            self._verify_freeze(pred)
+            if (pred.prediction_id != row["frozen_prediction_id"]
+                    or pred.created_at != row["frozen_created_at"]
+                    or pred.model_hash != row["frozen_model_hash"]
+                    or pred.selector_hash != row["frozen_selector_hash"]):
+                raise ValueError("frozen prediction identity mismatch")
+            actual = actual_by_issue.get(pred.target_issue)
+            if actual is None:
+                continue
+            if row["actual_issue"] != actual.issue:
+                raise ValueError("replay actual issue mismatch")
+            # An official draw DATE is not its precise execution timestamp.
+            # Exclude ALL same-day records conservatively, not just late ones.
+            try:
+                freeze_time = datetime.strptime(pred.created_at, "%Y-%m-%dT%H:%M:%SZ")
+                replay_time = datetime.strptime(row["replayed_at"], "%Y-%m-%dT%H:%M:%SZ")
+                draw_date = date.fromisoformat(actual.draw_date)
+            except (TypeError, ValueError) as exc:
+                raise ValueError("invalid prospective timestamp") from exc
+            if pred.target_date != actual.draw_date:
+                continue
+            if freeze_time.date() >= draw_date:
+                continue
+            if replay_time.date() < draw_date:
+                raise ValueError("replay recorded before official draw date")
+            try:
+                stored = json.loads(row["replay_json"])
+            except (TypeError, ValueError) as exc:
+                raise ValueError("invalid replay payload") from exc
+            recomputed = replay_prediction(pred, actual)
+            if stored != recomputed:
+                raise ValueError(f"replay payload mismatch / tampered hit count: {pred.target_issue}")
+            eligible.append(recomputed)
+        return eligible
 
     def integrity_check(self) -> dict[str, Any]:
         checks: list[dict[str, str]] = []

@@ -25,6 +25,54 @@ def _meta(area: str) -> tuple[int, int]:
     return (35, 5) if area == "front" else (12, 2)
 
 
+def prospective_hit_rates(
+    rows: list[dict[str, Any]], *, minimum_replays: int | None = None,
+) -> dict[str, Any]:
+    """Descriptive hit rates only: local timestamps do NOT certify an edge.
+
+    The denominator is actual validated forward replays, never model trials or
+    cherry-picked winning issues. Missing data has a null rate, not fictitious 0%.
+    """
+    minimum = int(minimum_replays if minimum_replays is not None
+                  else PROMOTION_POLICY["min_prospective_replays"])
+    if minimum < 1:
+        raise ValueError("minimum prospective replays must be positive")
+    n = len(rows)
+    front_hits = 0
+    back_hits = 0
+    full_matches = 0
+    for item in rows:
+        f = item.get("front_hit_count")
+        b = item.get("back_hit_count")
+        if (type(f) is not int or type(b) is not int
+                or not 0 <= f <= 5 or not 0 <= b <= 2):
+            raise ValueError("prospective hit count missing or outside lottery bounds")
+        front_hits += f
+        back_hits += b
+        full_matches += int(f == 5 and b == 2)
+    front_rate = front_hits / (5 * n) if n else None
+    back_rate = back_hits / (2 * n) if n else None
+    return {
+        "schema": "dlt-observed-hit-rate-v1",
+        "valid_replays": n,
+        "required_replays": minimum,
+        "front_hit_total": front_hits,
+        "back_hit_total": back_hits,
+        "full_5plus2_hits": full_matches,
+        "front_per_ball_hit_rate": front_rate,
+        "back_per_ball_hit_rate": back_rate,
+        "uniform_front_per_ball_baseline": 5 / 35,
+        "uniform_back_per_ball_baseline": 2 / 12,
+        "front_gain_vs_uniform": (front_rate - 5 / 35) if n else None,
+        "back_gain_vs_uniform": (back_rate - 2 / 12) if n else None,
+        "evidence_state": ("NO_VALID_PROSPECTIVE" if not n
+                           else "INSUFFICIENT_PROSPECTIVE" if n < minimum
+                           else "LOCAL_TIMESTAMP_ONLY_UNCERTIFIED"),
+        "edge_certified": False,
+        "external_pre_draw_timestamp_verified": False,
+    }
+
+
 def _hit(ranking: list[int], actual: Iterable[int], k: int) -> float:
     return float(len(set(ranking[:k]) & set(actual)))
 
@@ -481,16 +529,17 @@ def run_evidence_court(draws: list[Draw], prospective: list[dict[str, Any]] | No
     ablation_ok = len(validated_components) >= int(policy["min_validated_components"])
     prospective_rows = prospective or []
     prospective_min = int(policy["min_prospective_replays"])
-    prospective_ok = len(prospective_rows) >= prospective_min
-    if prospective_ok:
-        # Prospective evidence must be selector-matched and show positive ranking utility
-        # in both areas. Replays are created only from immutable pre-draw freezes.
-        front_hits = [float(x.get("front_hit_count", 0)) / 5.0 for x in prospective_rows]
-        back_hits = [float(x.get("back_hit_count", 0)) / 2.0 for x in prospective_rows]
-        prospective_ok = (
-            statistics.mean(front_hits) > (5 / 35)
-            and statistics.mean(back_hits) > (2 / 12)
-        )
+    hit_report = prospective_hit_rates(prospective_rows, minimum_replays=prospective_min)
+    local_statistical_candidate = (
+        hit_report["valid_replays"] >= prospective_min
+        and hit_report["front_gain_vs_uniform"] is not None
+        and hit_report["front_gain_vs_uniform"] > 0.0
+        and hit_report["back_gain_vs_uniform"] > 0.0
+    )
+    # Stored timestamps and locally computed SHA-256 are self-authored.
+    # They cannot independently prove a prediction was committed before draw.
+    # No trusted external prospective timestamp is implemented in this release.
+    prospective_ok = False
     edge_gate = pre_oos_pass and dual_pass and null_fpr_ok and synthetic_null_ok and ablation_ok and prospective_ok
 
     gates = [
@@ -505,7 +554,7 @@ def run_evidence_court(draws: list[Draw], prospective: list[dict[str, Any]] | No
         {"name": "Leakage Sentinel", "status": "PASS" if leakage_ok else "FAIL", "decision": "ACCEPT" if leakage_ok else "REJECT", "outcome": "history_end < target_index + explicit equality rejection"},
         {"name": "Untouched Holdout", "status": "PASS", "decision": "EXECUTED", "outcome": f"last {holdout_n} draws; never used for challenger selection"},
         {"name": "Dual Final Confirmation", "status": "PASS", "decision": "EDGE" if dual_pass else "NO_EDGE", "outcome": "two independent holdout halves"},
-        {"name": "Prospective Evidence", "status": "PASS", "decision": "EDGE" if prospective_ok else "NO_EDGE", "outcome": f"immutable selector-matched replays={len(prospective_rows)} / required={prospective_min}"},
+        {"name": "Prospective Evidence", "status": "PASS", "decision": "EDGE" if prospective_ok else "NO_EDGE", "outcome": f"local predraw replays={len(prospective_rows)} / required={prospective_min}; external timestamp NOT VERIFIED"},
         {"name": "Dan Firewall", "status": "PASS", "decision": dan_firewall["decision"], "outcome": "Wilson95 + model/window/seed perturbation coverage + rank support"},
     ]
     software_verdict = strict_gate_verdict(gates)
@@ -532,6 +581,8 @@ def run_evidence_court(draws: list[Draw], prospective: list[dict[str, Any]] | No
         "leakage_sentinel": {"status": "PASS" if leakage_ok else "FAIL"},
         "dan_firewall": dan_firewall,
         "prospective_count": len(prospective_rows),
+        "prospective_hit_rates": hit_report,
+        "prospective_local_statistical_candidate": local_statistical_candidate,
         "prospective_edge_ok": prospective_ok,
         "ablation_edge_ok": ablation_ok,
         "lifecycle": {

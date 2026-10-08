@@ -193,8 +193,10 @@ class LottoService:
         if integrity["status"] != "PASS":
             raise ValueError("Evidence Court 拒绝运行：本地数据/证据链不完整")
         draws, canonical_hash = self.store.load_draws()
-        selector_hash = model_identity()["selector_hash"]
-        prospective = self.store.prospective_replays(selector_hash)
+        identity = model_identity()
+        prospective = self.store.prospective_replays(
+            identity["selector_hash"], model_hash=identity["model_hash"], draws=draws,
+        )
         freeze_before = len(self.store.freezes())
         court = run_evidence_court(draws, prospective, progress)
         # Audit is observational. It may compute the current scoring trace, but it

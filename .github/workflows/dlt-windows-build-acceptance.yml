@@ -68,6 +68,12 @@ jobs:
           $env:PYTHONPATH = "$PWD\\src"
           python -m unittest discover -s tests -p "test_no_edge_uniform_production.py" -v
 
+      - name: Prospective hit-rate truth and fake-winning replay hard regression
+        shell: pwsh
+        run: |
+          $env:PYTHONPATH = "$PWD\\src"
+          python -m unittest discover -s tests -p "test_prospective_hit_rate_truth.py" -v
+
       - name: External Final Gate authority regression
         shell: pwsh
         run: |
