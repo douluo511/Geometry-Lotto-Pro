@@ -165,5 +165,33 @@ assert cap["retry_cap_exceeded"] and cap["second_pass_attempted"] == 0
 assert all(row["status"] == "NOT VERIFIED" for row in skipped)
 checks.append("retry budget exhausted fails closed")
 
-assert len(checks) == 15
-print("SZSE PRIMARY ARTICLE + NETWORK REPLAY 15/15 OFFLINE REGRESSIONS PASS")
+# One HTTPS session per worker: reuse within a worker, isolate between threads.
+# This prevents uncontrolled one-shot connection creation on 1849 official URLs.
+import threading
+from concurrent.futures import ThreadPoolExecutor
+
+original_ctor = module.requests.Session
+original_local = module._SESSION_LOCAL
+created = []
+class FakeSession:
+    def __init__(self):
+        created.append(self)
+try:
+    module.requests.Session = FakeSession
+    module._SESSION_LOCAL = threading.local()
+    first = module._worker_session()
+    assert module._worker_session() is first
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        other, same_other = executor.submit(
+            lambda: (module._worker_session(), module._worker_session())
+        ).result()
+    assert other is same_other
+    assert other is not first
+    assert len(created) == 2
+finally:
+    module.requests.Session = original_ctor
+    module._SESSION_LOCAL = original_local
+checks.append("bounded per-worker HTTPS session reuse and isolation")
+
+assert len(checks) == 16
+print("SZSE PRIMARY ARTICLE + NETWORK REPLAY 16/16 OFFLINE REGRESSIONS PASS")
