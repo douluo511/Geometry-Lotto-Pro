@@ -7,11 +7,13 @@ import sqlite3
 import sys
 from dataclasses import asdict
 from pathlib import Path
+from types import FunctionType
 from typing import Any, Callable
 
 from glp.constants import APP_VERSION, BACK_MAX, BACK_PICK, FRONT_MAX, FRONT_PICK, GAME
 from glp.engine import make_prediction, model_identity
 from glp.domain import Draw
+from glp import engine as engine_module
 from glp import evidence as evidence_module
 from glp.evidence import run_evidence_court
 from glp.ors import build_ors_record
@@ -276,25 +278,32 @@ class LottoService:
 
     @classmethod
     def _scientific_policy_hash(cls) -> str:
-        """Exact code fingerprint; changed science code invalidates old Court PASS.
+        """Conservatively invalidate scientific evidence after *transitive* code changes.
 
-        Marshal's code-object representation works in both source and frozen
-        Python, and also changes when compiled source semantics or constants
-        change. Rebuild/source-path differences conservatively invalidate a
-        cache instead of inheriting stale evidence.
+        Merely hashing run_evidence_court's entrypoint misses changes to imported
+        bootstrap/permutation/ablation helpers and model feature calculations.
+        Marshal binds the exact executing code objects (also in frozen EXEs);
+        differences invalidate cached evidence, never preserve old PASS.
         """
+        def all_science_functions(module) -> dict[str, str]:
+            return {
+                name: sha256_bytes(marshal.dumps(value.__code__))
+                for name, value in sorted(vars(module).items())
+                if isinstance(value, FunctionType)
+                and value.__module__ == module.__name__
+            }
+
         return sha256_json({
-            "schema": "ssq-scientific-policy-code-v1",
-            "evidence_court": sha256_bytes(marshal.dumps(
-                evidence_module.run_evidence_court.__code__
-            )),
-            "prospective_authority": sha256_bytes(marshal.dumps(
-                evidence_module._prospective_provenance_gate.__code__
-            )),
-            "prospective_service": sha256_bytes(marshal.dumps(
-                cls._prospective_replays.__code__
-            )),
-            "court_service": sha256_bytes(marshal.dumps(cls._court.__code__)),
+            "schema": "ssq-scientific-policy-code-v2-transitive",
+            "evidence_functions": all_science_functions(evidence_module),
+            "engine_functions": all_science_functions(engine_module),
+            "service_functions": {
+                name: sha256_bytes(marshal.dumps(getattr(cls, name).__code__))
+                for name in (
+                    "_prospective_replays", "_court", "_load_draws",
+                    "_canonical_hash", "_release_gate", "predict"
+                )
+            },
         })
 
     def _court(self, draws, canonical_hash: str, progress=None) -> dict[str, Any]:
