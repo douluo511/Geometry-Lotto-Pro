@@ -193,3 +193,43 @@ assert 'decision=_enforce_pit_trade_gate(decision,pit_status,pit_reason)' in _pi
 assert _pipeline_source.index('decision=_enforce_pit_trade_gate(decision,pit_status,pit_reason)') < _pipeline_source.index('freeze_prediction(asof,'), (
     "FALSE BUSINESS PASS: a tradable Freeze was committed before PIT safety")
 print("STOCK HISTORICAL PIT PRE-FREEZE TRADE AUTHORITY 5/5 PASS")
+
+
+# OLD immutable Freeze may have contained TRADE before the new pipeline PIT
+# barrier. The dashboard must render a safely qualified effective decision,
+# rather than relabel old decision.json as executable without current evidence.
+_app_path = ROOT / "staging" / "Stock_AI_Pro" / "versions" / "4.3.0" / "app.py"
+_app_source = _app_path.read_text(encoding="utf-8")
+_app_tree = ast.parse(_app_source)
+_display_helpers = [n for n in _app_tree.body if isinstance(n, ast.FunctionDef)
+                    and n.name == "_effective_display_decision"]
+assert len(_display_helpers) == 1, (
+    "FALSE BUSINESS PASS: dashboard has no historical frozen TRADE display gate")
+_display_ns = {}
+exec(compile(ast.Module(body=_display_helpers, type_ignores=[]),
+             str(_app_path), "exec"), _display_ns)
+_display_gate = _display_ns["_effective_display_decision"]
+_old = {"decision":"TRADE","model_trust":"HIGH","reasons":[]}
+_valid_last = {"status":"PASS","business_status":"PASS","execution_status":"PASS","asof":"2026-10-08"}
+for label, last, pit, frozen, expected in (
+    ("blocked_run", {"status":"BLOCKED","business_status":"BLOCKED","execution_status":"PASS","asof":"2026-10-08"}, "WARN", _old, "NO_TRADE"),
+    ("legacy_false_pass", {"status":"PASS","asof":"2026-10-08"}, "PASS", _old, "NO_TRADE"),
+    ("current_pit_missing", _valid_last, "WARN", _old, "NO_TRADE"),
+    ("wrong_freeze_day", _valid_last, "PASS", _old, "NO_TRADE"),
+    ("fully_verified", _valid_last, "PASS", {**_old,"historical_pit_status":"PASS"}, "TRADE"),
+    ("existing_no_trade", _valid_last, "WARN", {"decision":"NO_TRADE","model_trust":"LOW","reasons":[]}, "NO_TRADE"),
+):
+    day = "2026-10-07" if label == "wrong_freeze_day" else "2026-10-08"
+    previous = dict(frozen)
+    actual = _display_gate(frozen,last,day,pit,"official PIT status "+pit)
+    assert frozen == previous, ("old immutable Freeze was mutated",label)
+    assert actual["decision"] == expected, ("FALSE TRADE displayed",label,actual)
+    if expected == "NO_TRADE":
+        assert actual["model_trust"] == "LOW" and actual["reasons"], (label,actual)
+assert "evaluate_historical_st_pit(ROOT,expected_trade_date=summary.get('asof'))" in _app_source, (
+    "FALSE BUSINESS PASS: dashboard never independently evaluates actual official PIT")
+assert "decision=_effective_display_decision(" in _app_source, (
+    "FALSE BUSINESS PASS: dashboard displays raw legacy frozen decision")
+assert _app_source.index("decision=_effective_display_decision(") < _app_source.index("cols=st.columns(8)"), (
+    "FALSE TRADE: dashboard displays metrics before source-date safety")
+print("STOCK LEGACY FREEZE DASHBOARD PIT TRADE REFUSAL 6/6 PASS")
