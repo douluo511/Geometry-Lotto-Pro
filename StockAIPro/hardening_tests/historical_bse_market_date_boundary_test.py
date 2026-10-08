@@ -215,7 +215,8 @@ for label, last, pit, frozen, expected in (
     ("blocked_run", {"status":"BLOCKED","business_status":"BLOCKED","execution_status":"PASS","asof":"2026-10-08"}, "WARN", _old, "NO_TRADE"),
     ("legacy_false_pass", {"status":"PASS","asof":"2026-10-08"}, "PASS", _old, "NO_TRADE"),
     ("current_pit_missing", _valid_last, "WARN", _old, "NO_TRADE"),
-    ("wrong_freeze_day", _valid_last, "PASS", _old, "NO_TRADE"),
+    ("wrong_freeze_day", _valid_last, "PASS", {**_old,"historical_pit_status":"PASS"}, "NO_TRADE"),
+    ("forged_current_business_status", {"status":"PASS","business_status":"FAIL","execution_status":"PASS","asof":"2026-10-08"}, "PASS", {**_old,"historical_pit_status":"PASS"}, "NO_TRADE"),
     ("fully_verified", _valid_last, "PASS", {**_old,"historical_pit_status":"PASS"}, "TRADE"),
     ("existing_no_trade", _valid_last, "WARN", {"decision":"NO_TRADE","model_trust":"LOW","reasons":[]}, "NO_TRADE"),
 ):
@@ -232,4 +233,4 @@ assert "decision=_effective_display_decision(" in _app_source, (
     "FALSE BUSINESS PASS: dashboard displays raw legacy frozen decision")
 assert _app_source.index("decision=_effective_display_decision(") < _app_source.index("cols=st.columns(8)"), (
     "FALSE TRADE: dashboard displays metrics before source-date safety")
-print("STOCK LEGACY FREEZE DASHBOARD PIT TRADE REFUSAL 6/6 PASS")
+print("STOCK LEGACY FREEZE DASHBOARD PIT TRADE REFUSAL 7/7 PASS")
