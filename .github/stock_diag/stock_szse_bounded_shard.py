@@ -127,6 +127,18 @@ def capture(index: int, item: dict, raw_dir: Path, getter=None, sleep=None, pars
             if (parsed.scheme != "https" or parsed.hostname not in ("szse.cn", "www.szse.cn")
                     or parsed.username or parsed.password or parsed.port):
                 raise RuntimeError("off-host or non-HTTPS redirect")
+            if raw and len(raw) <= MAX_BYTES:
+                # Preserve *every* bounded official response, including invalid HTML
+                # and HTTP error bodies; their presence never upgrades a gate.
+                raw_dir.mkdir(parents=True, exist_ok=True)
+                raw_name = f"{index:04d}_{attempt}_{observed['sha256']}.html"
+                path = raw_dir / raw_name
+                temp = raw_dir / (raw_name + ".tmp")
+                temp.write_bytes(raw)
+                temp.replace(path)
+                if digest(path.read_bytes()) != observed["sha256"]:
+                    raise RuntimeError("raw evidence write/read mismatch")
+                observed["raw_path"] = str(path)
             if response.status_code != 200:
                 raise RuntimeError("source HTTP status not 200")
             if not raw or len(raw) > MAX_BYTES:
@@ -138,19 +150,10 @@ def capture(index: int, item: dict, raw_dir: Path, getter=None, sleep=None, pars
             body, selector = parser.extract_primary_article(BeautifulSoup(text, "html.parser"))
             if not selector or len(body) < 25:
                 raise RuntimeError("missing scoped first-party primary article")
-            # The saved raw response is the evidence authority; hashes alone are not.
-            raw_dir.mkdir(parents=True, exist_ok=True)
-            raw_name = f"{index:04d}_{observed['sha256']}.html"
-            path = raw_dir / raw_name
-            temp = raw_dir / (raw_name + ".tmp")
-            temp.write_bytes(raw)
-            temp.replace(path)
-            if digest(path.read_bytes()) != observed["sha256"]:
-                raise RuntimeError("raw evidence write/read mismatch")
             observed["status"] = "PASS"
             row.update({
                 "status": "PASS", "source_sha256": observed["sha256"],
-                "raw_path": str(path), "raw_bytes": len(raw),
+                "raw_path": observed["raw_path"], "raw_bytes": len(raw),
                 "article_selector": selector,
                 "article_body_sha256": digest(body.encode("utf-8")),
                 "article_body_chars": len(body),
