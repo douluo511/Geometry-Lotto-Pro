@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      CANDIDATE_SHA: 30c3d9d2c6fdfc3dd0751f6f8a0a85348ec2b4a6
+      CANDIDATE_SHA: c2b0db6876d2aae874f8cf4d08f52455c8eaf152
     steps:
       - name: Checkout exact migration head
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
