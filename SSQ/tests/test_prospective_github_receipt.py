@@ -19,7 +19,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "SSQ"))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from glp.prospective_github_receipt import verify_github_freeze_receipt
+from glp.prospective_github_receipt import verify_github_freeze_receipt, _TRUSTED_SEED_SHA
 from glp.util import sha256_json
 
 
@@ -82,12 +82,22 @@ class FakeGitHub:
             "created_at": "2026-10-01T10:00:00Z",
         }
         self.file_override = None
+        self.compare = {
+            "status": "ahead",
+            "ahead_by": 1,
+            "behind_by": 0,
+            "base_commit": {"sha": _TRUSTED_SEED_SHA},
+            "merge_base_commit": {"sha": _TRUSTED_SEED_SHA},
+            "files": [{"filename": PATH, "status": "added"}],
+        }
         self.requests = []
 
     def get(self, url, **kwargs):
         self.requests.append((url, kwargs))
         if url == f"https://api.github.com/repos/{REPO}/actions/runs/1234":
             body = self.run
+        elif url == f"https://api.github.com/repos/{REPO}/compare/{_TRUSTED_SEED_SHA}...{GIT_SHA}":
+            body = self.compare
         elif url == f"https://api.github.com/repos/{REPO}/contents/{PATH}?ref={GIT_SHA}":
             raw = json.dumps(self.freeze, ensure_ascii=False, sort_keys=True).encode("utf-8")
             sha = hashlib.sha1(
@@ -114,8 +124,41 @@ class ReadOnlyGitHubReceiptTests(unittest.TestCase):
         self.assertFalse(result["promotion_authorized"])
         self.assertFalse(result["official_outcome_verified"])
         self.assertEqual(result["production_rho"], 0.0)
-        self.assertEqual(len(remote.requests), 2)
+        self.assertEqual(len(remote.requests), 3)
         self.assertTrue(all(call["allow_redirects"] is False for _, call in remote.requests))
+
+    def test_modified_workflow_or_source_in_prior_branch_commit_fails(self):
+        remote = FakeGitHub()
+        remote.compare["files"] = [
+            {"filename": PATH, "status": "added"},
+            {"filename": ".github/workflows/ssq-prospective-freeze.yml", "status": "modified"},
+        ]
+        remote.compare["ahead_by"] = 2
+        with self.assertRaisesRegex(ValueError, "untrusted source/workflow edit"):
+            verify_github_freeze_receipt(run_id=1234, target_issue=ISSUE, client=remote)
+
+    def test_malicious_workflow_tamper_then_revert_cannot_hide_extra_commits(self):
+        remote = FakeGitHub()
+        remote.compare["ahead_by"] = 3
+        with self.assertRaisesRegex(ValueError, "not append-only"):
+            verify_github_freeze_receipt(run_id=1234, target_issue=ISSUE, client=remote)
+
+    def test_force_rebased_branch_no_longer_descends_from_audited_seed(self):
+        remote = FakeGitHub()
+        remote.compare["merge_base_commit"]["sha"] = "f" * 40
+        with self.assertRaisesRegex(ValueError, "not append-only"):
+            verify_github_freeze_receipt(run_id=1234, target_issue=ISSUE, client=remote)
+
+    def test_duplicate_same_issue_path_and_renamed_freeze_rejected(self):
+        for entry in (
+            {"filename": PATH, "status": "renamed"},
+            {"filename": "SSQ/prospective_ledger/freezes/2026100.json.bak", "status": "added"},
+        ):
+            with self.subTest(entry=entry):
+                remote = FakeGitHub()
+                remote.compare["files"] = [entry]
+                with self.assertRaisesRegex(ValueError, "untrusted source/workflow edit"):
+                    verify_github_freeze_receipt(run_id=1234, target_issue=ISSUE, client=remote)
 
     def test_unapproved_branch_or_dispatch_or_repository_fails_closed(self):
         for key, value in (
@@ -171,11 +214,18 @@ class ReadOnlyGitHubReceiptTests(unittest.TestCase):
 
 
 class PushOnlyFreezeRedTeamTests(unittest.TestCase):
-    def _attempt(self, *, overwrite=False, late=False, changed=""):
+    def _attempt(self, *, overwrite=False, late=False, changed="", before=None,
+                 after=None, forced=False):
         root = Path(self.temp)
         file_path = root / PATH
         file_path.parent.mkdir(parents=True, exist_ok=True)
         file_path.write_text(json.dumps(fixture()), encoding="utf-8")
+        event_path = root / "github_push_event.json"
+        event_path.write_text(json.dumps({
+            "before": "c" * 40 if before is None else before,
+            "after": GIT_SHA if after is None else after,
+            "forced": forced, "created": False, "deleted": False,
+        }), encoding="utf-8")
         fake = FakeGitHub()
         fake.run["status"] = "in_progress"
         fake.run["head_sha"] = GIT_SHA
@@ -198,6 +248,7 @@ class PushOnlyFreezeRedTeamTests(unittest.TestCase):
             "GITHUB_REF_NAME": BRANCH,
             "GITHUB_SHA": GIT_SHA,
             "GITHUB_RUN_ID": "1234",
+            "GITHUB_EVENT_PATH": str(event_path),
         }
         with (
             patch.object(push, "ROOT", root),
@@ -231,6 +282,20 @@ class PushOnlyFreezeRedTeamTests(unittest.TestCase):
     def test_push_after_draw_day_rejected(self):
         with self.assertRaisesRegex(ValueError, "after draw-day cutoff"):
             self._attempt(late=True)
+
+    def test_multi_commit_push_cannot_launder_unchecked_earlier_freezes(self):
+        # Existing check inspects HEAD only: a multi-commit push could hide
+        # an earlier Freeze mutation and still look like a one-file HEAD.
+        with self.assertRaisesRegex(ValueError, "single-commit"):
+            self._attempt(before="d" * 40)
+
+    def test_force_updated_evidence_branch_cannot_qualify_as_witness(self):
+        with self.assertRaisesRegex(ValueError, "forced|force"):
+            self._attempt(forced=True)
+
+    def test_push_webhook_after_must_match_checked_out_exact_head(self):
+        with self.assertRaisesRegex(ValueError, "after|exact head"):
+            self._attempt(after="e" * 40)
 
 
 if __name__ == "__main__":
