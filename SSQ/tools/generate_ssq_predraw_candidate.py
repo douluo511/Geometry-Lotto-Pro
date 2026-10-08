@@ -61,7 +61,15 @@ def generate(*, source_commit: str, today_china: date | None = None,
     )
     target = date.fromisoformat(prediction.target_date)
     if target <= now_day or (target - now_day).days > 7:
-        raise ValueError("SSQ target is already on/past China draw date, or too distant")
+        raise ValueError(
+            "SSQ target is already on/past China draw date, or too distant: "
+            f"china_today={now_day.isoformat()}, "
+            f"latest_official_issue={draws[-1].issue}, "
+            f"latest_official_date={draws[-1].draw_date}, "
+            f"next_target_issue={prediction.target_issue}, "
+            f"next_target_date={prediction.target_date}; "
+            "cannot freeze a same-day or already-drawn candidate without verified cutoff"
+        )
     expected = prediction.to_dict()
     if (
         expected["edge_state"] != "NO_EDGE"
