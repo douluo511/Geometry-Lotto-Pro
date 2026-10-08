@@ -282,6 +282,7 @@ def model_identity() -> dict:
         "complete_space_weights": COMPLETE_SPACE_WEIGHTS,
         "geometry": "state+cross-draw-transition",
         "uniform_fallback": "dlt-uniform-without-replacement-v1",
+        "rho_zero_score_identity": "dlt-published-combination-only-v1",
     }
     return {
         "model_hash": sha256_json(model_spec),
@@ -327,12 +328,26 @@ def make_prediction(draws: list[Draw], canonical_hash: str, latest_court: dict |
         published_front = _uniform_baseline_combination("front", canonical_hash, target_issue)
         published_back = _uniform_baseline_combination("back", canonical_hash, target_issue)
         selection_mode = "UNIFORM_BASELINE_V1"
-    score_hash = sha256_json({
-        "research_front_scores": front_rank.scores, "research_back_scores": back_rank.scores,
-        "validated": validated, "published_front": published_front,
-        "published_back": published_back, "production_weights": production_weights,
-        "selection_mode": selection_mode, "model_hash": ident["model_hash"],
-    })
+    # A rho=0 formal Freeze is not a research scoring record. Unqualified
+    # ranking values are diagnostics and MUST NOT alter the published output
+    # identity or create a second prediction_id for the same formal numbers.
+    score_identity = {
+        "published_front": published_front,
+        "published_back": published_back,
+        "production_weights": production_weights,
+        "selection_mode": selection_mode,
+        "model_hash": ident["model_hash"],
+        "selector_hash": ident["selector_hash"],
+    }
+    if edge_proven:
+        # Only independently qualified research models may bind the
+        # published selection identity to their actual research scores.
+        score_identity.update({
+            "research_front_scores": front_rank.scores,
+            "research_back_scores": back_rank.scores,
+            "validated": validated,
+        })
+    score_hash = sha256_json(score_identity)
     prediction_id = sha256_json({"canonical_hash": canonical_hash, "target_issue": target_issue, "model_hash": ident["model_hash"], "score_hash": score_hash})[:20]
     prediction = Prediction(
         prediction_id=prediction_id,
