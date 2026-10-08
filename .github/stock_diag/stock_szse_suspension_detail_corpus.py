@@ -54,7 +54,7 @@ def decode_response(r: requests.Response) -> str:
         return raw.decode("utf-8", errors="strict")
     except UnicodeDecodeError as original:
         header = str(r.encoding or "").lower().replace("_", "-").strip()
-        match = re.search(rb"charset\\s*=\\s*['\\\"]?([a-zA-Z0-9_\\-]+)", raw[:4096], flags=re.I)
+        match = re.search(rb"charset\s*=\s*['\"]?([a-zA-Z0-9_\-]+)", raw[:4096], flags=re.I)
         declared = match.group(1).decode("ascii", errors="ignore").lower() if match else ""
         accepted_gb = {"gbk", "gb2312", "gb18030", "gb-2312", "cp936"}
         if header in accepted_gb or declared in accepted_gb:
