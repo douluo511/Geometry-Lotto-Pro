@@ -107,6 +107,8 @@ def capture(index: int, item: dict, raw_dir: Path, getter=None, sleep=None, pars
     }
     for attempt in range(1, MAX_ATTEMPTS + 1):
         observed = {"attempt": attempt, "fetched_at": datetime.now(timezone.utc).isoformat()}
+        # Network failure may occur before any Response; it still counts as an attempt.
+        attempts.append(observed)
         try:
             response = getter(
                 url, headers={
@@ -123,7 +125,6 @@ def capture(index: int, item: dict, raw_dir: Path, getter=None, sleep=None, pars
                 "content_type": str(response.headers.get("Content-Type", "")),
                 "bytes": len(raw), "sha256": digest(raw),
             })
-            attempts.append(observed)
             if (parsed.scheme != "https" or parsed.hostname not in ("szse.cn", "www.szse.cn")
                     or parsed.username or parsed.password or parsed.port):
                 raise RuntimeError("off-host or non-HTTPS redirect")
