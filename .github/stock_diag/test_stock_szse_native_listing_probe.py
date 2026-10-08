@@ -111,5 +111,10 @@ not_declared=html().decode("utf-8").encode("gb18030")
 reject("unlabelled GB bytes cannot silently invoke guessing",
        lambda:m.parse_month(not_declared))
 
-assert len(cases)==21,cases
-print("SZSE FIRST-PARTY LISTING SOURCE FAULT CONTROLS 21/21 PASS")
+check("explicit official HTTP GB-family header accepted",
+      lambda:assert_true(m.parse_month(not_declared,"text/html; charset=gb2312")["listing_date"]=="2026-06-26"))
+reject("non-GB HTTP header does not authorize non-UTF8 decoding",
+       lambda:m.parse_month(not_declared,"text/html; charset=iso-8859-1"))
+
+assert len(cases)==23,cases
+print("SZSE FIRST-PARTY LISTING SOURCE FAULT CONTROLS 23/23 PASS")
