@@ -104,7 +104,7 @@ def parse_issuer(raw:bytes):
             "exchange_notification_page_sha256":digest(notice.encode())}
 
 
-def parse_month(raw:bytes):
+def parse_month(raw:bytes,content_type:str=""):
     if not raw:raise ValueError("missing official monthly HTML")
     try:
         text=raw.decode("utf-8",errors="strict")
@@ -114,8 +114,12 @@ def parse_month(raw:bytes):
         # replacement characters, or silently guessed HTTP charset.
         decl=re.search(rb"charset\s*=\s*['\"]?\s*([a-zA-Z0-9_-]+)",raw[:8192],flags=re.I)
         label=decl.group(1).decode("ascii").lower().replace("_","-") if decl else ""
-        if label not in {"gb2312","gbk","gb18030","gb-2312","cp936"}:
-            raise ValueError("non-UTF8 source without approved declared GB charset") from cause
+        hdr=re.search(r"charset\s*=\s*['\"]?\s*([a-zA-Z0-9_-]+)",str(content_type),flags=re.I)
+        header_label=hdr.group(1).lower().replace("_","-") if hdr else ""
+        accepted={"gb2312","gbk","gb18030","gb-2312","cp936"}
+        if not ({label,header_label} & accepted):
+            raise ValueError("non-UTF8 official HTML without declared GB charset:"
+                             f" html={label!r}, http_content_type={content_type!r}") from cause
         try:
             text=raw.decode("gb18030",errors="strict")
         except UnicodeDecodeError as exc:
@@ -140,7 +144,7 @@ def parse_month(raw:bytes):
 
 def qualify(pdf_data:bytes,month_data:bytes,receipts:dict,candidates:dict):
     issuer=parse_issuer(pdf_data)
-    monthly=parse_month(month_data)
+    monthly=parse_month(month_data,receipts['HTML']['attempts'][-1].get('content_type',''))
     pairs=candidates.get("pairs")
     if (candidates.get("schema")!="stock-szse-dated-ashare-claims-join-v1"
             or candidates.get("source_frozen_denominator")!=1849
