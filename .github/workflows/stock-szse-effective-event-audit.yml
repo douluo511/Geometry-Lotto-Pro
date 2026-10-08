@@ -81,6 +81,24 @@ jobs:
           assert x["source_frozen_denominator"]==1849
           assert len(x["rows"])==1849
           a=x["adjudication"]
+          expected_scopes={
+            "SINGLE_EQUITY_CODE_NOTICE":945,
+            "CONVERTIBLE_BOND_NOTICE":692,
+            "OTHER_BOND_NOTICE":167,
+            "FUND_NOTICE":29,
+            "MIXED_EQUITY_AND_CONVERTIBLE_NOTICE":11,
+            "MULTI_CLASS_EQUITY_NOTICE":5,
+          }
+          assert x["instrument_scope_counts"]==expected_scopes, x["instrument_scope_counts"]
+          assert sum(expected_scopes.values())==1849
+          assert all(row["instrument_qualification"]=="NOT VERIFIED" for row in x["rows"])
+          assert a["stock_instrument_lifecycle_qualified"]=="NOT VERIFIED"
+          assert all(
+             not row["equity_code_candidates"]
+             for row in x["rows"] if row["instrument_scope"] in (
+               "CONVERTIBLE_BOND_NOTICE","OTHER_BOND_NOTICE","FUND_NOTICE"
+             )
+          )
           assert a["source_record_denominator"]=="PASS"
           assert a["historical_daily_st_suspension_pit_sse_szse_bse"]=="NOT VERIFIED"
           assert a["advanced_business"]=="NOT VERIFIED"
