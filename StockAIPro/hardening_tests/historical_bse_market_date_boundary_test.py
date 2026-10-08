@@ -111,5 +111,12 @@ for invalid in ("921001", "929999"):
     cases.append("reject-non-920-prefix:"+invalid)
 assert pit._market_for_code("920002")=="BSE"
 cases.append("allow-920-prefix-structural-only")
-assert len(cases) == 14, cases
-print("STOCK BSE IMPOSSIBLE HISTORICAL DATE BUSINESS TESTS 14/14 PASS")
+# Python regex \d accepts Unicode numerals. Official exchange security IDs
+# are ASCII 0-9; mixed-width/digit-script input is not a native security code.
+# Reject these before RAW -> lifecycle -> canonical PIT identity binding.
+for invalid in ("920１２３", "600١٢٣", "300１２３"):
+    assert pit._market_for_code(invalid) is None, (
+        "FALSE PASS: non-ASCII security identity accepted: " + repr(invalid))
+    cases.append("reject-non-ascii-security-id:" + repr(invalid))
+assert len(cases) == 17, cases
+print("STOCK BSE IMPOSSIBLE HISTORICAL DATE BUSINESS TESTS 17/17 PASS")
