@@ -106,8 +106,20 @@ def parse_issuer(raw:bytes):
 
 def parse_month(raw:bytes):
     if not raw:raise ValueError("missing official monthly HTML")
-    try:text=raw.decode("utf-8",errors="strict")
-    except UnicodeDecodeError:raise ValueError("not strict UTF8 SZSE monthly HTML")
+    try:
+        text=raw.decode("utf-8",errors="strict")
+    except UnicodeDecodeError as cause:
+        # SZSE's historical statistical HTML can explicitly declare GB2312/GBK.
+        # Use ONLY source-declared GB encodings; never a heuristic codec,
+        # replacement characters, or silently guessed HTTP charset.
+        decl=re.search(rb"charset\s*=\s*['\"]?\s*([a-zA-Z0-9_-]+)",raw[:8192],flags=re.I)
+        label=decl.group(1).decode("ascii").lower().replace("_","-") if decl else ""
+        if label not in {"gb2312","gbk","gb18030","gb-2312","cp936"}:
+            raise ValueError("non-UTF8 source without approved declared GB charset") from cause
+        try:
+            text=raw.decode("gb18030",errors="strict")
+        except UnicodeDecodeError as exc:
+            raise ValueError("invalid declared GB-family official bytes") from exc
     soup=BeautifulSoup(text,"html.parser")
     title=normalize(soup.get_text(" ",strip=True))
     if "新上市证券" not in title or "2026.06" not in title:
