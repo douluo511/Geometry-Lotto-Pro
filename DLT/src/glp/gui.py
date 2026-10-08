@@ -67,11 +67,22 @@ def _format_audit(value: dict) -> str:
     back_rate = metrics.get("back_per_ball_hit_rate")
     front_view = f"{front_rate:.2%}" if front_rate is not None else "NOT VERIFIED"
     back_view = f"{back_rate:.2%}" if back_rate is not None else "NOT VERIFIED"
+    research_front = metrics.get("research_ranked_front_per_ball_hit_rate")
+    research_back = metrics.get("research_ranked_back_per_ball_hit_rate")
+    research_front_view = f"{research_front:.2%}" if research_front is not None else "NOT VERIFIED"
+    research_back_view = f"{research_back:.2%}" if research_back is not None else "NOT VERIFIED"
+    paired_front = metrics.get("research_ranked_front_gain_vs_published")
+    paired_back = metrics.get("research_ranked_back_gain_vs_published")
+    paired_front_view = f"{paired_front:+.2%}" if paired_front is not None else "NOT VERIFIED"
+    paired_back_view = f"{paired_back:+.2%}" if paired_back is not None else "NOT VERIFIED"
     hit_lines = (
         f"合格本地事前样本 {sample}/{metrics.get('required_replays',30)}（不等于外部时间戳证明）\r\n"
-        f"前区实测命中率 {front_view}｜公平随机基线 14.29%\r\n"
-        f"后区实测命中率 {back_view}｜公平随机基线 16.67%\r\n"
-        f"完整 5+2 命中 {metrics.get('full_5plus2_hits', 0)} 次\r\n"
+        f"正式组合前区命中率 {front_view}｜随机基线 14.29%\r\n"
+        f"正式组合后区命中率 {back_view}｜随机基线 16.67%\r\n"
+        f"研究排名前5命中率 {research_front_view}｜后2命中率 {research_back_view}（研究用、未认证）\r\n"
+        f"研究相对正式组合同期命中率差 前区 {paired_front_view}｜后区 {paired_back_view}\r\n"
+        f"研究评分证据 {metrics.get('research_evidence_state','NOT VERIFIED')}\r\n"
+        f"正式组合完整 5+2 命中 {metrics.get('full_5plus2_hits', 0)} 次\r\n"
         f"独立事前证据 {metrics.get('evidence_state','NOT VERIFIED')}；不得宣称预测优势\r\n\r\n"
     )
     gates = "\r\n".join(f"[{g['status']} / {g['decision']}] {g['name']} — {g['outcome']}" for g in c["gates"])
