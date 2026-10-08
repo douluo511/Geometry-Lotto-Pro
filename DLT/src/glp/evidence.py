@@ -28,10 +28,12 @@ def _meta(area: str) -> tuple[int, int]:
 def prospective_hit_rates(
     rows: list[dict[str, Any]], *, minimum_replays: int | None = None,
 ) -> dict[str, Any]:
-    """Descriptive hit rates only: local timestamps do NOT certify an edge.
+    """Paired, descriptive observations; not a claim of forecast advantage.
 
-    The denominator is actual validated forward replays, never model trials or
-    cherry-picked winning issues. Missing data has a null rate, not fictitious 0%.
+    All rows MUST have passed the official-result, exact-model and pre-draw
+    checks in Store.prospective_replays. Published rho=0 numbers and immutable
+    research top-k rankings are DISTINCT populations of selected numbers,
+    compared on the SAME draws only. Never select a favorable research subset.
     """
     minimum = int(minimum_replays if minimum_replays is not None
                   else PROMOTION_POLICY["min_prospective_replays"])
@@ -41,6 +43,21 @@ def prospective_hit_rates(
     front_hits = 0
     back_hits = 0
     full_matches = 0
+    research_front_hits = 0
+    research_back_hits = 0
+    research_complete = n > 0
+
+    def top_k_from_winner_positions(value: Any, count: int, maximum: int, k: int) -> int:
+        # Research ranking positions come from the actual, immutable replay
+        # built using pre-draw rankings and OFFICIAL winning-number identity.
+        if not isinstance(value, dict) or len(value) != count:
+            raise ValueError("research winner positions missing or invalid")
+        positions = list(value.values())
+        if (any(type(pos) is not int or not 1 <= pos <= maximum for pos in positions)
+                or len(set(positions)) != count):
+            raise ValueError("invalid research winner rank or duplicate position")
+        return sum(pos <= k for pos in positions)
+
     for item in rows:
         f = item.get("front_hit_count")
         b = item.get("back_hit_count")
@@ -50,10 +67,26 @@ def prospective_hit_rates(
         front_hits += f
         back_hits += b
         full_matches += int(f == 5 and b == 2)
+        front_positions = item.get("front_winner_ranks")
+        back_positions = item.get("back_winner_ranks")
+        if front_positions is None or back_positions is None:
+            research_complete = False
+        else:
+            research_front_hits += top_k_from_winner_positions(front_positions, 5, 35, 5)
+            research_back_hits += top_k_from_winner_positions(back_positions, 2, 12, 2)
+
     front_rate = front_hits / (5 * n) if n else None
     back_rate = back_hits / (2 * n) if n else None
+    research_front_rate = research_front_hits / (5 * n) if research_complete else None
+    research_back_rate = research_back_hits / (2 * n) if research_complete else None
+    research_state = (
+        "NO_VALID_PROSPECTIVE" if not n else
+        "RESEARCH_RANKING_NOT_VERIFIED" if not research_complete else
+        "INSUFFICIENT_PROSPECTIVE" if n < minimum else
+        "LOCAL_TIMESTAMP_ONLY_UNCERTIFIED"
+    )
     return {
-        "schema": "dlt-observed-hit-rate-v1",
+        "schema": "dlt-observed-hit-rate-v2-paired-research",
         "valid_replays": n,
         "required_replays": minimum,
         "front_hit_total": front_hits,
@@ -65,6 +98,23 @@ def prospective_hit_rates(
         "uniform_back_per_ball_baseline": 2 / 12,
         "front_gain_vs_uniform": (front_rate - 5 / 35) if n else None,
         "back_gain_vs_uniform": (back_rate - 2 / 12) if n else None,
+        "research_ranked_front_hit_total": research_front_hits if research_complete else None,
+        "research_ranked_back_hit_total": research_back_hits if research_complete else None,
+        "research_ranked_front_per_ball_hit_rate": research_front_rate,
+        "research_ranked_back_per_ball_hit_rate": research_back_rate,
+        "research_ranked_front_gain_vs_uniform": (
+            research_front_rate - 5 / 35 if research_front_rate is not None else None
+        ),
+        "research_ranked_back_gain_vs_uniform": (
+            research_back_rate - 2 / 12 if research_back_rate is not None else None
+        ),
+        "research_ranked_front_gain_vs_published": (
+            research_front_rate - front_rate if research_front_rate is not None else None
+        ),
+        "research_ranked_back_gain_vs_published": (
+            research_back_rate - back_rate if research_back_rate is not None else None
+        ),
+        "research_evidence_state": research_state,
         "evidence_state": ("NO_VALID_PROSPECTIVE" if not n
                            else "INSUFFICIENT_PROSPECTIVE" if n < minimum
                            else "LOCAL_TIMESTAMP_ONLY_UNCERTIFIED"),
