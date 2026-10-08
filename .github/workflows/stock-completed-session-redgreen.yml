@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'StockAIPro/hardening_tests/completed_session_first_fail_test.py'
+      - 'StockAIPro/hardening_tests/completed_session_contract_test.py'
       - 'StockAIPro/staging/Stock_AI_Pro/versions/4.3.0/stock_ai/completed_session.py'
       - 'StockAIPro/staging/Stock_AI_Pro/versions/4.3.0/stock_ai/data_source.py'
       - '.github/workflows/stock-completed-session-redgreen.yml'
@@ -33,10 +34,14 @@ jobs:
       - run: python -m pip install --disable-pip-version-check -r requirements-offline-ci.txt
       - name: Product counterexamples against actual index and history consumers
         run: python hardening_tests/completed_session_first_fail_test.py
+      - name: All exchange calendars and downstream fail-closed consumer regressions
+        run: python hardening_tests/completed_session_contract_test.py
       - name: Preserve exact-head counterexample receipt
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: Stock-completed-session-counterexamples-${{ env.STOCK_SOURCE_SHA }}
-          path: StockAIPro/completed_session_first_fail_evidence.json
+          path: |
+            StockAIPro/completed_session_first_fail_evidence.json
+            StockAIPro/completed_session_contract_evidence.json
           if-no-files-found: error
