@@ -15,6 +15,7 @@ CFG = json.loads((VERSION / "config.default.json").read_text(encoding="utf-8"))
 INTRADAY = datetime(2026,10,8,2,0,tzinfo=timezone.utc)
 AFTER_CLOSE = datetime(2026,10,8,7,30,tzinfo=timezone.utc)
 CACHE_CLOCK = datetime(2026,9,24,10,0,tzinfo=timezone.utc)
+DATE_SCALAR_OBSERVED = []
 
 def clock(value):
     class FixedClock:
@@ -136,6 +137,19 @@ class CompletedSessionContracts(unittest.TestCase):
             with self.assertRaises((ValueError,RuntimeError)):
                 ds._normalize_hist(raw,"600000","hfq","eastmoney")
 
+
+    def test_daily_date_scalar_identity_cannot_be_numeric_or_boolean(self):
+        for scalar in (0, False):
+            with self.subTest(value=scalar,type=type(scalar).__name__):
+                raw = frame([scalar,pd.Timestamp("2026-09-30")])
+                try:
+                    accepted, _ = cs.select_completed_daily_frame(raw,market="SSE",now=INTRADAY)
+                except (ValueError,TypeError) as exc:
+                    DATE_SCALAR_OBSERVED.append({"value":scalar,"type":type(scalar).__name__,"result":"rejected","error":str(exc)})
+                else:
+                    DATE_SCALAR_OBSERVED.append({"value":scalar,"type":type(scalar).__name__,"result":"accepted","dates":accepted["date"].dt.strftime("%Y-%m-%d").tolist()})
+                    self.fail("Product accepted a numeric/boolean scalar as a daily-session identity")
+
     def test_real_update_primary_and_fallback_apply_completion_before_commit(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td); (root/"data"/"history").mkdir(parents=True)
@@ -250,7 +264,7 @@ if __name__ == "__main__":
     result = unittest.TextTestRunner(verbosity=2).run(unittest.defaultTestLoader.loadTestsFromTestCase(CompletedSessionContracts))
     receipt = {"schema":"stock-completed-session-contract-v1","source_sha":os.environ.get("STOCK_SOURCE_SHA"),
         "status":"PASS" if result.wasSuccessful() else "FAIL","tests_run":result.testsRun,
-        "failures":len(result.failures),"errors":len(result.errors),
+        "failures":len(result.failures),"errors":len(result.errors),"date_scalar_observed":DATE_SCALAR_OBSERVED,
         "markets":["SSE","SZSE","BSE"],"calendar_year":2026,
         "scope":"deterministic actual-consumer regressions; no real-network, PIT, EXE, GUI or Final claim"}
     (PRODUCT/"completed_session_contract_evidence.json").write_text(json.dumps(receipt,indent=2)+"\n",encoding="utf-8")
