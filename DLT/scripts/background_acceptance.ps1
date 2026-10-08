@@ -55,6 +55,7 @@ try {
     live_network_pass=($last.status -eq "PASS" -and $last.network_gate -eq "PASS" -and $last.crosscheck_status -eq "PASS")
     next_prediction_frozen=($last.prediction_id -and $last.freeze_hash -and $last.target_issue)
     default_two_front_dan=(@($last.research_dan_front).Count -eq 2)
+    default_one_back_dan=(@($last.research_dan_back).Count -eq 1)
     production_not_promoted=($last.production_edge_state -eq "NO_EDGE" -and $last.production_dan_state -eq "NULL_DAN")
   }
   $ok=($checks.Values -notcontains $false)
