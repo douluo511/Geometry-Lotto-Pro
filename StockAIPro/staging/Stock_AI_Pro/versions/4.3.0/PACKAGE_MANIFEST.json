@@ -49,7 +49,7 @@
     "stock_ai/regime.py": "c8194f0142531fb646c90da5625d631759ee1a760a88c5037e33acffe5920da5",
     "stock_ai/rnd.py": "4c8639a535e69c2267bbbb9dcbcd4b068bc8d3d6956c810bca41dc7711bf187d",
     "stock_ai/scoring.py": "7eb1436dd834713f8e5434a11b33e475c0b501067aaf72922c254a0a112baa7a",
-    "stock_ai/storage.py": "2fdf8f29a54f9f85e70aa3a363aef2e2f1b220e56017dd84d015c4cacc23260f",
+    "stock_ai/storage.py": "04fd284013e270c525e7da383092b4ace59cb72b9024d03de435f6efe5d0ff97",
     "stock_ai/utils.py": "3857d6871633286ea2e1b12289e8b063dec12c363c78eb2846acd20f3c32eb54",
     "stock_ai/valuation.py": "0377079cfccfc3ffa9bd86c465c0817aed42847a7bbef24753f31dc13a6203db",
     "tests/app_static_test.py": "c6b2dbbdbfdc38ffe47c3994ef2a416cc243fac853bd2fc502077f921a108f6b",
