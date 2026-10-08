@@ -202,6 +202,7 @@ jobs:
           if-no-files-found: error
 
   rm-candidate-redownload:
+    if: github.event.action == 'opened'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -327,3 +328,65 @@ jobs:
               raise SystemExit(2)
           
           PY
+
+  stock-history-date-first-fail:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact original coverage repair bytes
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 50fc0c4d539b68d2bf4bba321458dd0a2d021f0a
+          persist-credentials: false
+      - name: Setup Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.11.9'
+      - name: Install only numerical import dependencies
+        run: python -m pip install --disable-pip-version-check numpy==2.2.4 pandas==2.2.3 requests==2.32.3
+      - name: Execute actual persisted-history date counterexamples
+        shell: bash
+        run: |
+          python - <<'PY'
+          import hashlib,json,sys,tempfile
+          from pathlib import Path
+          from unittest.mock import patch
+          import pandas as pd
+          root=Path("StockAIPro/staging/Stock_AI_Pro/versions/4.3.0").resolve()
+          sys.path.insert(0,str(root))
+          from stock_ai import data_source
+          source=Path(data_source.__file__).resolve()
+          assert source==root/"stock_ai/data_source.py"
+          digest=hashlib.sha256(source.read_bytes()).hexdigest()
+          assert digest=="6624174f59d542ab943c6ef2eab81e8ca0a9e94cc4234c63af7b5a2fe0ae0947"
+          cfg={"model":{"min_history_days":240},"universe":{"history_adjust":"hfq"}}
+          values=[10+i*.01 for i in range(240)]
+          def frame(dates):
+              return pd.DataFrame({"date":dates,"code":["000001"]*240,"schema_version":[3]*240,
+                "provider":["eastmoney"]*240,"adjust_mode":["hfq"]*240,"open":values,"close":values,
+                "high":[x+1 for x in values],"low":[x-1 for x in values],"volume":[1000]*240,
+                "amount":[10000]*240,"turnover_rate":[.01]*240})
+          fixtures={"positive_240_business_days":pd.bdate_range("2024-01-02",periods=240),
+                    "invalid_240_date_strings":[f"invalid-{i:06d}" for i in range(240)],
+                    "single_day_240_minutes":pd.date_range("2024-01-02",periods=240,freq="min")}
+          accepted={}
+          with tempfile.TemporaryDirectory() as td,patch.object(data_source,"load_config",return_value=cfg):
+              for name,dates in fixtures.items():
+                  path=Path(td)/(name+".csv");frame(dates).to_csv(path,index=False)
+                  accepted[name]=bool(data_source._history_cache_entry_valid(path,"000001"))
+          report={"source_head":"50fc0c4d539b68d2bf4bba321458dd0a2d021f0a","data_source_sha256":digest,
+                  "minimum_history_days":240,"rows_per_fixture":240,"schema_version":3,
+                  "provider":"eastmoney","adjust_mode":"hfq","original_acceptance":accepted}
+          Path("stock_history_date_first_fail.json").write_text(json.dumps(report,indent=2)+"\n",encoding="utf-8")
+          print(json.dumps(report,sort_keys=True),flush=True)
+          assert accepted["positive_240_business_days"],"positive full canonical fixture was rejected"
+          assert not accepted["invalid_240_date_strings"] and not accepted["single_day_240_minutes"],"FIRST-FAIL: invalid dates and intraday rows counted as complete daily history"
+          
+          PY
+      - name: Preserve original date first-failure JSON
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: Stock-history-date-first-FAIL-50fc-${{ github.run_id }}
+          path: stock_history_date_first_fail.json
+          if-no-files-found: error
