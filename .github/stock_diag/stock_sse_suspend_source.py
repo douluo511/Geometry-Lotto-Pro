@@ -364,16 +364,20 @@ def capture(source_directory, directory):
                 query["native_pagination"] = expected
                 query["native_row_count"] = len(native_rows)
                 query["record_date_fields"] = sorted({key for row in native_rows for key in row if "date" in key.lower() or "time" in key.lower()})
-                candidates = []
-                for row in native_rows:
-                    candidate = event_candidate(row, flavor, begin, end)
-                    candidate["query_index"] = len(report["queries"])-1
-                    candidates.append(candidate)
-                report["event_candidates"].extend(candidates)
-                query["status"] = "PASS"
                 query["native_fields"] = sorted({key for row in native_rows for key in row})
                 query["sample_rows"] = native_rows[:3]
-        report["status"] = "PASS"
+                query["unresolved_native_rows"] = []
+                candidates = []
+                for row in native_rows:
+                    try:
+                        candidate = event_candidate(row, flavor, begin, end)
+                        candidate["query_index"] = len(report["queries"])-1
+                        candidates.append(candidate)
+                    except (ValueError, TypeError) as exc:
+                        query["unresolved_native_rows"].append({"raw_row": row, "error": type(exc).__name__+": "+str(exc), "qualified_daily_suspension": "NOT VERIFIED"})
+                report["event_candidates"].extend(candidates)
+                query["status"] = "PASS" if not query["unresolved_native_rows"] else "FAIL"
+        report["status"] = "PASS" if all(query["status"] == "PASS" for query in report["queries"]) else "FAIL"
     except Exception as exc:
         report["error"] = type(exc).__name__+": "+str(exc)
     finally:
