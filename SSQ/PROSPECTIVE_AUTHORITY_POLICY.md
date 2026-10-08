@@ -26,7 +26,7 @@
 
 1. 獨立且可追溯的 GitHub（或具同等證明力）開獎前持久不可變 Freeze，簽定 exact 代碼／模型／selector／源資料摘要、實際預測和當時時間；後補禁止。
 2. 每期重取官方來源並核對真實 6 紅 + 1 藍、期號／日期、來源原始資料及驗證雜湊。
-3. 按 Freeze 重算 Replay 和隨機基線，拒絕重複及不匹配 cohort，滿足規定的至少 30 筆未來真實樣本後，仍需統計／逆轉驗證及額外生產升格授權。
+3. 按 Freeze 重算 Replay 和隨機基線，拒絕重複及不匹配 cohort，達成 **SSQ 目前已凍結的 `PROMOTION_POLICY.min_prospective=120` 筆**真實且獨立驗證的未來開獎記錄後，仍需統計／逆轉驗證及額外生產升格授權。**30 筆是 DLT 研究門檻，不能冒用為 SSQ 門檻。**
 4. 同步完成 SSQ 自己的獨立 Repository、原生 Windows Build、Exact EXE、實體 GUI、Same Hash、獨立 Updater N→N+1、Final Gate。
 
 SSQ 與 DLT 的代碼、模型、數據、發布仍然完全獨立。這份候選修復不修改 DLT 產品或其研究 Protocol，也不合併獨立成品。
