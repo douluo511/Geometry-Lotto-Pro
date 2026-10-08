@@ -867,6 +867,18 @@ def evaluate_historical_st_pit(root: Path, expected_trade_date=None):
     if market_failures:
         failures.append("market_coverage")
 
+    # The normalized 'RAW_LIFECYCLE_SCHEMA' is self-described JSON, not the
+    # SSE, SZSE or BSE exchange-native historical security-master source.
+    # Rebinding *every* JSONL/manifest SHA cannot establish a complete
+    # independent day x eligible-security denominator or actual daily ST/halt.
+    # There is currently no separately verified three-exchange native master
+    # reader/coverage adapter in this product release. Reject even otherwise
+    # internally perfect synthetic evidence. Never treat an absence of notices
+    # as an observed NORMAL/non-suspended state. Do not change this to PASS on
+    # a boolean in the user-controlled claim; it requires independent parser
+    # and source-native coverage proofs before this hard gate can be lifted.
+    failures.append("native_source_authority_unverified")
+
     # Stable order makes machine evidence deterministic and easier to diff.
     failures = list(dict.fromkeys(failures))
 
