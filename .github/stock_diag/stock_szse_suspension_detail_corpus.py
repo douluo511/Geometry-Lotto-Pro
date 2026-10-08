@@ -186,6 +186,59 @@ def fetch_one(item: dict) -> dict:
     }
 
 
+
+def retry_unverified(records, fetch_fn=None, sleep_fn=None, max_retry_items=200):
+    """Bounded low-concurrency second pass; preserve both attempts and all gaps."""
+    fetch_fn = fetch_fn or fetch_one
+    sleep_fn = sleep_fn or time.sleep
+    pending = [i for i, row in enumerate(records) if row.get("status") != "PASS"]
+    result = {
+        "first_pass_unverified": len(pending),
+        "second_pass_attempted": 0,
+        "second_pass_recovered": 0,
+        "retry_cap": max_retry_items,
+        "retry_cap_exceeded": len(pending) > max_retry_items,
+        "cooldown_seconds": 20,
+        "batch_size": 15,
+        "recovery_workers": 2,
+    }
+    if not pending or len(pending) > max_retry_items:
+        return records, result
+
+    sleep_fn(20)
+    for start in range(0, len(pending), 15):
+        batch = pending[start : start + 15]
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+            futures = {
+                pool.submit(
+                    fetch_fn,
+                    {
+                        "date": records[i]["archive_date"],
+                        "url": records[i]["url"],
+                        "identity_source": records[i].get("archive_identity_source"),
+                    },
+                ): i
+                for i in batch
+            }
+            for future in concurrent.futures.as_completed(futures):
+                idx = futures[future]
+                original = records[idx]
+                replay = future.result()
+                result["second_pass_attempted"] += 1
+                # Original transport failures are audit evidence, not discarded.
+                replay["first_pass"] = {
+                    "status": original.get("status"),
+                    "errors": original.get("errors", []),
+                }
+                replay["recovery_attempted"] = True
+                if replay.get("status") == "PASS":
+                    result["second_pass_recovered"] += 1
+                records[idx] = replay
+        if start + len(batch) < len(pending):
+            sleep_fn(10)
+    return records, result
+
+
 def canonical_sha(rows) -> str:
     payload = json.dumps(rows, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return sha256(payload)
@@ -207,6 +260,8 @@ def main() -> int:
         futures = [pool.submit(fetch_one, item) for item in links]
         for future in concurrent.futures.as_completed(futures):
             records.append(future.result())
+
+    records, network_recovery = retry_unverified(records)
 
     records.sort(key=lambda x: (str(x.get("archive_date") or ""), str(x.get("url") or "")))
     passed = [x for x in records if x.get("status") == "PASS"]
@@ -253,6 +308,7 @@ def main() -> int:
         "execution": {
             "max_workers": MAX_WORKERS,
             "max_attempts": MAX_ATTEMPTS,
+            "network_recovery": network_recovery,
         },
         "summary": {
             "selected_detail_pages": expected,
