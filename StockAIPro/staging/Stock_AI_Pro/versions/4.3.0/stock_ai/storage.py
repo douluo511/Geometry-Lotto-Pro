@@ -1,8 +1,52 @@
 from __future__ import annotations
-import json, shutil
+import json, re, shutil
 from pathlib import Path
 from .config import ROOT
 from .utils import write_json, sha256_file, now_iso
+
+
+REQUIRED_PREDICTION_PAYLOADS = frozenset({
+    "predictions.csv", "summary.json", "model_metrics.json", "data_quality.json",
+    "valuation_status.json", "cost_assumptions.json", "decision.json",
+    "portfolio_balanced.csv", "portfolio_offense.csv", "portfolio_defense.csv",
+})
+
+
+def verify_prediction_payloads(pred_dir: Path, manifest):
+    """Require the complete frozen payload before counting an integrity gate."""
+    if not isinstance(manifest, dict):
+        return False, "manifest 必须是对象"
+    files = manifest.get("files")
+    if not isinstance(files, dict) or not files:
+        return False, "manifest files 必须是非空对象"
+    missing = REQUIRED_PREDICTION_PAYLOADS - files.keys()
+    if missing:
+        return False, "manifest 缺少冻结文件: " + ", ".join(sorted(missing))
+    try:
+        folder = Path(pred_dir).resolve()
+        manifest_path = (folder / "manifest.json").resolve()
+        for name, expected in files.items():
+            if not isinstance(name, str) or not name:
+                return False, "manifest 文件路径非法"
+            relative = Path(name)
+            if relative.is_absolute() or relative.drive or relative.root:
+                return False, f"{name} 文件路径越界"
+            payload = (folder / relative).resolve()
+            try:
+                payload.relative_to(folder)
+            except ValueError:
+                return False, f"{name} 文件路径越界"
+            if payload == manifest_path:
+                return False, "manifest 不能将自身作为冻结payload"
+            if not isinstance(expected, str) or not re.fullmatch(r"[0-9a-fA-F]{64}", expected):
+                return False, f"{name} SHA256 非法"
+            if not payload.is_file():
+                return False, f"{name} 冻结文件缺失"
+            if sha256_file(payload) != expected.lower():
+                return False, f"{name} 哈希不一致"
+    except (OSError, ValueError, RuntimeError) as exc:
+        return False, f"冻结文件无法验证: {type(exc).__name__}: {exc}"
+    return True, "冻结文件哈希一致"
 
 
 def _dated_prediction_dirs():
@@ -34,21 +78,23 @@ def verify_prediction_chain(root: Path | None = None):
         return True, "尚无预测链", 0
     dirs = sorted([
         d for d in base.iterdir()
-        if d.is_dir() and d.name not in {"latest", "_forced_backups"} and (d / "manifest.json").exists()
+        if d.is_dir() and d.name not in {"latest", "_forced_backups"}
     ], key=lambda x: x.name)
     prev_hash = None
     expected_seq = 1
     for d in dirs:
         try:
             m = json.loads((d / "manifest.json").read_text(encoding="utf-8"))
-        except Exception as e:
+        except (OSError, ValueError) as e:
             return False, f"{d.name} manifest 无法读取: {e}", expected_seq - 1
-        for name, expected in (m.get("files") or {}).items():
-            p = d / name
-            if not p.exists() or sha256_file(p) != expected:
-                return False, f"{d.name}/{name} 文件哈希不一致", expected_seq - 1
-        if int(m.get("chain_sequence", expected_seq)) != expected_seq:
+        payload_ok, payload_msg = verify_prediction_payloads(d, m)
+        if not payload_ok:
+            return False, f"{d.name}: {payload_msg}", expected_seq - 1
+        sequence = m.get("chain_sequence")
+        if type(sequence) is not int or sequence != expected_seq:
             return False, f"{d.name} chain_sequence 不连续", expected_seq - 1
+        if "previous_manifest_sha256" not in m:
+            return False, f"{d.name} previous_manifest_sha256 缺失", expected_seq - 1
         linked = m.get("previous_manifest_sha256")
         if linked != prev_hash:
             return False, f"{d.name} 前向哈希链断裂", expected_seq - 1

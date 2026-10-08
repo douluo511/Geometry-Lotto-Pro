@@ -16,11 +16,38 @@ shadow=rnd.build_shadow_frame(sc)
 assert {'production_rank','ridge_rank','hgb_rank','extra_trees_rank','equal_rank','momentum_value_rank'}<=set(shadow)
 assert 'realized_gross' not in shadow
 
+
+# Every advertised window needs actual unique paired dates; missing long windows
+# remain WAITING even when all short-window bootstrap confidence intervals pass.
+window_dates = pd.bdate_range("2024-01-02", periods=36)
+long = rnd._seed_window_stability([.01] * 36, 300, 12, [1, 2, 3], [12, 24, 36], signal_dates=window_dates)
+assert long["status"] == "PASS", long
+assert {c["window"]: c["n"] for c in long["checks"]} == {12: 12, 24: 24, 36: 36}
+for n in (12, 24):
+    short = rnd._seed_window_stability([.01] * n, 300, 12, [1, 2, 3], [12, 24, 36], signal_dates=window_dates[:n])
+    assert short["status"] == "WAITING", short
+    assert any(c["window"] == 36 and c["status"] == "WAITING" for c in short["checks"]), short
+negative = rnd._seed_window_stability([-.01] * 36, 300, 12, [1, 2, 3], [12, 24, 36], signal_dates=window_dates)
+assert negative["status"] == "FAIL", negative
+invalid_cases = [
+    ("missing_dates", [.01] * 36, None),
+    ("short_date_list", [.01] * 36, window_dates[:12]),
+    ("duplicate_dates", [.01] * 36, [window_dates[0]] * 36),
+    ("unordered_dates", [.01] * 36, window_dates[::-1]),
+    ("malformed_dates", [.01] * 36, ["not-a-date"] * 36),
+    ("NaN_observation", [float("nan")] + [.01] * 35, window_dates),
+    ("infinite_observation", [float("inf")] + [.01] * 35, window_dates),
+    ("future_dates", [.01] * 36, pd.bdate_range(pd.Timestamp.today().normalize() + pd.Timedelta(days=30), periods=36)),
+]
+for name, values, paired_dates in invalid_cases:
+    result = rnd._seed_window_stability(values, 300, 12, [1, 2, 3], [12, 24, 36], signal_dates=paired_dates)
+    assert result["status"] == "WAITING" and result["status"] != "PASS", (name, result)
+
 # End-to-end frozen-before-outcome evaluation. Equal ensemble is deliberately superior.
 with tempfile.TemporaryDirectory() as td:
     tmp=Path(td);(tmp/'predictions').mkdir();(tmp/'reports').mkdir();(tmp/'data'/'history').mkdir(parents=True)
-    dates=pd.bdate_range('2026-01-02',periods=100)
-    signal_idx=list(range(0,78,6))[:13]
+    dates=pd.bdate_range('2024-01-02',periods=240)
+    signal_idx=list(range(0,222,6))[:37]
     codes=[f'{i:06d}' for i in range(1,31)]
     histories={}
     for j,c in enumerate(codes):
@@ -52,8 +79,20 @@ with tempfile.TemporaryDirectory() as td:
     assert gates['equal_ensemble']['holm_adjusted_p'] <= .05
     assert gates['equal_ensemble']['reality_check']['p_value'] <= .05
     assert gates['ridge_only']['status']=='REJECT'
+    history = pd.read_csv(tmp / "reports" / "rnd_shadow_history.csv")
+    short_dates = sorted(history["signal_date"].unique())[:12]
+    short_history = history[history["signal_date"].isin(short_dates)]
+    short_gates = rnd._promotion_gates(short_history, rnd._strategy_summary(short_history), cfg, {"trust": "HIGH"})
+    assert short_gates and all(g["status"] == "WAITING" for g in short_gates), short_gates
+    assert not any(g["status"] == "PROMOTABLE_REVIEW" for g in short_gates)
+    duplicate_history = pd.concat([short_history, short_history], ignore_index=True)
+    duplicate_gates = rnd._promotion_gates(duplicate_history, rnd._strategy_summary(duplicate_history), cfg, {"trust": "HIGH"})
+    assert duplicate_gates and all(g["status"] == "WAITING" for g in duplicate_gates), duplicate_gates
+
     assert (tmp/'reports'/'rnd_shadow_history.csv').exists()
     assert report.get('evidence_id') and len(report['evidence_id'])==64
     ev=json.loads((tmp/'reports'/'rnd_evidence.json').read_text(encoding='utf-8'));assert ev['evidence_id']==report['evidence_id'] and ev.get('report_sha256')
     reg=json.loads((tmp/'reports'/'rnd_candidate_registry.json').read_text(encoding='utf-8'));assert any(c['challenger']=='equal_ensemble' and c['auto_promote'] is False for c in reg['candidates'])
 print('R&D CHAMPION/CHALLENGER TEST PASS')
+
+print(json.dumps({"schema": "stock-ai-rnd-window-contract-v1", "status": "PASS", "source_sha": __import__("os").environ.get("STOCK_SOURCE_SHA"), "direct_controls": 12, "complete_window_sizes": {str(c["window"]): c["n"] for c in long["checks"]}, "short_and_duplicate_promotion": "WAITING", "end_to_end_complete_signal_dates": 37, "scope": "synthetic paired-date controls only; not real-business or Final qualification"}))

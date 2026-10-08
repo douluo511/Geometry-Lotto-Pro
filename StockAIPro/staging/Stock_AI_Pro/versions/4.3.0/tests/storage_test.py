@@ -15,6 +15,9 @@ with tempfile.TemporaryDirectory() as td:
                                  {"good_ratio":1.0},False,rnd_shadow=pd.DataFrame({"code":["000001"],"production_rank":[1]}))
         manifest=json.loads((out/"manifest.json").read_text(encoding="utf-8"))
         assert "predictions.csv" in manifest["files"] and "rnd_shadow.csv" in manifest["files"]
+        assert st.REQUIRED_PREDICTION_PAYLOADS <= manifest["files"].keys()
+        assert st.verify_prediction_payloads(out,manifest)[0]
+        assert st.verify_prediction_chain(tmp)[0]
         try:
             st.freeze_prediction("2026-08-25",df,{"balanced":df,"offense":df,"defense":df},
                                  {},{},{},{},False)
