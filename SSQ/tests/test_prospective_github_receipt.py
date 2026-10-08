@@ -131,7 +131,9 @@ class ReadOnlyGitHubReceiptTests(unittest.TestCase):
         self.assertFalse(result["promotion_authorized"])
         self.assertFalse(result["official_outcome_verified"])
         self.assertEqual(result["production_rho"], 0.0)
-        self.assertEqual(len(remote.requests), 3)
+        self.assertEqual(len(remote.requests), 4)
+        self.assertEqual(result["exact_run_commit_provenance"]["exact_successful_run_commit"], GIT_SHA)
+        self.assertEqual(result["exact_run_commit_provenance"]["new_freeze_path"], PATH)
         self.assertTrue(all(call["allow_redirects"] is False for _, call in remote.requests))
 
     def test_successful_later_run_cannot_launder_earlier_unverified_freeze(self):
@@ -163,6 +165,24 @@ class ReadOnlyGitHubReceiptTests(unittest.TestCase):
         ]
         with self.assertRaisesRegex(ValueError, "not added by exact successful"):
             verify_github_freeze_receipt(run_id=1234, target_issue=ISSUE, client=remote)
+
+    def test_wrong_or_merge_commit_metadata_cannot_authenticate_receipt(self):
+        for mutation in (
+            {"sha": "f" * 40},
+            {"parents": []},
+            {"parents": [{"sha": "c" * 40}, {"sha": "d" * 40}]},
+            {"parents": [{"sha": "not-a-sha"}]},
+            {"files": []},
+            {"files": [{"filename": PATH, "status": "modified"}]},
+            {"files": [{"filename": PATH, "status": "renamed"}]},
+        ):
+            with self.subTest(mutation=mutation):
+                remote = FakeGitHub()
+                remote.commit.update(mutation)
+                with self.assertRaisesRegex(ValueError, "not added by exact successful"):
+                    verify_github_freeze_receipt(
+                        run_id=1234, target_issue=ISSUE, client=remote,
+                    )
 
     def test_modified_workflow_or_source_in_prior_branch_commit_fails(self):
         remote = FakeGitHub()
