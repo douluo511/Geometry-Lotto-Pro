@@ -40,6 +40,26 @@ jobs:
         with:
           python-version: "3.11.9"
           check-latest: false
+      - name: Pin original native 18-page first-party source parser from #360
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: e9be8d3aa0eee9adb28300586157781bdc6ea5fa
+          path: pinned_native_BSE_360
+          fetch-depth: 1
+      - name: Pin original native issuer PDF text/date parser from #363
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: b723080753040c8da0bacd843df525257a412207
+          path: pinned_delist_BSE_363
+          fetch-depth: 1
+      - name: Check both original parser code exact SHA and pinned dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C pinned_native_BSE_360 rev-parse HEAD)" = e9be8d3aa0eee9adb28300586157781bdc6ea5fa
+          test "$(git -C pinned_delist_BSE_363 rev-parse HEAD)" = b723080753040c8da0bacd843df525257a412207
+          python -m pip install --disable-pip-version-check --no-input "requests==2.34.2" "beautifulsoup4==4.15.0" "pymupdf==1.24.14"
+
       - name: Fail-first 23/23 independent complete-denominator adversarial controls
         run: python .github/stock_diag/test_stock_bse_crosssource_phase_delist.py
       - name: Download 248 first-party current mapping and three official phased-code notices
@@ -81,6 +101,54 @@ jobs:
           echo "13efb01737ad27f250552cc37095c457d3766b34de008ca1518cc86d26844095  original_official_BSE_2_delist_PDF.zip" | sha256sum -c
           unzip -oq original_official_BSE_2_delist_PDF.zip
           test -f stock_bse_two_delist_notices.json
+      - name: Independently replay 18 native ORIGINAL HTTP response pages and two ORIGINAL first-party PDF bodies
+        run: |
+          python .github/stock_diag/stock_bse_crosssource_raw_replay.py \
+            --phase stock_bse_248_two_phase_primary_asof.json \
+            --current stock_bse_current_two_source_witness.json \
+            --delist stock_bse_two_delist_notices.json \
+            --native-dir . \
+            --pdf-dir . \
+            --native-code pinned_native_BSE_360/.github/stock_diag \
+            --pdf-code pinned_delist_BSE_363/.github/stock_diag \
+            --output stock_bse_actual_original_byte_replay.json
+      - name: Actual firstparty raw-response tamper regressions must FAIL-CLOSED
+        run: |
+          python - <<'PY'
+          import importlib.util,json,shutil,tempfile
+          from pathlib import Path
+          src=Path(".github/stock_diag/stock_bse_crosssource_raw_replay.py")
+          spec=importlib.util.spec_from_file_location("raw_replay",src)
+          m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
+          current=json.load(open("stock_bse_current_two_source_witness.json",encoding="utf-8"))
+          delist=json.load(open("stock_bse_two_delist_notices.json",encoding="utf-8"))
+          phase=json.load(open("stock_bse_248_two_phase_primary_asof.json",encoding="utf-8"))
+          native=Path("pinned_native_BSE_360/.github/stock_diag")
+          pdfcode=Path("pinned_delist_BSE_363/.github/stock_diag")
+          ok=m.replay_current(Path("."),current,native,phase["current_alias_raw_sha256"])
+          assert ok["actual_original_native_current_security_rows"]==348
+          ok=m.replay_issuer_pdfs(Path("."),delist,pdfcode)
+          assert ok["independent_firstparty_PDF_count"]==2
+          with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp)
+            shutil.copytree("stock_bse_filter2_raw",root/"stock_bse_filter2_raw")
+            shutil.copy2("stock_bse_alias_original_source.html",root/"stock_bse_alias_original_source.html")
+            page=root/"stock_bse_filter2_raw"/"bse_post_filter2_page_000.raw"
+            page.write_bytes(page.read_bytes()+b'BROKEN_RAW_NATIVE_PAGE')
+            try:m.replay_current(root,current,native,phase["current_alias_raw_sha256"])
+            except (ValueError,TypeError):pass
+            else:raise AssertionError("FAIL-OPEN original source BSE 348 raw page altered")
+          with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp)
+            for p in ("stock_bse_delist_920305.pdf","stock_bse_delist_920680.pdf"):
+              shutil.copy2(p,root/p)
+            source=root/"stock_bse_delist_920305.pdf"
+            source.write_bytes(source.read_bytes()+b'ADDED_NON_FIRSTPARTY_BYTES')
+            try:m.replay_issuer_pdfs(root,delist,pdfcode)
+            except (ValueError,TypeError):pass
+            else:raise AssertionError("FAIL-OPEN original delist notice PDF altered")
+          print("ACTUAL_FIRSTPARTY_NATIVE_QUERY_RAW_AND_PDF_CORRUPTION_NEGATIVES 2/2 PASS")
+          PY
       - name: Independently reconcile all 248 mapping dates, 348 current query codes and two issuer notices
         run: |
           python .github/stock_diag/stock_bse_crosssource_phase_delist.py \
@@ -115,6 +183,8 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: STOCK-BSE-248-348-2-CURRENT-AND-DELIST-DIAGNOSTIC-${{ github.event.pull_request.head.sha || github.sha }}
-          path: stock_bse_248_348_2_provenance_reconciliation.json
+          path: |
+            stock_bse_248_348_2_provenance_reconciliation.json
+            stock_bse_actual_original_byte_replay.json
           if-no-files-found: warn
           retention-days: 30
