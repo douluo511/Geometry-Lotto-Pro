@@ -7,7 +7,9 @@ from statistics import median
 from typing import Iterable
 
 from .domain import DailyBar, validate_market_rows
+from .market_lineage import market_series_commitments, commitment_index_digest
 from .netclient import NetClient
+from .cash_adjustment import CASH_MODEL, verify_cash_offset
 
 EASTMONEY_DATACENTER_URL = "https://datacenter-web.eastmoney.com/api/data/v1/get"
 REPORT_NAME = "RPT_SHAREBONUS_DET"
@@ -99,6 +101,7 @@ def fetch_share_bonus_events(client: NetClient, symbol: str, page_size: int = 10
         "payload_sha256": meta.payload_sha256,
         "retrieved_at_unix": meta.retrieved_at_unix,
         "event_count": len(events),
+        "cash_unit": "CNY_PER_10_SHARES",
         "schema_fields": [
             "SECURITY_CODE", "PLAN_NOTICE_DATE", "EX_DIVIDEND_DATE",
             "PRETAX_BONUS_RMB", "BONUS_RATIO", "TRANSFER_RATIO", "ASSIGN_PROGRESS",
@@ -148,11 +151,45 @@ def verify_corporate_action_lineage(
     if hashes["qfq_payload_sha256"] == hashes["raw_payload_sha256"]:
         return {"status": "NOT VERIFIED", "reason": "qfq/raw payloads are not independently distinguishable", **hashes}
 
+    def source_hashes(meta):
+        values = meta.get("source_payload_sha256s", [meta.get("payload_sha256")])
+        return values if (isinstance(values,list) and values
+                         and all(isinstance(x,str) and re.fullmatch(r"[0-9a-f]{64}",x) for x in values)) else []
+    qfq_source_hashes = source_hashes(qfq_meta)
+    raw_source_hashes = source_hashes(raw_meta)
+    source_content_bound = bool(qfq_source_hashes and raw_source_hashes) and all(
+        row.provider == providers[kind] and row.raw_sha256 in payloads
+        for kind, source_rows, payloads in (("qfq",qfq,qfq_source_hashes),("raw",raw,raw_source_hashes))
+        for row in source_rows
+    )
+    qfq_commitments = market_series_commitments(qfq)
+    raw_commitments = market_series_commitments(raw)
+
     qmap = {x.trade_date: x for x in qfq}
     rmap = {x.trade_date: x for x in raw}
     dates = sorted(set(qmap) & set(rmap))
     if len(dates) < 60:
         return {"status": "NOT VERIFIED", "reason": "qfq/raw overlap is too short", "overlap_rows": len(dates), **hashes}
+
+
+    common_lineage = {
+        "source_content_bound":"PASS" if source_content_bound else "NOT VERIFIED",
+        "qfq_series_sha256":commitment_index_digest(qfq_commitments),
+        "raw_series_sha256":commitment_index_digest(raw_commitments),
+        "qfq_row_commitments":qfq_commitments,"qfq_series_rows":len(qfq_commitments),
+        "qfq_source_payload_sha256s":qfq_source_hashes,"raw_source_payload_sha256s":raw_source_hashes,
+        "symbol":qfq[0].symbol,"overlap_start":dates[0],"overlap_end":dates[-1],
+        "overlap_rows":len(dates),"overlap_dates":dates,"source_providers":providers,
+        "factor_change_tolerance":factor_change_tolerance,
+        "max_match_calendar_days":max_match_calendar_days,**hashes,
+    }
+    profile=qfq_meta.get("adjustment_model_contract","multiplicative_factor_v2")
+    if profile==CASH_MODEL:
+        return {**common_lineage,**verify_cash_offset(qfq,raw,events,event_meta,
+                                                     source_content_bound=source_content_bound)}
+    if profile!="multiplicative_factor_v2":
+        return {**common_lineage,"status":"NOT VERIFIED","point_in_time_lineage":"NOT VERIFIED",
+                "adjustment_matching_status":"NOT VERIFIED","reason":"unknown adjustment model profile"}
 
     # One rounded close is too weak to identify an adjustment factor: both qfq
     # and raw prices are cent-rounded, so a single ratio can jump when price
@@ -371,14 +408,49 @@ def verify_corporate_action_lineage(
             "calendar_days_after_ex_date": delta,
         })
 
+    # Preserve direct price observations around each announced action and each
+    # unexplained shift. These contexts diagnose the unchanged factor model;
+    # they never qualify an action or relax its frozen tolerances.
+    contexts = []
+    for label,pivot,event in (
+        [("announced_action",e["ex_dividend_date"],e) for e in valid_events]
+        + [("unexplained_shift",x["trade_date"],None) for x in unexplained]
+    ):
+        nearest = min(range(len(dates)),key=lambda i:abs((date.fromisoformat(dates[i])-date.fromisoformat(pivot)).days))
+        observations = []
+        for d in dates[max(0,nearest-5):min(len(dates),nearest+6)]:
+            qrow,rrow = qmap[d],rmap[d]
+            observations.append({
+                "trade_date":d,
+                "qfq_ohlc":{k:getattr(qrow,k) for k in ("open","high","low","close")},
+                "raw_ohlc":{k:getattr(rrow,k) for k in ("open","high","low","close")},
+                "qfq_minus_raw_ohlc":{k:float(getattr(qrow,k))-float(getattr(rrow,k)) for k in ("open","high","low","close")},
+                "qfq_payload_sha256":qrow.raw_sha256,"raw_payload_sha256":rrow.raw_sha256,
+                "factor_point":factor_points[dates.index(d)],
+            })
+        contexts.append({"kind":label,"pivot_date":pivot,"event":event,"observations":observations})
+
     unmatched_events = [e for i, e in enumerate(valid_events) if i not in used_events]
     observed_matching = bool(matched) and not unexplained
-    point_in_time = observed_matching and not unmatched_events and not invalid_notice_events
+    complete_matching = source_content_bound and observed_matching and not unmatched_events and not invalid_notice_events
+    # Observed current factors and printed notice dates do not establish the
+    # values available at each historical feature as-of date. No such receipt
+    # and causal reconstruction contract is implemented in this verifier.
+    point_in_time = False
     return {
         "status": "PASS" if point_in_time else "NOT VERIFIED",
         "point_in_time_lineage": "PASS" if point_in_time else "NOT VERIFIED",
         "observed_factor_event_matching_status": "PASS" if observed_matching else "NOT VERIFIED",
+        "adjustment_matching_status":"PASS" if complete_matching else "NOT VERIFIED",
+        "adjustment_model_contract":"multiplicative_factor_v2",
         "scope": "overlapping qfq/raw dates only; the consumer must bind the complete research window",
+        "source_content_bound": "PASS" if source_content_bound else "NOT VERIFIED",
+        "qfq_series_sha256": commitment_index_digest(qfq_commitments),
+        "raw_series_sha256": commitment_index_digest(raw_commitments),
+        "qfq_row_commitments": qfq_commitments,
+        "qfq_series_rows": len(qfq_commitments),
+        "qfq_source_payload_sha256s": qfq_source_hashes,
+        "raw_source_payload_sha256s": raw_source_hashes,
         "symbol": qfq[0].symbol,
         "overlap_start": dates[0],
         "overlap_end": dates[-1],
@@ -397,6 +469,7 @@ def verify_corporate_action_lineage(
         "matched_events": matched,
         "unexplained_changes": unexplained,
         "unmatched_valid_events": unmatched_events,
+        "action_factor_contexts":contexts,
         "invalid_notice_events": invalid_notice_events,
         "source_providers": providers,
         **hashes,
@@ -406,6 +479,6 @@ def verify_corporate_action_lineage(
             "historical point-in-time availability of every research feature or execution-cost calibration."
         ),
         "reason": None if point_in_time else (
-            "requires matched announced action/factor shifts with no unexplained shifts, unmatched valid actions or missing notice lineage"
+            "historical as-of availability and causal feature reconstruction are not established by current factor matching"
         ),
     }

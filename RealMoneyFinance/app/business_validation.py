@@ -10,6 +10,7 @@ from statistics import NormalDist, mean, median, pstdev
 from typing import Iterable
 
 from .domain import DailyBar, validate_market_rows
+from .market_lineage import market_row_commitment, commitment_index_digest
 
 
 @dataclass(frozen=True)
@@ -60,7 +61,8 @@ def _strict_dates(rows: list[DailyBar]) -> bool:
     return len(dates) == len(set(dates)) and dates == sorted(dates)
 
 
-def _corporate_action_evidence_qualified(source_meta: dict, evidence: dict, *, research_dates: list[str]) -> bool:
+def _corporate_action_evidence_qualified(source_meta: dict, evidence: dict, *, research_rows: list[DailyBar]) -> bool:
+    research_dates = [row.trade_date for row in research_rows]
     if source_meta.get("qualification_scope") != "production_real_network":
         return False
     if str(source_meta.get("price_adjustment", "")).lower() != "qfq":
@@ -85,6 +87,37 @@ def _corporate_action_evidence_qualified(source_meta: dict, evidence: dict, *, r
         return False
     if hashes[0] == hashes[1]:
         return False
+
+    # Dates and an adjustment label cannot certify different actual prices.
+    # Bind each research row's complete numeric content, provider and original
+    # response hash to the very qfq input series used by the verifier.
+    if (
+        source_meta.get("provider") != "tencent_public_full_kline"
+        or source_meta.get("payload_sha256") != hashes[0]
+        or evidence.get("source_content_bound") != "PASS"
+    ):
+        return False
+    source_hashes = source_meta.get("source_payload_sha256s", [hashes[0]])
+    bound_hashes = evidence.get("qfq_source_payload_sha256s")
+    commitments = evidence.get("qfq_row_commitments")
+    if (
+        not isinstance(source_hashes, list) or not source_hashes
+        or not all(isinstance(x,str) and re.fullmatch(r"[0-9a-f]{64}",x) for x in source_hashes)
+        or bound_hashes != source_hashes
+        or not isinstance(commitments, dict) or not commitments
+        or not all(isinstance(k,str) and isinstance(v,str) and re.fullmatch(r"[0-9a-f]{64}",v)
+                   for k,v in commitments.items())
+        or evidence.get("qfq_series_sha256") != commitment_index_digest(commitments)
+        or evidence.get("qfq_series_rows") != len(commitments)
+    ):
+        return False
+    for row in research_rows:
+        if (
+            row.provider != source_meta["provider"]
+            or row.raw_sha256 not in source_hashes
+            or commitments.get(row.trade_date) != market_row_commitment(row)
+        ):
+            return False
 
     try:
         verified = int(evidence.get("verified_event_count"))
@@ -546,7 +579,7 @@ def qualify_research(
         "PASS"
         if _corporate_action_evidence_qualified(
             corporate_source_meta, corporate_evidence,
-            research_dates=[row.trade_date for row in ordered],
+            research_rows=ordered,
         )
         else "NOT VERIFIED"
     )
@@ -732,7 +765,7 @@ def qualify_research(
     gaps = {
         "cost_slippage_model": "Illustrative basis-point assumptions lack current exchange/broker calibration and observed execution slippage.",
         "liquidity_capacity": "No order notional, executable participation, spread/impact or limit/suspension fill evidence.",
-        "corporate_action_adjustment": "PASS requires qfq/raw coverage for every actual research date and independently hashed action dates; no unexplained factor change, unmatched valid action or missing notice lineage may remain.",
+        "corporate_action_adjustment": "PASS requires actual research content/provider/payload bound to the audited qfq series and qfq/raw coverage for every actual research date and independently hashed action dates; no unexplained factor change, unmatched valid action or missing notice lineage may remain.",
         "leakage_safe_time_split": "Lagged execution is implemented, but historical point-in-time source availability is unverified.",
         "survivorship_selection_control": "User-selected single symbol lacks a precommitted survivorship-safe investable universe.",
         "oos_walk_forward": "Frozen holdout-power target lacks sufficient current real-network OOS evidence; computing an INSUFFICIENT decision is not a power PASS.",

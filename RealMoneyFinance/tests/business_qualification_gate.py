@@ -17,6 +17,7 @@ from app.source_universe import SSE_UNIVERSE_URL, UNIVERSE_URLS, build_prospecti
 from app.source_tencent_full import fetch_daily_bars_tencent_full
 from app.source_yahoo import fetch_daily_bars_yahoo
 from app.source_cost_rules import fetch_official_cost_rules
+from app.source_official_cash import fetch_official_cash_documents
 from tests.business_failclosed_contract import run_contract
 
 QUALIFICATION_HISTORY_ROWS = 1200
@@ -439,14 +440,18 @@ def _field_complete_ablation_replication(client: NetClient, reference_rows: list
         "provider_attempts": attempts,
     }
 
-def _corporate_action_lineage(client: NetClient) -> dict:
+def _corporate_action_lineage(client: NetClient, research_rows, research_meta) -> dict:
     try:
-        qfq_rows, qfq_meta = fetch_daily_bars_tencent_full(client, "600000", QUALIFICATION_HISTORY_ROWS, adjustment="qfq")
+        if research_meta.get("provider") != "tencent_public_full_kline" or research_meta.get("price_adjustment") != "qfq":
+            return {"status":"NOT VERIFIED", "point_in_time_lineage":"NOT VERIFIED",
+                    "reason":"actual research provider lacks independently bound Tencent qfq content"}
+        qfq_rows, qfq_meta = research_rows, research_meta
         raw_rows, raw_meta = fetch_daily_bars_tencent_full(client, "600000", QUALIFICATION_HISTORY_ROWS, adjustment="raw")
         events, event_meta = fetch_share_bonus_events(client, "600000", 100)
-        return verify_corporate_action_lineage(
-            qfq_rows, raw_rows, events, qfq_meta, raw_meta, event_meta
-        )
+        event_meta["official_cash_action_evidence"]=fetch_official_cash_documents(client)
+        evidence=verify_corporate_action_lineage(qfq_rows,raw_rows,events,qfq_meta,raw_meta,event_meta)
+        evidence["official_cash_action_evidence"]=event_meta["official_cash_action_evidence"]
+        return evidence
     except Exception as exc:
         return {
             "status": "NOT VERIFIED",
@@ -479,7 +484,7 @@ def real_network_qualification() -> dict:
                 benchmark_error = "benchmark as-of date does not match primary qualification date"
         except Exception as exc:
             benchmark_error = repr(exc)
-        corporate_action_evidence = _corporate_action_lineage(client)
+        corporate_action_evidence = _corporate_action_lineage(client, bars, meta)
         got = qualify_research(
             bars,
             meta,

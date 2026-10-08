@@ -34,12 +34,196 @@ def bars(count=150):
 
 class BusinessBoundaries(unittest.TestCase):
 
+
+    def _cash_fixture(self):
+        raw=[replace(row,high=row.open+2,low=row.open-2,provider="tencent_public_full_kline",
+                     raw_sha256="c"*64) for row in bars(300)]
+        ex="2025-07-16"
+        qfq=[replace(row,**{f:getattr(row,f)-(0.41 if row.trade_date<ex else 0)
+                            for f in ("open","close","high","low")},raw_sha256="b"*64) for row in raw]
+        event={"symbol":"600000","plan_notice_date":"2025-03-29","ex_dividend_date":ex,
+               "pretax_bonus_rmb":4.1,"bonus_ratio":0.0,"transfer_ratio":0.0}
+        doc={"symbol":"600000","ex_dividend_date":ex,"cash_per_share":0.41,
+             "cash_unit":"CNY_PER_SHARE","published_date":"2025-07-09",
+             "url":"https://news.spdb.com.cn/investor_relation/company_report/202507/P020250709652132836194.pdf",
+             "payload_sha256":"e"*64,"document_cash_match":"PASS","document_date_match":"PASS",
+             "historical_asof_availability":"NOT VERIFIED","scope":"OFFLINE_CONTRACT_FIXTURE"}
+        qm={"provider":"tencent_public_full_kline","price_adjustment":"qfq","payload_sha256":"b"*64,
+            "adjustment_model_contract":"tencent_600000_cash_offset_v1"}
+        rm={"provider":"tencent_public_full_kline","price_adjustment":"unadjusted","payload_sha256":"c"*64}
+        em={"provider":"eastmoney_share_bonus_datacenter","payload_sha256":"d"*64,
+            "cash_unit":"CNY_PER_10_SHARES","official_cash_action_evidence":[doc]}
+        return qfq,raw,[event],qm,rm,em
+
+    def test_cash_offset_rejects_wrong_units_cash_date_notices_and_unsupported_actions(self):
+        for kind in ("wrong_cash","per_share_as_per10","wrong_ex_date","future_notice",
+                     "missing_notice","missing_official","wrong_official_cash","wrong_official_date",
+                     "future_official","wrong_official_unit","bonus","transfer","unknown_profile"):
+            q,r,events,qm,rm,em=self._cash_fixture()
+            if kind=="wrong_cash":events[0]["pretax_bonus_rmb"]=4.2
+            if kind=="per_share_as_per10":events[0]["pretax_bonus_rmb"]=.41
+            if kind=="wrong_ex_date":events[0]["ex_dividend_date"]="2025-07-17"
+            if kind=="future_notice":events[0]["plan_notice_date"]="2025-07-17"
+            if kind=="missing_notice":events[0]["plan_notice_date"]=None
+            if kind=="missing_official":em["official_cash_action_evidence"]=[]
+            if kind=="wrong_official_cash":em["official_cash_action_evidence"][0]["cash_per_share"]=4.1
+            if kind=="wrong_official_date":em["official_cash_action_evidence"][0]["ex_dividend_date"]="2025-07-17"
+            if kind=="future_official":em["official_cash_action_evidence"][0]["published_date"]="2025-07-17"
+            if kind=="wrong_official_unit":em["official_cash_action_evidence"][0]["cash_unit"]="CNY_PER_10_SHARES"
+            if kind=="bonus":events[0]["bonus_ratio"]=1
+            if kind=="transfer":events[0]["transfer_ratio"]=1
+            if kind=="unknown_profile":qm["adjustment_model_contract"]="choose_any_model_to_pass"
+            with self.subTest(kind=kind):
+                e=verify_corporate_action_lineage(q,r,events,qm,rm,em)
+                self.assertEqual(e["adjustment_matching_status"],"NOT VERIFIED")
+                self.assertEqual(e["point_in_time_lineage"],"NOT VERIFIED")
+
+    def test_cash_offset_requires_all_ohlc_every_date_and_every_action(self):
+        for kind in ("only_close","missing_raw_date","missing_action","extra_action","unexplained_shift",
+                     "wrong_provider","wrong_payload","duplicate_action","cash_unit_missing"):
+            q,r,events,qm,rm,em=self._cash_fixture()
+            if kind=="only_close":
+                q=[replace(row,open=r[i].open,high=r[i].high,low=r[i].low) for i,row in enumerate(q)]
+            if kind=="missing_raw_date":r=r[:40]+r[41:]
+            if kind=="missing_action":events=[]
+            if kind=="extra_action":events.append({**events[0],"ex_dividend_date":"2025-05-16"})
+            if kind=="unexplained_shift":
+                q=[replace(row,**{f:getattr(row,f)-(.10 if i<50 else 0)
+                                  for f in ("open","close","high","low")}) for i,row in enumerate(q)]
+            if kind=="wrong_provider":q=[replace(row,provider="another_provider") for row in q]
+            if kind=="wrong_payload":q=[replace(row,raw_sha256="e"*64) for row in q]
+            if kind=="duplicate_action":events.append(dict(events[0]))
+            if kind=="cash_unit_missing":em.pop("cash_unit")
+            with self.subTest(kind=kind):
+                e=verify_corporate_action_lineage(q,r,events,qm,rm,em)
+                self.assertEqual(e["adjustment_matching_status"],"NOT VERIFIED")
+                self.assertEqual(e["status"],"NOT VERIFIED")
+
+    def test_future_cash_changes_pre_notice_features_and_cannot_promote_pit(self):
+        q,r,events,qm,rm,em=self._cash_fixture()
+        before_notice=[row for row in r if row.trade_date<events[0]["plan_notice_date"]]
+        now_backadjusted=[row for row in q if row.trade_date<events[0]["plan_notice_date"]]
+        before=_observations(before_notice,("close",))
+        after=_observations(now_backadjusted,("close",))
+        self.assertTrue(before and after)
+        self.assertEqual(before[0]["feature_date"],after[0]["feature_date"])
+        self.assertNotEqual(before[0]["score"],after[0]["score"])
+        self.assertNotEqual(before[0]["next_return"],after[0]["next_return"])
+        e=verify_corporate_action_lineage(q,r,events,qm,rm,em)
+        self.assertEqual(e["adjustment_matching_status"],"PASS")
+        self.assertEqual(e["point_in_time_lineage"],"NOT VERIFIED")
+        # Printed publication dates and today's bytes cannot change this gate.
+        got=qualify_research(q,{**qm,"qualification_scope":"production_real_network"},
+                             corporate_action_evidence=e)
+        self.assertEqual(got["gates"]["corporate_action_adjustment"],"NOT VERIFIED")
+        self.assertFalse(got["capital_deployment_ready"])
+
+
+    def test_original_pdf_ex_date_column_and_explicit_gross_label_are_bound(self):
+        from app.source_official_cash import parse_cash_document
+        class Reader:
+            is_encrypted=False
+            def __init__(self,text):self.pages=[SimpleNamespace(extract_text=lambda:text)]
+        text=("上海浦东发展银行股份有限公司 600000 2024年年度普通股权益分派实施公告 "
+              "普通股每股现金红利人民币0.41元（含税） 差异化分红送转：否 "
+              "股份类别股权登记日最后交易日除权（息）日现金红利发放日 "
+              "普通股2025/7/15－2025/7/162025/7/16 董事会2025年7月9日")
+        kwargs={"url":"https://news.spdb.com.cn/investor_relation/company_report/202507/P020250709652132836194.pdf",
+                "expected_ex_date":"2025-07-16","expected_published_date":"2025-07-09",
+                "expected_cash_per_share":.41,"document_kind":"ordinary_cash_implementation"}
+        cases={
+            "wrong_ex_payment_contains_expected":text.replace("普通股2025/7/15－2025/7/162025/7/16",
+                                                            "普通股2025/7/15－2025/7/172025/7/16"),
+            "wrong_ex_record_contains_expected":text.replace("普通股2025/7/15－2025/7/162025/7/16",
+                                                           "普通股2025/7/16－2025/7/172025/7/18"),
+            "same_number_tax_net":text.replace("0.41元（含税）","0.41元（税后）"),
+            "unlabelled_gross":text.replace("0.41元（含税）","0.41元"),
+        }
+        for name,bodytext in cases.items():
+            with self.subTest(name=name),patch("app.source_official_cash.PdfReader",return_value=Reader(bodytext)):
+                e=parse_cash_document(b"%PDF-fixture",**kwargs)
+                self.assertFalse(e["document_cash_match"]=="PASS" and e["document_date_match"]=="PASS")
+                self.assertEqual(e["historical_asof_availability"],"NOT VERIFIED")
+
+    def test_original_pdf_parser_requires_exact_issuer_gross_unit_and_cash_date(self):
+        from app.source_official_cash import parse_cash_document
+        class Reader:
+            is_encrypted=False
+            def __init__(self,text):
+                self.pages=[SimpleNamespace(extract_text=lambda:text)]
+        text=("上海浦东发展银行股份有限公司 600000 2024年年度普通股权益分派实施公告 "
+              "普通股每股现金红利人民币0.41元（含税） 差异化分红送转：否 "
+              "普通股2025/7/15－2025/7/162025/7/16 董事会2025年7月9日")
+        kwargs={"url":"https://news.spdb.com.cn/investor_relation/company_report/202507/P020250709652132836194.pdf",
+                "expected_ex_date":"2025-07-16","expected_published_date":"2025-07-09",
+                "expected_cash_per_share":.41,"document_kind":"ordinary_cash_implementation"}
+        for kind in ("valid","per_ten","net_tax_only","net_tax_same_number","wrong_cash","wrong_date","wrong_publication","wrong_issuer"):
+            altered=text
+            if kind=="per_ten":altered=text.replace("每股现金红利人民币0.41","每10股现金红利人民币4.1")
+            if kind=="net_tax_only":altered=text.replace("0.41元（含税）","0.369元（税后）")
+            if kind=="net_tax_same_number":altered=text.replace("0.41元（含税）","0.41元（税后）")
+            if kind=="wrong_cash":altered=text.replace("0.41元","0.42元")
+            if kind=="wrong_date":altered=text.replace("2025/7/16","2025/7/17")
+            if kind=="wrong_publication":altered=text.replace("2025年7月9日","2025年7月17日")
+            if kind=="wrong_issuer":altered=text.replace("600000","600001")
+            with self.subTest(kind=kind),patch("app.source_official_cash.PdfReader",return_value=Reader(altered)):
+                if kind=="wrong_issuer":
+                    with self.assertRaises(ValueError):parse_cash_document(b"%PDF-fixture",**kwargs)
+                    continue
+                e=parse_cash_document(b"%PDF-fixture",**kwargs)
+                passed=e["document_cash_match"]=="PASS" and e["document_date_match"]=="PASS"
+                self.assertEqual(passed,kind=="valid")
+                self.assertEqual(e["historical_asof_availability"],"NOT VERIFIED")
+
+    def test_cash_offset_source_shape_must_match_without_becoming_historical_pit(self):
+        raw = [replace(row,high=row.open+2,low=row.open-2,
+                       provider="tencent_public_full_kline",raw_sha256="c"*64) for row in bars(300)]
+        ex_date = "2025-07-16"
+        qfq = [replace(row,**{field:getattr(row,field)-(0.41 if row.trade_date<ex_date else 0)
+                              for field in ("open","close","high","low")},raw_sha256="b"*64) for row in raw]
+        event = {"symbol":"600000","plan_notice_date":"2025-03-29","ex_dividend_date":ex_date,
+                 "pretax_bonus_rmb":4.1,"bonus_ratio":0.0,"transfer_ratio":0.0}
+        official = {"symbol":"600000","ex_dividend_date":ex_date,"cash_per_share":0.41,
+                    "cash_unit":"CNY_PER_SHARE","published_date":"2025-07-09",
+                    "url":"https://news.spdb.com.cn/investor_relation/company_report/202507/P020250709652132836194.pdf",
+                    "payload_sha256":"e"*64,"document_cash_match":"PASS","document_date_match":"PASS",
+                    "historical_asof_availability":"NOT VERIFIED"}
+        evidence = verify_corporate_action_lineage(
+            qfq,raw,[event],
+            {"provider":"tencent_public_full_kline","price_adjustment":"qfq","payload_sha256":"b"*64,
+             "adjustment_model_contract":"tencent_600000_cash_offset_v1"},
+            {"provider":"tencent_public_full_kline","price_adjustment":"unadjusted","payload_sha256":"c"*64},
+            {"provider":"eastmoney_share_bonus_datacenter","payload_sha256":"d"*64,
+             "cash_unit":"CNY_PER_10_SHARES","official_cash_action_evidence":[official]},
+        )
+        observed = evidence.get("adjustment_matching_status",evidence.get("observed_factor_event_matching_status"))
+        self.assertEqual(observed,"PASS")
+        self.assertEqual(evidence["point_in_time_lineage"],"NOT VERIFIED")
+        self.assertEqual(evidence["status"],"NOT VERIFIED")
+
+
+    def test_corporate_evidence_must_bind_actual_research_price_content(self):
+        evidence = self._valid_corporate_action_evidence()
+        # Same dates, plausible provider/payload identity and qfq label, but the
+        # actual research prices are raw, while audited qfq pre-action prices
+        # were multiplied by0.9. Identity strings cannot certify other prices.
+        wrong_prices = [replace(row, provider="tencent_public_full_kline", raw_sha256="b"*64)
+                        for row in bars(150)]
+        got = qualify_research(
+            wrong_prices,
+            {"provider":"tencent_public_full_kline", "payload_sha256":"b"*64,
+             "qualification_scope":"production_real_network", "price_adjustment":"qfq"},
+            corporate_action_evidence=evidence,
+        )
+        self.assertEqual(got["gates"]["corporate_action_adjustment"], "NOT VERIFIED")
+
+
     def test_corporate_action_partial_window_cannot_qualify_full_research(self):
         evidence = self._valid_corporate_action_evidence()
         self.assertEqual(evidence["overlap_rows"], 150)
         got = qualify_research(
-            bars(300),
-            {"provider": "production_fixture", "qualification_scope": "production_real_network",
+            self._valid_corporate_action_research_rows(300),
+            {"provider": "tencent_public_full_kline", "payload_sha256":"b"*64, "qualification_scope": "production_real_network",
              "price_adjustment": "qfq"},
             corporate_action_evidence=evidence,
         )
@@ -259,8 +443,14 @@ class BusinessBoundaries(unittest.TestCase):
         self.assertEqual(meta["payload_sha256"], "e" * 64)
         self.assertEqual(client.params["reportName"], "RPT_SHAREBONUS_DET")
 
+    def _valid_corporate_action_research_rows(self, count=150):
+        return [replace(row, **{field:getattr(row,field)*(0.9 if i<80 else 1.0)
+                               for field in ("open","close","high","low")},
+                        provider="tencent_public_full_kline", raw_sha256="b"*64)
+                for i,row in enumerate(bars(count))]
+
     def _valid_corporate_action_evidence(self):
-        raw = bars(150)
+        raw = [replace(row,provider="tencent_public_full_kline",raw_sha256="c"*64) for row in bars(150)]
         change_index = 80
         qfq = []
         for i, row in enumerate(raw):
@@ -282,7 +472,7 @@ class BusinessBoundaries(unittest.TestCase):
             "transfer_ratio": 0.0,
             "assign_progress": "implemented",
         }
-        return verify_corporate_action_lineage(
+        evidence=verify_corporate_action_lineage(
             qfq,
             raw,
             [event],
@@ -290,6 +480,15 @@ class BusinessBoundaries(unittest.TestCase):
             {"provider": "tencent_public_full_kline", "price_adjustment": "unadjusted", "payload_sha256": "c" * 64},
             {"provider": "eastmoney_share_bonus_datacenter", "payload_sha256": "d" * 64},
         )
+
+        # Hypothetical consumer contract only: the actual verifier above emits
+        # PIT NOT VERIFIED. Explicitly elevate this fixture to exercise every
+        # downstream content/window rejection without the PIT guard masking it.
+        evidence["producer_point_in_time_lineage"]=evidence["point_in_time_lineage"]
+        evidence["status"]="PASS"
+        evidence["point_in_time_lineage"]="PASS"
+        evidence["scope"]="OFFLINE_HYPOTHETICAL_CONSUMER_CONTRACT"
+        return evidence
 
     def test_corporate_action_window_requires_each_date_and_complete_event_lists(self):
         evidence = self._valid_corporate_action_evidence()
@@ -308,8 +507,8 @@ class BusinessBoundaries(unittest.TestCase):
         for broken in forged:
             with self.subTest(broken=broken):
                 got = qualify_research(
-                    bars(150),
-                    {"provider": "production_fixture", "qualification_scope": "production_real_network",
+                    self._valid_corporate_action_research_rows(),
+                    {"provider": "tencent_public_full_kline", "payload_sha256":"b"*64, "qualification_scope": "production_real_network",
                      "price_adjustment": "qfq"},
                     corporate_action_evidence=broken,
                 )
@@ -336,10 +535,40 @@ class BusinessBoundaries(unittest.TestCase):
                 self.assertEqual(len(evidence["invalid_notice_events"]), 1)
                 self.assertEqual(evidence["status"], "NOT VERIFIED")
 
+    def test_corporate_binding_rejects_wrong_payload_provider_or_numeric_feature(self):
+        evidence = self._valid_corporate_action_evidence()
+        rows = self._valid_corporate_action_research_rows()
+        meta = {"provider":"tencent_public_full_kline", "payload_sha256":"b"*64,
+                "qualification_scope":"production_real_network", "price_adjustment":"qfq"}
+        cases = [
+            ([replace(row,open=row.open+0.001) if i==30 else row for i,row in enumerate(rows)],meta),
+            ([replace(row,amount=row.amount+1) if i==30 else row for i,row in enumerate(rows)],meta),
+            ([replace(row,raw_sha256="c"*64) if i==30 else row for i,row in enumerate(rows)],meta),
+            ([replace(row,provider="foreign_provider") if i==30 else row for i,row in enumerate(rows)],meta),
+            (rows,{**meta,"payload_sha256":"c"*64}),
+            (rows,{**meta,"provider":"foreign_provider"}),
+            (rows,{**meta,"source_payload_sha256s":["b"*64,"c"*64]}),
+        ]
+        for actual,source in cases:
+            with self.subTest(source=source,content=actual[30]):
+                got = qualify_research(actual,source,corporate_action_evidence=evidence)
+                self.assertEqual(got["gates"]["corporate_action_adjustment"],"NOT VERIFIED")
+        for broken in (
+            {key:value for key,value in evidence.items() if key!="qfq_row_commitments"},
+            {**evidence,"qfq_series_sha256":"a"*64},
+            {**evidence,"qfq_series_rows":len(rows)+1},
+            {**evidence,"source_content_bound":"NOT VERIFIED"},
+        ):
+            with self.subTest(evidence=broken):
+                got = qualify_research(rows,meta,corporate_action_evidence=broken)
+                self.assertEqual(got["gates"]["corporate_action_adjustment"],"NOT VERIFIED")
+
     def test_corporate_action_requires_independent_event_and_factor_lineage(self):
         evidence = self._valid_corporate_action_evidence()
         self.assertEqual(evidence["status"], "PASS")
         self.assertEqual(evidence["point_in_time_lineage"], "PASS")
+        self.assertEqual(evidence["producer_point_in_time_lineage"],"NOT VERIFIED")
+        self.assertEqual(evidence["adjustment_matching_status"],"PASS")
         self.assertEqual(evidence["verified_event_count"], 1)
         self.assertEqual(evidence["unexplained_factor_changes"], 0)
         self.assertEqual(evidence["matched_events"][0]["calendar_days_after_ex_date"], 0)
@@ -349,8 +578,8 @@ class BusinessBoundaries(unittest.TestCase):
         )
 
         got = qualify_research(
-            bars(150),
-            {"provider": "production_fixture", "qualification_scope": "production_real_network", "price_adjustment": "qfq"},
+            self._valid_corporate_action_research_rows(),
+            {"provider": "tencent_public_full_kline", "payload_sha256":"b"*64, "qualification_scope": "production_real_network", "price_adjustment": "qfq"},
             corporate_action_evidence=evidence,
         )
         self.assertEqual(got["gates"]["corporate_action_adjustment"], "PASS")
@@ -361,15 +590,15 @@ class BusinessBoundaries(unittest.TestCase):
         evidence = self._valid_corporate_action_evidence()
         broken = {**evidence, "event_payload_sha256": "short"}
         got = qualify_research(
-            bars(150),
-            {"provider": "production_fixture", "qualification_scope": "production_real_network", "price_adjustment": "qfq"},
+            self._valid_corporate_action_research_rows(),
+            {"provider": "tencent_public_full_kline", "payload_sha256":"b"*64, "qualification_scope": "production_real_network", "price_adjustment": "qfq"},
             corporate_action_evidence=broken,
         )
         self.assertEqual(got["gates"]["corporate_action_adjustment"], "NOT VERIFIED")
 
         got = qualify_research(
-            bars(150),
-            {"provider": "production_fixture", "qualification_scope": "production_real_network", "price_adjustment": "qfq"},
+            self._valid_corporate_action_research_rows(),
+            {"provider": "tencent_public_full_kline", "payload_sha256":"b"*64, "qualification_scope": "production_real_network", "price_adjustment": "qfq"},
             corporate_action_evidence={**evidence, "unexplained_factor_changes": 1},
         )
         self.assertEqual(got["gates"]["corporate_action_adjustment"], "NOT VERIFIED")
@@ -390,8 +619,8 @@ class BusinessBoundaries(unittest.TestCase):
         for forged in forged_cases:
             with self.subTest(forged=forged):
                 got = qualify_research(
-                    bars(150),
-                    {"provider": "production_fixture", "qualification_scope": "production_real_network",
+                    self._valid_corporate_action_research_rows(),
+                    {"provider": "tencent_public_full_kline", "payload_sha256":"b"*64, "qualification_scope": "production_real_network",
                      "price_adjustment": "qfq"},
                     corporate_action_evidence=forged,
                 )
@@ -424,24 +653,24 @@ class BusinessBoundaries(unittest.TestCase):
         for forged in forged_detail_cases:
             with self.subTest(detail_forged=forged):
                 got = qualify_research(
-                    bars(150),
-                    {"provider": "production_fixture", "qualification_scope": "production_real_network",
+                    self._valid_corporate_action_research_rows(),
+                    {"provider": "tencent_public_full_kline", "payload_sha256":"b"*64, "qualification_scope": "production_real_network",
                      "price_adjustment": "qfq"},
                     corporate_action_evidence=forged,
                 )
                 self.assertEqual(got["gates"]["corporate_action_adjustment"], "NOT VERIFIED")
 
         got = qualify_research(
-            bars(150),
-            {"provider": "production_fixture", "qualification_scope": "production_real_network",
+            self._valid_corporate_action_research_rows(),
+            {"provider": "tencent_public_full_kline", "payload_sha256":"b"*64, "qualification_scope": "production_real_network",
              "price_adjustment": "unadjusted"},
             corporate_action_evidence=evidence,
         )
         self.assertEqual(got["gates"]["corporate_action_adjustment"], "NOT VERIFIED")
 
         got = qualify_research(
-            bars(150),
-            {"provider": "production_fixture", "qualification_scope": "production_real_network",
+            self._valid_corporate_action_research_rows(),
+            {"provider": "tencent_public_full_kline", "payload_sha256":"b"*64, "qualification_scope": "production_real_network",
              "price_adjustment": "qfq", "symbol": "000001"},
             corporate_action_evidence=evidence,
         )
