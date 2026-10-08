@@ -141,6 +141,7 @@ def build(alias_report,bulletins):
         if row["BSE_asof_old_or_new_code_validity"]!="NOT VERIFIED":
             raise ValueError("current_table_forged_historical_effective_state")
         for q in ("2020-01-02","2021-11-14","2024-04-22",
+                  "2025-04-11","2025-04-24","2025-04-25",
                   "2025-05-05","2025-05-06","2025-10-08",
                   "2025-10-09","2026-10-08"):
             day=date.fromisoformat(q)
