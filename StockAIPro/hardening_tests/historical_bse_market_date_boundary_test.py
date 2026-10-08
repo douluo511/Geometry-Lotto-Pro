@@ -92,5 +92,11 @@ check_invalid("2025-05-05", "920931", "bse_920_before_first_activation")
 check_valid_structure("2025-10-09", "920931")
 check_valid_structure("2026-09-30", "920001")
 
-assert len(cases) == 7, cases
-print("STOCK BSE IMPOSSIBLE HISTORICAL DATE BUSINESS TESTS 7/7 PASS")
+# BSE's official three-bulletin 920 switch completed for the remaining
+# 242 stocks on 2025-10-09. An old 4/8 identity cannot be counted after it.
+check_valid_structure("2025-10-08", "830001")  # boundary only; not issuer proof
+check_invalid("2025-10-09", "830001", "bse_legacy_after_unified_switch")
+check_invalid("2026-09-30", "430001", "bse_legacy_after_unified_switch")
+
+assert len(cases) == 10, cases
+print("STOCK BSE IMPOSSIBLE HISTORICAL DATE BUSINESS TESTS 10/10 PASS")
