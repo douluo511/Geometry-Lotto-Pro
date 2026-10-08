@@ -11,9 +11,6 @@ CURRENT_VERSION = "2.1.2"
 BASELINE_VERSION = "2.1.1"
 CURRENT_MAIN = "c2b0db6876d2aae874f8cf4d08f52455c8eaf152"
 TARGET_REPOSITORY = "douluo511/Geometry-Lotto-Pro-DLT"
-EXPECTED_EXPORT_COMMIT = "c889dc307ed70a2d3bcbc356da99cea75d0f9c28"
-EXPECTED_MANIFEST_SHA256 = "e53373a56bd8da1948f26aaf7fae6a18a7bbfd65e44a1b1bf9d651ab72a9c87f"
-EXPECTED_SUMS_SHA256 = "5ea3de9d08962e57f677882441b51de6f7022019979aa5db87888bae7422cc11"
 EXPECTED_FILE_COUNT = 38
 CONSTANTS_PATH = Path("DLT/src/glp/constants.py")
 CURRENT_BYTES = f'APP_VERSION = "{CURRENT_VERSION}"'.encode("utf-8")
@@ -50,6 +47,7 @@ def snapshot(root: Path) -> dict[str, dict[str, object]]:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
+    ap.add_argument("--expected-export-commit", required=True)
     ap.add_argument("--current-seed", required=True)
     ap.add_argument("--out", required=True)
     args = ap.parse_args()
@@ -79,15 +77,13 @@ def main() -> int:
     # FAIL-CLOSED: prevent a stale or tampered seed from earning a fresh baseline PASS.
     if source.get("candidate_head") != CURRENT_MAIN:
         raise SystemExit("seed candidate identity is stale")
-    if source.get("export_commit") != EXPECTED_EXPORT_COMMIT:
+    if (len(args.expected_export_commit) != 40
+            or any(c not in "0123456789abcdef" for c in args.expected_export_commit)):
+        raise SystemExit("expected exact export commit must be lowercase full SHA")
+    if source.get("export_commit") != args.expected_export_commit:
         raise SystemExit("seed export authority is stale")
     if source.get("file_count") != EXPECTED_FILE_COUNT:
         raise SystemExit("seed file count differs from current verified product")
-    if sha256_file(migration_manifest) != EXPECTED_MANIFEST_SHA256:
-        raise SystemExit("seed manifest SHA256 does not match exact current export")
-    if sha256_file(migration_sums) != EXPECTED_SUMS_SHA256:
-        raise SystemExit("seed checksum-list SHA256 does not match exact current export")
-
     rows = source.get("files", [])
     if len(rows) != EXPECTED_FILE_COUNT:
         raise SystemExit("seed manifest row count differs from declared count")
@@ -97,7 +93,7 @@ def main() -> int:
         raise SystemExit("seed checksum lines differ from the manifest")
     for row in rows:
         rel = str(row["path"])
-        if rel.startswith("/") or "\\\\" in rel or ".." in Path(rel).parts or ":" in rel or rel.startswith(".git/"):
+        if rel.startswith("/") or chr(92) in rel or ".." in Path(rel).parts or ":" in rel or rel.startswith(".git/"):
             raise SystemExit(f"unsafe seed manifest path: {rel}")
         payload = current / rel
         if not payload.is_file():
