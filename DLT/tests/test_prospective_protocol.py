@@ -149,6 +149,48 @@ class ProspectiveProtocolTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "late/post-draw"):
                 ProspectiveLedger(root).freeze_records()
 
+    def test_registered_predictions_require_complete_unique_rankings_and_dan_alignment(self):
+        from dataclasses import replace
+        draws = _draws()
+        canonical = sha256_json([d.to_dict() for d in draws])
+        valid, _ = FakeBuilder()(draws, canonical, None)
+        cases = (
+            ("duplicate_front_ranking", replace(valid, front_ranking=[1, 1] + list(range(3, 36))), "front ranking"),
+            ("short_back_ranking", replace(valid, back_ranking=list(range(1, 12))), "back ranking"),
+            ("wrong_front_dan", replace(valid, research_dan_front=[4, 5]), "front research dan"),
+            ("wrong_back_dan", replace(valid, research_dan_back=[9]), "back research dan"),
+            ("invalid_front", replace(valid, front=[1, 1, 3, 4, 5]), "front combination"),
+            ("wrong_issue", replace(valid, target_issue="26999"), "target issue/date"),
+            ("wrong_date", replace(valid, target_date="2026-09-12"), "target issue/date"),
+        )
+        for case, prediction, expected in cases:
+            with self.subTest(case=case):
+                with tempfile.TemporaryDirectory() as td:
+                    ledger = ProspectiveLedger(Path(td))
+                    with self.assertRaisesRegex(ValueError, expected):
+                        ledger.register_freeze(
+                            prediction, draws=draws,
+                            canonical_hash=canonical, source_commit=SOURCE_A,
+                        )
+
+    def test_rehashed_forged_ranking_in_saved_freeze_still_fails(self):
+        draws = _draws()
+        canonical = sha256_json([d.to_dict() for d in draws])
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            first = run_prospective_cycle(
+                draws, canonical, ledger_root=root,
+                source_commit=SOURCE_A, prediction_builder=FakeBuilder(),
+            )
+            target = first["freeze"]["target_issue"]
+            path = root / "cohorts" / first["cohort"]["cohort_id"] / "freezes" / f"{target}.json"
+            row = json.loads(path.read_text(encoding="utf-8"))
+            row["prediction"]["front_ranking"] = [1] * 35
+            row["record_hash"] = sha256_json({k: v for k, v in row.items() if k != "record_hash"})
+            path.write_text(json.dumps(row), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "front ranking"):
+                ProspectiveLedger(root).freeze_records()
+
     def test_rehashed_forged_replay_scores_and_hits_do_not_qualify(self):
         import copy
         draws = _draws()
