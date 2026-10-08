@@ -20,6 +20,13 @@ from glp.constants import BACK_MAX, BACK_PICK, FRONT_MAX, FRONT_PICK
 from glp.net_client import NetClient
 from glp.util import sha256_json
 
+# Approved immutable research-seed commit was read back from the dedicated
+# GitHub evidence branch before its FIRST forecast Freeze. Future branch
+# contents must be an append-only series of exactly one new Freeze per commit;
+# an edited/reverted workflow or changed source never inherits old approval.
+_TRUSTED_SEED_SHA = "d3d17c882acb7d59405a84fdbc5a355a515251d2"
+_MAX_CANDIDATES = 120
+
 _REPO = "douluo511/Geometry-Lotto-Pro"  # monorepo research STAGING, not independent Release
 _BRANCH = "evidence/ssq-prospective-freezes"
 _WORKFLOW = ".github/workflows/ssq-prospective-freeze.yml@refs/heads/" + _BRANCH
@@ -62,6 +69,59 @@ def _json_get(client: NetClient, url: str) -> dict[str, Any]:
         raise ValueError("GitHub evidence must be an object")
     return parsed
 
+
+
+def _verify_append_only_branch(
+    client: NetClient, head_sha: str, target_issue: str,
+) -> dict[str, Any]:
+    """Use GitHub's server-derived exact tree diff, not a Git author timestamp.
+
+    Pinning this independently inspected seed ensures the executing workflow,
+    all scientific code, and its validator are byte-for-byte unchanged by any
+    unreviewed commit on the evidence branch. A single-file action commit is
+    also independently audited in the push-side gate.
+    """
+    if not isinstance(head_sha, str) or not _HEX40.fullmatch(head_sha):
+        raise ValueError("invalid GitHub research head sha")
+    result = _json_get(
+        client, f"{_API}/compare/{_TRUSTED_SEED_SHA}...{head_sha}",
+    )
+    base = result.get("base_commit")
+    ancestor = result.get("merge_base_commit")
+    files = result.get("files")
+    ahead = result.get("ahead_by")
+    if (
+        not isinstance(base, dict) or base.get("sha") != _TRUSTED_SEED_SHA
+        or not isinstance(ancestor, dict) or ancestor.get("sha") != _TRUSTED_SEED_SHA
+        or result.get("status") != "ahead"
+        or result.get("behind_by") != 0
+        or type(ahead) is not int
+        or not 1 <= ahead <= _MAX_CANDIDATES
+        or not isinstance(files, list)
+        or len(files) != ahead
+    ):
+        raise ValueError("SSQ evidence branch is not append-only from audited seed")
+    paths: set[str] = set()
+    for entry in files:
+        if (
+            not isinstance(entry, dict) or entry.get("status") != "added"
+            or not isinstance(entry.get("filename"), str)
+            or not re.fullmatch(
+                r"SSQ/prospective_ledger/freezes/20[0-9]{5}\.json",
+                entry["filename"],
+            )
+            or entry["filename"] in paths
+        ):
+            raise ValueError("SSQ evidence branch contains an untrusted source/workflow edit")
+        paths.add(entry["filename"])
+    if f"SSQ/prospective_ledger/freezes/{target_issue}.json" not in paths:
+        raise ValueError("requested SSQ freeze is not an added file after audited seed")
+    return {
+        "audited_seed_sha": _TRUSTED_SEED_SHA,
+        "exact_head_sha": head_sha,
+        "server_verified_added_freezes": len(paths),
+        "source_code_and_workflow_unchanged": True,
+    }
 
 
 def _validate_frozen_prediction_payload(
@@ -174,6 +234,7 @@ def verify_github_freeze_receipt(
     if not isinstance(sha, str) or not _HEX40.fullmatch(sha):
         raise ValueError("GitHub run lacks an exact immutable commit SHA")
     observed_at = _utc(run.get("created_at"))  # GitHub SERVER time, not git author date
+    branch_provenance = _verify_append_only_branch(net, sha, target_issue)
 
     path = f"SSQ/prospective_ledger/freezes/{target_issue}.json"
     source = _json_get(net, f"{_API}/contents/{path}?ref={sha}")
@@ -214,6 +275,7 @@ def verify_github_freeze_receipt(
         "target_issue": target_issue,
         "target_date": date_text,
         "model_source_commit": commit,
+        "trusted_branch_provenance": branch_provenance,
         "freeze_hash": prediction["freeze_hash"],
         "verified_scope": "PRE_DRAW_EXISTENCE_CANDIDATE_ONLY",
         # Official draw receipt, cohort completeness, immutable governance,
