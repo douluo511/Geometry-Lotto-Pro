@@ -609,12 +609,49 @@ class ProspectiveLedger:
             "pass": bool(values) and mean > 0.0 and lo > 0.0 and p < float(PROMOTION_POLICY["alpha"]),
         }
 
-    def qualification(self, cohort_id: str | None = None) -> dict[str, Any]:
+    def qualification(
+        self,
+        cohort_id: str | None = None,
+        *,
+        official_draws: list[Draw] | None = None,
+    ) -> dict[str, Any]:
         manifest = self.active_manifest() if cohort_id is None else json.loads(
             CohortPaths(self.root, cohort_id).manifest.read_text(encoding="utf-8")
         )
         rows = self.replay_records(manifest["cohort_id"])
         required = int(PROMOTION_POLICY["min_prospective_replays"])
+
+        # Internal self-consistency and SHA-256 alone cannot prove a reported
+        # winner is the official actual result. No live canonical -> no
+        # qualifying replay count, even when self-reported scores are positive.
+        if official_draws is None:
+            return {
+                "decision": "NOT_READY",
+                "reason": "OFFICIAL_ACTUALS_NOT_BOUND",
+                "valid_replays": 0,
+                "unverified_replay_files": len(rows),
+                "required_replays": required,
+                "front": None,
+                "back": None,
+                "split_halves": [],
+                "promotion_authorized": False,
+                "production_rho": 0.0,
+            }
+
+        actual_by_issue: dict[str, Draw] = {}
+        for actual in official_draws:
+            actual.validate()
+            if actual.issue in actual_by_issue:
+                raise ValueError("official canonical prospective draws contain duplicate issue")
+            actual_by_issue[actual.issue] = actual
+        for row in rows:
+            target_issue = row["target_issue"]
+            official_actual = actual_by_issue.get(target_issue)
+            if official_actual is None or row.get("actual") != official_actual.to_dict():
+                raise ValueError(
+                    f"prospective replay actual differs from live official canonical: {target_issue}"
+                )
+
         front = [float(x["front_gain_vs_random"]) for x in rows]
         back = [float(x["back_gain_vs_random"]) for x in rows]
         if len(rows) < required:
@@ -657,12 +694,14 @@ class ProspectiveLedger:
             "production_rho": 0.0,
         }
 
-    def status(self) -> dict[str, Any]:
+    def status(self, *, official_draws: list[Draw] | None = None) -> dict[str, Any]:
         manifest = self.active_manifest()
         freezes = self.freeze_records(manifest["cohort_id"])
         replays = self.replay_records(manifest["cohort_id"])
         replayed = {x["target_issue"] for x in replays}
-        qualification = self.qualification(manifest["cohort_id"])
+        qualification = self.qualification(
+            manifest["cohort_id"], official_draws=official_draws
+        )
         status = {
             "schema": "dlt-prospective-status-v1",
             "created_at": utc_now(),
@@ -673,7 +712,9 @@ class ProspectiveLedger:
             "model_hash": manifest["model_hash"],
             "selector_hash": manifest["selector_hash"],
             "freeze_count": len(freezes),
-            "valid_replays": len(replays),
+            "valid_replays": qualification["valid_replays"],
+            "unverified_replay_files": len(replays) if official_draws is None else 0,
+            "official_actuals_bound": official_draws is not None,
             "pending_targets": [x["target_issue"] for x in freezes if x["target_issue"] not in replayed],
             "qualification": qualification,
             "edge_state": "NO_EDGE",
@@ -719,7 +760,7 @@ def run_prospective_cycle(
         source_commit=source_commit,
         behavior_hash_override=behavior_hash_override,
     )
-    status = ledger.status()
+    status = ledger.status(official_draws=draws)
     return {
         "schema": "dlt-prospective-cycle-v1",
         "created_at": utc_now(),
