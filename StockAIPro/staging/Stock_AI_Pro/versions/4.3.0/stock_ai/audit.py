@@ -9,18 +9,16 @@ from .data_source import load_histories
 from .features import build_dataset,FEATURES
 from .model import rank_ic
 from .utils import write_json,read_json,now_iso,sha256_file
-from .storage import verify_prediction_chain
+from .storage import verify_prediction_chain,verify_prediction_payloads
 from .historical_pit import evaluate_historical_st_pit
 
 def _ridge(): return Pipeline([("imputer",SimpleImputer(strategy="median")),("scaler",StandardScaler()),("model",Ridge(alpha=8.0))])
 def verify_manifest(pred_dir):
     p=pred_dir/"manifest.json"
-    if not p.exists():return False,"manifest缺失"
-    m=json.loads(p.read_text(encoding="utf-8"))
-    for name,expected in m.get("files",{}).items():
-        f=pred_dir/name
-        if not f.exists() or sha256_file(f)!=expected:return False,f"{name}哈希不一致"
-    return True,"冻结文件哈希一致"
+    if not p.is_file():return False,"manifest缺失"
+    try:m=json.loads(p.read_text(encoding="utf-8"))
+    except (OSError,ValueError) as exc:return False,f"manifest无法读取: {type(exc).__name__}: {exc}"
+    return verify_prediction_payloads(pred_dir,m)
 
 def run_audit():
     cfg=load_config();h=int(cfg["model"]["horizon_days"]);target=cfg["model"].get("target","target_excess");ds=build_dataset(load_histories(),h,int(cfg["model"]["min_history_days"]));ds=ds[ds[target].notna()].copy()
