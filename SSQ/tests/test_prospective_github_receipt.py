@@ -9,12 +9,16 @@ import base64
 import copy
 import hashlib
 import json
+import os
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "SSQ"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from glp.prospective_github_receipt import verify_github_freeze_receipt
 from glp.util import sha256_json
 
@@ -163,6 +167,70 @@ class ReadOnlyGitHubReceiptTests(unittest.TestCase):
         remote2.freeze["prediction"]["target_date"] = "2026-10-01"
         with self.assertRaisesRegex(ValueError, "after draw-day cutoff"):
             verify_github_freeze_receipt(run_id=1234, target_issue=ISSUE, client=remote2)
+
+
+
+class PushOnlyFreezeRedTeamTests(unittest.TestCase):
+    def _attempt(self, *, overwrite=False, late=False, changed=""):
+        root = Path(self.temp)
+        file_path = root / PATH
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        file_path.write_text(json.dumps(fixture()), encoding="utf-8")
+        fake = FakeGitHub()
+        fake.run["status"] = "in_progress"
+        fake.run["head_sha"] = GIT_SHA
+        if late:
+            fake.run["created_at"] = "2026-10-11T08:00:00Z"
+
+        from tools import ssq_prospective_push_gate as push
+
+        def command(args, **_kwargs):
+            if args[1] == "rev-parse":
+                return GIT_SHA + "\n"
+            if args[1] == "show":
+                return "c" * 40 + "\n"
+            if args[1] == "diff-tree":
+                return (changed or PATH) + "\n"
+            raise AssertionError(f"unexpected git operation: {args}")
+
+        env = {
+            "GITHUB_EVENT_NAME": "push",
+            "GITHUB_REF_NAME": BRANCH,
+            "GITHUB_SHA": GIT_SHA,
+            "GITHUB_RUN_ID": "1234",
+        }
+        with (
+            patch.object(push, "ROOT", root),
+            patch.object(push, "NetClient", return_value=fake),
+            patch.object(push.subprocess, "check_output", side_effect=command),
+            patch.object(push.subprocess, "run", return_value=SimpleNamespace(
+                returncode=0 if overwrite else 1
+            )),
+            patch.dict(os.environ, env),
+        ):
+            return push.main()
+
+    def setUp(self):
+        self.dir = tempfile.TemporaryDirectory()
+        self.temp = self.dir.name
+
+    def tearDown(self):
+        self.dir.cleanup()
+
+    def test_live_push_contract_candidate_only(self):
+        self.assertEqual(self._attempt(), 0)
+
+    def test_existing_freeze_overwrite_rejected(self):
+        with self.assertRaisesRegex(ValueError, "overwrites prohibited"):
+            self._attempt(overwrite=True)
+
+    def test_bulk_or_unrelated_edit_rejected(self):
+        with self.assertRaisesRegex(ValueError, "one issue-specific JSON"):
+            self._attempt(changed=PATH + "\nSSQ/SSQ/glp/engine.py")
+
+    def test_push_after_draw_day_rejected(self):
+        with self.assertRaisesRegex(ValueError, "after draw-day cutoff"):
+            self._attempt(late=True)
 
 
 if __name__ == "__main__":
