@@ -96,7 +96,7 @@ class NoEdgeUniformProductionRegression(unittest.TestCase):
         self.assertNotIn("随机基线  前区", old_display)
 
     def test_new_version_and_model_hash_bind_uniform_algorithm(self):
-        self.assertEqual(APP_VERSION, "2.1.5")
+        self.assertEqual(APP_VERSION, "2.1.6")
         self.assertEqual(model_identity()["spec"]["uniform_fallback"],
                          "dlt-uniform-without-replacement-v1")
 
