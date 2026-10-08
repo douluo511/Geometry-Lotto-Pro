@@ -86,8 +86,10 @@ def verify_prediction_chain(root: Path | None = None):
     for d in dirs:
         try:
             m = json.loads((d / "manifest.json").read_text(encoding="utf-8"))
-        except (OSError, ValueError) as e:
+        except (OSError, UnicodeError, ValueError) as e:
             return False, f"{d.name} manifest 无法读取: {e}", expected_seq - 1
+        if not isinstance(m, dict):
+            return False, f"{d.name} manifest 顶层必须是对象", expected_seq - 1
         # Bind immutable issue identity across directory, manifest and
         # SHA-verified summary. A self-consistent payload hash is not enough
         # to certify the claimed trading date or chronological chain.
