@@ -45,6 +45,39 @@ def explicit_start(text: str):
     return sorted(set(results))
 
 
+EQUITY_PREFIXES = ("000","001","002","003","200","201","300","301")
+CONVERTIBLE_PREFIXES = ("123","127","128")
+
+def instrument_scope(row, source_valid):
+    """Partition all notices without removing them from the frozen denominator."""
+    codes=row.get("security_codes")
+    if not source_valid or not isinstance(codes,list) or any(
+        not isinstance(c,str) or not re.fullmatch(r"\d{6}",c) for c in codes
+    ):
+        return "SOURCE_OR_IDENTITY_UNVERIFIED",[],[]
+    codes=sorted(set(codes))
+    equities=sorted(c for c in codes if c.startswith(EQUITY_PREFIXES))
+    converts=sorted(c for c in codes if c.startswith(CONVERTIBLE_PREFIXES))
+    unknown=sorted(set(codes)-set(equities)-set(converts))
+    title=str(row.get("title") or "")
+    sample=str(row.get("semantic_sample") or "")
+    if unknown: category="UNRECOGNIZED_SECURITY_CODE"
+    elif equities and converts: category="MIXED_EQUITY_AND_CONVERTIBLE_NOTICE"
+    elif len(equities)>1: category="MULTI_CLASS_EQUITY_NOTICE"
+    elif len(equities)==1: category="SINGLE_EQUITY_CODE_NOTICE"
+    elif converts:
+        category=("CONVERTIBLE_BOND_NOTICE" if (
+            "转债" in title or "转债" in sample or "可转换公司债券" in sample or "该债券" in sample
+        ) else "UNVERIFIED_CONVERTIBLE_CONTEXT")
+    elif not codes and "基金" in title: category="FUND_NOTICE"
+    elif not codes and ("该债券" in sample or "上市债券" in sample
+        or ("国开" in title and re.search(r"(?<!\d)108\d{3}(?!\d)",sample))):
+        category="OTHER_BOND_NOTICE"
+    else: category="ASSET_TYPE_NOT_VERIFIED"
+    # A scope label is not a historically qualified stock identity or daily state.
+    return category,equities,converts
+
+
 def classify(row: dict) -> dict:
     url = str(row.get("url") or "")
     transport = row.get("transport") if isinstance(row.get("transport"), dict) else {}
@@ -78,6 +111,7 @@ def classify(row: dict) -> dict:
     continuing = bool(CONTINUING.search(valid_sample)) if valid_sample else False
     conditional_resume = bool(CONDITIONAL_RESUME.search(valid_sample)) if valid_sample else False
     candidates = explicit_start(valid_sample) if valid_sample else []
+    scope,equity_codes,bond_codes=instrument_scope(row,not(set(errors)-{"unambiguous_instrument_identity"}))
     if not valid_sample:
         kind = "SOURCE_NOT_VERIFIED"
     elif intraday:
@@ -106,6 +140,10 @@ def classify(row: dict) -> dict:
         "continuing_stop": continuing,
         "conditional_resumption": conditional_resume,
         "missing_evidence": sorted(set(errors)),
+        "instrument_scope": scope,
+        "equity_code_candidates": equity_codes,
+        "convertible_code_candidates": bond_codes,
+        "instrument_qualification": "NOT VERIFIED",
         # Even a literal date & identity is a candidate, never a qualified daily state.
         "qualified_daily_st_or_suspension": "NOT VERIFIED",
         "qualified_actual_resumption": "NOT VERIFIED",
@@ -134,6 +172,8 @@ def main():
     audit = [classify(row) for row in records]
     counts = dict(sorted(Counter(row["classification"] for row in audit).items()))
     evidence_bound = sum(1 for row in audit if not row["missing_evidence"])
+    scopes=dict(sorted(Counter(row["instrument_scope"] for row in audit).items()))
+    if sum(scopes.values())!=frozen: raise RuntimeError("instrument scope lost source records")
     report = {
         "schema": "szse-effective-event-diagnostic-v1",
         "source_archive_sha256": obj["source_archive"].get("canonical_sha256"),
@@ -141,11 +181,13 @@ def main():
         "source_frozen_denominator": frozen,
         "source_records_sha256": digest(json.dumps(records,sort_keys=True,ensure_ascii=False,separators=(",",":"))),
         "classification_counts": counts,
+        "instrument_scope_counts": scopes,
         "unambiguously_identified_and_source_bound": evidence_bound,
         "rows": audit,
         "adjudication": {
             "source_record_denominator": "PASS",
             "diagnostic_classification": "PASS",
+            "stock_instrument_lifecycle_qualified": "NOT VERIFIED",
             "effective_dates_complete": "NOT VERIFIED",
             "actual_full_day_suspension": "NOT VERIFIED",
             "actual_resumption_state": "NOT VERIFIED",
@@ -163,7 +205,8 @@ def main():
     args.out.write_text(json.dumps(report,ensure_ascii=False,sort_keys=True,indent=2)+"\n",encoding="utf-8")
     print(json.dumps({
         "denominator": frozen, "source_and_identity_bound": evidence_bound,
-        "classification_counts": counts, "adjudication": report["adjudication"],
+        "classification_counts": counts, "instrument_scope_counts": scopes,
+        "adjudication": report["adjudication"],
     }, ensure_ascii=False, sort_keys=True))
     return 0
 
