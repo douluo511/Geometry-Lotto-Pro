@@ -62,6 +62,12 @@ jobs:
           $env:PYTHONPATH = "$PWD\src"
           python -m unittest discover -s tests -p "test_background_103_compat.py" -v
 
+      - name: External Final Gate authority regression
+        shell: pwsh
+        run: |
+          $env:PYTHONPATH = "$PWD\src"
+          python -m unittest discover -s tests -p "test_release_gate_authority.py" -v
+
       - name: Source self-test
         shell: pwsh
         run: |
@@ -279,7 +285,8 @@ jobs:
             $contract.status -eq 'PASS' -and
             $fault.status -eq 'PASS' -and
             $live.status -eq 'PASS' -and
-            $accept.final_release_gate -eq 'PASS' -and
+            $accept.exact_acceptance_gate -eq 'PASS' -and
+            $accept.final_release_gate -eq 'PENDING' -and
             $accept.exe_sha256 -eq $hash -and
             $repro.status -eq 'PASS' -and
             $repro.same_hash -eq $true -and
@@ -298,7 +305,8 @@ jobs:
             contract_gate = $contract.status
             fault_injection_gate = $fault.status
             real_network_gate = $live.status
-            exact_exe_gate = $accept.final_release_gate
+            exact_exe_gate = $accept.exact_acceptance_gate
+            exe_self_final_gate = $accept.final_release_gate
             physical_gui_click_gate = $gui.status
             physical_gui_backend_gate = $guiBackend.status
             physical_gui_update_failclosed_gate = $guiFailure.status
