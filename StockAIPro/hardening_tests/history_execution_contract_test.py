@@ -148,11 +148,12 @@ def test_full_history_workload(folder):
                 if synchronize_first_wave:
                     first_wave.wait(timeout=5)
                 requests.get("https://example.invalid/fallback")
-                return pd.DataFrame({"date": pd.date_range("2026-09-21", periods=4),
-                                     "close": [9, 10, 11, 12], "open": [9, 10, 11, 12],
-                                     "high": [10, 11, 12, 13], "low": [8, 9, 10, 11],
-                                     "volume": [100] * 4, "amount": [1000] * 4,
-                                     "turnover": [0.01] * 4})
+                values = [9.0 + i * 0.01 for i in range(240)]
+                return pd.DataFrame({"date": pd.bdate_range("2024-01-02", periods=240),
+                                     "close": values, "open": values,
+                                     "high": [v + 0.1 for v in values], "low": [v - 0.1 for v in values],
+                                     "volume": [100] * 240, "amount": [1000] * 240,
+                                     "turnover": [0.01] * 240})
             finally:
                 with lock:
                     active -= 1
@@ -266,14 +267,14 @@ def test_qualification_bootstrap_reaches_frozen_coverage(folder):
     })
 
     def fake_update(code, cfg, logger=None, provider=None, source_health=None):
-        values = [9.0 + i * 0.01 for i in range(40)]
+        values = [9.0 + i * 0.01 for i in range(240)]
         frame = pd.DataFrame({
-            "date": pd.date_range("2026-08-01", periods=40),
-            "close": values, "open": values,
+            "date": pd.bdate_range("2024-01-02", periods=240),
+            "close": values, "open": values, "code": [code] * 240, "adjust_mode": ["hfq"] * 240,
             "high": [x + 0.1 for x in values], "low": [x - 0.1 for x in values],
-            "volume": [100] * 40, "amount": [1000] * 40,
-            "turnover_rate": [0.01] * 40, "provider": ["fixture"] * 40,
-            "schema_version": [3] * 40,
+            "volume": [100] * 240, "amount": [1000] * 240,
+            "turnover_rate": [0.01] * 240, "provider": ["eastmoney"] * 240,
+            "schema_version": [3] * 240,
         })
         frame.to_csv(data / "data" / "history" / f"{code}.csv", index=False)
         return frame
@@ -304,15 +305,17 @@ def test_qualification_cache_counts_only_valid_histories(folder):
     (history / "000001.csv").write_text(
         "date,close\n2026-09-30,10\n", encoding="utf-8"
     )
-    values = [10.0 + i * 0.01 for i in range(40)]
+    values = [10.0 + i * 0.01 for i in range(240)]
     pd.DataFrame({
-        "date": pd.date_range("2026-08-01", periods=40),
-        "code": ["000002"] * 40,
+        "date": pd.bdate_range("2024-01-02", periods=240),
+        "code": ["000002"] * 240,
         "open": values,
         "high": [x + 0.1 for x in values],
         "low": [x - 0.1 for x in values],
         "close": values,
-        "schema_version": [3] * 40,
+        "schema_version": [3] * 240,
+        "volume": [100] * 240, "amount": [1000] * 240, "turnover_rate": [0.01] * 240,
+        "provider": ["eastmoney"] * 240, "adjust_mode": ["hfq"] * 240,
     }).to_csv(history / "000002.csv", index=False)
 
     with patch.object(data_source, "ROOT", data):

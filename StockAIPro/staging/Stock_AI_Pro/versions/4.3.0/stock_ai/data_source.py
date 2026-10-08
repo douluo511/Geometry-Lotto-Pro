@@ -658,16 +658,15 @@ def bootstrap_research_pool(master: pd.DataFrame, cfg: dict, live_codes=None, lo
         return {"enabled":False,"downloaded":0,"coverage":None}
 
     folder = ROOT / "data" / "history"
-    existing = {p.stem for p in folder.glob("*.csv")}
     m = master.copy()
     m["code"] = m["code"].astype(str)
 
     max_symbols = int(cfg["universe"].get("bootstrap_max_symbols", 0))
-    if max_symbols > 0:
-        m = m.head(max_symbols)
+    existing = _validated_history_codes(set(m["code"]), cfg)
+    download_master = m.head(max_symbols) if max_symbols > 0 else m
 
     live = set(map(str, live_codes or []))
-    missing = m[~m["code"].isin(existing | live)].copy()
+    missing = download_master[~download_master["code"].isin(existing | live)].copy()
     batch = int(cfg["universe"].get("bootstrap_batch",60))
     frac = float(cfg["universe"].get("delisted_bootstrap_fraction",0.25))
     dcount = max(1, int(batch * frac))
@@ -683,11 +682,15 @@ def bootstrap_research_pool(master: pd.DataFrame, cfg: dict, live_codes=None, lo
     downloaded, failed = 0, []
     for code, _, error in _run_history_batch(queue, cfg, "bootstrap_history", logger):
         if error is None:
-            downloaded += 1
+            persisted = folder / f"{code}.csv"
+            if _history_cache_entry_valid(persisted, code, cfg):
+                downloaded += 1
+            else:
+                failed.append({"code": code, "error": "persisted canonical history failed validation"})
         else:
             failed.append({"code":code,"error":error})
 
-    existing_after = {p.stem for p in folder.glob("*.csv")}
+    existing_after = _validated_history_codes(set(m["code"]), cfg)
     all_codes = set(m["code"])
     current_codes = set(m.loc[m["status"]=="current","code"]) if "status" in m else all_codes
     delisted_codes = set(m.loc[m["status"]=="delisted","code"]) if "status" in m else set()
@@ -710,53 +713,64 @@ def bootstrap_research_pool(master: pd.DataFrame, cfg: dict, live_codes=None, lo
     return status
 
 
-def _history_cache_entry_valid(path: Path, code: str) -> bool:
-    """Accept only persisted histories that are safe to count toward coverage."""
+def _history_cache_entry_valid(path: Path, code: str, cfg: dict | None = None) -> bool:
+    """Count only canonical, model-ready persisted histories; never infer lineage."""
     try:
+        cfg = cfg if cfg is not None else load_config()
         frame = pd.read_csv(path, parse_dates=["date"], dtype={"code": str})
-        frame = _upgrade_legacy_history(frame)
-        required = {"date", "open", "high", "low", "close"}
-        if len(frame) < 30 or not required.issubset(frame.columns):
+        required = {
+            "date", "code", "open", "high", "low", "close", "volume", "amount",
+            "turnover_rate", "schema_version", "adjust_mode", "provider",
+        }
+        minimum = max(30, int(cfg.get("model", {}).get("min_history_days", 240)))
+        if len(frame) < minimum or not required.issubset(frame.columns):
             return False
-        if frame["date"].isna().any() or frame["date"].duplicated().any():
+        dates = frame["date"]
+        if dates.isna().any() or dates.duplicated().any() or not dates.is_monotonic_increasing:
             return False
-        prices = frame[["open", "high", "low", "close"]].apply(
+        symbols = frame["code"]
+        if symbols.isna().any() or not symbols.astype(str).eq(str(code)).all():
+            return False
+        numeric = frame[["open", "high", "low", "close", "volume", "amount", "turnover_rate"]].apply(
             pd.to_numeric, errors="coerce"
         )
-        if prices.isna().any().any() or (prices <= 0).any().any():
+        if not np.isfinite(numeric.to_numpy(dtype=float)).all():
             return False
-        if "code" in frame.columns:
-            symbols = {
-                _clean_code(value)
-                for value in frame["code"].dropna().astype(str)
-                if str(value).strip()
-            }
-            if symbols and symbols != {str(code)}:
-                return False
-        schema = pd.to_numeric(
-            frame.get("schema_version", pd.Series([3])), errors="coerce"
-        )
-        if schema.isna().any() or (schema < 3).any():
+        prices = numeric[["open", "high", "low", "close"]]
+        if (prices <= 0).any().any():
+            return False
+        if (numeric[["volume", "amount", "turnover_rate"]] < 0).any().any():
+            return False
+        if (prices["high"] < prices[["open", "close", "low"]].max(axis=1)).any():
+            return False
+        if (prices["low"] > prices[["open", "close", "high"]].min(axis=1)).any():
+            return False
+        schema = pd.to_numeric(frame["schema_version"], errors="coerce")
+        if not schema.eq(3).all():
+            return False
+        expected_adjust = cfg.get("universe", {}).get("history_adjust", "hfq") or "none"
+        if not frame["adjust_mode"].eq(expected_adjust).all():
+            return False
+        if not frame["provider"].isin({"eastmoney", "tencent"}).all():
             return False
         return True
     except Exception:
         return False
 
-
-def _validated_history_codes(target_codes: set[str]) -> set[str]:
+def _validated_history_codes(target_codes: set[str], cfg: dict | None = None) -> set[str]:
     folder = ROOT / "data" / "history"
     valid: set[str] = set()
     if not folder.is_dir():
         return valid
     for path in folder.glob("*.csv"):
         code = str(path.stem)
-        if code in target_codes and _history_cache_entry_valid(path, code):
+        if code in target_codes and _history_cache_entry_valid(path, code, cfg):
             valid.add(code)
     return valid
 
 
 def _research_coverage_snapshot(
-    master: pd.DataFrame, validated_existing: set[str] | None = None
+    master: pd.DataFrame, validated_existing: set[str] | None = None, cfg: dict | None = None
 ) -> dict:
     """Measure only validated persisted history coverage against the frozen master."""
     m = master.copy()
@@ -765,7 +779,7 @@ def _research_coverage_snapshot(
     existing = (
         set(validated_existing) & all_codes
         if validated_existing is not None
-        else _validated_history_codes(all_codes)
+        else _validated_history_codes(all_codes, cfg)
     )
     if "status" in m:
         current_codes = set(m.loc[m["status"] == "current", "code"])
@@ -804,8 +818,8 @@ def qualify_research_pool_coverage(master: pd.DataFrame, cfg: dict, logger=None)
     m = master.copy()
     m["code"] = m["code"].astype(str)
     max_symbols = int(cfg["universe"].get("bootstrap_max_symbols", 0))
-    if max_symbols > 0:
-        m = m.head(max_symbols)
+    # Download budgets may cap candidates, never the frozen coverage denominator.
+    download_codes = set(m.head(max_symbols)["code"]) if max_symbols > 0 else set(m["code"])
 
     target = max(0.90, float(cfg["universe"].get("qualification_coverage_target", 0.90)))
     delisted_target = max(
@@ -821,7 +835,7 @@ def qualify_research_pool_coverage(master: pd.DataFrame, cfg: dict, logger=None)
     failed_once: set[str] = set()
     failures: list[dict] = []
     downloaded = 0
-    validated_existing = _validated_history_codes(set(m["code"]))
+    validated_existing = _validated_history_codes(set(m["code"]), cfg)
 
     def persist(snapshot: dict, status: str) -> dict:
         clean = {k: v for k, v in snapshot.items() if not k.startswith("_")}
@@ -857,8 +871,8 @@ def qualify_research_pool_coverage(master: pd.DataFrame, cfg: dict, logger=None)
             math.ceil(delisted_target * len(delisted_codes))
             - len(delisted_codes & existing),
         )
-        missing_delisted = sorted(delisted_codes - existing - failed_once)
-        missing_current = sorted(current_codes - existing - failed_once)
+        missing_delisted = sorted((delisted_codes & download_codes) - existing - failed_once)
+        missing_current = sorted((current_codes & download_codes) - existing - failed_once)
 
         # Preserve both denominators: each chunk allocates capacity to delisted
         # and current deficits instead of filling only the much larger current set.
@@ -884,7 +898,7 @@ def qualify_research_pool_coverage(master: pd.DataFrame, cfg: dict, logger=None)
         ):
             if error is None:
                 persisted = ROOT / "data" / "history" / f"{code}.csv"
-                if _history_cache_entry_valid(persisted, code):
+                if _history_cache_entry_valid(persisted, code, cfg):
                     validated_existing.add(code)
                     downloaded += 1
                 else:
