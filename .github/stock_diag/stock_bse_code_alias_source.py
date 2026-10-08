@@ -79,7 +79,7 @@ def parse(raw:bytes,content_type:str="text/html") -> dict:
         if not cols:
             continue
         if len(cols)!=5:
-            raise ValueError(f"malformed official code mapping row {i}")
+            raise ValueError(f"malformed official code mapping row {i}; columns={len(cols)}, sample={cols[:6]!r}")
         order,symbol,listing_raw,old,new=cols
         if not order.isdecimal() or int(order)!=i or not symbol:
             raise ValueError("non-contiguous official table ordinal or missing issuer")
