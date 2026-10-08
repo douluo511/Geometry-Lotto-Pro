@@ -72,6 +72,20 @@ def parse_announced_terms(code,text):
 
 def load_primary(code,root):
     spec=SOURCE[code]
+    # The actual first-party notice URL encodes its publication day.  A
+    # free-standing manually frozen day is not source evidence on its own.
+    filename=spec["official_url"].rsplit("/",1)[-1]
+    match=re.fullmatch(r"t(20\d{6})_\d+\.html",filename)
+    if match is None:
+        raise ValueError("unverifiable_official_notice_URL_day")
+    url_day=match.group(1)
+    try:
+        date.fromisoformat(spec["notice_date"])
+        declared_day=spec["notice_date"].replace("-","")
+    except (ValueError, TypeError, AttributeError) as exc:
+        raise ValueError("malformed_original_notice_day") from exc
+    if url_day!=declared_day:
+        raise ValueError("notice_day_disagrees_with_first_party_URL")
     folder=root/f"shard-{spec['shard']:02d}"
     manifest=json.loads((folder/"szse_shard_report.json").read_text(encoding="utf-8"))
     rows=[r for r in manifest.get("records",[]) if r.get("index")==spec["index"]]
