@@ -132,8 +132,8 @@
     "selector_hash": "02418652a27b2e9d15362abc3141fddc47ba0e48f3d4eeaf0884fe5e7b47bf92",
     "status": "ACTIVE"
   },
-  "created_at": "2026-10-06T09:36:31Z",
-  "cycle_source_commit": "852e4c27269aed85f47c7ae27995152ca64d1ac9",
+  "created_at": "2026-10-08T03:46:23Z",
+  "cycle_source_commit": "289f6bf0146e5e0149940a5411943d844d8f03ea",
   "effect_trace": {
     "complete_space": {
       "back": 66,
@@ -151,9 +151,9 @@
     "validated_components": []
   },
   "freeze": {
-    "canonical_hash": "09b35cf15eee8ebdf8223bd49769ec18bec5abb24a6b5cb93cf6f727f471c133",
+    "canonical_hash": "58e1296e30286a56eb31027df226f9447ce20f155d6654930939f900cbcae03f",
     "cohort_id": "7663ebcabe8df06a25f77933",
-    "latest_observed_issue": "26113",
+    "latest_observed_issue": "26114",
     "prediction": {
       "back": [
         5,
@@ -161,70 +161,70 @@
       ],
       "back_ranking": [
         5,
-        8,
-        7,
         2,
-        1,
+        8,
         4,
-        9,
-        12,
+        7,
         10,
+        1,
+        12,
+        9,
+        6,
         11,
-        3,
-        6
+        3
       ],
-      "canonical_hash": "09b35cf15eee8ebdf8223bd49769ec18bec5abb24a6b5cb93cf6f727f471c133",
-      "created_at": "2026-10-06T09:36:31Z",
+      "canonical_hash": "58e1296e30286a56eb31027df226f9447ce20f155d6654930939f900cbcae03f",
+      "created_at": "2026-10-08T03:46:23Z",
       "dan_state": "NULL_DAN",
       "edge_state": "NO_EDGE",
-      "freeze_hash": "ddede7a7a59f38c2cfe0ece8ff7072271aa92932c7c25b323ff085b284a1b3e9",
+      "freeze_hash": "e14dd8850eb2007515960b127872937b2a84c83f0fe451be128aebda9dc1d6e8",
       "front": [
         3,
-        9,
         10,
-        14,
-        26
+        26,
+        29,
+        33
       ],
       "front_ranking": [
         10,
         3,
-        9,
         26,
-        14,
-        12,
-        21,
-        8,
-        6,
-        16,
         29,
-        11,
-        23,
-        18,
-        5,
-        13,
-        22,
-        2,
-        20,
-        25,
         33,
-        28,
-        15,
-        27,
-        7,
+        21,
+        5,
+        22,
+        9,
+        12,
+        14,
         4,
-        19,
+        18,
+        13,
+        7,
+        27,
         24,
+        11,
+        20,
+        6,
+        28,
+        8,
+        23,
+        15,
+        16,
+        19,
+        25,
         34,
-        17,
         32,
+        2,
         1,
         35,
+        17,
         31,
         30
       ],
       "model_hash": "4bf5572e27f5542e21bee9b58f894b6e6db7b7a5fd6922996be5ad77bf836caf",
       "note": "研究候选；只有严格证据门通过时才允许 EDGE_PROVEN/CERTIFIED_DAN。",
-      "prediction_id": "e2892dc8bf17a0a482a5",
+      "prediction_id": "6f7d4462a3de98d90afd",
       "research_dan_back": [
         5
       ],
@@ -232,47 +232,49 @@
         10,
         3
       ],
-      "score_hash": "ade1e50748b9f1c4cbb0aca10a57c0fe292b89c6f29f3a86766fec91a7ac33da",
+      "score_hash": "af6c8ac3e1a7a146f7632d4164d80680065def2ca7f4c9397277743d14999892",
       "selector_hash": "02418652a27b2e9d15362abc3141fddc47ba0e48f3d4eeaf0884fe5e7b47bf92",
-      "target_date": "2026-10-07",
-      "target_issue": "26114"
+      "target_date": "2026-10-10",
+      "target_issue": "26115"
     },
     "production_rho": 0.0,
     "promotion_authorized": false,
     "protocol_hash": "8ac067f9bc41b11260c76cb0309c19f709c87d92cb3f20818051d2eefdd40a41",
-    "record_hash": "c022cf7397bab3d9f86ef7064ebd1480284602dcb699cdb363394b0c1614aa9c",
-    "registered_at": "2026-10-06T09:36:31Z",
+    "record_hash": "628673ac32875abc71ba0a35787f142b774ad883b24c8f0eca552788b058ed01",
+    "registered_at": "2026-10-08T03:46:23Z",
     "research_only": true,
     "schema": "dlt-prospective-freeze-v1",
-    "source_commit": "852e4c27269aed85f47c7ae27995152ca64d1ac9",
-    "target_date": "2026-10-07",
-    "target_issue": "26114"
+    "source_commit": "289f6bf0146e5e0149940a5411943d844d8f03ea",
+    "target_date": "2026-10-10",
+    "target_issue": "26115"
   },
   "live_source": {
-    "canonical_hash": "09b35cf15eee8ebdf8223bd49769ec18bec5abb24a6b5cb93cf6f727f471c133",
+    "canonical_hash": "58e1296e30286a56eb31027df226f9447ce20f155d6654930939f900cbcae03f",
     "crosscheck_count": 20,
     "crosscheck_status": "PASS",
-    "draw_count": 2927,
+    "draw_count": 2928,
     "freshness_gate": "PASS",
-    "latest_issue": "26113",
+    "latest_issue": "26114",
     "network_gate": "PASS",
     "source_mode": "jiangsu_full_plus_gansu"
   },
-  "new_replays": [],
+  "new_replays": [
+    "26114"
+  ],
   "production_rho": 0.0,
   "promotion_authorized": false,
   "schema": "dlt-prospective-cycle-v1",
   "status": {
     "behavior_hash": "a3482920f78064d896898ef37b588ed5f6d44cfbfbf0b3f6caaf44dc9a99859c",
     "cohort_id": "7663ebcabe8df06a25f77933",
-    "created_at": "2026-10-06T09:36:31Z",
+    "created_at": "2026-10-08T03:46:23Z",
     "dan_state": "NULL_DAN",
     "edge_state": "NO_EDGE",
-    "freeze_count": 1,
+    "freeze_count": 2,
     "initial_source_commit": "852e4c27269aed85f47c7ae27995152ca64d1ac9",
     "model_hash": "4bf5572e27f5542e21bee9b58f894b6e6db7b7a5fd6922996be5ad77bf836caf",
     "pending_targets": [
-      "26114"
+      "26115"
     ],
     "production_rho": 0.0,
     "promotion_authorized": false,
@@ -285,10 +287,10 @@
       "promotion_authorized": false,
       "required_replays": 30,
       "split_halves": [],
-      "valid_replays": 0
+      "valid_replays": 1
     },
     "schema": "dlt-prospective-status-v1",
     "selector_hash": "02418652a27b2e9d15362abc3141fddc47ba0e48f3d4eeaf0884fe5e7b47bf92",
-    "valid_replays": 0
+    "valid_replays": 1
   }
 }

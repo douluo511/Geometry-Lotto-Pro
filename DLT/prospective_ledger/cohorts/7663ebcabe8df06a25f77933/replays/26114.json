@@ -1,0 +1,57 @@
+{
+  "actual": {
+    "back": [
+      9,
+      12
+    ],
+    "draw_date": "2026-10-07",
+    "front": [
+      8,
+      12,
+      15,
+      29,
+      30
+    ],
+    "issue": "26114"
+  },
+  "back_gain_vs_random": -0.2,
+  "back_random_recall": 0.2,
+  "back_recall": 0.0,
+  "cohort_id": "7663ebcabe8df06a25f77933",
+  "freeze_hash": "ddede7a7a59f38c2cfe0ece8ff7072271aa92932c7c25b323ff085b284a1b3e9",
+  "front_gain_vs_random": -0.04,
+  "front_random_recall": 0.04,
+  "front_recall": 0.0,
+  "model_hash": "4bf5572e27f5542e21bee9b58f894b6e6db7b7a5fd6922996be5ad77bf836caf",
+  "protocol_hash": "8ac067f9bc41b11260c76cb0309c19f709c87d92cb3f20818051d2eefdd40a41",
+  "record_hash": "3a1b49a74fd849b530f0e631b08de66fdc0512eed79c21074ecbd41cadf7d4e4",
+  "replay": {
+    "actual_issue": "26114",
+    "back_hit_count": 0,
+    "back_hits": [],
+    "back_winner_ranks": {
+      "12": 8,
+      "9": 7
+    },
+    "dan_back_hits": [],
+    "dan_front_hits": [],
+    "freeze_hash": "ddede7a7a59f38c2cfe0ece8ff7072271aa92932c7c25b323ff085b284a1b3e9",
+    "front_hit_count": 0,
+    "front_hits": [],
+    "front_winner_ranks": {
+      "12": 6,
+      "15": 23,
+      "29": 11,
+      "30": 35,
+      "8": 8
+    },
+    "prediction_id": "e2892dc8bf17a0a482a5",
+    "selector_hash": "02418652a27b2e9d15362abc3141fddc47ba0e48f3d4eeaf0884fe5e7b47bf92",
+    "target_issue": "26114"
+  },
+  "replayed_at": "2026-10-08T03:46:22Z",
+  "schema": "dlt-prospective-replay-v1",
+  "selector_hash": "02418652a27b2e9d15362abc3141fddc47ba0e48f3d4eeaf0884fe5e7b47bf92",
+  "source_commit": "852e4c27269aed85f47c7ae27995152ca64d1ac9",
+  "target_issue": "26114"
+}
