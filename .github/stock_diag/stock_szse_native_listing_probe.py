@@ -35,9 +35,9 @@ def official(url:str,kind:str):
     if (p.scheme!="https" or p.hostname!=host or p.netloc!=host or
         p.query or p.fragment or p.username or p.password):
         raise ValueError("untrusted SZSE source URL")
-    if kind=="PDF" and not re.fullmatch(r"/disc/disk03/finalpage/2026-06-25/[0-9a-f-]{36}\\.PDF",p.path):
+    if kind=="PDF" and not re.fullmatch(r"/disc/disk03/finalpage/2026-06-25/[0-9a-f-]{36}\.PDF",p.path):
         raise ValueError("unqualified issuer listing PDF URL")
-    if kind=="HTML" and not re.fullmatch(r"/www/market/periodical/month/W[0-9]+\\.html",p.path):
+    if kind=="HTML" and not re.fullmatch(r"/www/market/periodical/month/W[0-9]+\.html",p.path):
         raise ValueError("unqualified official SZSE statistical URL")
 
 
@@ -76,7 +76,7 @@ def fetch(url:str,kind:str,session=None):
 
 
 def normalize(value:str):
-    return re.sub(r"\\s+","",value)
+    return re.sub(r"\s+","",value)
 
 
 def parse_issuer(raw:bytes):
@@ -148,7 +148,7 @@ def qualify(pdf_data:bytes,month_data:bytes,receipts:dict,candidates:dict):
         "schema":"stock-szse-single-issuer-listing-source-v1",
         "issuer_claim":issuer,"later_monthly_corroboration":monthly,
         "sources":receipts,"candidate_notice_pairs":len(matches),
-        "candidate_notice_url_sha256":digest("\\n".join(sorted(x["official_url"] for x in matches)).encode()),
+        "candidate_notice_url_sha256":digest("\n".join(sorted(x["official_url"] for x in matches)).encode()),
         "scope":"ONE_SCHOLARLY_SOURCE_CHECK_NOT_FULL_UNIVERSE",
         "adjudication":{
             "first_party_dated_stock_listing_claim":"PASS",
@@ -180,7 +180,7 @@ def main():
         raise ValueError("official first-party listing retrieval not complete")
     rep=qualify(raw["PDF"],raw["HTML"],receipt,
                 json.loads(a.candidates.read_text(encoding="utf-8")))
-    a.out.write_text(json.dumps(rep,ensure_ascii=False,sort_keys=True,indent=2)+"\\n",encoding="utf-8")
+    a.out.write_text(json.dumps(rep,ensure_ascii=False,sort_keys=True,indent=2)+"\n",encoding="utf-8")
     print(json.dumps({"issuer_code":CODE,"listing_date_claim":DATE,
                       "pdf_response_sha256":receipt["PDF"]["attempts"][-1]["sha256"],
                       "monthly_response_sha256":receipt["HTML"]["attempts"][-1]["sha256"],
