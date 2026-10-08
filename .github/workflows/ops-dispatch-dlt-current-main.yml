@@ -1,0 +1,70 @@
+name: OPS Dispatch DLT Current-Main Acceptance
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/ops-dispatch-dlt-current-main.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      EXPECTED_MAIN_SHA: 30c3d9d2c6fdfc3dd0751f6f8a0a85348ec2b4a6
+      TARGET_WORKFLOW: dlt-windows-build-acceptance.yml
+    steps:
+      - name: Checkout exact ops head
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify main exact state
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          main_sha="$(gh api repos/${GITHUB_REPOSITORY}/branches/main --jq '.commit.sha')"
+          echo "CURRENT_MAIN_SHA=$main_sha"
+          test "$main_sha" = "$EXPECTED_MAIN_SHA"
+
+      - name: Dispatch DLT acceptance on exact main
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          before="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo "DISPATCH_REQUESTED_AT=$before"
+          gh api             --method POST             "repos/${GITHUB_REPOSITORY}/actions/workflows/${TARGET_WORKFLOW}/dispatches"             -f ref=main
+          echo "DLT_CURRENT_MAIN_DISPATCH=PASS"
+
+      - name: Confirm dispatched run exists
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          sleep 3
+          gh api "repos/${GITHUB_REPOSITORY}/actions/runs?event=workflow_dispatch&branch=main&per_page=20" > runs.json
+          python - <<'PY'
+          import json, os
+          x=json.load(open("runs.json",encoding="utf-8"))
+          expected=os.environ["EXPECTED_MAIN_SHA"]
+          target="Windows build and exact-package acceptance"
+          rows=[r for r in x.get("workflow_runs",[]) if r.get("head_sha")==expected and r.get("name")==target]
+          if not rows:
+              raise SystemExit("no current-main DLT workflow_dispatch run found")
+          r=rows[0]
+          print("DISPATCHED_RUN_ID="+str(r["id"]))
+          print("DISPATCHED_RUN_STATUS="+str(r["status"]))
+          print("DISPATCHED_RUN_HEAD_SHA="+str(r["head_sha"]))
+          print("CURRENT_MAIN_EXACT_RUN_DISCOVERY=PASS")
+          PY
