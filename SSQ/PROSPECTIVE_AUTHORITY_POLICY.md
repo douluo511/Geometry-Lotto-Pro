@@ -22,6 +22,12 @@
 - 舊 Evidence Court 快取即使原來聲稱 PASS／EDGE_PROVEN／CERTIFIED_DAN，也不能跳過新資格硬閘。
 - **不得**把這道保護解釋成「30 期資格已完成」。真正業務阻斷仍未解除。
 
+## 只讀 GitHub 伺服器前瞻時間憑證（研究候選，已實作檢查器）
+
+新增 `SSQ/SSQ/glp/prospective_github_receipt.py`，它從 GitHub API 即時讀取 Actions Run 的**伺服器時間**、同一 Run 的 exact `head_sha`，再以該 SHA 讀取指定期號的 Freeze 原始 Git Blob，重新驗證 Git Blob SHA、完整的 33 紅／16 藍排序、6+1 選號、`prediction_id`、`freeze_hash`、模型來源提交、期號／日期、開獎前中國日期邊界。Run 必須為指定的 `push` 分支、指定工作流程、成功結束。任意自填的 Git Commit author/committer timestamp 或 `verified:true` **不被視作證據**。
+
+此階段 **只產生 `PRE_DRAW_EXISTENCE_CANDIDATE_ONLY`**；輸出固定 `qualified_count=0`、`official_outcome_verified=false`、`promotion_authorized=false`。尚須正式建立經治理的工作流程及每期持久 Freeze、即時官方開獎核對、未漏期 cohort、完整重算和獨立發布，才可能計入 **SSQ 120 期**門檻。GitHub Actions 單元測試所使用的 FakeGitHub 回應只測程式契約，**不**構成真實網路認證的歷史 Freeze。
+
 ## 將來允許驗證的證據要求（尚未實施，不是假 PASS）
 
 1. 獨立且可追溯的 GitHub（或具同等證明力）開獎前持久不可變 Freeze，簽定 exact 代碼／模型／selector／源資料摘要、實際預測和當時時間；後補禁止。
