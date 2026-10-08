@@ -74,12 +74,17 @@ def parse(raw:bytes,content_type:str="text/html") -> dict:
         raise ValueError("missing or duplicated official code-mapping header/table")
     rows=[]
     old_codes=set();new_codes=set()
-    for i,tr in enumerate(table_candidates[0].find_all("tr")[1:],1):
+    native_footnotes=[]
+    for tr in table_candidates[0].find_all("tr")[1:]:
         cols=["".join(cell.stripped_strings) for cell in tr.find_all(["td","th"])]
         if not cols:
             continue
+        if len(cols)==1 and cols[0].startswith("注："):
+            native_footnotes.append(cols[0])
+            continue
         if len(cols)!=5:
-            raise ValueError(f"malformed official code mapping row {i}; columns={len(cols)}, sample={cols[:6]!r}")
+            raise ValueError(f"malformed official code mapping row {len(rows)+1}; columns={len(cols)}, sample={cols[:6]!r}")
+        i=len(rows)+1
         order,symbol,listing_raw,old,new=cols
         if not order.isdecimal() or int(order)!=i or not symbol:
             raise ValueError("non-contiguous official table ordinal or missing issuer")
@@ -98,7 +103,12 @@ def parse(raw:bytes,content_type:str="text/html") -> dict:
         })
     if not rows:
         raise ValueError("official code mapping no rows")
+    required_note="注：由全国股转系统原精选层平移进入北交所的上市公司，上表中上市日期字段为其在原精选层的挂牌日期。"
+    if native_footnotes != [required_note]:
+        raise ValueError("official original-selected-tier transfer date footnote missing or changed")
     return {"rows":rows,"rows_count":len(rows),
+            "official_date_column_qualification_note":required_note,
+            "official_date_column_note_sha256":digest(required_note.encode("utf-8")),
             "pre_BSE_original_listing_count":sum(x["pre_BSE_market_open"] for x in rows)}
 
 
