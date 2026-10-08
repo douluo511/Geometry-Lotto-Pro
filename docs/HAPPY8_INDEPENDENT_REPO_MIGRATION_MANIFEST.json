@@ -1,0 +1,112 @@
+{
+  "schema": "happy8-independent-repo-migration-manifest-v1",
+  "status": "BLOCKED",
+  "source_repository": "douluo511/Geometry-Lotto-Pro",
+  "source_commit": "9b82e317f789b357604e6e8546a10fd0b49b626d",
+  "rule": "Preserve source paths byte-for-byte for the first dedicated-repository seed. Any path/content restructuring is a new change and invalidates affected evidence.",
+  "required_entries": [
+    {
+      "path": "Happy8/ARCHITECTURE_SCOPE.json",
+      "type": "blob",
+      "sha": "4558f4d36d7307524e5865b78403e061fa5d7e87"
+    },
+    {
+      "path": "Happy8/BUSINESS_ACCEPTANCE_BASELINE.json",
+      "type": "blob",
+      "sha": "bd20ddb825a908e8850f410dd71f8a39c99d66c9"
+    },
+    {
+      "path": "Happy8/ENGINEERING_ACCEPTANCE_BASELINE.json",
+      "type": "blob",
+      "sha": "361ae12a31f6b18672be263ef8b72a56256d7ec2"
+    },
+    {
+      "path": "Happy8/RECOVERY_STATUS.md",
+      "type": "blob",
+      "sha": "dbd24e5016877b36d18c1acfc5dc6fdeafd63f3f"
+    },
+    {
+      "path": "Happy8/recovered",
+      "type": "tree",
+      "sha": "8d31d70996e737a992fe0a9c8167832e43f546e0"
+    },
+    {
+      "path": "Happy8/recovered/Geometry_Lotto_Pro_Happy8.html",
+      "type": "blob",
+      "sha": "2f3a9ac1bedd77f2d584e5ce2a1295f452878b74"
+    },
+    {
+      "path": "Happy8/staging",
+      "type": "tree",
+      "sha": "548978120f297578944003393418c122033d8487"
+    },
+    {
+      "path": ".github/workflows/happy8-staging-recovery.yml",
+      "type": "blob",
+      "sha": "2b71bf1536b2efb632fa00fc9843ca8f0d71249e"
+    }
+  ],
+  "staging_identity": {
+    "tree_sha": "548978120f297578944003393418c122033d8487",
+    "includes": [
+      "GeometryLottoProHappy8.spec",
+      "GeometryLottoProHappy8Updater.spec",
+      "happy8/**",
+      "requirements.txt",
+      "scripts/**"
+    ]
+  },
+  "acceptance_after_migration": [
+    "Verify every required entry blob/tree SHA matches this manifest.",
+    "Verify repository is not douluo511/Geometry-Lotto-Pro and contains no other project code.",
+    "Run the full frozen Happy8 workflow on the dedicated repository exact commit.",
+    "Create real Release N and N+1 only from the dedicated repository.",
+    "Run real updater N→N+1 through trusted HTTPS manifest/artifact, rollback and restart recovery.",
+    "Rebuild/freeze the final Exact EXE, physically click all four GUI entries, then prove post-GUI Same Hash.",
+    "Only then generate FINAL_ARTIFACT.json and evaluate E17/E18/E19 and Final Gate."
+  ],
+  "blocker": {
+    "status": "BLOCKED",
+    "reason": "Current GitHub connector exposes only douluo511/Geometry-Lotto-Pro and has no repository-creation action.",
+    "unblock": "Create a dedicated Happy8 repository and make it visible to the connected GitHub installation.",
+    "note": "Refreshed current seed is byte-verified and Windows self-containment validated. A dedicated repository and fresh dedicated-repository full acceptance/release remain required."
+  },
+  "previous_source_commit": "64dfe1b9274abecd972edaa52c928f10cb2b6b23",
+  "previous_seed": {
+    "root_tree_sha": "16ee80c3d307df457c2cc49e469d24d8298bdc20",
+    "commit": "3015beacbd5d858601abe13ed207a32512344354",
+    "branch": "migration/happy8-independent-seed-20261003",
+    "validation_pr": 89,
+    "validation_run": 37119210013,
+    "disposition": "validation completed; PR closed without merge; historical only"
+  },
+  "current_seed": {
+    "root_tree_sha": "3d9c6c32661615b03869369ede3f1102c8201f35",
+    "commit": "cb4807102d11d6b119945a30875325654987e3dc",
+    "branch": "migration/happy8-independent-seed-v2-20261003",
+    "validation_head": "f7977f7bbc86002d82fd5a89342a84617b255320",
+    "validation_pr": 90,
+    "validation_run": 37155556595,
+    "validation_job": 111298105713,
+    "validation_status": "PASS",
+    "validation_scope": "Isolated self-containment and all 16 internal engineering gates only; not E17 or Final",
+    "runtime_blob_count": 49,
+    "runtime_byte_identity": "PASS",
+    "extra_validation_document": "Happy8/SEED_VALIDATION_V2.md"
+  },
+  "current_product_validation": {
+    "run": 37139358208,
+    "job": 111250395053,
+    "engineering_pass": 16,
+    "engineering_required": 19,
+    "business_pass": 7,
+    "business_required": 8,
+    "final_gate": "FAIL",
+    "nonpass": {
+      "E17": "BLOCKED",
+      "E18": "BLOCKED",
+      "E19": "BLOCKED",
+      "B07": "BLOCKED"
+    }
+  }
+}

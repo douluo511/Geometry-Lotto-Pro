@@ -1,0 +1,1204 @@
+<!-- exact-checkpoint-20261006-rmf250-terminal -->
+## 2026-10-06 RMF #250 terminal rerun
+
+- RMF PR #250 exact head `0ffaaa76a43fb734d69d8a3f0170e9d97b176518`, workflow run `37366837461`, rerun job `112113533557` = **SUCCESS**.
+- Dense official SSE historical-membership crosscheck = **PASS**: 60 sample dates, 58 comparable, 58 matched, 0 mismatches, 96.6667% comparison coverage.
+- Artifact `11390719309`; ZIP SHA-256 `e80a38f69ccf51d04bbabcab77f8dfd7b9c48ee58c22c6bb99f0b7472b23712a`.
+- Adjudication remains strict: historical membership reconstruction = SUPPORTED; `historical_pit_availability=NOT VERIFIED`; `survivorship_selection_control=NOT VERIFIED`; capital deployment = false; Final Gate = FAIL.
+- Therefore the transient cancelled-job problem is resolved, but RMF Business completion is **not increased** by this diagnostic alone.
+
+<!-- exact-checkpoint-20261006-continued-execution -->
+## 2026-10-06 strict continuation — portfolio blockers and live remediation
+
+- Portfolio migration/export readiness is currently **18/18 PASS** only for the exact product bindings already evidenced, including Stock export PR #260 run `37413482053` SUCCESS against Stock product head `c25a5c394363058d341b624b18943cd3733eb720`.
+- Dedicated independent repositories remain **0/18 evidenced**. The connected GitHub toolset exposes no repository-creation mutation, so repository independence cannot be completed from this integration despite user authorization. Final PASS and formal delivery therefore remain **0/18**.
+- Stock PR #257 exact head `c25a5c394363058d341b624b18943cd3733eb720`: source/offline run `37371301910` SUCCESS; full-business run `37371301878` FAIL because the required hash-bound historical ST/PIT bundle is absent; desktop run `37371302045` is currently IN_PROGRESS on the failed-jobs retry. No downstream PASS is promoted until terminal.
+- Stock PR #261 exact head `3f40a298159048de4b053d81470717405edc0218`: SSE semantic-role parser run `37413979859` is IN_PROGRESS. It is a diagnostic/evidence line only until terminal evidence is available; no historical ST/PIT or Advanced Business PASS is claimed.
+- RMF PR #250 exact head `0ffaaa76a43fb734d69d8a3f0170e9d97b176518`: prior run `37366837461` ended with job `111953955684` CANCELLED, so that outcome is not treated as a semantic FAIL. The cancelled job was explicitly re-run; replacement job `112113533557` is now IN_PROGRESS. No PASS is claimed before terminal evidence.
+- Strict rule remains unchanged: behavior-changing changes invalidate downstream acceptance; export PASS is not repository independence; queued/in-progress work is NOT VERIFIED.
+
+<!-- exact-checkpoint-stock-257-current-20261006 -->
+## 2026-10-06 current authority correction — Stock #257
+
+This checkpoint supersedes the immediately older #255 authority wording for current Stock execution only.
+
+- Root-cause diagnostic PR #254 is closed unmerged after successful exact diagnostic run `37368139419` / job `111958245267`: unchanged Stock product bytes; historical PIT evidence gate present = PASS; live `exclude_st` policy = PASS; historical candidate pool PIT consumption = FAIL; historical dataset PIT state = FAIL; production/backtest ST-policy parity = NOT VERIFIED. Artifact `11368832574`.
+- **Current Stock behavior-changing candidate is PR #257**, branch `fix/stock-consume-historical-st-pit-20261006`, exact head `1f3080cc5789701e5181bd8652c06f4fb0c4c3d0`.
+- #257 now binds verified historical state into backtest execution: signal-date ST/suspension before Top-N ranking, per-market verified PIT calendars, true next-market-open alignment via `entry_date`, entry-date suspension execution rejection, no next-day ST selection leakage, audit/backtest canonical-SHA binding, and fail-closed missing/malformed/mismatched PIT state.
+- Earlier #257 head `56d2ff15...` correctly failed source recovery because release manifests were stale after behavior changes (`audit.py` git-blob SHA mismatch). The current head rebounded inner/outer manifests; fresh source run `37370425815` has PASSed exact checkout and immutable raw-byte restore. Remaining source gates are still non-terminal.
+- Fresh current-head runs only: source `37370425815`; full-business `37370425841`; Windows desktop `37370425783`. No prior Stock Business/Windows/GUI/Same-Hash PASS is inherited.
+- Stock deterministic migration/export remains stale after the behavior change; current-product-bound portfolio migration/export readiness remains **17/18** until a fresh export is generated and independently verified from the terminal #257 product head.
+- Dedicated repositories remain **0/18**; Final PASS **0/18**; delivery **0/18**.
+
+<!-- exact-checkpoint-stock-255-pit-consumption-20261006 -->
+## 2026-10-06 current exact checkpoint — Stock #255 PIT consumption fix
+
+This checkpoint supersedes older Stock authority / migration-readiness wording below for the current exact state only. Historical evidence remains preserved.
+
+- **Stock current behavior-changing product line:** draft PR #255, exact head `834401e77b02a259e7189bdf3a0628b9dc7fb65c`, branch `fix/stock-backtest-consume-historical-pit-20261006`.
+- Root cause from Issue #252 is confirmed: the prior historical ST/suspension PIT evaluator was an audit gate but its verified daily state was not consumed by the historical backtest candidate pool.
+- Current fix requires hash-bound canonical PIT evidence, exact `(date, market, code)` binding, historical ST exclusion when `exclude_st=true`, unconditional suspended-row exclusion, no nearest-date / forward-fill / backward-fill / present-day fallback, and fail-closed behavior for any missing evaluated PIT row.
+- Counterexample contract `historical_st_pit_backtest_contract_test.py` is now part of the source workflow. A pre-CI self-review found and fixed a filtered-frame code-length mismatch; therefore earlier #255 head `7f5b0f0a...` is superseded and must not be counted.
+- Fresh exact-head workflows only: source/offline `37369180406`, full-business `37369180425`, Windows desktop `37369180504`. They are currently non-terminal; **no current-head PASS is inherited** from `7f270b9a...`, `43168d9e...`, or earlier heads.
+- **Stock migration/export:** PR #216 was bound to superseded product `7f270b9a...` and has been closed as stale. Current Stock migration/export = **NOT CURRENT / needs refresh after #255 stabilizes**.
+- **Portfolio current-product-bound migration/export readiness = 17/18**, not 18/18, until a deterministic Stock export is rebuilt and independently verified against the terminal #255 product head.
+- **Happy8 current migration readiness remains PASS:** PR #224 / run `37352697602`, 52 files, manifest `6361714bc30579342d6e671748f5cf1823236d363b1e4cde8c1f74e13c58f109`, artifact `11362334700`, digest `sha256:fce86e2f8b65dd47e22718e69842033091fb6b1ee7475d9524f8758231c38ab9`, deliberate tamper rejection PASS. Happy8 Engineering **84.2105%**, Business **87.5%**, Exact EXE / physical GUI / Same Hash PASS; repository + real Release N→N+1 + unique final artifact remain non-PASS; Final FAIL.
+- Connected GitHub installation still exposes only `douluo511/Geometry-Lotto-Pro` and no create-repository mutation. Independent repositories = **0/18**; Final PASS = **0/18**; delivery allowed = **0/18**.
+
+<!-- exact-checkpoint-stock-bse-removal-20261006 -->
+## 2026-10-06 Stock BSE removal-history bounded negative evidence
+
+- PR #248 exact head `abc789771e031c003697bbea0068460ae05a8fa0`; run `37365202352` / job `111948556719` = **SUCCESS** as a diagnostic workflow.
+- Exact Stock product byte identity check = PASS.
+- Official BSE `disclosureType=5` pagination across the five companies with validated initial risk-warning implementations = PASS, including first-party old-code aliases.
+- Combined official announcement rows = **2,647**; removal candidates = **0** within this exact company/type/window denominator.
+- Artifact `11367774934`; ZIP digest `sha256:80892e4c0856b01d93005f55b6c0165e6954567ee6f6f7ccc0e73e1236d0df3f`.
+- Strict adjudication remains: `bse_removal_event_history_complete=NOT VERIFIED`; `bse_effective_state_reconstruction=NOT VERIFIED`; `bse_historical_st_pit=NOT VERIFIED`; full `HISTORICAL_ST_PIT=NOT VERIFIED`; Advanced Business = NOT VERIFIED; Final Gate = FAIL.
+- Reason: a zero-removal result is supported only inside the frozen company / disclosureType=5 / 2018-01-01..2026-09-30 scope; it is not proof that every possible BSE removal disclosure surface or vocabulary has been exhausted.
+
+<!-- exact-checkpoint-20261006-stock-attempt2 -->
+## 2026-10-06 exact checkpoint — Stock #210 attempt 2 / portfolio hard boundary
+
+- **Stock current product:** PR #210 exact head `7f270b9ab58e11fd8129053a65e000c90ff9d8c1`.
+- Source run `37342995675` = **SUCCESS**; full-business run `37342995570` = **SUCCESS**. Default business chain remains evidence-correct `NO_TRADE / LOW` with validation Rank IC `-0.09807788334098926`; full `HISTORICAL_ST_PIT` / Advanced Business remain **NOT VERIFIED**.
+- Desktop run `37342995652` attempt 1 = **FAIL** at the 130-minute exact-head research-corpus qualification timeout. Progressive history cache save completed successfully; no threshold or denominator was reduced. Attempt 2 job `111950095551` is currently **QUEUED**; downstream current-head Advanced / physical GUI / post-GUI Same Hash remain **NOT VERIFIED** until terminal.
+- **Stock current-product migration/export:** PR #216 exact head `3180c5ae518a4ff62016adeff2044892aaa1df3d`, based exactly on #210 product head. Run `37343378422` / job `111875768476` = **SUCCESS**; 408 files; manifest `3d5d0af681e3452eb5afb85c290c9842b534eb453c72cc70b6568804cc6a506b`; artifact `11358729281`; ZIP digest `sha256:c4c5bd37aaae253be4197d484b92c8c4a38c8a18096954fafbe1267e4a29318b`.
+- Therefore current-product-bound migration/export readiness = **18/18 PASS** at this exact state. This is **not** repository independence.
+- Accessible owner repositories still expose only `Geometry-Lotto-Pro`; dedicated repositories = **0/18 evidenced**. Final PASS = **0/18**; delivery allowed = **0/18**.
+- **Happy8:** PR #39 merged; latest verified candidate chain has Live Network / science-method / Windows Exact EXE / physical GUI / post-GUI Same Hash PASS, while science verdict is **NO_EDGE** and positive production software update / independent repository / real Release N→N+1 remain non-PASS. Final remains FAIL.
+
+<!-- exact-checkpoint-stock-pit-20261006-b -->
+## Exact-state checkpoint — Stock PIT / Happy8 / RMF
+
+This checkpoint is evidence-only and does not supersede stricter later evidence.
+
+- **Portfolio hard boundary:** accessible owner repository list still exposes only `Geometry-Lotto-Pro`; dedicated repositories remain **0/18 evidenced**. No create-repository action is exposed. Therefore Final PASS = **0/18** and delivery allowed = **0/18**.
+- **Stock current product:** PR #210 `7f270b9ab58e11fd8129053a65e000c90ff9d8c1`. PR #216 remains the deterministic migration/export seed for that product head; export readiness is not repository independence.
+- **Stock BSE suspension semantics:** PR #244 run `37363751691` SUCCESS. 85/85 PDFs transported/text-extracted; 52 unique-transition documents, 25 no-strong-date, 8 multi-date ambiguous. `SUPPORTED_DIAGNOSTIC` only; BSE effective daily suspension/PIT remains NOT VERIFIED.
+- **Stock SSE strong dates:** PR #238 run `37361439603` SUCCESS over 667 PDFs; 280 unique strong effective dates, 36 ambiguous, 351 without strong date. Shanghai historical ST/PIT remains NOT VERIFIED.
+- **Stock SZSE archive:** PR #245 run `37363689831` SUCCESS; 94 pages / 1,849 notice rows / 761 dates. Pagination PASS; archive title semantics and Shenzhen daily suspension/PIT remain NOT VERIFIED.
+- **Stock live frontier:** PR #247 exact-head evidence binding commit `1da425c95356c0052de345fb306f71c3fe692168` (run `37364842160` queued); PR #248 exact-head evidence binding commit `abc789771e031c003697bbea0068460ae05a8fa0` (run `37365202352` running). PR #239 first attempt ended only because the runner received shutdown / exit 143; rerun is queued, so semantic result remains NOT VERIFIED.
+- **Stock desktop current-head:** run `37342995652` remains in exact-head research-corpus qualification. No downstream GUI / Same Hash PASS is inherited until the run reaches those gates.
+- **Happy8:** PR #224 export run `37352697602` PASS (52 files; manifest `6361714bc30579342d6e671748f5cf1823236d363b1e4cde8c1f74e13c58f109`; artifact `11362334700`; digest `fce86e2f8b65dd47e22718e69842033091fb6b1ee7475d9524f8758231c38ab9`). Full acceptance remains Engineering **84.2105%**, Business **87.5%**, Exact EXE / physical GUI / post-GUI Same Hash PASS, repository + real Release N→N+1 + unique final artifact non-PASS, Final FAIL.
+- **RMF:** PR #233 run `37363485709` proves SSE product-file distribution context, but `historical_pit_content_availability` and `survivorship_selection_control` remain NOT VERIFIED; artifact `11367407546`, digest `3019667971e4a4ef12101f7aa6cb315aec546e491840e3c79762a069546d0ed4`.
+
+# Portfolio Execution State — 18 Windows EXE Projects
+
+## 2026-10-06 Stock SSE transition inventory + BSE machine-surface checkpoint
+
+- Stock product candidate remains PR #210 exact head `7f270b9ab58e11fd8129053a65e000c90ff9d8c1`; no diagnostic below changes `StockAIPro/**`.
+- PR #221 exact head `dfdfb7e45e5950bccd768e177621a102277b51f8`, push run `37351489807` / job `111903147312` = **SUCCESS**. Official-SSE frozen event corpus reproduced exactly: 2,994 unique A-share rows / 295 codes / 622 missing-name rows; corpus SHA-256 `30abbc602f8f10c5f2929a43dc8c5c2d6e68dccd84434b0b2dba064fe5fd9fac`. Title inventory: implementation candidates 406, cancellation candidates 261, application-to-cancel 353, prospective/risk 861, progress/reminder 1,081, ambiguous 32. Artifact `11362298517`, digest `sha256:32b8ec1c3fc4099848189880fad1136a41df2f2c2f8077bd831d4ea1d7c8e2bd`.
+- Strict SSE boundary: title semantics are effective dates = FALSE; primary-document semantics complete = NOT VERIFIED; effective-state reconstruction = NOT VERIFIED; Shanghai historical ST/PIT = NOT VERIFIED; full HISTORICAL_ST_PIT / Advanced Business = NOT VERIFIED.
+- PR #218 exact head `b8a7f48f82bd71d7cdc7fe95ebe1d872f23b5173`, run `37350359568` / job `111899377893` = **SUCCESS** after discovery-layer hardening only. BSE official disclosure surface and machine endpoint discovery are SUPPORTED; discovered endpoint is `https://www.bse.cn/disclosureInfoController/companyAnnouncement.do`; official JS source hash `bf39ce71871a21a785155f004a34c3b3f1c8eb412c568e3565c36f9eeadf0827`. Artifact `11362955227`, digest `sha256:564a4851092f693e69f9e1e289bdd356addfd6113fc671ea495faf8580d07ff5`.
+- BSE endpoint discovery is not historical PIT. BSE historical event completeness, daily ST state, full historical ST/PIT, Advanced Business and Final remain non-PASS.
+- PR #220 query-contract validation continues separately. Historical heads progressed 0/3 → 1/3 → 2/3 sample PASS; current branch now uses first-party old/new security-code mapping at exact head `0cd4c68ef30d2f68c3d806566b6a837902697429`, but its run is still IN_PROGRESS and no current-head PASS is claimed yet.
+- Portfolio structural boundary unchanged: current-product export readiness 18/18 only while #210 remains unchanged; dedicated repositories 0/18; Final PASS 0/18; delivery 0/18.
+
+
+## 2026-10-06 Stock #210 current-head business + market-wide SSE evidence checkpoint
+
+- Current Stock product candidate remains PR #210 exact head `7f270b9ab58e11fd8129053a65e000c90ff9d8c1`; PR #216 export remains bound exactly to this product head.
+- Fresh source run `37342995675` = **SUCCESS**.
+- Fresh full-business run `37342995570` / job `111875005557` = **SUCCESS** for the default production daily source-engine-business chain. Live update = 300/300 at 2026-09-30; valuation qualification = 120/300 = 40% PASS; Rank IC = `-0.09807788334098926`; decision = **NO_TRADE / LOW trust**. Artifact `11362201683`, digest `sha256:62ec479650ef97e136a42ef7d530291472fa46dd4de14ce31c85a4b8c49b9064`.
+- This business-chain PASS is not Advanced Business PASS. Complete hash-bound historical ST/PIT evidence remains absent, so `HISTORICAL_ST_PIT` / Advanced Business remain **NOT VERIFIED**.
+- Native desktop run `37342995652` remains **IN_PROGRESS** at the exact-head real-network research-corpus qualification prerequisite. Windows build, Exact EXE self-test, repair and frozen-EXE real-network core have passed, but downstream corpus/advanced/physical-GUI/Same-Hash acceptance remains NOT VERIFIED until terminal.
+- PR #214 exact head `c9336a30a34e3d556858a2ddf3b165164c975315`, run `37349626220` / job `111896877772` = **SUCCESS**. Official SSE exact-navigation pagination integrity = PASS; frozen three-keyword market-wide risk-warning event corpus = SUPPORTED: 2,994 unique A-share events / 295 codes / 1,907 ST-named rows / 622 missing-name rows; corpus SHA-256 `577c8c4caaf66f71b02f33bbba5158a46a408703d9bbdc5a131bca330c1068ef`. Artifact `11362740155`, digest `sha256:d2148e58d84ae87215e1bca82414a326825ad2889de684d644f0a72c919c09bb`.
+- Strict SSE boundary remains: event semantics complete = NOT VERIFIED; effective-state reconstruction = NOT VERIFIED; Shanghai historical ST/PIT = NOT VERIFIED; full HISTORICAL_ST_PIT = NOT VERIFIED.
+- BSE PR #218 previous discovery head `1325e111...` preserved a real negative result, but review found a discovery-layer false-negative risk (indirect roots only, no iframe traversal, ambiguous HTML charset). The discovery tool was hardened without changing any business gate; new exact head `b8a7f48f82bd71d7cdc7fe95ebe1d872f23b5173`, fresh run `37350359568` is IN_PROGRESS. No BSE PASS is claimed before terminal evidence.
+- Portfolio current-product migration/export readiness remains **18/18 PASS** only while #210 head remains unchanged. Dedicated repositories remain **0/18**; Final PASS **0/18**; delivery **0/18**.
+
+
+## 2026-10-06 Stock current-head deterministic export restored — PR #216
+
+- Stock product candidate remains PR #210 exact head `7f270b9ab58e11fd8129053a65e000c90ff9d8c1`.
+- Current-product migration PR #216 exact head `3180c5ae518a4ff62016adeff2044892aaa1df3d`, base exactly `7f270b9a...`.
+- Run `37343378422` / job `111875768476` = **SUCCESS**.
+- Exact checkout / product-tree byte identity / base ancestry = PASS.
+- Deterministic export = PASS; independent second-pass verification = PASS; deliberate mutation rejection = PASS.
+- Export file count = **408**; manifest SHA-256 `3d5d0af681e3452eb5afb85c290c9842b534eb453c72cc70b6568804cc6a506b`.
+- Artifact `11358729281`; ZIP digest `sha256:c4c5bd37aaae253be4197d484b92c8c4a38c8a18096954fafbe1267e4a29318b`.
+- Therefore current-product-bound migration/export readiness returns to **18/18 PASS** at this exact state.
+- This remains migration preparation only: Repository Independence = NOT VERIFIED; real production Release N→N+1 = NOT VERIFIED; formal Release re-download Same Hash = NOT VERIFIED; Final Gate = FAIL.
+- If PR #210 changes product head again, PR #216 becomes stale immediately and migration readiness must drop again until rebound.
+
+## 2026-10-06 Stock PR #210 real-byte evidence binding hardening — new exact head
+
+- **Supersedes PR #210 head `847511a4...`: current exact head is `7f270b9ab58e11fd8129053a65e000c90ff9d8c1`.**
+- Code review found that the first #210 evaluator only validated SHA fields as 64-hex strings; it did not recompute hashes from evidence bytes. The old positive contract fixture used a fabricated `"a"*64` hash and could therefore PASS a self-declared claim. That head is not accepted.
+- Repair now requires each canonical/source/per-market claim to bind to a real file under the product root, rejects absolute/path-escape references, recomputes SHA-256 from actual bytes, and rejects missing/tampered/hash-mismatched evidence.
+- Counterexample tests now explicitly prove: fabricated 64-hex hash => WARN; post-claim byte tamper => WARN; path traversal => WARN; only real matching evidence bytes may PASS.
+- Hardened `historical_pit.py` SHA-256: `e7a128f75662f0e440944d014742012156da108a32e35abc7283c198f8b5c54c`.
+- Updated nested package manifest SHA-256: `714f42dcf3f503ba5052c676ad5c791557c81c8316449ea4343be0d3fb612b34`.
+- Manifest commits: `36f60311afe2107f4fc4b1e3d013f9729271c18e` and `7f270b9ab58e11fd8129053a65e000c90ff9d8c1`.
+- Because behavior changed again, every earlier #210 runtime/Windows result is historical. Fresh exact-head runs: source `37342995675`, business `37342995570`, desktop `37342995652` are the only runs allowed to adjudicate the new head.
+- Current-product migration/export remains **17/18 PASS** until deterministic Stock export is rebuilt against the terminal `7f270b9a...` lineage (or a later repaired head).
+- Repository independence remains 0/18; real production Release N→N+1 remains non-PASS; Final/Delivery remains 0/18.
+
+## 2026-10-06 Stock historical-state evidence advance
+
+- **Authoritative Stock product remains PR #155** @ `43168d9e75c70ab55be808d8a51f0c0eb14d83d5`; fresh source/business/desktop chains remain terminal SUCCESS and Final remains FAIL on business PIT + production repository/release boundaries.
+- **Shanghai daily suspension state closed as a supported sub-dimension:** PR #209 exact head `4663ac4cb3943c23f8f51626ee2c536d852f3b45`, run `37341509787` = SUCCESS. Same-run recomputation includes full SSE 2018-01-01→2026-09-30 interval corpus, `endStopDate` semantics, 5/5 open-interval resolution, and the frozen 2,123-date research-calendar identity. A-share intervals = 2,333; resolved open ends = 5; missing ends = 0; invalid ranges = 0; zero trading-day intersections = 0; daily pairs = 23,894; suspended dates = 2,026; unique codes = 852; daily-state SHA-256 `0a614254deb282111393b858f9264bb64c05c12a1c3c3eec4abb714d8774fb08`. Adjudication: **HISTORICAL_DAILY_SUSPENSION_STATE=SUPPORTED_SHANGHAI_ONLY**. Artifact `11358417500`, digest `sha256:40a66e44e2ae5f066527e89528dabe0fd5afd90908a4efcbef1232e8e7864061`.
+- **Official SSE risk-warning bulletin machine surface validated:** PR #211 exact head `6de21ed9ff5ef7f294a78b7e7a9a5a7b83829e7b`, run `37342169436` = SUCCESS. Official `queryCompanyBulletin.do` is HTTP-200 + JSONP parseable. Product 688496 returns historical risk-warning rows preserving official name sequence 清越科技 (2026-04-29) → ST清越 (2026-05-09) → *ST清越 (2026-09-02). Artifact `11359281478`, digest `sha256:dce3a8fbb49e7005941480d0d4b981c631251e758f357508191240f5e6e07d65`.
+- **Strict remaining boundary:** Shanghai historical ST/PIT = NOT VERIFIED; Beijing historical ST/PIT = NOT VERIFIED; full `HISTORICAL_ST_PIT` = NOT VERIFIED; Advanced Business = NOT VERIFIED; positive production update / independent repository / real Release N→N+1 = BLOCKED; Final = FAIL.
+- **Current next diagnostic:** PR #213 validates effective-date semantics from primary SSE risk-warning PDFs. Its result must not be promoted to market-wide ST/PIT without complete reconstruction evidence.
+- **Portfolio aggregate remains:** migration/export 18/18 PASS; dedicated repositories 0/18; Final PASS 0/18; delivery 0/18.
+
+## 2026-10-06 Stock PR #210 behavior change — acceptance/export invalidation + suspension corroboration boundary
+
+- **Current Stock product candidate is now PR #210**, exact head `847511a4fa98f5b1869687eabd9bf7fe43808994`, based on former PR #155 head `43168d9e75c70ab55be808d8a51f0c0eb14d83d5`.
+- This is a real behavior change: `HISTORICAL_ST_PIT` is no longer hard-coded WARN; the product now consumes a hash-bound, fail-closed historical ST/suspension PIT evidence contract.
+- Therefore prior #155 source/business/Windows/GUI/Same-Hash evidence is **HISTORICAL ONLY** for the new head and MUST NOT be inherited. Fresh #210 runs are required.
+- Fresh exact-head runs currently scheduled/executing: source `37342188797`, full business `37342188784`, native desktop `37342188844`. Exact checkout and immutable restore have already passed on the source line; downstream active steps remain NOT VERIFIED until terminal.
+- **Migration/export invalidation:** Stock export PR #181 is bound to the superseded #155 product bytes, so current-product-bound portfolio migration/export readiness is temporarily **17/18 PASS**, not 18/18. It may return to 18/18 only after a deterministic export is rebuilt and independently verified against the terminal #210 product head.
+- Shanghai suspension sub-evidence remains useful input evidence, not inherited runtime acceptance: PR #209 exact head `4663ac4cb3943c23f8f51626ee2c536d852f3b45`, run `37341509787` = SUCCESS, official-SSE-derived `historical_daily_suspension_state=SUPPORTED_SHANGHAI_ONLY`, daily-state SHA-256 `0a614254deb282111393b858f9264bb64c05c12a1c3c3eec4abb714d8774fb08`.
+- **Independent corroboration remains NOT VERIFIED:** PR #208 run `37341613509` completed successfully as a diagnostic but machine-adjudicated `open_ended_interval_resolution=NOT VERIFIED`. Tencent supports all five SSE open intervals; Eastmoney exhausted bounded retries; Yahoo reports post-start bars for all five targets. Artifact `11358941627`, digest `sha256:431c30d645175194f4ab5ab367ef5e26af24245802dd9bcea2dc460aa48e37ae`.
+- The #208 disagreement does not erase the stronger first-party exact-record SSE re-query in #207/#209, but it blocks any claim that the five open intervals have independent cross-provider corroboration.
+- Shanghai historical ST/PIT = **NOT VERIFIED**; Beijing historical ST/PIT = **NOT VERIFIED**; full `HISTORICAL_ST_PIT` = **NOT VERIFIED**; Advanced Business = **NOT VERIFIED** until the new product gate is supplied with complete qualifying evidence and fresh runtime acceptance proves it.
+- Dedicated repositories remain **0/18**; production Release N→N+1 remains non-PASS; Portfolio Final/Delivery remains **0/18**.
+
+## 2026-10-06 Stock Shanghai daily-suspension sub-gate closure
+
+- **Authoritative Stock product remains unchanged:** PR #155 exact head `43168d9e75c70ab55be808d8a51f0c0eb14d83d5`.
+- **Daily-suspension combination evidence:** PR #205 exact head `4d105982aa193deb130020920ff0c4f3c0fe8da7`; run `37341614747` / job `111869809429` = **SUCCESS**.
+- Fresh combined proof binds the official SSE 2018-01-01 → 2026-09-30 interval corpus, first-party `endStopDate` final-suspended-date semantics, PR #203 frozen dual-provider 2,123-date identity (SHA-256 `45215343b187e337bc2b1ca3edbfc3055cdc77c0130b46c707bfe84ccf5513c9`) and PR #207 open-interval evidence.
+- Open intervals: expected 5 / observed 5 / missing 0 / extra 0 / unresolved 0; invalid ranges 0; zero trading-day intersections 0; future-end invariance = true.
+- Derived Shanghai daily suspension state: 2,333 A-share intervals → **23,894** (trade_date, code) pairs, **852** unique suspended codes, **2,026** suspended research dates; daily-state SHA-256 `0a614254deb282111393b858f9264bb64c05c12a1c3c3eec4abb714d8774fb08`.
+- Evidence artifact `11357529756`; ZIP digest `sha256:73251fa0d499186eea78ae9ceef45e6b663bf840543c1918c76cd175c50197c8`.
+- Adjudication: `historical_daily_suspension_state=SUPPORTED_SHANGHAI_ONLY`.
+- Strict remaining boundary: Shanghai historical ST/PIT = NOT VERIFIED; Beijing historical ST/PIT = NOT VERIFIED; full `HISTORICAL_ST_PIT` = NOT VERIFIED; Advanced Business = NOT VERIFIED; production updater/repository/Release/Final remain non-PASS.
+- Portfolio aggregate remains migration/export 18/18 PASS; dedicated repositories 0/18; Final PASS 0/18; delivery 0/18.
+
+## 2026-10-05 Stock trading dates + suspension-interface reversal
+
+- **PR #203 trading-date cross-source:** exact head `51d8dd5819a63248cae3911c286feaf345495e07`, run `37314906853` = **SUCCESS**. Eastmoney and Tencent Shanghai Composite frozen-window date sequences are exactly equal: **2,123 dates**, 2018-01-02 → 2026-09-30, zero one-sided differences, common SHA-256 `45215343b187e337bc2b1ca3edbfc3055cdc77c0130b46c707bfe84ccf5513c9`. Research trading-date sequence = **SUPPORTED**.
+- **PR #204 independent reversal:** repaired exact head `1fc5c7ecf99a322151c0cd25f6f04600138136ff`, run `37314881015` = **FAIL** at semantic equality after successfully loading **4,815** official interval rows / **2,333** canonical Shanghai A-share intervals.
+- PR #204 comparisons: 2022-01-04 **3=3 exact**, 2024-01-04 **3=3 exact**, 2026-09-24 **expected 6 vs snapshot 11**, 2026-09-30 **expected 5 vs snapshot 11**. Therefore global interval↔daily-snapshot equivalence is **NOT VERIFIED**.
+- #204 artifact `11347616859`, digest `sha256:6d8bf5057b13cc25af7f186d0baaa4c82a7f8185abd1d724af0a4ccf4af2c09d`; PR #204 is closed as diagnostic-complete / superseded by stronger #200 semantic work.
+- Resulting boundary: research trading dates **SUPPORTED**; Shanghai historical daily suspension state **NOT VERIFIED**; Shanghai historical ST/PIT **NOT VERIFIED**; full HISTORICAL_ST_PIT **NOT VERIFIED**; Advanced Business **NOT VERIFIED**; Final Gate **FAIL**.
+- No Stock product/runtime byte, frozen denominator, threshold, repository-independence criterion, or Release criterion changed.
+
+## 2026-10-05 Stock SSE risk-warning machine-contract diagnostic — terminal negative evidence
+
+- Diagnostic PR #196 current exact head `382903bfdd8fc4ee92d3d85fb3deb37531ff3096`.
+- Run `37313670415` / job `111774958371` = **FAIL** at discovery, after exact checkout and Stock product-byte drift=FALSE both PASS.
+- The repaired diagnostic now scans official SSE company pages + official risk-warning board, uses official Big5 fallbacks, and extracts query endpoints/sqlIds from both inline HTML and external JS.
+- Reproduced result: `endpoint_candidates=[]`; `relevant_sql_ids=[]`; machine query contract = **NOT VERIFIED**.
+- This is accepted as negative evidence; the workflow must remain red until literal first-party machine-readable contract evidence exists.
+- Shanghai historical ST/PIT = **NOT VERIFIED**; full HISTORICAL_ST_PIT = **NOT VERIFIED**; Advanced Business = **NOT VERIFIED**; Final Gate = **FAIL**.
+- Artifact `11346783919`, digest `sha256:45478b4cec764c63eb27ef46cc2400b56bcac49f7cdf4ca5c0fec358a96c4a84`.
+- No Stock product/runtime byte or frozen denominator/threshold changed.
+
+## 2026-10-05 Stock AI exact-head desktop terminal PASS — 43168d9e / run 37289727787
+
+- **Authoritative Stock AI product:** PR #155 exact head `43168d9e75c70ab55be808d8a51f0c0eb14d83d5`.
+- Fresh source/offline run `37289727792` = **SUCCESS**; fresh full-business run `37289727888` = **SUCCESS**; fresh native desktop run `37289727787` / job `111697036718` = **SUCCESS**.
+- Windows native build / Exact EXE self-test / Frozen EXE Real Network core / >=90% research corpus qualification / Frozen EXE advanced technical validation / Physical GUI core+repair+advanced / updater expected-BLOCKED boundary / GUI-post Same Hash = **PASS**.
+- Main Exact EXE SHA-256 `50cb95cde7c258252a2b9f4dfe0761f46f8adac569d81efafb4553d157127141`; Updater SHA-256 `365049c764b7b13dc1a220885acfd09fdaa582e04c509737948886c50689be29`.
+- Research corpus: 4886/5362 = **91.1227%**, current **90.9996%**, delisted **95.7143%**.
+- Desktop artifact `11341383365`, digest `sha256:a8373dfd187b08b878b5304fdd9426d725ec2d5f6c37a6f0acba76bc6745c7ec`.
+- Advanced technical execution is PASS, but business qualification remains **NOT VERIFIED** because `HISTORICAL_ST_PIT = WARN`; this is not promoted to PASS.
+- Positive production software update / real Release / Repository Independence remain **BLOCKED**; Final Gate remains **FAIL**.
+
+## 2026-10-05 terminal refresh — Happy8/Stock current heads
+
+- **Happy8 #176** exact head `10763ef098a653ba8c81f399d335a85486e31642`: run `37291272371` terminal aggregate FAIL by intended external boundary. Fresh PASS includes dual-official Real Network, current-history science, Business-before-Windows, reproducible Windows Exact EXE, both physical GUI gates, and post-GUI Same Hash. Main EXE SHA-256 `f43307f927739ce5866897cd01ff359ca993419c880e87fd8ee9ba74ba426e64`. Engineering **84.2105%**, Business **87.5%**, Overall **84.2105%**. Repository independence / real production Release N→N+1 / unique final artifact remain non-PASS. Artifact `11337865817`, digest `sha256:d10d86c243416a0384c128370abf7d98c6cc27c7f40814e713cc2044f745d8ab`.
+- **Stock #155** exact head `43168d9e75c70ab55be808d8a51f0c0eb14d83d5`: fresh Business run `37289727888` = SUCCESS; fresh Desktop run `37289727787` = SUCCESS. Desktop proves Windows/Exact EXE, real-network corpus qualification 4886/5362 = 91.1227% (current 90.9996%, delisted 95.7143%), Advanced technical execution, Physical GUI and post-GUI Same Hash. Main EXE SHA-256 `50cb95cde7c258252a2b9f4dfe0761f46f8adac569d81efafb4553d157127141`; Updater SHA-256 `365049c764b7b13dc1a220885acfd09fdaa582e04c509737948886c50689be29`; desktop artifact `11341383365`, digest `sha256:a8373dfd187b08b878b5304fdd9426d725ec2d5f6c37a6f0acba76bc6745c7ec`.
+- **Stock Business** preserves negative validation Rank IC `-0.10273510698284655` as **NO_TRADE / LOW trust**. Valuation qualification remains PASS at frozen 120/300 target. Business artifact `11337726197`, digest `sha256:903e3cedce66697e9b8429b7bcb45c18c43e1df9e75033af26bd432f52b7b78a`. Advanced Business remains NOT VERIFIED because `HISTORICAL_ST_PIT` is WARN.
+- **Current Stock PIT work:** PR #193 has been extended on head `e4a03660d8d9894fe95f98ebb87aa662a7dcc8e9` from sample endpoint validation to fail-closed full-window (2018-01-01 → 2026-09-30) annual pagination + interval reconstruction. It may only promote Shanghai suspension intervals to SUPPORTED; Shanghai ST/PIT, Beijing ST/PIT, full HISTORICAL_ST_PIT, Advanced Business and Final remain NOT VERIFIED until their own evidence exists.
+- **Portfolio boundary:** migration/export **18/18 PASS**; dedicated repositories **0/18**; Final PASS **0/18**; delivery **0/18**.
+
+## 2026-10-05 Stock SSE suspension surface exact-head diagnostic — PR #191
+
+- **Authoritative Stock product remains:** PR #155 exact head `43168d9e75c70ab55be808d8a51f0c0eb14d83d5`; product/runtime byte drift = **FALSE**.
+- Diagnostic PR #191 exact head `92a7bfc45b797b69bd3282289d2a0d78fd89640d`; fresh run `37308150061` / job `111756731020` = **SUCCESS**.
+- Prior run `37308035541` is preserved as non-authoritative FAIL→FIX history because it executed the PR merge commit rather than the literal branch head. Workflow now explicitly checks out and verifies the PR exact head before evidence production.
+- Official SSE stock suspension page + public-data directory = HTTPS reachable **PASS**.
+- Static suspension surface contains a `query.sse.com.cn` literal, but does not directly render the expected suspension table fields.
+- Base, 2017-01, and 2026-09 date-range requests produce the same canonical page SHA-256 `f6a69aa07f3946d629a9edb75a238f8cee1251b521bb6faca34002ae62fea176`; raw suspension-page SHA-256 `2aac0ed11d89a468b54fe19ae81387a78faccd3f67b0f33a66e656319e0edf9a`.
+- Strict adjudication: stable public bulk historical suspension endpoint = **NOT VERIFIED**; historical daily suspension state = **NOT VERIFIED**; Shanghai historical ST/PIT = **NOT VERIFIED**; full HISTORICAL_ST_PIT = **NOT VERIFIED**.
+- Artifact `11344776014`, digest `sha256:9c6024a3cd2fcd62c0e71e83b63b2c700fcde8107cc07596d5033dc7d7065e76`.
+- No Stock business percentage, Release gate, Repository Independence gate, or Final status is promoted. Advanced Business remains non-PASS; Final Gate remains **FAIL**.
+
+## 2026-10-05 Stock Shenzhen ST sub-evidence + RMF L1 capacity sub-evidence
+
+- **Stock PR #188 exact diagnostic head:** `d5bb390d839fb284790dcdb2359ef73f776b0d08`; run `37304826757` / job `111745875821` = **SUCCESS** with Stock #155 product bytes unchanged.
+- SZSE dated short-name history contains **7,489 valid rows / 3,125 codes**, spanning **1994-01-03 → 2026-09-30**; **2,281 ST-related transitions / 673 codes**. Dated-name-change SHA-256 `1a7d5ac0710e0bd59937105aafafe1a929f9c729776a1a4ea0fb02a49d70c16e`; dated-ST SHA-256 `72f998147519df4968781ce85d4bfb1edfaa54e3af4b8695d8470890313bd862`. Artifact `11343082888`, digest `sha256:42d978264d2a64425d04a78d6d20ede2406513b0ed335b775621da09eee38295`.
+- **Adjudication:** Shenzhen historical ST reconstruction = **SUPPORTED**. Shanghai = NOT VERIFIED; Beijing = NOT VERIFIED; historical daily suspension state = NOT VERIFIED; therefore full Stock `HISTORICAL_ST_PIT` remains **NOT VERIFIED**, Advanced Business remains non-PASS, Final FAIL.
+- **RMF PR #189 exact diagnostic head:** `62d907ccc555ad727be0f63ad181384e5020aa89`; run `37304767691` / job `111745682462` = **SUCCESS** with validated RMF product bytes unchanged.
+- Real 600000 public-L1 qfq history: **1,200 rows, 100% positive daily amount coverage**, as-of 2026-09-30. Frozen **5% participation** capacity CNY: min 3,916,070; p10 7,079,653.5; p25 9,623,801.25; median 17,208,295; p90 51,914,539.5; max 129,017,690. Fixed notional feasibility: 100k/500k/1m = 1200/1200; 5m = 1177/1200 (**98.0833%**); 10m = 868/1200 (**72.3333%**).
+- RMF amount-series SHA-256 `51f1ce999f64bae0a326cd8d15d9c7d2c9776eabc0fd5fdef910d0bbcc87486d`; source payload SHA-256 `bc0139c26c0de5d4213caee4a1ab2ef08e9b8647cc9e6706ed9c3b4a02fbf9d4`; artifact `11343368903`, digest `sha256:d0fc557b183f021289cbc3e60a7f9d412b14a66585cb05248747d3f308fa8351`.
+- **Adjudication:** amount-based participation capacity = **SUPPORTED** only. Historical bid/ask spread, observed market impact, broker execution slippage and limit-up/down fillability remain NOT VERIFIED; full RMF `liquidity_capacity` remains NOT VERIFIED. RMF Business remains **12/16 = 75%**, Overall **75%**, capital_deployment_ready=false, Final FAIL.
+- Portfolio boundary remains **export 18/18 PASS / dedicated repositories 0/18 / Final-Delivery 0/18**.
+
+## 2026-10-05 strict continuation — Stock terminal + RMF causal-invariance rerun
+
+- **Stock AI authoritative product:** PR #155 exact head `43168d9e75c70ab55be808d8a51f0c0eb14d83d5`.
+- Exact-head source run `37289727792` = **SUCCESS**; business run `37289727888` = **SUCCESS**; native desktop run `37289727787` = **SUCCESS as candidate execution**.
+- Stock Windows Build / Exact EXE / frozen real-network core / Physical GUI entry+core+repair+advanced / candidate Same-Hash chain are current-head PASS. Main EXE SHA-256 `50cb95cde7c258252a2b9f4dfe0761f46f8adac569d81efafb4553d157127141`; updater SHA-256 `365049c764b7b13dc1a220885acfd09fdaa582e04c509737948886c50689be29`.
+- Stock advanced-business qualification is still **NOT VERIFIED** because `HISTORICAL_ST_PIT=WARN`; positive production Release update and repository independence remain **BLOCKED**. Final Gate remains **FAIL**.
+- **Stock historical ST/PIT diagnostic PR #188:** exact branch head `d5bb390d839fb284790dcdb2359ef73f776b0d08`; push run `37304819489` / job `111745853334` = **SUCCESS** after preserving prior network-reset and Windows-console encoding FAIL history. Product bytes relative to PR #155 are unchanged. The dated Shenzhen name-change dataset contains **7,489 valid rows / 3,125 codes**, spans **1994-01-03 → 2026-09-30**, and contains **2,281 ST-related transitions across 673 codes**. Shenzhen historical ST reconstruction is **SUPPORTED**, but Shanghai = NOT VERIFIED, Beijing = NOT VERIFIED, daily historical suspension state = NOT VERIFIED, therefore full `HISTORICAL_ST_PIT` remains **NOT VERIFIED** and no business/Final percentage is promoted. Artifact `11342459374`, digest `sha256:356b0d3cd67c1082f2af7c44b99d14863662f4d0f2a4e08fb269b791553f3b12`.
+- **RMF product bytes remain unchanged:** main `62f75def60c16d5768110901890d05edbabe7b34`; Engineering **24/28 = 85.7%**, Business **12/16 = 75.0%**, Overall **75.0%**, Final FAIL.
+- RMF diagnostic PR #187 previously proved exact-window historical membership reconstruction plus 4/4 comparable-date official SSE daily-count cross-check on head `0e6340774ee74ba004634f474f353c52273e480b`, run `37300980163` attempt 2 = SUCCESS; historical PIT source availability and ex-ante symbol selection remain NOT VERIFIED.
+- **New executable diagnostic:** PR #187 head `fcc5b3745b56371f7254e15a765d0f6c7d69e9ab` adds a fail-closed 1200-date causal-invariance test that hides all future-dated listing/delisting facts before recomputing membership. Corrected exact-head rerun `37304404611` / job `111744497825` = **SUCCESS**. The causal subcontrol checked **1200/1200** research dates with **0 mismatches**, hiding **162,111** future-list records and **44,991** future-delist records across those as-of evaluations. `event_time_no_future_leakage_subcontrol=PASS`; `historical_pit_availability=NOT VERIFIED`; `survivorship_selection_control=NOT VERIFIED`. Artifact `11342673313`, digest `sha256:6d48848e7ffa0193f874c27a71dabce3f9f6bd270b7244e8a014ec7abc7560b4`.
+- Portfolio hard boundary remains **migration/export 18/18 PASS / dedicated repositories 0/18 / Final-Delivery 0/18**.
+
+## 2026-10-05 RMF historical-membership evidence + Stock desktop advance
+
+- **RMF product bytes unchanged:** exact main remains `62f75def60c16d5768110901890d05edbabe7b34`; Engineering **24/28 = 85.7%**, Business **12/16 = 75.0%**, Overall **75.0%**, Final FAIL.
+- **RMF diagnostic PR #187:** head `f95747b29b5ae15abce4849149b96ad4184eb072`, run `37294835060` = **SUCCESS** after preserving prior 403 failure `37294661137` and removing only the redundant six-request SSE schema burst.
+- Exact research window: **1200 qfq rows, 2021-10-25 → 2026-09-30**; Tencent research lineage SHA-256 `b3ee61b845c53c1c3e42d6e3c24d761875362321c20530365268bb24be035140`.
+- Official SSE unfiltered Main+STAR records: **2466 securities**, **146** with real delist dates; historical member count **1992 → 2320** with **366** membership-change dates; 600000 is a member on **1200/1200** research dates. Historical-universe canonical SHA-256 `849902986c5e7d887c487133d3413b5a23641ab3c3139154537b4cdb2b01d4be`.
+- This closes only **historical-membership reconstruction = PASS**. It does **not** prove historical point-in-time knowability or ex-ante/precommitted symbol selection: `historical_pit_availability=NOT VERIFIED`, `survivorship_selection_control=NOT VERIFIED`, capital deployment remains false.
+- Diagnostic artifact `11338900586`, digest `sha256:198b64c38ba71a96172b6892679b5275c411adfae4a9bc386e9c27a337d38bff`.
+- **Stock AI #155:** current Business run `37289727888` = SUCCESS; desktop run `37289727787` has fresh-PASSed Frozen EXE Real Network and the frozen **≥90% current+delisted research-corpus qualification** gate; Frozen EXE Advanced Analysis is currently active.
+- Portfolio boundary remains **export 18/18 PASS / dedicated repositories 0/18 / Final-Delivery 0/18**.
+
+## 2026-10-05 Stock AI fresh business exact-head PASS — 43168d9e / run 37289727888
+
+- **Authoritative Stock AI product:** PR #155 exact head `43168d9e75c70ab55be808d8a51f0c0eb14d83d5`.
+- Fresh full-business run `37289727888` / job `111697037232` = **SUCCESS**.
+- Production daily source→engine→business chain PASS: live universe 300; research master 5461; research training symbols 353; validation rows 13,387; production train rows 180,000; data quality good ratio 1.0; valuation qualification 120/300 = 40% PASS.
+- Validation Rank IC = **-0.10273510698284655**. Fail-safe decision remains **NO_TRADE**, model trust **LOW**; negative validation evidence is not promoted into a trading claim.
+- Prediction manifest SHA-256 `1d70d689e3be29396892c80c2ce0a054b3bc7c86b77275719bab22e491a862ac`.
+- Business artifact `11337726197`, digest `sha256:903e3cedce66697e9b8429b7bcb45c18c43e1df9e75033af26bd432f52b7b78a`.
+- This workflow explicitly keeps Desktop EXE / Physical GUI / Same Hash = **NOT VERIFIED** and Final Gate = **FAIL**. Fresh desktop run `37289727787` remains separate and active; no downstream PASS is inherited.
+
+## 2026-10-05 Happy8 terminal exact-head acceptance — correct fail-closed
+
+- **Authoritative product:** Happy8 PR #176 exact head `10763ef098a653ba8c81f399d335a85486e31642`.
+- **Terminal run:** `37291272371` / job `111702455072` = workflow FAILURE because the frozen Final boundary correctly remains non-PASS.
+- **Exact-head PASS:** Real Network, scientific validation/protocol, Windows reproducible Exact EXE, both physical GUI gates including OS-mouse, post-GUI Same Hash, updater handoff/rollback contract, fault injection, service/storage/UI contracts.
+- **Engineering:** **16/19 = 84.2105%**. E01-E16 PASS; E17 BLOCKED = dedicated Happy8 repository unavailable; E18 BLOCKED = real independent Release N→N+1 unavailable; E19 BLOCKED = upstream release gates not all PASS.
+- **Business:** **7/8 = 87.5%**. B01-B06 and B08 PASS; B07 BLOCKED = real independent production Release N→N+1 unavailable.
+- **Final Gate:** **FAIL**. Unique final artifact = **NOT VERIFIED**. No rerun is justified merely to make the workflow green.
+- **Current migration/export remains separately PASS** at PR #185 / run `37292380803`; this does not change repository independence or Final.
+
+## 2026-10-05 Happy8 exact-head terminal acceptance — 10763ef / run 37291272371
+
+- **Authoritative Happy8 product:** PR #176 exact head `10763ef098a653ba8c81f399d335a85486e31642`.
+- Fresh run `37291272371` / job `111702455072` is terminal **FAIL only at Evidence-derived staging aggregate**. This is the intentional fail-closed Final boundary, not a technical regression.
+- Same-run PASS: exact checkout, governance/architecture, compile/unit/contracts, Storage/Evidence, Service, updater handoff + independent updater rollback, Fault Injection, live dual-official Real Network, current-history science, business-before-Windows, reproducible Native Windows Exact EXE, first physical GUI, second OS-mouse physical GUI, and post-GUI Same Hash.
+- Exact EXE SHA-256: `f43307f927739ce5866897cd01ff359ca993419c880e87fd8ee9ba74ba426e64`.
+- Final derivation: Engineering **84.2105%**; Business **87.5%**; Exact EXE **PASS**; Physical GUI **PASS**; Same Hash **PASS**; Repository Independence **BLOCKED**; real independent Release N→N+1 **BLOCKED**; unique Final artifact **NOT VERIFIED**; Final Gate **FAIL**.
+- Diagnostic artifact `11337865817`, digest `sha256:d10d86c243416a0384c128370abf7d98c6cc27c7f40814e713cc2044f745d8ab`.
+- The sole red aggregate reports `business_final, engineering_final, final_gate` because the external hard gates are non-PASS. It must not be patched to green.
+- Portfolio boundary remains migration/export **18/18 PASS**, dedicated repositories **0/18**, Final/Delivery **0/18**.
+
+## 2026-10-05 export reconciliation — Happy8 PR #185 supersedes closed #184
+
+- **Happy8 current migration/export:** PR #185 exact head `f8fd54146054e56627ca2a60919082b1d2f3e820`, run `37292380803` / job `111705566770` = **SUCCESS**. Exact checkout/product-byte identity, deterministic 52-file export, independent second-pass verification, deliberate tamper rejection and explicit non-Final boundary all PASS.
+- Artifact `11336683146`, ZIP digest `sha256:121d25a73bbe31ffa083fbcb2698a16671312c7567209b25953eb0243508645f`; manifest SHA-256 `c439970ddf6c8f6e777e09cf68e8527d602bf6e684c52e01cc40e89cba57d90e`.
+- Closed PR #184 is now explicitly **superseded as current export evidence**. Authoritative Happy8 product bytes remain PR #176 exact head `10763ef098a653ba8c81f399d335a85486e31642`; no product acceptance PASS is inherited from export verification.
+- Portfolio boundary remains migration/export **18/18 PASS**, dedicated repositories **0/18**, Final/Delivery **0/18**.
+
+## 2026-10-05 strict continuation checkpoint — superseded Stock #126 closed / active exact heads preserved
+
+- **Control-plane cleanup executed:** Stock AI PR #126 is now CLOSED as superseded historical evidence. Its head `a410c905c6a1693cdefa46a0bc39390a3a053747` and run `37259832040` remain preserved as FAIL→FIX history; no historical FAIL was promoted to PASS.
+- **Stock AI authoritative product remains PR #155** exact head `43168d9e75c70ab55be808d8a51f0c0eb14d83d5`. Source/offline/Real Network run `37289727792` = SUCCESS. Full-business run `37289727888` remains IN_PROGRESS at the default production daily source-engine-business chain. Native desktop run `37289727787` remains IN_PROGRESS at frozen-EXE real-network core after current-head PASS through native Windows build, Exact EXE self-test and repair worker. No pending downstream PASS is promoted.
+- **Happy8 authoritative product remains PR #176** exact head `10763ef098a653ba8c81f399d335a85486e31642`, run `37291272371` IN_PROGRESS. Current-head PASS now extends through native Windows reproducible Exact EXE and first physical GUI click. OS-mouse physical GUI acceptance is IN_PROGRESS; Same Hash and downstream release/Final derivation remain NOT VERIFIED.
+- **RMF authoritative exact main remains** `62f75def60c16d5768110901890d05edbabe7b34`, run `37290657207` SUCCESS as candidate only. Engineering **24/28 = 85.7%**, Business **12/16 = 75.0%**, Overall **75.0%**, Final FAIL. The four business non-PASS gates remain evidence-bound and are not code-toggle defects: broker commission + observed slippage calibration; executable liquidity/capacity evidence; historical point-in-time source availability; historical survivorship-safe/precommitted universe. Current prospective universe precommit must not be backfilled into the historical gate.
+- **Portfolio hard boundary unchanged:** current-product migration/export readiness **18/18 PASS = 100%**; real dedicated repositories **0/18 PASS = 0%**; Portfolio Final / Delivery **0/18**. The connected GitHub capability still exposes no repository-creation mutation.
+- **Execution rule:** active runs remain NOT VERIFIED downstream; terminal FAIL evidence is retained; no threshold, denominator, release, updater, repository-independence or Final criterion is reduced.
+
+## 2026-10-05 strict continuation checkpoint — Happy8 10763ef + current export #185
+
+- **Happy8 authoritative product:** PR #176 exact head `10763ef098a653ba8c81f399d335a85486e31642`, fresh run `37291272371`. Fresh PASS now includes exact identity, governance, compile/unit, Domain+NetClient, Science Protocol, frozen false-gain method contract, UI/Storage/Service, updater handoff/rollback, Fault Injection, live dual-official Real Network, current-history scientific validation, Business-before-Windows, **Native Windows reproducible Exact EXE**, and the first Physical GUI click gate. The second OS-mouse GUI acceptance is currently executing. No downstream Same-Hash/Final PASS is inherited.
+- **Happy8 current export:** PR #185 head `f8fd54146054e56627ca2a60919082b1d2f3e820`, run `37292380803` = **SUCCESS**. Exact product-byte identity to `10763ef0...`, deterministic 52-file export, independent second-pass SHA verification and deliberate mutation rejection all PASS. Manifest SHA-256 `c439970ddf6c8f6e777e09cf68e8527d602bf6e684c52e01cc40e89cba57d90e`; artifact `11336683146`; ZIP digest `sha256:121d25a73bbe31ffa083fbcb2698a16671312c7567209b25953eb0243508645f`. PR #184 is closed as superseded; its exporter bytes were identical and only its branch-trigger line differed.
+- **Stock AI authoritative product:** PR #155 exact head `43168d9e75c70ab55be808d8a51f0c0eb14d83d5`. Source/offline/Real Network run `37289727792` = SUCCESS. Fresh business `37289727888` and desktop `37289727787` remain IN_PROGRESS.
+- **RMF exact main:** `62f75def60c16d5768110901890d05edbabe7b34` has push-triggered candidate validation SUCCESS; Engineering 85.7%, Business 75.0%, Overall 75.0%, Final FAIL.
+- **Portfolio boundary:** current-product-bound migration/export readiness **18/18 PASS**; real dedicated repositories **0/18**; Final/Delivery **0/18**. Connected GitHub tools still expose no create-repository mutation.
+
+
+## 2026-10-05 current exact-state checkpoint — RMF 62f / Happy8 10763 / Stock 43168
+
+- **RMF authoritative exact main**: `62f75def60c16d5768110901890d05edbabe7b34`. Push run `37290657207` / job `111700005257` = SUCCESS as candidate validation. Engineering **24/28 = 85.7%**, Business **12/16 = 75.0%**, Overall **75.0%**. Official SSE prospective precommit PASS at **2320/2320** symbols; historical survivorship remains NOT VERIFIED. Main EXE SHA-256 `a908dbc36c6076ab7ca7f2ff01c0f9276c3fa4e6d929cfa0d962b5158b396b86`; updater `beea635144eb89edfa76185482a4f7c6ebf824a7713914d448b5b58e0a2ea497`; artifact `11335934671`, digest `sha256:1518c57e0c5b547f270f474f1beff0d9c935d2cfd320a641209a385d263e5602`. Final FAIL; capital deployment false.
+- **RMF current-product migration/export**: PR #183 head `381e4e108e1a937998c58c3d9b2689a5207df7db`; run `37290705931` = SUCCESS for exact product-byte identity, deterministic export, independent second-pass verification and mutation fail-closed. Artifact `11336460611`, digest `sha256:fd65cf34ae51be458f16c1a431935e265a2013612ef8df067778bad733225f41`. This is NON-FINAL migration readiness only.
+- **Happy8 authoritative convergence**: PR #176 exact head `10763ef098a653ba8c81f399d335a85486e31642`. Superseded `6a3f5b...` run exposed real raw failures in updater pre-replace fault handling, canonical-hash evidence binding and second OS-mouse GUI bounded wait. The current head fixes only those acceptance defects without relaxing science/release/repository gates. Fresh run `37291272371` is IN_PROGRESS; current-head PASS already includes Scientific Protocol, 7-candidate false-gain method contract, UI/Storage/Service/Updater contracts and **Fault Injection**. Live official network is active; no downstream Windows/GUI/Same-Hash PASS is inherited.
+- **Stock AI authoritative current product** remains PR #155 exact head `43168d9e75c70ab55be808d8a51f0c0eb14d83d5`. Source/offline run `37289727792` = SUCCESS. Business run `37289727888` and desktop run `37289727787` remain IN_PROGRESS; frozen >=90% corpus and downstream Windows/GUI/Same-Hash are not pre-promoted. Migration PR #181 run `37289868886` = SUCCESS as NON-FINAL export readiness.
+- **Portfolio hard boundary**: dedicated repositories still **0/18** because the connected GitHub action surface exposes no repository-creation mutation and enumeration shows only `douluo511/Geometry-Lotto-Pro`. Therefore Portfolio Final PASS = **0/18**, Delivery = **0/18**.
+
+
+## 2026-10-05 authoritative correction — Stock current line advanced to #155
+
+- **Stock AI authoritative current product** is now PR #155 exact head `43168d9e75c70ab55be808d8a51f0c0eb14d83d5`, not #126 `a410c905...`. Compare `f9d610aa... → 43168d9e...` is exactly one commit / one workflow-only file: the updater BLOCKED rc=3 acceptance step now captures the child process exit code without PowerShell exit leakage. Product bytes are unchanged by this commit, but the acceptance workflow changed, so downstream acceptance is rerunning and old workflow PASS is not inherited.
+- Current #155 source/offline/Real Network run `37289727792` = **SUCCESS**; artifact `11335583263`, digest `sha256:c0533289337680617c947fa58e98c01a9dd290c28373d009585d46f55eeb6ea1`.
+- Current #155 business run `37289727888` and desktop run `37289727787` are **IN_PROGRESS**; no pending downstream PASS is promoted.
+- Current-product migration PR #181 head `a567dae423d0e015d06107ca3e99db696fa5e65b`, run `37289868886` = **SUCCESS** with product-byte identity, deterministic export, independent second-pass verification and deliberate-mutation fail-closed PASS. Artifact `11335343870`, digest `sha256:920e575d88eef56a5af90f27ed9a293b8a643a4f330a6b13a73029937a114d8d`.
+- The completed `a410c905...` business run is retained as exact-head evidence for that parallel/base line only; it is historical relative to current #155 and is not inherited.
+- Repository Independence remains **0/18**, portfolio Final/Delivery remains **0/18**.
+
+
+## 2026-10-05 strict continuation checkpoint — exact-main RMF / active Stock+Happy8
+
+- **RMF exact main**: `main@9deaaa0dd579444ed0e5ddfeed7e1d8a2b6cda17`, push run `37287536096` / job `111689905792` = SUCCESS as candidate validation. Engineering **24/28 = 85.7%**, Business **12/16 = 75.0%**, Overall **75.0%**. Real Network / cross-source / freshness / Windows / Exact EXE / physical GUI / current-byte Same Hash / corporate-action PIT are PASS. Main EXE SHA-256 `82a294b37589a9c0dbd69799c71293a82f166e727791c5165b4fd8a2d19ac1e6`; updater `78d952a1d7a73e0c8afefc4940ad199e022accdc8f5c3231d2a7b3f4fb34096c`; artifact `11335425797`, digest `sha256:a0447de47b93f0772709291d5b49c5be93cacb5e51d42a2b35c88b18ae25b27c`. Remaining business non-PASS: cost/slippage calibration, liquidity capacity, leakage PIT, historical survivorship-safe/precommitted universe. Final remains FAIL.
+- **Stock AI authoritative current line**: PR #126 exact head `a410c905c6a1693cdefa46a0bc39390a3a053747`. Source/offline/Real Network run `37284395543` = SUCCESS. Business run `37284395441` remains active in the default production chain. Desktop run `37284395448` remains active at the frozen >=90% current+delisted real-network corpus qualification after Windows build / Exact EXE / repair / frozen-EXE real-network core PASS. No downstream GUI/Same-Hash/Final PASS is inherited while active.
+- **Happy8 authoritative main-based convergence**: PR #176 exact head `6a3f5b1530756ca47adf0819557b9410ac43726b`, run `37288396728` remains active. Same-head PASS currently extends through governance, unit/contracts, fault injection, live dual-official network, current-history science, business-before-Windows and reproducible Native Windows Exact EXE; physical GUI is active. No later gate is pre-promoted.
+- **Repository boundary rechecked**: connected repository enumeration still exposes only `douluo511/Geometry-Lotto-Pro`; no repository-creation mutation is available. Dedicated repository independence remains **0/18 PASS**, so Portfolio Final/Delivery remains **0/18** regardless of migration/export readiness.
+
+
+## 2026-10-05 strict continuation checkpoint — Happy8 byte convergence / current exact runs
+
+- **Happy8 main-based convergence PR #176** exact head `6a3f5b1530756ca47adf0819557b9410ac43726b`. The prior run `37285191235` is preserved terminal FAIL. FAIL-FIRST root cause work found a stale second-GUI seed path (`--update` instead of data-only `--refresh-data`) plus stale structured-candidate business handling. Recursive Git-tree comparison isolated exactly **10** differing Happy8/workflow blobs; those blobs were atomically aligned to validated recovery PR #165 head `b39359fd8c96a6b949848f288e096af50de85d04`. Post-write recursive tree verification: **51 scoped blobs, 0 byte differences** under `Happy8/**` + the Happy8 acceptance workflow. Fresh main-based run `37288396728` is active; current fresh evidence has PASS through exact identity, governance, self-test, compile, unit, Domain/NetClient, science protocol, false-gain, UI contract, Storage/Evidence, Service, updater handoff/rollback and Fault Injection; live dual-official Real Network is executing. No downstream PASS is inherited.
+- **Happy8 recovery PR #165** exact head `b39359fd8c96a6b949848f288e096af50de85d04`, run `37286419249`: PASS through Business-before-Windows, reproducible Native Windows Exact EXE and first physical GUI; OS-mouse GUI acceptance remains active at this checkpoint. Final is not promoted.
+- **Stock AI current exact head** is PR #126 `a410c905c6a1693cdefa46a0bc39390a3a053747`. Source/offline/Real Network run `37284395543` is SUCCESS. Current-head business run `37284395441` and desktop run `37284395448` remain active inside their frozen timeout windows; no #155 desktop PASS is inherited.
+- **RMF current main** includes PR #178 at `9deaaa0dd579444ed0e5ddfeed7e1d8a2b6cda17`; validated candidate remains Engineering **24/28 = 85.7%**, Business **12/16 = 75.0%**, Overall **75.0%**, Final **FAIL**. Migration PR #180 run `37287606051` is PASS. Remaining business non-PASS: cost/slippage calibration, liquidity capacity, leakage PIT, survivorship-safe historical/precommitted universe.
+- **Portfolio boundary:** migration/export readiness **18/18 PASS**; real dedicated repositories **0/18**; Final/Delivery **0/18**. The connected GitHub action set still exposes no repository-creation mutation.
+
+## 2026-10-05 strict continuation checkpoint — terminal RMF / advanced Happy8 GUI
+
+- **RMF PR #177** exact head `d58a2a05239c59131551be4f9b238e73736692b4`, run `37286235028` is terminal **SUCCESS as a CANDIDATE workflow**, not Final. Current evidence: Engineering **24/28 = 85.7%**, Business **12/16 = 75.0%**, Overall **75.0%**, Final **FAIL**. Windows build, Exact EXE, current-byte Same Hash and physical GUI are PASS. Production update / repository independence / real Release N→N+1 remain BLOCKED; formal release redownload Same Hash remains NOT VERIFIED. Main EXE SHA-256 `6af229997318d138996cb9121bc3d3a0cd5cd25c0a9fb0ef916ff23fa02b7372`; Updater SHA-256 `e24b0134125d6c9352289308de6bf010798cdb8592c60f22ea6fe4b3de30f190`. Business non-PASS remains cost/slippage calibration, liquidity capacity, leakage point-in-time, and survivorship-precommitted universe.
+- **Happy8 PR #165** current-head run `37285586660` is terminal FAIL and is preserved; it is not promoted. **PR #176** head `deb0a09094b01b7c61d29882404eeea193917926` / run `37285191235` is the current main-based convergence path. Same-head live dual-official network, current-history science, business-before-Windows, reproducible Native Windows Exact EXE and first physical-GUI click gate are PASS; OS mouse-click acceptance on the Exact EXE is IN_PROGRESS.
+- **Stock AI PR #155** run `37268369332` remains IN_PROGRESS at physical GUI on the same Exact EXE after current-head corpus >=90%, cache save and Frozen EXE advanced analysis PASS.
+- Portfolio boundary is unchanged: migration/export **18/18 PASS**; dedicated repositories **0/18**; Final/Delivery **0/18**.
+
+## 2026-10-05 strict continuation checkpoint — live GitHub reconciliation
+
+- **Portfolio boundary:** current-product migration/export readiness remains **18/18 PASS = 100%**; real dedicated repositories remain **0/18 PASS = 0%**; Portfolio Final / delivery remains **0/18**.
+- **SSQ PR #76** exact product head `3b61bb59ed0da6f7c7717b6840fe95a00d58a2ad`: run `37262758839` is terminal **FAIL at the final evidence-derived aggregate only**. Same-run Native Windows build, Exact EXE, Standard User acceptance, physical GUI positive/fail-closed/repair-fail-closed paths and Same Hash are PASS. Final non-PASS remains `business_content=PENDING`, `updater_real_network=PENDING`, `repository_independence=FAIL`, `release_context=FAIL`. This is correct fail-closed behavior and must not be rerun merely to manufacture green.
+- **Stock AI PR #155** exact head `f9d610aafe910cb73b036701a688329d9899399b`: previous head `dfa07c51...` failed the frozen >=90% corpus gate at 63.8381% overall / 63.1367% current / 90% delisted. Current run `37268369332` has now PASSed that exact-head real-network corpus prerequisite, PASSed progressive cache save, and PASSed Frozen EXE advanced analysis; **Physical GUI click on the same Windows EXE is IN_PROGRESS**. No downstream GUI/Same-Hash/Final PASS is promoted while active.
+- **Happy8:** prior advanced run `37275917431` on source `cc20a8a5...` terminated FAIL and exposed non-PASS fault-injection/science-protocol/physical-GUI/business/final aggregation. That run is preserved as historical FAIL evidence. Current converged main-based successor **PR #176** head `deb0a09094b01b7c61d29882404eeea193917926`, run `37285191235`, has current-head PASS through Current-history Science, Business-before-Windows and Native Windows reproducible Exact EXE build; **Physical GUI click is IN_PROGRESS**. Separate PR #165 head `f5218201...` is also revalidating and is not promoted while active.
+- **Real-Money Finance:** earlier hardening run `37274864785` has terminated **SUCCESS** and must no longer be reported IN_PROGRESS. Current exact-main revalidation successor **PR #177** head `d58a2a05239c59131551be4f9b238e73736692b4`, run `37286235028`, has PASSed Fault Injection, independent updater rollback/contract, and Real Production Network; **cost/leakage walk-forward business qualification is IN_PROGRESS**.
+- **Repository creation blocker remains external:** the connected GitHub capability exposes repository/branch/file/PR/Issue/Actions mutations but no repository-creation mutation. Do not relabel repository-independence as PASS; only repository-dependent gates are BLOCKED while other executable gates continue.
+- **Execution rule:** terminal FAIL is preserved; active runs remain NOT VERIFIED downstream; no threshold/denominator is reduced for green CI; behavior-changing heads invalidate affected downstream evidence.
+
+## Control reconciliation — 2026-10-05 exact state
+
+- Current-product-bound migration/export readiness: **18/18 PASS = 100%**.
+- Real dedicated repository independence: **0/18 PASS = 0%**.
+- Portfolio Final Gate / delivery allowed: **0/18 = 0%**.
+- **RMF current product-bearing main:** `9f7b0e99da70957a65adbeda2a8c784466d850c7`; exact validated product source head `152f9bfb31e8beb592fb230902fac86de1ec2c40`; GitHub compare shows zero byte diff under `RealMoneyFinance/**` and the RMF acceptance workflow. The strict source-head chain remains Engineering **24/28 = 85.7%**, Business **12/16 = 75.0%**, Overall **75.0%**, Final **FAIL**. Current migration v9 PR #174 head `8b3974e0d0d13c45f1f8f2257c42cac61e6a18a4`, run `37276164095` PASS: product-tree identity, deterministic export, independent second-pass, deliberate mutation rejection.
+- **Happy8 active revalidation:** PR #165 head `cc20a8a5c37228a30ccc27f3a9b8d4605b8533f6`, run `37275917431`. Frozen architecture/business/engineering baselines were restored byte-for-byte from the validated advanced lineage. Physical-GUI pre-seed now uses exact-EXE `--refresh-data`; the real GUI one-click update remains release-aware and BLOCKED without an independent production Release. Run remains **NOT VERIFIED while active**.
+- **Stock AI active revalidation:** PR #155 head `f9d610aafe910cb73b036701a688329d9899399b`; desktop run `37268369332` remains at the frozen >=90% real-history corpus qualification. No downstream desktop/Final PASS is promoted while active.
+- Repository creation remains externally **BLOCKED** because the connected GitHub capability exposes no repository-creation mutation. This blocks only repository/release-dependent gates; all other executable work continues.
+
+## Latest exact-state continuation — 2026-10-05
+
+- **Portfolio boundary remains unchanged:** migration/export readiness is distinct from repository independence and Final. Real dedicated repositories = **0/18**; Final/Delivery = **0/18**.
+- **Happy8:** product PR #39 was merged to monorepo main as `69890dcabb467dc2d7976f31fa9873e211c01666`. Main-bound migration PR #163 export run `37273503292` = SUCCESS. Its same-head staging run `37273503346` also completed SUCCESS through live official Real Network, current-history science, reproducible Native Windows Exact EXE, Physical GUI four-entry clicks and Same Hash. EXE SHA-256 remains `cfdadbb6b7a17a38161ae21c3258ee07b8e17d91f793cc2211c8e517000c0a9f`; runtime artifact `11330040064`, digest `sha256:7c4df6ee7bd499c2c5c6289dbef5b86916bfbd9cd0dc25c5596214f2c7f13846`. Subsequent main changes through `1f190393988774227fcc2371997199f203a11885` touch only `RealMoneyFinance/**`, so Happy8 product/runtime bytes are unaffected. Advanced convergence PR #165 is executing a stricter full-gate chain and remains IN_PROGRESS / NOT VERIFIED until terminal.
+- **Real-Money Finance:** PR #164 exact head `6b6720eafc6154a0fd3bee9b8b7ca295dce0480f` passed run `37274045669` with the frozen 1200-row primary research denominator preserved. Primary research source is now `tencent_public_full_kline` / qfq; `corporate_action_point_in_time=PASS`; business completion advanced from 11/16 = 68.8% to **12/16 = 75.0%**. Engineering remains **24/28 = 85.7%**. PR #164 merged to main as `1f190393988774227fcc2371997199f203a11885`. Main-bound migration PR #168 run `37274510008` = SUCCESS: 41 files, manifest `a59328a27bf94ce77dd228c992b6004d5e1565bb91aa8bfa2b78d9598c60db62`, artifact `11329748277`, digest `sha256:2daaa54002c031b4c725af8ae4361b05489085d97ac19598c14251cd6ae9d839`. Repository Independence remains NOT VERIFIED; Final remains FAIL.
+- **RMF hardening beyond #164:** current-main PR #170 converges overlap-consistency fail-closed, deliberate overlap-mismatch reversal, and provider-family-independent cross-source validation without changing the 1200-row denominator or any threshold. Its run `37274864785` is IN_PROGRESS / NOT VERIFIED.
+- **Stock AI:** current business run remains SUCCESS; desktop run `37268369332` remains IN_PROGRESS at the frozen >=90% real-history corpus prerequisite. No downstream GUI/Final PASS is promoted before that prerequisite terminates.
+
+## Current continuation checkpoint — 2026-10-05
+
+Authoritative portfolio boundary at this checkpoint:
+
+- Current-product-bound migration/export readiness: **18/18 PASS = 100%**. This is migration readiness only.
+- Real dedicated repository independence: **0/18 PASS = 0%**.
+- Portfolio Final Gate / final delivery: **0/18 PASS = 0%**.
+- These three denominators are intentionally separate. Migration PASS must never be promoted to repository independence or Final PASS.
+
+Fresh exact evidence:
+
+- **SSQ** PR #76 product head `3b61bb59ed0da6f7c7717b6840fe95a00d58a2ad`; Windows run `37262758839` completed **FAIL only at Final aggregation after current-run PASS through Native Windows build, Exact EXE, Standard User acceptance, physical GUI positive/fail-closed paths and Same Hash**. Final non-PASS is exactly `business_content=PENDING`, `updater_real_network=PENDING`, `repository_independence=FAIL`, `release_context=FAIL`. Main EXE SHA-256 `8c513d8f07dc16749161af62c47d7e23934e08ee52c689b93cef08eb3f418a4c`; Updater SHA-256 `c023976d073f765d195cb004a40a375a70a04e7e07568905614273618e629505`; candidate evidence artifact `11325666525`. This is correct fail-closed behavior, not a test bug.
+- **DLT** PR #79 head `88809643fe3841879f4c038b9bbffb86026629f5`, run `37258239532`: all current internal/Real-Network/Windows/Exact/Updater/GUI/Same-Hash gates PASS; Final FAIL remains exactly the independent-production-release-dependent business/updater/repository/release gates.
+- **Real-Money Finance** PR #159 head `4ab7db551c7d4f86b3563078fda7595ee325b6f5`, run `37272900111` = SUCCESS and was merged to main as `b47e4438d14393e81139039261b7308492de2010`. The stricter adjacent-session quantization proof reduced corporate-action factor evidence from 5 significant / 1 verified / 4 unexplained to 1 / 1 / 0 without lowering tolerance; live corporate-action lineage itself is PASS. Engineering remains 24/28 = 85.7% and business remains 11/16 = 68.8% because the frozen 1200-row primary research source still resolves to unadjusted Yahoo; independent Tencent qfq action evidence is not allowed to relabel those rows. Cost/slippage, liquidity capacity, leakage PIT and survivorship-safe universe remain non-PASS. Draft PR #164 now tests a bounded multi-window field-complete Tencent qfq long-history source while preserving the 1200-row denominator; run `37274045669` is IN_PROGRESS / NOT VERIFIED. Current-main migration evidence remains separately preserved; repository independence and Final remain non-PASS.
+- **Stock AI Pro** current product PR #155 head `f9d610aafe910cb73b036701a688329d9899399b`: Full Business run `37268369291` = SUCCESS and correctly remains fail-closed on predictive trust (`NO_TRADE`, LOW trust; negative Rank IC) rather than claiming edge. Desktop run `37268369332` remains IN_PROGRESS at the frozen >=90% exact-head real-history corpus qualification prerequisite; Windows candidate build, Exact EXE self-test, repair-worker path and Exact-EXE real-network core function have already PASSed in that same run, but Advanced / Physical GUI / downstream evidence are not promoted until the prerequisite completes. Current-product migration/export seed PR #157 run `37271777113` = SUCCESS; migration readiness is 18/18, not Final readiness.
+- **Happy8** PR #39 exact head `8de39dcfd4c3c6a0070eb6506e5ad56cb859eaba` passed run `37271743611` through live official Real Network, current-history science, reproducible Native Windows Exact EXE, four-entry Physical GUI and Same Hash; EXE SHA-256 `cfdadbb6b7a17a38161ae21c3258ee07b8e17d91f793cc2211c8e517000c0a9f`, artifact `11329200712`, digest `sha256:16dc3a107cf3b699e018c64d8800576df23053257a26e3c0da5152b562047291`. PR #39 was then merged to monorepo `main` as `69890dcabb467dc2d7976f31fa9873e211c01666`; current main subsequently advanced to `b47e4438d14393e81139039261b7308492de2010` via RMF-only merge. Main-bound Happy8 migration PR #163 run `37273503292` = SUCCESS with `PRODUCT_TREE_BYTE_IDENTITY=PASS`, 32-file deterministic export, manifest SHA-256 `f0931e74bd756d1ef43c054b222661c4d8c507557705b9b8804d3c33c565fbc7`, artifact `11329761325`, digest `sha256:32a263261c224ae546ad82aac28bcb98ba2a2afa86d09a0e34940abb4af0587b`. Current-main staging runtime run `37273503346` is still IN_PROGRESS at Physical GUI after Real Network/Science/Windows reproducible build PASS, so main runtime is not yet promoted. Scientific state remains `NO_EDGE / NULL_DAN`; repository independence / production Release N→N+1 remain non-PASS.
+- **Human Nature** migration PR #150 run `37266030292` PASS; **TalkCraft** migration PR #151 run `37266042305` PASS. Both remain non-Final because repository independence is not satisfied.
+
+Execution rule remains unchanged: advance an executable non-PASS gate; preserve FAIL→FIX→PASS; never alter thresholds or denominators merely to obtain a green workflow. Repository creation is still unavailable through the connected GitHub integration, so only repository-dependent gates are BLOCKED while all other executable work continues.
+
+## Current continuation checkpoint — 2026-10-03
+
+All 18 projects remain in scope. Accepted final EXEs **0/18**; portfolio Final **FAIL**. Portfolio aggregate engineering/business percentages **NOT VERIFIED** until each frozen denominator has current evidence. Historical snapshots below are superseded by this checkpoint and the dated deltas.
+
+- Happy8 PR #87 exact `9b82e317f789b357604e6e8546a10fd0b49b626d`: engineering 16/19 = 84.2105%, business 7/8 = 87.5%, combined 84.2105%; current Windows/Physical GUI/Same Hash PASS; dedicated repository/release/final artifact BLOCKED; Final FAIL. Current byte-identical isolated seed self-containment PASS does not satisfy E17.
+- Guoxue PR #91 exact `598b2c9cb2f8eb6d96ad7285edc7613c6391f6eb`: current native main+Updater/Exact/Physical GUI/Same Hash PASS; dedicated repository/real release/final artifact BLOCKED; Final FAIL.
+- Stock AI PR #72 exact `f29e6b1fdf3e0f88bc74f0d81a56f105ae1e559b`: original 187-file byte import and Windows 32 offline gates PASS. Desktop EXE/real production network/business/physical GUI remain NOT VERIFIED; Final FAIL.
+- Psychology/English/Head private source repair packets are locally tested and under strict acceptance review before submission. Local Tcl main build failures are preserved. Human Nature/Investment/TalkCraft/SSQ/DLT audits and source-less project recovery remain required work.
+- Public project engineering fixes are explicitly approved by the user; repository creation remains unavailable on this connection. Only dependent gates are blocked.
+
+## State rules
+
+Only PASS / FAIL / NOT VERIFIED / BLOCKED are valid acceptance states.
+NOT VERIFIED and BLOCKED never count as PASS.
+Valid evidence may be reused only when it matches the same behavior, commit/artifact/hash and has not been invalidated by a relevant change.
+Behavior-affecting changes invalidate the affected downstream acceptance chain.
+No completion percentage is recorded here unless the frozen engineering/business denominator and weights are fully available.
+
+## Portfolio snapshot
+
+| # | Project | Exact current / last verified evidence | Current limiting gate | State |
+|---|---|---|---|---|
+| 1 | SSQ | PR #76 head `8c9eba6ec154de9bf63f76e392e7070190200fa3`; explicit full-denominator approval committed at `06ecab6e180dfe607bac4511942adea4a20aa609`; independent-repository export verification run `37095718464` PASS. Windows exact-EXE run `37095718526` FAIL only because a stale unit test still required the now-explicitly-approved scope file to remain PENDING; that test was corrected at current head without reducing B01-B07 or the four entries. | fresh exact-head Windows acceptance is NOT VERIFIED until the new head run completes; independent target repository + real release/updater chain remain BLOCKED | FAIL / BLOCKED |
+| 2 | DLT | run `37033563762`: compile/self-test/contract/fault/live official network/Windows build/Exact EXE/Updater EXE/GUI physical clicks/Same Hash PASS; main EXE SHA-256 `5699d106d65317f283268ad991fe411bad1f97a44104640959f8a7d70a1d213f`; updater SHA-256 `adf2f72662b1f655b05e56f1db3b4d175619cc35c65668b776493f170e`; Final hard_fail_count=4 | business_content=PENDING because real independent production N→N+1 updater proof is not closed; repository_independence=FAIL; release_context=FAIL | FAIL / BLOCKED |
+| 3 | Psychology Insight Pro | migration/export verified by PR #70 run `36717644465` | independent target repository / full post-migration release chain | BLOCKED |
+| 4 | Human Nature System | migration/export verified by PR #68 run `36717622699` | independent target repository / full post-migration release chain | BLOCKED |
+| 5 | Investment Finance Pro | PR #2 head `6e4b9a39817a94175775e2b51c5d27b5d4308b96`; run `36534071430` PASS incl. business/OOS/Real Network/Exact EXE/4-button GUI/Same Hash/Final Gate; exact EXE SHA `4f5cfde6a85601ff9c63e370a63be08b87af8d87e312bc829f32f624c99fa2c2`; migration export PR #70 run `36717644465` | independent target repository + real independent N→N+1 updater/formal release; old technical chain remains valid until migrated/changed | BLOCKED |
+| 6 | English Root Intelligence | migration/export verified by PR #70 run `36717644465` | independent target repository / full post-migration release chain | BLOCKED |
+| 7 | Guoxue Zhice | migration/export verified by PR #70 run `36717644465` | independent target repository / full post-migration release chain | BLOCKED |
+| 8 | Head Intelligence | migration/export verified by PR #70 run `36717644465` | independent target repository / full post-migration release chain | BLOCKED |
+| 9 | TalkCraft / Expression Training | current staging run `36547965344` on PR #36: Architecture/Business/Self/Unit/Contract/Integration/Fault/Real Network/Windows Build/Exact EXE Network/Physical GUI/Same Hash/business content all PASS; candidate/final tested SHA-256 `3285cc251c4bedb1b96c25913b5e299703af54f9b4ecb77d4751526433fd7dd9`; evidence-derived Final correctly FAIL only on repository_independence. Older saved v1.0 source ZIP SHA-256 `3b708e63ba34588f0db1833fc1c1215945ce776fe629b5acb56638b34d4b23c3` independently recompiled, 6 tests PASS and self-test PASS | create independent target repository (tooling currently lacks repository-creation action), migrate current v1.1 and rerun the entire frozen chain there | FAIL / BLOCKED |
+| 10 | Stock AI Pro | exact `Stock_AI_Pro_DELIVERABLE_FINAL.zip` re-materialized from Library file `file_00000000127c81f5bea0d5483c4b4eac` version `6`; 225,815 bytes; SHA-256 reverified `fedbc5378ed5916e487b9cdc70051d5d00f790e4689ba8ff96dc8f2396ac7e10`; 187 safe archive entries (186 UTF-8 text + one 645-byte binary ZIP fixture). PR #72 status commit `5398c477735b5cd59a404f765af300124d935a88` records exact recovery and explicitly does not claim Git import. | exact source is recovered locally but not yet imported into Git/current Master Architecture because available connector has no reliable direct byte-stream bridge from materialized Library/container bytes to a Git blob; audited current Real Network, Windows desktop Exact EXE, independent Updater N→N+1, GUI Physical Click, Same Hash and independent repo remain downstream | FAIL / BLOCKED |
+| 11 | Real-Money Finance System | source-recovery search recorded in issue #17 | exact application source/build lineage and production connectors | BLOCKED |
+| 12 | Passive Income Pipeline OS | v0.2 EXE identity reverified: 8,704-byte Win64 GUI, SHA-256 `b92a37e886028fb270faceab4efe4673848686b835c49211a82cabd2db55d8fb`, embedded four entries/WinINet/Treasury endpoint and explicit DEMO/Final NOT PASS. Recovered v0.1 source ZIP SHA-256 `4e829f6a7b39da5272c791bd19ff2d84e3272692ff81c57309feba963adf6c0d`; compile PASS; self-test 5/5 PASS | exact v0.1→v0.2 source/build lineage remains unproven; rebuild/migrate under current architecture, real production-income connectors/business evidence, Updater, Windows/Exact EXE/Physical GUI/Same Hash, independent repo | FAIL / BLOCKED |
+| 13 | Earth Online / Life Base | owned v1.0/v2.0 content recovered. Issue #19 business acceptance comment `5965932110` executed the frozen Appendix-E denominator and recorded **8/8 PASS = 100% business-content**: 21/21 chapter structure, 43-case library/domain coverage, fact-vs-interpretation boundary, 365-day schedule + Day 30/90/180/270/365 gates, traditional-health/divination evidence boundary, political/historical neutrality boundary, decision/5 Why/reversal/weekly-review templates, and updateable-judgment outcome boundary. | engineering source/build lineage remains BLOCKED; business 100% cannot substitute for executable-source evidence | FAIL / BLOCKED |
+| 14 | AI Music Production | recovered current candidate EXE: 1,711,616-byte PE32+ Win64 GUI, SHA-256 `03ee21fd0bbc51ce998d3b8d9756a6ab6bf7892265888892eec8af7ecb4dfe3c`; Go 1.23.2 windows/amd64 CGO=0 trimpath; build path `command-line-arguments` only | exact source/build/provider/licensing identity; audited real provider chain; updater/Windows physical GUI/Same Hash; independent repo | FAIL / BLOCKED |
+| 15 | Legal Philosophy Study | recovery task exists; no exact current application source/build identity | exact source/corpus/build lineage | BLOCKED |
+| 16 | Non-Hard-Work OS | recovered current candidate EXE: 1,892,352-byte PE32+ Win64 GUI, SHA-256 `ca0fea3b663e9a9395e8fc47360ac8203fd3b6f0b774efe58bfa7b2a08812a3b`; Go 1.23.2 module `nohardmoney`, windows/amd64 CGO=0 trimpath | exact application source/build lineage not found; current architecture/network/updater/Windows physical GUI/Same Hash/independent repo chain | FAIL / BLOCKED |
+| 17 | Be Your Own Master | V10 frozen business pack recovered: ZIP SHA-256 `247c082bfbfe2c77035e39d92f09dd774d938497194c389d9208bd1b537d6297`, manifest/audit + 336-page PDF/DOCX/XLSX, real-world effect explicitly pending 30/90-day evidence. Candidate EXE recovered: 13,629,440-byte PE32+ Win64 GUI, SHA-256 `37aa0d3d84b953139da4b3b84650be6e7f3a8a2e2b35517752052ad6cf4091ac`, Go 1.23.2 module `ownermindv10`; embedded frozen asset hashes support content association | exact application source/build/updater lineage; current software architecture and full Windows/GUI/Same Hash/independent repo chain | FAIL / BLOCKED |
+| 18 | Happy 8 | Previous exact run `37095578759` on `cb5d560b17d4429566b1afc2eae00b4720ee541c` remains preserved FAIL evidence: CWL 403 + Shanghai early range empty + Jiangsu archive omission at `2021016`, with science/Windows skipped. Current PR #39 head `37f58033941d45b5b56a92da67b62615890ca304` replaces the brittle Jiangsu-completeness requirement with a fail-closed date contract derived from official Ministry of Finance lottery-market closure windows (2020-2026), while retaining Fuzhou official draw numbers and requiring Jiangsu issue-bound CWL dates to agree wherever present. Current head run `37096159777` is in progress and is not pre-promoted. | behavior changed, so Real Network / Science / Windows Exact EXE are NOT VERIFIED on the new head until `37096159777` completes; physical GUI/Same Hash remain downstream NOT VERIFIED; independent repo still required before Final | FAIL / BLOCKED |
+
+## External repository blocker
+
+Fresh GitHub App installation `163930022` visibility check on 2026-10-03 returned no visible target repositories for:
+- `Geometry-Lotto-Pro-SSQ`
+- `Geometry-Lotto-Pro-DLT`
+- `Psychology-Insight-Pro`
+- `Human-Nature-Pro`
+- `Investment-Finance-Pro`
+- `English-Root-Intelligence`
+- `Guoxue-Zhice`
+- `Head-Intelligence`
+- `TalkCraft-Pro`
+
+Do not rerun already-valid monorepo gates merely to generate activity while this prerequisite is unchanged.
+
+## Current repository/source inventory recheck — 2026-10-03
+
+- Default-branch root contains actual project trees only for: SSQ, DLT, English Root Intelligence, Guoxue Zhice, Head Intelligence, Investment Finance Pro, and Psychology Insight Pro.
+- Happy 8, Human Nature and TalkCraft have active recovery/migration branches outside main and therefore remain buildable staging candidates, not independent-repository finals.
+- Stock AI Pro branch `recover/stock-ai-pro-4.3.0-deliverable-20260930` exists, but PR #72 changes only `StockAIPro/RECOVERY_STATUS.md`; the recovered 187-entry exact archive is not imported into Git and no source-tree acceptance is claimed.
+- Branch search found no named source-recovery branches for Passive Income, AI Music, Non-Hard-Work, Be Your Own Master, Legal Philosophy, Real-Money Finance or Earth Online. Candidate binaries/content recovered elsewhere remain identity evidence only, not rebuildable-source PASS.
+- DLT latest raw Final aggregate (run `37033563762`, PR #79) has Real Network / Windows Build / Exact EXE / physical GUI / Same Hash / updater atomic rollback and data-network gates PASS. The four non-PASS gates are exactly `business_content`, `updater_real_network`, `repository_independence`, and `release_context`; business B05 is pending because independent production Release N→N+1 is not closed. No monorepo-only rerun can honestly clear those four.
+
+## Active execution rule
+
+Advance the first executable non-PASS gate.
+When a behavior-affecting change is made, rerun only the affected chain and preserve FAIL→FIX→PASS evidence.
+Do not label any project Final until Engineering=100%, Business=100%, hard_fail_count=0, Real Network PASS, Windows Native Build PASS, Exact EXE PASS, GUI Physical Click PASS, Same Hash PASS, Release evidence complete, and the unique final artifact is generated.
+
+
+## 2026-10-03 strict re-execution delta
+
+- The latest strict instruction applies to all 18 projects without reducing prior hard gates.
+- DLT was re-read from raw Windows job evidence rather than inherited status. Functional/build/GUI/hash gates listed above are current-run PASS; Final remains FAIL for the four explicit non-PASS gates.
+- Happy 8 failure `37091255729` exposed orchestration that stopped unrelated source probes after one external ReadTimeout. Commit `0f924066aa74e708dc711a22a8530e30865f027d` fixes orchestration only: independent probes now continue and the final aggregate remains fail-closed. This change does not promote any source or Final state.
+
+- Stock AI Pro stale source-recovery blocker is cleared: exact saved 4.3.0 delivery bytes and source lineage are recovered; current-product acceptance remains FAIL because the recovered package predates the frozen desktop-EXE architecture and target Windows/Real-Network gates.
+- Happy 8 orchestration correction is now evidence-backed PASS as an orchestration fix, while the actual live production data gate correctly remains FAIL.
+
+- TalkCraft raw current Windows evidence was re-read: technical/business staging hard gates PASS, but Final remains correctly FAIL because repository independence is the single hard failure.
+- Passive Income recovery now distinguishes two separately valid artifacts: v0.1 source baseline and v0.2 native EXE identity. Their lineage is not proven and is not counted as a combined PASS.
+
+- AI Music, Non-Hard-Work and Be Your Own Master candidate binary provenance was re-established from exact Library bytes. Binary identity does not substitute for missing source/build lineage.
+
+- Happy 8 latest exact execution: FAIL→FIX chain preserved. `80e14c...` run `37093023211` exposed UI encoding + live official-network failures; UI was fixed and observed PASS on the next run; source-date contract was hardened at `79b9a934...`; static reversal review then found and fixed the missing diagnostic-list initialization at `ca4b409c...`. Run `37094478804` is the only current-head acceptance run and is not pre-promoted while still executing.
+
+- Happy 8 current-head evidence closed: run `37095578759` on `cb5d560...` completed FAIL exactly at `live_official_network`. Raw aggregate proves the earlier syntax/UI regressions are no longer the first blocker. Science and Windows stayed skipped by design. Artifact `11264481223`, digest `sha256:0068bc792a5ae87ed526063b8effcd6d2fa9605b9a38b19fb63959d1a00cb590`.
+- Happy 8 source root cause is now bounded rather than retried indefinitely: official Jiangsu exact query for `2021016` returns HTTP 200 but no issue-bound date evidence; CWL remains 403 and Shanghai early-history query remains empty. Third-party/date inference is not admitted to production. Current Real Network stays FAIL; source remediation is externally BLOCKED pending a production-qualified official full-history date contract.
+- Stock AI exact archive recovery is now independently reverified from Library version 6 and persisted in PR #72 status commit `5398c477...`; Git/current-architecture import is still NOT PASS because the current connector lacks a reliable direct byte-stream bridge for the exact bytes.
+- Earth Online business scope was recovered directly from owned v2.0 Appendix E. Issue #19 comment `5965415184` freezes the 8-item business denominator; item execution is still NOT VERIFIED and engineering source identity remains BLOCKED.
+
+- 2026-10-03 current-session execution: user explicitly bound the existing frozen requirements/architecture/acceptance checklist to the full EXE redo and required core/update/repair/advanced-analysis entries with no not-applicable downgrade. SSQ business-scope approval is therefore now explicit at `06ecab6e...`; its first rerun correctly exposed one stale PENDING-only test, which was fixed at `8c9eba6e...` while preserving forged/absent-approval negative tests.
+- Happy 8 root-cause remediation moved from an impossible complete-Jiangsu-index assumption to an auditable national-calendar contract: official MOF closure windows plus daily-draw sequencing derive dates; all available Jiangsu issue-bound CWL dates must match; archive omissions are bounded and recorded, never silently filled from third parties. Behavior commit `37f58033...`; affected downstream evidence invalidated and rerun `37096159777` started.
+
+
+## 2026-10-03 current-session evidence delta — strict continuation
+
+- **DLT** raw Final Gate was re-read from completed run `37033563762` instead of relying on summary text. The same run records main EXE SHA-256 `5699d106d65317f283268ad991fe411bad1f97a44104640959f8a7d70a1d213f` and Updater SHA-256 `adf2f72662b1f7afe1f655b05e56f1db3b4d175619cc35c65668b776493f170e`. Windows build, Exact EXE, Same Hash, updater process/rollback/data-network, positive physical GUI and both Update/Repair fail-closed GUI gates are PASS. Final remains FAIL with exactly four non-PASS gates: `business_content=PENDING`, `updater_real_network=PENDING`, `repository_independence=FAIL`, `release_context=FAIL`. Business B05 is the single pending business task and states: independent production Release N→N+1 proof is not closed. These four gates share the same missing independent-production-release dependency; no monorepo-only rerun can honestly clear it.
+- **Independent-repository blocker rechecked in the active GitHub connection.** Repository enumeration returned only `douluo511/Geometry-Lotto-Pro`, and the available GitHub actions expose repository/file/PR/ref mutations but no repository-creation action. Therefore creation of the required independent target repositories is externally BLOCKED in this execution environment. Resolution requires an independent repository to be created and made visible to the connected GitHub installation; after that, seed the exact source identity and execute real Release N→N+1 updater/release evidence there. No token or credential should be placed in project files or chat.
+- **SSQ exact-head acceptance advanced on `8c9eba6ec154de9bf63f76e392e7070190200fa3`.** Run `37096219495` has PASS through official-network quorum, Native Windows build + Exact EXE, and Standard User Exact-EXE acceptance; physical GUI was still executing at the last observed state. Independent export run `37096219467` is PASS. Independent production-release/updater steps are skipped until an actual independent target repository exists, so Final is not pre-promoted.
+- **Happy 8 scientific denominator was hardened without claiming an edge.** Draft PR #85 branch `hardening/happy8-science-full-denominator-20261003` adds a frozen seven-model candidate pool, causal walk-forward evaluation, multi-window/multi-seed perturbations, bootstrap/sign-flip evidence, max-model Reality Check, Holm correction, six-period leave-one-period-out model-selection holdouts, ablation, and a future-mutation leakage challenge. `prospective` remains PENDING by design; absent full edge evidence the production state remains `NO_EDGE / NULL_DAN / uniform_baseline`.
+- Happy 8 PR #85 Git history was corrected so the latest recovery base `a4178f7f76a3e763fe3a8b197a80e0c80377cf4f` is an actual ancestor, not merely copied file content. Current science-hardening head is merge commit `1a24f4298bdff5471594a0bf27c7bc8b60b8adcb`; its PR diff is limited to the four intended science/workflow files. Current-head Windows staging run is `37096949990` and is NOT VERIFIED until it executes. A superseded same-tree diagnostic run showed the new Scientific Protocol Contract step itself PASS before concurrency cancellation; that result is diagnostic only and is not inherited as current-head PASS.
+
+
+## 2026-10-03 exact-head closure update
+
+- **SSQ exact current head `8c9eba6ec154de9bf63f76e392e7070190200fa3`: run `37096219495` completed FAIL only at the evidence-derived Final Gate.** Current-run PASS evidence includes purpose/5 Why/risk/domain/architecture/function/interface/data source/NetClient/storage/engine/evidence/service/UI, self/unit/contract/integration/fault injection, live official-network, business/counterexample/reversal validation, native Windows build, Exact EXE, reproducible build, standard-user acceptance, positive physical GUI, update fail-closed physical GUI, repair fail-closed physical GUI, and Same Hash. Exact accepted main EXE SHA-256: `5a37766a15c32494f9e0d52e9f527496de9e54ab9a47299876c7076fff62ce00`. Final aggregate is `FAIL`, `hard_fail_count=4`, with exactly: `business_content=PENDING`, `updater_real_network=PENDING`, `repository_independence=FAIL`, `release_context=FAIL`. Independent-repository publication/updater steps were skipped because the target independent repository is unavailable. Only candidate diagnostic artifact `11263949511` was uploaded, digest `sha256:e435fa4a3df7dd3027b6ae4538f05a59089a21bee23605670288b89723359589`; final EXE upload was correctly skipped.
+- **Happy 8 current science-hardening head is `617b2f943790b2ed1e1aef7237172a0e974723b3`, draft PR #85, current run `37097103238`.** Compile, domain/NetClient, storage/evidence, the newly frozen Scientific Protocol Contract (including wrong-canonical-hash fail-closed reversal), application service, updater contract/rollback, self-test, and UI-Service source contract are current-head PASS. The live official-network step is configured continue-on-error; its API step conclusion is therefore not sufficient evidence. Because both Current-history science and Windows Exact EXE dependent steps were skipped, the raw network outcome is non-success and Real Network remains FAIL/NOT VERIFIED pending the diagnostic aggregate. Diagnostic official-source probes are still executing. No science or Windows PASS is inherited downstream from this run.
+
+
+## 2026-10-03 Happy8 date-semantics root-cause correction
+
+- Superseded exact head `617b2f943790b2ed1e1aef7237172a0e974723b3`, run `37097103238`, completed **FAIL**. Compile/Domain-NetClient/Storage-Evidence/Scientific-Protocol/Application-Service/Updater-contract/Self-Test/UI-Service contract all passed. Current-history science and Windows Exact EXE were skipped because the raw `live_gate.outcome` failed. The live wrapper recorded: CWL primary HTTP 403; Shanghai history range parsed empty; ProvincialComposite rejected issue `2023322` because MOF-derived draw date was `2023-12-02` while the code incorrectly treated the CWL article URL path date `2023-12-03` as the draw date. Diagnostic artifact: ID `11264444313`, name `Happy8-Staging-Diagnostic-8bc1a2671e2b29131132b3f5052d9f6d1009e50b`, digest `sha256:f4ceb4d0c04e6f03e403acbeb5360257ef767c8aee5947618296f4ff53bfb3fa`.
+- Root cause was independently verified against official public evidence. The Ministry of Finance 2023 closure notice confirms the frozen closure windows (2023-01-19..01-28 and 2023-10-01..10-04). Jiangsu Welfare Lottery's limit-payout notice explicitly states that Happy8 issue `2023322` was drawn on **2023-12-02**, while the linked CWL announcement URL is dated **2023-12-03**. Therefore article URL path dates are publication metadata and cannot be canonical draw dates.
+- Further current-run diagnostics showed the publication-date semantics vary: sampled CWL URL metadata may be before/same/after the derived draw date, while Jiangsu visible index publication dates lag the derived draw date by 0..2 days in the frozen diagnostic corpus. The previous equality contract was therefore semantically invalid.
+- Behavior fix commits `b813cc62a9ec4a96e454a76fb2b119a41b684ad1` and `6fcfd340cd29f69d821cac0be359eb3be3e48176` separate canonical draw dates from publication metadata. Canonical draw dates remain derived from the official daily cadence + MOF market-closure calendar. Jiangsu evidence now requires an issue-bound official CWL link plus a visible Jiangsu publication date; publication lag is frozen fail-closed to 0..2 days, while CWL URL path dates are never promoted to draw dates. Reversal contracts now require `2023322 -> 2023-12-02`, accept the observed +1 publication lag, and reject publication dates before draw or >2 days after draw.
+- Because this is a behavior change, all Happy8 Real Network/science/Windows/Exact EXE/GUI/Hash evidence from earlier heads is invalidated. Current validation target is head `6fcfd340cd29f69d821cac0be359eb3be3e48176`, run `37097793714`; status is **NOT VERIFIED** until that run executes.
+
+
+## 2026-10-03 strict full-EXE re-execution continuation
+
+- User re-bound the full 18-project portfolio to the strict engineering execution instruction: only PASS / FAIL / NOT VERIFIED / BLOCKED are valid; core function, one-click update, one-click repair and advanced analysis remain mandatory; no N/A downgrade is allowed without an explicit user scope change.
+- Connected GitHub repository enumeration again exposes only `douluo511/Geometry-Lotto-Pro`. The connector exposes no repository-creation action. Independent target repositories and the real independent N→N+1 updater/release chain therefore remain externally BLOCKED; this is not promoted to PASS and already-valid monorepo gates are not rerun merely for activity.
+- Happy8 current exact science-hardening branch exposed a real application-service contract regression in run `37097884825`: full scientific validation was executed against the one-draw service fixture and raised `ValueError: candidate model series must be aligned and non-empty`. This is a test-boundary defect, not evidence of predictive edge.
+- FIX chain: commit `93ed32e149b2a708e054dda92658b90999afbfe5` makes the scientific validator an explicit Application Service dependency while leaving production default bound to the real `validate_history`; commit `41c05f69ed24b92e675f3c48f8112a1a7182cedb` makes the service-contract fixture inject an explicit NO_EDGE validator and adds fail-closed tests for prediction/advanced-analysis validator failure.
+- Current Happy8 validation run `37098774767` on exact head `41c05f69ed24b92e675f3c48f8112a1a7182cedb`: Compile, Domain/NetClient, Storage/Evidence, Scientific Protocol Contract, Application Service, Updater contract/rollback, Application Self-Test and UI-Service source contract are current-head PASS. Live official-network gate is still executing; downstream current-history science and Windows Exact EXE remain NOT VERIFIED until that gate succeeds. No Final promotion is claimed.
+
+
+### Happy8 FAIL → root cause → FIX continuation (2026-10-03)
+
+- Exact-head run `37098774767` on `41c05f69ed24b92e675f3c48f8112a1a7182cedb` completed **FAIL**. Current-head PASS before the network hard gate: Compile, Domain/NetClient, Storage/Evidence, Scientific Protocol Contract, Application Service, Updater contract/rollback, Application Self-Test and UI-Service contract.
+- The Actions step UI showed the live gate with a green conclusion only because the workflow uses `continue-on-error`; evidence-derived aggregate recorded the real `LIVE_OFFICIAL_NETWORK=failure`. Science and Windows Exact EXE were correctly skipped. This green-wrapper result is not accepted as PASS.
+- Raw traceback proved the official snapshot report had already been produced, then Storage rejected it at `_validate_raw_bundle` with `required official PASS source receipts are missing`. Root cause: Source evolved to the current Fuzhou numbers + MOF market-calendar + Jiangsu issue-provenance composite identity, while Storage and its contract fixture still expected the obsolete composite identity/raw-manifest shape.
+- Diagnostic artifact `Happy8-Staging-Diagnostic-f165fc5c250e8371428334af027d1214db5bb3e8` (artifact id `11265043752`) has digest `sha256:9c312ef5a399a4907cb2944055c86ef4f7cdefd5b83c43e0f24cffb837eb057b`. Its independent composite diagnostic remains FAIL on missing Jiangsu issue-bound evidence for `2021016`; that diagnostic is not promoted to production truth.
+- FIX commits:
+  - `1a019fea908d0c34b8ba53c4de9cdda0fc911b22`: bind snapshot `history_source` to the actual source receipt identity instead of a separately handwritten string.
+  - `1581ba05aabb2e509cab9b4bc444eec8b01c8ff1`: Storage validates the current composite manifest (Fuzhou HTML + MOF contract JSON + Jiangsu history HTML + derived provenance metadata) fail-closed.
+  - `7855ea7651086b4327daf3fd188b02d27e3204ee` and `14532b23498346dcfcad5f3a4c0145726c364f27`: update the Storage contract fixture and add reverse tamper validation for derived crosscheck metadata.
+- While these fixes were applied, base branch `recover/happy8-prototype-20260929` advanced by commit `cfc7dfac37f4e62c6267e7f469dec4aa0950be8f` (draw-date vs announcement-date semantics), temporarily making PR #85 dirty. The hardening head already contained the same semantic separation with the broader observed 0..2-day contract; merge-resolution commit `a9177e7ffa96f39af448c0c7f573cfe0f55786b2` explicitly integrated that base lineage while preserving the current stricter implementation. PR #85 is now mergeable/clean.
+- All behavior-affected Happy8 Network → Science → Windows evidence is invalidated until a new run on exact head `a9177e7ffa96f39af448c0c7f573cfe0f55786b2` completes. Final Gate remains FAIL.
+
+## 2026-10-03 current strict execution delta — source recovery and Earth business closure
+
+- **Earth Online / Life Base business-content acceptance:** the previously frozen 8-item, equal-weight denominator from owned v2.0 content was executed against the full current PDF corpus. Exact scans found 21/21 chapters with the required repeated teaching structure, exactly 43 numbered cases spanning the required domains, exactly 365 training-day rows plus Day 30/90/180/270/365 gates, explicit traditional-health/divination evidence boundaries, political/historical critical-reading boundaries, Appendices A/B/C decision/5 Why/reversal/weekly-review templates, and the non-guarantee/updateable-judgment outcome boundary. Issue #19 comment `5965932110`. **Business-content completion = 100% (8/8) under that frozen denominator.** Engineering source/build identity remains BLOCKED, so Final Gate remains FAIL.
+- **Legal Philosophy source recovery:** exact repository/Library searches did not recover the application source tree or build manifest matching the known candidate identity. Issue #21 comment `5965898726`. Source/build lineage remains NOT VERIFIED / BLOCKED.
+- **Real-Money Finance source recovery:** Stock AI / finance business documents were recovered but explicitly rejected as substitute application source. Issue #17 comment `5965903260`. Exact Real-Money source/build/authorized production connector identity remains NOT VERIFIED / BLOCKED.
+- **AI Music source/provider recovery:** exact source/provider/license searches returned no matching application source/build/model-provider/license ledger. Issue #20 comment `5965909774`. Candidate binary identity does not establish provider/source provenance; Final remains FAIL / BLOCKED.
+- **Non-Hard-Work and Be Your Own Master source-lineage recovery:** exact module/name searches found business-content artifacts but no matching `nohardmoney` or `ownermindv10` application source/build/updater chain. Issue #22 comment `5965938621`; issue #23 comment `5965938818`. Their candidate EXEs remain identity evidence only.
+- **Passive Income Pipeline OS v0.2 source recovery:** exact v0.2 searches recovered only the existing acceptance snapshot, not matching source/build/updater provenance. The v0.1 source baseline is not promoted across the unproven v0.1→v0.2 lineage. Issue #18 comment `5965941994`.
+- **Happy 8:** prior exact-head run `37098774767` exposed Source→Storage composite-manifest contract drift. Subsequent fixes bound history-source identity to the source receipt, validated the current Fuzhou+MOF+Jiangsu manifest fail-closed, added derived-metadata reversal tests, and corrected legitimate zero-valued derived evidence handling. Current exact head is `c67f07b2380cb9e209ba73f90ac8e06fd12f5e6f`; current run `37099855990` has PASS through Compile, Domain/NetClient, Storage/Evidence, Scientific Protocol Contract, Application Service, Updater contract/rollback, source self-test and UI-Service contract. Live official-network is still executing and is NOT VERIFIED until its raw outcome closes. No downstream science/Windows/Final promotion is claimed yet.
+
+### Business truth-boundary additions
+
+- **Be Your Own Master V10:** direct read of the empirical workbook confirms 30-day and 90-day acceptance remain `待实证`; current dashboard shows 0 completed training days, 0 story-training completions and 0 major-decision records. The frozen book explicitly forbids claiming real effect before 30/90-day evidence. Issue #23 comment `5965966813`. Business actual-effect gate remains NOT VERIFIED; content-pack completeness does not equal business-effect PASS.
+- **Non-Hard-Work V9:** the owned source defines a nine-stage business-validation chain V-A..V-I (logic, adversarial, demand, transaction, economics, repeatability, systemization, asset, scale). Worked examples are explicitly hypothetical teaching numbers and do not prove market performance. Issue #22 comment `5965970688` freezes these source-derived mandatory gates; no current bound real-project evidence is promoted to PASS.
+
+### Happy 8 live-console FAIL→FIX — 2026-10-03
+
+- Exact failing head: `c67f07b2380cb9e209ba73f90ac8e06fd12f5e6f`; run `37099855990`; diagnostic artifact `11265820956`, digest `sha256:6e47aa03930dd7d478afc6098006e5c92a0e9dbdb2d21b96c51e74ac32cd0863`.
+- Raw failure: `scripts/real_network_check.py` completed live snapshot/storage work but failed while printing non-ASCII diagnostic JSON to the Windows runner's cp1252 stdout: `UnicodeEncodeError: 'charmap' codec can't encode characters ...`. Therefore `LIVE_OFFICIAL_NETWORK=failure`; science and Windows Exact EXE remained skipped. This failure is retained; it is not rewritten as PASS.
+- Fix commits: `6d18d89bec458627c8ffd557c45854a2b0d9393e` makes console-only JSON `ensure_ascii=True` while leaving persisted evidence UTF-8; `e36bdeb2840234fb9652e0f156fc71e396f3c2ea` adds the reverse cp1252 serialization contract with non-ASCII Chinese input.
+- Current exact head: `e36bdeb2840234fb9652e0f156fc71e396f3c2ea`. Current validation run: `37100365856` (queued/pending at record time). Status remains NOT VERIFIED until that exact-head run closes.
+
+
+## 2026-10-03 Happy8 physical-GUI hard-gate continuation
+
+- Exact active Happy8 GUI/updater branch: `hardening/happy8-updater-gui-20261003`, current head `ade01b5cc8865753c59696648f2cdce7747d2406` (PR #87).
+- During preparation of physical GUI acceptance, a real Service contract defect was found: a successful `predict_next()` freeze lacked `status: PASS`. The desktop therefore rendered the operation as `UNKNOWN`, and CLI `--predict` treated the successful freeze as a failing exit. This was fixed at `c6284125af43a0fb7d9d4af0892a9f48ea7043ea`; the Service gate was hardened at `a6f817234587df37a1e4319b8c17fddaa326887f` to require explicit prediction PASS.
+- Physical GUI evidence was added at `bdacd47c9c09e5fb0dfb15deecd893562ae7244d`: the exact packaged EXE is preconditioned through its real official-network update path, then the four frozen GUI entries are activated by foreground `SetCursorPos + mouse_event LEFTDOWN/LEFTUP`. Prediction, Repair and Advanced Analysis must produce bound PASS audit records; Repair first corrupts `CURRENT.json` and must restore a verified generation. One-click software Update must fail closed when the real independent release config is absent; this negative proof does not substitute for a real N→N+1 updater release.
+- Workflow hard gates were wired at `ade01b5cc8865753c59696648f2cdce7747d2406`: Physical GUI and post-click Same Hash now execute only after current-head Real Network → Science → reproducible Windows Exact EXE PASS, and the staging aggregate fails if either is non-success.
+- Current validation run for exact head `ade01b5cc8865753c59696648f2cdce7747d2406` is `37100807238`; it is PENDING / NOT VERIFIED at this record point. No downstream PASS is inherited from the superseded head.
+- Independent-repository blocker was rechecked in the active GitHub connection: repository enumeration exposes only `douluo511/Geometry-Lotto-Pro`; no repository-creation action is available. Independent target repositories and real independent N→N+1 release/update proof therefore remain externally BLOCKED. This does not prevent current monorepo staging validation from continuing, but Final Gate remains FAIL.
+
+
+## 2026-10-03 Happy8 updater transaction-recovery hardening
+
+- Strict review of PR #87 found a real frozen-requirement gap: the updater contract covered HTTPS/hash/non-downgrade/basic rollback but did not yet cover the required offline, interrupted-download, permission, parent-process-occupied, replacement-failure, rollback-failure and restart-recovery paths. This was NOT treated as PASS.
+- Implementation commit `ed13c45a4410c1dd2d7997201ab42231c7269736` adds a durable `happy8-update-transaction-v1` journal and fail-closed restart recovery. Incomplete staged transactions are discarded before replacement; durable backups are restored; a transaction that had already reached `SELF_TEST_PASSED` can be committed after restart only when the current EXE still matches the journaled new hash. Rollback-failure state is retained for a later recovery attempt instead of being erased.
+- Gate commit `83cda82b96060c801c571619f1a2bfdc8e5cd4ae` expands `updater_gate.py` to cover: normal atomic update, manifest offline, interrupted artifact download, bad hash/truncation, staging permission failure, parent still running, target replacement failure, health-check rollback, injected rollback failure, and restart recovery of the previous EXE.
+- Behavior changed, so all updater-dependent Windows/Exact-EXE/physical-GUI/post-GUI-hash evidence from prior Happy8 heads is invalid for the new head. Current exact PR #87 head is `83cda82b96060c801c571619f1a2bfdc8e5cd4ae`; validation run `37101252952` was queued when recorded. Until that run closes, updater/Real Network/Science/Windows/GUI/Same Hash remain NOT VERIFIED on this head and Final Gate remains FAIL.
+- The independent Happy8 target repository and real independent production N→N+1 release/update source remain externally BLOCKED in the connected GitHub environment; deterministic rollback/recovery tests do not substitute for that real release gate.
+
+
+## 2026-10-03 Happy8 one-click repair full-contract hardening
+
+- Strict review found that the existing `Happy8Service.repair()` only repaired a corrupt `CURRENT.json` pointer. That did not satisfy the frozen one-click-repair denominator and was not treated as PASS.
+- Commit `fb5a24b59ed6d26d7f13bc7a398a079aba4ca34c` adds an auditable packaged update-environment diagnostic; trusted release/network configuration is never synthesized. Missing independent release configuration is reported `BLOCKED`.
+- Commit `9ffe03e514354b0386c13bf4d2c73bdd9c9d3f5d` expands repair into component evidence for the real Happy8 architecture: generation store (database-equivalent persistence), CURRENT index pointer, missing required store files, ephemeral cache, release configuration, network release configuration, version contract, and post-repair data integrity. Local recoverable state is repaired and rechecked; unrecoverable corruption fails closed; user generations/results/evidence are never bulk-deleted.
+- Commit `dbd4bc25657c0c9e446b698f647dd3c23b3b316f` binds the packaged EXE to that update-environment diagnostic. Commit `0d56ed980604e0deabd6b8d1eb2509c6ebcf98cd` adds repair reversal tests for cache poisoning, corrupt/missing index pointer, external config blocker, version mismatch and unrecoverable RAW tamper. Commit `049c966570fd5d6b265548d4c18f397c8ddff439` updates physical mouse-click acceptance so the Repair button must restore local store integrity while explicitly surfacing the external release/network blocker as `BLOCKED`, not fake PASS.
+- Current exact PR #87 head is `049c966570fd5d6b265548d4c18f397c8ddff439`. All behavior-affected downstream evidence from earlier Happy8 heads is invalid. At record time no Actions run was yet registered for this exact head, therefore Compile/Service/Updater/Real Network/Science/Windows/Exact EXE/Physical GUI/Same Hash are NOT VERIFIED on this head. Independent repository and real production N→N+1 release/update remain externally BLOCKED. Final Gate remains FAIL.
+
+
+### Happy8 repair denominator exact-key closure
+
+- Exact frozen repair evidence keys are now: `database`, `index`, `missing_files`, `cache`, `configuration`, `network_configuration`, `version`, and `data_integrity`; `database` is explicitly identified as the real generation-file persistence implementation and `index` as `CURRENT.json`, rather than inventing an unused SQLite subsystem.
+- Commit `25e20a4fcdf57300aa77400272373e0f7b5e09f4` aligns the Service evidence to those exact keys. Commit `2ec881dddfa32193a34ad506d6fa44b103e17714` adds user-data preservation proof and explicit missing-generation-file fail-closed/reversal coverage. Commit `7234329070d6d3249f69f031be539ae07bb1dc21` binds the physical-GUI repair check to the exact `index` evidence key.
+- Current exact PR #87 head: `7234329070d6d3249f69f031be539ae07bb1dc21`. Exact-head workflow run: `37101631346`, PENDING at record time. No PASS is inherited from superseded heads. Final Gate remains FAIL; independent repository and real production N→N+1 release/update remain BLOCKED.
+
+
+## 2026-10-03 Happy8 Windows reproducibility root-cause fix
+
+- Completed PR #87 run `37100807238` is preserved as FAIL evidence. Its live official network gate was `success`, its scientific gate ran to a software PASS/NO_EDGE outcome, but the Windows build gate failed because two same-source PyInstaller builds produced different main-EXE SHA-256 values: `521d38b8740eefbf9513d062773d93e619201f741d66e7e3246e028879bc1202` vs `83cbe56bddb81bd11968f5a9ac9a78580e7dbe976d46ca0f7f85d22496f75579`. Physical GUI and post-GUI Same Hash were therefore skipped on that head.
+- PyInstaller reproducible-build prerequisites were missing from the workflow. The build now pins `PYTHONHASHSEED=1`, derives `SOURCE_DATE_EPOCH` from the checked-out acceptance commit so both Windows builds receive the same PE timestamp, disables UPX, and cleans both main/updater work directories before rebuilding.
+- An intermediate workflow edit introduced a malformed PowerShell regex due to replacement-string semantics; that head is explicitly invalid and not used as evidence. Commit `81454c564f257f0479f76b1994bafcf5f5c609d9` repairs the workflow prelude and was re-read after commit to confirm the complete PowerShell block.
+- Current exact PR #87 head is `81454c564f257f0479f76b1994bafcf5f5c609d9`. No workflow run was registered yet at record time, so current-head Windows/Exact EXE/GUI/Same Hash remain NOT VERIFIED. Final Gate remains FAIL.
+
+
+### Happy8 workflow startup failure and recovery
+
+- Exact-head runs `37101776641` (`cd6c8ce...`) and `37101812912` (`81454c56...`) failed before any job was created. This was a workflow-definition failure, not a test failure and not a PASS.
+- Root cause: the earlier malformed replacement left a duplicated PowerShell/workflow payload appended after the legitimate `if-no-files-found: warn` end of the YAML file. GitHub therefore rejected the workflow before job creation.
+- Commit `26b736f469137e451dd175804d1c020d9cb9edeb` removes the 14,951-character trailing payload and leaves a single valid workflow ending at the artifact upload stanza. This preserves the reproducible-build fix (`PYTHONHASHSEED=1`, deterministic `SOURCE_DATE_EPOCH`, `--noupx`) while removing the invalid duplicate.
+- Current exact PR #87 head: `26b736f469137e451dd175804d1c020d9cb9edeb`. All current-head gates remain NOT VERIFIED until a job actually starts and reports evidence. Final Gate remains FAIL.
+
+
+## 2026-10-03 Happy8 explicit Unit and Fault Injection gates
+
+- Strict chain audit found that Unit and Fault Injection behaviors existed only partially inside other scripts; they were not independent named gates in the frozen sequence. This was treated as a validation-structure gap, not silently counted as PASS.
+- Commit `2ab9dd296babe9f2a18d9de5631ce3207faaa3fe` adds `unit_gate.py` for pure Domain, version, trust, canonicalization and bounded NetClient unit contracts.
+- Commit `3ab540755b82efb09a902bc62b46a3a12d9ce21d` adds `fault_injection_gate.py` covering offline, DNS/connection failure, timeout, 429, 500, 502, 503, non-JSON, empty response, schema drift, missing fields, invalid content type, data corruption fail-closed, cache pollution cleanup, unwritable evidence, disk anomaly, corrupted release configuration and updater failure preserving the target EXE.
+- Commit `1ab7963bfae56454f331662142543f1c6c049039` reorders the workflow categories to Self-Test → Static/Compile → Unit → Contract → Integration → Fault Injection → Real Network → Business/Science validation → Windows/Exact EXE → Physical GUI → Same Hash, and adds Unit/Fault outcomes to the evidence-derived aggregate.
+- Exact-head run `37102078794` is PENDING at record time. Earlier workflow-only run `37101890234` remains in progress and may supply unaffected diagnostic evidence, but cannot prove the new Unit/Fault gates. Final Gate remains FAIL.
+
+
+### Happy8 strict validation concurrency handoff
+
+- Superseded v1 run `37101890234` remained in-progress inside the real-network step and the exact-head strict run stayed PENDING. The available GitHub connector exposes no cancel/dispatch action for workflow runs.
+- Commit `eace15c94bd140fd99aa9cebe888929797efbce8` moves the strict PR validation chain to concurrency group `happy8-strict-v2-*` while retaining `cancel-in-progress: true` for all subsequent v2 heads. This prevents the obsolete v1 run from blocking current validation without disabling deduplication for future changes.
+- Current exact head is `eace15c94bd140fd99aa9cebe888929797efbce8`; current-head gates remain NOT VERIFIED until its run is created and executes.
+
+
+### Exact-head strict run 37102268143 — early gates
+
+- Exact source head: `eace15c94bd140fd99aa9cebe888929797efbce8`; strict run: `37102268143`, job `111143976736`.
+- Verified PASS on this exact head: Application Self-Test; Static/Compile; Unit; Domain+NetClient Contract; Scientific Protocol Contract; Desktop UI-Service Contract; Storage+Evidence Integration; Application Service Integration (including full Repair denominator); Software Updater handoff contract; Independent Updater integration/rollback/restart-recovery; explicit Fault Injection.
+- At record time Live dual-official-source Real Network is IN_PROGRESS. Business/Science current-history validation, Windows reproducible Exact EXE, physical GUI mouse clicks and post-GUI Same Hash are NOT VERIFIED. Repository independence and real production N→N+1 release/update remain BLOCKED. Final Gate remains FAIL.
+
+
+### 2026-10-03 current-turn strict continuation
+
+- User re-bound the full portfolio to the frozen strict engineering directive: all 18 EXE projects remain in scope; core function + one-click update + one-click repair + advanced analysis are mandatory and may not be downgraded to N/A.
+- Fresh repository enumeration still exposes only `douluo511/Geometry-Lotto-Pro`; the connected GitHub action set exposes no repository-creation API. Independent target repositories and real independent Release N→N+1 updater/release evidence therefore remain externally BLOCKED wherever required. Already-valid monorepo gates are not rerun merely for activity.
+- Happy8 exact source head `eace15c94bd140fd99aa9cebe888929797efbce8`, strict run `37102268143`, job `111143976736`: current-head PASS now includes Application Self-Test, Static/Compile, explicit Unit, Domain+NetClient Contract, Scientific Protocol Contract, Desktop UI-Service Contract, Storage+Evidence Integration, Application Service Integration (including the full repair denominator), Software Updater handoff, Independent Updater integration/rollback/restart-recovery, explicit Fault Injection, live official Real Network, current-history scientific validation, and Native Windows reproducible Exact EXE build.
+- On the same exact head, Physical GUI mouse-click acceptance is currently IN_PROGRESS and post-GUI Same Hash remains NOT VERIFIED. No Final promotion is permitted until those steps and the evidence-derived aggregate close. Independent Happy8 repository + real production N→N+1 release/update remain separate BLOCKED Final prerequisites.
+
+
+## 2026-10-03 Happy8 exact-head/business-denominator continuation
+
+- Run `37100807238` on superseded head `ade01b5cc8865753c59696648f2cdce7747d2406` is preserved **FAIL** evidence. Real Network and current-history Science completed, but the raw Windows step outcome was failure because two same-source main PyInstaller builds hashed differently: `521d38b8740eefbf9513d062773d93e619201f741d66e7e3246e028879bc1202` vs `83cbe56bddb81bd11968f5a9ac9a78580e7dbe976d46ca0f7f85d22496f75579`. Physical GUI and post-GUI Same Hash were correctly skipped.
+- Reproducible build hardening now uses frozen `GeometryLottoProHappy8.spec` and `GeometryLottoProHappy8Updater.spec`, fixed `PYTHONHASHSEED=1`, fixed `SOURCE_DATE_EPOCH=946684800`, separate clean work/dist trees, and byte-identical main/updater SHA checks before any GUI evidence.
+- Recovered business scope review found a missing existing core output: the original Happy8 source explicitly promises an 80-number complete ranking. Current Service had only persisted Top-10. Commits `72d3a6205fd6a94206be1908df9226b9ad9333c1` / `edfa81fae11edd530abdcf221722e9bf2f68268c` restore and contract-test the full rank-1..80 output, top-10, top-20, observed top-4 research core, baseline 0.25 / 2.5, and immutable freeze binding. This is recovered scope, not a new requirement.
+- The recovered visible scientific truth boundary ("not betting advice / no return guarantee", 25% marginal probability, expected pick-10 hits 2.5) is restored and mandatory in both source and exact-UI contracts; commits `cd172fa10c3023b70d0ad9a7189aa321233aebb2` and `4244d078e081ba26641b9c1ba6a360916a209f29`.
+- Business denominator is now frozen in `Happy8/BUSINESS_ACCEPTANCE_BASELINE.json`: B01-B08, equal mandatory weights because the recovered source defined no differential weights; all eight are required for Final. Engineering denominator is frozen in `Happy8/ENGINEERING_ACCEPTANCE_BASELINE.json`: E01-E19, equal mandatory weights, no business double-count.
+- `business_acceptance_gate.py` derives only PASS / FAIL / NOT VERIFIED / BLOCKED from live official-network evidence, current-history science, Service contract, UI contract, Windows/physical-GUI evidence and real-release evidence. B04 explicitly requires candidate pool, multi-window/multi-seed, bootstrap, sign-flip, ablation, Reality Check, Holm, leave-one-period-out and leakage/canonical binding. B07 remains BLOCKED without real independent Release N→N+1 evidence. The workflow derives business evidence before Windows and again after GUI; a non-PASS final business gate blocks the staging aggregate but does not stop unrelated technical gates from executing.
+- Base-lineage audit found PR #87 was two commits behind its science base and PR checkout defaulted to the GitHub merge preview. Base files `contract_gate.py` and `real_network_check.py` were integrated, then a true two-parent merge commit `438ed79822f4bf4345833fa3913f2833194d9cbb` closed ancestry. Compare now reports behind_by=0. Workflow commit `1da746d576ca1a999ee528c1ff86086ed8059f0e` forces checkout of the exact PR head and adds an Exact Checkout Identity hard gate; build evidence records `git rev-parse HEAD`, not a merge-preview SHA.
+- Validation-only PR #88 was closed as superseded after exact-head PR #87 began triggering normally.
+- Current exact PR #87 head: `1da746d576ca1a999ee528c1ff86086ed8059f0e`. Current run: `37104068802`, **PENDING / NOT VERIFIED** at this record point. No pre-change Windows/EXE/GUI/Hash evidence is inherited.
+- Independent Happy8 repository creation and real production Release N→N+1 remain externally BLOCKED because the connected GitHub installation still exposes only `douluo511/Geometry-Lotto-Pro` and no repository-creation action. Final Gate remains FAIL.
+
+
+### Happy8 scope-reversal correction — independent repository name
+
+- A strict reverse-scope review caught an invented implementation constraint: the engineering derivation temporarily hard-coded a future repository name `douluo511/Geometry-Lotto-Pro-Happy8`. The frozen user requirement is only **a dedicated independent Happy8 repository**; no exact repository name was specified.
+- Commit `a19da81ccbe58ad1a77a5bf0030391d4f9edd7f1` removes that invented name requirement. Current monorepo `douluo511/Geometry-Lotto-Pro` remains explicitly BLOCKED for E17; a future non-monorepo checkout remains NOT VERIFIED until dedicated-project inventory/release evidence proves independence.
+- Exact current validation target is `a19da81ccbe58ad1a77a5bf0030391d4f9edd7f1`, run `37104387080`. At record time the run is PENDING / NOT VERIFIED. No earlier EXE/GUI/hash evidence is promoted across this workflow/source identity.
+
+
+## 2026-10-03 Happy8 updater/GUI FAIL→FIX continuation
+
+- Exact failing candidate head `5d40870e54e9305559f6c577a73799785bc8024f`, workflow run `37105280509`, job `111152475741` completed **FAIL**. Current-run PASS before the failing gates included exact checkout identity, Governance/Architecture, Self-Test, Static/Compile, Unit, Domain/NetClient contract, Scientific Protocol contract, UI-Service contract, Storage/Evidence integration, Application Service integration, Updater handoff contract, Fault Injection, real official-network, current-history science/business, and reproducible Windows Exact EXE.
+- Raw Updater result was not PASS despite the Actions job summary surface: `happy8-updater-gate-v2` failed exactly at `rollback_failure_retains_recovery_state` and `restart_recovery_restores_previous_exe`; the intended rollback failure injection count was zero, so the test did not strike the rollback replacement boundary and no incomplete transaction remained for restart recovery.
+- Raw Physical GUI result also failed: the exact EXE successfully reached the GUI test, but the `一键更新` physical click did not produce its bound GUI audit record before timeout. Because GUI failed, post-GUI Same Hash was correctly skipped. Business final, engineering final and Final Gate remained FAIL.
+- GUI root cause: the asynchronous exception path scheduled `lambda: self._complete(..., exc)` from an `except Exception as exc` block. Python clears the exception target after the block, so the later Tk callback could not safely retain that exception object and never reached the audit write. Fix commit `3b36241669348097d09abf853c8cdab2154d1c89` captures the callback values explicitly in lambda defaults.
+- Updater verification hardening: commit `c85aaedf27029b41f9fe64a3b757e5800382cf38` introduces a single transaction `_replace_path` seam for target replacement/rollback; commit `a83593739fb8692ad8d38adf9a171a3bc6079ae5` injects the rollback failure at that exact seam, preserving production behavior while making the negative path deterministic and auditable.
+- Current exact Happy8 head is `a83593739fb8692ad8d38adf9a171a3bc6079ae5`. All behavior-affected Updater → GUI → post-GUI Same Hash → business/engineering/final evidence from `5d40870...` is invalidated. Fresh current-head execution is **NOT VERIFIED** until Actions starts and completes.
+- Independent repository and real independent production Release N→N+1 remain externally BLOCKED because the active GitHub connection still exposes only the shared repository and no repository-creation action.
+
+
+## 2026-10-03 Happy8 exact-head 37115046359 result and updater injection fix
+
+- Exact candidate head `a83593739fb8692ad8d38adf9a171a3bc6079ae5`, run `37115046359`, job `111180135949` completed overall **FAIL**, but current-run hard evidence closed the main technical chain through Real Network, Science, reproducible Windows Exact EXE, Physical GUI and post-GUI Same Hash.
+- Exact EXE / physical GUI evidence: main EXE SHA-256 before and after physical GUI was `1fa4f92b5757a8e94539909fecce0f9628bbff538e7ede0a3a701ae00d0aa761`; all four frozen GUI entries were physically activated and produced visible desktop changes; physical GUI status PASS; post-GUI Same Hash PASS.
+- Business acceptance for this exact head derived `7/8 = 87.5%`: B01/B02/B03/B04/B05/B06/B08 PASS; B07 BLOCKED only because real independent production Release N→N+1 evidence is missing.
+- Engineering acceptance for this exact head derived `15/19 = 78.9474%`: E01-E07 PASS, E08 FAIL, E09-E16 PASS, E17/E18/E19 BLOCKED.
+- E08 remained a real FAIL. Raw `happy8-updater-gate-v2` still showed `rollback_failure_retains_recovery_state=FAIL`, `restart_recovery_restores_previous_exe=FAIL`, `rollback_injection_count=0`. The Actions step summary could appear success because the workflow uses continue-on-error; raw evidence controls acceptance.
+- Root cause of the remaining E08 failure was the test injector's Windows absolute-path string equality, not the production rollback path: the failed update reported action `ROLLED_BACK`, proving rollback occurred, while the injector never matched the backup->target replacement.
+- Fix commit `64dfe1b9274abecd972edaa52c928f10cb2b6b23` changes rollback-failure injection to the transaction semantic boundary `_replace_path(<*.backup>, <target exe>)` and records every observed replace call. Product updater behavior is unchanged.
+- Fresh exact-head run `37116813770` has started for `64dfe1b9274abecd972edaa52c928f10cb2b6b23`; all current-head gates remain NOT VERIFIED until this run executes them.
+- External blockers remain unchanged: E17 dedicated independent Happy8 repository BLOCKED; E18 real independent Release N→N+1 BLOCKED; therefore E19 unique final artifact BLOCKED and Final Gate FAIL.
+
+
+## 2026-10-03 Happy8 independent-repository migration boundary
+
+- Current Happy8 exact source identity remains `64dfe1b9274abecd972edaa52c928f10cb2b6b23`; current validation run is `37116813770`.
+- Dedicated-repository migration is still externally BLOCKED, but the exact migration boundary is now frozen in `docs/HAPPY8_INDEPENDENT_REPO_MIGRATION_MANIFEST.json` (control commit `91338706e7505258140c86b271bb9891cea30f3b`).
+- The first independent-repository seed must preserve byte/path identity for: `Happy8/ARCHITECTURE_SCOPE.json`, `BUSINESS_ACCEPTANCE_BASELINE.json`, `ENGINEERING_ACCEPTANCE_BASELINE.json`, `RECOVERY_STATUS.md`, `Happy8/recovered/**`, `Happy8/staging/**`, and `.github/workflows/happy8-staging-recovery.yml`.
+- Frozen current staging tree SHA: `08ee1d09fc7c61dec882ebf6eedc18f5409bb5ac`; recovered tree SHA: `8d31d70996e737a992fe0a9c8167832e43f546e0`; workflow blob SHA: `2599e0d4e584bca70e37efa9c13c2a6ee79f1845`.
+- This preparation does NOT satisfy E17. E17 remains BLOCKED until a dedicated repository actually exists, is visible to the GitHub installation, contains no other project code, and the manifest identities are independently verified there.
+
+
+## 2026-10-03 Happy8 current-head internal gates closed
+
+- Current exact source head: `64dfe1b9274abecd972edaa52c928f10cb2b6b23`.
+- Fresh workflow run `37116813770`, job `111185116882`, completed overall **FAIL only because frozen Final requirements remain unmet**, not because the current internal technical chain failed.
+- Raw Updater evidence `happy8-updater-gate-v2` is **PASS**. The preserved FAIL→FIX→PASS chain is now closed:
+  - previous raw failure: rollback injection count 0, action ROLLED_BACK, no retained recovery state;
+  - fixed current evidence: `rollback_failure_retains_recovery_state=PASS`, failed action `ROLLBACK_FAILED`, retained backup+journal=true, rollback injection count=1, observed stage->target then backup->target replacements;
+  - `restart_recovery_restores_previous_exe=PASS`, action `RECOVERED_ROLLBACK`, original bytes restored, backup/journal removed.
+- Current engineering acceptance is **16/19 = 84.2105%**:
+  - E01-E16 PASS;
+  - E17 BLOCKED: current checkout is still shared `douluo511/Geometry-Lotto-Pro`;
+  - E18 BLOCKED: real independent Release N→N+1 evidence unavailable;
+  - E19 BLOCKED: upstream repository/release gates are not all PASS.
+- Current business acceptance is **7/8 = 87.5%**:
+  - B01/B02/B03/B04/B05/B06/B08 PASS;
+  - B07 BLOCKED only by missing real independent production Release N→N+1; update/repair contract itself is PASS.
+- Current exact Windows EXE, physical GUI and post-GUI Same Hash are PASS. Physical GUI used foreground cursor positioning and mouse down/up on all four frozen entries. Main EXE SHA-256 before/after GUI is `1fa4f92b5757a8e94539909fecce0f9628bbff538e7ede0a3a701ae00d0aa761`.
+- Physical GUI operation evidence:
+  - 预测下一期: PASS, backend PASS;
+  - 一键更新: PASS_FAIL_CLOSED, backend FAIL because real independent release config is absent;
+  - 一键修复: PASS_BLOCKED_EXPLICIT, backend BLOCKED with local recovery verified and external config/network blocker surfaced;
+  - 高级分析: PASS, backend PASS;
+  - post-GUI store status PASS; post-GUI Same Hash PASS.
+- Official network/business evidence remains current-head PASS with two source receipts, storage integrity PASS, crosscheck PASS, canonical hash `18251a9adb2a6ae69b188816340afd253073df57becd6dc7e8969ef5ae8b1362`.
+- Scientific production truth remains fail-closed: edge_state `NO_EDGE`, dan_state `NULL_DAN`, production model `uniform_baseline`, formal dan count 0. Candidate-pool/protocol denominator PASS; no unproven gain was promoted.
+- Diagnostic artifact: ID `11271772985`, name `Happy8-Staging-Diagnostic-73348494dc294833f7d88cdf8dfd52de89b39ff5`, archive digest `sha256:afa0cb817d6611c4144c7cb21b33e12dc8900c41feedcefde6c71364e03ba449`.
+- Dedicated-repository migration boundary is frozen separately in `docs/HAPPY8_INDEPENDENT_REPO_MIGRATION_MANIFEST.json` (control commit `91338706e7505258140c86b271bb9891cea30f3b`). This preparation does not count as E17 PASS.
+- Final Gate remains **FAIL**. No final artifact is accepted or deliverable until E17, E18, E19 and B07 become PASS on the dedicated repository/release lineage.
+
+
+## 2026-10-03 Happy8 isolated seed tree validation
+
+- External E17 blocker rechecked: GitHub installation still exposes only `douluo511/Geometry-Lotto-Pro`; no repository-creation action is available. E17 remains BLOCKED.
+- To complete all work that does not require the missing repository, an isolated migration seed tree was created in the shared repository without changing the accepted Happy8 product head.
+- Seed source exact head: `64dfe1b9274abecd972edaa52c928f10cb2b6b23`.
+- Seed Happy8 tree SHA: `51147b825909a5395d43749ed4144f417d172500`.
+- Seed workflow blob SHA: `2599e0d4e584bca70e37efa9c13c2a6ee79f1845`.
+- Seed root tree SHA: `16ee80c3d307df457c2cc49e469d24d8298bdc20`.
+- Seed commit: `3015beacbd5d858601abe13ed207a32512344354`.
+- Seed branch: `migration/happy8-independent-seed-20261003`.
+- Root-tree verification: top-level entries are exactly `.github` and `Happy8`; no other portfolio project files are present.
+- Self-containment validation head: `a59e7db60878813c0a60a55b7b4fceafe5aab1c4`; only `Happy8/SEED_VALIDATION.md` was added to trigger the existing PR workflow. Runtime/build blobs under `Happy8/staging` remain unchanged.
+- Validation PR: #89, base `migration/happy8-independent-seed-20261003`, head `validation/happy8-independent-seed-selfcontained-20261003`.
+- Validation workflow run `37119210013`, job `111191881702`, started. This validates that the isolated seed has no hidden monorepo file dependency. Its success will not by itself satisfy E17 because the repository container is still shared.
+
+
+## 2026-10-03 Happy8 acceptance-evidence hardening
+
+- A strict reverse-check found that the previous E18/B07 logic trusted `real_release_update.json.status == PASS`, and E19/Final trusted `FINAL_ARTIFACT.json.status == PASS`. This was an acceptance loophole because a status declaration could substitute for direct release/artifact evidence.
+- Current hardened product head: `74f4b2a22212b654eb8a1e4aef549ec3a7806bfb`.
+- New executable evidence validators:
+  - `Happy8/staging/scripts/repository_independence_gate.py`
+  - `Happy8/staging/scripts/real_release_evidence.py`
+  - `Happy8/staging/scripts/final_artifact_evidence.py`
+- E17 now requires executable repository-inventory evidence. Shared `douluo511/Geometry-Lotto-Pro` is BLOCKED; a purported dedicated repo with mixed/extra project inventory is FAIL; only a dedicated repo with the frozen Happy8-only inventory can PASS.
+- E18/B07 now accept only `happy8-real-release-validation-v1`, cross-validating dedicated repository binding, monotonic N→N+1 versions, trusted HTTPS config/manifest, manifest/artifact receipts, SHA-256/byte counts, independent Updater execution, physical 一键更新, post-update self-test and current-run identity.
+- E19/Final Gate now accept only `happy8-final-artifact-validation-v1`, cross-bound to current repository/source, Windows Exact EXE and Updater hashes, Physical GUI, post-GUI Same Hash and validated N+1 release hashes.
+- Raw `real_release_update.json` and `FINAL_ARTIFACT.json` are required to be generated by the current GitHub Actions run and untracked by Git. Current-run binding requires `producer + github_run_id + github_run_attempt + head_sha`.
+- Unit counterexamples now cover status-only evidence rejection, wrong-run rejection, hash mismatch rejection, shared-repo BLOCKED semantics, mixed-project dedicated-repo rejection, valid full fixtures and final-artifact cross-hash mismatch rejection.
+- Current fresh validation: run `37120044111`, job `111194252723`. Checkout, repository evidence execution, Governance, Self-Test, Compile, Unit, Contract, UI, Storage/Evidence, Service, Updater handoff, Updater rollback/recovery and Fault Injection have executed successfully. Live dual-official-source network is in progress.
+- Because acceptance logic changed, prior completion derivations are historical only. Current-head engineering/business percentages are NOT VERIFIED until run `37120044111` reaches the evidence-derived derivation steps.
+
+
+## 2026-10-03 Happy8 acceptance-hardened seed v2
+
+- Frozen product head: `f59eba6c3bfdce0f83bb34f925fda529f9137be7`; product fresh run `37121044242`, job `111197099904`.
+- Current acceptance hardening includes executable E17/E18/E19 evidence gates, current-run/untracked evidence binding, dual-mode physical GUI update acceptance, physical Release N→N+1 acceptance, final artifact freeze producer, and direct physical EXE/Updater hash+byte verification.
+- Acceptance-hardened Happy8 tree SHA: `4efd880066c508a6205f2258d239cc315f61d455`.
+- Current workflow blob SHA: `98d9cfc7dbc22c11a659c9fe12d2c4c983160c88`.
+- Isolated seed v2 root tree SHA: `f9c5c78e48b48be6de59212bea49e4cd0e558701`.
+- Isolated seed v2 commit: `2a6c287845de351220be207d390ffffc8d6793b6`.
+- Seed branch: `migration/happy8-independent-seed-v2-20261003`.
+- Root inventory verification: exactly `.github` and `Happy8`; no other portfolio project directory.
+- Seed validation-only PR #90, head `6273faba2a8c3828a82dd4f3386f34622feca7cd`, run `37121287818`, job `111197748541`; status VALIDATION_IN_PROGRESS.
+- This seed is NOT yet promoted to the migration manifest until both current product fresh validation and seed-v2 self-containment validation close without internal failures.
+
+
+## 2026-10-03 explicit 18-project scope freeze
+
+- User explicitly reconfirmed that execution scope is **all 18 independent Windows EXE projects**, not Happy8 only.
+- Portfolio membership is frozen as: SSQ, DLT, Psychology Insight Pro, Human Nature System, Investment Finance Pro, English Root Intelligence, Guoxue Zhice, Head Intelligence, TalkCraft, Stock AI Pro, Real-Money Finance, Passive Income Pipeline OS, Earth Online / Life Base, AI Music Production, Legal Philosophy Study, Non-Hard-Work OS, Be Your Own Master, Happy8.
+- Every project keeps the same non-degradable chain: independent project/repository/code/data/config/model-or-content/Updater/Windows Build/Exact EXE/Same Hash/Final Gate/unique final EXE.
+- A blocker in one project never pauses unrelated executable work in another project.
+- Earth Online business denominator is corrected from stale NOT VERIFIED to **8/8 PASS = 100% business-content**, backed by issue #19 comment `5965932110`. Engineering remains BLOCKED because no exact application source/build lineage is recovered.
+
+
+## 2026-10-03 resumed current evidence (supersedes earlier current-head statements)
+
+- Scope remains all 18 projects; accepted final EXEs **0/18**, portfolio Final **FAIL**. Source imports, local tests and isolated seeds never count as a finished product.
+- User explicitly approved the Stock AI 187-file public recovery import and subsequently approved all project engineering fixes/source/tests/workflows/state documents on their existing public draft engineering branches. This authorization persists; no further public-code approval is needed within that scope.
+- Happy8 product exact head `9b82e317f789b357604e6e8546a10fd0b49b626d`, PR #87, run `37139358208`, job `111250395053`: raw logs establish E01-E16 PASS, E17/E18/E19 BLOCKED; engineering **16/19 = 84.2105%**, business **7/8 = 87.5%**, combined **84.2105%**, Final **FAIL**. Both native rebuilds, physical mouse clicks and post-GUI Same Hash PASS. Main SHA256 `1fa4f92b5757a8e94539909fecce0f9628bbff538e7ede0a3a701ae00d0aa761`. Diagnostic artifact `11279599879`, archive digest `ff6c91f6058455cc1ea41c0055a647154526409fb33279fe1a45a98b32a417ff`. Prior f59/v2 runs had a genuine compile-parser FAIL and are historical. Current repair closed that failure without weakening Final release evidence.
+- Stock AI exact original archive SHA256 `fedbc5378ed5916e487b9cdc70051d5d00f790e4689ba8ff96dc8f2396ac7e10`, 187/187 byte-identical files committed on PR #72 at `56e9ce17ad8a4cb03585dc83bee41f9a5b39fd09`. Original Windows offline suite **27/30 FAIL** remains preserved. Separate repaired staging passed **32/32** local subprocess gates; remote staging/CI verification is **NOT VERIFIED** until committed and run. Its recovered application is Streamlit Python source, not a Windows desktop EXE; production network/business/native GUI/Final remain unverified or blocked by their own dependencies.
+- Guoxue PR #91 current exact head `9ecf480c09c7ea7e643aaea12845aa70bdae256a`, run `37138523692`, job `111247919410`: source/unit/contract/fault/integration/Updater/real corpus network/native main and Updater builds/Exact main/Exact Updater self-test PASS. Physical GUI **FAIL** at missing Tk button UI Automation name; subsequent Same Hash/Final **NOT VERIFIED**. Failure is retained and a physical-click plus backend-evidence repair is being prepared.
+- Psychology, English and Head private software Updater implementations and validation are in progress in separate local staging trees. Neither their prior data refresh paths nor local test results alone satisfy independent software release or Final gates.
+- Dedicated repositories remain externally **BLOCKED** on the current connection. Other executable work continues. Source-less projects remain in the 18-project denominator; no project is removed or inferred complete.
+
+
+
+## 2026-10-03 current Windows source recovery update
+
+- Stock AI PR #72 exact head `f29e6b1fdf3e0f88bc74f0d81a56f105ae1e559b`, Windows run `37155420140`, job `111297705436`: immutable import **187/187 PASS** before and after tests, static compile PASS, **32/32 offline gates PASS**, exit 0. Current-run evidence explicitly keeps real network/native desktop/physical GUI/Same Hash **NOT VERIFIED**, Final **FAIL**. Artifact `11285935530`, SHA256 `b74150930f9338f204ac96bb4add49c0070a32722f8f5f611baeb729f8ccac07`. Original 27/30 failure and original byte-identical subtree remain preserved.
+- Guoxue new current head `598b2c9cb2f8eb6d96ad7285edc7613c6391f6eb` submits a private physical mouse producer and backend audit binding, with five passing negative-evidence regression tests. Previous physical FAIL retained; new current-head Windows/Exact/GUI/Hash are **NOT VERIFIED** until fresh CI execution.
+- Happy8 refreshed isolated seed root `3d9c6c32661615b03869369ede3f1102c8201f35`, seed commit `cb4807102d11d6b119945a30875325654987e3dc`, validation exact head `f7977f7bbc86002d82fd5a89342a84617b255320`, PR #90, run `37155556595`. Validation is **NOT VERIFIED** until raw current results close; migration manifest is not promoted. Shared repository remains E17 **BLOCKED**.
+
+
+## 2026-10-03 current physical acceptance and migration checkpoint
+
+- Guoxue exact head `598b2c9cb2f8eb6d96ad7285edc7613c6391f6eb`, run `37155967015`, job `111299280528` closes the previous Tk UI Automation FAIL. Actual foreground mouse clicks at widget-derived coordinates produced current process/run/EXE-bound backend results for goal analysis, fail-closed software update, repair and advanced analysis; Physical GUI and Same Hash **PASS**. Main SHA256 `b54bf26e998edc760a23ee28efcaecc13ba8098e39c8ea817c062da20d57a68b`; Updater SHA256 `6bdfe14c8ab33bbb025af65dfb5200fb33b5be8716ec05bd25642e7661895800`. Only updater_real_network/repository_independence/final_artifact are **BLOCKED** in the current mother gate. A BlockedRelease GUI cannot satisfy the configured-release Final artifact requirement. Final **FAIL**; unique final upload correctly skipped. Audit artifact `11285981873`, SHA256 `219fe8515675c742cb4bdb70abe8fc619e6fa8189cbe587ea5496a7f62a9cd86`.
+- Happy8 isolated refreshed seed validation run `37155556595`, job `111298105713`, exact validation head `f7977f7bbc86002d82fd5a89342a84617b255320`: 16/19 engineering and 7/8 business as product; all internal self-containment/Windows/GUI/Hash PASS; E17/E18/E19/B07 **BLOCKED**, Final **FAIL**. Remote recursive Git tree comparison verifies all **49/49** product runtime/workflow blobs identical; only validation document extra. Migration manifest is refreshed to product head `9b82e317...`, seed root `3d9c6c...`, seed commit `cb480710...`. Manifest overall status **BLOCKED**, never E17 PASS. Audit artifact `11285927132`, SHA256 `73ef77da9f48c8b780622ab48bc0042a2d073a3b7cb2d0509a8d49750eccf311`.
+- Local main-packaging attempts for English, Head and Psychology exposed broken Tcl initialization and excluded Tk modules despite build process exit 0. Effective local GUI build **FAIL** and Exact main/Physical GUI **NOT VERIFIED**; independent Updater EXE self-tests are separately PASS. Source tests cannot erase this failure. Fresh normal pinned Windows CI is the next required native validation.
+
+
+## 2026-10-03 strict continuation — Stock AI live execution and Legal Philosophy candidate recovery
+
+This delta is a control-plane pointer only. It is **not** acceptance evidence; raw exact-head Actions/artifacts and recovered bytes remain authoritative.
+
+- **Stock AI Pro PR #72** preserved immutable `recovered_exact` and hardened only the mutable staging lineage. Exact head `e03ad4890c7d2818277f711a52951dc715c58846`, Windows run `37159098094`, job `111308578958` closed strict NetClient Contract/Fault PASS, immutable 187/187 before+after PASS, frozen 32/32 Windows offline regression PASS, and real AkShare RAW→VALIDATED→CANONICAL→FEATURE source-integration PASS. Accepted source receipt used Sina over enforced HTTPS; 73 RAW HTTP receipts; selected symbol `300308`; 2123 history/feature rows; canonical snapshot SHA256 `9e2a310260bdab45b551e5f8745403bef3d4bb45edfa6611e8fe1764c39caebd`; history SHA256 `d08dbb6c380417bd239dad18f269bcee051cf12afabc1b5642212c154d9b3a59`; feature SHA256 `9dec77bcb8fde48d7d7bbb152f1a28dfde694363b47921a3be6229a411ac8da5`. This is source integration only, not final-product Real Network.
+- Stock AI full default-production daily execution exposed and preserved two sequential failures instead of manufacturing PASS: run `37159438228` failed because a read-only BSE query uses POST and the first NetClient policy rejected all POST; after operation/host/path-scoped read-only POST allowlisting, run `37159635387` advanced to a real SSE HTTP 403 on `query.sse.com.cn`. No clean-cache substitute existed, so the daily chain correctly remained FAIL.
+- Current Stock AI behavior head is `93bab0858f65629bbda6f23e6d6f8cd291d8a92f`. It keeps the exchange-list aggregate primary, adds real all-market Eastmoney→Sina current-universe fallback through the same NetClient/evidence chain, and only permits an existing validated cache after all live paths fail. Current-head runs `37159884069` (source/offline/source-network) and `37159884065` (full default-production daily business) are executing; all changed-chain outcomes remain NOT VERIFIED until those runs close.
+- **Legal Philosophy Study** exact Library candidate bytes were recovered directly: `Law_Philosophy_Principles.exe`, 9,216 bytes, PE32+ x86-64 Windows GUI, SHA256 `d33501473a496e5d32b60e75a4d187e262357afa12a93fa6769f7cf06220495e`. Static candidate strings include 5 Why / Counterexample / Reversal Test and network/evidence acceptance labels, but also explicitly `NETWORK UPDATE = NOT_EVALUATED`. Candidate byte identity is VERIFIED; exact source/build lineage, current Real Network, Windows rebuild lineage, physical GUI, Same Hash and Final remain NOT VERIFIED/BLOCKED.
+- **Real-Money Finance recovery lead**: `CapitalFlowPro.exe` original bytes were recovered and inspected (5,618,688 bytes, SHA256 `3faeb25dd8707ac56e8a32b819da6846e392ecdc8a548979537dccd8563e547d`, Go 1.23.2 Windows/amd64, product string `Capital Flow Pro 0.1.0-candidate`). No source module identity beyond `command-line-arguments` is embedded and no evidence currently binds this differently named candidate to the frozen Real-Money Finance application lineage; therefore no project gate is promoted from it.
+- Fresh GitHub installation `163930022` repository enumeration still returns only `douluo511/Geometry-Lotto-Pro`. The connector exposes no create-repository action. Independent-repository dependent gates therefore remain BLOCKED and are not rerun merely for activity.
+
+
+## 2026-10-04 strict continuation — current exact state
+
+- **Independent-repository creation diagnosis corrected from raw evidence.** PR #103 run `37201065637`, job `111432680774`: `GET /rate_limit` returned HTTP 200 with core remaining `4999/5000`; `GET /user` returned HTTP 403 `Resource not accessible by integration`; `POST /user/repos` returned HTTP 403. The operative blocker is the GitHub App integration identity/capability plus the absence of an account-level repository-creation action, **not** depleted REST quota. Issue #71 comment `5981235014` records the correction. `repository_independence` remains BLOCKED.
+- **Migration seed coverage is now 17/18 successful export verifications.** Current export-verification PRs #97, #98, #99, #100, #101, #102, #105, #108, #109, #110, #111, #112, #113, #114, #115, #116 and #118 have successful seed-verification workflows. These prove migration package integrity only; they do not prove independent repository, production updater, formal Release, or Final Gate.
+- **AI Music project #14 is no longer an untracked missing line.** Exact historical candidate identity is recovered as `AI_Music_Pro.exe`, 1,711,616 bytes, SHA-256 `03ee21fd0bbc51ce998d3b8d9756a6ab6bf7892265888892eec8af7ecb4dfe3c`, Windows x64 Go GUI. Draft PR #122 persists this identity while keeping exact historical source/build lineage and provider/license evidence NOT VERIFIED/BLOCKED.
+- **AI Music re-authored staging lineage started separately in PR #123.** It implements deterministic non-silent local WAV generation, project/evidence storage, fail-closed repair/update boundaries, four-entry UI `AI创作｜一键更新｜一键修复｜高级制作`, independent updater candidate, source-reference HTTPS network gate, Windows build, Exact EXE self-test, physical GUI and Same Hash workflow. This lineage explicitly does **not** relabel local procedural audio as proof of an external AI model/provider. External provider/model/licensing, lyrics/vocal path, independent repo, positive production Release N→N+1 and formal release re-download remain NOT VERIFIED/BLOCKED. Exact-head run `37211419969` is IN_PROGRESS and no downstream PASS is pre-promoted.
+- **Stock AI behavior head advanced to `506e4711a43df0bb62efa9595193c62d61efc4e3` on PR #72.** Prior full-production run `37206847395` completed live history 300/300 and reached `maintenance_backtest_audit`, then the acceptance harness terminated the still-progressing valid process at the frozen 3300-second outer timeout. The fix changes only the harness timeout to 7200 seconds; models, backtest evaluation points, random trials, maintenance, network and business denominators are unchanged. Exact-head offline regression run `37210517226` is PASS; native desktop run `37210517224` and full production daily run `37210517216` are IN_PROGRESS. Changed-chain outcomes remain NOT VERIFIED until those runs close.
+- **No portfolio Final promotion.** Successful workflow, export seed, candidate EXE, current Same Hash or monorepo staging evidence is not a substitute for Engineering=100%, Business=100%, independent repository, real production Release N→N+1, formal release evidence and Final Gate PASS.
+
+
+## 2026-10-05 strict supervision delta — current exact state
+
+- Portfolio export/migration seeds are currently verified **18/18**, but **real independent repositories visible = 0/18** and **final delivery allowed = 0/18**. Fresh installed-repository searches for all 18 project names returned no dedicated targets; the active connection currently exposes only `douluo511/Geometry-Lotto-Pro`. A branch/folder/export seed inside this repository remains staging and cannot satisfy repository independence.
+- **Stock AI:** source PR #126 current exact head is `85dfaeeb41c14911255f7a726421d310748e26d1`. The prior current-product Windows run `37219334629` belongs to superseded head `d1e04a1fc3c6d60a8d830388644c0fae38750985` and is retained only as FAIL evidence: the packaged Advanced Analysis executed but the business validator rejected `UNIVERSE_COVERAGE=FAIL`. The current branch now contains a separate real-network research-corpus qualification prerequisite requiring both full-universe and delisted coverage >=90%; no threshold was lowered.
+- Stock exact-head retrigger commit `85dfaeeb41c14911255f7a726421d310748e26d1` was created and PR #126 was closed/reopened, but GitHub registered no Actions runs on that head. Validation-only PR #130 was then opened from the identical exact head to force a fresh pull-request event; it also has no Actions run. Therefore current Stock Windows/Advanced/Physical-GUI evidence is **NOT VERIFIED**, not inherited from the old run.
+- **Investment Finance:** PR #129 run `37221603562` reaches Windows Build / Exact EXE / Real Network / Physical GUI / Same Hash PASS; Final remains FAIL because `repository_independence=BLOCKED` and `updater_real_network=BLOCKED`.
+- **Head Intelligence:** PR #94 run `37194265114` reaches the same late technical gates PASS; Final remains FAIL only on real independent repository + independent production release/update evidence.
+- **SSQ:** PR #76 current head `2845cdec7cb4fcfcf2c6b68948093ba29d267c9a`; Windows run `37221678531` remains Final FAIL. The source-approved business denominator is already `BUSINESS_SCOPE_APPROVAL=PASS`. Its `business_content=PENDING` is not an approval gap: B05 is pending because the independent Updater N→N+1 release requires `repository_independence`, `release_context`, and `updater_real_network`. Do not create fake approval evidence to clear it.
+- **DLT / Psychology / English / Guoxue:** latest strict Windows chains reach late acceptance/final aggregation but cannot be promoted while their independent repository/release gates are missing.
+- Current exact source heads retained for resumption include: DLT `d44142e0d22b4817aae12d04b1519a8f7947f5d3`, Psychology `efcdf7b17bc6320d7c5e56ac5695d8a1703d0d74`, English `e0aba7a1fdd261c54cfd2e5d127e1d527737aef4`, Guoxue `598b2c9cb2f8eb6d96ad7285edc7613c6391f6eb`, Head `d4dc4a3b75f38a3064e39f0ea6cc9ea052b95c6c`, Real-Money Finance `d02d2752b55efa0df6d2cbc8b64ddcbcced17e60`, Legal Philosophy `7388559ce5dcf0662b1d1e35537a52d7cd834c92`, Be Your Own Master `44f688fc06d09eb9e6435b42c84e4c80abb6978c`, Non-Hard-Work `2a6469531e832526e511463d4ea4b65b7c53c877`, Passive Income `174e0d936417ff9fe3dea8395d323fd0265073d4`, Earth Online `a9dd46bd99189d839d07e520717b3553087ff4ce`, AI Music `7cf2c4acd727ed611332becf093c1663f3a2e6f9`, Happy8 science `e36bdeb2840234fb9652e0f156fc71e396f3c2ea`.
+- **Portfolio Final Gate remains FAIL.** No project is authorized for final delivery until its current exact head has the complete frozen chain PASS inside a real independent repository with a real production Release/Updater path.
+
+
+## 2026-10-05 continuation delta — progressive Stock qualification
+
+- Stock PR #126 current exact head: `c6e329d2a5059f296ee2303032b28b5a702a3600`.
+- Preserved run `37244348122` on superseded head `9d1e6112...` proves Windows native build / Exact EXE self-test / repair worker / frozen real-network core PASS, then honest failure at corpus qualification: 3,040 / 5,362 = 56.6953% full-universe, delisted = 90%, frozen thresholds = 90% / 90%.
+- Corrective execution is cumulative and does not lower the denominator: `79ac9201...` adds progressive real-history cache bound to active `data_source.py`; `75a09824...` + `22818e18...` increase only qualification I/O concurrency to bounded 24 workers; manifest-binding commits `d300d5af...` / `da44c145...`; contract commit `c6e329d2...` verifies the 24-worker path keeps the 90% denominator.
+- Fresh current-head Actions: desktop `37256385030`, business `37256385026`, recovery `37256385039`; status IN PROGRESS at this checkpoint. No superseded PASS/FAIL is inherited.
+- Guoxue, English and Psychology current late-chain evidence is locally complete through Real Network / Windows / Exact EXE / Physical GUI / Same Hash with business PASS; their remaining Final blockers are independent repository + real N→N+1 release/update (+ final formal artifact where applicable).
+- Legal Philosophy re-authored candidate: business 100% (14/14), engineering 85.7% (24/28); remaining engineering gates are external production-release/repository/formal-redownload gates.
+- Real-Money Finance re-authored candidate: engineering 85.7% (24/28), business 68.8% (11/16). Truthful business blockers are cost/slippage calibration, capacity, corporate-action PIT, information-availability PIT, survivorship-safe precommitted universe.
+- AI Music re-authored candidate: local Windows/Exact/GUI/current-byte hash chain PASS, but cloud AI generation / provider output quality / provider-license provenance remain NOT VERIFIED; business is not 100%.
+- Happy8 remains scientifically fail-closed: no qualified predictive edge and prospective evidence PENDING. Engineering completion cannot substitute for business truth.
+- Portfolio Final remains FAIL; delivery allowed remains 0/18 while independent target repositories visible to the active integration remain 0/18.
+
+
+## 2026-10-05 current-session exact-state delta
+
+- **Migration readiness remains 18/18 PASS at current indexed export heads.** SSQ and DLT now use strict exact-product rebind PRs #132/#133; RMF uses current-product PR #131; Investment uses updater-enabled PR #112; Stock uses PR #99 on the current strict product lineage. Migration seed PASS remains migration evidence only.
+- **Stock AI Pro current product exact head is `c6e329d2a5059f296ee2303032b28b5a702a3600` on PR #126.** Current source/offline/Real Network run `37256385039` is SUCCESS; 187 immutable files, 189 distribution-manifest files, 72 active-version-manifest files, 32/32 offline gates, valuation NetClient ownership, PIT valuation contract, 24-worker qualification contract, and real AkShare source→canonical→feature path are current-head PASS. Full production business run `37256385026` and native desktop/research-corpus/Advanced/Physical GUI run `37256385030` remain IN_PROGRESS and are not promoted.
+- **Repository creation blocker is now primary-evidence bounded.** Actions job token cannot create a user repository; no conventional account-level PAT secret is configured; public-template repository generation also returns `403 Resource not accessible by integration`; authenticated user has no organization memberships. Repository Independence remains 0/18 PASS.
+- **Existing-repository Release mechanics are separately verified PASS.** Reversible probes proved draft Release create → asset upload → authenticated re-download → SHA-256 Same Hash → Release cleanup on the existing repository. This does not satisfy production N→N+1, independent repository, or signing requirements.
+- **Legal Philosophy business completion is current 100% on exact-head migration verification; engineering remains 85.7% because positive production update, Repository Independence, real N→N+1 and formal release re-download Same Hash are not closed.**
+- **Real-Money Finance current candidate has current Real Network/Windows/Exact EXE/Physical GUI/Same Hash PASS and business 11/16 = 68.8%.** Five business gates remain NOT VERIFIED: cost/slippage calibration, liquidity/capacity, corporate-action PIT lineage, historical point-in-time leakage control, and survivorship-safe precommitted universe. These are not promoted from synthetic or illustrative assumptions.
+- **Portfolio Final remains 0/18; Delivery remains 0/18.** No candidate, workflow success, migration artifact, or monorepo Same Hash substitutes for independent repository + production Release N→N+1 + formal release re-download Same Hash + all business gates.
+
+
+## 2026-10-05 exact-state continuation — current session
+
+This section supersedes stale PR-body wording for the named projects below. It is a control-plane pointer only; raw exact-head Actions/artifacts remain authoritative.
+
+- **Real-Money Finance PR #95** exact head `ed1bfd7228a9a28d0a1e99b53edf684d7c605717`, run `37220214162` / job `111488851994` = SUCCESS as candidate validation only. Main EXE SHA-256 `9b7d083831fc0273ad6adcd766068bc4516c7ad1eb4eeccdd57832fa9a17dd7e`; Updater SHA-256 `5eb243f3a19cf29789e2e4076408db7d7d3be2c437ed2667155309c85bf52cc5`; artifact `11309916996`, digest `e34ada4a1908cc68b923c4b4f7779d453a31898b5b0a945b5712c3a8cbc2ed40`. Engineering 24/28=85.7%; business 10/16=62.5%; overall 62.5%; Final FAIL. Six business gates remain NOT VERIFIED and production updater/repository/release gates remain BLOCKED/NOT VERIFIED.
+- **English Root #92** exact head `e0aba7a1fdd261c54cfd2e5d127e1d527737aef4`, run `37157129067` / job `111302703601`: all Windows/Tcl/Exact EXE/Physical GUI/Same Hash/business gates PASS except `updater_real_network`, `repository_independence`, `final_artifact` = BLOCKED. Engineering 90.625%, business 100%, combined 90.625%. Main SHA `0d79d261d30d488edfc270ed2227876dd79bd36ebfaf26b293e4b03dc1258fed`; Updater SHA `18c736f3464064eb96d273e81994462a3d096a10bbab7d360989f0c3cd0c769a`.
+- **Guoxue #91** exact head `598b2c9cb2f8eb6d96ad7285edc7613c6391f6eb`, run `37155967015` / job `111299280528`: Real Network / Windows / Exact EXE / Physical GUI / Same Hash / business PASS; only `updater_real_network`, `repository_independence`, `final_artifact` BLOCKED. Main SHA `b54bf26e998edc760a23ee28efcaecc13ba8098e39c8ea817c062da20d57a68b`; Updater SHA `6bdfe14c8ab33bbb025af65dfb5200fb33b5be8716ec05bd25642e7661895800`.
+- **Psychology #93** exact head `efcdf7b17bc6320d7c5e56ac5695d8a1703d0d74`, run `37193960475`: 32/34 hard gates PASS; only `updater_real_network` and `repository_independence` BLOCKED. Main SHA `cbc788294ca02f975f967ec6b2854b86f285cbbf9f84ac282c877ea71e4a1d6e`. Final FAIL.
+- **Head Intelligence #94** exact head `d4dc4a3b75f38a3064e39f0ea6cc9ea052b95c6c`, run `37194265114`: 33/35 hard gates PASS=94.2857%; only `repository_independence` and `updater_real_network` BLOCKED. Main SHA `6497571970e2133951b1a1174f4efb48a562163704dc5281ec98ef4866c6dc66`. Final FAIL.
+- **Investment Finance** internal Updater gap is closed by merged PR #129 exact head `66480e4961d1b848c8a293ccbe0f0c0aa7010359`, run `37221603562`. Main SHA `74853d5328c2d3511b2eb177c769c037a0472032064fb52461e1220347433543`; Updater SHA `dc842c3021ae603e32085bb8ae6356f8563e5fbbdc5fe927a9a4b41f355df6b4`. Internal updater process / Exact Updater EXE / rollback / Same Hash PASS. Only repository independence and real production updater network remain BLOCKED. Final FAIL.
+- **Stock AI #126** previous head `d1e04a1fc3c6d60a8d830388644c0fae38750985`: source/offline and full business PASS, native desktop FAIL because the acceptance harness conflated advanced business qualification with Windows physical-execution status. New exact head `dfa07c51fffdaa7736147cd49e39a274a745e363` separates those gates without changing business qualification. Business FAIL/NOT VERIFIED remains literal; Physical GUI/Exact EXE/Same Hash can now continue independently. Fresh runs `37259832034` source, `37259832083` business, `37259832040` desktop are current-head and must not be pre-promoted.
+
+Portfolio boundary remains unchanged: migration-seed readiness does not satisfy Repository Independence; Final accepted products remain 0/18 until each project reaches Engineering=100%, Business=100%, all hard gates PASS, dedicated repository/release lineage complete, and unique final artifact accepted.
+
+
+## 2026-10-05 continuation delta — Real-Money official cost evidence
+
+- Stock AI PR #126 exact head advanced to `dfa07c51fffdaa7736147cd49e39a274a745e363`. Recovery run `37259832034` is current-head PASS; desktop `37259832040` and full business `37259832083` remain IN_PROGRESS and are not pre-promoted.
+- Real-Money Finance new incremental PR #137 exact head `4f1e4736947509820fed36dfbf16b22d3cd7b1bc` adds official regulatory cost evidence through the frozen NetClient. It proves only exchange handling-fee / stamp-tax sub-evidence when the authoritative pages are successfully retrieved and parsed; broker commission and observed execution slippage remain NOT VERIFIED, so the frozen cost/slippage business gate cannot be promoted from this change alone.
+- PR #137 run `37261916923` has passed Static / Governance / Contract / Freshness / Fault / Updater-contract / Real-Network at this checkpoint and is executing business qualification. Final result remains NOT VERIFIED until the exact-head run closes.
+- Fresh owner repository enumeration still returns only `douluo511/Geometry-Lotto-Pro`; dedicated repository availability remains 0/18 and Repository Independence remains BLOCKED.
+- Portfolio Final remains FAIL; final delivery allowed remains 0/18.
+
+
+## 2026-10-05 Real-Money cost-evidence rerun correction
+
+- Real-Money PR #137 old exact head `4f1e4736947509820fed36dfbf16b22d3cd7b1bc`, run `37261916923`, completed candidate SUCCESS through Windows Build / Exact EXE / Physical GUI / Same Hash, but the new official regulatory-cost sub-evidence remained NOT VERIFIED because the Ministry of Finance stamp-tax-halving page was not decoded/matched correctly.
+- That partial-evidence defect was not promoted. Root cause was corrected with government-page charset handling plus whitespace-tolerant effective-date matching and a regression test.
+- Current PR #137 exact head is now `166b17efe4e929f1fba658e698f79bef36657528`; fresh run `37262100941` is IN_PROGRESS. All old-head downstream PASS is historical for the changed behavior until this fresh run closes.
+- Frozen Real-Money completion remains engineering 24/28=85.7%, business 11/16=68.8%, Final FAIL unless fresh evidence proves otherwise. Regulatory fee/tax evidence alone can never satisfy broker commission or observed execution slippage.
+
+
+## 2026-10-05 Real-Money official regulatory-cost sub-evidence closed
+
+- Real-Money PR #137 current exact head `573e07d57e3f3249e2ec03778559e439c007d64b`; fresh Windows run `37262214746` (#93) = SUCCESS.
+- Current-head chain PASS includes Static / Governance / Contract / Freshness / Fault / independent Updater contract / Real Network / business-method execution / Windows Build / Exact EXE / Physical GUI / current-byte Same Hash.
+- Official regulatory-cost sub-evidence is current-head PASS through real NetClient receipts and payload hashes: SSE A-share handling fee `0.00341%` each side (`0.341 bps`), statutory securities stamp-tax base, and the 2023-08-28 halving policy (derived current sell-side tax evidence `5.0 bps`).
+- This sub-evidence does **not** promote the frozen `cost_slippage_calibration` gate: broker commission and observed execution slippage remain NOT VERIFIED. RMF business remains 11/16=68.8%; engineering remains 24/28=85.7%; Final FAIL.
+- Current main EXE SHA256 `5be3cc0e33eebd9256c93aee114cf7613b871639dc1cfa312aaca2c31dc54354`; updater SHA256 `1f9a5f599c9af940821e30cf624f7e7a5e2c31565b67fa15675ba4ec2fa29868`.
+
+
+## 2026-10-05 Human Nature / TalkCraft current-head refresh
+
+- Human Nature branch `fix/human-nature-current-main-20260929` current head `b332109080d03cb4b15ac6d479782b48b1c6dcba`; run `37258744429` proves current architecture/business/tests/Real Network/Windows/Exact EXE/Physical GUI/Same Hash/business-content PASS. Candidate SHA256 `47052f1b844c917e6fd1a52c795fb51ba1c0ddfa4227144efd7930907083a319`. Sole hard failure is `repository_independence=FAIL`; Final FAIL.
+- TalkCraft branch `recover/talkcraft-fullcandidate-20260929` current head `8bbedccdeeb99e1b1c552442aa4584c6a3e57e00`; run `37258749730` proves current architecture/business/tests/Source+Exact EXE Real Network/Windows/Exact EXE/Physical GUI/Same Hash/business-content PASS. Candidate SHA256 `96e64cf8a83f29ff56d8b09a39f0c54f04026305ee2b202482f70cf68ea620d6`. Sole hard failure is `repository_independence=FAIL`; Final FAIL.
+- These current exact results supersede the stale 2026-09-29 issue-body hashes but do not change portfolio deliverability.
+
+
+## 2026-10-05 business-evidence triage
+
+- Passive Income current candidate remains engineering 24/28=85.7143%, business 5/11=45.4545%. Remaining business gates require external observed customer/payment/economics/repeatability/labor-reduction/production-resilience evidence and are not code-completable.
+- Non-Hard-Work remains engineering 24/28=85.7143%, business 4/12=33.3333%. Remaining commercial gates require real demand/payment/cash/economics/repeatability/systemization/assets/scale observations.
+- Be Your Own Master remains engineering 24/28=85.7143%, business 11/13=84.6154%. The only business gaps are 30-day and 90-day effectiveness, which require elapsed real-world evidence.
+- These external/elapsed business gaps are intentionally not converted to PASS through fixtures, projections, wording changes or additional software-only runs.
+
+
+## 2026-10-05 exact-state checkpoint — current-product export readiness restored
+
+- Current-product-bound migration/export verification: **18/18 PASS**.
+- Real dedicated independent repositories visible/writable to the current GitHub integration: **0/18 PASS**.
+- Portfolio Final Gate / delivery allowed: **0/18**.
+- SSQ current product head: `3b61bb59ed0da6f7c7717b6840fe95a00d58a2ad`; migration PR #141 run `37263066966` PASS. Its Windows full-chain run `37262758839` is still in progress; no old PASS is inherited.
+- Stock current product head: `dfa07c51fffdaa7736147cd49e39a274a745e363`; stricter product-byte-neutral migration PR #140 run `37262978618` PASS. Product business/desktop runs `37259832083` / `37259832040` remain in progress.
+- Real-Money current product head: `573e07d57e3f3249e2ec03778559e439c007d64b`; migration PR #139 run `37262871456` PASS. Candidate Engineering 85.7%, Business 68.8%, Overall 68.8%; Final remains FAIL.
+- Migration readiness is not repository independence, not a formal Release, and not a Final product.
+
+
+## 2026-10-05 continuation — RMF main merge, SSQ/DLT exact release blockers
+
+- Real-Money validated staging head `917e1de5e3a471064fb79b0edb5055a059c095d0` passed run `37267323305`, including current Real Network / Windows / Exact EXE / Physical GUI / Same Hash. Corporate-action PIT remains honestly NOT VERIFIED because 5 detected persistent qfq/raw factor shifts yielded 1 matched independently announced event and 4 unexplained shifts; business remains 11/16=68.8%.
+- PR #153 promoted that fail-closed evidence capability to `main` at merge commit `c79666888aed8fe8b28ff4f165be06e9eef1884e`. No fresh Actions run exists on the merge SHA, so exact-main runtime evidence is NOT VERIFIED rather than inherited from the staging SHA.
+- SSQ current product head `3b61bb59ed0da6f7c7717b6840fe95a00d58a2ad`, run `37262758839`: all current internal/Windows/Exact/reproducible/GUI/hash gates pass; Final FAIL is exactly business_content=PENDING (B05-derived), updater_real_network=PENDING, repository_independence=FAIL, release_context=FAIL.
+- DLT current head `88809643fe3841879f4c038b9bbffb86026629f5`, run `37258239532`: current internal/official-network/reproducible Windows/Exact/Updater/GUI/hash gates pass; Final has the same four release-chain non-PASS states.
+- Stock current exact head `dfa07c51fffdaa7736147cd49e39a274a745e363`: full default-production business run `37259832083` is PASS; desktop run `37259832040` is still executing the frozen >=90% current+delisted research-corpus gate.
+
+
+## 2026-10-05 RMF current-main migration seed refresh
+
+- RMF migration PR #156 exact head `e0859d9cc8ef40ec630036d794122f2aa3fa1efc`, product base `c79666888aed8fe8b28ff4f165be06e9eef1884e`.
+- Export verification run `37268484244` / job `111630236519` = SUCCESS: product-tree byte identity PASS, deterministic export PASS, independent second-pass hash verification PASS, deliberate mutation fail-closed PASS.
+- Export manifest: 41 files; SHA256 `49b9f836ec187654edc4c2a916e3db7c5c0c8fe0b4358903375e2af6646f8316`; artifact ID `11327253113`.
+- The workflow explicitly records repository_independence=NOT VERIFIED, real_release_n_to_n_plus_1=NOT VERIFIED and final_gate=FAIL. Migration/export readiness is not a final product.
+- With this refresh, current-product-bound migration/export verification is again 18/18 PASS; visible real independent repositories remain 0/18 and portfolio Final remains 0/18.
+
+
+## 2026-10-05 authoritative-line correction — Stock #155 / Happy8 fe95
+
+- **Stock AI authoritative successor is PR #155**, exact head `f9d610aafe910cb73b036701a688329d9899399b`, based directly on PR #126 product head `dfa07c51fffdaa7736147cd49e39a274a745e363`. Source/offline run `37268369320` is current-head SUCCESS. Business `37268369291` and desktop `37268369332` remain IN_PROGRESS and are not pre-promoted.
+- Direct audit of PR #155 confirms the research-history cache now uses separate `actions/cache/restore` and `actions/cache/save`, a semantic restore prefix, a per-run/per-attempt save key, and `if: always()` save. This permits a bounded failed >=90% qualification attempt to persist validated real-network history without lowering the frozen current+delisted >=90% threshold. Closed PR #152 is historical/stale, not current.
+- **Happy8 PR #39 current exact head is `fe95aad8f6d3ff8b297865b05f68fc4c83eabe02`**. Superseded run `37268193865` exposed `UnboundLocalError: raw_required` in Storage; current fix initializes every manifest row raw-required before source dispatch and only permits the explicitly validated derived Jiangsu-crosscheck metadata branch to opt out. Fresh run `37268981282` has current-head PASS through Compile/Domain/Storage/Service/science-method/updater-contract/self-test/UI-source-contract. Its live production network gate has not qualified; Science/Windows/GUI remain downstream NOT VERIFIED while official-source diagnostics execute.
+- RMF duplicate migration PR #156 was closed unmerged. Existing PR #154 / run `37267672124` remains the authoritative current-main migration verification.
+- Portfolio Final remains 0/18; real independent repositories visible remain 0/18.
+
+
+## 2026-10-05 correction — current-product migration readiness is 17/18
+
+- Stock PR #155 head `f9d610aafe910cb73b036701a688329d9899399b` changes research-corpus evidence semantics and package bytes, so the prior Stock migration/export seed cannot be inherited.
+- Therefore **current-product-bound migration/export readiness = 17/18**, not 18/18, until the Stock #155 exact-head source/business/desktop acceptance chain completes and a fresh deterministic Stock export is verified against that exact product head.
+- RMF #154 remains valid for `main@c7966688...`; closing duplicate RMF #156 does not reduce RMF migration readiness.
+- Real independent repositories remain **0/18**; Final Gate PASS remains **0/18**; final delivery remains **0/18**.
+
+
+## 2026-10-05 Happy8 exact-head advance — Windows console encoding fix
+
+- Happy8 PR #39 exact head advanced to `6f3d7a2dc82a3dfc7e06d98f0758c3e90875f795`; fresh run `37269650912` is authoritative and currently executing.
+- Superseded head `fe95aad8f6d3ff8b297865b05f68fc4c83eabe02` / run `37268981282` proved the earlier Storage/Service raw-provenance bug fixed, but the live step exited 1 after evidence generation because Windows cp1252 stdout could not encode Chinese JSON.
+- Artifact `11327616730`, digest `sha256:fc9d386b9997de83301021940931ebae0f450986886a3e2588019dfc502af191`, directly contains `live_official_history.json` with status PASS: 2084 draws, latest 2026263, Fuzhou+MOF-calendar+Jiangsu-current verification, crosscheck PASS, Storage commit PASS and Storage integrity PASS.
+- Commit `6f3d7a2d...` changes only console serialization to ASCII-escaped JSON; the UTF-8 evidence file and all source/scientific admission rules remain unchanged.
+- Separate diagnostics remain fail-closed: Jiangsu/Fuzhou reconciliation cannot independently bind issue 2021016 to a visible Jiangsu date; Sichuan is `SICHUAN_HISTORY_CONTRACT_INCOMPLETE` and is not production-admitted.
+- Until run `37269650912` reaches downstream gates, Science/Windows/GUI/Same Hash on this exact head remain NOT VERIFIED.
+
+
+## 2026-10-05 continuation — Stock export refreshed / Happy8 reproducible-build repair
+
+- **Stock AI current-product migration/export restored**: PR #158 head `9e2bc7c2177a7621da3365b1cce9485b699f1948`, bound to product head `f9d610aafe910cb73b036701a688329d9899399b`. Run `37271886175` = SUCCESS: product-tree byte identity PASS, deterministic export PASS, independent second-pass verification PASS, deliberate tamper fail-closed PASS. Export: 406 files, manifest SHA256 `816fb86307881832f084fda206a97d3f895d2744441fdfd313b0dfe19667d535`, artifact `11328543634`, ZIP digest `sha256:52735175dacf7c7706680d957a0ed22661387044d822df23d5b7bd9bdb76898c`. Old PR #140 closed as superseded.
+- Therefore **current-product-bound migration/export readiness = 18/18 PASS** again. This does not change Stock runtime acceptance: #155 business run `37268369291` and desktop run `37268369332` remain IN_PROGRESS.
+- **Happy8** exact head `6f3d7a2dc82a3dfc7e06d98f0758c3e90875f795`, run `37269650912`: Live official network PASS, scientific validation PASS with explicit `NO_EDGE / NULL_DAN / prospective=PENDING`; Windows build itself completed twice but reproducible Same Hash failed (`9cea4bdf... != 6ff3875e...`), so Physical GUI was correctly skipped and Final remained FAIL.
+- PyInstaller official reproducibility inputs were then frozen without removing the dual-build gate: current Happy8 exact head `8de39dcfd4c3c6a0070eb6506e5ad56cb859eaba` sets `PYTHONHASHSEED=1` and `SOURCE_DATE_EPOCH=1704067200` and records them in Windows evidence. Fresh run `37271743611` is authoritative and IN_PROGRESS.
+- Real independent repositories remain **0/18**. Portfolio Final Gate PASS remains **0/18**. Final delivery remains **0/18**.
+
+
+## 2026-10-05 Stock #155 Full Business terminal result
+
+- Exact Stock product head `f9d610aafe910cb73b036701a688329d9899399b`.
+- Full Business run `37268369291` / job `111629929713` = SUCCESS.
+- Default production daily chain: 300/300 live updates, live universe 300, research master 5461, research training symbols 353, validation rows 13,387, production train rows 180,000, valuation qualification PASS at frozen 40% target (120/300), data-quality good ratio 1.0.
+- Decision is correctly fail-closed: `NO_TRADE`, model trust LOW, Rank IC `-0.09807788334098926`; this PASS means the business process executed honestly, not that a predictive edge exists.
+- Prediction manifest SHA256 `026b80e81a194c51dcdd8a38d30f14f8ac17177516de4fcc8f2fb331e7430db5`.
+- Artifact `11328414508`; ZIP digest `sha256:0a28dee49b3b5c97138edaab185f1cf6b331bfd776b564883b82842e5834b897`.
+- Desktop run `37268369332` remains IN_PROGRESS at the exact-head >=90% current+delisted research-corpus prerequisite. Windows desktop / Physical GUI / Same Hash / Final are not inherited from Business PASS.
+
+
+## 2026-10-05 Stock migration authoritative-seed correction
+
+- PR #158 is closed unmerged as an exact duplicate of earlier PR #157.
+- Both were based on Stock product head `f9d610aafe910cb73b036701a688329d9899399b`; the exporter and workflow Git blob SHAs are byte-identical across the two branches.
+- **Authoritative Stock current-product migration seed = PR #157**, exact head `e27586e82fa1187fb85e43076302d8ce54021430`, run `37271777113` SUCCESS, artifact `11328389116`, digest `sha256:23303ef27bc779140722c2ab2e11974dbfa277d1ebf56d2fd1130e307f358da7`.
+- Portfolio migration/export readiness remains **18/18 PASS**; this correction changes only which duplicate control branch is authoritative.
+- Repository independence remains **0/18**; Final/Delivery remain **0/18**.
+
+
+## 2026-10-05 strict invalidation — Happy8 current-product export refresh pending
+
+- Old Happy8 migration PR #102 is bound to product baseline `9b82e317f789b357604e6e8546a10fd0b49b626d`; current Happy8 product is PR #39 head `8de39dcfd4c3c6a0070eb6506e5ad56cb859eaba`.
+- Because product/workflow behavior changed, old Happy8 migration evidence is invalid for current-product counting.
+- Current-product-bound migration/export readiness is therefore **17/18** until the new Happy8 seed verifies.
+- Fresh migration PR #160 head `4c2b721b103b0409b254755ae435425f119bb05e` is based directly on `8de39dcf...` and changes only the deterministic exporter and export-verification workflow.
+- Real independent repositories remain **0/18**; Final/Delivery remain **0/18**.
+
+
+## Exact-state execution checkpoint — 2026-10-05 08:54Z
+
+This checkpoint supersedes older in-progress wording for the items below only. It does not change any frozen denominator or Final criterion.
+
+- **Repository boundary:** the connected installation currently exposes only `douluo511/Geometry-Lotto-Pro`; no dedicated repositories for the 18 products are visible. Repository Independence therefore remains **0/18 PASS** and portfolio Final/Delivery remains **0/18**.
+- **Real-Money Finance prospective survivorship control:** PR #175 exact head `a43874c0aa947348f30bd2a10098bb1fef5941d6`, run `37285578687` completed SUCCESS as candidate validation only. Engineering **24/28 = 85.7%**; Business **12/16 = 75.0%**; Overall **75.0%**; main EXE SHA-256 `d75f4e0882eb081a8adf07a120bf6196111c21137a30d83fde4d4d225f1f7348`; updater SHA-256 `4003794bf4ba5b5338393c4b0859888e7b67c173f129f08e491119e285a07118`; artifact `11334122941`, archive SHA-256 `bc356be131ffe390714ade74103f726f9be537452fcd5d573732a49a7c46fb66`. The new broad Shanghai-equity universe is **PROSPECTIVE_PRECOMMIT_ONLY** and correctly leaves historical `survivorship_precommitted_universe=NOT VERIFIED`; no backfill promotion occurred. PR #175 merged to main as `2f6b23786bb554c2ead56c60691d0e6b9b88e7a8`.
+- **RMF exact-main acceptance infrastructure:** PR #177 head `d58a2a05239c59131551be4f9b238e73736692b4`, run `37286235028` completed SUCCESS. It adds a main-push trigger scoped to `RealMoneyFinance/**` and the RMF workflow so merge commits must obtain their own full Windows/EXE/GUI/Same-Hash evidence. No gate, denominator, timeout, provider or threshold changed. PR #177 merged to main as `b61c25321f02f3444875bcf9a8a0ff12bdf10406`. At this checkpoint no exact-main workflow run ID had yet been returned, so main remains **NOT VERIFIED** rather than inheriting PR-head PASS.
+- **Happy8 advanced convergence FAIL→FIX:** PR #165 exact head `f52182015f09303127897b9cd725716bb3c64c93`, run `37285586660` failed at `science_protocol_contract.py` and `science_method_contract.py` with `NameError: json is not defined` inside `happy8/science.py::validate_history`. The expanded Service repair contract, updater contract/rollback and Fault Injection had passed before this blocker; downstream Business/Windows/Exact EXE/GUI/Same Hash were skipped and therefore NOT VERIFIED. Minimal fix `import json` committed as `b39359fd8c96a6b949848f288e096af50de85d04`; fresh exact-head run `37286419249` is IN_PROGRESS. No science threshold or denominator changed.
+- **Stock AI current product:** PR #155 exact head `f9d610aafe910cb73b036701a688329d9899399b`. Business run `37268369291` = SUCCESS. Desktop run `37268369332` has now PASSed Native Windows build, Exact EXE self-test, frozen repair, Exact-EXE real-network core, the >=90% real-history corpus qualification prerequisite, persisted corpus cache, and Frozen EXE advanced analysis; Physical GUI is IN_PROGRESS. Downstream updater/final evidence remains NOT VERIFIED until terminal.
+- **Final boundary unchanged:** workflow success, candidate artifacts, migration/export PASS, prospective evidence, or monorepo exact-EXE evidence do not satisfy dedicated repository independence or real production Release N→N+1. Final Gate remains FAIL for every project.
+
+
+## 2026-10-05 RMF historical-membership independent cross-check
+
+- Diagnostic authority: PR #187 exact head `0e6340774ee74ba004634f474f353c52273e480b`.
+- Run `37300980163` attempt 1 is preserved FAIL because the official SSE membership endpoint returned HTTP 403 after bounded retries. No code or threshold was changed to hide that failure.
+- Same-head attempt 2 / job `111733819301` = **SUCCESS**.
+- Historical membership reconstruction = **PASS**; canonical universe SHA-256 `849902986c5e7d887c487133d3413b5a23641ab3c3139154537b4cdb2b01d4be`; reconstructed member count 1992→2320 across 366 change dates; 600000 is present on all 1200 research dates.
+- Independent official SSE daily listed-count cross-check = **PASS** at four comparable dates (minimum 3): 2023-01-13 `1668+502=2170`; 2024-04-15 `1697+571=2268`; 2025-07-10 `1694+589=2283`; 2026-09-30 `1702+618=2320`; mismatches = 0. The current daily endpoint returned no rows for 2021-12-24, so that date remains **NOT VERIFIED** and is not imputed.
+- Evidence artifact `11341503114`; digest `sha256:c11f72e1bfeff85cbada6dcc9a7e02a5431360315e02b57ec953d975a5f1d231`.
+- Strict boundary: `historical_pit_availability=NOT VERIFIED`; `survivorship_selection_control=NOT VERIFIED`; `capital_deployment_ready=false`; RMF Final Gate remains **FAIL**. This diagnostic changes no `RealMoneyFinance/**` product bytes and does not itself change the formal RMF Business 12/16 denominator result.
+- Duplicate draft diagnostic PR #186 was closed as superseded; its historical evidence remains preserved.
+- Repository Independence remains **0/18 PASS** and portfolio Final/Delivery remains **0/18**.
+
+
+## 2026-10-05 Stock AI exact-head desktop terminal acceptance
+
+- Product authority: PR #155 exact head `43168d9e75c70ab55be808d8a51f0c0eb14d83d5`.
+- Current-head source run `37289727792` = **SUCCESS**; business run `37289727888` = **SUCCESS** with honest decision `NO_TRADE`, model trust LOW, Rank IC `-0.10273510698284655`.
+- Native desktop run `37289727787` / job `111697036718` = **SUCCESS as candidate execution**: Windows Build PASS, Exact EXE self-test PASS, frozen repair PASS, Exact-EXE real-network core PASS, frozen advanced execution PASS, physical GUI entry invocations PASS, physical GUI core/repair/advanced PASS.
+- Main EXE SHA-256 `50cb95cde7c258252a2b9f4dfe0761f46f8adac569d81efafb4553d157127141`; independent Updater EXE SHA-256 `365049c764b7b13dc1a220885acfd09fdaa582e04c509737948886c50689be29`.
+- Frozen real-history corpus gate = **PASS**: 4886/5362 = 91.1227154%; current coverage 90.9996170%; delisted coverage 95.7142857%; remaining 476; corpus master SHA-256 `6ea8cfb49bfc493c3bef98423e63dd12e206bd9bffd71b79445fc8d4de91ec42`; history manifest SHA-256 `4fbd3b26cbc8f24bd12eec6b89fc4393d62e76d4bff241144066f1f9624c73d6`.
+- Advanced business qualification remains **NOT VERIFIED** because `HISTORICAL_ST_PIT=WARN`; production positive update / real Release update = **BLOCKED**; Repository Independence = **BLOCKED**; Final Gate = **FAIL**.
+- Desktop artifact `11341383365`; digest `sha256:a8373dfd187b08b878b5304fdd9426d725ec2d5f6c37a6f0acba76bc6745c7ec`.
+- Current deterministic export = PR #181 head `a567dae423d0e015d06107ca3e99db696fa5e65b`, run `37289868886` SUCCESS, artifact `11335343870`, digest `sha256:920e575d88eef56a5af90f27ed9a293b8a643a4f330a6b13a73029937a114d8d`; this is migration readiness only, not repository independence.
+
+
+## 2026-10-05 strict continuation — current authority corrections
+
+- **Stock authority correction:** current product authority remains PR #155 exact head `43168d9e75c70ab55be808d8a51f0c0eb14d83d5`. Current source run `37289727792`, business run `37289727888`, and native desktop run `37289727787` are terminal SUCCESS as candidate execution. Frozen real-history corpus qualification is PASS at 4886/5362 = 91.1227154%, with current coverage 90.9996170% and delisted coverage 95.7142857%. Advanced Business remains non-PASS because full `HISTORICAL_ST_PIT` is NOT VERIFIED. Repository independence / real production Release remain BLOCKED; Final Gate remains FAIL.
+- **Historical Stock run boundary:** run `37259832040` belongs to older head `dfa07c51fffdaa7736147cd49e39a274a745e363` and is historical only. Any rerun/attempt on that run must not overwrite the current PR #155 authority or current-head acceptance.
+- **Stock historical ST/PIT diagnostic:** PR #188 head `d5bb390d839fb284790dcdb2359ef73f776b0d08`; run `37304826757` / job `111745875821` SUCCESS without changing authoritative Stock product bytes. Shenzhen dated historical ST reconstruction is SUPPORTED from 7,489 dated short-name changes across 3,125 securities, including 2,281 ST-related transitions across 673 securities. Shanghai historical ST/PIT, Beijing historical ST/PIT, and daily suspension-state reconstruction remain NOT VERIFIED; therefore full A-share `HISTORICAL_ST_PIT` remains NOT VERIFIED.
+- **Shanghai official-source boundary:** current public-source review found SSE technical specifications for daily security-information files carrying short name and security status (including suspension), but no reproducibly fetchable public historical bulk archive was verified in the current execution environment across the frozen research window. This is treated as source-availability/access NOT VERIFIED, not converted into a code PASS and not substituted with third-party history.
+- **RMF liquidity/capacity sub-evidence:** PR #189 diagnostic run `37304767691` / job `111745682462` SUCCESS with no validated RMF product-byte drift. Public-L1 1200-day amount-based 5% participation capacity is SUPPORTED: median CNY 17,208,295; CNY 5m feasible on 1177/1200 days; CNY 10m on 868/1200. Historical spread, observed market impact, broker slippage, and limit-up/down fillability remain NOT VERIFIED, so the full `liquidity_capacity` gate remains NOT VERIFIED. RMF Business remains 12/16 = 75.0%; Overall 75.0%; Final Gate FAIL.
+- **Portfolio boundary unchanged:** current-product migration/export readiness remains 18/18 PASS; visible dedicated product repositories remain 0/18; Final Gate PASS remains 0/18; delivery allowed remains 0/18. No migration or candidate PASS is promoted into repository independence or Final.
+
+
+## 2026-10-05 RMF public-L1 stale-quote fail-closed boundary
+
+- Diagnostic authority: PR #189 exact head `4b40f9abe29417ae952961637fef384a34bf47c4`.
+- Run `37308199899` / job `111756898577` = **SUCCESS**; validated RMF product-byte drift against `62f75def60c16d5768110901890d05edbabe7b34` = **FALSE**.
+- Eastmoney public-L1 request returned HTTP 200, but quote time was `2026-09-30T16:11:37+08:00` while retrieval was `2026-10-05T20:15:16+08:00`; machine classification = **STALE_OR_MARKET_CLOSED**.
+- Therefore current bid/ask spread = **NOT VERIFIED** and current limit-price evidence = **NOT VERIFIED**. The last-quoted-session limit prices (10.10 / 8.26 for 600000) are **SUPPORTED** only as stale-session snapshot evidence.
+- Historical bid/ask spread, observed market impact, broker execution slippage, limit-up/down fillability, full cost/slippage calibration and full liquidity-capacity gate remain **NOT VERIFIED**.
+- The workflow now executes fail-closed assertions that reject any promotion of a stale/single-session L1 snapshot into those full gates.
+- Artifact `11344686371`, digest `sha256:d87d93ec2a77285baea175b31e9da105a18d555b33af0a98e57170409e8a25e6`.
+- RMF remains Engineering **24/28 = 85.7%**, Business **12/16 = 75.0%**, Overall **75.0%**, Final **FAIL**.
+- Portfolio boundary unchanged: migration/export readiness **18/18 PASS**; dedicated repositories **0/18**; Final/Delivery **0/18**.
+
+
+## 2026-10-05 Stock BSE historical short-name source boundary
+
+- Diagnostic authority: PR #188 exact head `dc6750f7693d3f7d3bd635f9ef2c47f4b7572f64`.
+- Run `37308649061` / job `111758361058` = **SUCCESS**; authoritative Stock PR #155 product bytes at `43168d9e75c70ab55be808d8a51f0c0eb14d83d5` were unchanged.
+- Shenzhen dated-name-change reconstruction remains **SUPPORTED**: 7,489 rows / 3,125 securities / 2,281 ST-related rows / 673 ST-related securities. First live attempt hit WinError 10054; bounded retry succeeded on attempt 2.
+- Official BSE notice `https://www.bse.cn/class_b/200028461.html` returned HTTP 200; payload SHA-256 `1e7ae7ac6004351bcf2e775a1db402991bfb3f52183d2ab2aa5002c154aec257`.
+- The notice contains exact file identifier `JCyymmdd.nnn`, the phrase “简称公告文件”, and cancellation wording. Therefore historical **market-participant short-name file existence = SUPPORTED**.
+- This does **not** establish a currently public historical bulk archive. BSE public historical bulk archive = **NOT VERIFIED**; Beijing historical ST/PIT = **NOT VERIFIED**; Shanghai historical ST/PIT = **NOT VERIFIED**; historical daily suspension state = **NOT VERIFIED**; full A-share `HISTORICAL_ST_PIT` = **NOT VERIFIED**.
+- Fail-closed assertions now enforce that source-file existence cannot promote Beijing PIT, full HISTORICAL_ST_PIT or Final.
+- Artifact `11344588057`, digest `sha256:b7188d73cc8cf3878f0af423bf66d1f9939f377c1d93f68fee669aa55f051094`.
+- Portfolio boundary unchanged: migration/export readiness **18/18 PASS**; dedicated repositories **0/18**; Final/Delivery **0/18**.
+
+
+## 2026-10-05 Stock SSE technical-spec source boundary
+
+- Diagnostic authority: PR #188 exact head `9ac7332faf0ad891a548b90ea873cd340dc6ba29`.
+- PR-triggered run `37309244997` / job `111760319419` = **SUCCESS**; authoritative Stock PR #155 product bytes at `43168d9e75c70ab55be808d8a51f0c0eb14d83d5` were unchanged.
+- One official SSE historicaldata PDF URL returned **HTTP 404 on all three bounded attempts** and remains **NOT VERIFIED**; no substitution or PASS was fabricated.
+- A second official SSE technical PDF returned **HTTP 200**, 134 pages; payload SHA-256 `7efb1df906a363aedbf5161b13ebeb1fb64d21cb7800a6a8afdef37403c69d1f`; extracted-text SHA-256 `0382cb918b4765befed3eaf5e4a7c00246f786d777a196988981398326db79d3`.
+- Its extracted specification contains `cpxx0201MMDD.txt`, Chinese short-name language and suspension-related product language. Therefore **SSE product-status / short-name / suspension specification = SUPPORTED**.
+- This does **not** establish a public historical bulk archive. SSE public historical bulk archive = **NOT VERIFIED**; Shanghai historical ST/PIT = **NOT VERIFIED**; historical daily suspension PIT = **NOT VERIFIED**; full A-share `HISTORICAL_ST_PIT` = **NOT VERIFIED**.
+- Workflow fail-closed assertions enforce that technical-spec existence cannot promote those gates or Final.
+- Artifact `11345162043`, digest `sha256:fa089dcfd87537f3677ddc88705966577ae3e7dc686299bce0cf2d76929b0a9f`.
+- Portfolio boundary unchanged: migration/export readiness **18/18 PASS**; dedicated repositories **0/18**; Final/Delivery **0/18**.
+
+
+## 2026-10-05 RMF SSE daily-product-file PIT publication boundary
+
+- Diagnostic authority: PR #187 exact head `cb5e4cc16c680968ae08caa95ff204c70b45ae20`.
+- Run `37309761624` / job `111762006727` = **SUCCESS**. The 1200-session historical membership reconstruction and official daily listed-count cross-check were independently rerun on this exact head before the new PIT probe.
+- Historical membership reconstruction remains **PASS** with 0/1200 causal future-event mismatches; reconstructed membership 1992→2320 across 366 change dates; official listed-count cross-check remains **PASS** on four comparable dates.
+- Official SSE market-data specification returned HTTP 200, 184 pages; PDF SHA-256 `0a0ca283adc2dcfc532d3b4c54d12b114bd8e3ee957771e7947a20bdc5eb3bc7`; extracted-text SHA-256 `4b9cf21230b977a3c2df7aca546c998b630a1f82342158578f748934b972a1c1`.
+- Exact `cpxx0201MMDD` identifier, pre-open publication language, trading-date filename semantics and suspended-product scope are present. Therefore the **market-participant daily product-file publication mechanism = SUPPORTED**.
+- This does **not** reproduce the exact historical daily file contents for the frozen 2021-10-25→2026-09-30 research window. Historical file replayability = **NOT VERIFIED**; historical PIT content availability = **NOT VERIFIED**; survivorship selection control = **NOT VERIFIED**; leakage point-in-time = **NOT VERIFIED**.
+- Machine assertions prevent publication-mechanism evidence from promoting those business gates or Final.
+- Artifact `11344858920`, digest `sha256:1feccf434d6e59d9477292861dcaab07c120ec87c3569f64721af321ddb7175e`.
+- RMF remains Engineering **24/28 = 85.7%**, Business **12/16 = 75.0%**, Overall **75.0%**, Final **FAIL**.
+- Portfolio boundary unchanged: migration/export readiness **18/18 PASS**; dedicated repositories **0/18**; Final/Delivery **0/18**.
+
+## 2026-10-05 Stock SSE historical suspension corpus replay
+
+- Diagnostic authority: PR #195 exact branch head `2be2a1a29b3481e53cb4a7656857ac6d7889a450`, stacked from PR #193; authoritative Stock product remains PR #155 @ `43168d9e75c70ab55be808d8a51f0c0eb14d83d5`.
+- Exact-head push run `37311940770` / job `111769207242` = **SUCCESS** and PR-triggered run `37311976231` / job `111769327374` = **SUCCESS**. Both exact-checkout logs resolve to the same branch head and both prove `STOCK_PRODUCT_BYTES_CHANGED=FALSE`.
+- Both runs independently reproduce the same canonical results: pagination replay **PASS**; frozen window **60 months** (2021-10 through 2026-09); **2,893** unique official SSE suspension-event rows; **1,056** SSE A-share event rows; **311** ST-named SSE A-share event rows.
+- Reproducible corpus hashes are identical across both runs: all-product SHA-256 `c36cf257a20c3326240338edaa3454e914d37aa108a50997a336ef8972507c04`; SSE A-share SHA-256 `0d23b02f72a13c9c4a9cc0d738645f8b4296b89ba59ef34b1cfbcff544d9b550`.
+- Push-run evidence artifact `11345697878`, digest `sha256:c07339237d80565f0b78c6db0674b2a4d5a4686e10bfb3d8dc3ec7f0c5867b94`; PR-run evidence artifact `11346521529`, digest `sha256:da99430aa79294a9c0faff78408ee13a2fca7c1cb959561ce765dc0eae9f4423`.
+- Strict adjudication: official SSE historical suspension **event corpus = PASS**. This does **not** prove trading-calendar/resumption-day state semantics or a complete daily market-state replay; therefore historical daily suspension state = **NOT VERIFIED**, Shanghai historical ST/PIT = **NOT VERIFIED**, full A-share `HISTORICAL_ST_PIT` = **NOT VERIFIED**, Advanced Business = **NOT VERIFIED**, Final Gate = **FAIL**.
+- No denominator, threshold, repository-independence requirement, production Release requirement, or Final criterion changed. Portfolio aggregate remains migration/export readiness **18/18 PASS**, dedicated repositories **0/18**, Final/Delivery **0/18**.
+
+## 2026-10-05 Stock SSE interval-vs-daily-state correction
+
+- PR #193 current exact branch head `1568226391c17e27618b0e3969621d698bb41b5f`; authoritative Stock product remains PR #155 @ `43168d9e75c70ab55be808d8a51f0c0eb14d83d5`; Stock product/runtime bytes changed = **FALSE**.
+- Fresh push run `37312529194` / job `111771187557` and PR run `37312535468` / job `111771204852` are both **SUCCESS**.
+- Both runs reproduce 4,815 raw/parsed official SSE suspension rows, 4,771 canonical intervals, complete annual pagination, and canonical interval SHA-256 `34ae0df9fc00ed92f0791d8254cb859a17e09f124614b716291c1fdc8c32329d`.
+- **Evidence classification correction:** previous head `e4a03660...` labeled `historical_daily_suspension_state=SUPPORTED_SHANGHAI_ONLY`, but the code had not expanded intervals onto an independently verified SSE trading calendar and had not proven whether `endStopDate` is the final suspended date or the resumption date. That stronger classification is superseded.
+- Current strict state: Shanghai historical suspension **intervals = SUPPORTED**; historical daily suspension state = **NOT VERIFIED**; Shanghai historical ST/PIT = **NOT VERIFIED**; Beijing historical ST/PIT = **NOT VERIFIED**; full A-share `HISTORICAL_ST_PIT` = **NOT VERIFIED**; Advanced Business = **NOT VERIFIED**; Final Gate = **FAIL**.
+- Push artifact `11345523920` digest `sha256:680cdb305545d38d25621b7a48dde11ad7c5e3f293b0b4d966cb00b5308fd661`; PR artifact `11346717120` digest `sha256:374f0d2c0de7441105710093b4f631f75916dfcce2ff07d0472aaae60a849a9b`.
+- Portfolio aggregate remains migration/export readiness **18/18 PASS**, dedicated repositories **0/18**, Final/Delivery **0/18**.
+
+## 2026-10-05 Stock SSE daily-state source-path adjudication
+
+- PR #197 @ `5cfcdb394583bbf8e8eef9daa2c987d12b4a8eed`, run `37312889604` = **SUCCESS**: official SSE JS declares `GW_PL_JYTS_TFPXX_TRADEDAY` and `bizDate`; first-party TRADEDAY contract = **PASS**.
+- PR #199 @ `ca64261c47fae57b6d43d1e08472145f4abd91b6`, run `37313127180` = **SUCCESS**: live historical TRADEDAY responses contain `beforeTradeDay/lastTradeDay` only and no product/security code. This refutes using TRADEDAY as a per-security suspension list.
+- PR #201 @ `44febed1811538dbf02786e0c65ea441b1af52c7`, run `37313359653` = **SUCCESS**: official JS declares `PL_SCRL_SCRLB` with `tradeBeginDate/tradeEndDate`, described in first-party source as market calendar.
+- PR #202 preserved initial FAIL evidence: the first probe had an incomplete parser; the next diagnostic exposed SSE's explicit `tradeBeginDate` max-length-8 contract error for dashed dates. Minimal correction used YYYYMMDD and actual SSE JSONP/parenthesized response parsing; no source or gate was weakened.
+- PR #202 current exact head `11cedd74a5abc084ddedaa89d281cb61628357fe`, run `37313932534` / job `111775828752` = **SUCCESS**. Live 2019-12 / 2024-12 / 2026-09 rows are market-event records (roadshow / IPO / listing) with fields such as `bizTypeDesc/title/stockCode/tradeBeginDate/tradeEndDate`; no trading-day/open/closed/holiday flag field exists in the observed response.
+- Strict adjudication: `PL_SCRL_SCRLB` market-event calendar surface = **SUPPORTED**; exchange trading-day calendar = **NOT VERIFIED**; this route is rejected as the daily-suspension calendar substrate.
+- Shanghai historical suspension intervals remain **SUPPORTED**; historical daily suspension state = **NOT VERIFIED**; Shanghai historical ST/PIT = **NOT VERIFIED**; Beijing historical ST/PIT = **NOT VERIFIED**; full `HISTORICAL_ST_PIT` = **NOT VERIFIED**; Advanced Business = **NOT VERIFIED**; Final Gate = **FAIL**.
+- Evidence: PR #197 artifact `11346303286`; PR #199 `11346383703`; PR #201 `11346673552`; PR #202 `11347600140`. Portfolio aggregate remains migration/export **18/18 PASS**, dedicated repositories **0/18**, Final/Delivery **0/18**.
+
+
+
+## 2026-10-06 Stock #257 current behavior + migration rebind #260
+
+- **Current Stock product candidate:** PR #257 exact head `c25a5c394363058d341b624b18943cd3733eb720`.
+- **Fresh source acceptance:** run `37371301910` / job `111968840454` = **SUCCESS**. Immutable 187-file restore, historical ST/suspension PIT fail-closed contract, Top-N/future-safety backtest policy contract, full 32/32 Windows offline regression, and real AkShare source integration PASS.
+- **Fresh full-business:** run `37371301878` / job `111968841067` = **FAIL**. Production maintenance fails closed because `historical_st_pit.json` / complete historical ST+suspension daily PIT evidence is absent; Advanced Business remains **NOT VERIFIED**.
+- **Fresh desktop:** run `37371302045` attempt 1 / job `111968841651` failed at the frozen >=90% current+delisted corpus prerequisite after progressive cache save; downstream Advanced/Physical GUI/Same-Hash were skipped. Failed-jobs rerun job `112106367690` is active; no pending result is promoted.
+- **Current-product migration/export:** PR #260 head `0cacdb645aaac68ee6820f04b95595bf4073b334`, based exactly on #257 `c25a5c39...`; run `37413482053` / job `112106873905` = **SUCCESS**. Product-tree byte identity, deterministic export, independent second-pass verification and deliberate tamper rejection PASS. File count **409**; manifest SHA-256 `63b988ea1c3dae4fa20eec124f875c26ed2299be2fd52a8e643382ca77dc19ae`; artifact `11389831927`; ZIP digest `sha256:6a6792ca53d3c7ebc43661711a19fd8451c1c70c1b1c46cc70fae7cb410d81ab`.
+- **Portfolio boundary:** current-product migration/export readiness = **18/18 PASS**; accessible dedicated repositories = **0/18**; connected GitHub actions expose no repository-creation mutation; Final PASS = **0/18**; Delivery = **0/18**.
+- If PR #257 changes head, PR #260 is stale immediately and the Stock migration count must be invalidated until rebound.
+
+
+## 2026-10-06 strict authority correction — #155 superseded / #257 current
+
+- Stock PR #155 was explicitly closed as superseded after ancestry/byte adjudication. Its head `e53c89e1780390cea559ca71db51f6f4300cc02e` remains historical evidence only.
+- Git compare proves #257 base `7f270b9ab58e11fd8129053a65e000c90ff9d8c1` and #155 head `e53c89e...` are product-tree byte-equivalent (one commit difference, zero changed files).
+- **Current Stock behavior candidate remains PR #257 exact head `c25a5c394363058d341b624b18943cd3733eb720`**, which is 28 commits ahead of that byte-equivalent base with real behavior changes in historical PIT loading, backtest execution parity, entry-date handling, audit binding and tests.
+- Fresh #257 source rerun `37417917201` / job `112120564211` = **SUCCESS** on the same exact head.
+- Prior #257 full-business run `37371301878` remains authoritative terminal **FAIL** evidence until a fresh terminal result replaces it: complete `historical_st_pit.json` / daily ST+suspension PIT evidence is absent, so Advanced Business is **NOT VERIFIED**.
+- Prior desktop attempt 1 records frozen corpus qualification at 3026/5461 = 55.41%, current 53.81%, delisted 90.38%; progressive cache save PASS. Rerun job `112106367690` is active and no pending downstream Advanced/Physical-GUI/Same-Hash result is promoted.
+- Separate fresh #257 desktop/business runs `37417917171` / `37417917267` are active; queued/in-progress is not PASS.
+- Cancelled-no-step diagnostic runs on #239/#244/#251 were re-triggered through failed-job reruns so they can produce terminal first-party evidence. Their scripts explicitly preserve full historical PIT / effective daily state as NOT VERIFIED unless stronger semantics are actually proven.
+- Repository capability was revalidated: only `douluo511/Geometry-Lotto-Pro` is visible and the connected GitHub action set exposes no create-repository mutation. Repository Independence remains **0/18**; Final/Delivery remain **0/18**.
+
+
+## 2026-10-06 Stock authority advanced to #268 — semantic PIT false-PASS closed
+
+- **Current Stock behavior candidate:** PR #268 exact head `74a8b66fd8d0b29e80baa1e1ebe822aeec29c338`, based directly on superseded #257 head `c25a5c394363058d341b624b18943cd3733eb720`.
+- #268 closes a verified false-PASS path: historical PIT evaluation previously recomputed file hashes but could accept a semantically incomplete canonical/source/market bundle that claimed SSE/SZSE/BSE completeness. #268 now validates canonical row schema/uniqueness/date/market/code/state, required-market presence/freshness, source-manifest PIT semantics and each market evidence file's semantic agreement with the claim.
+- This is a product acceptance-behavior change. **No #257 Source/Business/Windows/Exact-EXE/GUI/Same-Hash result is inherited.** PRs #257 and duplicate #263 are closed as superseded.
+- Migration PR #260 was exact-bound to #257 `c25a5c39...` and is therefore stale; it has been closed. Current-product migration/export readiness is temporarily **17/18**, not 18/18.
+- #268 fresh exact-head runs: source `37419508160`, business `37419508026`, desktop `37419508059` were active at this checkpoint; pending is **NOT VERIFIED**.
+- Repository capability re-probe via PR #271 / run `37419494668` found `ACCOUNT_TOKEN_PRESENT=FALSE`, `TOKEN_IDENTITY=NOT VERIFIED`, `REPOSITORY_CREATION=BLOCKED`; target `douluo511/Geometry-Lotto-Pro-SSQ` was not created. Dedicated repositories remain **0/18**; Final/Delivery remain **0/18**.
+- SSE taxonomy diagnostic #251 terminal run `37366817737` / artifact `11392260941`: 667 selected documents, 606 date-required actions, 61 non-new transitions, 0 unclassified; taxonomy/denominator = SUPPORTED_DIAGNOSTIC only, full historical PIT = NOT VERIFIED.
+- BSE suspension semantic diagnostic #244 terminal rerun before parser hardening: 85/85 PDF transport/text PASS; 74 unique transition documents, 11 unresolved (8 no strong transition date, 3 multi-date ambiguous); daily BSE suspension PIT = NOT VERIFIED. Narrow heading-bound parser fix committed as `e458bac4abc4c4fa164e6558bfd221b5389c88cd`; fresh diagnostic run active, with no result pre-promoted.
+
+
+## 2026-10-06 Stock authority advanced to #288 — denominator hardening
+
+- **Current Stock acceptance candidate:** PR #288 exact head `d9de2c4f88f7b7a87c14fdb589ed322606984f2c`, stacked on PR #268 exact head `b24fdb3480b6bcd0af1f6a02584c7bbea7e2b01a`.
+- #288 freezes the previously unfrozen full historical ST/PIT business-completeness denominator with byte-bound market calendars, lifecycle files, expected-key files, raw provenance bindings, deterministic expected-key recomputation, exact canonical key count/SHA equality, PIT/no-future-leakage/source-gap/semantic-ambiguity contracts, and separate runtime required-key coverage.
+- This is an acceptance-behavior change. **No #268/#257 Business/Desktop/Exact-EXE/GUI/Same-Hash evidence is inherited.**
+- Fresh Source/Offline run `37433711397` / job `112170311267` = **SUCCESS** on exact #288 head. Strict NetClient/fault, valuation PIT, historical ST/suspension PIT, Top-N/future-safety, immutable 187-file + full 32-gate Windows offline regression, and real AkShare source integration all PASS.
+- Fresh Full Business run `37433711422` is **IN_PROGRESS** at this checkpoint; pending is not PASS.
+- Fresh Native Windows Desktop run `37433711517` is **IN_PROGRESS** at this checkpoint; pending Exact EXE / Physical GUI / Same Hash are not PASS.
+- Parent #268 exact-head Full Business run `37432457933` is terminal **FAIL** for the truthful fail-closed reason that real `historical_st_pit.json` / full historical ST+suspension PIT evidence is absent. That failure remains evidence of the real-data gap, not a code defect.
+- Issue #278 scoped false-PASS remediation is CLOSED/PASS only for the calendar-binding code path on #268 Source run `37432457782`; it does not promote historical PIT completeness.
+- Stock deterministic migration/export bound to #257 is stale after #268/#288 behavior changes. Current-product migration/export readiness remains **17/18** until a new exact #288-bound export is produced after stabilization.
+- Accessible dedicated repositories remain **0/18**; Repository Independence = FAIL; Final/Delivery = **0/18**.

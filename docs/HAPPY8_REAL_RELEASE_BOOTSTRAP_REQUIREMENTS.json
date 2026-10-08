@@ -1,0 +1,95 @@
+{
+  "schema": "happy8-real-release-bootstrap-requirements-v1",
+  "status": "PREPARED_BLOCKED_EXTERNAL",
+  "source_exact_head": "64dfe1b9274abecd972edaa52c928f10cb2b6b23",
+  "software_version": "0.2.0",
+  "app_version": "0.2.0-staging",
+  "main_exe_filename": "Geometry_Lotto_Pro_Happy8.exe",
+  "updater_exe_filename": "Geometry_Lotto_Pro_Happy8_Updater.exe",
+  "update_config_filename": "Happy8_Update_Config.json",
+  "update_config_contract": {
+    "schema": "happy8-update-config-v1",
+    "manifest_url": "REAL_TRUSTED_HTTPS_URL_REQUIRED",
+    "trusted_hosts": [
+      "REAL_RELEASE_HOST_REQUIRED"
+    ],
+    "rule": "manifest_url must be HTTPS and its hostname must be included in trusted_hosts"
+  },
+  "update_manifest_contract": {
+    "schema": "happy8-update-manifest-v1",
+    "version": "REAL_NUMERIC_VERSION_GREATER_THAN_0.2.0_REQUIRED",
+    "artifact_url": "REAL_TRUSTED_HTTPS_ARTIFACT_URL_REQUIRED",
+    "artifact_sha256": "REAL_64_HEX_SHA256_REQUIRED",
+    "artifact_bytes": "REAL_POSITIVE_BYTE_COUNT_REQUIRED_MAX_512_MIB",
+    "rules": [
+      "version must parse as numeric dot-separated components and be greater than 0.2.0 for N→N+1 acceptance",
+      "artifact_url must be HTTPS on a trusted host",
+      "artifact_sha256 must be the actual SHA-256 of the exact downloaded main EXE",
+      "artifact_bytes must equal the exact downloaded byte length and be <= 512 MiB"
+    ]
+  },
+  "release_n_required_assets": [
+    "Geometry_Lotto_Pro_Happy8.exe",
+    "Geometry_Lotto_Pro_Happy8_Updater.exe",
+    "Happy8_Update_Config.json"
+  ],
+  "real_acceptance_sequence": [
+    "Create dedicated Happy8 repository visible to the connected GitHub installation",
+    "Verify isolated seed tree identity against the frozen migration manifest",
+    "Run full frozen gates on dedicated repository exact commit",
+    "Publish real Release N containing exact main EXE, independent Updater EXE, and trusted HTTPS update config",
+    "Publish real newer Release N+1 and trusted manifest whose version is numerically greater than N",
+    "Launch Release N exact main EXE and physically click 一键更新",
+    "Updater fetches real HTTPS manifest and artifact, validates byte count and SHA-256, backs up N, waits for/ensures main closure, atomically replaces, launches/self-tests N+1, then commits or rolls back",
+    "Verify normal N→N+1 update evidence and negative paths: offline, interruption, bad hash, corruption, permission, occupied main, replace failure, health failure, rollback failure, restart recovery",
+    "Freeze N+1 final EXE after all release-affecting processing",
+    "Physically click 预测下一期 / 一键更新 / 一键修复 / 高级分析 on that exact final EXE",
+    "Recompute post-GUI SHA-256 and require exact Same Hash",
+    "Generate real_release_update.json, FINAL_ARTIFACT.json, engineering/business acceptance and Final Gate from the dedicated repository lineage"
+  ],
+  "forbidden_substitutes": [
+    "localhost",
+    "mock server",
+    "fixture manifest",
+    "static fake JSON",
+    "shared-portfolio release",
+    "local test package presented as production release"
+  ],
+  "blocker": {
+    "status": "BLOCKED",
+    "missing": [
+      "dedicated Happy8 repository",
+      "real trusted HTTPS release host/release URLs",
+      "real Release N and newer Release N+1"
+    ],
+    "note": "No URL, hostname, version, signature/hash, or release evidence is invented in this document."
+  },
+  "current_acceptance_head": "f59eba6c3bfdce0f83bb34f925fda529f9137be7",
+  "real_release_identity_requirements": {
+    "release_n_id": "REAL_UNIQUE_RELEASE_N_ID_REQUIRED",
+    "release_n1_id": "REAL_UNIQUE_RELEASE_N1_ID_REQUIRED",
+    "rule": "Release N and N+1 identities must be non-empty, distinct, and carried through current-run real release evidence."
+  },
+  "executable_acceptance": {
+    "real_n_to_n1": "Happy8/staging/scripts/real_release_update_acceptance.ps1",
+    "repository_independence": "Happy8/staging/scripts/repository_independence_gate.py",
+    "real_release_validator": "Happy8/staging/scripts/real_release_evidence.py",
+    "final_freeze_producer": "Happy8/staging/scripts/final_artifact_freeze.py",
+    "final_artifact_validator": "Happy8/staging/scripts/final_artifact_evidence.py",
+    "final_gui_modes": {
+      "blocked_release": "physical_gui_click_smoke.ps1 default mode; one-click update must fail closed and Repair surfaces external blocker",
+      "configured_release": "physical_gui_click_smoke.ps1 ConfiguredRelease; physical update must hand off to independent Updater and finish UP_TO_DATE on the frozen final EXE; Repair must PASS"
+    }
+  },
+  "current_run_binding": {
+    "required": true,
+    "real_release_producer": "happy8-real-release-acceptance-v1",
+    "final_artifact_producer": "happy8-final-artifact-freeze-v1",
+    "fields": [
+      "github_run_id",
+      "github_run_attempt",
+      "head_sha"
+    ],
+    "raw_evidence_must_be_git_untracked": true
+  }
+}
