@@ -118,6 +118,33 @@ class BusinessBoundaries(unittest.TestCase):
         self.assertEqual(got["gates"]["corporate_action_adjustment"],"NOT VERIFIED")
         self.assertFalse(got["capital_deployment_ready"])
 
+
+    def test_original_pdf_ex_date_column_and_explicit_gross_label_are_bound(self):
+        from app.source_official_cash import parse_cash_document
+        class Reader:
+            is_encrypted=False
+            def __init__(self,text):self.pages=[SimpleNamespace(extract_text=lambda:text)]
+        text=("上海浦东发展银行股份有限公司 600000 2024年年度普通股权益分派实施公告 "
+              "普通股每股现金红利人民币0.41元（含税） 差异化分红送转：否 "
+              "股份类别股权登记日最后交易日除权（息）日现金红利发放日 "
+              "普通股2025/7/15－2025/7/162025/7/16 董事会2025年7月9日")
+        kwargs={"url":"https://news.spdb.com.cn/investor_relation/company_report/202507/P020250709652132836194.pdf",
+                "expected_ex_date":"2025-07-16","expected_published_date":"2025-07-09",
+                "expected_cash_per_share":.41,"document_kind":"ordinary_cash_implementation"}
+        cases={
+            "wrong_ex_payment_contains_expected":text.replace("普通股2025/7/15－2025/7/162025/7/16",
+                                                            "普通股2025/7/15－2025/7/172025/7/16"),
+            "wrong_ex_record_contains_expected":text.replace("普通股2025/7/15－2025/7/162025/7/16",
+                                                           "普通股2025/7/16－2025/7/172025/7/18"),
+            "same_number_tax_net":text.replace("0.41元（含税）","0.41元（税后）"),
+            "unlabelled_gross":text.replace("0.41元（含税）","0.41元"),
+        }
+        for name,bodytext in cases.items():
+            with self.subTest(name=name),patch("app.source_official_cash.PdfReader",return_value=Reader(bodytext)):
+                e=parse_cash_document(b"%PDF-fixture",**kwargs)
+                self.assertFalse(e["document_cash_match"]=="PASS" and e["document_date_match"]=="PASS")
+                self.assertEqual(e["historical_asof_availability"],"NOT VERIFIED")
+
     def test_original_pdf_parser_requires_exact_issuer_gross_unit_and_cash_date(self):
         from app.source_official_cash import parse_cash_document
         class Reader:
@@ -130,10 +157,11 @@ class BusinessBoundaries(unittest.TestCase):
         kwargs={"url":"https://news.spdb.com.cn/investor_relation/company_report/202507/P020250709652132836194.pdf",
                 "expected_ex_date":"2025-07-16","expected_published_date":"2025-07-09",
                 "expected_cash_per_share":.41,"document_kind":"ordinary_cash_implementation"}
-        for kind in ("valid","per_ten","net_tax_only","wrong_cash","wrong_date","wrong_publication","wrong_issuer"):
+        for kind in ("valid","per_ten","net_tax_only","net_tax_same_number","wrong_cash","wrong_date","wrong_publication","wrong_issuer"):
             altered=text
             if kind=="per_ten":altered=text.replace("每股现金红利人民币0.41","每10股现金红利人民币4.1")
             if kind=="net_tax_only":altered=text.replace("0.41元（含税）","0.369元（税后）")
+            if kind=="net_tax_same_number":altered=text.replace("0.41元（含税）","0.41元（税后）")
             if kind=="wrong_cash":altered=text.replace("0.41元","0.42元")
             if kind=="wrong_date":altered=text.replace("2025/7/16","2025/7/17")
             if kind=="wrong_publication":altered=text.replace("2025年7月9日","2025年7月17日")

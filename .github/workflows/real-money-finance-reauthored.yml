@@ -72,6 +72,9 @@ jobs:
       - name: Independent updater contract and rollback fault gate
         run: python -m tests.updater_contract_gate
 
+      - name: Original issuer PDF exact ex-date and gross-cash counterexamples
+        run: python -m unittest tests.business_failclosed_contract.BusinessBoundaries.test_original_pdf_ex_date_column_and_explicit_gross_label_are_bound
+
       - name: Cash-only provider adjustment model counterexample
         run: python -m unittest tests.business_failclosed_contract.BusinessBoundaries.test_cash_offset_source_shape_must_match_without_becoming_historical_pit
 
