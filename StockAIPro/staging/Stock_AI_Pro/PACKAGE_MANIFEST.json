@@ -128,7 +128,7 @@
     "versions/4.3.0/FIRST_TIME_SETUP.bat": "b4ff8111302cb5dcd65cc2e5a575d8c31182147d05a66b8958010e6e8afa2016",
     "versions/4.3.0/healthcheck.py": "3fce152d6716e3119654f2b3945159c5b1d8bf20acbc4aee103a93511b4c84e5",
     "versions/4.3.0/ONE_CLICK_START.bat": "4c39c1441f1838093838ed1d67da3b7a7bdbd3b5878fd3ffa7ec79ee94767de1",
-    "versions/4.3.0/PACKAGE_MANIFEST.json": "a7214b68ad4ddc26efc09ddae590c1f5936585ddd8dc3adf472e999a33e9cca5",
+    "versions/4.3.0/PACKAGE_MANIFEST.json": "843e393ee1bf75bcfa6e9cff1aaf4d51e6d040261448562d0a01b0862634a9b7",
     "versions/4.3.0/README_CN.md": "7a3a280d0beaebffaa8c74ca3a773263ebb58e96ef024d3fabdc6dea13200703",
     "versions/4.3.0/REMOVE_AUTO_UPDATE.bat": "b3936b2d4f655ce5c7b0bb522e0088881ed900b9a20d4ac61a5ecd79866afdb3",
     "versions/4.3.0/REPAIR_ENV.bat": "a8e33f1a6f1a002091edbb394858d8aa5325fba3b6d3022a8f0b96e82ae15793",
@@ -193,6 +193,6 @@
     "versions/4.3.0/VERSION": "328fc98df37ff4f37f53e1566d36d10b40f1a5855ba27fa0dc652d43f2a4c433",
     "WINDOWS_FIRST_RUN_ACCEPTANCE.bat": "2513d682de4e43f8e3a9056afd045e710d4c548abeb60c53c12717a50d01fc92",
     "versions/4.3.0/stock_ai/netclient.py": "c9d6acc6324a06c69089e1e525057472a4ec0ff35f0414b3f0e772b96f2ce0e8",
-    "versions/4.3.0/stock_ai/historical_pit.py": "d69c08a80bbbb95f9dbacc1d6aeb8e2b74ad86e1dcc8ca95bc066d7a147adb4b"
+    "versions/4.3.0/stock_ai/historical_pit.py": "98fd7a4fff3a23c10e079a00a46eff79469a572af9e5f79bd39aed5b94b0145d"
   }
 }
