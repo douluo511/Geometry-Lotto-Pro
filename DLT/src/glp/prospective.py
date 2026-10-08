@@ -492,6 +492,48 @@ class ProspectiveLedger:
             )
             if not valid:
                 raise ValueError(f"prospective replay identity mismatch: {file.name}")
+
+            # A digest over self-reported scores does not certify those scores.
+            # Recompute every replay field from the immutable Freeze and the
+            # official winning draw, including the frozen random seed baseline.
+            pred = Prediction(**freeze["prediction"])
+            try:
+                actual = Draw.from_dict(value["actual"])
+            except (KeyError, TypeError, ValueError) as exc:
+                raise ValueError(f"prospective replay actual is invalid: {file.name}") from exc
+            if actual.draw_date != freeze.get("target_date"):
+                raise ValueError(f"prospective replay actual date mismatch: {file.name}")
+            if value.get("replay") != replay_prediction(pred, actual):
+                raise ValueError(f"prospective replay recomputed hits/ranks mismatch: {file.name}")
+
+            seeds = tuple(PROMOTION_POLICY["seeds"])
+            expected = {
+                "front_recall": _recall(pred.front_ranking, actual.front, 5),
+                "back_recall": _recall(pred.back_ranking, actual.back, 2),
+                "front_random_recall": statistics.mean(
+                    _recall(
+                        _random_ranking(35, [PROTOCOL_VERSION, "front", seed, actual.issue]),
+                        actual.front, 5,
+                    ) for seed in seeds
+                ),
+                "back_random_recall": statistics.mean(
+                    _recall(
+                        _random_ranking(12, [PROTOCOL_VERSION, "back", seed, actual.issue]),
+                        actual.back, 2,
+                    ) for seed in seeds
+                ),
+            }
+            expected["front_gain_vs_random"] = expected["front_recall"] - expected["front_random_recall"]
+            expected["back_gain_vs_random"] = expected["back_recall"] - expected["back_random_recall"]
+            for field_name, expected_value in expected.items():
+                given = value.get(field_name)
+                if (
+                    isinstance(given, bool) or not isinstance(given, (int, float))
+                    or abs(given - expected_value) > 1e-12
+                ):
+                    raise ValueError(
+                        f"prospective replay recomputed {field_name} mismatch: {file.name}"
+                    )
             values.append(value)
         return values
 
