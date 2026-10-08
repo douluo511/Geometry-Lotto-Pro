@@ -158,6 +158,7 @@ def join(alias:dict,query:dict):
         old[record["old_code"]]=record
         new[record["new_code"]]=record
     codes=set()
+    used_aliases=set()
     joined=[]
     for record in rows:
         code=record["code"]
@@ -166,6 +167,11 @@ def join(alias:dict,query:dict):
         if code in old and code in new and old[code]!=new[code]:
             raise ValueError("old/new historical alias collision")
         source=old.get(code) or new.get(code)
+        if source:
+            identity=(source["old_code"],source["new_code"])
+            if identity in used_aliases:
+                raise ValueError("one mapped issuer appears in both old/new current query codes")
+            used_aliases.add(identity)
         joined.append({"query_code":code,
                        "current_alias_link":("OLD_CODE" if code in old else
                                              "NEW_920_CODE" if code in new else
@@ -221,6 +227,6 @@ def main():
     args.out.write_text(json.dumps(result,ensure_ascii=False,indent=2,sort_keys=True)+"\n",encoding="utf-8")
     print(json.dumps({k:result[k] for k in ("alias_total","alias_pre_BSE_display_dates","filter2_query_total",
                                            "query_pages","linked_current_query_rows","unlinked_alias_rows",
-                                           "query_rows_without_mapping","adjudication")},sort_keys=True))
+                                           "query_rows_without_mapping","unlinked_alias_review","adjudication")},sort_keys=True))
 if __name__=="__main__":
     main()
