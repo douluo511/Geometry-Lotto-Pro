@@ -1,0 +1,135 @@
+name: Stock exact-live SZSE dated A-share business-candidate evidence
+on:
+  push:
+    branches:
+      - fix/stock-szse-live-effective-ashare-join-20261008
+    paths:
+      - ".github/stock_diag/stock_szse_live_dated_share_review.py"
+      - ".github/workflows/stock-szse-live-dated-share-review.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  live-dated-ashare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Exact current code checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Lock unchanged Stock Product bytes and #348 join ancestry
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.sha }}"
+          git merge-base --is-ancestor 7f300a5c477dcbd821c4451026b57228bdf8e6c5 HEAD
+          git merge-base --is-ancestor 9969490c89ccb4cc10536f66416976c5bf40caef HEAD
+          test -z "$(git diff --name-only 9969490c89ccb4cc10536f66416976c5bf40caef..HEAD -- StockAIPro)"
+          echo "UNCHANGED_PRODUCTION_STOCK_CODE=PASS"
+      - name: Read-only second checkout exact corrected cross-date parser #341
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: d906151da9a509db8c4899bad2d0cffcb3da3955
+          path: pinned_dated_parser_341
+          fetch-depth: 1
+      - name: Exact pinned-date-parser byte identity
+        run: |
+          set -euo pipefail
+          test "$(git -C pinned_dated_parser_341 rev-parse HEAD)" = "d906151da9a509db8c4899bad2d0cffcb3da3955"
+          test -f pinned_dated_parser_341/.github/stock_diag/stock_szse_effective_event_audit.py
+          test -f pinned_dated_parser_341/.github/stock_diag/test_szse_effective_event_audit.py
+          echo "PINNED_OFFICIAL_STOP_RESUME_CANDIDATE_PARSER=PASS"
+      - name: Pinned Python runtime
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.11.9"
+          check-latest: false
+      - name: Run existing join anti-forgery and corrected date semantic tests
+        run: |
+          python .github/stock_diag/test_stock_szse_ashare_effective_join.py
+          python pinned_dated_parser_341/.github/stock_diag/test_szse_effective_event_audit.py
+      - name: Download 1849-row exact REAL network source and fresh A/B-share candidate artifact
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location --retry 3 --retry-all-errors --connect-timeout 20 --max-time 120 \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            --header "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/11534220613/zip" \
+            --output szse_live_source_evidence.zip
+          echo "d3fb2abbdd97b9e53d4a46787bf755a064e6e3a090028898d1bcac9bff81eeb5  szse_live_source_evidence.zip" | sha256sum --check
+          unzip -oq szse_live_source_evidence.zip
+          test -f stock_szse_current_live_rebound_corpus.json
+          test -f stock_szse_current_live_ashare_intake.json
+          echo "EXACT_LIVE_SZSE_ARTIFACT_SHA256=PASS"
+      - name: Recompute dated stop/resume claims on 1849 FRESH first-party HTML-derived documents
+        run: |
+          python pinned_dated_parser_341/.github/stock_diag/stock_szse_effective_event_audit.py \
+            stock_szse_current_live_rebound_corpus.json \
+            --out stock_szse_current_live_dated_341.json
+      - name: Hash-join actual fresh live dated claims and A-share/B-share code evidence
+        run: |
+          python .github/stock_diag/stock_szse_ashare_effective_join.py \
+            --share stock_szse_current_live_ashare_intake.json \
+            --dated stock_szse_current_live_dated_341.json \
+            --out stock_szse_current_live_dated_ashare_join.json
+      - name: Strictly adjudicate effective candidates, reject false daily completion
+        run: |
+          python .github/stock_diag/stock_szse_live_dated_share_review.py \
+            --live stock_szse_current_live_rebound_corpus.json \
+            --dated stock_szse_current_live_dated_341.json \
+            --share stock_szse_current_live_ashare_intake.json \
+            --joined stock_szse_current_live_dated_ashare_join.json \
+            --out stock_szse_current_live_ashare_event_review.json
+      - name: Adversarial mutations against full LIVE corpus lineage and event output
+        run: |
+          python - <<'PY'
+          import copy, importlib.util, json
+          from pathlib import Path
+          file=Path(".github/stock_diag/stock_szse_live_dated_share_review.py")
+          spec=importlib.util.spec_from_file_location("live_review",file)
+          mod=importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(mod)
+          args=[json.load(open(path,encoding="utf-8")) for path in (
+              "stock_szse_current_live_rebound_corpus.json",
+              "stock_szse_current_live_dated_341.json",
+              "stock_szse_current_live_ashare_intake.json",
+              "stock_szse_current_live_dated_ashare_join.json")]
+          assert mod.adjudicate(*args)["adjudication"]["final_gate"]=="FAIL"
+          cases=[
+             ("missing first-party source",lambda x:x[0]["records"].pop()),
+             ("fabricated old-source text as live",lambda x:x[0]["source_lineage"].__setitem__("official_html_response_sha_changed_count",1)),
+             ("false completed production",lambda x:x[3]["adjudication"].__setitem__("production_historical_st_pit","PASS")),
+             ("claim future daily state",lambda x:x[3]["pairs"][0].__setitem__("qualified_daily_st_pit","PASS")),
+             ("injected B code in A",lambda x:x[3]["pairs"][0].__setitem__("equity_code_candidate","200613")),
+             ("fake realized resume",lambda x:x[3]["pairs"][0].__setitem__("realized_resumption","PASS")),
+             ("hash-tampered first-party body",lambda x:x[3]["pairs"][0].__setitem__("raw_sha256","0"*64)),
+             ("lost A-share notice pair",lambda x:x[3]["pairs"].pop()),
+             ("duplicate dated notice",lambda x:x[1]["rows"].append(copy.deepcopy(x[1]["rows"][0]))),
+             ("impossible claimed date",lambda x:x[3]["pairs"][0].__setitem__("notice_stop_date_candidates",["2026-02-30"])),
+             ("forged dated input aggregate",lambda x:x[1].__setitem__("source_records_sha256","0"*64)),
+             ("forged joined input hash",lambda x:x[3].__setitem__("candidate_pair_ledger_sha256","f"*64)),
+          ]
+          for name,mutate in cases:
+              modified=copy.deepcopy(args)
+              mutate(modified)
+              try: mod.adjudicate(*modified)
+              except (ValueError,TypeError,KeyError): continue
+              raise AssertionError("FAIL OPEN: "+name)
+          print(f"REAL-SOURCE-LINKED BUSINESS REVERSE CONTROLS {len(cases)}/{len(cases)} PASS")
+          PY
+      - name: Upload actual LIVE dated A-share candidate-only evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: STOCK-SZSE-LIVE-DATED-ASHARE-REVIEW-${{ github.sha }}
+          path: |
+            stock_szse_current_live_dated_341.json
+            stock_szse_current_live_dated_ashare_join.json
+            stock_szse_current_live_ashare_event_review.json
+          if-no-files-found: warn
+          retention-days: 30
