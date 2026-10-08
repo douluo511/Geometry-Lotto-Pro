@@ -98,6 +98,32 @@ checks.append(check(
 ))
 assert len(checks) == 9
 
+# Byte-level charset controls: do not let heuristic windows-1251 turn valid
+# first-party Chinese UTF-8 into mojibake, or replace corrupt bytes silently.
+class RawResponse:
+    def __init__(self, content, encoding, apparent_encoding):
+        self.content = content
+        self.encoding = encoding
+        self.apparent_encoding = apparent_encoding
+
+chinese = "关于上市公司股票临时停牌的公告"
+utf8 = RawResponse(chinese.encode("utf-8"), "ISO-8859-1", "windows-1251")
+assert module.decode_response(utf8) == chinese
+checks.append("real UTF-8 bytes beat guessed windows-1251")
+
+gb = RawResponse(("<meta charset='GB2312'>" + chinese).encode("gb18030"),
+                 "gbk", "ISO-8859-1")
+assert chinese in module.decode_response(gb)
+checks.append("declared GB-family pages decoded strictly")
+
+try:
+    module.decode_response(RawResponse(b"\xff\xff", None, "windows-1251"))
+    raise AssertionError("corrupt bytes must fail closed")
+except RuntimeError as exc:
+    assert "non-UTF8" in str(exc)
+checks.append("unqualified corrupt charset never becomes body evidence")
+assert len(checks) == 12
+
 # Retry success must retain the original failure ledger; PASS is never invented.
 fetched = []
 slept = []
@@ -139,5 +165,5 @@ assert cap["retry_cap_exceeded"] and cap["second_pass_attempted"] == 0
 assert all(row["status"] == "NOT VERIFIED" for row in skipped)
 checks.append("retry budget exhausted fails closed")
 
-assert len(checks) == 12
-print("SZSE PRIMARY ARTICLE + NETWORK REPLAY 12/12 OFFLINE REGRESSIONS PASS")
+assert len(checks) == 15
+print("SZSE PRIMARY ARTICLE + NETWORK REPLAY 15/15 OFFLINE REGRESSIONS PASS")
