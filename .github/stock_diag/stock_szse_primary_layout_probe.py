@@ -46,7 +46,7 @@ def summary(r, errors, url):
     for tag in soup.find_all(["article","section","main","div","p","td","table","span","h1","h2","h3","iframe","frame"]):
         if tag.name in ("iframe", "frame"):
             continue
-        txt = re.sub(r"\\s+", "", tag.get_text(" ", strip=True))
+        txt = re.sub(r"\s+", "", tag.get_text(" ", strip=True))
         if len(txt) < 15 or len(txt) > 15000:
             continue
         if not any(w in txt for w in TERMS):
