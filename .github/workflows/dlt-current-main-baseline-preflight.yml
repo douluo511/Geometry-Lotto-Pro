@@ -70,6 +70,8 @@ jobs:
           if($LASTEXITCODE -eq 0){ throw 'FALSE PASS: tampered payload accepted' }
           Write-Host 'STALE_EXPORT_REJECTION=PASS'
           Write-Host 'TAMPERED_PAYLOAD_REJECTION=PASS'
+          # Expected negative invocations leave LASTEXITCODE nonzero; clear only after both guards rejected.
+          exit 0
 
       - name: Derive deterministic baseline A and B
         shell: pwsh
