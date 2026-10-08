@@ -87,6 +87,59 @@ class SSQProspectiveIntegrityTests(unittest.TestCase):
         self.assertEqual(service._prospective_audit["qualified_replays"], 0)
         self.assertFalse(service._prospective_audit["promotion_authorized"])
 
+    def test_scientific_policy_fingerprint_changes_after_verifier_code_change(self):
+        """A formerly PASS court becomes stale when the verification policy changes."""
+        old = LottoService._scientific_policy_hash()
+        self.assertEqual(len(old), 64)
+        original = __import__("glp.evidence", fromlist=["run_evidence_court"]).run_evidence_court
+
+        def altered_policy(*args, **kwargs):
+            return {"software_verdict": "FAIL"}
+
+        from glp import evidence as evidence_module
+        with patch.object(evidence_module, "run_evidence_court", altered_policy):
+            changed = LottoService._scientific_policy_hash()
+        self.assertNotEqual(old, changed)
+        self.assertEqual(original, evidence_module.run_evidence_court)
+
+    def test_cached_zero_qualified_court_requires_matching_exact_policy(self):
+        identity = model_identity()
+        old = {
+            "schema": "evidence-court-v8",
+            "canonical_hash": "test-canonical",
+            "model_hash": identity["model_hash"],
+            "selector_hash": identity["selector_hash"],
+            "scientific_policy_hash": "0" * 64,
+            "software_verdict": "PASS",
+            "final_validation": {"status": "PASS"},
+            "prospective_authority": {
+                "authority": "EXTERNAL_PREDRAW_GIT_LEDGER_NOT_VERIFIED"
+            },
+            "prospective_n": 0,
+            "edge_state": "NO_EDGE",
+            "dan_state": "NULL_DAN",
+        }
+        old["court_hash"] = sha256_json(old)
+        service = LottoService.__new__(LottoService)
+        service.latest_court = lambda: old
+        service._prospective_replays = lambda _: []
+        service._prospective_audit = {
+            "authority": "EXTERNAL_PREDRAW_GIT_LEDGER_NOT_VERIFIED",
+            "qualified_replays": 0,
+        }
+        service._append_experiment = lambda *_: None
+        fresh = {
+            "software_verdict": "PASS",
+            "edge_state": "NO_EDGE",
+            "dan_state": "NULL_DAN",
+            "prospective_n": 0,
+        }
+        with patch("glp.service.run_evidence_court", return_value=fresh) as gate:
+            court = service._court([], "test-canonical")
+        gate.assert_called_once()
+        self.assertEqual(court["scientific_policy_hash"], LottoService._scientific_policy_hash())
+        self.assertNotEqual(court["scientific_policy_hash"], "0" * 64)
+
     def test_old_historically_passed_court_is_not_reused(self):
         selector_identity = model_identity()
         old = {
