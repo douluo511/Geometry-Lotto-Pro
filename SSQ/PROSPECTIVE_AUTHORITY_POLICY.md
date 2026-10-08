@@ -6,6 +6,13 @@
 
 本地 SQLite `freezes` + `replays` 可以記錄預測及開獎後的回顧，卻**無法單憑自報的時間或 SHA-256 證明該筆預測確實在官方開獎前已對外不可變地公示**。舊版 Evidence Court 僅依 selector 查詢並按 Replay 行數計數；空白 selector／非 dict 可被視作一致。這允許重複、補登或造假的 Replay 污染前瞻樣本數。
 
+## 科學裁決 Exact-Code 快取隔離
+
+- Evidence Court 快取現在必須同時匹配本輪 `scientific_policy_hash`，此摘要從正在執行的 Evidence Court、前瞻來源資格閘門、Service 入口程式碼的 Python code objects 計算，而不是只相信 APP_VERSION 或舊模型／selector hash。
+- 驗證算法、快取條件、來源資格判斷程式碼變更、或 Windows frozen-build 的編譯指紋不一致時，歷史 `software_verdict=PASS` 不能繼續沿用，必須重新運行本輪 Evidence Court。
+- 新增反例：若把過去的 verifier 編譯程式碼替換成行為不同的版本，fingerprint 必須改變；即使上一筆快取宣稱 `NO_EDGE / NULL_DAN / prospective_n=0` 並重新計算 court_hash，過期的 `scientific_policy_hash` 仍被拒絕。
+- Code-object fingerprint 是「本地快取相容性門檻」，**不是**可信任的外部開獎前時間戳、GitHub 真實來源授權或預測優勢證明。
+
 ## 此修復的硬邊界
 
 - 本機 Replay 繼續保留作為**歷史回顧／故障分析**，不作為已資格確認的前瞻樣本。
