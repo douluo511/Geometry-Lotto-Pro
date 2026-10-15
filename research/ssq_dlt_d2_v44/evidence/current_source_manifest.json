@@ -1,0 +1,21 @@
+{
+  "research/ssq_dlt_d2_v44/acceptance.py": "38fcff1f0930cc84d72272fa7afe8bc9cd6b2fee5c03e13bd773d4c6c72bd6c4",
+  "research/ssq_dlt_d2_v44/admission.py": "99e9ebf12f17f807a3f47a08af9c1ed589440211d38d928d6124e8b24b9c37ba",
+  "research/ssq_dlt_d2_v44/ledger.py": "5f6d746541f24259fcb4171cbd37d4317f80bdc4bcc8fb9f6107fb912f904985",
+  "research/ssq_dlt_d2_v44/network.py": "f9e5d1c94e8d1f49e0d378bbf0c468fcaddfb1e31835a11efb3a9eeeaf1dbb30",
+  "research/ssq_dlt_d2_v44/probe_network.py": "602ba07247f1600fd59f292ca75cd6cc211398c968702599c1e57f4269c72c15",
+  "research/ssq_dlt_d2_v44/requirements-test.txt": "8b5c18678b29b5e8e0fb586a35ac1dce3ccd9da321e8f12ace0e118350b4e568",
+  "research/ssq_dlt_d2_v44/runtime.py": "5520b936559164fcb5ddadd4cbb7ee827b7af4e99e35ef920eaa28f8940a5f2c",
+  "research/ssq_dlt_d2_v44/scoring.py": "0c8e6e05039f12cbc365c4825b4246ce313cbf14717db827af76ee2deada928a",
+  "research/ssq_dlt_d2_v44/tests/test_admission.py": "1d2c768d295632b649bfe665a668c9c523dd004f0d02303ee3f3fa9261f64993",
+  "research/ssq_dlt_d2_v44/tests/test_ledger.py": "94353388877f6b60571ee946908e8e65174c52b159739ffad63069ed3872c677",
+  "research/ssq_dlt_d2_v44/tests/test_network.py": "a3667d5f5549e1075f85e5d1d9abb165e73d5847f7923ceaded9c303c62f7f9c",
+  "research/ssq_dlt_d2_v44/tests/test_persistent_authorization.py": "de61cdbb0c312decff3e918ec56e02bd93f614dec135e231de74fee5f5d01222",
+  "research/ssq_dlt_d2_v44/tests/test_scoring.py": "dc0cae0dc99caac433b20b57919a3f91b3174b186467fece35fb3a767314ec9f",
+  "research/ssq_dlt_d2_v44/tests/test_windows.py": "36d7916019da02b648e1f08f64f664446d78ca931c950284d2983b4cd4a5e49c",
+  "research/ssq_dlt_d2_v44/windows/Install-StatusTask.ps1": "5dbe356df893db3573e241d06563aec7f9574be18b7fb932e1269dce63cd8714",
+  "research/ssq_dlt_d2_v44/windows/Invoke-Status.ps1": "392ca4d38e181e38e72124a75d2a3c6f340172ec57d5ebf394d4a2fcac767480",
+  "research/ssq_dlt_d2_v44/windows/Probe-StatusTask.ps1": "96fca70bb70d16be9153d72092c75112ecbb81886e6d30118bbdb049d1bf1358",
+  "research/ssq_dlt_d2_v44/windows/status-task.bat": "35545b8ca0323967899ee9fa9315967b7c0375a9f0351f96ea28db2112dc37c6",
+  "research/ssq_dlt_d2_v44/windows/task-template.xml": "3b85aafcf53a4c3a214147e197db2f9b6b3b14d067bc56c358e273e6322e4342"
+}

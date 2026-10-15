@@ -1,0 +1,87 @@
+{
+  "scope": "independent synthetic review, no official/A/TSA qualification",
+  "results": {
+    "cross_version_comparison": {
+      "input_versions": [
+        "v1",
+        "v2"
+      ],
+      "m04_comparisons": [
+        {
+          "game": "SSQ",
+          "slot": "M04",
+          "null": "M07",
+          "n": 2,
+          "wins": 0,
+          "losses": 0,
+          "ties": 2,
+          "paired_delta": 0.0,
+          "p_exploratory": 1.0
+        }
+      ],
+      "result": "FAIL"
+    },
+    "missing_issue_rectangularity": {
+      "result": "PASS",
+      "missing": [
+        {
+          "game": "SSQ",
+          "issue": "SYNTH-MISSING",
+          "missing_slots": [
+            "M04",
+            "M05-1",
+            "M05-2",
+            "M05-3",
+            "M05-4",
+            "M05-5",
+            "M06",
+            "M07"
+          ],
+          "missing_draw": true
+        }
+      ]
+    },
+    "sql_mutations": {
+      "result": "PASS",
+      "probes": [
+        {
+          "query": "UPDATE candidates SET sha256='tamper'",
+          "rejected": true,
+          "error": "APPEND_ONLY"
+        },
+        {
+          "query": "DELETE FROM candidates",
+          "rejected": true,
+          "error": "APPEND_ONLY"
+        },
+        {
+          "query": "INSERT OR REPLACE INTO candidates SELECT * FROM candidates",
+          "rejected": true,
+          "error": "DUPLICATE_KEY"
+        }
+      ]
+    },
+    "replay_table_rows_unchanged": {
+      "result": "PASS"
+    },
+    "concurrent_duplicates": {
+      "result": "PASS",
+      "created_count": 1,
+      "retry_count": 15
+    },
+    "post_draw_missing_slot": {
+      "result": "PASS",
+      "error": "POST_DRAW_CANDIDATE"
+    },
+    "independent_non_nested_dans": {
+      "result": "PASS",
+      "D1_D5_full": [
+        0,
+        1,
+        0,
+        1,
+        0
+      ]
+    }
+  }
+}

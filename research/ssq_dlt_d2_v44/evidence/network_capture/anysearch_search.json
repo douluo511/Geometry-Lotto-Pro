@@ -1,0 +1,34 @@
+{
+  "scope": "SOURCE_DISCOVERY_ONLY",
+  "may_admit_official_data": false,
+  "formal_A": 0,
+  "result": {
+    "_meta": {
+      "request_id": "de29b3a4-3013-4a86-9b85-3baa3395cebc"
+    },
+    "content": [
+      {
+        "type": "text",
+        "text": "## Search Results (2 results, 996ms)\n\n### 1. Cwl.gov.cn - Crunchbase Company Profile & Funding\n- **URL**: https://www.crunchbase.com/organization/cwl-gov-cn\n- A lottery game where participants select up to ten numbers from a pool of 80, with multiple ways to win based on the number of matches. Explore Insight ...\n\n### 2. 中国福利彩票\n- **URL**: http://cwl.gov.cn/\n- No information is available for this page. sitelinks: Learn why: https://support.google.com/webmasters/answer/7489871?hl=en\n"
+      }
+    ]
+  },
+  "receipt": {
+    "requested_url": "https://api.anysearch.com/mcp",
+    "final_url": "https://api.anysearch.com/mcp",
+    "http_status": 200,
+    "content_type": "application/json",
+    "fetched_at": "2026-10-15T16:29:20.065618+00:00",
+    "sha256": "7ab9ed47e63f55c6c93574e9575c620091b8db1874836b8282dbf3ca90398fca",
+    "bytes": 648,
+    "attempts": [
+      {
+        "attempt": 1,
+        "status": "HTTP_OK"
+      }
+    ],
+    "admission": "BLOCKED",
+    "publication_verified": false
+  },
+  "raw_response_b64": "eyJqc29ucnBjIjoiMi4wIiwiaWQiOjMsInJlc3VsdCI6eyJfbWV0YSI6eyJyZXF1ZXN0X2lkIjoiZGUyOWIzYTQtMzAxMy00YTg2LTliODUtM2JhYTMzOTVjZWJjIn0sImNvbnRlbnQiOlt7InR5cGUiOiJ0ZXh0IiwidGV4dCI6IiMjIFNlYXJjaCBSZXN1bHRzICgyIHJlc3VsdHMsIDk5Nm1zKVxuXG4jIyMgMS4gQ3dsLmdvdi5jbiAtIENydW5jaGJhc2UgQ29tcGFueSBQcm9maWxlIFx1MDAyNiBGdW5kaW5nXG4tICoqVVJMKio6IGh0dHBzOi8vd3d3LmNydW5jaGJhc2UuY29tL29yZ2FuaXphdGlvbi9jd2wtZ292LWNuXG4tIEEgbG90dGVyeSBnYW1lIHdoZXJlIHBhcnRpY2lwYW50cyBzZWxlY3QgdXAgdG8gdGVuIG51bWJlcnMgZnJvbSBhIHBvb2wgb2YgODAsIHdpdGggbXVsdGlwbGUgd2F5cyB0byB3aW4gYmFzZWQgb24gdGhlIG51bWJlciBvZiBtYXRjaGVzLiBFeHBsb3JlIEluc2lnaHQgLi4uXG5cbiMjIyAyLiDkuK3lm73npo/liKnlvannpahcbi0gKipVUkwqKjogaHR0cDovL2N3bC5nb3YuY24vXG4tIE5vIGluZm9ybWF0aW9uIGlzIGF2YWlsYWJsZSBmb3IgdGhpcyBwYWdlLiBzaXRlbGlua3M6IExlYXJuIHdoeTogaHR0cHM6Ly9zdXBwb3J0Lmdvb2dsZS5jb20vd2VibWFzdGVycy9hbnN3ZXIvNzQ4OTg3MT9obD1lblxuIn1dfX0K"
+}

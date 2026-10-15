@@ -1,0 +1,95 @@
+{
+  "scope": "INDEPENDENT_SYNTHETIC_NETWORK_REVIEW",
+  "recorded_at": "2026-10-15T16:33:36.565273+00:00",
+  "live_network": "NOT_RUN",
+  "code_sha256": {
+    "research\\ssq_dlt_d2_v44\\network.py": "04ff1950120c20f7eabef90a33be2006a1527cd029647d9edc5ba7b19609f6a4",
+    "research\\ssq_dlt_d2_v44\\probe_network.py": "602ba07247f1600fd59f292ca75cd6cc211398c968702599c1e57f4269c72c15"
+  },
+  "checks": [
+    {
+      "name": "reject_control_character_url",
+      "status": "PASS",
+      "evidence": "INVALID_URL"
+    },
+    {
+      "name": "reject_suffix_host",
+      "status": "PASS",
+      "evidence": "URL_NOT_WHITELISTED"
+    },
+    {
+      "name": "reject_cross_host_redirect_before_follow",
+      "status": "PASS",
+      "evidence": "URL_NOT_WHITELISTED"
+    },
+    {
+      "name": "tool_call_before_initialize_rejected",
+      "status": "PASS",
+      "evidence": "DISCOVERY_INITIALIZE_REQUIRED"
+    },
+    {
+      "name": "reject_wrong_jsonrpc",
+      "status": "PASS",
+      "evidence": "INVALID_DISCOVERY_RPC_RESPONSE"
+    },
+    {
+      "name": "reject_boolean_id",
+      "status": "PASS",
+      "evidence": "INVALID_DISCOVERY_RPC_RESPONSE"
+    },
+    {
+      "name": "actual_list_and_fixed_allowlist_before_discovery_call",
+      "status": "PASS",
+      "evidence": {
+        "actual_transmitted_methods": [
+          "initialize",
+          "tools/list",
+          "tools/call"
+        ],
+        "formal_A": 0,
+        "may_admit_official_data": false
+      }
+    },
+    {
+      "name": "oversize_body_rejected",
+      "status": "PASS",
+      "evidence": "EMPTY_OVERSIZED_OR_BAD_HTTP"
+    },
+    {
+      "name": "slow_trickle_deadline_rejected",
+      "status": "PASS",
+      "evidence": {
+        "elapsed_simulated": 1.2,
+        "blocked": "NETWORK_UNAVAILABLE:[{\"attempt\":1,\"status\":\"TimeoutError\"}]"
+      }
+    },
+    {
+      "name": "late_eof_after_deadline_rejected",
+      "status": "FAIL",
+      "exception": "AssertionError",
+      "evidence": "Late EOF at simulated elapsed=2.0 > timeout=1 returned HTTP_OK; receipt admission remains BLOCKED"
+    },
+    {
+      "name": "unsupported_protocol_does_not_initialize",
+      "status": "FAIL",
+      "exception": "AssertionError",
+      "evidence": "Operation accepted instead of AdmissionBlocked"
+    },
+    {
+      "name": "probe_preserves_http_capture_and_application_error_without_promotion",
+      "status": "PASS",
+      "evidence": {
+        "exit_code": 0,
+        "sources": "HTTP_CAPTURE_ONLY",
+        "tools": "APPLICATION_ERROR",
+        "R2": "BLOCKED",
+        "formal_A": 0,
+        "decision": "NO_EDGE",
+        "scratch": "C:\\Users\\15928\\Documents\\Codex\\2026-10-15\\referenced-chatgpt-conversation-this-is-an\\work\\network-review-synthetic-a0ff4a954db64569a33ae57770779f68"
+      }
+    }
+  ],
+  "pass_count": 10,
+  "fail_count": 2,
+  "formal_admission": "BLOCKED"
+}

@@ -1,5 +1,9 @@
 # SSQ＋DLT V4.4 — GitHub-first research scoring gate
 
+The descriptions below record the PR #407 baseline at `c6d4de9`. The isolated
+local engineering follow-up is documented in [README_LOCAL.md](README_LOCAL.md)
+with current limitations and actual evidence. It does not promote any formal gate.
+
 **Scope:** Migration and acceptance workspace only. This is not an official draw
 adapter, live prediction service, qualified prospective seal, formal M04–M07
 candidate producer, Windows boot service, or release candidate.

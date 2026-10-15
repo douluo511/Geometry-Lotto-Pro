@@ -1,0 +1,65 @@
+{
+    "checked_at_utc":  "2026-10-15T11:38:04.7067434Z",
+    "scope":  "Local Windows diagnostics only; no reboot and no durable task installation",
+    "powershell_version":  "5.1.19041.6456",
+    "syntax":  [
+                   {
+                       "file":  "Install-StatusTask.ps1",
+                       "status":  "PASS",
+                       "errors":  0
+                   },
+                   {
+                       "file":  "Invoke-Status.ps1",
+                       "status":  "PASS",
+                       "errors":  0
+                   },
+                   {
+                       "file":  "Probe-StatusTask.ps1",
+                       "status":  "PASS",
+                       "errors":  0
+                   }
+               ],
+    "dry_export":  "PASS",
+    "scheduler_query":  "BLOCKED",
+    "temporary_task":  "BLOCKED",
+    "temporary_execution":  "BLOCKED",
+    "temporary_cleanup":  "NOT_RUN",
+    "real_boot":  "NOT_RUN",
+    "thirty_minute_elapsed_trigger":  "NOT_RUN",
+    "Windows10_reboot":  "NOT_RUN",
+    "Windows11_reboot":  "NOT_RUN",
+    "durable_task_installed":  false,
+    "R2":  "BLOCKED",
+    "formal_A":  0,
+    "decision":  "NO_EDGE",
+    "errors":  [
+                   {
+                       "step":  "scheduler_query",
+                       "type":  "Microsoft.Management.Infrastructure.CimException",
+                       "hresult":  -2146233088
+                   },
+                   {
+                       "step":  "temporary_scheduler_task",
+                       "type":  "Microsoft.Management.Infrastructure.CimException",
+                       "hresult":  -2146233088
+                   }
+               ],
+    "os":  {
+               "major":  10,
+               "minor":  0,
+               "build":  19045,
+               "platform":  2
+           },
+    "dry_export_exit_code":  0,
+    "dry_export_receipt":  {
+                               "status":  "EXPORTED_ONLY",
+                               "task_name":  "GLP-SsqDltV44-Status",
+                               "installed":  false,
+                               "xml_sha256":  "4fd968e5fcc4bfe04cface921a8720363793e8812b6032bf14e06fa30c8c02de",
+                               "R2":  "BLOCKED",
+                               "formal_A":  0,
+                               "conclusion":  "NO_EDGE"
+                           },
+    "dry_export_created_no_db":  true,
+    "dry_export_created_no_status":  true
+}

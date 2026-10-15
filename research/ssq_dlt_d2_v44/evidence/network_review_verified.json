@@ -1,0 +1,131 @@
+{
+  "scope": "INDEPENDENT_SYNTHETIC_NETWORK_AND_AUTH_REVIEW",
+  "recorded_at": "2026-10-15T16:36:50.102390+00:00",
+  "live_network": "NOT_RUN",
+  "initial_report_preserved": "C:\\Users\\15928\\Documents\\Codex\\2026-10-15\\referenced-chatgpt-conversation-this-is-an\\outputs\\network_review_final.json",
+  "code_sha256": {
+    "research\\ssq_dlt_d2_v44\\network.py": "f9e5d1c94e8d1f49e0d378bbf0c468fcaddfb1e31835a11efb3a9eeeaf1dbb30",
+    "research\\ssq_dlt_d2_v44\\probe_network.py": "602ba07247f1600fd59f292ca75cd6cc211398c968702599c1e57f4269c72c15",
+    "research\\ssq_dlt_d2_v44\\ledger.py": "d771d961de39ff37f713be2b600afafeb42b873b3f7815537b758e1b97b80828"
+  },
+  "checks": [
+    {
+      "name": "reject_control_character_url",
+      "status": "PASS",
+      "evidence": "INVALID_URL"
+    },
+    {
+      "name": "reject_suffix_host",
+      "status": "PASS",
+      "evidence": "URL_NOT_WHITELISTED"
+    },
+    {
+      "name": "reject_cross_host_redirect_before_follow",
+      "status": "PASS",
+      "evidence": "URL_NOT_WHITELISTED"
+    },
+    {
+      "name": "tool_call_before_initialize_rejected",
+      "status": "PASS",
+      "evidence": "DISCOVERY_INITIALIZE_REQUIRED"
+    },
+    {
+      "name": "reject_wrong_jsonrpc",
+      "status": "PASS",
+      "evidence": "INVALID_DISCOVERY_RPC_RESPONSE"
+    },
+    {
+      "name": "reject_boolean_id",
+      "status": "PASS",
+      "evidence": "INVALID_DISCOVERY_RPC_RESPONSE"
+    },
+    {
+      "name": "actual_list_and_fixed_allowlist_before_discovery_call",
+      "status": "PASS",
+      "evidence": {
+        "transmitted": [
+          "initialize",
+          "tools/list",
+          "tools/call"
+        ],
+        "scope": "SOURCE_DISCOVERY_ONLY",
+        "formal_A": 0
+      }
+    },
+    {
+      "name": "oversize_body_rejected",
+      "status": "PASS",
+      "evidence": "EMPTY_OVERSIZED_OR_BAD_HTTP"
+    },
+    {
+      "name": "slow_trickle_deadline_rejected",
+      "status": "PASS",
+      "evidence": {
+        "simulated_elapsed": 1.2,
+        "rejection": "NETWORK_UNAVAILABLE:[{\"attempt\":1,\"status\":\"TimeoutError\"}]"
+      }
+    },
+    {
+      "name": "late_eof_after_deadline_rejected",
+      "status": "PASS",
+      "evidence": {
+        "simulated_elapsed": 2.0,
+        "rejection": "NETWORK_UNAVAILABLE:[{\"attempt\":1,\"status\":\"TimeoutError\"}]"
+      }
+    },
+    {
+      "name": "unsupported_protocol_does_not_initialize",
+      "status": "PASS",
+      "evidence": [
+        {
+          "version": "SYNTHETIC-UNSUPPORTED",
+          "rejection": "INVALID_DISCOVERY_INITIALIZE"
+        },
+        {
+          "version": null,
+          "rejection": "INVALID_DISCOVERY_INITIALIZE"
+        }
+      ]
+    },
+    {
+      "name": "failed_reinitialize_invalidates_previous_capability_state",
+      "status": "PASS",
+      "evidence": {
+        "rejection": "INVALID_DISCOVERY_INITIALIZE",
+        "initialized": false,
+        "available_tools": []
+      }
+    },
+    {
+      "name": "probe_preserves_http_capture_and_application_error_without_promotion",
+      "status": "PASS",
+      "evidence": {
+        "exit_code": 0,
+        "sources": "HTTP_CAPTURE_ONLY",
+        "tool_status": "APPLICATION_ERROR",
+        "R2": "BLOCKED",
+        "formal_A": 0,
+        "decision": "NO_EDGE",
+        "scratch": "C:\\Users\\15928\\Documents\\Codex\\2026-10-15\\referenced-chatgpt-conversation-this-is-an\\work\\network-review-verified-synthetic-974859da6d9e484d8188dca53bc479dc"
+      }
+    },
+    {
+      "name": "persistent_nonce_real_ed25519_atomic_restart_and_rollback_tests",
+      "status": "PASS",
+      "tests_run": 3,
+      "skipped": 0,
+      "evidence": "test_both_nonces_and_candidate_commit_atomically_and_retry_is_noop (research.ssq_dlt_d2_v44.tests.test_persistent_authorization.TestPersistentAuthorization.test_both_nonces_and_candidate_commit_atomically_and_retry_is_noop) ... ok\ntest_second_signature_failure_rolls_back_first_nonce_and_candidate (research.ssq_dlt_d2_v44.tests.test_persistent_authorization.TestPersistentAuthorization.test_second_signature_failure_rolls_back_first_nonce_and_candidate) ... ok\ntest_valid_resigned_nonce_cannot_be_replayed_for_another_issue_after_restart (research.ssq_dlt_d2_v44.tests.test_persistent_authorization.TestPersistentAuthorization.test_valid_resigned_nonce_cannot_be_replayed_for_another_issue_after_restart) ... ok\n\n----------------------------------------------------------------------\nRan 3 tests in 0.209s\n\nOK\n"
+    }
+  ],
+  "pass_count": 14,
+  "fail_count": 0,
+  "ledger_read_only_findings": [
+    "01/04 nonces and candidate are committed inside one BEGIN IMMEDIATE transaction; bad second signature rolls back first nonce.",
+    "Replay after restart checks persisted per-role nonce set; same existing candidate is a documented idempotent no-op.",
+    "trusted_keys are caller-provisioned research inputs; this does not independently establish real 01/04 authority identity.",
+    "Full authorization envelopes/public-key custody are still external; database claims hashes alone are not independently replayable authority evidence."
+  ],
+  "formal_admission": "BLOCKED",
+  "formal_A": 0,
+  "decision": "NO_EDGE"
+}

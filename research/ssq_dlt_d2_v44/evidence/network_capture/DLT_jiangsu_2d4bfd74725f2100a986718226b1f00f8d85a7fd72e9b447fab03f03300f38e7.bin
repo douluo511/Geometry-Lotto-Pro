@@ -1,0 +1,1422 @@
+
+<!DOCTYPE html>
+<!--[if lt IE 7 ]><html class="ie ie6" lang="zh"> <![endif]-->
+<!--[if IE 7 ]><html class="ie ie7" lang="zh"> <![endif]-->
+<!--[if IE 8 ]><html class="ie ie8" lang="zh">
+<script>var _iealwn = {once: 0, outver: 8};</script>
+<script id="_iealwn_js" src="/js/ielatest.js"></script>
+<![endif]-->
+<!--[if (gte IE 9)|!(IE)]><!-->
+<html class="not-ie" lang="zh">
+<!--<![endif]-->
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+
+    <title>[江苏体彩网]</title>
+
+    <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no,maximum-scale=1.0" />
+    <!--  <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval'" /> -->
+    <link href="/lib/bootstrap/dist/css/bootstrap.min.css?v=1dc97171246a5e8" rel="stylesheet" />
+	<link href="/lib/bootstrap/dist/css/bootstrap-theme.min.css?v=1dc9717122980da" rel="stylesheet" />
+	<link href="/js/owl.carousel2/assets/owl.carousel.min.css?v=1dc9716fcbea662" rel="stylesheet" />
+	    <style>
+        .owl-theme .owl-nav.disabled + .owl-dot01s {
+            margin-top: -30px;
+            z-index: 1000;
+            magin: auto;
+            position: relative;
+        }
+
+        .owl-theme .owl-dot01s {
+            text-align: center;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+            .owl-theme .owl-dot01s .owl-dot01 {
+                display: inline-block;
+                zoom: 1;
+                *display: inline;
+            }
+
+                .owl-theme .owl-dot01s .owl-dot01 span {
+                    width: 40px;
+                    height: 15px;
+                    margin: 5px 2px;
+                    background: transparent;
+                    border: 1px solid #fff;
+                    display: block;
+                    -webkit-backface-visibility: visible;
+                    transition: opacity 200ms ease;
+                    border-radius: 3px;
+                }
+
+                .owl-theme .owl-dot01s .owl-dot01.active span, .owl-theme .owl-dot01s .owl-dot01:hover span {
+                    background: #ff9933;
+                }
+
+
+        .owl-carousel button.owl-dot01 {
+            background: none;
+            color: inherit;
+            border: none;
+            padding: 0 !important;
+            font: inherit;
+        }
+
+        .carousel-content {
+            padding: 5px;
+            position: absolute;
+            bottom: 0;
+            font-size: 12px;
+            width: 100%;
+            background: rgba(64, 64, 64, 0.70);
+        }
+
+            .carousel-content a {
+                color: #FFF;
+                text-shadow: 1px 1px 2px #333;
+            }
+
+                .carousel-content a:hover {
+                    color: #fff;
+                    text-decoration: none;
+                }
+    </style>
+
+    <link type="text/css" async rel="stylesheet" href="/themes/Default/css/Theme.min.css" />
+    <!--[if lte IE 9]>
+            <script src="/js/html5media.min.js"></script>
+    <script src="/js/html5shiv.min.js"></script>
+    <script src="/js/respond.js"></script>
+    <![endif]-->
+
+
+
+
+
+
+
+
+
+<style>
+     .btn {
+        filter: progid:DXImageTransform.Microsoft.Gradient(enabled='false');
+        -webkit-box-shadow: none;
+        -moz-box-shadow: none;
+        box-shadow: none;
+        background-image: none;
+        background-color: none;
+        border: 0;
+    }
+
+    .btn-default {
+        background-color: #cccccc;
+    }
+
+    div.content-text-area{ line-height:120%;}div.content-text-area table td,div.content-text-area table table th {border: 1px solid #666;padding:4px; !important;}div.content-text-area img{margin:auto,margin:3px;}li a, p a,span a{ color: #262429} li a:hover,p a:hover,span a:hover { color:#FF7307} .colorblock { background-color:#FF7307;color:#fff;}.navbar-section {background-color:#FF7307}.navbar.navbar-default .navbar-nav > li > a{ text-decoration: none;color:#FFFFFF}.navbar-nav>li>a{text-decoration: none; font-size:18px;color:#FFFFFF}.navbar-nav>li>a:hover{ text-decoration: none;background-color:#E54629;color:#FFFFFF}.navbar-nav>li>a:active{ background-color:#E54629;color:#FFFFFF}.navbar-nav>.open>a{background-color:#E54629;color:#FFFFFF}.navbar-nav>.open>a:hover{ background-color:#E54629;color:#FFFFFF}.dropdown-menu {background:#333333;opacity: 0.9; filter: alpha(opacity = 90);}.dropdown-menu li>a{padding-top:8px;padding-bottom:8px;color:#FFFFFF;}.dropdown-menu > .active >a{background-color:#333333;color:#FFFFFF;}.dropdown-menu > .active >a:hover {background-color:#E52B2C;color:#FFFFFF}.dropdown-menu > li > a:hover, .dropdown-menu > li > a:focus {  background-color:#E54629;background-image:none;color:#FFFFFF}.footer{background-color:;color:#333333}.footer  a {color:#333333}.header {background-color:#FFFFFF;color:#FF7307}.header  a { color:#FF7307}.widget-heading span {border-color:#FF7307}} .pagination>li> a:hover, .pagination>li> span:hover, .pagination>li> a:focus, .pagination> li > span:focus {z-index: 3;color: #fff;background-color:#FF7307;border-color:#FF7307}.pagination > .active > a, .pagination > .active > span, .pagination > .active > a:hover, .pagination > .active > span:hover, .pagination > .active > a:focus, .pagination > .active > span:focus {z-index: 2;color: #fff;background-color:#FF7307;border-color:#FF7307;cursor: default;}.btn-primary { background-color:#FF7307;border-color:#FF7307;}.btn-primary:hover, .btn-primary:focus, .btn-primary:active{ background-color:; background-position: 0 -15px; }.btn-primary:active:hover {background-color:;background-position: 0 -15px;};
+</style>
+
+    <style>
+.widget-heading
+{
+    border-bottom:1px solid #999;
+    padding:1px;
+}
+
+.widget-heading span {
+    border-bottom: 4px solid #FF7307;
+    font-weight:bold;
+    color:#333333;
+   font-family:微软雅黑;
+    font-size:18px;
+    letter-spacing:1px;
+}
+
+
+
+    </style>
+
+    <style>
+.widget02 .widget-heading
+{
+    border-bottom:1px solid #999;
+    padding:1px;
+}
+
+.widget02 .widget-heading span {
+    border-bottom: 4px solid #FF7307;
+    font-weight:bold;
+    color:#333;
+   font-family:黑体;
+    font-size:16px;
+    letter-spacing:1px;
+}
+    </style>
+
+
+    <style>
+        .inithide {
+            display: none;
+        }
+
+        .containerex {
+            margin-right: auto;
+            margin-left: auto;
+        }
+
+
+        .widget {
+            border: 0px solid #f00;
+            padding: 0px;
+            //margin: 0px 0px 0px 0px;
+        }
+
+        .widget-heading span {
+            font-weight: bold;
+            font-size: 20px;
+            letter-spacing: 1px;
+        }
+
+        .widget-heading a {
+            font-size: 14px;
+        }
+
+        .row.containerex {
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+
+        @media (min-width: 768px) {
+            .containerex {
+                width: 750px;
+            }
+        }
+
+        @media (min-width: 992px) {
+            .containerex {
+                width: 970px;
+            }
+        }
+
+        @media (min-width: 1200px) {
+            .containerex {
+                width: 1170px;
+            }
+        }
+    </style>
+
+
+    <script src="/js/jquery-3.6.0.min.js?v=1dc9716f4a6543e" type="text/javascript"></script>
+	<script src="/js/jquery-migrate-1.4.1.min.js?v=1dc9716f4b0db98" type="text/javascript"></script>
+	<script src="/js/jquery-migrate-3.4.0.min.js?v=1dc9716f4b82ea2" type="text/javascript"></script>
+	<script src="/js/tn_IsPC.js?v=1.0.0.3" type="text/javascript"></script>
+	<script src="/js/EasyPlug/Easy.min.js?v=1.0.0.2" type="text/javascript"></script>
+	<script src="/js/common.js?v=1.0.0.8" type="text/javascript"></script>
+	
+</head>
+
+<body class="front">
+
+    <div style="min-height:400px;">
+        <script>
+    var _isdesign = false;
+</script>
+<div class="container-fluid main custom-style">
+        <div class="additional row">
+            <div class="col-md-12 additional">
+                <div class="colContent row">
+                    <div class="additional zone">                    <div class=" widget full" >
+                        <div class="、 " style="">
+
+
+
+
+
+    <style>
+    #navbar
+    {
+            height:120px;
+    }
+
+      .logoex {
+            margin-top:5px;
+            margin-left:0px;
+            max-height:120px;
+        }
+
+    #topSearchForm {
+        margin-top:50px;
+        padding:0px;
+
+    }
+
+        .navbar-nav > li > a {
+            padding-left: 11px;
+            padding-right: 11px;
+        }
+
+    .fa-search
+    {
+
+    }
+
+    .navbar-ex1-collapse
+    {
+        display:none;
+    }
+    .navbar-collapse-mobile
+{
+	background:#f9f9f9;
+	height:100%;
+}
+
+.navbar-collapse-mobile .li1 {
+    width: 100%;
+    margin: 0 0 5px 0;
+    line-height: 1.8;
+    list-style:none;
+}
+.navbar-collapse-mobile .li1 .a1 {
+    display: block;
+    color: #333;
+    height: 40px;
+    line-height: 40px;
+    background: #e6e6e6;
+    text-align: left;
+    padding: 0 5%;
+}
+.navbar-collapse-mobile .dropdown-box {
+    display: none;
+    overflow: hidden;
+    padding-bottom: 15px;
+	background:#fff;
+}
+.navbar-collapse-mobile .dropdown-box > li {
+    float: left;
+    min-width: 33.3%;
+	list-style: none;
+    padding: 10px 0 0 0;
+}
+.navbar-collapse-mobile .dropdown-box > li> a {
+    padding: 0 10%;
+    font-size: 14px;
+    color: #666;
+    word-break: keep-all;
+    white-space: nowrap;
+}
+
+.navbar-collapse-mobile .caret {
+    display: none;
+}
+.navbar-collapse-mobile .dropdownex .caret {
+    display: block;
+    float: right;
+    height: 40px;
+    line-height: 40px;
+    width: 52px;
+    font-size: 0;
+	border:0px solid #999;
+    color: #666;
+    background: #ddd;
+    position: relative;
+    overflow: hidden;
+}
+.navbar-collapse-mobile .caret::after, .navbar-collapse-mobile .caret::before {
+    content: "";
+    display: block;
+    height: 1px;
+    width: 13px;
+    margin: 0 0 0 -6px;
+    background: #888;
+    position: absolute;
+    left: 50%;
+    top: 50%;
+}
+.navbar-collapse-mobile .caret::before {
+    height: 13px;
+    width: 1px;
+    margin: -6px 0 0 0;
+}
+.navbar-collapse-mobile .expanded .dropdown-box {
+    display: block;
+}
+.navbar-collapse-mobile .expanded .caret::before {
+    display: none;
+}
+
+    </style>
+    <style ype="text/css" media="screen and (max-width: 767px)">
+    #navbar {
+        height: auto;
+    }
+
+        #topSearchForm {
+        margin:10px -5px 10px -5px;
+        padding:0px;
+
+    }
+
+    .logoex {
+        margin-left: 2px;
+        margin-top: 5px;
+        max-width: 280px;
+        max-height: 52px;
+    }
+
+    #topSearchForm {
+        background-color: transparent;
+    }
+
+    .header {
+        background-image: none;
+        border-bottom: 0px;
+    }
+    </style>
+<style ype="text/css" media="screen and (max-width: 370px)">
+    #navbar {
+        height: auto;
+    }
+
+    .logoex {
+        margin-top: 5px;
+        margin-left: 2px;
+        max-width: 260px;
+        max-height: 68px;
+    }
+</style>
+
+
+<style>
+    div.affix {
+        top: 0px;
+        left:0px;
+        z-index: 999999 !important;
+        box-shadow: 0px 1px 20px 1px #666;
+        width: 100%;
+        -webkit-transition: all .5s ease-in-out;
+        transition: all .5s ease-in-out;
+    }
+
+    img.affixlogo {
+        display: none;
+    }
+
+    div.affix img.affixlogo {
+        display: block;
+        margin-top: 5px;
+        max-height: 32px;
+        max-width: 32px;
+    }
+
+    .dropdown-submenu {
+        position: relative;
+    }
+
+        .dropdown-submenu > .dropdown-menu {
+            top: 0;
+            left: 100%;
+            margin-top: -6px;
+            margin-left: -1px;
+        }
+
+        .dropdown-submenu:hover > .dropdown-menu {
+            display: block;
+        }
+
+        .dropdown-submenu:hover > a:after {
+            border-left-color: #fff;
+        }
+
+        .dropdown-submenu.pull-left {
+            float: none;
+        }
+
+            .dropdown-submenu.pull-left > .dropdown-menu {
+                left: -100%;
+                margin-left: 10px;
+            }
+
+</style>
+
+<div style="width:100%;z-index:6;">
+    <div class="navigation header" style="margin:0px;margin:auto;">
+        <div id="navbar" class="navbar navbar-default container" role="navigation" style="background:transparent;border:0px; box-shadow: none;margin-bottom: 0;">
+            <div class="">
+                <div class="navbar-header" style="">
+                        <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".navbar-ex1-collapse" style="margin-right:0px;">
+                            <span class="icon-bar"></span>
+                            <span class="icon-bar"></span>
+                            <span class="icon-bar"></span>
+                        </button>
+                        <a class="navbar-brand" style="padding:0px;" href="/">
+                            <img src="/UpLoad/Images/202103/fba2eb82e64b4c3b8bc8df0c867c2a2e.jpg" alt="logo" class="logoex" style="" />
+                        </a>
+
+                    </div>
+                    <div id="topSearchForm" class="navbar-form navbar-right " style="border:0px ;">
+
+                            <div class="form-group input-group">
+                                <input type="text" placeholder="搜索" class="form-control" id="searchContent">
+                                <a class="input-group-addon " id="quickSearch" href="javascript:;" style="border-top-right-radius:2px;border-bottom-right-radius:2px;"><i class="fa fa-search"></i></a>
+                            </div>
+                    </div>
+            </div>
+            <div style="clear:both;"></div>
+        </div>
+    </div>
+
+
+    <div>
+        <div class="navbar-section" style="width:100%;">
+            <div class="container">
+                <div class="navbar-collapse collapse navbar-responsive-collapse" style="font-size:16px;">
+                    <ul class="nav navbar-nav ">
+                            <li>
+                                <a class="navbar-brand" style="padding:0px;" href="/">
+                                    <img src="/UpLoad/Images/202103/ac64bd37c6e14d628dd1ae562cfc9c63.png" alt="logo" style="" class="affixlogo" />
+                                </a>
+                            </li>
+
+                                    <li class="">
+                                        <a  target="_self" href="/index">首页</a>
+
+                                    </li>
+                                <li class="dropdown">
+                                    <a href="/tzgg" data-toggle="" role="button" aria-expanded="false"> 通知公告 <b class="caret"></b></a>
+                                        <ul class="dropdown-menu">
+                                                        <li class="">
+                                                            <a  target="_self" href="/tzgg/tzgg">通知公告</a>
+
+                                                        </li>
+                                                        <li class="">
+                                                            <a  target="_self" href="/tzgg/cggg">采购公告</a>
+
+                                                        </li>
+                                        </ul>
+
+                                </li>
+                                <li class="dropdown">
+                                    <a href="/xwzx" data-toggle="" role="button" aria-expanded="false"> 新闻中心 <b class="caret"></b></a>
+                                        <ul class="dropdown-menu">
+                                                        <li class="">
+                                                            <a  target="_self" href="/xwzx/zdgz">重点关注</a>
+
+                                                        </li>
+                                                        <li class="">
+                                                            <a  target="_self" href="/xwzx/tcdt">体彩动态</a>
+
+                                                        </li>
+                                        </ul>
+
+                                </li>
+                                    <li class="">
+                                        <a  target="_self" href="/zrcp">责任彩票</a>
+
+                                    </li>
+                                <li class="dropdown">
+                                    <a href="/wfzq" data-toggle="" role="button" aria-expanded="false"> 玩法专区 <b class="caret"></b></a>
+                                        <ul class="dropdown-menu">
+                                                        <li class="dropdown-submenu">
+                                                            <a href="/wfzq/dlt">大乐透 <b class="caret right"></b></a>
+                                                            <ul class="dropdown-menu" style="">
+                                                                    <li class="current">
+                                                                        <a  target="_self" href="/wfzq/dlt/data">历史数据</a>
+
+                                                                    </li>
+                                                                    <li class="">
+                                                                        <a  target="_self" href="/wfzq/dlt/wfjs">玩法介绍</a>
+
+                                                                    </li>
+                                                                    <li class="">
+                                                                        <a  target="_self" href="/wfzq/dlt/xwzx">新闻资讯</a>
+
+                                                                    </li>
+                                                            </ul>
+                                                        </li>
+                                                        <li class="dropdown-submenu">
+                                                            <a href="/wfzq/sevenstar">7星彩 <b class="caret right"></b></a>
+                                                            <ul class="dropdown-menu" style="">
+                                                                    <li class="">
+                                                                        <a  target="_self" href="/wfzq/sevenstar/data">历史数据</a>
+
+                                                                    </li>
+                                                                    <li class="">
+                                                                        <a  target="_self" href="/wfzq/sevenstar/xwzx">新闻资讯</a>
+
+                                                                    </li>
+                                                                    <li class="">
+                                                                        <a  target="_self" href="/wfzq/sevenstar/wfzq">玩法介绍</a>
+
+                                                                    </li>
+                                                            </ul>
+                                                        </li>
+                                                        <li class="dropdown-submenu">
+                                                            <a href="/wfzq/jc">竞彩 <b class="caret right"></b></a>
+                                                            <ul class="dropdown-menu" style="">
+                                                                    <li class="">
+                                                                        <a  target="_self" href="/wfzq/jc/xwzx">新闻资讯</a>
+
+                                                                    </li>
+                                                                    <li class="">
+                                                                        <a  target="_self" href="/wfzq/jc/sszx">赛事资讯</a>
+
+                                                                    </li>
+                                                                    <li class="">
+                                                                        <a  target="_self" href="/wfzq/jc/wfjs">玩法介绍</a>
+
+                                                                    </li>
+                                                            </ul>
+                                                        </li>
+                                                        <li class="dropdown-submenu">
+                                                            <a href="/wfzq/dgg">顶呱刮 <b class="caret right"></b></a>
+                                                            <ul class="dropdown-menu" style="">
+                                                                    <li class="">
+                                                                        <a  target="_self" href="/wfzq/dgg/xwzx">新闻资讯</a>
+
+                                                                    </li>
+                                                                    <li class="">
+                                                                        <a  target="_self" href="/wfzq/dgg/xpzs">新票展示</a>
+
+                                                                    </li>
+                                                                    <li class="">
+                                                                        <a  target="_self" href="/wfzq/dgg/dggbl">顶呱刮博览</a>
+
+                                                                    </li>
+                                                            </ul>
+                                                        </li>
+                                                        <li class="dropdown-submenu">
+                                                            <a href="/wfzq/p3p5">排3排5 <b class="caret right"></b></a>
+                                                            <ul class="dropdown-menu" style="">
+                                                                    <li class="">
+                                                                        <a  target="_self" href="/wfzq/p3p5/p3data">排列3历史数据</a>
+
+                                                                    </li>
+                                                                    <li class="">
+                                                                        <a  target="_self" href="/wfzq/p3p5/p5data">排列5历史数据</a>
+
+                                                                    </li>
+                                                                    <li class="">
+                                                                        <a  target="_self" href="/wfzq/p3p5/xwzx">新闻资讯</a>
+
+                                                                    </li>
+                                                                    <li class="">
+                                                                        <a  target="_self" href="/wfzq/p3p5/wfzq">玩法介绍</a>
+
+                                                                    </li>
+                                                            </ul>
+                                                        </li>
+                                                        <li class="dropdown-submenu">
+                                                            <a href="/wfzq/seven">7位数 <b class="caret right"></b></a>
+                                                            <ul class="dropdown-menu" style="">
+                                                                    <li class="">
+                                                                        <a  target="_self" href="https://h5-dalanjing.jstv.com/zt.html?id=1057979724962414592">开奖视频</a>
+
+                                                                    </li>
+                                                                    <li class="">
+                                                                        <a  target="_self" href="/wfzq/seven/data">历史数据</a>
+
+                                                                    </li>
+                                                                    <li class="">
+                                                                        <a  target="_self" href="/wfzq/seven/xwzx">新闻资讯</a>
+
+                                                                    </li>
+                                                                    <li class="">
+                                                                        <a  target="_self" href="/wfzq/seven/wfzq">玩法介绍</a>
+
+                                                                    </li>
+                                                            </ul>
+                                                        </li>
+                                                        <li class="dropdown-submenu">
+                                                            <a href="/wfzq/ctzq">传统足球 <b class="caret right"></b></a>
+                                                            <ul class="dropdown-menu" style="">
+                                                                    <li class="">
+                                                                        <a  target="_self" href="/wfzq/ctzq/xwzx">新闻资讯</a>
+
+                                                                    </li>
+                                                                    <li class="">
+                                                                        <a  target="_self" href="/wfzq/ctzq/wfjs">玩法介绍</a>
+
+                                                                    </li>
+                                                            </ul>
+                                                        </li>
+                                        </ul>
+
+                                </li>
+                                <li class="dropdown">
+                                    <a href="/tchd" data-toggle="" role="button" aria-expanded="false"> 体彩活动 <b class="caret"></b></a>
+                                        <ul class="dropdown-menu">
+                                                        <li class="">
+                                                            <a  target="_self" href="/tchd/pphd">品牌活动</a>
+
+                                                        </li>
+                                                        <li class="">
+                                                            <a  target="_self" href="/tchd/yxrd">营销热点</a>
+
+                                                        </li>
+                                                        <li class="dropdown-submenu">
+                                                            <a href="/tchd/gytc">公益体彩 <b class="caret right"></b></a>
+                                                            <ul class="dropdown-menu" style="">
+                                                                    <li class="">
+                                                                        <a  target="_self" href="/tchd/gytc/qt">公益要闻</a>
+
+                                                                    </li>
+                                                                    <li class="">
+                                                                        <a  target="_self" href="/tchd/gytc/sxhd">市县活动</a>
+
+                                                                    </li>
+                                                                    <li class="">
+                                                                        <a  target="_self" href="/tchd/gytc/zxzj">助学助教</a>
+
+                                                                    </li>
+                                                                    <li class="">
+                                                                        <a  target="_self" href="/tchd/gytc/tcgyx">体彩公益行</a>
+
+                                                                    </li>
+                                                            </ul>
+                                                        </li>
+                                                        <li class="dropdown-submenu">
+                                                            <a href="/tchd/tcljl">体彩零距离 <b class="caret right"></b></a>
+                                                            <ul class="dropdown-menu" style="">
+                                                                    <li class="">
+                                                                        <a  target="_self" href="/tchd/tcljl/zjxc">直击现场</a>
+
+                                                                    </li>
+                                                                    <li class="">
+                                                                        <a  target="_self" href="/tchd/tcljl/hdjs">活动介绍</a>
+
+                                                                    </li>
+                                                                    <li class="">
+                                                                        <a  target="_self" href="/tchd/tcljl/rymd">人员名单</a>
+
+                                                                    </li>
+                                                            </ul>
+                                                        </li>
+                                        </ul>
+
+                                </li>
+                                    <li class="">
+                                        <a  target="_self" href="/djzc">党建之窗</a>
+
+                                    </li>
+                                <li class="dropdown">
+                                    <a href="/fwzc" data-toggle="" role="button" aria-expanded="false"> 服务之窗 <b class="caret"></b></a>
+                                        <ul class="dropdown-menu">
+                                                        <li class="">
+                                                            <a  target="_self" href="/fwzc/wdzl">网点资料</a>
+
+                                                        </li>
+                                                        <li class="">
+                                                            <a  target="_self" href="/fwzc/djxz">兑奖须知</a>
+
+                                                        </li>
+                                                        <li class="">
+                                                            <a target="_blank"rel="noopener noreferrer nofollow" target="_self" href="/qjddt">附近网点</a>
+
+                                                        </li>
+                                                        <li class="dropdown-submenu">
+                                                            <a href="/fwzc/cpbwg">彩票博物馆 <b class="caret right"></b></a>
+                                                            <ul class="dropdown-menu" style="">
+                                                                    <li class="">
+                                                                        <a  target="_self" href="/fwzc/cpbwg/whcpbwgxl">五环彩票博物馆巡礼</a>
+
+                                                                    </li>
+                                                                    <li class="">
+                                                                        <a  target="_self" href="/fwzc/cpbwg/cpscywh">彩票收藏与文化</a>
+
+                                                                    </li>
+                                                                    <li class="">
+                                                                        <a  target="_self" href="/fwzc/cpbwg/ztzlybd">专题展览与报道</a>
+
+                                                                    </li>
+                                                                    <li class="">
+                                                                        <a  target="_self" href="/fwzc/cpbwg/gcjpycpjs">馆藏精品与藏品介绍</a>
+
+                                                                    </li>
+                                                            </ul>
+                                                        </li>
+                                                        <li class="">
+                                                            <a target="_blank"rel="noopener noreferrer nofollow" target="_self" href="http://106.14.194.50/logistics/login/index.do">热敏纸直投</a>
+
+                                                        </li>
+                                        </ul>
+
+                                </li>
+                                <li class="dropdown">
+                                    <a href="/lxwm" data-toggle="" role="button" aria-expanded="false"> 联系我们 <b class="caret"></b></a>
+                                        <ul class="dropdown-menu">
+                                                        <li class="">
+                                                            <a  target="_self" href="/lxwm/zxjj">中心简介</a>
+
+                                                        </li>
+                                                        <li class="">
+                                                            <a  target="_self" href="/lxwm/guestbook">主任信箱</a>
+
+                                                        </li>
+                                                        <li class="">
+                                                            <a target="_blank"rel="noopener noreferrer nofollow" target="_self" href="https://jsyy.tcssyw.com/index">网点申请</a>
+
+                                                        </li>
+                                                        <li class="">
+                                                            <a  target="_self" href="/lxwm/fzlc">发展历程</a>
+
+                                                        </li>
+                                        </ul>
+
+                                </li>
+                                    <li class="">
+                                        <a target="_blank"rel="noopener noreferrer nofollow" target="_self" href="https://www.lottery.gov.cn/xytc/">开奖直播</a>
+
+                                    </li>
+                    </ul>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+
+
+
+    <script type="text/javascript">
+    $(".toggleCode").each(function () {
+        var code = $(this).find('.codeSpan');
+        $(this).hover(function () {
+            code.show();
+        }, function () {
+            code.hide();
+        });
+    })
+    $('.navbar-nav > li.dropdown').hover(function (event) {
+        event.preventDefault();
+        $('.navbar-nav > li.dropdown>ul.dropdown-menu', this).stop(true, true).slideDown('fast');
+        $(this).addClass('open');
+        event.stopPropagation();
+    }, function (event) {
+        event.preventDefault();
+        $('.navbar-nav > li.dropdown>ul.dropdown-menu', this).stop(true, true).slideUp('fast');
+        $(this).removeClass('open');
+        event.stopPropagation();
+    });
+
+    var $topSearchForm = $("#topSearchForm"),
+        $searchResult = $("#searchResult");
+
+        //点击事件
+    $topSearchForm.on('click', '#quickSearch', function (ev) {
+        var _curFilter = $.trim($("#searchContent").val());
+            if (_curFilter == "") {
+                ev.stopPropagation();
+            } else {
+                window.location = '/Portal/Search?keyword=' + encodeURI(_curFilter);
+                }
+        });
+
+                //点击事件
+        $topSearchForm.on('keydown', '#searchContent', function (ev) {
+            var _curFilter = $.trim($("#searchContent").val());
+            if (ev.which == 13) {
+                if (_curFilter > "") {
+
+                    window.location = '/Portal/Search?keyword=' + encodeURI(_curFilter);
+                }
+            }
+        });
+
+        function subsearchdataa46667a() {
+        var _curFilter = $.trim($("#searchContent").val());
+            if (_curFilter == "") {
+                     return false;
+            } else {
+                window.location = '/Portal/Search?keyword=' + encodeURI(_curFilter);
+            }
+            return false;
+
+        }
+
+
+        $(function () {
+            if (!document.getElementById("toolBar")) {
+                var nav = $(".navbar-section");
+                nav.parent().height(nav.height());
+                nav.affix({ offset: { top: nav.offset().top, bottom: 0 } });
+            }
+
+
+            $(".caret").click(function () {
+
+                var cur = $(this).parent().parent().find(".dropdown-box").is(":visible");
+
+                $(".navbar-collapse-mobile").find(".dropdown-box").hide();
+                $(".navbar-collapse-mobile").find(".expanded").removeClass("expanded");
+
+
+                if (cur) {
+                    $(this).parent().parent().removeClass("expanded");
+                }
+                else {
+                    $(this).parent().parent().addClass("expanded");
+                    $(this).parent().parent().find(".dropdown-box").slideDown();
+                }
+                return false;
+            });
+
+            });
+    </script>
+
+                        </div>
+                    </div>
+</div>
+                </div>
+            </div>
+        </div><div class="additional row"><div class="additional col-md-12"><div class="colContent row"><div class="additional zone">                    <div class=" widget full" >
+                        <div class="、 " style="">
+
+
+
+
+
+<div class="owl-carousel owl-theme" id="owl-slide0273df8a75c44c2ca5187214f8a3ef4a">
+        <div class="item" data-image-url="/UpLoad/Images/202608/8642fcd6ff8d497e81c19fccccc09568.jpg">
+            <div class="slider-inner">
+                    <img src="/UpLoad/Images/202608/8642fcd6ff8d497e81c19fccccc09568.jpg" />
+
+
+            </div>
+        </div>
+        <div class="item" data-image-url="/UpLoad/Images/202609/c57f27195e0f47cb8db87b16e557aa2f.jpg">
+            <div class="slider-inner">
+                    <img src="/UpLoad/Images/202609/c57f27195e0f47cb8db87b16e557aa2f.jpg" />
+
+
+            </div>
+        </div>
+        <div class="item" data-image-url="/UpLoad/Images/202604/847a6f60fa4f47c1b13b41eb6c6a2df6.jpg">
+            <div class="slider-inner">
+                    <a href="https://www.lottery.gov.cn/jyzq/index.html?source=11263200">
+
+                        <img src="/UpLoad/Images/202604/847a6f60fa4f47c1b13b41eb6c6a2df6.jpg" />
+
+                    </a>
+
+
+            </div>
+        </div>
+        <div class="item" data-image-url="/UpLoad/Images/202607/831cf5d658bb408b88e454efb14eba33.jpg">
+            <div class="slider-inner">
+                    <img src="/UpLoad/Images/202607/831cf5d658bb408b88e454efb14eba33.jpg" />
+
+
+            </div>
+        </div>
+        <div class="item" data-image-url="/UpLoad/Images/202601/2dbfd024051c48ee9f0f58067241c2e6.jpg">
+            <div class="slider-inner">
+                    <a href="/wfzq/p3p5/wfzq/cms/post-134026.html">
+
+                        <img src="/UpLoad/Images/202601/2dbfd024051c48ee9f0f58067241c2e6.jpg" />
+
+                    </a>
+
+
+            </div>
+        </div>
+        <div class="item" data-image-url="/UpLoad/Images/202308/4c9bbce0910947cfacfe622bfaca1bd8.jpg">
+            <div class="slider-inner">
+                    <a href="/lxwm/guestbook">
+
+                        <img src="/UpLoad/Images/202308/4c9bbce0910947cfacfe622bfaca1bd8.jpg" />
+
+                    </a>
+
+
+            </div>
+        </div>
+</div>
+
+    <script>
+        $(document).ready(function () {
+            var autoplay = true;
+            if (_isdesign)
+                autoplay = false;
+
+            $('#owl-slide0273df8a75c44c2ca5187214f8a3ef4a').owlCarousel({
+                loop: true,
+                margin: 10,
+                nav: false,
+                slideBy: 6,
+                dotsClass: 'owl-dot01s',
+                dotClass: 'owl-dot01',
+
+                autoplay: autoplay,
+                lazyLoad: false,
+                animateIn: true,
+                responsive: {
+                    0: {
+                        items: 1
+                    },
+                    600: {
+                        items: 1
+                    },
+                    1000: {
+                        items: 1
+                    }
+                }
+            });
+        });
+    </script>
+                        </div>
+                    </div>
+</div></div></div></div>
+    </div>
+    <div class="container main custom-style">
+        <div class="additional row">
+            <div class="col-md-12 additional">
+                <div class="colContent row">
+                    <div class="additional zone">                    <div style="" class=" widget " >
+                        <div class="、 " style="">
+<ol class="breadcrumb" style="margin:0px;">
+    <li><a href="/">首页</a></li>
+            <li><a href="/wfzq">玩法专区</a></li>
+            <li><a href="/wfzq/dlt">大乐透</a></li>
+                <li><a href="/wfzq/dlt/data">历史数据</a></li>
+</ol>                        </div>
+                    </div>
+</div>
+                </div>
+            </div>
+        </div><div class="additional row"><div class="additional col-md-3"><div class="colContent row"><div class="additional zone">                    <div style="" class=" widget " >
+                        <div class="、 " style="">
+
+
+
+
+    <style>
+        .sidenavbar li {
+            list-style: none;
+            padding: 10px;
+            border-bottom: 1px solid #ccc;
+        }
+
+            .sidenavbar li.dropdown-box {
+                display: none;
+            }
+
+            .sidenavbar li.dropdown-box ul{
+               list-style:none;
+               padding-left:0px;
+            }
+
+
+        .sidenavbar li.active {
+            background: #f3f3f3;
+        }
+    </style>
+    <style ype="text/css" media="screen and (max-width: 768px)">
+        .sidenavbar {
+            display: none;
+        }
+    </style>
+
+
+    <div class="sidenavbar">
+                <div class="colorblock" style="padding:10px;font-size:18px;font-weight:bold;text-align:center;">大乐透</div>
+            <ul style="list-style:none;padding-left:0px;">
+                            <li class="active">
+                                <a  target="_self" href="/wfzq/dlt/data">历史数据</a>
+
+                            </li>
+                            <li class="">
+                                <a  target="_self" href="/wfzq/dlt/wfjs">玩法介绍</a>
+
+                            </li>
+                            <li class="">
+                                <a  target="_self" href="/wfzq/dlt/xwzx">新闻资讯</a>
+
+                            </li>
+            </ul>
+    </div>
+
+    <script type="text/javascript">
+        $(function () {
+
+            $(".sidebar-caret").mouseover(function () {
+
+                var cur = $(this).next();
+
+                if (cur) {
+                    cur.slideDown();
+                }
+                return false;
+            }).mouseout(function () {
+            
+            });;
+    });
+        </script>                        </div>
+                    </div>
+</div></div></div><div class="additional col-md-9"><div class="colContent row"><div class="additional zone">                    <div style="" class=" widget " >
+                        <div class="、 " style="">
+
+    <div id="dataSearch" style="max-width:400px;margin:auto;">
+        <div class="input-group">
+            <input type="text" id="datasearchKeyword" class="form-control">
+            <div class="input-group-btn">
+                <button type="button" class="btn btn-primary btn-search"><i class="fa fa-search"></i>搜索</button>
+            </div>
+        </div>
+    </div>
+    <br>
+    <div id="_ListData">
+        
+
+
+    <table class="table table-border">
+        <tr>
+            <td style="background-color:#efefef;font-weight:bold;text-align:center;">发布日期</td>
+            <td style="background-color:#efefef;font-weight:bold;text-align:center;">期号</td>
+            <td style="background-color:#efefef;font-weight:bold;text-align:center;">开奖号码</td>
+            <td style="background-color:#efefef;font-weight:bold;text-align:center;">详细</td>
+        </tr>
+
+        <tr>
+            <td style="text-align:center;">2026-10-14</td>
+            <td style="text-align:center;">26117</td>
+            <td style="text-align:center;">
+                04 13 19 29 31 02 12
+            </td>
+            <td style="text-align:center;" nowrap><a style="background-color:#ff6a00;color:#fff;padding:3px 10px 3px 10px;border-radius:5px;" target="_blank" href="/cms/post-148054.html">详细</a></td>
+        </tr>
+        <tr>
+            <td style="text-align:center;">2026-10-12</td>
+            <td style="text-align:center;">26116</td>
+            <td style="text-align:center;">
+                09 18 22 25 35 01 10
+            </td>
+            <td style="text-align:center;" nowrap><a style="background-color:#ff6a00;color:#fff;padding:3px 10px 3px 10px;border-radius:5px;" target="_blank" href="/cms/post-148040.html">详细</a></td>
+        </tr>
+        <tr>
+            <td style="text-align:center;">2026-10-10</td>
+            <td style="text-align:center;">26115</td>
+            <td style="text-align:center;">
+                12 20 32 33 35 06 07
+            </td>
+            <td style="text-align:center;" nowrap><a style="background-color:#ff6a00;color:#fff;padding:3px 10px 3px 10px;border-radius:5px;" target="_blank" href="/cms/post-148030.html">详细</a></td>
+        </tr>
+        <tr>
+            <td style="text-align:center;">2026-10-07</td>
+            <td style="text-align:center;">26114</td>
+            <td style="text-align:center;">
+                08 12 15 29 30 09 12
+            </td>
+            <td style="text-align:center;" nowrap><a style="background-color:#ff6a00;color:#fff;padding:3px 10px 3px 10px;border-radius:5px;" target="_blank" href="/cms/post-148006.html">详细</a></td>
+        </tr>
+        <tr>
+            <td style="text-align:center;">2026-10-05</td>
+            <td style="text-align:center;">26113</td>
+            <td style="text-align:center;">
+                02 04 06 10 11 01 10
+            </td>
+            <td style="text-align:center;" nowrap><a style="background-color:#ff6a00;color:#fff;padding:3px 10px 3px 10px;border-radius:5px;" target="_blank" href="/cms/post-147999.html">详细</a></td>
+        </tr>
+        <tr>
+            <td style="text-align:center;">2026-09-30</td>
+            <td style="text-align:center;">26112</td>
+            <td style="text-align:center;">
+                01 03 05 10 22 03 09
+            </td>
+            <td style="text-align:center;" nowrap><a style="background-color:#ff6a00;color:#fff;padding:3px 10px 3px 10px;border-radius:5px;" target="_blank" href="/cms/post-147994.html">详细</a></td>
+        </tr>
+        <tr>
+            <td style="text-align:center;">2026-09-28</td>
+            <td style="text-align:center;">26111</td>
+            <td style="text-align:center;">
+                10 11 17 26 29 01 03
+            </td>
+            <td style="text-align:center;" nowrap><a style="background-color:#ff6a00;color:#fff;padding:3px 10px 3px 10px;border-radius:5px;" target="_blank" href="/cms/post-147976.html">详细</a></td>
+        </tr>
+        <tr>
+            <td style="text-align:center;">2026-09-26</td>
+            <td style="text-align:center;">26110</td>
+            <td style="text-align:center;">
+                03 24 25 26 35 07 09
+            </td>
+            <td style="text-align:center;" nowrap><a style="background-color:#ff6a00;color:#fff;padding:3px 10px 3px 10px;border-radius:5px;" target="_blank" href="/cms/post-147965.html">详细</a></td>
+        </tr>
+        <tr>
+            <td style="text-align:center;">2026-09-23</td>
+            <td style="text-align:center;">26109</td>
+            <td style="text-align:center;">
+                12 14 16 27 34 04 08
+            </td>
+            <td style="text-align:center;" nowrap><a style="background-color:#ff6a00;color:#fff;padding:3px 10px 3px 10px;border-radius:5px;" target="_blank" href="/cms/post-147953.html">详细</a></td>
+        </tr>
+        <tr>
+            <td style="text-align:center;">2026-09-21</td>
+            <td style="text-align:center;">26108</td>
+            <td style="text-align:center;">
+                01 05 07 21 35 01 04
+            </td>
+            <td style="text-align:center;" nowrap><a style="background-color:#ff6a00;color:#fff;padding:3px 10px 3px 10px;border-radius:5px;" target="_blank" href="/cms/post-147937.html">详细</a></td>
+        </tr>
+        </table>
+    <div class="text-center">
+        <div data-ajaxloadurl="/Lottery/_ListData?itemType=lo" data-mode="NumericNextPrevious" data-pageindex="1" data-plugin="page" data-size="10" data-sum="2931" data-targetid="_ListData"></div>
+    </div>
+
+
+    <script type="text/javascript">
+
+        $(function () {
+
+            $("#searchContent").hide();
+            $("#quickSearch").hide();
+	});
+</script>
+
+	
+    </div>
+
+    <script>
+        //搜索
+        $("#dataSearch").on('click', '.btn-search', function () {
+            var keyword = $.trim($('#datasearchKeyword').val());
+            $.get('/Lottery/_ListData', { keyword: keyword, itemType: 'lo' }, function (data) {
+
+                $("#_ListData").html(data);
+            });
+
+        });
+    </script>
+                        </div>
+                    </div>
+</div></div></div></div>
+    </div>
+    <div class="container-fluid main custom-style">
+        <div class="additional row">
+            <div class="col-md-12 additional">
+                <div class="colContent row">
+                    <div class="additional zone"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+        <div style="clear:both;"></div>
+    </div>
+    <div id="websiteclickcount" style="display:none"></div>
+    <div>
+        
+
+
+<div class="footer">
+
+        <div style="width:100%;height:50px;"></div>
+        <div style="background-color: #292933; ">
+
+            <div class="container" style="padding:10px;margin:auto;text-align:center;">
+                <img src="/UpLoad/Images/202102/46f7de56763444cc91b770c558465289.jpg" style="" />
+            </div>
+
+            <div class="container" style="margin:auto;max-width:720px;min-height:190px;">
+                <div class="row">
+                    <div class="col-lg-2 col-md-12">
+                        <h3 style="color:#efefef;">网点服务</h3>
+                        <ul style="padding-left:1px;">
+                            <li>
+                                <a style="color: #7d7d84;" onmousemove="javascript:this.style.color='#f47621'" onmouseout="javascript:this.style.color='#7d7d84'" href="http://106.14.194.50/logistics/login/index.do" target="_blank" rel="noopener noreferrer nofollow">热敏纸直投</a>
+                            </li>
+                            <li>
+                                <a style="color: #7d7d84;" onmousemove="javascript:this.style.color='#f47621'" onmouseout="javascript:this.style.color='#7d7d84'" href="/fwzc/wdzl" target="_blank">网点资料</a>
+                            </li>
+                            <li>
+                                <a style="color: #7d7d84;" onmousemove="javascript:this.style.color='#f47621'" onmouseout="javascript:this.style.color='#7d7d84'" href="/qjddt" target="_blank">附近网点</a>
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="col-lg-2 col-md-12">
+                        <h3 style="color:#efefef;">责任彩票</h3>
+                        <ul style="padding-left:1px;">
+                            <li>
+                                <a style=" color: #7d7d84;" onmousemove="javascript:this.style.color='#f47621'" onmouseout="javascript:this.style.color='#7d7d84'" href="https://www.lottery.gov.cn/gywh/gyjsy/index.html" target="_blank" rel="noopener noreferrer nofollow">体彩公益金</a>
+                            </li>
+                            <li>
+                                <a style="color: #7d7d84;" onmousemove="javascript:this.style.color='#f47621'" onmouseout="javascript:this.style.color='#7d7d84'" href="https://www.lottery.gov.cn/xytc/index.html" target="_blank" rel="noopener noreferrer nofollow">开奖直播</a>
+                            </li>
+                            <li>
+                                <a style="color: #7d7d84;" onmousemove="javascript:this.style.color='#f47621'" onmouseout="javascript:this.style.color='#7d7d84'" href="/lxwm/guestbook" target="_blank" rel="noopener noreferrer nofollow">主任信箱</a>
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="col-lg-2 col-md-12">
+                        <h3 style="color:#efefef;">关于我们</h3>
+                        <ul style="padding-left:1px;">
+                            <li>
+                                <a style="color: #7d7d84;" onmousemove="javascript:this.style.color='#f47621'" onmouseout="javascript:this.style.color='#7d7d84'" href="/lxwm/zxjj" target="_blank" rel="noopener noreferrer nofollow">中心简介</a>
+                            </li>
+                            <li>
+                                <a style="color: #7d7d84;" onmousemove="javascript:this.style.color='#f47621'" onmouseout="javascript:this.style.color='#7d7d84'" href="/lxwm/fzlc" target="_blank" rel="noopener noreferrer nofollow"> 发展历程</a>
+                            </li>
+                            <li>
+                                <a style="color: #7d7d84;" onmousemove="javascript:this.style.color='#f47621'" onmouseout="javascript:this.style.color='#7d7d84'" href="/djzc" target="_blank" rel="noopener noreferrer nofollow">党建之窗</a>
+                            </li>
+                            <li>
+                                <a style="color: #7d7d84;" onmousemove="javascript:this.style.color='#f47621'" onmouseout="javascript:this.style.color='#7d7d84'" href="/fwzc/cpbwg" target="_blank" rel="noopener noreferrer nofollow">彩票博物馆</a>
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="col-lg-6 col-md-12" style="margin-top:10px;text-align:center;">
+                        <div id="gyjboard"></div>
+                        <script type="text/javascript">$("#gyjboard").load("/Lottery/GyjBoard");</script>
+                        <div style="padding-top:10px;text-align:left;">
+                            <form style=""><select style="width: 300px; height: 30px;margin:0px" onchange="javascript:if(this.options[this.selectedIndex].value !='')
+        window.open(this.options[this.selectedIndex].value);this.options[0].selected;
+                                ">
+                                    <option value="">友情链接</option>
+                                    <option value="http://www.sport.gov.cn/" target="_blank">国家体育总局</option>
+                                    <option value="https://www.lottery.gov.cn/" target="_blank">中国体彩网</option>
+                                    <option value="http://jsstyj.jiangsu.gov.cn/" target="_blank">江苏省体育局</option>
+                                    <option value="http://tyj.jl.gov.cn/" target="_blank">吉林省体育局</option>
+                                    <option value="https://www.sporttery.cn/" target="_blank">中国竞彩网</option>
+                                    <option value="http://www.bjlot.com.cn/" target="_blank">北京体彩网</option>
+                                    <option value="http://www.tjtc.org.cn/" target="_blank">天津体彩网</option>
+                                    <option value="http://www.hbtcw.com/" target="_blank">河北体彩网</option>
+                                    <option value="http://www.sxlottery.net/" target="_blank">山西体彩网</option>
+                                    <option value="http://www.lntycp.com/" target="_blank">辽宁体彩网</option>
+                                    <option value="http://www.scticai.cn/" target="_blank">四川体彩网</option>
+                                    <option value="https://www.shsportslottery.com/" target="_blank">上海体彩网</option>
+                                    <option value="http://www.js-lottery.com/" target="_blank">江苏体彩网</option>
+                                    <option value="https://www.zjtycp.cn/" target="_blank">浙江体彩网</option>
+                                    <option value="https://www.nmtc.com.cn/" target="_blank">内蒙古体彩网</option>
+                                    <option value="http://www.ahtycp.com/" target="_blank">安徽体彩网</option>
+                                    <option value="http://www.fjtc.com.cn/" target="_blank">福建体彩网</option>
+                                    <option value="http://www.jxlottery.cn/" target="_blank">江西体彩网</option>
+                                    <option value="http://www.sdticai.com/" target="_blank">山东体彩网</option>
+                                    <option value="http://www.hnlottery.com.cn/" target="_blank">河南体彩网</option>
+                                    <option value="https://www.hnticai.com/" target="_blank">湖南体彩网</option>
+                                    <option value="https://www.hbtycp.com/" target="_blank">湖北体彩网</option>
+                                    <option value="https://www.gdlottery.cn/?v=1601812193700" target="_blank">广东体彩网</option>
+                                    <option value="http://www.lottery.gx.cn/" target="_blank">广西体彩网</option>
+                                    <option value="http://www.tc.hainan.net/" target="_blank">海南体彩网</option>
+                                    <option value="https://www.hljtycp.org.cn/" target="_blank">黑龙江体彩网</option>
+                                    <option value="http://www.cqtcw.net/" target="_blank">重庆体彩网</option>
+                                    <option value="https://www.gztcw.com.cn/" target="_blank">贵州体彩网</option>
+                                    <option value="https://www.yntc8.cn/" target="_blank">云南体彩网</option>
+                                    <option value="http://www.sxtc.com.cn/" target="_blank">陕西体彩网</option>
+                                    <option value="https://www.gstc.org.cn/#/" target="_blank">甘肃体彩网</option>
+                                    <option value="http://www.nxtcw.com.cn/Html/Default.asp" target="_blank">宁夏体彩网</option>
+                                    <option value="http://www.xjlottery.gov.cn/xjlottery/index.jsp" target="_blank">新疆体彩网</option>
+                                    <option value="http://www.qhtycp.com/" target="_blank">青海体彩网</option>
+                                </select>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+        <div style="background-color: #3a3a3a;color:#7d7d84; ">
+            <div class="container" style="margin:auto;max-width:1000px;text-align:center;"><p>江苏省体育彩票管理中心版权所有 &nbsp;客服电话：95086 &nbsp; <a style="color:#7d7d84" onmousemove="javascript:this.style.color='#f47621'" onmouseout="javascript:this.style.color='#7d7d84'" href="https://beian.miit.gov.cn/">苏ICP备05002125号</a> &nbsp;<a style="color:#7d7d84" onmousemove="javascript:this.style.color='#f47621'" onmouseout="javascript:this.style.color='#7d7d84'" href="http://www.beian.gov.cn/portal/registerSystemInfo?recordcode=32010602010458"><img src="/UpLoad/Images/202102/89ffb8d95cf94313a09d390d9e0aa2a5.png">苏公网安备 32010602010458号 </a></p></div>
+    </div>
+</div>
+
+    <a href="#" class="btn  scroll_To_Top">
+        <span>
+            <i style="font-size:36px;" class="fas fa-arrow-up"></i>
+        </span>
+    </a>
+
+
+
+    </div>
+    <script type="text/javascript">$("#websiteclickcount").load("/WebSite/ClickCount");</script>
+    
+
+
+
+    <link href="/lib/fontawesome5/css/all.min.css?v=1dc9717045014d8" rel="stylesheet" />
+	<link href="/lib/fontawesome5/css/v4-shims.min.css?v=1dc971704b7d7b2" rel="stylesheet" />
+	<link href="/css/site.css?V=1.0.6" rel="stylesheet" />
+	<link href="/css/tui.css?v=1dc96465cdb06f2" rel="stylesheet" />
+	<link href="/js/lib/layer/skin/layer.css?v=1dc97170b838488" rel="stylesheet" />
+	<link href="/js/lib/layer/skin/tnui/style.css?v=1dc9717327322a6" rel="stylesheet" />
+	    <style>
+        .scroll_To_Top {
+        width:50px;
+        text-align:center;
+        border-radius:15px;
+        text-decoration: none;
+        position: fixed;
+        padding: 5px;
+        text-align: center;
+        bottom: 30px;
+        right: 30px;
+        display: none;
+        }
+
+        .scroll_To_Top:hover {
+        text-decoration: none;
+        color:#FFFFFF;
+        box-shadow: 0px 1px 10px 1px #ccc;
+        }
+
+        .scroll_To_Top
+        {
+        background:#FF7307;
+        color:#FFFFFF;
+        border-radius:50%;
+
+        }
+
+        .footer
+        {
+        min-height:120px;
+        }
+    </style>
+
+    <script src="/js/lib/jquery.histroy.js?v=1dc9716f68093f0" type="text/javascript"></script>
+	<script src="/js/lib/jquery.livequery.js?v=3.3.1" type="text/javascript"></script>
+	<script src="/js/lib/jquery.lazyload.js?v=1dc9716f684b2aa" type="text/javascript"></script>
+	<script src="/js/lib/jquery.placeholder.min.js?v=1dc9716f6a09f2e" type="text/javascript"></script>
+	<script src="/lib/bootstrap/dist/js/bootstrap.min.js?v=1dc9717129c4034" type="text/javascript"></script>
+	<script src="/js/owl.carousel2/owl.carousel.min.js?v=1dc9716f6d013c6" type="text/javascript"></script>
+	<script src="/js/tn.page.js?v=1.0.0.4" type="text/javascript"></script>
+	<script src="/js/lib/layer/layer.js?v=1.0.0.1" type="text/javascript"></script>
+	<script src="/js/tn.layer.js?v=1.0.0.1" type="text/javascript"></script>
+	<script src="/js/site.js?v=1.0" type="text/javascript"></script>
+	    <script>
+        $(document).ready(function () {
+            $(window).scroll(function () {
+                if ($(this).scrollTop() > 100) {
+                    $('.scroll_To_Top').fadeIn();
+                }
+                else {
+                    $('.scroll_To_Top').fadeOut();
+                }
+            });
+
+
+            $('.scroll_To_Top').click(function () {
+                $('html, body').animate({ scrollTop: 0 }, 700);
+                return false;
+            });
+
+        });
+    </script>
+
+
+
+    <style>
+a#quickSearch
+{
+  color:#fff;
+  background-color:#FF7307;
+}
+.navbar-nav li a:focus
+{
+  background:#FF7307;
+}
+</style>
+</body>
+</html>
+

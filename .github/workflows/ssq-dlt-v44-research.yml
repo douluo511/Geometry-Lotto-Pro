@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - "research/ssq-dlt-v44-d2-prospective-gates"
+      - "research/ssq-dlt-v44-local-ledger"
     paths:
       - "research/ssq_dlt_d2_v44/**"
       - ".github/workflows/ssq-dlt-v44-research.yml"
@@ -33,5 +34,9 @@ jobs:
           python-version: "3.11"
       - name: Compile scoring module
         run: python -m py_compile research/ssq_dlt_d2_v44/scoring.py
+      - name: Install real signature verifier
+        run: python -m pip install -r research/ssq_dlt_d2_v44/requirements-test.txt
+      - name: Require cryptographic dependency
+        run: python -c "from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey"
       - name: Negative and positive unit tests
         run: python -m unittest discover -s research/ssq_dlt_d2_v44/tests -v

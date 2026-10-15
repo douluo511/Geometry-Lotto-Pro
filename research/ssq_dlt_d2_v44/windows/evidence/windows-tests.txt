@@ -1,0 +1,12 @@
+test_task_boot_repetition_retry_and_no_overlap (research.ssq_dlt_d2_v44.tests.test_windows.SchedulerPolicyTests.test_task_boot_repetition_retry_and_no_overlap) ... ok
+test_dry_export_is_valid_hidden_and_does_not_run_runtime (research.ssq_dlt_d2_v44.tests.test_windows.WindowsExecutionTests.test_dry_export_is_valid_hidden_and_does_not_run_runtime) ... ok
+test_export_refuses_to_replace_reviewed_xml (research.ssq_dlt_d2_v44.tests.test_windows.WindowsExecutionTests.test_export_refuses_to_replace_reviewed_xml) ... ok
+test_non_python_executable_rejected (research.ssq_dlt_d2_v44.tests.test_windows.WindowsExecutionTests.test_non_python_executable_rejected) ... ok
+test_relative_database_rejected_before_export (research.ssq_dlt_d2_v44.tests.test_windows.WindowsExecutionTests.test_relative_database_rejected_before_export) ... ok
+test_runtime_failure_propagates_nonzero (research.ssq_dlt_d2_v44.tests.test_windows.WindowsExecutionTests.test_runtime_failure_propagates_nonzero) ... ok
+test_status_runner_twice_preserves_outputs_and_admission (research.ssq_dlt_d2_v44.tests.test_windows.WindowsExecutionTests.test_status_runner_twice_preserves_outputs_and_admission) ... ok
+
+----------------------------------------------------------------------
+Ran 7 tests in 4.458s
+
+OK
