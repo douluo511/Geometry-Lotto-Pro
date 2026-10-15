@@ -1,0 +1,37 @@
+{
+  "scope": "SOURCE_DISCOVERY_ONLY",
+  "may_admit_official_data": false,
+  "formal_A": 0,
+  "result": {
+    "_meta": {
+      "request_ids": [
+        "fcbfa5d0-b340-4c56-b82d-de3b978779b8",
+        "4b7276b8-1a89-4533-9383-5698e8dd8780"
+      ]
+    },
+    "content": [
+      {
+        "type": "text",
+        "text": "## Query 1: site:cwl.gov.cn SSQ official draw results\n\n## Search Results (2 results, 1280ms)\n\n### 1. Cwl.gov.cn - Crunchbase Company Profile & Funding\n- **URL**: https://www.crunchbase.com/organization/cwl-gov-cn\n- A lottery game where participants select up to ten numbers from a pool of 80, with multiple ways to win based on the number of matches. Explore Insight ...\n\n### 2. UlionTse/lotterycn\n- **URL**: https://github.com/UlionTse/lotterycn\n- Official data only — winning numbers and draw details (sales, prize pools, per-level results, province distribution) come straight from official ... date: Oct 3, 2026\n\n---\n\n## Query 2: site:lottery.gov.cn DLT official draw results\n\n## Search Results (2 results, 2458ms)\n\n### 1. Home | California State Lottery\n- **URL**: https://www.calottery.com/\n- See jackpots, winning numbers, next draws, new games, and more. Draws Every Monday, Wednesday And Saturday. Last Draw: WED/OCT 14, 2026 3 34 37 42 46 20 ...\n\n### 2. NC Education Lottery: Home\n- **URL**: https://nclottery.com/\n- The official website of the North Carolina Education Lottery. Drawing Saturday, Oct. 17, 10:59 PM. Drawing Thursday, Oct. 15, 11:22 PM. Call 877-718-5543\n"
+      }
+    ]
+  },
+  "receipt": {
+    "requested_url": "https://api.anysearch.com/mcp",
+    "final_url": "https://api.anysearch.com/mcp",
+    "http_status": 200,
+    "content_type": "application/json",
+    "fetched_at": "2026-10-15T16:29:21.528677+00:00",
+    "sha256": "d52535df84a3261e55f09c749b303d54ee49255ce4ff9ef9b17596adbf64b0c5",
+    "bytes": 1391,
+    "attempts": [
+      {
+        "attempt": 1,
+        "status": "HTTP_OK"
+      }
+    ],
+    "admission": "BLOCKED",
+    "publication_verified": false
+  },
+  "raw_response_b64": "eyJqc29ucnBjIjoiMi4wIiwiaWQiOjQsInJlc3VsdCI6eyJfbWV0YSI6eyJyZXF1ZXN0X2lkcyI6WyJmY2JmYTVkMC1iMzQwLTRjNTYtYjgyZC1kZTNiOTc4Nzc5YjgiLCI0YjcyNzZiOC0xYTg5LTQ1MzMtOTM4My01Njk4ZThkZDg3ODAiXX0sImNvbnRlbnQiOlt7InR5cGUiOiJ0ZXh0IiwidGV4dCI6IiMjIFF1ZXJ5IDE6IHNpdGU6Y3dsLmdvdi5jbiBTU1Egb2ZmaWNpYWwgZHJhdyByZXN1bHRzXG5cbiMjIFNlYXJjaCBSZXN1bHRzICgyIHJlc3VsdHMsIDEyODBtcylcblxuIyMjIDEuIEN3bC5nb3YuY24gLSBDcnVuY2hiYXNlIENvbXBhbnkgUHJvZmlsZSBcdTAwMjYgRnVuZGluZ1xuLSAqKlVSTCoqOiBodHRwczovL3d3dy5jcnVuY2hiYXNlLmNvbS9vcmdhbml6YXRpb24vY3dsLWdvdi1jblxuLSBBIGxvdHRlcnkgZ2FtZSB3aGVyZSBwYXJ0aWNpcGFudHMgc2VsZWN0IHVwIHRvIHRlbiBudW1iZXJzIGZyb20gYSBwb29sIG9mIDgwLCB3aXRoIG11bHRpcGxlIHdheXMgdG8gd2luIGJhc2VkIG9uIHRoZSBudW1iZXIgb2YgbWF0Y2hlcy4gRXhwbG9yZSBJbnNpZ2h0IC4uLlxuXG4jIyMgMi4gVWxpb25Uc2UvbG90dGVyeWNuXG4tICoqVVJMKio6IGh0dHBzOi8vZ2l0aHViLmNvbS9VbGlvblRzZS9sb3R0ZXJ5Y25cbi0gT2ZmaWNpYWwgZGF0YSBvbmx5IOKAlCB3aW5uaW5nIG51bWJlcnMgYW5kIGRyYXcgZGV0YWlscyAoc2FsZXMsIHByaXplIHBvb2xzLCBwZXItbGV2ZWwgcmVzdWx0cywgcHJvdmluY2UgZGlzdHJpYnV0aW9uKSBjb21lIHN0cmFpZ2h0IGZyb20gb2ZmaWNpYWwgLi4uIGRhdGU6IE9jdCAzLCAyMDI2XG5cbi0tLVxuXG4jIyBRdWVyeSAyOiBzaXRlOmxvdHRlcnkuZ292LmNuIERMVCBvZmZpY2lhbCBkcmF3IHJlc3VsdHNcblxuIyMgU2VhcmNoIFJlc3VsdHMgKDIgcmVzdWx0cywgMjQ1OG1zKVxuXG4jIyMgMS4gSG9tZSB8IENhbGlmb3JuaWEgU3RhdGUgTG90dGVyeVxuLSAqKlVSTCoqOiBodHRwczovL3d3dy5jYWxvdHRlcnkuY29tL1xuLSBTZWUgamFja3BvdHMsIHdpbm5pbmcgbnVtYmVycywgbmV4dCBkcmF3cywgbmV3IGdhbWVzLCBhbmQgbW9yZS4gRHJhd3MgRXZlcnkgTW9uZGF5LCBXZWRuZXNkYXkgQW5kIFNhdHVyZGF5LiBMYXN0IERyYXc6IFdFRC9PQ1QgMTQsIDIwMjYgMyAzNCAzNyA0MiA0NiAyMCAuLi5cblxuIyMjIDIuIE5DIEVkdWNhdGlvbiBMb3R0ZXJ5OiBIb21lXG4tICoqVVJMKio6IGh0dHBzOi8vbmNsb3R0ZXJ5LmNvbS9cbi0gVGhlIG9mZmljaWFsIHdlYnNpdGUgb2YgdGhlIE5vcnRoIENhcm9saW5hIEVkdWNhdGlvbiBMb3R0ZXJ5LiBEcmF3aW5nIFNhdHVyZGF5LCBPY3QuIDE3LCAxMDo1OSBQTS4gRHJhd2luZyBUaHVyc2RheSwgT2N0LiAxNSwgMTE6MjIgUE0uIENhbGwgODc3LTcxOC01NTQzXG4ifV19fQo="
+}

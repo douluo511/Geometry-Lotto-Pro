@@ -42,6 +42,15 @@ def evaluate(rows=None, issues=None, versions=None):
 
 
 class TestScoring(unittest.TestCase):
+    def test_malformed_issue_or_game_fails_closed(self):
+        for issue in ([], {}, True, None):
+            rows = fixture()
+            rows[0]["issue"] = issue
+            with self.subTest(issue=issue), self.assertRaises(AdmissionBlocked):
+                evaluate(rows=rows)
+        with self.assertRaises(AdmissionBlocked):
+            score_d1_d5([], [1, 2, 3, 4, 5], [1, 2, 3, 4, 5])
+
     def test_ssq_d2_and_d5_p0(self):
         r = score_d1_d5("SSQ", [1, 2, 7, 8, 9], [1, 2, 3, 4, 5, 6])
         self.assertEqual([r[f"D{k}"]["full"] for k in range(1, 6)],

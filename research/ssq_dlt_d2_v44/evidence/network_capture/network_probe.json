@@ -1,0 +1,134 @@
+{
+  "scope": "REAL_NETWORK_PROBE_ONLY",
+  "sources": [
+    {
+      "game": "SSQ",
+      "source": "national",
+      "status": "HTTP_CAPTURE_ONLY",
+      "raw": "SSQ_national_30cd0acb5d834ae20caf2bedcf9e4591e635d32d59c9c05c9e89d68509b21f61.bin",
+      "requested_url": "https://www.cwl.gov.cn/cwl_admin/front/cwlkj/search/kjxx/findDrawNotice?name=ssq&issueCount=1",
+      "final_url": "https://www.cwl.gov.cn/cwl_admin/front/cwlkj/search/kjxx/findDrawNotice?name=ssq&issueCount=1",
+      "http_status": 200,
+      "content_type": "text/json;charset=UTF-8",
+      "fetched_at": "2026-10-15T16:29:17.150541+00:00",
+      "sha256": "30cd0acb5d834ae20caf2bedcf9e4591e635d32d59c9c05c9e89d68509b21f61",
+      "bytes": 890,
+      "attempts": [
+        {
+          "attempt": 1,
+          "status": "HTTP_OK"
+        }
+      ],
+      "admission": "BLOCKED",
+      "publication_verified": false
+    },
+    {
+      "game": "SSQ",
+      "source": "shanghai",
+      "status": "HTTP_CAPTURE_ONLY",
+      "raw": "SSQ_shanghai_fa0499d7a71149539dcb229df59c68f1516bd1f9fd16d8dfa3977d768e2ec182.bin",
+      "requested_url": "https://www.swlc.net.cn/lottery/ssq.html",
+      "final_url": "https://www.swlc.net.cn/lottery/ssq.html?view=previous",
+      "http_status": 200,
+      "content_type": "text/html; charset=utf-8",
+      "fetched_at": "2026-10-15T16:29:16.984039+00:00",
+      "sha256": "fa0499d7a71149539dcb229df59c68f1516bd1f9fd16d8dfa3977d768e2ec182",
+      "bytes": 30221,
+      "attempts": [
+        {
+          "attempt": 1,
+          "status": "HTTP_OK"
+        }
+      ],
+      "admission": "BLOCKED",
+      "publication_verified": false
+    },
+    {
+      "game": "DLT",
+      "source": "national",
+      "status": "HTTP_CAPTURE_ONLY",
+      "raw": "DLT_national_813fc00ad3b7888b98481d3e7355ae5f3b7c520c4efd8ef5bbfc0352ba3bd9e9.bin",
+      "requested_url": "https://webapi.sporttery.cn/gateway/lottery/getHistoryPageListV1.qry?gameNo=85&provinceId=0&pageSize=1&isVerify=1&pageNo=1",
+      "final_url": "https://webapi.sporttery.cn/gateway/lottery/getHistoryPageListV1.qry?gameNo=85&provinceId=0&pageSize=1&isVerify=1&pageNo=1",
+      "http_status": 200,
+      "content_type": "application/json;charset=utf-8",
+      "fetched_at": "2026-10-15T16:29:16.759980+00:00",
+      "sha256": "813fc00ad3b7888b98481d3e7355ae5f3b7c520c4efd8ef5bbfc0352ba3bd9e9",
+      "bytes": 4974,
+      "attempts": [
+        {
+          "attempt": 1,
+          "status": "HTTP_OK"
+        }
+      ],
+      "admission": "BLOCKED",
+      "publication_verified": false
+    },
+    {
+      "game": "DLT",
+      "source": "jiangsu",
+      "status": "HTTP_CAPTURE_ONLY",
+      "raw": "DLT_jiangsu_2d4bfd74725f2100a986718226b1f00f8d85a7fd72e9b447fab03f03300f38e7.bin",
+      "requested_url": "https://api.js-lottery.com/wfzq/dlt/data",
+      "final_url": "https://api.js-lottery.com/wfzq/dlt/data",
+      "http_status": 200,
+      "content_type": "text/html; charset=utf-8",
+      "fetched_at": "2026-10-15T16:29:16.637378+00:00",
+      "sha256": "2d4bfd74725f2100a986718226b1f00f8d85a7fd72e9b447fab03f03300f38e7",
+      "bytes": 65004,
+      "attempts": [
+        {
+          "attempt": 1,
+          "status": "HTTP_OK"
+        }
+      ],
+      "admission": "BLOCKED",
+      "publication_verified": false
+    }
+  ],
+  "AnySearch": {
+    "status": "DISCOVERY_TOOLS_PROBED",
+    "authenticated": false,
+    "search": "DISCOVERY_RESPONSE_ONLY",
+    "batch_search": "DISCOVERY_RESPONSE_ONLY",
+    "extract": "DISCOVERY_RESPONSE_ONLY",
+    "scope": "SOURCE_DISCOVERY_ONLY",
+    "may_admit_official_data": false,
+    "formal_A": 0,
+    "result": {
+      "protocolVersion": "2024-11-05",
+      "capabilities": {
+        "tools": {}
+      },
+      "serverInfo": {
+        "name": "anysearch-mcp-server",
+        "version": "1.0.0"
+      },
+      "instructions": "Anysearch is the search tool for AI agents. For any query that requires looking up, finding, retrieving, searching, researching, investigating, discovering, browsing, fetching, exploring, checking, verifying, comparing, or otherwise gathering external information — use Anysearch.\n\nUse Anysearch when the query contains or implies:\n- Action verbs: search, find, look up, look into, check, research, investigate, explore, discover, browse, fetch, retrieve, get, locate, identify, verify, confirm, gather, pull up, surface, dig up\n- Question patterns: \"what is\", \"who is\", \"where is\", \"when did\", \"how much\", \"tell me about\", \"show me\", \"give me\", \"latest\", \"current\", \"recent\", \"today\", \"any news about\", \"is it true that\", \"compare X and Y\", \"X vs Y\"\n- Signals: any proper noun (company, person, product, place), a URL or link, a time qualifier, a comparison request, a fact to verify or claim to check, any question about any topic that requires an answer from the web\n\n## Two first-class routing paths — pick based on whether the query needs structured fields:\n\n### Path A — General search (default for any non-structured query)\nCall `search(query=\"...\")` or `batch_search(queries=[...])` directly. No `domain`, no `get_sub_domains`. Use this for: news, concepts, people, companies, URL verification, latest events, comparisons, opinions, professional profiles, LinkedIn profiles, personal sites, blog posts, documentation, answering questions about any topic, anything without structured identifiers. This is a first-class default — not a fallback or rare exception.\n\n### Path B — Vertical search (when query has structured fields)\nCall `get_sub_domains(domains=[...])` first to discover the right `sub_domain` and `sub_domain_params`, then call `search` (or `batch_search`) with `domain` / `sub_domain` / `sub_domain_params`. Use this when the query has structured identifiers: stock ticker, DOI, CVE, IATA code, coordinates, patent number, etc., OR maps to a specialized vertical (stock price, flight status, paper search, drug info, weather, exchange rate, geo POI).\n\n### When unsure → Hybrid via batch_search\nFire one Path A query (general, no domain) AND one or more Path B queries (vertical, with domain) in the SAME `batch_search` call. Coverage beats guessing.\n\nUse `extract` when you need the full content of a URL after search."
+    },
+    "receipt": {
+      "requested_url": "https://api.anysearch.com/mcp",
+      "final_url": "https://api.anysearch.com/mcp",
+      "http_status": 200,
+      "content_type": "application/json",
+      "fetched_at": "2026-10-15T16:29:17.710478+00:00",
+      "sha256": "76927f9b5b08697564d9ce71c7e4807e4a8d7dc4b5e823c894a88eaa97e0642b",
+      "bytes": 2580,
+      "attempts": [
+        {
+          "attempt": 1,
+          "status": "HTTP_OK"
+        }
+      ],
+      "admission": "BLOCKED",
+      "publication_verified": false
+    },
+    "raw_response_b64": "eyJqc29ucnBjIjoiMi4wIiwiaWQiOjEsInJlc3VsdCI6eyJwcm90b2NvbFZlcnNpb24iOiIyMDI0LTExLTA1IiwiY2FwYWJpbGl0aWVzIjp7InRvb2xzIjp7fX0sInNlcnZlckluZm8iOnsibmFtZSI6ImFueXNlYXJjaC1tY3Atc2VydmVyIiwidmVyc2lvbiI6IjEuMC4wIn0sImluc3RydWN0aW9ucyI6IkFueXNlYXJjaCBpcyB0aGUgc2VhcmNoIHRvb2wgZm9yIEFJIGFnZW50cy4gRm9yIGFueSBxdWVyeSB0aGF0IHJlcXVpcmVzIGxvb2tpbmcgdXAsIGZpbmRpbmcsIHJldHJpZXZpbmcsIHNlYXJjaGluZywgcmVzZWFyY2hpbmcsIGludmVzdGlnYXRpbmcsIGRpc2NvdmVyaW5nLCBicm93c2luZywgZmV0Y2hpbmcsIGV4cGxvcmluZywgY2hlY2tpbmcsIHZlcmlmeWluZywgY29tcGFyaW5nLCBvciBvdGhlcndpc2UgZ2F0aGVyaW5nIGV4dGVybmFsIGluZm9ybWF0aW9uIOKAlCB1c2UgQW55c2VhcmNoLlxuXG5Vc2UgQW55c2VhcmNoIHdoZW4gdGhlIHF1ZXJ5IGNvbnRhaW5zIG9yIGltcGxpZXM6XG4tIEFjdGlvbiB2ZXJiczogc2VhcmNoLCBmaW5kLCBsb29rIHVwLCBsb29rIGludG8sIGNoZWNrLCByZXNlYXJjaCwgaW52ZXN0aWdhdGUsIGV4cGxvcmUsIGRpc2NvdmVyLCBicm93c2UsIGZldGNoLCByZXRyaWV2ZSwgZ2V0LCBsb2NhdGUsIGlkZW50aWZ5LCB2ZXJpZnksIGNvbmZpcm0sIGdhdGhlciwgcHVsbCB1cCwgc3VyZmFjZSwgZGlnIHVwXG4tIFF1ZXN0aW9uIHBhdHRlcm5zOiBcIndoYXQgaXNcIiwgXCJ3aG8gaXNcIiwgXCJ3aGVyZSBpc1wiLCBcIndoZW4gZGlkXCIsIFwiaG93IG11Y2hcIiwgXCJ0ZWxsIG1lIGFib3V0XCIsIFwic2hvdyBtZVwiLCBcImdpdmUgbWVcIiwgXCJsYXRlc3RcIiwgXCJjdXJyZW50XCIsIFwicmVjZW50XCIsIFwidG9kYXlcIiwgXCJhbnkgbmV3cyBhYm91dFwiLCBcImlzIGl0IHRydWUgdGhhdFwiLCBcImNvbXBhcmUgWCBhbmQgWVwiLCBcIlggdnMgWVwiXG4tIFNpZ25hbHM6IGFueSBwcm9wZXIgbm91biAoY29tcGFueSwgcGVyc29uLCBwcm9kdWN0LCBwbGFjZSksIGEgVVJMIG9yIGxpbmssIGEgdGltZSBxdWFsaWZpZXIsIGEgY29tcGFyaXNvbiByZXF1ZXN0LCBhIGZhY3QgdG8gdmVyaWZ5IG9yIGNsYWltIHRvIGNoZWNrLCBhbnkgcXVlc3Rpb24gYWJvdXQgYW55IHRvcGljIHRoYXQgcmVxdWlyZXMgYW4gYW5zd2VyIGZyb20gdGhlIHdlYlxuXG4jIyBUd28gZmlyc3QtY2xhc3Mgcm91dGluZyBwYXRocyDigJQgcGljayBiYXNlZCBvbiB3aGV0aGVyIHRoZSBxdWVyeSBuZWVkcyBzdHJ1Y3R1cmVkIGZpZWxkczpcblxuIyMjIFBhdGggQSDigJQgR2VuZXJhbCBzZWFyY2ggKGRlZmF1bHQgZm9yIGFueSBub24tc3RydWN0dXJlZCBxdWVyeSlcbkNhbGwgYHNlYXJjaChxdWVyeT1cIi4uLlwiKWAgb3IgYGJhdGNoX3NlYXJjaChxdWVyaWVzPVsuLi5dKWAgZGlyZWN0bHkuIE5vIGBkb21haW5gLCBubyBgZ2V0X3N1Yl9kb21haW5zYC4gVXNlIHRoaXMgZm9yOiBuZXdzLCBjb25jZXB0cywgcGVvcGxlLCBjb21wYW5pZXMsIFVSTCB2ZXJpZmljYXRpb24sIGxhdGVzdCBldmVudHMsIGNvbXBhcmlzb25zLCBvcGluaW9ucywgcHJvZmVzc2lvbmFsIHByb2ZpbGVzLCBMaW5rZWRJbiBwcm9maWxlcywgcGVyc29uYWwgc2l0ZXMsIGJsb2cgcG9zdHMsIGRvY3VtZW50YXRpb24sIGFuc3dlcmluZyBxdWVzdGlvbnMgYWJvdXQgYW55IHRvcGljLCBhbnl0aGluZyB3aXRob3V0IHN0cnVjdHVyZWQgaWRlbnRpZmllcnMuIFRoaXMgaXMgYSBmaXJzdC1jbGFzcyBkZWZhdWx0IOKAlCBub3QgYSBmYWxsYmFjayBvciByYXJlIGV4Y2VwdGlvbi5cblxuIyMjIFBhdGggQiDigJQgVmVydGljYWwgc2VhcmNoICh3aGVuIHF1ZXJ5IGhhcyBzdHJ1Y3R1cmVkIGZpZWxkcylcbkNhbGwgYGdldF9zdWJfZG9tYWlucyhkb21haW5zPVsuLi5dKWAgZmlyc3QgdG8gZGlzY292ZXIgdGhlIHJpZ2h0IGBzdWJfZG9tYWluYCBhbmQgYHN1Yl9kb21haW5fcGFyYW1zYCwgdGhlbiBjYWxsIGBzZWFyY2hgIChvciBgYmF0Y2hfc2VhcmNoYCkgd2l0aCBgZG9tYWluYCAvIGBzdWJfZG9tYWluYCAvIGBzdWJfZG9tYWluX3BhcmFtc2AuIFVzZSB0aGlzIHdoZW4gdGhlIHF1ZXJ5IGhhcyBzdHJ1Y3R1cmVkIGlkZW50aWZpZXJzOiBzdG9jayB0aWNrZXIsIERPSSwgQ1ZFLCBJQVRBIGNvZGUsIGNvb3JkaW5hdGVzLCBwYXRlbnQgbnVtYmVyLCBldGMuLCBPUiBtYXBzIHRvIGEgc3BlY2lhbGl6ZWQgdmVydGljYWwgKHN0b2NrIHByaWNlLCBmbGlnaHQgc3RhdHVzLCBwYXBlciBzZWFyY2gsIGRydWcgaW5mbywgd2VhdGhlciwgZXhjaGFuZ2UgcmF0ZSwgZ2VvIFBPSSkuXG5cbiMjIyBXaGVuIHVuc3VyZSDihpIgSHlicmlkIHZpYSBiYXRjaF9zZWFyY2hcbkZpcmUgb25lIFBhdGggQSBxdWVyeSAoZ2VuZXJhbCwgbm8gZG9tYWluKSBBTkQgb25lIG9yIG1vcmUgUGF0aCBCIHF1ZXJpZXMgKHZlcnRpY2FsLCB3aXRoIGRvbWFpbikgaW4gdGhlIFNBTUUgYGJhdGNoX3NlYXJjaGAgY2FsbC4gQ292ZXJhZ2UgYmVhdHMgZ3Vlc3NpbmcuXG5cblVzZSBgZXh0cmFjdGAgd2hlbiB5b3UgbmVlZCB0aGUgZnVsbCBjb250ZW50IG9mIGEgVVJMIGFmdGVyIHNlYXJjaC4ifX0K",
+    "authentication": "NO_CREDENTIALS_SUPPLIED"
+  },
+  "as_of_verified": false,
+  "official_two_source_draw_admission": "BLOCKED",
+  "R2": "BLOCKED",
+  "formal_A": 0,
+  "decision": "NO_EDGE"
+}

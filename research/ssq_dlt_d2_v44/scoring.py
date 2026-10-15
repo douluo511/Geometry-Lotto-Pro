@@ -25,7 +25,7 @@ def validate_numbers(numbers: object, count: int, upper: int) -> None:
 
 
 def score_d1_d5(game: str, ranked_five: list[int], official_front: list[int]) -> dict:
-    if game not in RULES:
+    if type(game) is not str or game not in RULES:
         raise AdmissionBlocked("UNKNOWN_GAME")
     upper, drawn = RULES[game]
     validate_numbers(ranked_five, 5, upper)
@@ -72,7 +72,7 @@ def evaluate_registered(
     freeze and eligibility. This function returns RESEARCH_ONLY regardless
     of input declarations.
     """
-    if game not in RULES:
+    if type(game) is not str or game not in RULES:
         raise AdmissionBlocked("UNKNOWN_GAME")
     if (type(tau) not in (float, int) or not isfinite(tau) or tau <= 0):
         raise AdmissionBlocked("INVALID_SHRINKAGE")
@@ -89,7 +89,8 @@ def evaluate_registered(
     if type(rows) is not list or len(rows) != len(expected_issues):
         raise AdmissionBlocked("MISSING_OR_EXTRA_ISSUES")
     ids = [r.get("issue") if type(r) is dict else None for r in rows]
-    if len(set(ids)) != len(ids) or set(ids) != set(expected_issues):
+    if (any(type(i) is not str or not i for i in ids)
+            or len(set(ids)) != len(ids) or set(ids) != set(expected_issues)):
         raise AdmissionBlocked("MISSING_OR_DUPLICATE_ISSUES")
 
     outcomes: dict[str, list[int]] = {m: [] for m in model_versions}

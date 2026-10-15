@@ -1,0 +1,96 @@
+{
+  "scope": "independent synthetic review, no official/A/TSA qualification",
+  "observed_at_utc": "2026-10-15T11:39:42.403090+00:00",
+  "source_sha256_before": {
+    "research/ssq_dlt_d2_v44/ledger.py": "2dca9801642a104552fc5b799885d4d19c735eca6830d222d313b7103264618c",
+    "research/ssq_dlt_d2_v44/runtime.py": "c240701b4a779724835df55699edf3b20f079936c833fe1b48a3302b6dcd7ff4"
+  },
+  "source_sha256_after": {
+    "research/ssq_dlt_d2_v44/ledger.py": "2dca9801642a104552fc5b799885d4d19c735eca6830d222d313b7103264618c",
+    "research/ssq_dlt_d2_v44/runtime.py": "c240701b4a779724835df55699edf3b20f079936c833fe1b48a3302b6dcd7ff4"
+  },
+  "source_unchanged_during_probes": true,
+  "results": {
+    "cross_version_comparison": {
+      "attempted_versions": [
+        "v1",
+        "v2"
+      ],
+      "result": "PASS",
+      "rejection": "NEW_VERSION_OR_PRIMARY_REQUIRES_SEPARATE_TRIAL_LEDGER"
+    },
+    "comparison_identity_exposed": {
+      "result": "PASS"
+    },
+    "m05_primary_change": {
+      "result": "PASS",
+      "rejection": "NEW_VERSION_OR_PRIMARY_REQUIRES_SEPARATE_TRIAL_LEDGER"
+    },
+    "missing_issue_rectangularity": {
+      "result": "PASS",
+      "missing": [
+        {
+          "game": "SSQ",
+          "issue": "SYNTH-MISSING",
+          "missing_slots": [
+            "M04",
+            "M05-1",
+            "M05-2",
+            "M05-3",
+            "M05-4",
+            "M05-5",
+            "M06",
+            "M07"
+          ],
+          "missing_draw": true
+        }
+      ]
+    },
+    "sql_mutations": {
+      "result": "PASS",
+      "probes": [
+        {
+          "query": "UPDATE candidates SET sha256='tamper'",
+          "rejected": true,
+          "error": "APPEND_ONLY"
+        },
+        {
+          "query": "DELETE FROM candidates",
+          "rejected": true,
+          "error": "APPEND_ONLY"
+        },
+        {
+          "query": "INSERT OR REPLACE INTO candidates SELECT * FROM candidates",
+          "rejected": true,
+          "error": "DUPLICATE_KEY"
+        }
+      ]
+    },
+    "replay_table_rows_unchanged": {
+      "result": "PASS"
+    },
+    "concurrent_duplicates": {
+      "result": "PASS",
+      "created_count": 1,
+      "retry_count": 15
+    },
+    "post_draw_missing_slot": {
+      "result": "PASS",
+      "error": "POST_DRAW_CANDIDATE"
+    },
+    "independent_non_nested_dans": {
+      "result": "PASS",
+      "D1_D5_full": [
+        0,
+        1,
+        0,
+        1,
+        0
+      ]
+    },
+    "direct_mixed_registry_replay": {
+      "result": "PASS",
+      "rejection": "MIXED_TRIAL_VERSIONS_OR_PRIMARY"
+    }
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "checked_at_utc": "2026-10-15T11:40:46.6622445Z",
+  "command": "python -m unittest research.ssq_dlt_d2_v44.tests.test_windows -v",
+  "exit_code": 0,
+  "status": "PASS",
+  "scope": "Synthetic local Windows wrapper and XML checks only; not reboot or Scheduler acceptance",
+  "log": "windows-tests.txt",
+  "R2": "BLOCKED",
+  "formal_A": 0,
+  "decision": "NO_EDGE"
+}

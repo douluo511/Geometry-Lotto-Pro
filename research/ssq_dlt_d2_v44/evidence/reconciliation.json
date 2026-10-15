@@ -1,0 +1,2445 @@
+{
+  "schema": "ssq-dlt-v44-reconciliation-v1",
+  "observed_at_utc": "2026-10-15T11:33:03.936714+00:00",
+  "pinned_source_commit": "c6d4de9aaa49b219e422dace755702b117179fa6",
+  "checked_out_commit_at_scan": "c6d4de9aaa49b219e422dace755702b117179fa6",
+  "method": {
+    "archive_read_mode": "zipfile.ZipFile(path, r); no extraction, execution, rewriting or importing archive code",
+    "discovery": "recursively enumerated .zip files in Documents, Downloads, Desktop; central-directory scanned every enumerated archive; retained lotto-like names or entries",
+    "version_scan": "read only <=256 KiB README/version/manifest/handoff/config/constants entries for explicit V4.0/version 4.0 hints",
+    "repo_hashes": "SHA-256 of canonical Git blob bytes at pinned commit; aggregate is SHA-256 of compact sorted-key JSON file manifest",
+    "not_claimed": "ZIP identity cannot be established from unrelated archive titles, synthetic fixtures or a nearby version"
+  },
+  "search_scopes": [
+    {
+      "scope": "Documents",
+      "zip_count": 263
+    },
+    {
+      "scope": "Downloads",
+      "zip_count": 0
+    },
+    {
+      "scope": "Desktop",
+      "zip_count": 92
+    }
+  ],
+  "all_zip_count": 355,
+  "lottery_related_zip_count": 61,
+  "v4_0_reconciliation": {
+    "status": "BLOCKED",
+    "reason": "No positively identified original SSQ+DLT V4.0 conversation ZIP located in searched scopes. Both original archive SHA and original interfaces therefore unavailable. Other archives are not substituted.",
+    "claimed_expected_sha256": "d9a6decd6c56e39c19e1f8d6786dd5f793792d169ba1815e8faaced7156023e3",
+    "claimed_sha_provenance": "Cross-chat handoff relayed during this run; no archive bytes supplied. Claim only, not independently verified.",
+    "matching_related_archive_sha_count": 0
+  },
+  "original_zip_preservation": "PASS",
+  "source_manifest": [
+    {
+      "path": "DLT/DANLAB_1.0.3_EXTERNAL_CANDIDATE.md",
+      "git_blob_sha1": "7b875089d47d0bc1a837a038d04441d03f787530",
+      "sha256": "c1e2a9096b559a50b40db0555cc3ff3f8bb01878768c8612ef14887bbd1cdccb",
+      "bytes": 4022
+    },
+    {
+      "path": "DLT/GeometryLottoPro.spec",
+      "git_blob_sha1": "4c66cbbb28f2c4090e60b0bf811f2da5b9de13c1",
+      "sha256": "dff777390c754c8485bf01bb7483f90175b5c9a2b4f7affdbd4e2715277d115c",
+      "bytes": 752
+    },
+    {
+      "path": "DLT/GeometryLottoProUpdater.spec",
+      "git_blob_sha1": "89a112061a72c3190b61e32331c3bad0cd44eb90",
+      "sha256": "01c390db070b74726eb34510bedd9a5c5b494ec21477eb4ce57f23d3aebd867a",
+      "bytes": 762
+    },
+    {
+      "path": "DLT/README_GITHUB_VALIDATION.md",
+      "git_blob_sha1": "c7f95c4aa5370ab1f091d1be2ad81325de01ca60",
+      "sha256": "12efe6a5f5cf0b28e10e0a8428910c4bcdb57c913dcb929eb75a965fd3579380",
+      "bytes": 1002
+    },
+    {
+      "path": "DLT/requirements.txt",
+      "git_blob_sha1": "50ca7f38381b96c1129c91735fb35b9d96687dd3",
+      "sha256": "97f661757634b101af2b9778d3596eee0d891ac141ded443d05e6bda111d7130",
+      "bytes": 108
+    },
+    {
+      "path": "DLT/scripts/background_acceptance.ps1",
+      "git_blob_sha1": "c260c9bf2871473684e5ecacc2eedb8e38030111",
+      "sha256": "f92fd41951bf05d8203cc54b382a06007af485ecfdd1cfff1112ec6b6561b0da",
+      "bytes": 3822
+    },
+    {
+      "path": "DLT/scripts/network_contract_gate.py",
+      "git_blob_sha1": "40e64794b226da80a4e2b4af0c81a622c6e8f1c8",
+      "sha256": "c78984f8080f4d61ee84198dc9f946b84e18920fca469b17b5674eb53c6d29e6",
+      "bytes": 7544
+    },
+    {
+      "path": "DLT/scripts/network_fault_gate.py",
+      "git_blob_sha1": "75ac19393837d69a01c2539c98df603edeb878e8",
+      "sha256": "a93cc4f21d6de5cd9b4db3f587a6d52ffccec7496730f609657bb735b8165d9b",
+      "bytes": 6675
+    },
+    {
+      "path": "DLT/scripts/physical_gui_click_smoke.ps1",
+      "git_blob_sha1": "825598841b24a8f48b2b3ace9ffa8205a6a271b5",
+      "sha256": "2e63104466aa01d9f146be27d0549d88d8e965e041a93f2201b77b816a604fe9",
+      "bytes": 20166
+    },
+    {
+      "path": "DLT/scripts/physical_gui_failure_smoke.ps1",
+      "git_blob_sha1": "d7ec28757062cf111c572e177d4366f7e7cb41db",
+      "sha256": "d28c6ae5919d005599804f9380388b6e9b66dd7adc1181795301695af0e60320",
+      "bytes": 15222
+    },
+    {
+      "path": "DLT/scripts/real_network_check.py",
+      "git_blob_sha1": "076ab8fc32acdc87a4bc2411f2cea38e95843819",
+      "sha256": "579234b3f50176da9dd2c9e3e5b6fac4cd9f2f2467d4a5ef3f571129cef0ccf1",
+      "bytes": 2212
+    },
+    {
+      "path": "DLT/scripts/release_update_acceptance.ps1",
+      "git_blob_sha1": "08bf7e8f982bc2046eb5b5a9213f2644e4c07e92",
+      "sha256": "c0a0a72aab5a1ac8bb4cc8c9ede85ff4bcfb99f0501f46e85bba69bb591ea658",
+      "bytes": 8528
+    },
+    {
+      "path": "DLT/scripts/updater_acceptance.ps1",
+      "git_blob_sha1": "608ef332bc9e4bf4eb53c4aa8b5b43a4b784bc4c",
+      "sha256": "3e7904fb8a821bbc82872cc93590ce1ff0f64e53bcea0dff8f5bab7c1522e9d1",
+      "bytes": 4194
+    },
+    {
+      "path": "DLT/scripts/windows_acceptance.ps1",
+      "git_blob_sha1": "028d8a2854973e902e75ff603762ab3bb61b92a8",
+      "sha256": "0681fbaae5d20979a9a46141c0d4895fa0d8782f67e9a57d03b134ef7a3eee51",
+      "bytes": 2428
+    },
+    {
+      "path": "DLT/src/glp/__init__.py",
+      "git_blob_sha1": "3bc4fd3e90cc7ea5a93695d6dd59cb4d9230b91e",
+      "sha256": "77238dd54764acf0a77a0441e200556052de3be8bf8baf0ba09ed2736e474b6d",
+      "bytes": 185
+    },
+    {
+      "path": "DLT/src/glp/background.py",
+      "git_blob_sha1": "59815966c7da0595659daefa2843132b7d0adadd",
+      "sha256": "dc86b8681dd7f175e5ad3a7b8d3ff8b98f216b7096e2712309ac5a17c2749e93",
+      "bytes": 10919
+    },
+    {
+      "path": "DLT/src/glp/constants.py",
+      "git_blob_sha1": "426d17caf6426d9b226c3c3c008ce8ad501fb689",
+      "sha256": "6794962751a299d7a5455089d1cc836bc313741901c19d8a49262b5f39ae3b08",
+      "bytes": 2105
+    },
+    {
+      "path": "DLT/src/glp/delivery.py",
+      "git_blob_sha1": "1f8ac2b399abbec789b9d8033a6ee1b639e53e9f",
+      "sha256": "f97713f2fa5c6410e8a897b6f48142096d648e0e068868acb8c25a1e48934d0b",
+      "bytes": 16921
+    },
+    {
+      "path": "DLT/src/glp/domain.py",
+      "git_blob_sha1": "54796f190fb7ac67fefd173ffe0fda9d443ad59e",
+      "sha256": "b989ad377be2e30374cf51dd2bf57e32a5f888264acfd77ae80183f11cc556c7",
+      "bytes": 2560
+    },
+    {
+      "path": "DLT/src/glp/engine.py",
+      "git_blob_sha1": "ea975a10dc92fd2448e5172c15e208b7d35371bb",
+      "sha256": "83ae3c0abdd326f0de3d5a38273fc10a8653a86d62c664a199c51a4157dde162",
+      "bytes": 15406
+    },
+    {
+      "path": "DLT/src/glp/evidence.py",
+      "git_blob_sha1": "37da5b5648c7e5cc080bd7d49df2a5cace011a3f",
+      "sha256": "e8745a8918dac607590ea7c2bba5c56f77303202dedc70079ca610bc838a2fd9",
+      "bytes": 25883
+    },
+    {
+      "path": "DLT/src/glp/gui.py",
+      "git_blob_sha1": "0d02d4293abdadca4cf4c89ff25f05216e21f1cc",
+      "sha256": "cff6b17134ecd496d2cf2c93a18d7e9edd9f879a8aca25a4882d1b9649e5740b",
+      "bytes": 19304
+    },
+    {
+      "path": "DLT/src/glp/net_client.py",
+      "git_blob_sha1": "e58281c7539154dc7df0e1b03ac5857a4b58475d",
+      "sha256": "eb021e6c33fa28862d82b34c3eeba822cbee444a7c2e3c175da4b8cd95e2b748",
+      "bytes": 5143
+    },
+    {
+      "path": "DLT/src/glp/ors.py",
+      "git_blob_sha1": "f9bbec7965307de7b7912209a39b238d37d62692",
+      "sha256": "b425808e91a931a06570f2e96902cbc7048ff99f8d1c0c24f417b34708b93f4f",
+      "bytes": 1832
+    },
+    {
+      "path": "DLT/src/glp/service.py",
+      "git_blob_sha1": "978674a31ae2f6b4684d6bb3afcf59ceab10a074",
+      "sha256": "2999c72408a77c10ed50e2f50f6d08efeb88d40487045d6e5827183e000a3ab2",
+      "bytes": 19565
+    },
+    {
+      "path": "DLT/src/glp/sources.py",
+      "git_blob_sha1": "0d1912247fd94b57d2720cd345b84c2905ead1ad",
+      "sha256": "4b3d9bc14b40993043352d402bfa667d76565add2e4fa1980fa6efe18e1f72ff",
+      "bytes": 22281
+    },
+    {
+      "path": "DLT/src/glp/storage.py",
+      "git_blob_sha1": "4a1da64ddccdbfd97917ffa69b61f0efaa94e2ee",
+      "sha256": "e77f06fc9bc69564c90e70fa84135963e8eedc9753dc35ee4a8d04e1f5ca0adb",
+      "bytes": 17406
+    },
+    {
+      "path": "DLT/src/glp/util.py",
+      "git_blob_sha1": "8d3d42ab28f28025c4acbd20bdf183a2d1209a0b",
+      "sha256": "f07839a3b186632f8407c0baaff97c71142af8142a2bb22046d96bccbe3699c4",
+      "bytes": 2397
+    },
+    {
+      "path": "DLT/src/main.py",
+      "git_blob_sha1": "d7e5855e9da9d1a33aa84ad0580609ca64ec17c8",
+      "sha256": "33104709251f8f63a5ff81603013f3a672ee2f9c5866d14a09347e484921a43d",
+      "bytes": 9276
+    },
+    {
+      "path": "DLT/src/resources/build_manifest.json",
+      "git_blob_sha1": "21e5763999b783abb56039d48185a1eec0bc40b1",
+      "sha256": "b47b2c925be2ce3d0291c175bc7599eeae2f8ec2962db67dfd7491a5fd4b47bb",
+      "bytes": 2119
+    },
+    {
+      "path": "DLT/src/resources/legacy_freezes.json",
+      "git_blob_sha1": "c3ad4077abf910e514e71bbcd2377fa8f44a2ab6",
+      "sha256": "ea983cbda9f1b6cd6530adf838edf1e8a45e51c41ed1139eef99f1812edae299",
+      "bytes": 881
+    },
+    {
+      "path": "DLT/src/resources/official_seed.json",
+      "git_blob_sha1": "4db8ac5164be0937587661c21554d36cff8f571d",
+      "sha256": "cfa1202038e76ca3e1c1261616f0d0aa04c825fdbddd53bccd71141aec6cad92",
+      "bytes": 583117
+    },
+    {
+      "path": "DLT/src/resources/official_seed_evidence.json",
+      "git_blob_sha1": "705b9376502c578ef678c88057cd25458f519f4e",
+      "sha256": "4632e73a9f1c8310584d9a06e21d9661fbb4b0a772020752b62970b650ba500a",
+      "bytes": 6434
+    },
+    {
+      "path": "DLT/src/updater.py",
+      "git_blob_sha1": "4549f6ca12d51f0605c1ae5c19bd85eb98d57918",
+      "sha256": "cbe90ac17a897cbe8f9d865014cbe9e3a18701c3c3f7858976c4337a807e88fa",
+      "bytes": 21621
+    },
+    {
+      "path": "DLT/tests/test_background_103_compat.py",
+      "git_blob_sha1": "38ce5b8274bc9bc097e8eff17bdda89ca2dcecfc",
+      "sha256": "aa5c5bd706c72da30537f67666c9c53bd201031011bf70af5877fff6e6f5aae5",
+      "bytes": 6026
+    },
+    {
+      "path": "DLT/tests/test_release_gate_authority.py",
+      "git_blob_sha1": "6867990504f7fe62973dbef3307bdab6f786aec7",
+      "sha256": "cf8d3d08f4e740a0e7edf2f0a208fd05a2ee9420c05f1b74ccc021ca5de37bc7",
+      "bytes": 923
+    },
+    {
+      "path": "DLT/tests/test_restored_updater_contract.py",
+      "git_blob_sha1": "b60cc4e29cffbd4a42909410ecc2b2e07549ed1e",
+      "sha256": "aed35b28660ef3b264958b22a51408e4e5614133d8798a7361f3bf84ce3ea388",
+      "bytes": 5347
+    },
+    {
+      "path": "SSQ/BUSINESS_SPEC.md",
+      "git_blob_sha1": "fa7bd40f2010a47f81a938e9a6e596506774e4c2",
+      "sha256": "f1a21ee10300ba1d71b141588fee79fd8e058a97566a65857f2e5709911857a1",
+      "bytes": 1645
+    },
+    {
+      "path": "SSQ/DANLAB_1.0.3_EXTERNAL_CANDIDATE.md",
+      "git_blob_sha1": "861f75c839856ebea9be5f07d69f51f908b68aef",
+      "sha256": "75139fde591334ffb5f6e6c32d025f2f50536c6172996c35dda00631c71054a3",
+      "bytes": 3170
+    },
+    {
+      "path": "SSQ/ENGINEERING_SPEC.md",
+      "git_blob_sha1": "2154dcc2454427be55d3824f230f53a335535c9a",
+      "sha256": "4db8a4031808569101a9ea46a8d272006e0368c9cbb5b5313000cb08d80114cf",
+      "bytes": 3333
+    },
+    {
+      "path": "SSQ/README_GITHUB.md",
+      "git_blob_sha1": "f7ddce9b14fe3099ff3dd199fdcbe79cf8ee17ba",
+      "sha256": "73992d3bea29a552105ad9624ea6fd8430ebd932e04f32285e783d2da51794bf",
+      "bytes": 1006
+    },
+    {
+      "path": "SSQ/SSQ/glp/__init__.py",
+      "git_blob_sha1": "ba768c59d17cae76f0294161744622da6791ffb8",
+      "sha256": "d620902694eb7c7061bb92d76e8e2cc0d36f6c7239e064a203e8d2119439ed6c",
+      "bytes": 301
+    },
+    {
+      "path": "SSQ/SSQ/glp/constants.py",
+      "git_blob_sha1": "ad0c8610f62fbdd1f696cb5834ddcf02cb40fd17",
+      "sha256": "0bcf7c0a258a35d3bbc8dcae83236e3c070737dc0b9672631e72286e55fb1b3e",
+      "bytes": 1633
+    },
+    {
+      "path": "SSQ/SSQ/glp/domain.py",
+      "git_blob_sha1": "cb85db67e0e5243191a9f673d435854fe939856d",
+      "sha256": "6474698bf1ee23b7788581878b01f548e32116257f7fbf2aeea3aac9ca28e81b",
+      "bytes": 3277
+    },
+    {
+      "path": "SSQ/SSQ/glp/engine.py",
+      "git_blob_sha1": "de5034cc1808a4d764bd0ed15885d9f375258b0c",
+      "sha256": "a9d40973c16131f4e76cc9cc0f2227721a614cdd0eb25b657c736549b4e76bab",
+      "bytes": 17527
+    },
+    {
+      "path": "SSQ/SSQ/glp/evidence.py",
+      "git_blob_sha1": "6621ca1908537709ffca1c618c1556332624eb4b",
+      "sha256": "7f695a18d0b9bf375564d7992e235fb56b6cac36eeb6db7775d2f8744c903086",
+      "bytes": 33206
+    },
+    {
+      "path": "SSQ/SSQ/glp/gui.py",
+      "git_blob_sha1": "ce77a9944a1cdbf678202250f26595f199fc3896",
+      "sha256": "10c4140c5ec12544ea1f675e5eb9b4c76d2a6fb58aaa3e2ea6a7901b05311e72",
+      "bytes": 16213
+    },
+    {
+      "path": "SSQ/SSQ/glp/net_client.py",
+      "git_blob_sha1": "8b2f8c4b434e365a0230a456f95f2271591f148a",
+      "sha256": "4b7e78944036987b3680f4e613682de1ca549b8130117edb592a6fb32036926a",
+      "bytes": 12369
+    },
+    {
+      "path": "SSQ/SSQ/glp/ors.py",
+      "git_blob_sha1": "ead9f7928506568c291fa90ff6387873cabe31bd",
+      "sha256": "e9faa28d5850c222fa3ff1ac222dee3baa1094ec2f41e965a07882725d63f2de",
+      "bytes": 1629
+    },
+    {
+      "path": "SSQ/SSQ/glp/release_manifest.json",
+      "git_blob_sha1": "077f310cf7684274c8dd95d8aed20e8ebd0621c0",
+      "sha256": "cb505b3aa3ffbedb4a7c01644ce6103670b0058e72d2d6149e11e51b543a4ec0",
+      "bytes": 2683
+    },
+    {
+      "path": "SSQ/SSQ/glp/service.py",
+      "git_blob_sha1": "f8608e0aa917fd127092716127edc2737dcfde97",
+      "sha256": "f965431411eac86f991e5903776d395e714adadb14a9031fbb5c5d7303f835cb",
+      "bytes": 33454
+    },
+    {
+      "path": "SSQ/SSQ/glp/sources.py",
+      "git_blob_sha1": "919fa08cd0d857ad6bb504ef8e108084d847e4b9",
+      "sha256": "3d1c29347070fa6c0e9e1903bd378f62b413fb28867b69b149378fae1edd3233",
+      "bytes": 42062
+    },
+    {
+      "path": "SSQ/SSQ/glp/storage.py",
+      "git_blob_sha1": "988f92e79cdae46432e41da588c3306d3761461b",
+      "sha256": "a30ab12792c33fe0aa4055c86d1cf07825ddd01dc7f1bb51a0ae9f596a3f14ff",
+      "bytes": 35469
+    },
+    {
+      "path": "SSQ/SSQ/glp/util.py",
+      "git_blob_sha1": "7b127509745ab3ad5d01df3cacad0f1b902e71ef",
+      "sha256": "2261b9d4ac24cc8d86589495313ae874da9e7323c12aeebc8008481dc8658617",
+      "bytes": 1647
+    },
+    {
+      "path": "SSQ/SSQ/resources/legacy_freezes.json",
+      "git_blob_sha1": "fe51488c7066f6687ef680d6bfaa4f7768ef205c",
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+      "bytes": 3
+    },
+    {
+      "path": "SSQ/SSQ/resources/official_seed.json",
+      "git_blob_sha1": "4d2ed825034f20d1f039f99f802174ead7814172",
+      "sha256": "a6811c7af97258f3cfed7a5a3b77b894ed84d591bdc8f51df917168b75609dfe",
+      "bytes": 417174
+    },
+    {
+      "path": "SSQ/SSQ/resources/official_seed_evidence.json",
+      "git_blob_sha1": "f4027f11242e232b09007c62432a3c3d24105057",
+      "sha256": "53851e80d30f3b4fae354080bf1136802d855a9c9f929b91383c51bed4492ab2",
+      "bytes": 9030
+    },
+    {
+      "path": "SSQ/launcher.py",
+      "git_blob_sha1": "3ca30f587234cf601b9570b493a50b9548604357",
+      "sha256": "1515a2f7d0b449522bc897dc6410502f82292df7a448d81f5f7488d1432a272a",
+      "bytes": 20961
+    },
+    {
+      "path": "SSQ/requirements-build.txt",
+      "git_blob_sha1": "671485f699a1f754a56a99eee4cffeab992c6407",
+      "sha256": "4073debc8ba902dd90a8d81605d47dfefa6367f8d5009a0a290613bc2d023468",
+      "bytes": 234
+    },
+    {
+      "path": "SSQ/tests/test_core_contracts.py",
+      "git_blob_sha1": "8c5dee7169a8718dee045dd3cc222dc7fba5d36a",
+      "sha256": "e17cf9d618b1cbedbf84dd8fda8f8929b9e10c2d7f48fba39c59cf4a01b5ba40",
+      "bytes": 14119
+    },
+    {
+      "path": "SSQ/tests/test_launcher_evidence.py",
+      "git_blob_sha1": "24e014f61339db13599d4975dbe650a95abdbd2c",
+      "sha256": "43afc5cafd2c45fa2d40a93d4c458413690df17c4e5b28473f70cd072e04114a",
+      "bytes": 8322
+    },
+    {
+      "path": "SSQ/tests/test_net_client.py",
+      "git_blob_sha1": "c5c18372006299f14f039eaadead30214a9c3bff",
+      "sha256": "c62ead40c4ae6e95c2df08673ac25764bfaab3a1b061e78d8a93c761c16e1db2",
+      "bytes": 12721
+    },
+    {
+      "path": "SSQ/tests/test_release_gate_evidence.py",
+      "git_blob_sha1": "f3cd8122dcaf69b8b85d46f6ee59843131e52786",
+      "sha256": "1366700791c2582c80a51f4d39a5a2aae2aec6ceecf45cee8ca994568e8e6499",
+      "bytes": 28203
+    },
+    {
+      "path": "SSQ/tests/test_service_gate.py",
+      "git_blob_sha1": "c7ceef27ef9cdade38b925858c88a6457f0dca3c",
+      "sha256": "d508a2aa8555be0221ae82674f53deab6c48527e4eee1907e8b7950723095564",
+      "bytes": 2893
+    },
+    {
+      "path": "SSQ/tests/test_sources_storage.py",
+      "git_blob_sha1": "db436c45ebeeddc09d45b3690bad3b9f0292cd79",
+      "sha256": "e4b040538a8d5533f48d203c41ee90d11614a496ef78e89ade7700e0481133d6",
+      "bytes": 23903
+    },
+    {
+      "path": "SSQ/tests/test_supply_chain_gate.py",
+      "git_blob_sha1": "f17c8dd9638a32c587a95c070329b8892223252b",
+      "sha256": "7ebe86b2d02daa42303fd4e552e6239183899cc05d5d8fba80d8ef594599f118",
+      "bytes": 3185
+    },
+    {
+      "path": "SSQ/tests/test_verify_gui_effect.py",
+      "git_blob_sha1": "c6792b9f6b90ca6005f5e0e5c37c307fc76e3d83",
+      "sha256": "7b36e38e45613b90d790bcb6c330b64d160e19dcb28b094e44c8b839400cd8c9",
+      "bytes": 6990
+    },
+    {
+      "path": "SSQ/tools/architecture_gate.py",
+      "git_blob_sha1": "eba80b94e7a0b1731b69d127bab4f9366d50fe97",
+      "sha256": "5e307995d5bfaee1a6783222b1663f712d75c7f74e75c445f15b1bc048f78d1b",
+      "bytes": 6663
+    },
+    {
+      "path": "SSQ/tools/build_windows.py",
+      "git_blob_sha1": "711e99791db9ead6a4b59a30b38f7f8172e287a6",
+      "sha256": "2854a45cbd5d8824232b3ea1c44efd49323c6c5a277748b4f3fcdb65518b91c8",
+      "bytes": 5686
+    },
+    {
+      "path": "SSQ/tools/business_gate.py",
+      "git_blob_sha1": "b0776fce61515d4d74d3dda2365fbba65d795bfe",
+      "sha256": "1229c83d013c5d5d0ace183715b927f2a7a5d06814625b726470ab9b815040dd",
+      "bytes": 2406
+    },
+    {
+      "path": "SSQ/tools/collect_mother_gates.py",
+      "git_blob_sha1": "195f59853a8d3ca498f089984a0227fa05bd59f1",
+      "sha256": "b5145f2c2ba55566b556f3e6bc00987dfb8a04a993e8836f86574c685ad6e999",
+      "bytes": 6746
+    },
+    {
+      "path": "SSQ/tools/derive_gate_status.py",
+      "git_blob_sha1": "d4fe2ce4a957501b2b0dadcdfc39a98b31db2815",
+      "sha256": "a94de344e5e868acfff7454c688aa8594cf0fc671944dff605561843908d1db3",
+      "bytes": 62245
+    },
+    {
+      "path": "SSQ/tools/netclient_contract_gate.py",
+      "git_blob_sha1": "16bd7a6adc37756f7450cbbcf8c44e26b261d1b0",
+      "sha256": "f9d05848562c37b8b89d9b069b4ba93ba7aef8ce76ff9aa2cc2c004aafda28e5",
+      "bytes": 8426
+    },
+    {
+      "path": "SSQ/tools/release_gate_22.py",
+      "git_blob_sha1": "68b3e3f57d20818703e5eabb58013e0e6d990d3d",
+      "sha256": "7b5e857c98b9e0baa373bbb7c1a76d62f35cb4f83d4f6c8329b74f1214f73868",
+      "bytes": 3016
+    },
+    {
+      "path": "SSQ/tools/unit_gate.py",
+      "git_blob_sha1": "11d809e9dd96a03b4932e6708cbc55a6f7099ad9",
+      "sha256": "707732c235f89554ba597b6544969ab1f10f64a5b1e263aa036221baeae66190",
+      "bytes": 1516
+    },
+    {
+      "path": "SSQ/tools/verify_gui_effect.py",
+      "git_blob_sha1": "b9d179d979e228852b6f7743c46740771aac8d03",
+      "sha256": "74ab86887f4b44fe03089bc529e7b30ee83143da5a2f3c90c4d7afe95fb70268",
+      "bytes": 6789
+    }
+  ],
+  "source_manifest_sha256": "241da3e0e77975fd076e38bd938c378b9a5dfeb669e2ca4e1eb2890cf5567c99",
+  "governance": {
+    "repository_independence": "FAIL",
+    "final_gate": "FAIL",
+    "R2": "BLOCKED",
+    "formal_A": 0,
+    "decision": "NO_EDGE"
+  },
+  "governance_file_sha256": "9ad1029485cf98b9ccc17ac5d9bb1a2e5deb0db666d7e5d708461bb550b3d8af",
+  "baseline_static_findings": [
+    {
+      "id": "LEGACY-01",
+      "path": "DLT/src/glp/background.py",
+      "line": 83,
+      "finding": "background_cycle calls service.predict() when the next target has no freeze. Existing worker is not a status-only boot check; startup metadata explicitly says autostart_registered=False."
+    },
+    {
+      "id": "LEGACY-02",
+      "path": "DLT/src/glp/storage.py",
+      "line": 55,
+      "finding": "Legacy DLT freezes/replays tables have primary/unique keys but no database UPDATE/DELETE triggers; SSQ protects freeze UPDATE/DELETE and some other UPDATEs, not a universal append-only ledger."
+    },
+    {
+      "id": "LEGACY-03",
+      "path": "DLT/src/glp/net_client.py",
+      "line": 86,
+      "finding": "Legacy DLT NetClient permits HTTPS redirects to another host. sources._validate_response only rejects non-HTTPS final URLs; SSQ sources._response_url explicitly verifies original host."
+    },
+    {
+      "id": "LEGACY-04",
+      "path": "SSQ/SSQ/glp/domain.py",
+      "line": 31,
+      "finding": "SourceReceipt has fetched_at, not authenticated official publication time. Neither legacy domain contract provides independent 01/04 or external TSA qualification."
+    },
+    {
+      "id": "LEGACY-05",
+      "path": "research/ssq_dlt_d2_v44/README_HANDOFF.md",
+      "line": 1,
+      "finding": "The pinned research scorer is a new research-only interface. Existing product eight-slot/model identity and original V4.0 contracts are not established by its synthetic model registry."
+    }
+  ],
+  "comparison_boundaries": {
+    "static_inspection": "PASS",
+    "legacy_integration_tests": "NOT_RUN",
+    "official_network_verification": "NOT_RUN",
+    "external_tsa_and_authority_verification": "BLOCKED",
+    "v4_0_byte_or_interface_diff": "BLOCKED",
+    "formal_admission": "BLOCKED"
+  },
+  "archive_read_errors": [],
+  "related_archives": [
+    {
+      "candidate_id": "LOCAL-ZIP-001",
+      "scope": "Documents",
+      "archive_name": "GLP_440_INTERNAL_CANDIDATE.zip",
+      "bytes": 549992,
+      "entry_count": 80,
+      "sha256": "ac2f1208814d47019d068aeba14df452fd897ee64058bddeffd68d4f35a44ee8",
+      "sha256_after_read": "ac2f1208814d47019d068aeba14df452fd897ee64058bddeffd68d4f35a44ee8",
+      "original_bytes_preserved": true,
+      "v4_0_entry_name_hit_count": 0,
+      "v4_0_text_hint_entry_count": 0
+    },
+    {
+      "candidate_id": "LOCAL-ZIP-002",
+      "scope": "Documents",
+      "archive_name": "Geometry_Lotto_Pro_DLT_Production_Ready.zip",
+      "bytes": 168078,
+      "entry_count": 76,
+      "sha256": "014675039b362034638e282b42f0df01da096c2d40eacf16e14555e76f88e371",
+      "sha256_after_read": "014675039b362034638e282b42f0df01da096c2d40eacf16e14555e76f88e371",
+      "original_bytes_preserved": true,
+      "v4_0_entry_name_hit_count": 0,
+      "v4_0_text_hint_entry_count": 0
+    },
+    {
+      "candidate_id": "LOCAL-ZIP-003",
+      "scope": "Documents",
+      "archive_name": "GLP_INTERNAL_CANDIDATE.zip",
+      "bytes": 96947398,
+      "entry_count": 104,
+      "sha256": "943f2269c38ed6d24f96f47d90b0ac2b693e7bcf1f2208f7d82d2d7f4cdee7a0",
+      "sha256_after_read": "943f2269c38ed6d24f96f47d90b0ac2b693e7bcf1f2208f7d82d2d7f4cdee7a0",
+      "original_bytes_preserved": true,
+      "v4_0_entry_name_hit_count": 0,
+      "v4_0_text_hint_entry_count": 0
+    },
+    {
+      "candidate_id": "LOCAL-ZIP-004",
+      "scope": "Documents",
+      "archive_name": "Geometry_Lotto_Pro_SSQ_Production_Ready.zip",
+      "bytes": 82125935,
+      "entry_count": 1315,
+      "sha256": "4bebfbe24a5c0bc3e107ce9267ac8a3bd79e584c51bc1c0d393b24305ebd025d",
+      "sha256_after_read": "4bebfbe24a5c0bc3e107ce9267ac8a3bd79e584c51bc1c0d393b24305ebd025d",
+      "original_bytes_preserved": true,
+      "v4_0_entry_name_hit_count": 0,
+      "v4_0_text_hint_entry_count": 0
+    },
+    {
+      "candidate_id": "LOCAL-ZIP-005",
+      "scope": "Documents",
+      "archive_name": "(scope-local archive; unrelated name omitted)",
+      "bytes": 81807313,
+      "entry_count": 1304,
+      "sha256": "0e4aca69cc22c9463f9e4e73068fa3d502fa6f113a351aa80001e744ef1b26a5",
+      "sha256_after_read": "0e4aca69cc22c9463f9e4e73068fa3d502fa6f113a351aa80001e744ef1b26a5",
+      "original_bytes_preserved": true,
+      "v4_0_entry_name_hit_count": 0,
+      "v4_0_text_hint_entry_count": 0
+    },
+    {
+      "candidate_id": "LOCAL-ZIP-006",
+      "scope": "Documents",
+      "archive_name": "(scope-local archive; unrelated name omitted)",
+      "bytes": 81825875,
+      "entry_count": 1305,
+      "sha256": "ded77562447b377562b0765e49d3956252cfb9dee0e4b7c0a4eda561126edd2e",
+      "sha256_after_read": "ded77562447b377562b0765e49d3956252cfb9dee0e4b7c0a4eda561126edd2e",
+      "original_bytes_preserved": true,
+      "v4_0_entry_name_hit_count": 0,
+      "v4_0_text_hint_entry_count": 0
+    },
+    {
+      "candidate_id": "LOCAL-ZIP-007",
+      "scope": "Documents",
+      "archive_name": "(scope-local archive; unrelated name omitted)",
+      "bytes": 82125935,
+      "entry_count": 1315,
+      "sha256": "4bebfbe24a5c0bc3e107ce9267ac8a3bd79e584c51bc1c0d393b24305ebd025d",
+      "sha256_after_read": "4bebfbe24a5c0bc3e107ce9267ac8a3bd79e584c51bc1c0d393b24305ebd025d",
+      "original_bytes_preserved": true,
+      "v4_0_entry_name_hit_count": 0,
+      "v4_0_text_hint_entry_count": 0
+    },
+    {
+      "candidate_id": "LOCAL-ZIP-008",
+      "scope": "Documents",
+      "archive_name": "Geometry_Lotto_Pro_SSQ_Production_Ready.zip",
+      "bytes": 81807313,
+      "entry_count": 1304,
+      "sha256": "0e4aca69cc22c9463f9e4e73068fa3d502fa6f113a351aa80001e744ef1b26a5",
+      "sha256_after_read": "0e4aca69cc22c9463f9e4e73068fa3d502fa6f113a351aa80001e744ef1b26a5",
+      "original_bytes_preserved": true,
+      "v4_0_entry_name_hit_count": 0,
+      "v4_0_text_hint_entry_count": 0
+    },
+    {
+      "candidate_id": "LOCAL-ZIP-009",
+      "scope": "Documents",
+      "archive_name": "Geometry_Lotto_Pro_SSQ_Production_Ready.zip",
+      "bytes": 82125935,
+      "entry_count": 1315,
+      "sha256": "4bebfbe24a5c0bc3e107ce9267ac8a3bd79e584c51bc1c0d393b24305ebd025d",
+      "sha256_after_read": "4bebfbe24a5c0bc3e107ce9267ac8a3bd79e584c51bc1c0d393b24305ebd025d",
+      "original_bytes_preserved": true,
+      "v4_0_entry_name_hit_count": 0,
+      "v4_0_text_hint_entry_count": 0
+    },
+    {
+      "candidate_id": "LOCAL-ZIP-010",
+      "scope": "Documents",
+      "archive_name": "Geometry_Lotto_Pro_SSQ_Production_Ready.zip",
+      "bytes": 82181956,
+      "entry_count": 1315,
+      "sha256": "c70e7a87e51d9bb9da772439f070ca365876c38c21ec0b7e15c2cc74388c5c82",
+      "sha256_after_read": "c70e7a87e51d9bb9da772439f070ca365876c38c21ec0b7e15c2cc74388c5c82",
+      "original_bytes_preserved": true,
+      "v4_0_entry_name_hit_count": 0,
+      "v4_0_text_hint_entry_count": 0
+    },
+    {
+      "candidate_id": "LOCAL-ZIP-011",
+      "scope": "Documents",
+      "archive_name": "Geometry_Lotto_Pro_SSQ_Production_Ready_5.5.1.zip",
+      "bytes": 82125935,
+      "entry_count": 1315,
+      "sha256": "4bebfbe24a5c0bc3e107ce9267ac8a3bd79e584c51bc1c0d393b24305ebd025d",
+      "sha256_after_read": "4bebfbe24a5c0bc3e107ce9267ac8a3bd79e584c51bc1c0d393b24305ebd025d",
+      "original_bytes_preserved": true,
+      "v4_0_entry_name_hit_count": 0,
+      "v4_0_text_hint_entry_count": 0
+    },
+    {
+      "candidate_id": "LOCAL-ZIP-012",
+      "scope": "Documents",
+      "archive_name": "Geometry_Lotto_Pro_SSQ_Production_Ready.zip",
+      "bytes": 82181905,
+      "entry_count": 1315,
+      "sha256": "1fb348925bf8d71522053853fbf29cda3030ffb3a14d1fbc7936751b3788bb55",
+      "sha256_after_read": "1fb348925bf8d71522053853fbf29cda3030ffb3a14d1fbc7936751b3788bb55",
+      "original_bytes_preserved": true,
+      "v4_0_entry_name_hit_count": 0,
+      "v4_0_text_hint_entry_count": 0
+    },
+    {
+      "candidate_id": "LOCAL-ZIP-013",
+      "scope": "Documents",
+      "archive_name": "Geometry_Lotto_Pro_SSQ_Production_Ready.zip",
+      "bytes": 82181956,
+      "entry_count": 1315,
+      "sha256": "c70e7a87e51d9bb9da772439f070ca365876c38c21ec0b7e15c2cc74388c5c82",
+      "sha256_after_read": "c70e7a87e51d9bb9da772439f070ca365876c38c21ec0b7e15c2cc74388c5c82",
+      "original_bytes_preserved": true,
+      "v4_0_entry_name_hit_count": 0,
+      "v4_0_text_hint_entry_count": 0
+    },
+    {
+      "candidate_id": "LOCAL-ZIP-014",
+      "scope": "Documents",
+      "archive_name": "Geometry_Lotto_Pro_SSQ_Production_Ready.zip",
+      "bytes": 82181934,
+      "entry_count": 1315,
+      "sha256": "0be1004df5a5820dd1a0b9508f4c1bdfa0a35158d907cbb96697fef28322f6d4",
+      "sha256_after_read": "0be1004df5a5820dd1a0b9508f4c1bdfa0a35158d907cbb96697fef28322f6d4",
+      "original_bytes_preserved": true,
+      "v4_0_entry_name_hit_count": 0,
+      "v4_0_text_hint_entry_count": 0
+    },
+    {
+      "candidate_id": "LOCAL-ZIP-015",
+      "scope": "Documents",
+      "archive_name": "Geometry_Lotto_Pro_DLT_Production_Ready.zip",
+      "bytes": 96955314,
+      "entry_count": 104,
+      "sha256": "b63d906746fdad1a930af199259b9c10319bc6eca82ecaf4c645901676eab67d",
+      "sha256_after_read": "b63d906746fdad1a930af199259b9c10319bc6eca82ecaf4c645901676eab67d",
+      "original_bytes_preserved": true,
+      "v4_0_entry_name_hit_count": 0,
+      "v4_0_text_hint_entry_count": 0
+    },
+    {
+      "candidate_id": "LOCAL-ZIP-016",
+      "scope": "Documents",
+      "archive_name": "GLP_INTERNAL_CANDIDATE.zip",
+      "bytes": 96955348,
+      "entry_count": 104,
+      "sha256": "0b88d2200f895d34211e79194f782038647b8848035303d2ed108932bad563d0",
+      "sha256_after_read": "0b88d2200f895d34211e79194f782038647b8848035303d2ed108932bad563d0",
+      "original_bytes_preserved": true,
+      "v4_0_entry_name_hit_count": 0,
+      "v4_0_text_hint_entry_count": 0
+    },
+    {
+      "candidate_id": "LOCAL-ZIP-017",
+      "scope": "Documents",
+      "archive_name": "Geometry_Lotto_Pro_SSQ_Production_Ready.zip",
+      "bytes": 82215493,
+      "entry_count": 1315,
+      "sha256": "08f7e536ee8cb51ddb682e367490c62f101b7d5e326b6d18d45602eecd9e649f",
+      "sha256_after_read": "08f7e536ee8cb51ddb682e367490c62f101b7d5e326b6d18d45602eecd9e649f",
+      "original_bytes_preserved": true,
+      "v4_0_entry_name_hit_count": 0,
+      "v4_0_text_hint_entry_count": 0
+    },
+    {
+      "candidate_id": "LOCAL-ZIP-018",
+      "scope": "Documents",
+      "archive_name": "Geometry_Lotto_Pro_SSQ_Production_Ready.zip",
+      "bytes": 82215103,
+      "entry_count": 1315,
+      "sha256": "235882a5f2fea84401c106cdd0fbba98591b6845c816a89c6d71f75c8529e7b1",
+      "sha256_after_read": "235882a5f2fea84401c106cdd0fbba98591b6845c816a89c6d71f75c8529e7b1",
+      "original_bytes_preserved": true,
+      "v4_0_entry_name_hit_count": 0,
+      "v4_0_text_hint_entry_count": 0
+    },
+    {
+      "candidate_id": "LOCAL-ZIP-019",
+      "scope": "Documents",
+      "archive_name": "Geometry_Lotto_Pro_SSQ_Production_Ready.zip",
+      "bytes": 82215103,
+      "entry_count": 1315,
+      "sha256": "235882a5f2fea84401c106cdd0fbba98591b6845c816a89c6d71f75c8529e7b1",
+      "sha256_after_read": "235882a5f2fea84401c106cdd0fbba98591b6845c816a89c6d71f75c8529e7b1",
+      "original_bytes_preserved": true,
+      "v4_0_entry_name_hit_count": 0,
+      "v4_0_text_hint_entry_count": 0
+    },
+    {
+      "candidate_id": "LOCAL-ZIP-020",
+      "scope": "Documents",
+      "archive_name": "DLT-49603b-CANDIDATE-NOT-FINAL.zip",
+      "bytes": 22968108,
+      "entry_count": 75,
+      "sha256": "d4cb3b5f4d136c9e309f7f8ddca7c94eef1e7b8823728afa2cc4ead1fdb14e68",
+      "sha256_after_read": "d4cb3b5f4d136c9e309f7f8ddca7c94eef1e7b8823728afa2cc4ead1fdb14e68",
+      "original_bytes_preserved": true,
+      "v4_0_entry_name_hit_count": 0,
+      "v4_0_text_hint_entry_count": 0
+    },
+    {
+      "candidate_id": "LOCAL-ZIP-021",
+      "scope": "Documents",
+      "archive_name": "DLT-54709fd-CANDIDATE-NOT-FINAL.zip",
+      "bytes": 24751747,
+      "entry_count": 98,
+      "sha256": "6156c4c2da549612e7835c6349d068128493c42067420fa7a301c078bc705e8d",
+      "sha256_after_read": "6156c4c2da549612e7835c6349d068128493c42067420fa7a301c078bc705e8d",
+      "original_bytes_preserved": true,
+      "v4_0_entry_name_hit_count": 0,
+      "v4_0_text_hint_entry_count": 0
+    },
+    {
+      "candidate_id": "LOCAL-ZIP-022",
+      "scope": "Documents",
+      "archive_name": "DLT-54709fd-TEST-PACKAGE-NOT-FINAL.zip",
+      "bytes": 21496183,
+      "entry_count": 4,
+      "sha256": "64cf94cab114299cd0415cc836f2e77275fcdf147ed720b3f8a243c2d4c38773",
+      "sha256_after_read": "64cf94cab114299cd0415cc836f2e77275fcdf147ed720b3f8a243c2d4c38773",
+      "original_bytes_preserved": true,
+      "v4_0_entry_name_hit_count": 0,
+      "v4_0_text_hint_entry_count": 0
+    },
+    {
+      "candidate_id": "LOCAL-ZIP-023",
+      "scope": "Documents",
+      "archive_name": "DLT-候選交付包-49603b.zip",
+      "bytes": 21501429,
+      "entry_count": 4,
+      "sha256": "216e7ddbaead473555935a340526de871c5ee30bae4115c73ace40d0e979263e",
+      "sha256_after_read": "216e7ddbaead473555935a340526de871c5ee30bae4115c73ace40d0e979263e",
+      "original_bytes_preserved": true,
+      "v4_0_entry_name_hit_count": 0,
+      "v4_0_text_hint_entry_count": 0
+    },
+    {
+      "candidate_id": "LOCAL-ZIP-024",
+      "scope": "Documents",
+      "archive_name": "DLT-a035bfb-CANDIDATE-NOT-FINAL.zip",
+      "bytes": 11164731,
+      "entry_count": 44,
+      "sha256": "f13dfe49ba336bc58429502b600e0ecaec061ea2c0dde1a64eb505ad2bd8478d",
+      "sha256_after_read": "f13dfe49ba336bc58429502b600e0ecaec061ea2c0dde1a64eb505ad2bd8478d",
+      "original_bytes_preserved": true,
+      "v4_0_entry_name_hit_count": 0,
+      "v4_0_text_hint_entry_count": 0
+    },
+    {
+      "candidate_id": "LOCAL-ZIP-025",
+      "scope": "Documents",
+      "archive_name": "SSQ-17a70f4-CANDIDATE-NOT-FINAL.zip",
+      "bytes": 172985581,
+      "entry_count": 398,
+      "sha256": "82c512401432d4b902d8889648610a289b63a4e6b27dffb3ef3abcf71361eae0",
+      "sha256_after_read": "82c512401432d4b902d8889648610a289b63a4e6b27dffb3ef3abcf71361eae0",
+      "original_bytes_preserved": true,
+      "v4_0_entry_name_hit_count": 0,
+      "v4_0_text_hint_entry_count": 0
+    },
+    {
+      "candidate_id": "LOCAL-ZIP-026",
+      "scope": "Documents",
+      "archive_name": "SSQ-512ba98-CANDIDATE-NOT-FINAL.zip",
+      "bytes": 172984295,
+      "entry_count": 397,
+      "sha256": "93f0a1cd1a139a2e21f3ccbcf3a01e5942c1723a69bbfdd3a5f7ef0e38cdf09e",
+      "sha256_after_read": "93f0a1cd1a139a2e21f3ccbcf3a01e5942c1723a69bbfdd3a5f7ef0e38cdf09e",
+      "original_bytes_preserved": true,
+      "v4_0_entry_name_hit_count": 0,
+      "v4_0_text_hint_entry_count": 0
+    },
+    {
+      "candidate_id": "LOCAL-ZIP-027",
+      "scope": "Documents",
+      "archive_name": "SSQ-候選交付包-efdd54a.zip",
+      "bytes": 34070035,
+      "entry_count": 4,
+      "sha256": "fa321de93f883617b0a04b311a36c04277ef5e8255cbc66c35cd270c82812da7",
+      "sha256_after_read": "fa321de93f883617b0a04b311a36c04277ef5e8255cbc66c35cd270c82812da7",
+      "original_bytes_preserved": true,
+      "v4_0_entry_name_hit_count": 0,
+      "v4_0_text_hint_entry_count": 0
+    },
+    {
+      "candidate_id": "LOCAL-ZIP-028",
+      "scope": "Documents",
+      "archive_name": "SSQ-abac021-CANDIDATE-NOT-FINAL.zip",
+      "bytes": 172983933,
+      "entry_count": 398,
+      "sha256": "213f21f04f9ca5376e30c8cda9f99db6c3f556c610cc07f0a22857ffaa9ce5d4",
+      "sha256_after_read": "213f21f04f9ca5376e30c8cda9f99db6c3f556c610cc07f0a22857ffaa9ce5d4",
+      "original_bytes_preserved": true,
+      "v4_0_entry_name_hit_count": 0,
+      "v4_0_text_hint_entry_count": 0
+    },
+    {
+      "candidate_id": "LOCAL-ZIP-029",
+      "scope": "Documents",
+      "archive_name": "SSQ-abac021-TEST-PACKAGE-NOT-FINAL.zip",
+      "bytes": 34049045,
+      "entry_count": 4,
+      "sha256": "45786d9225c3e9b398f9d4c1293be4a728f62163108c974c50d22203671a3752",
+      "sha256_after_read": "45786d9225c3e9b398f9d4c1293be4a728f62163108c974c50d22203671a3752",
+      "original_bytes_preserved": true,
+      "v4_0_entry_name_hit_count": 0,
+      "v4_0_text_hint_entry_count": 0
+    },
+    {
+      "candidate_id": "LOCAL-ZIP-030",
+      "scope": "Documents",
+      "archive_name": "SSQ-efdd54a-CANDIDATE-NOT-FINAL.zip",
+      "bytes": 172985380,
+      "entry_count": 398,
+      "sha256": "a1f0c10158673b8fe0f39fc983b5ef188007db140a26fc3a7b88b4d491d24bd5",
+      "sha256_after_read": "a1f0c10158673b8fe0f39fc983b5ef188007db140a26fc3a7b88b4d491d24bd5",
+      "original_bytes_preserved": true,
+      "v4_0_entry_name_hit_count": 0,
+      "v4_0_text_hint_entry_count": 0
+    },
+    {
+      "candidate_id": "LOCAL-ZIP-031",
+      "scope": "Documents",
+      "archive_name": "SSQ_DLT_DanLab_1.0.0_研究候選版.zip",
+      "bytes": 68639658,
+      "entry_count": 63,
+      "sha256": "868c9b6416aa29caaeedf32c05c96bb5e252ec912c10d272af409361449c2e3a",
+      "sha256_after_read": "868c9b6416aa29caaeedf32c05c96bb5e252ec912c10d272af409361449c2e3a",
+      "original_bytes_preserved": true,
+      "v4_0_entry_name_hit_count": 0,
+      "v4_0_text_hint_entry_count": 0
+    },
+    {
+      "candidate_id": "LOCAL-ZIP-032",
+      "scope": "Documents",
+      "archive_name": "SSQ_DLT_DanLab_1.0.0_原始碼.zip",
+      "bytes": 3868658,
+      "entry_count": 1363,
+      "sha256": "23fb2f9737e40292d3f9b91066ce90782ab50aa80f334000a13ac728d85e9a9f",
+      "sha256_after_read": "23fb2f9737e40292d3f9b91066ce90782ab50aa80f334000a13ac728d85e9a9f",
+      "original_bytes_preserved": true,
+      "v4_0_entry_name_hit_count": 0,
+      "v4_0_text_hint_entry_count": 0
+    },
+    {
+      "candidate_id": "LOCAL-ZIP-033",
+      "scope": "Documents",
+      "archive_name": "SSQ_DLT_DanLab_1.0.1_研究候選版.zip",
+      "bytes": 68763357,
+      "entry_count": 74,
+      "sha256": "0131e81fcaebb91e137f214a17d2391ed71dddd580afe4087f369d9d41240888",
+      "sha256_after_read": "0131e81fcaebb91e137f214a17d2391ed71dddd580afe4087f369d9d41240888",
+      "original_bytes_preserved": true,
+      "v4_0_entry_name_hit_count": 0,
+      "v4_0_text_hint_entry_count": 0
+    },
+    {
+      "candidate_id": "LOCAL-ZIP-034",
+      "scope": "Documents",
+      "archive_name": "SSQ_DLT_DanLab_1.0.1_原始碼.zip",
+      "bytes": 3884751,
+      "entry_count": 1368,
+      "sha256": "26a52884d1d850795794f23e2a39b24fb3f3a6e5346fa7dd7254de97122cf82e",
+      "sha256_after_read": "26a52884d1d850795794f23e2a39b24fb3f3a6e5346fa7dd7254de97122cf82e",
+      "original_bytes_preserved": true,
+      "v4_0_entry_name_hit_count": 0,
+      "v4_0_text_hint_entry_count": 0
+    },
+    {
+      "candidate_id": "LOCAL-ZIP-035",
+      "scope": "Documents",
+      "archive_name": "SSQ_DLT_DanLab_1.0.3_研究候選版.zip",
+      "bytes": 74676544,
+      "entry_count": 128,
+      "sha256": "16488f8bc4282396d19ca530763494e0a11e0f3d816c4625e89d8cdae3390304",
+      "sha256_after_read": "16488f8bc4282396d19ca530763494e0a11e0f3d816c4625e89d8cdae3390304",
+      "original_bytes_preserved": true,
+      "v4_0_entry_name_hit_count": 0,
+      "v4_0_text_hint_entry_count": 0
+    },
+    {
+      "candidate_id": "LOCAL-ZIP-036",
+      "scope": "Documents",
+      "archive_name": "SSQ_DLT_DanLab_1.0.3_原始碼.zip",
+      "bytes": 4000100,
+      "entry_count": 1390,
+      "sha256": "bf7920bc22ad31136747fc8840917fa1246781253fc46f0a1fd6908d0cb04813",
+      "sha256_after_read": "bf7920bc22ad31136747fc8840917fa1246781253fc46f0a1fd6908d0cb04813",
+      "original_bytes_preserved": true,
+      "v4_0_entry_name_hit_count": 0,
+      "v4_0_text_hint_entry_count": 0
+    },
+    {
+      "candidate_id": "LOCAL-ZIP-037",
+      "scope": "Documents",
+      "archive_name": "SSQ_DLT_DanLab_1.0.4_研究候選版.zip",
+      "bytes": 88564564,
+      "entry_count": 179,
+      "sha256": "61e7fd974d3055437c8c2af59c940077995d01b8421b67b9a900702244750683",
+      "sha256_after_read": "61e7fd974d3055437c8c2af59c940077995d01b8421b67b9a900702244750683",
+      "original_bytes_preserved": true,
+      "v4_0_entry_name_hit_count": 0,
+      "v4_0_text_hint_entry_count": 0
+    },
+    {
+      "candidate_id": "LOCAL-ZIP-038",
+      "scope": "Documents",
+      "archive_name": "SSQ_DLT_DanLab_1.0.4_原始碼.zip",
+      "bytes": 4051032,
+      "entry_count": 1400,
+      "sha256": "440b61aad6458b9212dff2cc0d6481f3a947c8d19e6192b857c2dd3d6432629e",
+      "sha256_after_read": "440b61aad6458b9212dff2cc0d6481f3a947c8d19e6192b857c2dd3d6432629e",
+      "original_bytes_preserved": true,
+      "v4_0_entry_name_hit_count": 0,
+      "v4_0_text_hint_entry_count": 0
+    },
+    {
+      "candidate_id": "LOCAL-ZIP-039",
+      "scope": "Documents",
+      "archive_name": "SSQ_DLT_DanLab_1.0.5_研究候選版.zip",
+      "bytes": 91968520,
+      "entry_count": 227,
+      "sha256": "3e8c6b5a747227233053082824ac48001b9fec8d29fe677a0c59d7c88b07ce8d",
+      "sha256_after_read": "3e8c6b5a747227233053082824ac48001b9fec8d29fe677a0c59d7c88b07ce8d",
+      "original_bytes_preserved": true,
+      "v4_0_entry_name_hit_count": 0,
+      "v4_0_text_hint_entry_count": 0
+    },
+    {
+      "candidate_id": "LOCAL-ZIP-040",
+      "scope": "Documents",
+      "archive_name": "SSQ_DLT_DanLab_1.0.5_原始碼.zip",
+      "bytes": 4071035,
+      "entry_count": 1403,
+      "sha256": "605a38625d01d4482bfeb16160a1762f76f46635fce60470cc70be38821aefde",
+      "sha256_after_read": "605a38625d01d4482bfeb16160a1762f76f46635fce60470cc70be38821aefde",
+      "original_bytes_preserved": true,
+      "v4_0_entry_name_hit_count": 0,
+      "v4_0_text_hint_entry_count": 0
+    },
+    {
+      "candidate_id": "LOCAL-ZIP-041",
+      "scope": "Documents",
+      "archive_name": "(scope-local archive; unrelated name omitted)",
+      "bytes": 601823,
+      "entry_count": 271,
+      "sha256": "a1ec3e401d262cfab6cf4a87b7931bf5d773cdef780d8e23cada752f1945c179",
+      "sha256_after_read": "a1ec3e401d262cfab6cf4a87b7931bf5d773cdef780d8e23cada752f1945c179",
+      "original_bytes_preserved": true,
+      "v4_0_entry_name_hit_count": 0,
+      "v4_0_text_hint_entry_count": 0
+    },
+    {
+      "candidate_id": "LOCAL-ZIP-042",
+      "scope": "Documents",
+      "archive_name": "(scope-local archive; unrelated name omitted)",
+      "bytes": 547159,
+      "entry_count": 244,
+      "sha256": "22bafc8fe1239b34258c67682147893ef407befa6fc8439e77f8da45f6d3df63",
+      "sha256_after_read": "22bafc8fe1239b34258c67682147893ef407befa6fc8439e77f8da45f6d3df63",
+      "original_bytes_preserved": true,
+      "v4_0_entry_name_hit_count": 0,
+      "v4_0_text_hint_entry_count": 0
+    },
+    {
+      "candidate_id": "LOCAL-ZIP-043",
+      "scope": "Documents",
+      "archive_name": "(scope-local archive; unrelated name omitted)",
+      "bytes": 668326,
+      "entry_count": 269,
+      "sha256": "9336c47033d62e82f13c21dd479abcc253f0cf3d3046d4f2cdad7830b41b9f97",
+      "sha256_after_read": "9336c47033d62e82f13c21dd479abcc253f0cf3d3046d4f2cdad7830b41b9f97",
+      "original_bytes_preserved": true,
+      "v4_0_entry_name_hit_count": 0,
+      "v4_0_text_hint_entry_count": 0
+    },
+    {
+      "candidate_id": "LOCAL-ZIP-044",
+      "scope": "Documents",
+      "archive_name": "(scope-local archive; unrelated name omitted)",
+      "bytes": 499586,
+      "entry_count": 271,
+      "sha256": "6d5c5205313e13e045a60a8146d00b3f4b5ac697063507f98ff755033743b050",
+      "sha256_after_read": "6d5c5205313e13e045a60a8146d00b3f4b5ac697063507f98ff755033743b050",
+      "original_bytes_preserved": true,
+      "v4_0_entry_name_hit_count": 0,
+      "v4_0_text_hint_entry_count": 0
+    },
+    {
+      "candidate_id": "LOCAL-ZIP-045",
+      "scope": "Documents",
+      "archive_name": "(scope-local archive; unrelated name omitted)",
+      "bytes": 197299351,
+      "entry_count": 8407,
+      "sha256": "1c5ef4c0b089391a7574ce68d824109620a1b9ffde6300d4f24aeeeebd42cdca",
+      "sha256_after_read": "1c5ef4c0b089391a7574ce68d824109620a1b9ffde6300d4f24aeeeebd42cdca",
+      "original_bytes_preserved": true,
+      "v4_0_entry_name_hit_count": 0,
+      "v4_0_text_hint_entry_count": 1
+    },
+    {
+      "candidate_id": "LOCAL-ZIP-046",
+      "scope": "Documents",
+      "archive_name": "(scope-local archive; unrelated name omitted)",
+      "bytes": 123687,
+      "entry_count": 29,
+      "sha256": "4dcdd16a11d679baf44df020ec73c1579a117cd4a3c4488a4fba5afd2269d497",
+      "sha256_after_read": "4dcdd16a11d679baf44df020ec73c1579a117cd4a3c4488a4fba5afd2269d497",
+      "original_bytes_preserved": true,
+      "v4_0_entry_name_hit_count": 0,
+      "v4_0_text_hint_entry_count": 0
+    },
+    {
+      "candidate_id": "LOCAL-ZIP-047",
+      "scope": "Documents",
+      "archive_name": "(scope-local archive; unrelated name omitted)",
+      "bytes": 701285,
+      "entry_count": 59,
+      "sha256": "b90656caadc4e31ef4caabd09d09ea5c16e12b3912940d01c2da5ecc9dd6845d",
+      "sha256_after_read": "b90656caadc4e31ef4caabd09d09ea5c16e12b3912940d01c2da5ecc9dd6845d",
+      "original_bytes_preserved": true,
+      "v4_0_entry_name_hit_count": 0,
+      "v4_0_text_hint_entry_count": 0
+    },
+    {
+      "candidate_id": "LOCAL-ZIP-048",
+      "scope": "Documents",
+      "archive_name": "(scope-local archive; unrelated name omitted)",
+      "bytes": 2021625,
+      "entry_count": 106,
+      "sha256": "30e8a62fac38e3104718cc71ad40f1364ea7660db11bab86875619b2ce7742be",
+      "sha256_after_read": "30e8a62fac38e3104718cc71ad40f1364ea7660db11bab86875619b2ce7742be",
+      "original_bytes_preserved": true,
+      "v4_0_entry_name_hit_count": 0,
+      "v4_0_text_hint_entry_count": 0
+    },
+    {
+      "candidate_id": "LOCAL-ZIP-049",
+      "scope": "Documents",
+      "archive_name": "(scope-local archive; unrelated name omitted)",
+      "bytes": 123268,
+      "entry_count": 28,
+      "sha256": "8b49f86a622d6b76fe63d8b2b67fe9e83eb650f0593a0d5441c54dbd64381e53",
+      "sha256_after_read": "8b49f86a622d6b76fe63d8b2b67fe9e83eb650f0593a0d5441c54dbd64381e53",
+      "original_bytes_preserved": true,
+      "v4_0_entry_name_hit_count": 0,
+      "v4_0_text_hint_entry_count": 0
+    },
+    {
+      "candidate_id": "LOCAL-ZIP-050",
+      "scope": "Documents",
+      "archive_name": "(scope-local archive; unrelated name omitted)",
+      "bytes": 123680,
+      "entry_count": 29,
+      "sha256": "78e7501df63f7fb25f53d22306a0880b8bacdc2ebb0ec023a66c8fdb9ea70301",
+      "sha256_after_read": "78e7501df63f7fb25f53d22306a0880b8bacdc2ebb0ec023a66c8fdb9ea70301",
+      "original_bytes_preserved": true,
+      "v4_0_entry_name_hit_count": 0,
+      "v4_0_text_hint_entry_count": 0
+    },
+    {
+      "candidate_id": "LOCAL-ZIP-051",
+      "scope": "Documents",
+      "archive_name": "(scope-local archive; unrelated name omitted)",
+      "bytes": 699472,
+      "entry_count": 58,
+      "sha256": "42e2eed77906af9b3206df1669208914ccfae9bc1f0ecddbef7c8473533cc690",
+      "sha256_after_read": "42e2eed77906af9b3206df1669208914ccfae9bc1f0ecddbef7c8473533cc690",
+      "original_bytes_preserved": true,
+      "v4_0_entry_name_hit_count": 0,
+      "v4_0_text_hint_entry_count": 0
+    },
+    {
+      "candidate_id": "LOCAL-ZIP-052",
+      "scope": "Documents",
+      "archive_name": "(scope-local archive; unrelated name omitted)",
+      "bytes": 2021574,
+      "entry_count": 106,
+      "sha256": "de39335c06c1ed1f1685b9ba1ccf37b6d5ace93f9b8dcf60fa5815086dc20671",
+      "sha256_after_read": "de39335c06c1ed1f1685b9ba1ccf37b6d5ace93f9b8dcf60fa5815086dc20671",
+      "original_bytes_preserved": true,
+      "v4_0_entry_name_hit_count": 0,
+      "v4_0_text_hint_entry_count": 0
+    },
+    {
+      "candidate_id": "LOCAL-ZIP-053",
+      "scope": "Documents",
+      "archive_name": "(scope-local archive; unrelated name omitted)",
+      "bytes": 141868,
+      "entry_count": 27,
+      "sha256": "77458f9e5c842680ecba25725b09bf38bc6f88a4ceb5a134361ef7a0a02f817b",
+      "sha256_after_read": "77458f9e5c842680ecba25725b09bf38bc6f88a4ceb5a134361ef7a0a02f817b",
+      "original_bytes_preserved": true,
+      "v4_0_entry_name_hit_count": 0,
+      "v4_0_text_hint_entry_count": 0
+    },
+    {
+      "candidate_id": "LOCAL-ZIP-054",
+      "scope": "Documents",
+      "archive_name": "(scope-local archive; unrelated name omitted)",
+      "bytes": 1338205,
+      "entry_count": 37,
+      "sha256": "60f07c8e8b21990950983a6f66712b0ce4dc8eef34e7bcf23e92e155e79f6084",
+      "sha256_after_read": "60f07c8e8b21990950983a6f66712b0ce4dc8eef34e7bcf23e92e155e79f6084",
+      "original_bytes_preserved": true,
+      "v4_0_entry_name_hit_count": 0,
+      "v4_0_text_hint_entry_count": 0
+    },
+    {
+      "candidate_id": "LOCAL-ZIP-055",
+      "scope": "Documents",
+      "archive_name": "DanLab_3_3_RESEARCH_AND_TRACKING.zip",
+      "bytes": 859522,
+      "entry_count": 19,
+      "sha256": "c9dc81dffc47b0b67507292ac9a702574c349e1ab41119eee50a9e8c0ba6fbea",
+      "sha256_after_read": "c9dc81dffc47b0b67507292ac9a702574c349e1ab41119eee50a9e8c0ba6fbea",
+      "original_bytes_preserved": true,
+      "v4_0_entry_name_hit_count": 0,
+      "v4_0_text_hint_entry_count": 0
+    },
+    {
+      "candidate_id": "LOCAL-ZIP-056",
+      "scope": "Documents",
+      "archive_name": "(scope-local archive; unrelated name omitted)",
+      "bytes": 141868,
+      "entry_count": 27,
+      "sha256": "77458f9e5c842680ecba25725b09bf38bc6f88a4ceb5a134361ef7a0a02f817b",
+      "sha256_after_read": "77458f9e5c842680ecba25725b09bf38bc6f88a4ceb5a134361ef7a0a02f817b",
+      "original_bytes_preserved": true,
+      "v4_0_entry_name_hit_count": 0,
+      "v4_0_text_hint_entry_count": 0
+    },
+    {
+      "candidate_id": "LOCAL-ZIP-057",
+      "scope": "Documents",
+      "archive_name": "SSQ_DLT_Windows_MVP_v1.2_REBUILT.zip",
+      "bytes": 20982918,
+      "entry_count": 367,
+      "sha256": "cbfc45cc1a66712abab4d87c4f47e4817c86054990211112c5c6c3075a7afbb0",
+      "sha256_after_read": "cbfc45cc1a66712abab4d87c4f47e4817c86054990211112c5c6c3075a7afbb0",
+      "original_bytes_preserved": true,
+      "v4_0_entry_name_hit_count": 0,
+      "v4_0_text_hint_entry_count": 0
+    },
+    {
+      "candidate_id": "LOCAL-ZIP-058",
+      "scope": "Documents",
+      "archive_name": "(scope-local archive; unrelated name omitted)",
+      "bytes": 201754,
+      "entry_count": 24,
+      "sha256": "8be788f3e29aa57a0c3447c7faee3e861b1e014dfd28b5082bec0e76ed246335",
+      "sha256_after_read": "8be788f3e29aa57a0c3447c7faee3e861b1e014dfd28b5082bec0e76ed246335",
+      "original_bytes_preserved": true,
+      "v4_0_entry_name_hit_count": 0,
+      "v4_0_text_hint_entry_count": 0
+    },
+    {
+      "candidate_id": "LOCAL-ZIP-059",
+      "scope": "Documents",
+      "archive_name": "SSQ_DLT_Three_Version_Audit_v0_1.zip",
+      "bytes": 201754,
+      "entry_count": 24,
+      "sha256": "8be788f3e29aa57a0c3447c7faee3e861b1e014dfd28b5082bec0e76ed246335",
+      "sha256_after_read": "8be788f3e29aa57a0c3447c7faee3e861b1e014dfd28b5082bec0e76ed246335",
+      "original_bytes_preserved": true,
+      "v4_0_entry_name_hit_count": 0,
+      "v4_0_text_hint_entry_count": 0
+    },
+    {
+      "candidate_id": "LOCAL-ZIP-060",
+      "scope": "Documents",
+      "archive_name": "SSQ_DLT_Three_Version_Audit_v0_1.zip",
+      "bytes": 201754,
+      "entry_count": 24,
+      "sha256": "8be788f3e29aa57a0c3447c7faee3e861b1e014dfd28b5082bec0e76ed246335",
+      "sha256_after_read": "8be788f3e29aa57a0c3447c7faee3e861b1e014dfd28b5082bec0e76ed246335",
+      "original_bytes_preserved": true,
+      "v4_0_entry_name_hit_count": 0,
+      "v4_0_text_hint_entry_count": 0
+    },
+    {
+      "candidate_id": "LOCAL-ZIP-061",
+      "scope": "Documents",
+      "archive_name": "SSQ_DLT_Windows_MVP_v1.2_REBUILT.zip",
+      "bytes": 20982918,
+      "entry_count": 367,
+      "sha256": "cbfc45cc1a66712abab4d87c4f47e4817c86054990211112c5c6c3075a7afbb0",
+      "sha256_after_read": "cbfc45cc1a66712abab4d87c4f47e4817c86054990211112c5c6c3075a7afbb0",
+      "original_bytes_preserved": true,
+      "v4_0_entry_name_hit_count": 0,
+      "v4_0_text_hint_entry_count": 0
+    }
+  ],
+  "review_sources": {
+    "observed_at_utc": "2026-10-15T11:31:34.142Z",
+    "pr": {
+      "url": "https://github.com/douluo511/Geometry-Lotto-Pro/pull/407",
+      "number": 407,
+      "state": "open",
+      "merged": false,
+      "draft": true,
+      "title": "research(ssq+dlt): V4.4 pre-registered D2 scorer and Windows-first P0 handoff",
+      "base": "main",
+      "base_sha": "c2b0db6876d2aae874f8cf4d08f52455c8eaf152",
+      "head": "research/ssq-dlt-v44-d2-prospective-gates",
+      "head_sha": "c6d4de9aaa49b219e422dace755702b117179fa6"
+    },
+    "issue": {
+      "url": "https://github.com/douluo511/Geometry-Lotto-Pro/issues/408",
+      "issue_number": 408,
+      "title": "Work handoff: Windows-first SSQ+DLT V4.4 P0 closure after research PR #407",
+      "state": "open",
+      "updated_at": "2026-10-15T08:19:45Z"
+    }
+  },
+  "source_interfaces": {
+    "DLT/src/glp/background.py": [
+      {
+        "kind": "function",
+        "name": "_exe_sha256",
+        "signature": "",
+        "line": 26
+      },
+      {
+        "kind": "function",
+        "name": "_status_path",
+        "signature": "root: Path",
+        "line": 34
+      },
+      {
+        "kind": "function",
+        "name": "_mutex_name",
+        "signature": "root: Path",
+        "line": 38
+      },
+      {
+        "kind": "class",
+        "name": "_WindowsMutex",
+        "line": 43,
+        "fields": [],
+        "methods": [
+          {
+            "name": "__init__",
+            "signature": "self, root: Path",
+            "line": 44
+          },
+          {
+            "name": "close",
+            "signature": "self",
+            "line": 63
+          },
+          {
+            "name": "__enter__",
+            "signature": "self",
+            "line": 68
+          },
+          {
+            "name": "__exit__",
+            "signature": "self, exc_type, exc, tb",
+            "line": 71
+          }
+        ]
+      },
+      {
+        "kind": "function",
+        "name": "_load_current_latest",
+        "signature": "service: LottoService",
+        "line": 75
+      },
+      {
+        "kind": "function",
+        "name": "background_cycle",
+        "signature": "service: LottoService | None=None",
+        "line": 83
+      },
+      {
+        "kind": "function",
+        "name": "_process_exists",
+        "signature": "pid: int",
+        "line": 148
+      },
+      {
+        "kind": "function",
+        "name": "_wait_parent_exit",
+        "signature": "pid: int, timeout_seconds: int=30",
+        "line": 167
+      },
+      {
+        "kind": "function",
+        "name": "run_background_worker",
+        "signature": "*, interval_seconds: int=BACKGROUND_POLL_SECONDS, max_cycles: int=0, wait_parent_pid: int=0",
+        "line": 178
+      },
+      {
+        "kind": "function",
+        "name": "launch_background_worker",
+        "signature": "*, interval_seconds: int=BACKGROUND_POLL_SECONDS, max_cycles: int=0, wait_parent_exit: bool=False",
+        "line": 262
+      }
+    ],
+    "DLT/src/glp/domain.py": [
+      {
+        "kind": "class",
+        "name": "Draw",
+        "line": 8,
+        "fields": [
+          {
+            "name": "issue",
+            "type": "str"
+          },
+          {
+            "name": "draw_date",
+            "type": "str"
+          },
+          {
+            "name": "front",
+            "type": "tuple[int, int, int, int, int]"
+          },
+          {
+            "name": "back",
+            "type": "tuple[int, int]"
+          }
+        ],
+        "methods": [
+          {
+            "name": "validate",
+            "signature": "self",
+            "line": 14
+          },
+          {
+            "name": "to_dict",
+            "signature": "self",
+            "line": 26
+          },
+          {
+            "name": "from_dict",
+            "signature": "cls, value: dict[str, Any]",
+            "line": 33
+          }
+        ]
+      },
+      {
+        "kind": "class",
+        "name": "SourceReceipt",
+        "line": 45,
+        "fields": [
+          {
+            "name": "source",
+            "type": "str"
+          },
+          {
+            "name": "fetched_at",
+            "type": "str"
+          },
+          {
+            "name": "http_status",
+            "type": "int"
+          },
+          {
+            "name": "raw_sha256",
+            "type": "str"
+          },
+          {
+            "name": "draw_count",
+            "type": "int"
+          },
+          {
+            "name": "latest_issue",
+            "type": "str"
+          },
+          {
+            "name": "status",
+            "type": "str"
+          },
+          {
+            "name": "detail",
+            "type": "str"
+          }
+        ],
+        "methods": []
+      },
+      {
+        "kind": "class",
+        "name": "CanonicalDataset",
+        "line": 57,
+        "fields": [
+          {
+            "name": "draws",
+            "type": "list[Draw]"
+          },
+          {
+            "name": "canonical_hash",
+            "type": "str"
+          },
+          {
+            "name": "receipts",
+            "type": "list[SourceReceipt]"
+          },
+          {
+            "name": "crosscheck_count",
+            "type": "int"
+          },
+          {
+            "name": "crosscheck_status",
+            "type": "str"
+          }
+        ],
+        "methods": []
+      },
+      {
+        "kind": "class",
+        "name": "Ranking",
+        "line": 66,
+        "fields": [
+          {
+            "name": "numbers",
+            "type": "list[int]"
+          },
+          {
+            "name": "scores",
+            "type": "dict[int, float]"
+          },
+          {
+            "name": "feature_scores",
+            "type": "dict[str, dict[int, float]]"
+          }
+        ],
+        "methods": []
+      },
+      {
+        "kind": "class",
+        "name": "Prediction",
+        "line": 73,
+        "fields": [
+          {
+            "name": "prediction_id",
+            "type": "str"
+          },
+          {
+            "name": "target_issue",
+            "type": "str"
+          },
+          {
+            "name": "target_date",
+            "type": "str"
+          },
+          {
+            "name": "created_at",
+            "type": "str"
+          },
+          {
+            "name": "front",
+            "type": "list[int]"
+          },
+          {
+            "name": "back",
+            "type": "list[int]"
+          },
+          {
+            "name": "front_ranking",
+            "type": "list[int]"
+          },
+          {
+            "name": "back_ranking",
+            "type": "list[int]"
+          },
+          {
+            "name": "dan_state",
+            "type": "str"
+          },
+          {
+            "name": "edge_state",
+            "type": "str"
+          },
+          {
+            "name": "research_dan_front",
+            "type": "list[int]"
+          },
+          {
+            "name": "research_dan_back",
+            "type": "list[int]"
+          },
+          {
+            "name": "canonical_hash",
+            "type": "str"
+          },
+          {
+            "name": "model_hash",
+            "type": "str"
+          },
+          {
+            "name": "selector_hash",
+            "type": "str"
+          },
+          {
+            "name": "score_hash",
+            "type": "str"
+          },
+          {
+            "name": "freeze_hash",
+            "type": "str"
+          },
+          {
+            "name": "note",
+            "type": "str"
+          }
+        ],
+        "methods": [
+          {
+            "name": "to_dict",
+            "signature": "self",
+            "line": 93
+          }
+        ]
+      }
+    ],
+    "DLT/src/glp/engine.py": [
+      {
+        "kind": "function",
+        "name": "_area",
+        "signature": "draw: Draw, area: str",
+        "line": 36
+      },
+      {
+        "kind": "function",
+        "name": "_meta",
+        "signature": "area: str",
+        "line": 40
+      },
+      {
+        "kind": "function",
+        "name": "_zdict",
+        "signature": "raw: dict[int, float], max_n: int",
+        "line": 44
+      },
+      {
+        "kind": "function",
+        "name": "_geometry_signature",
+        "signature": "nums: Iterable[int], max_n: int",
+        "line": 50
+      },
+      {
+        "kind": "function",
+        "name": "_sig_dist",
+        "signature": "a: tuple[float, ...], b: tuple[float, ...]",
+        "line": 62
+      },
+      {
+        "kind": "function",
+        "name": "_weighted_frequency",
+        "signature": "draws: list[Draw], area: str, max_n: int, half_life: float=40.0",
+        "line": 66
+      },
+      {
+        "kind": "function",
+        "name": "feature_vectors",
+        "signature": "draws: list[Draw], area: str",
+        "line": 75
+      },
+      {
+        "kind": "function",
+        "name": "individual_model_scores",
+        "signature": "draws: list[Draw], area: str",
+        "line": 169
+      },
+      {
+        "kind": "function",
+        "name": "ranking_from_scores",
+        "signature": "scores: dict[int, float]",
+        "line": 186
+      },
+      {
+        "kind": "function",
+        "name": "individual_model_rankings",
+        "signature": "draws: list[Draw], area: str",
+        "line": 190
+      },
+      {
+        "kind": "function",
+        "name": "ensemble_ranking_from_components",
+        "signature": "component_scores: dict[str, dict[int, float]], include: Iterable[str] | None=None, override: dict[str, dict[int, float]] | None=None",
+        "line": 194
+      },
+      {
+        "kind": "function",
+        "name": "_predicted_geometry_signature",
+        "signature": "draws: list[Draw], area: str",
+        "line": 206
+      },
+      {
+        "kind": "function",
+        "name": "_pair_counts",
+        "signature": "draws: list[Draw], area: str",
+        "line": 218
+      },
+      {
+        "kind": "function",
+        "name": "score_complete_space",
+        "signature": "draws: list[Draw], area: str, enabled_models: Iterable[str] | None=None",
+        "line": 226
+      },
+      {
+        "kind": "function",
+        "name": "model_identity",
+        "signature": "",
+        "line": 257
+      },
+      {
+        "kind": "function",
+        "name": "make_prediction",
+        "signature": "draws: list[Draw], canonical_hash: str, latest_court: dict | None=None",
+        "line": 274
+      },
+      {
+        "kind": "function",
+        "name": "replay_prediction",
+        "signature": "prediction: Prediction, actual: Draw",
+        "line": 337
+      }
+    ],
+    "DLT/src/glp/service.py": [
+      {
+        "kind": "function",
+        "name": "resource_path",
+        "signature": "name: str",
+        "line": 20
+      },
+      {
+        "kind": "class",
+        "name": "LottoService",
+        "line": 26,
+        "fields": [],
+        "methods": [
+          {
+            "name": "__init__",
+            "signature": "self, store: Store | None=None",
+            "line": 27
+          },
+          {
+            "name": "ensure_seed",
+            "signature": "self",
+            "line": 30
+          },
+          {
+            "name": "_import_legacy_freezes",
+            "signature": "self",
+            "line": 95
+          },
+          {
+            "name": "update",
+            "signature": "self, progress: Callable[[str], None] | None=None",
+            "line": 119
+          },
+          {
+            "name": "predict",
+            "signature": "self, progress: Callable[[str], None] | None=None",
+            "line": 148
+          },
+          {
+            "name": "replay_all",
+            "signature": "self",
+            "line": 172
+          },
+          {
+            "name": "audit",
+            "signature": "self, progress: Callable[[str], None] | None=None",
+            "line": 187
+          },
+          {
+            "name": "latest_court",
+            "signature": "self, canonical_hash: str | None=None",
+            "line": 216
+          },
+          {
+            "name": "repair",
+            "signature": "self, progress: Callable[[str], None] | None=None",
+            "line": 240
+          }
+        ]
+      },
+      {
+        "kind": "function",
+        "name": "self_test",
+        "signature": "root: Path | None=None",
+        "line": 297
+      }
+    ],
+    "DLT/src/glp/storage.py": [
+      {
+        "kind": "class",
+        "name": "Store",
+        "line": 17,
+        "fields": [],
+        "methods": [
+          {
+            "name": "__init__",
+            "signature": "self, root: Path | None=None",
+            "line": 18
+          },
+          {
+            "name": "_connect",
+            "signature": "self",
+            "line": 38
+          },
+          {
+            "name": "_connection",
+            "signature": "self",
+            "line": 46
+          },
+          {
+            "name": "_init_db",
+            "signature": "self",
+            "line": 55
+          },
+          {
+            "name": "_archive_freezes",
+            "signature": "self",
+            "line": 88
+          },
+          {
+            "name": "rebuild_ledger",
+            "signature": "self",
+            "line": 94
+          },
+          {
+            "name": "_json_bytes",
+            "signature": "value: Any",
+            "line": 154
+          },
+          {
+            "name": "_stage_bytes",
+            "signature": "path: Path, data: bytes",
+            "line": 158
+          },
+          {
+            "name": "_commit_replace",
+            "signature": "staged: Path, target: Path",
+            "line": 173
+          },
+          {
+            "name": "_restore_bytes",
+            "signature": "path: Path, previous: bytes | None",
+            "line": 177
+          },
+          {
+            "name": "save_dataset",
+            "signature": "self, dataset: CanonicalDataset, evidence: dict[str, Any]",
+            "line": 183
+          },
+          {
+            "name": "load_draws",
+            "signature": "self",
+            "line": 227
+          },
+          {
+            "name": "append_experiment",
+            "signature": "self, kind: str, status: str, input_hash: str, code_hash: str, payload: dict[str, Any]",
+            "line": 240
+          },
+          {
+            "name": "_verify_freeze",
+            "signature": "prediction: Prediction",
+            "line": 251
+          },
+          {
+            "name": "freeze",
+            "signature": "self, prediction: Prediction",
+            "line": 259
+          },
+          {
+            "name": "freezes",
+            "signature": "self",
+            "line": 288
+          },
+          {
+            "name": "save_replay",
+            "signature": "self, prediction_id: str, issue: str, payload: dict[str, Any]",
+            "line": 296
+          },
+          {
+            "name": "prospective_replays",
+            "signature": "self, selector_hash: str | None=None",
+            "line": 303
+          },
+          {
+            "name": "integrity_check",
+            "signature": "self",
+            "line": 314
+          }
+        ]
+      }
+    ],
+    "SSQ/SSQ/glp/domain.py": [
+      {
+        "kind": "class",
+        "name": "Draw",
+        "line": 6,
+        "fields": [
+          {
+            "name": "issue",
+            "type": "str"
+          },
+          {
+            "name": "draw_date",
+            "type": "str"
+          },
+          {
+            "name": "front",
+            "type": "tuple[int, ...]"
+          },
+          {
+            "name": "back",
+            "type": "tuple[int, ...]"
+          }
+        ],
+        "methods": [
+          {
+            "name": "validate",
+            "signature": "self",
+            "line": 11
+          },
+          {
+            "name": "to_dict",
+            "signature": "self",
+            "line": 22
+          },
+          {
+            "name": "from_dict",
+            "signature": "cls, value: dict[str, Any]",
+            "line": 25
+          }
+        ]
+      },
+      {
+        "kind": "class",
+        "name": "SourceReceipt",
+        "line": 30,
+        "fields": [
+          {
+            "name": "source",
+            "type": "str"
+          },
+          {
+            "name": "fetched_at",
+            "type": "str"
+          },
+          {
+            "name": "http_status",
+            "type": "int"
+          },
+          {
+            "name": "raw_sha256",
+            "type": "str"
+          },
+          {
+            "name": "draw_count",
+            "type": "int"
+          },
+          {
+            "name": "latest_issue",
+            "type": "str"
+          },
+          {
+            "name": "status",
+            "type": "str"
+          },
+          {
+            "name": "detail",
+            "type": "str"
+          }
+        ],
+        "methods": []
+      },
+      {
+        "kind": "class",
+        "name": "CanonicalDataset",
+        "line": 34,
+        "fields": [
+          {
+            "name": "draws",
+            "type": "list[Draw]"
+          },
+          {
+            "name": "canonical_hash",
+            "type": "str"
+          },
+          {
+            "name": "receipts",
+            "type": "list[SourceReceipt]"
+          },
+          {
+            "name": "crosscheck_count",
+            "type": "int"
+          },
+          {
+            "name": "crosscheck_status",
+            "type": "str"
+          }
+        ],
+        "methods": []
+      },
+      {
+        "kind": "class",
+        "name": "Ranking",
+        "line": 38,
+        "fields": [
+          {
+            "name": "numbers",
+            "type": "tuple[int, ...]"
+          },
+          {
+            "name": "scores",
+            "type": "tuple[float, ...]"
+          },
+          {
+            "name": "feature_scores",
+            "type": "dict[str, list[float]]"
+          }
+        ],
+        "methods": [
+          {
+            "name": "to_dict",
+            "signature": "self",
+            "line": 42
+          }
+        ]
+      },
+      {
+        "kind": "class",
+        "name": "Prediction",
+        "line": 46,
+        "fields": [
+          {
+            "name": "prediction_id",
+            "type": "str"
+          },
+          {
+            "name": "target_issue",
+            "type": "str"
+          },
+          {
+            "name": "target_date",
+            "type": "str"
+          },
+          {
+            "name": "created_at",
+            "type": "str"
+          },
+          {
+            "name": "front",
+            "type": "list[int]"
+          },
+          {
+            "name": "back",
+            "type": "list[int]"
+          },
+          {
+            "name": "canonical_hash",
+            "type": "str"
+          },
+          {
+            "name": "front_ranking",
+            "type": "Ranking"
+          },
+          {
+            "name": "back_ranking",
+            "type": "Ranking"
+          },
+          {
+            "name": "dan_state",
+            "type": "str"
+          },
+          {
+            "name": "edge_state",
+            "type": "str"
+          },
+          {
+            "name": "research_dan_front",
+            "type": "tuple[int, ...]"
+          },
+          {
+            "name": "research_dan_back",
+            "type": "tuple[int, ...]"
+          },
+          {
+            "name": "model_hash",
+            "type": "str"
+          },
+          {
+            "name": "selector_hash",
+            "type": "str"
+          },
+          {
+            "name": "score_hash",
+            "type": "str"
+          },
+          {
+            "name": "freeze_hash",
+            "type": "str"
+          },
+          {
+            "name": "note",
+            "type": "str"
+          }
+        ],
+        "methods": [
+          {
+            "name": "to_dict",
+            "signature": "self",
+            "line": 65
+          }
+        ]
+      }
+    ],
+    "SSQ/SSQ/glp/engine.py": [
+      {
+        "kind": "function",
+        "name": "_area",
+        "signature": "draw: Draw, name: str",
+        "line": 18
+      },
+      {
+        "kind": "function",
+        "name": "_universe",
+        "signature": "area: str",
+        "line": 22
+      },
+      {
+        "kind": "function",
+        "name": "_pick",
+        "signature": "area: str",
+        "line": 26
+      },
+      {
+        "kind": "function",
+        "name": "_zmap",
+        "signature": "values: dict[int, float]",
+        "line": 30
+      },
+      {
+        "kind": "function",
+        "name": "_rank_from_scores",
+        "signature": "scores: dict[int, float], seed: int=0",
+        "line": 40
+      },
+      {
+        "kind": "function",
+        "name": "feature_vectors",
+        "signature": "draws: list[Draw], area: str, window: int=120",
+        "line": 47
+      },
+      {
+        "kind": "function",
+        "name": "model_scores_from_features",
+        "signature": "features: dict[str, dict[int, float]]",
+        "line": 175
+      },
+      {
+        "kind": "function",
+        "name": "individual_model_rankings",
+        "signature": "draws: list[Draw], area: str, window: int=120, seed: int=0",
+        "line": 201
+      },
+      {
+        "kind": "function",
+        "name": "_deterministic_uniform_ranking",
+        "signature": "area: str, salt: str",
+        "line": 209
+      },
+      {
+        "kind": "function",
+        "name": "score_complete_space",
+        "signature": "draws: list[Draw], area: str, window: int=120, top_n: int=20",
+        "line": 216
+      },
+      {
+        "kind": "function",
+        "name": "model_identity",
+        "signature": "",
+        "line": 250
+      },
+      {
+        "kind": "function",
+        "name": "_next_target",
+        "signature": "draws: list[Draw]",
+        "line": 270
+      },
+      {
+        "kind": "function",
+        "name": "_ranking_obj",
+        "signature": "ranked: list[int], scores: dict[int, float], features: dict[str, dict[int, float]]",
+        "line": 287
+      },
+      {
+        "kind": "function",
+        "name": "make_prediction",
+        "signature": "draws: list[Draw], canonical_hash: str, evidence: dict[str, object] | None=None, formal: bool=True",
+        "line": 296
+      },
+      {
+        "kind": "function",
+        "name": "replay_prediction",
+        "signature": "prediction: Prediction, actual: Draw",
+        "line": 413
+      }
+    ],
+    "SSQ/SSQ/glp/service.py": [
+      {
+        "kind": "function",
+        "name": "resource_path",
+        "signature": "name: str",
+        "line": 21
+      },
+      {
+        "kind": "function",
+        "name": "_json_dumps",
+        "signature": "value: Any",
+        "line": 34
+      },
+      {
+        "kind": "class",
+        "name": "LottoService",
+        "line": 38,
+        "fields": [],
+        "methods": [
+          {
+            "name": "__init__",
+            "signature": "self, store: Store | None=None",
+            "line": 39
+          },
+          {
+            "name": "_load_draws",
+            "signature": "self",
+            "line": 42
+          },
+          {
+            "name": "_db",
+            "signature": "self",
+            "line": 48
+          },
+          {
+            "name": "_append_experiment",
+            "signature": "self, kind: str, status: str, input_hash: str, payload: dict[str, Any]",
+            "line": 51
+          },
+          {
+            "name": "_history_payload",
+            "signature": "self",
+            "line": 64
+          },
+          {
+            "name": "_canonical_hash",
+            "signature": "self",
+            "line": 67
+          },
+          {
+            "name": "_ensure_seed_files",
+            "signature": "self",
+            "line": 71
+          },
+          {
+            "name": "ensure_seed",
+            "signature": "self",
+            "line": 82
+          },
+          {
+            "name": "_prospective_replays",
+            "signature": "self, selector_hash: str",
+            "line": 99
+          },
+          {
+            "name": "_existing_freeze",
+            "signature": "self, target_issue: str",
+            "line": 111
+          },
+          {
+            "name": "_existing_gate",
+            "signature": "self, target_issue: str",
+            "line": 119
+          },
+          {
+            "name": "_save_context",
+            "signature": "self, context_hash: str, payload: dict[str, Any]",
+            "line": 127
+          },
+          {
+            "name": "_save_freeze",
+            "signature": "self, prediction_dict: dict[str, Any], canonical_hash: str",
+            "line": 138
+          },
+          {
+            "name": "_save_final_gate",
+            "signature": "self, gate: dict[str, Any]",
+            "line": 154
+          },
+          {
+            "name": "update",
+            "signature": "self, progress: Callable[[str], None] | None=None",
+            "line": 165
+          },
+          {
+            "name": "latest_court",
+            "signature": "self",
+            "line": 244
+          },
+          {
+            "name": "_court",
+            "signature": "self, draws, canonical_hash: str, progress=None",
+            "line": 254
+          },
+          {
+            "name": "_release_gate",
+            "signature": "prediction_dict: dict[str, Any], trace: dict[str, Any], court: dict[str, Any], canonical_hash: str, source_verified: bool, integrity_ok: bool",
+            "line": 276
+          },
+          {
+            "name": "predict",
+            "signature": "self, progress: Callable[[str], None] | None=None",
+            "line": 327
+          },
+          {
+            "name": "_integrity_check",
+            "signature": "self",
+            "line": 428
+          },
+          {
+            "name": "_replay_payload",
+            "signature": "self, pred: dict[str, Any], actual",
+            "line": 455
+          },
+          {
+            "name": "replay_all",
+            "signature": "self, progress: Callable[[str], None] | None=None",
+            "line": 480
+          },
+          {
+            "name": "audit",
+            "signature": "self, progress: Callable[[str], None] | None=None",
+            "line": 532
+          },
+          {
+            "name": "_freeze_count",
+            "signature": "self",
+            "line": 584
+          },
+          {
+            "name": "repair",
+            "signature": "self, progress: Callable[[str], None] | None=None",
+            "line": 591
+          },
+          {
+            "name": "release_contract",
+            "signature": "self",
+            "line": 636
+          },
+          {
+            "name": "self_test",
+            "signature": "self, fast: bool=False",
+            "line": 646
+          },
+          {
+            "name": "_freeze_triggers_present",
+            "signature": "self",
+            "line": 679
+          }
+        ]
+      }
+    ],
+    "SSQ/SSQ/glp/storage.py": [
+      {
+        "kind": "class",
+        "name": "Store",
+        "line": 22,
+        "fields": [],
+        "methods": [
+          {
+            "name": "__init__",
+            "signature": "self, root: Path | None=None",
+            "line": 23
+          },
+          {
+            "name": "_connect",
+            "signature": "self",
+            "line": 35
+          },
+          {
+            "name": "_check_raw_evidence",
+            "signature": "evidence: dict[str, Any], raw_root: Path, payloads: dict[str, bytes] | None=None",
+            "line": 43
+          },
+          {
+            "name": "validate_raw_evidence",
+            "signature": "evidence: dict[str, Any], artifact_root: Path",
+            "line": 242
+          },
+          {
+            "name": "save_failure_evidence",
+            "signature": "self, failure: dict[str, Any]",
+            "line": 246
+          },
+          {
+            "name": "_init_db",
+            "signature": "self",
+            "line": 294
+          },
+          {
+            "name": "_json_bytes",
+            "signature": "value: Any",
+            "line": 364
+          },
+          {
+            "name": "_stage_bytes",
+            "signature": "path: Path, data: bytes",
+            "line": 368
+          },
+          {
+            "name": "_commit_replace",
+            "signature": "staged: Path, target: Path",
+            "line": 383
+          },
+          {
+            "name": "_restore_bytes",
+            "signature": "path: Path, previous: bytes | None",
+            "line": 387
+          },
+          {
+            "name": "save_dataset",
+            "signature": "self, dataset: CanonicalDataset, evidence: dict[str, Any]",
+            "line": 393
+          },
+          {
+            "name": "load_draws",
+            "signature": "self",
+            "line": 476
+          },
+          {
+            "name": "_check_baseline_prefix",
+            "signature": "evidence: dict[str, Any], draws: list[dict[str, Any]]",
+            "line": 502
+          },
+          {
+            "name": "_integrity_check",
+            "signature": "self, *, require_raw: bool",
+            "line": 520
+          },
+          {
+            "name": "integrity_check",
+            "signature": "self",
+            "line": 607
+          },
+          {
+            "name": "baseline_integrity_check",
+            "signature": "self",
+            "line": 611
+          }
+        ]
+      }
+    ]
+  }
+}

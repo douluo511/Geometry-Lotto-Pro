@@ -1,0 +1,38 @@
+{
+  "package": "SSQ_DLT_V44_LOCAL_COMPONENTS-v2.zip",
+  "sha256": "ff7d8ec40d501c726c75453a4fb98da4bf7e76cbb95e1b0a01aa0116dccc5a4b",
+  "bytes": 164228,
+  "files": 62,
+  "extraction_hashes": "PASS",
+  "fresh_acceptance_exit_code": 0,
+  "fresh_acceptance": {
+    "recorded_at": "2026-10-15T23:35:00.868944+00:00",
+    "scope": "ISOLATED_COMPONENT_ACCEPTANCE",
+    "python": "3.12.14",
+    "os": "Windows-10-10.0.19045-SP0",
+    "tests": {
+      "status": "PASS",
+      "run": 73,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "skipped_tests": []
+    },
+    "source_unchanged": true,
+    "source_manifest_sha256": "a05090ba43a10922110f3e43ab7212b86d9464e912286e69b230caf7130e8821",
+    "windows_wrapper_tests": "PASS",
+    "boot_task_install": "BLOCKED",
+    "real_reboot": "NOT_RUN",
+    "elapsed_30_minute_trigger": "NOT_RUN",
+    "empty_runtime_status": "NOT_SCORABLE",
+    "prediction_calls": 0,
+    "R2": "BLOCKED",
+    "formal_A": 0,
+    "decision": "NO_EDGE",
+    "repository_independence": "FAIL",
+    "final_gate": "FAIL"
+  },
+  "R2": "BLOCKED",
+  "formal_A": 0,
+  "decision": "NO_EDGE"
+}
