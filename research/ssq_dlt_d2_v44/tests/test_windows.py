@@ -72,8 +72,10 @@ class WindowsExecutionTests(unittest.TestCase):
         self.assertEqual(task.findtext("t:Actions/t:Exec/t:WorkingDirectory", namespaces=NS), str(ROOT))
         arguments = task.findtext("t:Actions/t:Exec/t:Arguments", namespaces=NS)
         self.assertIn("-WindowStyle Hidden", arguments)
-        self.assertIn(str(self.output), arguments)
-        self.assertIn(str(Path(sys.executable)), arguments)
+        # The runner's TEMP may use an 8.3 alias (RUNNER~1), while .NET
+        # expands it to runneradmin. Compare canonical absolute identities.
+        self.assertIn(str(self.output.resolve()), arguments)
+        self.assertIn(str(Path(sys.executable).resolve()), arguments)
         self.assertNotIn("__", arguments)
 
     def test_export_refuses_to_replace_reviewed_xml(self):

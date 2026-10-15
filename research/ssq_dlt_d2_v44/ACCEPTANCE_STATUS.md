@@ -3,6 +3,12 @@
 Baseline: PR #407, `c6d4de9aaa49b219e422dace755702b117179fa6`.
 Related engineering issue: #408. This follow-up does not close #408.
 
+The latest package/test rerun is version 2, after correcting the CI assertion
+for Windows 8.3 versus long TEMP path identities. See
+`evidence/windows_acceptance_v2.json`, `fresh_extract_acceptance_v2.json` and
+`package_verification_v2.json`. The first run and package are preserved;
+`evidence/ci_first_run.json` records the actual initial Windows CI failure.
+
 ## Actual work and limits
 
 Implemented isolated append-only SQLite, read-only per-issue non-nested D1–D5

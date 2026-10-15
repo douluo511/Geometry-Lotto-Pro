@@ -1,0 +1,13 @@
+{
+  "head_sha": "f0ed7be202b02d2b4cfe18c6b04ae896a14abffb",
+  "run_id": 38824173448,
+  "url": "https://github.com/douluo511/Geometry-Lotto-Pro/actions/runs/38824173448",
+  "windows_2022": "FAIL",
+  "ubuntu": "PASS",
+  "failure": "test_dry_export_is_valid_hidden_and_does_not_run_runtime compared a RUNNER~1 8.3 TEMP alias with .NET-expanded runneradmin path text",
+  "fix": "Canonicalize expected output and Python paths with Path.resolve before checking exported arguments",
+  "scope": "Test path identity assertion; runtime and formal admission behavior unchanged",
+  "R2": "BLOCKED",
+  "formal_A": 0,
+  "decision": "NO_EDGE"
+}
