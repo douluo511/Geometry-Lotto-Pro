@@ -129,5 +129,35 @@ class WorkflowTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'CLOCK_REWIND'):
             workflow.tick(self.config,MON)
 
+    def test_live_clock_records_distinct_completion_times_after_stage_work(self):
+        class AdvancingClock(datetime):
+            count=0
+            @classmethod
+            def now(cls,tz=None):
+                instant=MON+timedelta(hours=1,seconds=cls.count*10)
+                cls.count+=1
+                return instant.astimezone(tz) if tz else instant.replace(tzinfo=None)
+        with patch.object(workflow,'datetime',AdvancingClock):
+            result=workflow.tick(self.config)
+        stages=self.store().rows('workflow_stage')
+        observed=[datetime.fromisoformat(s['observed_at']) for s in stages]
+        self.assertEqual(len(set(observed)),5)
+        self.assertGreaterEqual(datetime.fromisoformat(result['at']),max(observed))
+        self.assertLess(datetime.fromisoformat(result['started_at']),min(observed))
+
+    def test_clock_rollback_inside_live_tick_stops_before_next_stage(self):
+        class RewindingClock(datetime):
+            count=0
+            @classmethod
+            def now(cls,tz=None):
+                seconds=(0,5,10,7)[min(cls.count,3)]; cls.count+=1
+                instant=MON+timedelta(hours=1,seconds=seconds)
+                return instant.astimezone(tz) if tz else instant.replace(tzinfo=None)
+        with patch.object(workflow,'datetime',RewindingClock):
+            with self.assertRaisesRegex(ValueError,'CLOCK_REWIND'):
+                workflow.tick(self.config)
+        self.assertEqual(len(self.store().rows('workflow_stage')),1)
+        self.assertEqual(self.store().rows('workflow_publish'),[])
+
 
 if __name__=='__main__': unittest.main()

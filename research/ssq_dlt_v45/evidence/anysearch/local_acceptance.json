@@ -1,14 +1,14 @@
 {
-  "recorded_at": "2026-10-18T16:50:56.458949+00:00",
+  "recorded_at": "2026-10-18T17:09:55.581926+00:00",
   "scope": "CURRENT_COMPONENT_FAULT_TESTS_NOT_PRODUCTION_QUALIFICATION",
   "command": "python -m research.ssq_dlt_v45.acceptance --output NEW_DIRECTORY",
   "status": "PASS",
-  "tests_run": 217,
+  "tests_run": 219,
   "failures": 0,
   "errors": 0,
   "skipped": 0,
   "source_unchanged": true,
-  "source_manifest_sha256": "772f9803579a4632dd1c0b4a2fcb264edda9bcc0be140ab2e50969bb02ae8db3",
+  "source_manifest_sha256": "0392a53c95b9aa25ddc4ef46f9503a11f87522c7c631aa81eff1c123430932a1",
   "P0_full_gate": "BLOCKED",
   "scheduler_install": "BLOCKED",
   "real_boot": "NOT_RUN",
@@ -32,7 +32,7 @@
     {
       "component": "ssq_dlt_v45",
       "exit_code": 0,
-      "tests_run": 144,
+      "tests_run": 146,
       "failures": 0,
       "errors": 0,
       "skipped": 0

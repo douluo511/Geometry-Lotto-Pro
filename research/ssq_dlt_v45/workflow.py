@@ -99,7 +99,11 @@ def metrics(store,now):
 
 
 def tick(config,now=None):
-    now=now or datetime.now(timezone.utc)
+    # Explicit clocks are for deterministic fault tests. Live work samples the
+    # wall clock again after each completed stage, never reuses tick-start as
+    # the time at which later network bytes/predictions became observable.
+    clock=(lambda: now) if now is not None else (lambda: datetime.now(timezone.utc))
+    now=clock()
     slot=active_slot(now); key=slot.isoformat()
     root=Path(config['state_dir'])
     if not root.is_absolute(): raise ValueError('ABSOLUTE_STATE_REQUIRED')
@@ -117,12 +121,14 @@ def tick(config,now=None):
     store.append('workflow_cycle',key,identity)
     stages={}; errors=[]
     for stage,hour,minute in STAGES:
+        current=clock()
+        observe_clock(store,current)
         scheduled=slot.replace(hour=hour,minute=minute)
-        if now<scheduled: break
+        if current<scheduled: break
         stagekey=key+'/'+stage
         old=store.read('workflow_stage',stagekey)
         if old:
-            if datetime.fromisoformat(old['observed_at'])>now:
+            if datetime.fromisoformat(old['observed_at'])>current:
                 raise ValueError('CLOCK_REWIND')
             if stage=='publish':
                 runtime.write_report(root/'reports',old['result']['report'])
@@ -132,10 +138,11 @@ def tick(config,now=None):
                 from .discovery import run_discovery
                 result=run_discovery(config.get('discovery',{}),root/'discovery')
             elif stage=='history':
-                result=history_stage(config,root,now)
+                result=history_stage(config,root,current)
                 if any(x['status']=='BLOCKED' for x in result.values()):
                     # Preserve both game statuses but permit recovery next tick.
-                    store.append('workflow_failure',uuid.uuid4().hex,dict(due_slot=key,stage=stage,observed_at=now.isoformat(),result=result))
+                    checked=clock(); observe_clock(store,checked)
+                    store.append('workflow_failure',uuid.uuid4().hex,dict(due_slot=key,stage=stage,observed_at=checked.isoformat(),result=result))
                     stages[stage]=result; continue
             elif stage=='predict':
                 result={}
@@ -160,13 +167,15 @@ def tick(config,now=None):
                 games=stages['predict'] if good else {g:dict(status='BLOCKED',target=None,
                     reason=stages.get('history',{}).get(g,{}).get('reason','PREPARATION_INCOMPLETE'))
                     for g in ('SSQ','DLT')}
-                report=dict(schema='GLP_V45_RESEARCH_REPORT_1',due_slot=key,created_at=now.isoformat(),
+                created=clock()
+                observe_clock(store,created)
+                report=dict(schema='GLP_V45_RESEARCH_REPORT_1',due_slot=key,created_at=created.isoformat(),
                     scope='RESEARCH_UNASSIGNED',games=games,blockers=runtime.BLOCKERS,
                     workflow=dict(discovery=stages.get('discover',{}),
                         prepared_at=store.read('workflow_stage',key+'/check'),
-                        punctuality='AT_DUE' if now==slot else 'LATE',
+                        punctuality='AT_DUE' if created==slot else 'LATE',
                         metrics_snapshot='BEFORE_CURRENT_PUBLICATION_AND_SMTP_ATTEMPT_SEE_TICK_RECEIPT_FOR_UPDATED_COUNTS',
-                        metrics=metrics(store,now)),**runtime.BOUNDARY)
+                        metrics=metrics(store,created)),**runtime.BOUNDARY)
                 publication_key=digest(dict(due_slot=key,games=games))
                 previous=store.read('workflow_publish',publication_key)
                 if previous:
@@ -175,27 +184,32 @@ def tick(config,now=None):
                 else:
                     folder=runtime.write_report(root/'reports',report)
                     outbox=delivery.prepare(store,root/'outbox',config['recipient'],report,runtime.render(report)) if config.get('recipient') else None
-                    result=dict(due_slot=key,created_at=now.isoformat(),research_ready=good,
+                    result=dict(due_slot=key,created_at=created.isoformat(),research_ready=good,
                         report_directory=str(folder),outbox_id=outbox,report=report)
                     store.append('workflow_publish',publication_key,result)
                 if not good:
                     # A BLOCKED status is still published once per unchanged state.
                     # Later successful preparation may append a distinct late report.
                     stages[stage]=result; continue
+            completed=clock(); observe_clock(store,completed)
             payload=dict(due_slot=key,stage=stage,scheduled_at=scheduled.isoformat(),
-                observed_at=now.isoformat(),backdated=False,result=result)
+                observed_at=completed.isoformat(),backdated=False,result=result)
             try: store.append('workflow_stage',stagekey,payload)
             except ValueError as exc:
                 if str(exc)!='IMMUTABLE_CONFLICT': raise
                 payload=store.read('workflow_stage',stagekey)
             stages[stage]=payload['result']
         except Exception as exc:
-            failure=dict(due_slot=key,stage=stage,observed_at=now.isoformat(),error=type(exc).__name__,reason=str(exc))
+            if isinstance(exc,ValueError) and str(exc).startswith('CLOCK_REWIND'):
+                raise
+            failure=dict(due_slot=key,stage=stage,observed_at=clock().isoformat(),error=type(exc).__name__,reason=str(exc))
             store.append('workflow_failure',uuid.uuid4().hex,failure); errors.append(failure)
     mail=delivery.flush(store,config.get('smtp'))
     replay=replay_ready(store); replay_dir=write_replay_report(root/'replays',replay)
-    receipt=dict(at=now.isoformat(),due_slot=key,completed_stages=list(stages),errors=errors,
-        mail=mail,replay=replay['status'],replay_directory=str(replay_dir),metrics=metrics(store,now),
+    finished=clock()
+    observe_clock(store,finished)
+    receipt=dict(at=finished.isoformat(),started_at=now.isoformat(),due_slot=key,completed_stages=list(stages),errors=errors,
+        mail=mail,replay=replay['status'],replay_directory=str(replay_dir),metrics=metrics(store,finished),
         scheduler_execution='DIRECT_TICK_NOT_SCHEDULER_PROOF',formal_A=0,decision='NO_EDGE')
     store.append('workflow_tick',uuid.uuid4().hex,receipt)
     return receipt

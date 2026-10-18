@@ -4,6 +4,7 @@
       "transport": "mcp",
       "started_at": "2026-10-18T16:49:11.157481+00:00",
       "status": "SUCCESS",
+      "record_class": "CURRENT_MCP_ADAPTER",
       "receipt_sha256": "bbf7fa7febbecae32f68954611746eb81475504d6528af954e388df3cf0e6bb7",
       "events": 4,
       "candidate_urls": 7,
@@ -18,6 +19,7 @@
       "transport": "mcp",
       "started_at": "2026-10-18T16:46:51.344410+00:00",
       "status": "SUCCESS",
+      "record_class": "HISTORICAL_DIAGNOSTIC",
       "receipt_sha256": "ce9051b307c377fd5e0c7f76456673025ae1bf916c0439130f8529d8b00eea43",
       "events": 4,
       "candidate_urls": 9,
@@ -32,6 +34,7 @@
       "transport": "rest",
       "started_at": "2026-10-18T16:46:24.835643+00:00",
       "status": "SUCCESS",
+      "record_class": "HISTORICAL_DIAGNOSTIC",
       "receipt_sha256": "97b876b9aa835bfbf35b09296af95168f0901ffd0ec8af45d397895c5051dbef",
       "events": 5,
       "candidate_urls": 4,
@@ -46,7 +49,57 @@
       "transport": "rest",
       "started_at": "2026-10-18T16:49:21.482920+00:00",
       "status": "SUCCESS",
+      "record_class": "HISTORICAL_DIAGNOSTIC",
       "receipt_sha256": "844d9fe14ce6760108ab348eb8c0354541df1e224a6c1d597803c53606c0196a",
+      "events": 5,
+      "candidate_urls": 6,
+      "query_attribution": [
+        "EXACT_REQUEST"
+      ],
+      "errors": [],
+      "formal_A": 0,
+      "legal_target": null
+    },
+    {
+      "transport": "rest",
+      "started_at": "2026-10-18T17:09:09.167863+00:00",
+      "status": "DEGRADED",
+      "record_class": "CURRENT_COORDINATOR",
+      "receipt_sha256": "aa72550b4ce7d9291ebc687a419a76d53defcc00fbed629069f5f0fb75ce6f36",
+      "events": 10,
+      "candidate_urls": 0,
+      "query_attribution": [],
+      "errors": [
+        {
+          "error": "TRANSPORT_RETRY_EXHAUSTED",
+          "query_id": "S01"
+        },
+        {
+          "error": "TRANSPORT_RETRY_EXHAUSTED",
+          "query_id": "S02"
+        },
+        {
+          "error": "TRANSPORT_RETRY_EXHAUSTED",
+          "query_id": "S03"
+        },
+        {
+          "error": "TRANSPORT_RETRY_EXHAUSTED",
+          "query_id": "S04"
+        },
+        {
+          "error": "TRANSPORT_RETRY_EXHAUSTED",
+          "query_id": "S05"
+        }
+      ],
+      "formal_A": 0,
+      "legal_target": null
+    },
+    {
+      "transport": "rest",
+      "started_at": "2026-10-18T17:07:00.327938+00:00",
+      "status": "SUCCESS",
+      "record_class": "HISTORICAL_DIAGNOSTIC",
+      "receipt_sha256": "a15c08285e21b9c91521750bc004581ddd4503c2e7ba7f486d0c0483ab7feace",
       "events": 5,
       "candidate_urls": 6,
       "query_attribution": [

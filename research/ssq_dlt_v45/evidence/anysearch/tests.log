@@ -74,7 +74,7 @@ test_runtime_failure_propagates_nonzero (test_windows.WindowsExecutionTests.test
 test_status_runner_twice_preserves_outputs_and_admission (test_windows.WindowsExecutionTests.test_status_runner_twice_preserves_outputs_and_admission) ... ok
 
 ----------------------------------------------------------------------
-Ran 73 tests in 6.784s
+Ran 73 tests in 6.645s
 
 OK
 
@@ -207,8 +207,10 @@ test_non_python_rejected (test_windows.WindowsExecutionTests.test_non_python_rej
 test_relative_config_rejected (test_windows.WindowsExecutionTests.test_relative_config_rejected) ... ok
 test_boot_catchup_no_backdating_and_repeat_preserves_predictions (test_workflow.WorkflowTests.test_boot_catchup_no_backdating_and_repeat_preserves_predictions) ... ok
 test_clock_rewind_and_naive_clock_rejected (test_workflow.WorkflowTests.test_clock_rewind_and_naive_clock_rejected) ... ok
+test_clock_rollback_inside_live_tick_stops_before_next_stage (test_workflow.WorkflowTests.test_clock_rollback_inside_live_tick_stops_before_next_stage) ... ok
 test_crash_before_final_receipt_cannot_reset_clock_floor (test_workflow.WorkflowTests.test_crash_before_final_receipt_cannot_reset_clock_floor) ... ok
 test_five_stages_have_real_observation_times_and_no_early_publish (test_workflow.WorkflowTests.test_five_stages_have_real_observation_times_and_no_early_publish) ... ok
+test_live_clock_records_distinct_completion_times_after_stage_work (test_workflow.WorkflowTests.test_live_clock_records_distinct_completion_times_after_stage_work) ... ok
 test_model_drift_config_drift_and_fake_authorization_fail_closed (test_workflow.WorkflowTests.test_model_drift_config_drift_and_fake_authorization_fail_closed) ... ok
 test_network_failure_still_emits_blocked_status_then_recovers_once (test_workflow.WorkflowTests.test_network_failure_still_emits_blocked_status_then_recovers_once) ... ok
 test_saved_artifact_tamper_detected_on_repeated_publication (test_workflow.WorkflowTests.test_saved_artifact_tamper_detected_on_repeated_publication) ... ok
@@ -225,6 +227,6 @@ test_workflow_wrapper_executes_selected_module_and_pins_sha (test_workflow_windo
 test_workflow_wrapper_propagates_real_process_failure (test_workflow_windows.StagedWindowsExecutionTests.test_workflow_wrapper_propagates_real_process_failure) ... ok
 
 ----------------------------------------------------------------------
-Ran 144 tests in 37.227s
+Ran 146 tests in 38.988s
 
 OK
