@@ -1,0 +1,14 @@
+{
+  "administrator": false,
+  "scheduler_access": "BLOCKED",
+  "actual_task_install": "BLOCKED",
+  "hidden_launcher": "PASS",
+  "real_boot": "NOT_RUN",
+  "elapsed_30minute_trigger": "NOT_RUN",
+  "physical_network_disconnect": "NOT_RUN",
+  "physical_power_cycle": "NOT_RUN",
+  "docker": "NOT_RUN_NOT_AVAILABLE",
+  "smtp_unattended": "BLOCKED_NO_CONFIGURATION",
+  "formal_A": 0,
+  "decision": "NO_EDGE"
+}

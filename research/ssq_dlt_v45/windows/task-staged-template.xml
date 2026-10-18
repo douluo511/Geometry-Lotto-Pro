@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Task version="1.4" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+  <RegistrationInfo><Description>SSQ/DLT V4.5 staged local research workflow. Monday/Wednesday/Saturday 15:10,15:20,15:30,15:45,16:00 JST; boot and 30 minute catch-up. Native Python independent of Docker. Formal A=0; NO_EDGE.</Description></RegistrationInfo>
+  <Triggers>
+    <BootTrigger><Enabled>true</Enabled><Delay>PT30S</Delay></BootTrigger>
+    <CalendarTrigger><StartBoundary>2020-01-06T06:10:00Z</StartBoundary><Enabled>true</Enabled><ScheduleByWeek><WeeksInterval>1</WeeksInterval><DaysOfWeek><Monday/><Wednesday/><Saturday/></DaysOfWeek></ScheduleByWeek></CalendarTrigger>
+    <CalendarTrigger><StartBoundary>2020-01-06T06:20:00Z</StartBoundary><Enabled>true</Enabled><ScheduleByWeek><WeeksInterval>1</WeeksInterval><DaysOfWeek><Monday/><Wednesday/><Saturday/></DaysOfWeek></ScheduleByWeek></CalendarTrigger>
+    <CalendarTrigger><StartBoundary>2020-01-06T06:30:00Z</StartBoundary><Enabled>true</Enabled><ScheduleByWeek><WeeksInterval>1</WeeksInterval><DaysOfWeek><Monday/><Wednesday/><Saturday/></DaysOfWeek></ScheduleByWeek></CalendarTrigger>
+    <CalendarTrigger><StartBoundary>2020-01-06T06:45:00Z</StartBoundary><Enabled>true</Enabled><ScheduleByWeek><WeeksInterval>1</WeeksInterval><DaysOfWeek><Monday/><Wednesday/><Saturday/></DaysOfWeek></ScheduleByWeek></CalendarTrigger>
+    <CalendarTrigger><StartBoundary>2020-01-06T07:00:00Z</StartBoundary><Enabled>true</Enabled><ScheduleByWeek><WeeksInterval>1</WeeksInterval><DaysOfWeek><Monday/><Wednesday/><Saturday/></DaysOfWeek></ScheduleByWeek></CalendarTrigger>
+    <TimeTrigger><Repetition><Interval>PT30M</Interval><StopAtDurationEnd>false</StopAtDurationEnd></Repetition><StartBoundary>__CATCHUP_START__</StartBoundary><Enabled>true</Enabled></TimeTrigger>
+  </Triggers>
+  <Principals><Principal id="V45Runner"><UserId>S-1-5-18</UserId><LogonType>ServiceAccount</LogonType><RunLevel>LeastPrivilege</RunLevel></Principal></Principals>
+  <Settings>
+    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries><StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+    <AllowHardTerminate>true</AllowHardTerminate><StartWhenAvailable>true</StartWhenAvailable>
+    <RunOnlyIfNetworkAvailable>false</RunOnlyIfNetworkAvailable><AllowStartOnDemand>true</AllowStartOnDemand>
+    <Enabled>true</Enabled><Hidden>true</Hidden><RunOnlyIfIdle>false</RunOnlyIfIdle><WakeToRun>false</WakeToRun>
+    <ExecutionTimeLimit>PT10M</ExecutionTimeLimit><Priority>7</Priority>
+    <RestartOnFailure><Interval>PT1M</Interval><Count>3</Count></RestartOnFailure>
+  </Settings>
+  <Actions Context="V45Runner"><Exec><Command>__POWERSHELL_PATH__</Command><Arguments>__ARGUMENTS__</Arguments><WorkingDirectory>__REPOSITORY_PATH__</WorkingDirectory></Exec></Actions>
+</Task>

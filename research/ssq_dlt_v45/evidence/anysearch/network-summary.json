@@ -1,0 +1,193 @@
+{
+  "discovery": [
+    {
+      "transport": "mcp",
+      "started_at": "2026-10-18T17:25:54.089085+00:00",
+      "status": "SUCCESS",
+      "record_class": "CURRENT_MCP_ADAPTER",
+      "receipt_sha256": "fcb6db75ce0435ccbe99e0d60bf763aa67174ec4e0e6b7860d853a71966e9a3e",
+      "events": 4,
+      "candidate_urls": 6,
+      "query_attribution": [
+        "BATCH_UNRESOLVED"
+      ],
+      "errors": [],
+      "formal_A": 0,
+      "legal_target": null
+    },
+    {
+      "transport": "mcp",
+      "started_at": "2026-10-18T16:49:11.157481+00:00",
+      "status": "SUCCESS",
+      "record_class": "HISTORICAL_DIAGNOSTIC",
+      "receipt_sha256": "bbf7fa7febbecae32f68954611746eb81475504d6528af954e388df3cf0e6bb7",
+      "events": 4,
+      "candidate_urls": 7,
+      "query_attribution": [
+        "BATCH_UNRESOLVED"
+      ],
+      "errors": [],
+      "formal_A": 0,
+      "legal_target": null
+    },
+    {
+      "transport": "mcp",
+      "started_at": "2026-10-18T16:46:51.344410+00:00",
+      "status": "SUCCESS",
+      "record_class": "HISTORICAL_DIAGNOSTIC",
+      "receipt_sha256": "ce9051b307c377fd5e0c7f76456673025ae1bf916c0439130f8529d8b00eea43",
+      "events": 4,
+      "candidate_urls": 9,
+      "query_attribution": [
+        "PRELIMINARY_UNRESOLVED"
+      ],
+      "errors": [],
+      "formal_A": 0,
+      "legal_target": null
+    },
+    {
+      "transport": "rest",
+      "started_at": "2026-10-18T16:46:24.835643+00:00",
+      "status": "SUCCESS",
+      "record_class": "HISTORICAL_DIAGNOSTIC",
+      "receipt_sha256": "97b876b9aa835bfbf35b09296af95168f0901ffd0ec8af45d397895c5051dbef",
+      "events": 5,
+      "candidate_urls": 4,
+      "query_attribution": [
+        "PRELIMINARY_UNRESOLVED"
+      ],
+      "errors": [],
+      "formal_A": 0,
+      "legal_target": null
+    },
+    {
+      "transport": "rest",
+      "started_at": "2026-10-18T16:49:21.482920+00:00",
+      "status": "SUCCESS",
+      "record_class": "HISTORICAL_DIAGNOSTIC",
+      "receipt_sha256": "844d9fe14ce6760108ab348eb8c0354541df1e224a6c1d597803c53606c0196a",
+      "events": 5,
+      "candidate_urls": 6,
+      "query_attribution": [
+        "EXACT_REQUEST"
+      ],
+      "errors": [],
+      "formal_A": 0,
+      "legal_target": null
+    },
+    {
+      "transport": "rest",
+      "started_at": "2026-10-18T17:25:53.105665+00:00",
+      "status": "SUCCESS",
+      "record_class": "CURRENT_COORDINATOR",
+      "receipt_sha256": "28ca59efff6d74fe33b715514f2d66303ed937a970ac230c8597bbf04b95ea02",
+      "events": 5,
+      "candidate_urls": 5,
+      "query_attribution": [
+        "EXACT_REQUEST"
+      ],
+      "errors": [],
+      "formal_A": 0,
+      "legal_target": null
+    },
+    {
+      "transport": "rest",
+      "started_at": "2026-10-18T17:09:09.167863+00:00",
+      "status": "DEGRADED",
+      "record_class": "HISTORICAL_DIAGNOSTIC",
+      "receipt_sha256": "aa72550b4ce7d9291ebc687a419a76d53defcc00fbed629069f5f0fb75ce6f36",
+      "events": 10,
+      "candidate_urls": 0,
+      "query_attribution": [],
+      "errors": [
+        {
+          "error": "TRANSPORT_RETRY_EXHAUSTED",
+          "query_id": "S01"
+        },
+        {
+          "error": "TRANSPORT_RETRY_EXHAUSTED",
+          "query_id": "S02"
+        },
+        {
+          "error": "TRANSPORT_RETRY_EXHAUSTED",
+          "query_id": "S03"
+        },
+        {
+          "error": "TRANSPORT_RETRY_EXHAUSTED",
+          "query_id": "S04"
+        },
+        {
+          "error": "TRANSPORT_RETRY_EXHAUSTED",
+          "query_id": "S05"
+        }
+      ],
+      "formal_A": 0,
+      "legal_target": null
+    },
+    {
+      "transport": "rest",
+      "started_at": "2026-10-18T17:07:00.327938+00:00",
+      "status": "SUCCESS",
+      "record_class": "HISTORICAL_DIAGNOSTIC",
+      "receipt_sha256": "a15c08285e21b9c91521750bc004581ddd4503c2e7ba7f486d0c0483ab7feace",
+      "events": 5,
+      "candidate_urls": 6,
+      "query_attribution": [
+        "EXACT_REQUEST"
+      ],
+      "errors": [],
+      "formal_A": 0,
+      "legal_target": null
+    }
+  ],
+  "official_agreement": {
+    "SSQ": {
+      "status": "CURRENT_ORIGINAL_ROWS_AGREE",
+      "overlap": 30,
+      "last_issue": "2026119",
+      "legal_target": "BLOCKED",
+      "historical_asof": "UNPROVEN"
+    },
+    "DLT": {
+      "status": "CURRENT_ORIGINAL_ROWS_AGREE",
+      "overlap": 10,
+      "last_issue": "26118",
+      "legal_target": "BLOCKED",
+      "historical_asof": "UNPROVEN"
+    }
+  },
+  "official_capture_time": "2026-10-18T16:49:18.954524+00:00",
+  "official_raw": [
+    {
+      "game": "SSQ",
+      "index": 0,
+      "status": "PARSED_ORIGINAL_ONLY",
+      "sha256": "9c8491962f5f3175dc1c0e6b36410f4eedb270336d4030d0ff08ea18fbca6a9c",
+      "last_issue": "2026119"
+    },
+    {
+      "game": "SSQ",
+      "index": 1,
+      "status": "PARSED_ORIGINAL_ONLY",
+      "sha256": "d9c97266f9abfc1de132d3df447e9439e01f8d74c0aad31721f1bc505a6cc4f2",
+      "last_issue": "2026119"
+    },
+    {
+      "game": "DLT",
+      "index": 0,
+      "status": "PARSED_ORIGINAL_ONLY",
+      "sha256": "a56938965624e51a7cff1f8720e472732ff258fa4f78224e61484553253d6f70",
+      "last_issue": "26118"
+    },
+    {
+      "game": "DLT",
+      "index": 1,
+      "status": "PARSED_ORIGINAL_ONLY",
+      "sha256": "b3bf3977568c7bb152c1c9b3e33bf57fce3316c82f73f5b389071f478ee68821",
+      "last_issue": "26118"
+    }
+  ],
+  "legal_next_target": "BLOCKED",
+  "formal_A": 0,
+  "decision": "NO_EDGE"
+}

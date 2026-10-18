@@ -6,6 +6,7 @@
   },
   "live_sources": true,
   "preview": true,
+  "discovery": {"transport": "rest", "attempts": 2, "timeout_seconds": 8},
   "recipient": null,
   "smtp": null
 }

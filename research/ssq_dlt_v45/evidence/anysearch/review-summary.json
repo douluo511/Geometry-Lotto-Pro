@@ -1,0 +1,143 @@
+{
+  "clock_review": {
+    "scope": "SYNTHETIC_WORKFLOW_REVIEW_V6_CURRENT_ISSUE_GUARD_AND_DISCOVERY",
+    "locked_study_rerun": false,
+    "workflow_sha256": "f4d84df1a9f6957428ddb57d1c8d7ef71a56fa40b09fd6fb9fc8f6b5d3d21946",
+    "completed_cycle_rewind_rejected": true,
+    "report_metric_snapshot_explicit": "BEFORE_CURRENT_PUBLICATION_AND_SMTP_ATTEMPT_SEE_TICK_RECEIPT_FOR_UPDATED_COUNTS",
+    "post_publish_tick_metric": {
+      "numerator": 1,
+      "denominator": 1,
+      "rate": 1.0
+    },
+    "crash_fixture": {
+      "saved_stages": 5,
+      "saved_publications": 1,
+      "saved_ticks": 0
+    },
+    "incomplete_cycle_rewind_rejected": true,
+    "incomplete_cycle_rewind_error": "CLOCK_REWIND_ACROSS_CYCLES",
+    "blocked_reasons_preserved": true,
+    "required_dependency_pins_present": {
+      "ssq_dlt_v45/replay.py": true,
+      "ssq_dlt_v45/competition.py": true,
+      "ssq_dlt_v45/workflow.py": true,
+      "ssq_dlt_v45/windows/Invoke-Runtime.ps1": true
+    },
+    "pin_file_count": 32,
+    "live_clock_completion_case": {
+      "started_at": "2026-10-19T07:00:00+00:00",
+      "finished_at": "2026-10-19T07:01:24+00:00",
+      "stage_completions": {
+        "check": "2026-10-19T07:00:56+00:00",
+        "discover": "2026-10-19T07:00:14+00:00",
+        "history": "2026-10-19T07:00:28+00:00",
+        "predict": "2026-10-19T07:00:42+00:00",
+        "publish": "2026-10-19T07:01:17+00:00"
+      },
+      "distinct_stage_completions": 5,
+      "completions_all_later_than_tick_start": true,
+      "finish_at_or_after_all_stage_completions": true,
+      "status": "PASS_SYNTHETIC_LIVE_CLOCK_SAMPLING",
+      "scheduler_elapsed_execution": "NOT_PROVEN_BY_THIS_TEST"
+    },
+    "intra_tick_rollback_cases": [
+      {
+        "case": "after_discovery_before_history",
+        "status": "PASS_REWIND_REJECTED",
+        "rejection": "CLOCK_REWIND_ACROSS_CYCLES",
+        "saved_stages": 1,
+        "saved_publications": 0,
+        "saved_ticks": 0,
+        "note": "Injected wall clock only; no actual operating-system clock change."
+      },
+      {
+        "case": "after_publication_before_final_receipt",
+        "status": "PASS_REWIND_REJECTED",
+        "rejection": "CLOCK_REWIND_ACROSS_CYCLES",
+        "saved_stages": 5,
+        "saved_publications": 1,
+        "saved_ticks": 0,
+        "note": "Injected wall clock only; no actual operating-system clock change."
+      }
+    ],
+    "final_scope_status": "PASS_ALL_REGISTERED_INDEPENDENT_SYNTHETIC_REVIEW_CASES",
+    "harness_note": "Initial diagnostic completed product assertions but Windows temporary-directory cleanup raised WinError145. The preserved initial harness is retained; this final harness permits leftover diagnostic scratch files. No product code changed.",
+    "issue_sequence_receipt_reference": {
+      "sha256": "c5dd69293855ebf828a882f64aff019fd4690eca80eedfa323f16a76baad65cc",
+      "scope": "Previously completed issue identity/continuity structural checks; no scoring rerun."
+    },
+    "current_discovery_module_sha256": "2e190603d15d8ad6ccad24576c5c3e410eb352b71c81b2838e8c536685a39a86"
+  },
+  "pair_uniform_shrink": {
+    "at": "2026-10-18T16:38:45.874084+00:00",
+    "scope": "EXACT_SYNTHETIC_DESIGN_DIAGNOSTIC_ONLY",
+    "historical_outcomes_read": false,
+    "locked_test_rescored": false,
+    "models_changed": false,
+    "common_uniform_pair_prior_identity": "(q_ij - q_kl) = (h_ij - h_kl)/(n+tau)",
+    "conditions": [
+      "same n for every pair",
+      "same p0 for every pair",
+      "finite tau >= 0",
+      "n+tau > 0",
+      "same marginal-sum then ascending-pair tie rule"
+    ],
+    "exact_fraction_full_ranking_checks": 800,
+    "synthetic_histories": 200,
+    "window": 60,
+    "taus": [
+      20,
+      60,
+      200,
+      1000
+    ],
+    "status": "PASS_ALL_FULL_RANKINGS_IDENTICAL",
+    "tie_counterexample": {
+      "game": "DLT",
+      "history": [
+        [
+          1,
+          2,
+          3,
+          11,
+          12
+        ],
+        [
+          1,
+          2,
+          4,
+          13,
+          14
+        ],
+        [
+          3,
+          4,
+          15,
+          16,
+          17
+        ],
+        [
+          3,
+          4,
+          18,
+          19,
+          20
+        ]
+      ],
+      "original_and_same_tie_shrink_pair": [
+        3,
+        4
+      ],
+      "shrink_with_new_lexical_only_tie_pair": [
+        1,
+        2
+      ],
+      "conclusion": "Any changed pair here is caused by changed tie rule, not common-prior shrinkage."
+    },
+    "inference": "Uniform pair shrinkage can change assigned probabilities but alone cannot improve fixed-D2 full-hit outcomes; any calibration claim needs a separate proper-score study.",
+    "script_sha256": "0b4db08bfea79a750bc274d0bfd070f8bce5e3d3768ba2b9d1b273a46cc0e4ac",
+    "formal_A": 0,
+    "decision": "NO_EDGE"
+  }
+}
