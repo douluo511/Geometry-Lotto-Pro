@@ -1,0 +1,11 @@
+{
+  "state_dir": "C:\\GLP\\V45\\state",
+  "history": {
+    "SSQ": {"path": "C:\\GLP\\V45\\inputs\\SSQ-canonical_history.json", "sha256": "REPLACE_WITH_INDEPENDENTLY_REVIEWED_FILE_SHA256"},
+    "DLT": {"path": "C:\\GLP\\V45\\inputs\\DLT-canonical_history.json", "sha256": "REPLACE_WITH_INDEPENDENTLY_REVIEWED_FILE_SHA256"}
+  },
+  "live_sources": true,
+  "preview": true,
+  "recipient": null,
+  "smtp": null
+}

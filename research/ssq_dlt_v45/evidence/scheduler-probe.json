@@ -1,0 +1,50 @@
+{
+    "checked_at_utc":  "2026-10-18T11:17:22.5191580Z",
+    "powershell_version":  "5.1.19041.6456",
+    "scope":  "Read-only Scheduler COM and CIM diagnostics; no task mutation",
+    "syntax":  [
+                   {
+                       "file":  "Common.ps1",
+                       "status":  "PASS",
+                       "error_count":  0
+                   },
+                   {
+                       "file":  "Install-Tasks.ps1",
+                       "status":  "PASS",
+                       "error_count":  0
+                   },
+                   {
+                       "file":  "Invoke-Runtime.ps1",
+                       "status":  "PASS",
+                       "error_count":  0
+                   },
+                   {
+                       "file":  "Probe-Scheduler.ps1",
+                       "status":  "PASS",
+                       "error_count":  0
+                   }
+               ],
+    "scheduler_com":  "BLOCKED",
+    "scheduler_cim":  "BLOCKED",
+    "administrator":  false,
+    "durable_install":  "NOT_RUN",
+    "real_boot":  "NOT_RUN",
+    "thirty_minute_elapsed_trigger":  "NOT_RUN",
+    "disconnected_network":  "NOT_RUN",
+    "power_cycle":  "NOT_RUN",
+    "errors":  [
+                   {
+                       "step":  "scheduler_com",
+                       "hresult":  -2147024893,
+                       "message":  "The system cannot find the path specified. (Exception from HRESULT: 0x80070003)"
+                   },
+                   {
+                       "step":  "scheduler_cim",
+                       "hresult":  -2146233088,
+                       "message":  "拒绝访问 "
+                   }
+               ],
+    "formal_A":  0,
+    "conclusion":  "NO_EDGE",
+    "status":  "BLOCKED"
+}
