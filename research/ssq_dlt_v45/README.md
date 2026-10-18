@@ -1,5 +1,12 @@
 # SSQ＋DLT V4.5 local research operations
 
+The separately selected five-stage coordinator and current AnySearch adapter
+are documented in [WORKFLOW_README.md](WORKFLOW_README.md) and
+[DISCOVERY_README.md](DISCOVERY_README.md). Run `workflow --config ...` or export
+the optional staged Windows task with `-StagedWorkflow`; default `runtime`
+retains its original single-cycle behavior. Neither mode can admit a legal
+next target or promote formal A without the missing external evidence.
+
 This is a runnable research component stacked on draft #409 at
 `ed6fda4f0975de3dabfd7a7e08b368669e2bef7d`. Audited main is
 `c2b0db6876d2aae874f8cf4d08f52455c8eaf152`. It does not change the existing

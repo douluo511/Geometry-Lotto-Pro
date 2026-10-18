@@ -1,0 +1,41 @@
+{
+  "recorded_at": "2026-10-18T16:50:56.458949+00:00",
+  "scope": "CURRENT_COMPONENT_FAULT_TESTS_NOT_PRODUCTION_QUALIFICATION",
+  "command": "python -m research.ssq_dlt_v45.acceptance --output NEW_DIRECTORY",
+  "status": "PASS",
+  "tests_run": 217,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "source_unchanged": true,
+  "source_manifest_sha256": "772f9803579a4632dd1c0b4a2fcb264edda9bcc0be140ab2e50969bb02ae8db3",
+  "P0_full_gate": "BLOCKED",
+  "scheduler_install": "BLOCKED",
+  "real_boot": "NOT_RUN",
+  "elapsed_30_minute": "NOT_RUN",
+  "physical_network_disconnect": "NOT_RUN",
+  "physical_power_interruption": "NOT_RUN",
+  "external_TSA_live_failure": "NOT_RUN",
+  "formal_A": 0,
+  "decision": "NO_EDGE",
+  "repository_independence": "FAIL",
+  "final_gate": "FAIL",
+  "suites": [
+    {
+      "component": "ssq_dlt_d2_v44",
+      "exit_code": 0,
+      "tests_run": 73,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "component": "ssq_dlt_v45",
+      "exit_code": 0,
+      "tests_run": 144,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  ]
+}

@@ -1,0 +1,100 @@
+{
+  "clock_review": {
+    "scope": "SYNTHETIC_WORKFLOW_REVIEW_V3_AFTER_ATOMIC_CLOCK_FIX",
+    "locked_study_rerun": false,
+    "workflow_sha256": "5017ef2f0055311820d204db5f90bc166f7ff37aca52fb0df0efcd02dce8d698",
+    "completed_cycle_rewind_rejected": true,
+    "report_metric_snapshot_explicit": "BEFORE_CURRENT_PUBLICATION_AND_SMTP_ATTEMPT_SEE_TICK_RECEIPT_FOR_UPDATED_COUNTS",
+    "post_publish_tick_metric": {
+      "numerator": 1,
+      "denominator": 1,
+      "rate": 1.0
+    },
+    "crash_fixture": {
+      "saved_stages": 5,
+      "saved_publications": 1,
+      "saved_ticks": 0
+    },
+    "incomplete_cycle_rewind_rejected": true,
+    "incomplete_cycle_rewind_error": "CLOCK_REWIND_ACROSS_CYCLES",
+    "blocked_reasons_preserved": true,
+    "required_dependency_pins_present": {
+      "ssq_dlt_v45/replay.py": true,
+      "ssq_dlt_v45/competition.py": true,
+      "ssq_dlt_v45/workflow.py": true,
+      "ssq_dlt_v45/windows/Invoke-Runtime.ps1": true
+    },
+    "pin_file_count": 32
+  },
+  "pair_uniform_shrink": {
+    "at": "2026-10-18T16:38:45.874084+00:00",
+    "scope": "EXACT_SYNTHETIC_DESIGN_DIAGNOSTIC_ONLY",
+    "historical_outcomes_read": false,
+    "locked_test_rescored": false,
+    "models_changed": false,
+    "common_uniform_pair_prior_identity": "(q_ij - q_kl) = (h_ij - h_kl)/(n+tau)",
+    "conditions": [
+      "same n for every pair",
+      "same p0 for every pair",
+      "finite tau >= 0",
+      "n+tau > 0",
+      "same marginal-sum then ascending-pair tie rule"
+    ],
+    "exact_fraction_full_ranking_checks": 800,
+    "synthetic_histories": 200,
+    "window": 60,
+    "taus": [
+      20,
+      60,
+      200,
+      1000
+    ],
+    "status": "PASS_ALL_FULL_RANKINGS_IDENTICAL",
+    "tie_counterexample": {
+      "game": "DLT",
+      "history": [
+        [
+          1,
+          2,
+          3,
+          11,
+          12
+        ],
+        [
+          1,
+          2,
+          4,
+          13,
+          14
+        ],
+        [
+          3,
+          4,
+          15,
+          16,
+          17
+        ],
+        [
+          3,
+          4,
+          18,
+          19,
+          20
+        ]
+      ],
+      "original_and_same_tie_shrink_pair": [
+        3,
+        4
+      ],
+      "shrink_with_new_lexical_only_tie_pair": [
+        1,
+        2
+      ],
+      "conclusion": "Any changed pair here is caused by changed tie rule, not common-prior shrinkage."
+    },
+    "inference": "Uniform pair shrinkage can change assigned probabilities but alone cannot improve fixed-D2 full-hit outcomes; any calibration claim needs a separate proper-score study.",
+    "script_sha256": "0b4db08bfea79a750bc274d0bfd070f8bce5e3d3768ba2b9d1b273a46cc0e4ac",
+    "formal_A": 0,
+    "decision": "NO_EDGE"
+  }
+}

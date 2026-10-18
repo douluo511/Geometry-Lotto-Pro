@@ -3,7 +3,8 @@ param(
     [Parameter(Mandatory = $true)][string]$PythonPath,
     [Parameter(Mandatory = $true)][string]$RepositoryPath,
     [Parameter(Mandatory = $true)][string]$ConfigPath,
-    [Parameter(Mandatory = $true)][string]$LauncherLogDirectory
+    [Parameter(Mandatory = $true)][string]$LauncherLogDirectory,
+    [ValidateSet('runtime','workflow')][string]$Mode='runtime'
 )
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'Common.ps1')
@@ -14,6 +15,9 @@ try {
     $configResolved = Get-AbsoluteLocalPath $ConfigPath 'ConfigPath'
     $logResolved = Get-AbsoluteLocalPath $LauncherLogDirectory 'LauncherLogDirectory'
     Assert-DeploymentPaths $pythonResolved $repositoryResolved $configResolved
+    $entryPoint = 'research.ssq_dlt_v45.' + $Mode
+    $entryPath = Join-Path $repositoryResolved ('research\ssq_dlt_v45\' + $Mode + '.py')
+    if (-not (Test-Path -LiteralPath $entryPath -PathType Leaf)) { throw 'Selected workflow/runtime entry point is missing.' }
     [IO.Directory]::CreateDirectory($logResolved) | Out-Null
     $runId = [Guid]::NewGuid().ToString('N')
     $startedAt = [DateTime]::UtcNow.ToString('o')
@@ -21,7 +25,7 @@ try {
     $stderrPath = Join-Path $logResolved ($runId + '.stderr.log')
     # Redirect both streams without PowerShell treating native stderr as a
     # terminating PowerShell error. No visible helper window is opened.
-    $runtimeArguments = '-m research.ssq_dlt_v45.runtime --config ' + (Quote-NativeArgument $configResolved)
+    $runtimeArguments = '-m ' + $entryPoint + ' --config ' + (Quote-NativeArgument $configResolved)
     $process = Start-Process -FilePath $pythonResolved -ArgumentList $runtimeArguments -WorkingDirectory $repositoryResolved -WindowStyle Hidden -Wait -PassThru -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
     $runtimeExit = $process.ExitCode
     $receipt = [ordered]@{
@@ -29,6 +33,8 @@ try {
         status=$(if ($runtimeExit -eq 0) { 'PASS' } else { 'FAIL' }); exit_code=$runtimeExit
         config_sha256=(Get-Sha256 $configResolved)
         runtime_sha256=(Get-Sha256 (Join-Path $repositoryResolved 'research\ssq_dlt_v45\runtime.py'))
+        mode=$Mode; entry_point=$entryPoint; entry_point_sha256=(Get-Sha256 $entryPath)
+        workflow_sha256=$(if ($Mode -eq 'workflow') { Get-Sha256 $entryPath } else { $null })
         stdout_sha256=(Get-Sha256 $stdoutPath); stderr_sha256=(Get-Sha256 $stderrPath)
         formal_A=0; conclusion='NO_EDGE'
     }

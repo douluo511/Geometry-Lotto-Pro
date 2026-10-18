@@ -50,7 +50,12 @@ def render(report):
     pieces.append('<h2>模型與證據狀態</h2><p>公平 D2 基準：SSQ=15/528；DLT=10/595。研究競賽要求同期 Random NULL、固定事前試驗計畫、完整獨立期次及 Holm 校正。未有合格前瞻樣本，維持 NO_EDGE。</p>')
     pieces.append('<p>Replay：BLOCKED（無已核驗目標期凍結）；外部 TSA、正式十二項檢驗、真開機／斷電驗收未完成。</p><ul>')
     pieces.extend('<li>'+html.escape(x)+'</li>' for x in report['blockers'])
-    pieces.append('</ul></html>')
+    pieces.append('</ul>')
+    if 'workflow' in report:
+        work=report['workflow']
+        pieces.append('<h2>交付流程觀測</h2><p>AnySearch 僅用於資料發現：'+html.escape(str(work.get('discovery',{}).get('status','UNKNOWN')))+'；本地發布時間狀態：'+html.escape(work.get('punctuality','UNKNOWN'))+'。</p>')
+        pieces.append('<p>以下是本次發布及寄信之前的統計快照，最新數值請見本次 tick 回執。分母只涵蓋本帳本已觀測時槽。郵件服務接受不代表收件匣送達；本地 SHA 不代表可信事前封存。</p><pre>'+html.escape(json.dumps(work.get('metrics',{}),ensure_ascii=False,indent=2))+'</pre>')
+    pieces.append('</html>')
     return ''.join(pieces)
 
 
