@@ -115,7 +115,8 @@ class WindowsExecutionTests(unittest.TestCase):
     def test_install_requires_current_acceptance_before_any_scheduler_write(self):
         result = self.execute("Install-Tasks.ps1", *self.arguments(), "-ExportXmlPath", self.xml, "-Install")
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("integration acceptance receipt", result.stderr)
+        # PowerShell wraps diagnostics at the current host's console width.
+        self.assertIn("integration acceptance receipt", " ".join(result.stderr.split()))
         self.assertTrue(self.xml.exists())
 
     def test_launcher_real_execution_preserves_streams_and_unique_receipts(self):

@@ -1,0 +1,16 @@
+{
+  "run_id": 39123498584,
+  "job_id": 117663755845,
+  "head_sha": "05bee79f3f0d1249b9a74ad750a85a2b9eefd46e",
+  "status": "FAIL",
+  "tests_run": 143,
+  "failures": 1,
+  "errors": 0,
+  "skipped": 0,
+  "artifact_sha256": "9898c67c1de7ce24f85c5c33dcbe5359ab9ba1fdf034c2738908fd38a3adb9c7",
+  "failure": "test_install_requires_current_acceptance_before_any_scheduler_write: PowerShell line-wrapped acceptance receipt in stderr",
+  "repair_scope": "Normalize diagnostic whitespace in the assertion; the installer and required acceptance checks are unchanged",
+  "superseding_ci": "PENDING",
+  "formal_A": 0,
+  "decision": "NO_EDGE"
+}

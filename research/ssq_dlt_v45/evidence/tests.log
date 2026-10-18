@@ -74,7 +74,7 @@ test_runtime_failure_propagates_nonzero (test_windows.WindowsExecutionTests.test
 test_status_runner_twice_preserves_outputs_and_admission (test_windows.WindowsExecutionTests.test_status_runner_twice_preserves_outputs_and_admission) ... ok
 
 ----------------------------------------------------------------------
-Ran 73 tests in 6.863s
+Ran 73 tests in 6.087s
 
 OK
 
@@ -151,6 +151,6 @@ test_non_python_rejected (test_windows.WindowsExecutionTests.test_non_python_rej
 test_relative_config_rejected (test_windows.WindowsExecutionTests.test_relative_config_rejected) ... ok
 
 ----------------------------------------------------------------------
-Ran 70 tests in 14.797s
+Ran 70 tests in 14.305s
 
 OK

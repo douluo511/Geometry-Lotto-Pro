@@ -1,5 +1,5 @@
 {
-  "recorded_at": "2026-10-18T11:26:38.844738+00:00",
+  "recorded_at": "2026-10-18T11:34:55.121751+00:00",
   "scope": "CURRENT_COMPONENT_FAULT_TESTS_NOT_PRODUCTION_QUALIFICATION",
   "command": "python -m research.ssq_dlt_v45.acceptance --output NEW_DIRECTORY",
   "status": "PASS",
@@ -46,7 +46,7 @@
   "python": "3.11.9 (tags/v3.11.9:de54cf5, Apr  2 2024, 10:12:12) [MSC v.1938 64 bit (AMD64)]",
   "os": "Windows-10-10.0.19045-SP0",
   "source_unchanged": true,
-  "source_manifest_sha256": "9f053c608f5dc770b0775bb66d9a1ed01ff091fd67d5856ddceb463b6f916cf4",
+  "source_manifest_sha256": "6aef9040e7bc83fb8b69ad8d1e5d05b7170a624def9e7c53dcba21541458660c",
   "P0_full_gate": "BLOCKED",
   "scheduler_install": "BLOCKED",
   "real_boot": "NOT_RUN",
