@@ -1,8 +1,8 @@
 {
   "clock_review": {
-    "scope": "SYNTHETIC_WORKFLOW_REVIEW_V5_FINAL_STAGE_CLOCK_FLOORS",
+    "scope": "SYNTHETIC_WORKFLOW_REVIEW_V6_CURRENT_ISSUE_GUARD_AND_DISCOVERY",
     "locked_study_rerun": false,
-    "workflow_sha256": "527cb733c49f24ab93192e92f3bfccf7b9e7dc91d9148ca1661acf0eeb2c92d4",
+    "workflow_sha256": "f4d84df1a9f6957428ddb57d1c8d7ef71a56fa40b09fd6fb9fc8f6b5d3d21946",
     "completed_cycle_rewind_rejected": true,
     "report_metric_snapshot_explicit": "BEFORE_CURRENT_PUBLICATION_AND_SMTP_ATTEMPT_SEE_TICK_RECEIPT_FOR_UPDATED_COUNTS",
     "post_publish_tick_metric": {
@@ -62,7 +62,12 @@
       }
     ],
     "final_scope_status": "PASS_ALL_REGISTERED_INDEPENDENT_SYNTHETIC_REVIEW_CASES",
-    "harness_note": "Initial diagnostic completed product assertions but Windows temporary-directory cleanup raised WinError145. The preserved initial harness is retained; this final harness permits leftover diagnostic scratch files. No product code changed."
+    "harness_note": "Initial diagnostic completed product assertions but Windows temporary-directory cleanup raised WinError145. The preserved initial harness is retained; this final harness permits leftover diagnostic scratch files. No product code changed.",
+    "issue_sequence_receipt_reference": {
+      "sha256": "c5dd69293855ebf828a882f64aff019fd4690eca80eedfa323f16a76baad65cc",
+      "scope": "Previously completed issue identity/continuity structural checks; no scoring rerun."
+    },
+    "current_discovery_module_sha256": "2e190603d15d8ad6ccad24576c5c3e410eb352b71c81b2838e8c536685a39a86"
   },
   "pair_uniform_shrink": {
     "at": "2026-10-18T16:38:45.874084+00:00",

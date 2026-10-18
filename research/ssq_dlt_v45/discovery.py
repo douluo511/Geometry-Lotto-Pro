@@ -78,8 +78,21 @@ def valid_url(url, allowed_hosts):
         return False
 
 
+def _native(path):
+    """Use extended absolute paths for Windows IO without changing receipts."""
+    path = Path(path)
+    if os.name != 'nt':
+        return path
+    absolute = os.path.abspath(os.fspath(path))
+    if absolute.startswith('\\\\?\\'):
+        return Path(absolute)
+    if absolute.startswith('\\\\'):
+        return Path('\\\\?\\UNC\\' + absolute[2:])
+    return Path('\\\\?\\' + absolute)
+
+
 def _exclusive(path, raw):
-    with path.open('xb') as handle:
+    with _native(path).open('xb') as handle:
         handle.write(raw)
         handle.flush()
         os.fsync(handle.fileno())
@@ -312,14 +325,20 @@ class Client:
                 event.update(http_status=response.status, response_bytes=len(response.body),
                              response_sha256=sha(response.body))
                 sensitive = response.status == 402 or _has_secret(response.body, self.key)
-                event['raw_saved'] = not sensitive
+                event['raw_saved'] = False
                 if sensitive:
                     event['raw_suppressed_reason'] = 'CREDENTIAL_OR_ANONYMOUS_QUOTA_RESPONSE'
                     # Even request IDs/header fields may be attacker controlled.
                     raise DiscoveryError('SENSITIVE_RESPONSE_SUPPRESSED')
-                path = f'{len(self.events):03d}-{sha(response.body)}.bin'
-                _exclusive(self.directory / path, response.body)
-                event.update(raw_file=path, response_headers=safe_headers)
+                path = f'{len(self.events):03d}.bin'
+                try:
+                    _exclusive(self.directory / path, response.body)
+                except OSError as error:
+                    # A completed HTTP request must never be reissued merely
+                    # because local evidence persistence failed.
+                    event['local_io_error'] = type(error).__name__
+                    raise DiscoveryError('LOCAL_EVIDENCE_WRITE_FAILED') from None
+                event.update(raw_saved=True, raw_file=path, response_headers=safe_headers)
                 if response.status == 429 or 500 <= response.status <= 599:
                     if attempt < self.attempts:
                         try:
@@ -351,7 +370,8 @@ class Client:
                     continue
                 raise DiscoveryError('TRANSPORT_RETRY_EXHAUSTED') from None
             except DiscoveryError as error:
-                event['status'] = 'REJECTED'
+                event['status'] = ('LOCAL_EVIDENCE_WRITE_FAILED' if str(error) == 'LOCAL_EVIDENCE_WRITE_FAILED'
+                                   else 'REJECTED')
                 event['error'] = str(error)
                 raise
         raise DiscoveryError('REQUEST_FAILED')
@@ -480,9 +500,9 @@ def run_discovery(config, output, transport=None, sleep=time.sleep):
     if any(not isinstance(v, list) or not v or any(not valid_url(u, OFFICIAL_FALLBACK_HOSTS[game]) for u in v)
            for game, v in fallback.items()):
         raise DiscoveryError('INVALID_FALLBACK_URLS')
-    output.mkdir(parents=True, exist_ok=True)
-    directory = output / ('discovery-' + datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ') + '-' + uuid.uuid4().hex)
-    directory.mkdir(exist_ok=False)
+    _native(output).mkdir(parents=True, exist_ok=True)
+    directory = output / ('d-' + uuid.uuid4().hex)
+    _native(directory).mkdir(exist_ok=False)
     client = Client(config, directory, transport, sleep)
     receipt = {'version': '1.0.0', 'transport': config.get('transport', 'rest'), 'started_at': utc_now(),
                'status': 'DEGRADED', 'scope': 'DISCOVERY_ONLY_UNTRUSTED_URLS',
@@ -541,7 +561,7 @@ def verify_discovery(output):
     directory = Path(output)
     if not directory.is_absolute():
         raise DiscoveryError('ABSOLUTE_OUTPUT_REQUIRED')
-    directory = directory.resolve()
+    directory = _native(directory).resolve()
     raw = (directory / 'receipt.json').read_bytes()
     if sha(raw) != (directory / 'receipt.sha256').read_text('ascii').strip():
         raise DiscoveryError('RECEIPT_SHA_MISMATCH')
@@ -576,7 +596,7 @@ def main(argv=None):
             path = Path(args.config)
             if not path.is_absolute():
                 raise DiscoveryError('ABSOLUTE_CONFIG_REQUIRED')
-            config = parse(path.read_bytes())
+            config = parse(_native(path).read_bytes())
         if args.transport:
             config['transport'] = args.transport
         result = run_discovery(config, args.output)

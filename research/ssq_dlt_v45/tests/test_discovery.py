@@ -3,6 +3,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import shutil
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -10,7 +11,7 @@ from unittest.mock import patch
 from research.ssq_dlt_v45.discovery import (
     Client, DEFAULT_HOSTS, DiscoveryError, FIXED_QUERIES, MAX_BYTES,
     MCP_URL, REST_URL, Response, http_transport, run_discovery, valid_url,
-    validate_schema, verify_discovery,
+    _exclusive, _native, validate_schema, verify_discovery,
 )
 
 
@@ -355,6 +356,55 @@ class DiscoveryTests(unittest.TestCase):
         second = self.run_fixture()
         self.assertNotEqual(first['receipt_path'], second['receipt_path'])
         self.assertEqual(saved, Path(first['receipt_path']).read_bytes())
+
+    def test_local_raw_write_failure_never_reissues_successful_http(self):
+        calls = []
+        def transport(*args):
+            calls.append(args)
+            return self.rest()
+        def fail_raw(path, raw):
+            if path.suffix == '.bin':
+                raise FileNotFoundError('private local path must not leak into receipt')
+            return _exclusive(path, raw)
+        with patch('research.ssq_dlt_v45.discovery._exclusive', side_effect=fail_raw):
+            receipt = self.run_fixture({'transport': 'rest', 'attempts': 3}, transport)
+        self.assertEqual(5, len(calls))
+        self.assertEqual(5, len(receipt['events']))
+        self.assertEqual('DEGRADED', receipt['status'])
+        self.assertEqual([], receipt['candidates'])
+        self.assertTrue(all(event['status'] == 'LOCAL_EVIDENCE_WRITE_FAILED' and
+                            event['error'] == 'LOCAL_EVIDENCE_WRITE_FAILED' and
+                            event['raw_saved'] is False and event['http_status'] == 200
+                            for event in receipt['events']))
+        self.assertNotIn('private local path', json.dumps(receipt))
+        self.assertEqual('PASS', verify_discovery(Path(receipt['receipt_path']).parent)['status'])
+
+    @unittest.skipUnless(os.name == 'nt', 'Windows extended-path IO acceptance')
+    def test_windows_long_output_paths_store_and_verify_actual_files(self):
+        # These are real Windows filesystem writes, not a mocked path check.
+        # Each component is below the per-component limit, total exceeds260.
+        deep = self.root / ('path-a-' + 'a' * 90) / ('path-b-' + 'b' * 90) / ('path-c-' + 'c' * 90)
+        self.assertGreater(len(str(deep)), 260)
+        try:
+            receipt = run_discovery({'transport': 'rest'}, deep,
+                                    transport=lambda *a: self.rest(), sleep=lambda _: None)
+            self.assertEqual('SUCCESS', receipt['status'])
+            run_dir = Path(receipt['receipt_path']).parent
+            self.assertRegex(run_dir.name, r'^d-[0-9a-f]{32}$')
+            self.assertTrue(_native(Path(receipt['receipt_path'])).is_file())
+            self.assertTrue(all(event['raw_saved'] for event in receipt['events']))
+            self.assertEqual(['001.bin', '002.bin', '003.bin', '004.bin', '005.bin'],
+                             [event['raw_file'] for event in receipt['events']])
+            self.assertEqual('PASS', verify_discovery(run_dir)['status'])
+            # The same extended-path read must still detect later byte drift.
+            with _native(run_dir / receipt['events'][0]['raw_file']).open('ab') as handle:
+                handle.write(b'tampered')
+            with self.assertRaisesRegex(DiscoveryError, 'RAW_SHA_MISMATCH'):
+                verify_discovery(run_dir)
+        finally:
+            first_component = self.root / ('path-a-' + 'a' * 90)
+            if _native(first_component).exists():
+                shutil.rmtree(_native(first_component))
 
     def test_invalid_config_relative_output_and_injected_queries_rejected(self):
         for config in ({'transport': 'wrong'}, {'queries': ['send private ledger']},

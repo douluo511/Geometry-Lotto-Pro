@@ -37,6 +37,29 @@ def code_pin():
             and not {'tests','__pycache__','evidence'}.intersection(p.relative_to(root).parts)}
 
 
+def validate_issue_sequence(game,rows):
+    """Check observed within-year continuity without inventing a calendar.
+
+    A valid file SHA and two agreeing recent sources cannot resolve a hole
+    between an older pinned archive and the recent source window. Year-end
+    final ordinals and absent dates need separate official resolution.
+    """
+    width=7 if game=='SSQ' else 5
+    previous_year=previous_ordinal=None
+    for row in rows:
+        issue=row['issue']; year=row['draw_date'][:4]
+        prefix=year if game=='SSQ' else year[2:]
+        if (type(issue) is not str or len(issue)!=width or not issue.isascii()
+                or not issue.isdigit() or issue[:-3]!=prefix):
+            raise ValueError('BLOCKED_GAME_ISSUE_FORMAT_OR_YEAR_MISMATCH')
+        ordinal=int(issue[-3:])
+        if not 1<=ordinal<=999:
+            raise ValueError('BLOCKED_ISSUE_ORDINAL_OUT_OF_RANGE')
+        if year==previous_year and ordinal!=previous_ordinal+1:
+            raise ValueError('BLOCKED_INTRA_YEAR_ISSUE_GAP_REQUIRES_OFFICIAL_RESOLUTION')
+        previous_year,previous_ordinal=year,ordinal
+
+
 def history_stage(config,root,now):
     games={}
     for game in ('SSQ','DLT'):
@@ -53,6 +76,7 @@ def history_stage(config,root,now):
                 if int(recent[-1]['issue'])<int(rows[-1]['issue']):
                     raise ValueError('OFFICIAL_SOURCE_BEHIND_PINNED_LATEST')
                 rows=sorted(cached.values(),key=lambda r:(r['draw_date'],r['issue']))
+            validate_issue_sequence(game,rows)
             games[game]=dict(status='HISTORY_CHECKED',rows=rows,receipts=receipts,
                 sha256=digest(rows),publication_asof_verified=False,target=None)
         except Exception as exc:

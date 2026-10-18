@@ -159,5 +159,75 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(len(self.store().rows('workflow_stage')),1)
         self.assertEqual(self.store().rows('workflow_publish'),[])
 
+    def test_valid_sha_history_with_internal_issue_deleted_is_blocked(self):
+        import hashlib
+        for game in ('SSQ','DLT'):
+            with self.subTest(game=game):
+                config={**self.config,'state_dir':str(self.root/('missing-'+game)),
+                    'history':{g:dict(spec) for g,spec in self.config['history'].items()}}
+                p=self.root/('missing-'+game+'.json')
+                rows=_history(game); del rows[60]
+                p.write_text(canonical(dict(game=game,draws=rows)),encoding='utf-8')
+                config['history'][game]=dict(path=str(p),sha256=hashlib.sha256(p.read_bytes()).hexdigest())
+                workflow.tick(config,MON+timedelta(minutes=50))
+                store=Store(Path(config['state_dir'])/'workflow.sqlite3')
+                report=store.rows('workflow_publish')[0]['report']
+                self.assertEqual(report['games'][game]['reason'],
+                    'BLOCKED_INTRA_YEAR_ISSUE_GAP_REQUIRES_OFFICIAL_RESOLUTION')
+                self.assertIsNone(store.read('workflow_stage',workflow.active_slot(MON).isoformat()+'/predict'))
+
+    def test_recent_source_merge_cannot_silently_bridge_twenty_missing_issues(self):
+        import hashlib
+        config={**self.config,'live_sources':True}
+        for game in ('SSQ','DLT'):
+            p=self.root/('stale-'+game+'.json')
+            p.write_text(canonical(dict(game=game,draws=_history(game)[:60])),encoding='utf-8')
+            config['history'][game]=dict(path=str(p),sha256=hashlib.sha256(p.read_bytes()).hexdigest())
+        def recent(game,directory,clock):
+            return workflow.sources.validate_history(game,_history(game)[80:],clock),[]
+        with patch.object(workflow.sources,'capture_pair',side_effect=recent):
+            workflow.tick(config,MON+timedelta(minutes=50))
+        report=self.store().rows('workflow_publish')[0]['report']
+        self.assertTrue(all(data['reason']=='BLOCKED_INTRA_YEAR_ISSUE_GAP_REQUIRES_OFFICIAL_RESOLUTION'
+                            for data in report['games'].values()))
+        self.assertIsNone(self.store().read('workflow_stage',workflow.active_slot(MON).isoformat()+'/predict'))
+
+    def test_issue_year_width_and_zero_ordinal_fail_with_valid_source_sha(self):
+        import hashlib
+        for game in ('SSQ','DLT'):
+            for defect in ('year','width','zero'):
+                with self.subTest(game=game,defect=defect):
+                    config={**self.config,'state_dir':str(self.root/(game+'-'+defect)),
+                        'history':{g:dict(spec) for g,spec in self.config['history'].items()}}
+                    rows=_history(game)
+                    if defect=='year':
+                        for row in rows: row['issue']=('2025' if game=='SSQ' else '25')+row['issue'][-3:]
+                    elif defect=='width':
+                        for row in rows: row['issue']=('26' if game=='SSQ' else '2026')+row['issue'][-3:]
+                    else:
+                        rows[0]['issue']=('2026' if game=='SSQ' else '26')+'000'
+                    # These fixtures pass the existing generic source shape,
+                    # chronology and number validation; the workflow adds the
+                    # game-specific identity/continuity guard after admission.
+                    workflow.sources.validate_history(game,rows,MON)
+                    p=self.root/(game+'-'+defect+'.json')
+                    p.write_text(canonical(dict(game=game,draws=rows)),encoding='utf-8')
+                    config['history'][game]=dict(path=str(p),sha256=hashlib.sha256(p.read_bytes()).hexdigest())
+                    workflow.tick(config,MON+timedelta(minutes=50))
+                    store=Store(Path(config['state_dir'])/'workflow.sqlite3')
+                    reason=store.rows('workflow_publish')[0]['report']['games'][game]['reason']
+                    expected='BLOCKED_ISSUE_ORDINAL_OUT_OF_RANGE' if defect=='zero' else 'BLOCKED_GAME_ISSUE_FORMAT_OR_YEAR_MISMATCH'
+                    self.assertEqual(reason,expected)
+                    self.assertIsNone(store.read('workflow_stage',workflow.active_slot(MON).isoformat()+'/predict'))
+
+    def test_year_boundary_does_not_invent_last_or_first_annual_issue(self):
+        for game in ('SSQ','DLT'):
+            prefix='2025' if game=='SSQ' else '25'
+            next_prefix='2026' if game=='SSQ' else '26'
+            rows=[dict(issue=prefix+'300',draw_date='2025-12-25'),
+                  dict(issue=next_prefix+'007',draw_date='2026-01-09'),
+                  dict(issue=next_prefix+'008',draw_date='2026-01-11')]
+            workflow.validate_issue_sequence(game,rows)
+
 
 if __name__=='__main__': unittest.main()

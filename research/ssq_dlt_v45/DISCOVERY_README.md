@@ -47,7 +47,7 @@ From the repository root:
 ```text
 python -m research.ssq_dlt_v45.discovery probe --transport rest --output C:\GLP\V45\discovery
 python -m research.ssq_dlt_v45.discovery probe --transport mcp --output C:\GLP\V45\discovery
-python -m research.ssq_dlt_v45.discovery verify --output C:\GLP\V45\discovery\discovery-<run-id>
+python -m research.ssq_dlt_v45.discovery verify --output C:\GLP\V45\discovery\d-<uuid32>
 ```
 
 The optional `--config` path must be absolute. Allowed fields are:
@@ -67,8 +67,11 @@ transport=None, sleep=time.sleep)`. Test transports return
 `verify_discovery(absolute_run_directory)` verifies the receipt and all retained
 raw-response file sizes and SHA-256 values.
 
-Every probe creates a new exclusive run directory. Ordinary responses are stored
-as exclusive files with their SHA-256 in the filename. Receipts, SHA sidecars and
+Every probe creates a new exclusive `d-<uuid32>` run directory. Ordinary responses
+are stored as short exclusive counter files such as `001.bin`, with full
+SHA-256 and byte counts in the receipt. Windows filesystem IO uses extended
+absolute paths, including verification, so a deep workspace does not depend on
+the legacy 260-character limit. Receipts, SHA sidecars and
 raw files are never overwritten by the adapter. A privileged file owner can alter
 local files; SHA verification detects drift but is not an external TSA or
 independent custody.
@@ -98,6 +101,10 @@ are not blindly retried. HTTP redirects are rejected. Transport, protocol, schem
 business errors and absence of allowed URLs return `DEGRADED`, with fixed/reviewed
 official fallback URLs for independent fetching. Partial REST successes retain
 their candidate URLs and failure receipts.
+
+A raw-response storage error is `LOCAL_EVIDENCE_WRITE_FAILED`, with
+`raw_saved=false`. A successfully completed HTTP request is never repeated
+because of that local IO failure; later independent REST queries may continue.
 
 `SUCCESS` means the discovery exchange produced eligible candidate URLs; it does
 not mean all candidate content is correct, that each S01–S05 goal was answered,

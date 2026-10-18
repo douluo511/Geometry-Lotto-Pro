@@ -2,9 +2,24 @@
   "discovery": [
     {
       "transport": "mcp",
-      "started_at": "2026-10-18T16:49:11.157481+00:00",
+      "started_at": "2026-10-18T17:25:54.089085+00:00",
       "status": "SUCCESS",
       "record_class": "CURRENT_MCP_ADAPTER",
+      "receipt_sha256": "fcb6db75ce0435ccbe99e0d60bf763aa67174ec4e0e6b7860d853a71966e9a3e",
+      "events": 4,
+      "candidate_urls": 6,
+      "query_attribution": [
+        "BATCH_UNRESOLVED"
+      ],
+      "errors": [],
+      "formal_A": 0,
+      "legal_target": null
+    },
+    {
+      "transport": "mcp",
+      "started_at": "2026-10-18T16:49:11.157481+00:00",
+      "status": "SUCCESS",
+      "record_class": "HISTORICAL_DIAGNOSTIC",
       "receipt_sha256": "bbf7fa7febbecae32f68954611746eb81475504d6528af954e388df3cf0e6bb7",
       "events": 4,
       "candidate_urls": 7,
@@ -62,9 +77,24 @@
     },
     {
       "transport": "rest",
+      "started_at": "2026-10-18T17:25:53.105665+00:00",
+      "status": "SUCCESS",
+      "record_class": "CURRENT_COORDINATOR",
+      "receipt_sha256": "28ca59efff6d74fe33b715514f2d66303ed937a970ac230c8597bbf04b95ea02",
+      "events": 5,
+      "candidate_urls": 5,
+      "query_attribution": [
+        "EXACT_REQUEST"
+      ],
+      "errors": [],
+      "formal_A": 0,
+      "legal_target": null
+    },
+    {
+      "transport": "rest",
       "started_at": "2026-10-18T17:09:09.167863+00:00",
       "status": "DEGRADED",
-      "record_class": "CURRENT_COORDINATOR",
+      "record_class": "HISTORICAL_DIAGNOSTIC",
       "receipt_sha256": "aa72550b4ce7d9291ebc687a419a76d53defcc00fbed629069f5f0fb75ce6f36",
       "events": 10,
       "candidate_urls": 0,
