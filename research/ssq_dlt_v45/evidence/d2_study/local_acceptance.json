@@ -1,0 +1,61 @@
+{
+  "recorded_at": "2026-10-18T16:05:13.182555+00:00",
+  "scope": "CURRENT_COMPONENT_FAULT_TESTS_NOT_PRODUCTION_QUALIFICATION",
+  "command": "python -m research.ssq_dlt_v45.acceptance --output NEW_DIRECTORY",
+  "status": "PASS",
+  "tests_run": 170,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "suites": [
+    {
+      "component": "ssq_dlt_d2_v44",
+      "command": [
+        "C:\\Users\\15928\\Documents\\Codex\\2026-10-18\\referenced-chatgpt-conversation-this-is-an\\work\\.venv\\Scripts\\python.exe",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "C:\\Users\\15928\\Documents\\Codex\\2026-10-18\\referenced-chatgpt-conversation-this-is-an\\work\\Geometry-Lotto-Pro\\research\\ssq_dlt_d2_v44\\tests",
+        "-v"
+      ],
+      "exit_code": 0,
+      "tests_run": 73,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "component": "ssq_dlt_v45",
+      "command": [
+        "C:\\Users\\15928\\Documents\\Codex\\2026-10-18\\referenced-chatgpt-conversation-this-is-an\\work\\.venv\\Scripts\\python.exe",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "C:\\Users\\15928\\Documents\\Codex\\2026-10-18\\referenced-chatgpt-conversation-this-is-an\\work\\Geometry-Lotto-Pro\\research\\ssq_dlt_v45\\tests",
+        "-v"
+      ],
+      "exit_code": 0,
+      "tests_run": 97,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  ],
+  "python": "3.11.9 (tags/v3.11.9:de54cf5, Apr  2 2024, 10:12:12) [MSC v.1938 64 bit (AMD64)]",
+  "os": "Windows-10-10.0.19045-SP0",
+  "source_unchanged": true,
+  "source_manifest_sha256": "f4824df8185e6722dd30bbb8c6a2400827cdb3ef1e09c75fb1ea7f35fc8634c2",
+  "P0_full_gate": "BLOCKED",
+  "scheduler_install": "BLOCKED",
+  "real_boot": "NOT_RUN",
+  "elapsed_30_minute": "NOT_RUN",
+  "physical_network_disconnect": "NOT_RUN",
+  "physical_power_interruption": "NOT_RUN",
+  "external_TSA_live_failure": "NOT_RUN",
+  "formal_A": 0,
+  "decision": "NO_EDGE",
+  "repository_independence": "FAIL",
+  "final_gate": "FAIL"
+}
