@@ -1,0 +1,34 @@
+{
+  "scope": "SHADOW_SNAPSHOT_LOCAL_ACCEPTANCE",
+  "status": "PASS",
+  "recorded_at_local_clock_untrusted": "2026-10-18T11:19:52.071418+00:00",
+  "python": "3.12.14",
+  "platform": "Windows-10-10.0.19045-SP0",
+  "archive_sha256": "1eb4242ef88a56e19cc32ecf2f15c0a7c683485830e7bb8baa84d5601ccf1ea9",
+  "snapshot_manifest_sha256": "979969feea1a31e26b9c5b8a54843c08e0be82e9b85211cc35bb5c9f3f182b97",
+  "rows": {
+    "DLT": 501,
+    "SSQ": 501
+  },
+  "artifacts": 16,
+  "idempotent_restart": "PASS",
+  "read_only_main_file_unchanged": "PASS",
+  "original_zip_unchanged": true,
+  "sqlite_integrity_check": "ok",
+  "tables": [
+    "artifacts",
+    "rows",
+    "snapshots"
+  ],
+  "available_at_nonnull": 0,
+  "code_from_input_archive_executed": false,
+  "network_used": false,
+  "producer_40_tests": "NOT_RUN",
+  "support_109_tests": "SEPARATE_HISTORICAL_SCOPE",
+  "R2": "BLOCKED",
+  "formal_A": 0,
+  "decision": "NO_EDGE",
+  "formal_training_eligibility": "BLOCKED",
+  "repository_independence": "FAIL",
+  "final_gate": "FAIL"
+}
