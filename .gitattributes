@@ -7,3 +7,4 @@ research/ssq_dlt_d2_next/** -text
 .github/workflows/ssq-dlt-d2-next.yml -text
 research/ssq_dlt_d2_forensics/** -text
 .github/workflows/ssq-dlt-d2-forensics.yml -text
+research/ssq_dlt_d2_forensics_evidence/** -text
