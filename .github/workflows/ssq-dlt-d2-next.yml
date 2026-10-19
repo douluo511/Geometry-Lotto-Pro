@@ -1,0 +1,31 @@
+name: SSQ DLT D2 mechanism research
+on:
+  pull_request:
+    paths:
+      - 'research/ssq_dlt_d2_next/**'
+      - 'research/ssq_dlt_agent_v1/**'
+      - 'research/ssq_dlt_v45/**'
+      - 'research/ssq_dlt_d2_v44/**'
+      - '.github/workflows/ssq-dlt-d2-next.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows-current-byte-acceptance:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: research/ssq_dlt_agent_v1/requirements-windows.lock.txt
+      - run: python -m pip install -r research/ssq_dlt_agent_v1/requirements.txt
+      - run: python -m pip check
+      - run: python -m research.ssq_dlt_d2_next.acceptance --output mechanism-acceptance
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ssq-dlt-d2-next-acceptance
+          path: mechanism-acceptance/
