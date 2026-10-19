@@ -1,0 +1,16 @@
+{
+  "state_dir": "C:\\GLP\\agent-state",
+  "history": {
+    "SSQ": {"path": "C:\\GLP\\inputs\\SSQ-canonical_history.json", "sha256": "0000000000000000000000000000000000000000000000000000000000000000"},
+    "DLT": {"path": "C:\\GLP\\inputs\\DLT-canonical_history.json", "sha256": "0000000000000000000000000000000000000000000000000000000000000000"}
+  },
+  "live_sources": true,
+  "discovery": {"transport": "rest", "attempts": 2, "timeout_seconds": 5},
+  "recipient": null,
+  "limits": {"max_tool_calls": 12, "max_attempts_per_tool": 2, "max_seconds": 120},
+  "sdk": {
+    "max_turns": 10, "max_model_calls": 8, "max_input_tokens": 20000,
+    "max_output_tokens": 1000, "max_seconds": 120, "max_estimated_usd": 0.2,
+    "input_usd_per_million": null, "output_usd_per_million": null
+  }
+}

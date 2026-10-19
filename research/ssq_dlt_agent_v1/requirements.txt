@@ -1,0 +1,3 @@
+-c requirements-windows.lock.txt
+openai-agents==0.24.0
+cryptography==50.0.2
