@@ -1,3 +1,5 @@
 # Preserve exact bytes used by model-source SHA and current-run acceptance.
 research/ssq_dlt_v45/** -text
 .github/workflows/ssq-dlt-v45-local.yml -text
+research/ssq_dlt_agent_v1/** -text
+.github/workflows/ssq-dlt-agent-v1.yml -text
