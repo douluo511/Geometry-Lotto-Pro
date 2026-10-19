@@ -262,6 +262,7 @@ def verify_study(directory, receipt, *, protocol=frozen_protocol):
     if wal.exists() and wal.stat().st_size != 0:
         raise EvidenceMismatch("REFUSE_COPY_OF_UNCHECKPOINTED_WAL")
     ledger_hash = before["research.sqlite3"]
+    primary_error = None
     try:
         with tempfile.TemporaryDirectory(prefix="d2-evidence-immutable-") as temp:
             snapshot = Path(temp) / "research.sqlite3"
@@ -274,13 +275,27 @@ def verify_study(directory, receipt, *, protocol=frozen_protocol):
                 raise EvidenceMismatch("ORIGINAL_VERIFIER_DID_NOT_USE_REQUIRED_CHECKS")
             if _sha(snapshot) != ledger_hash or list(Path(temp).iterdir()) != [snapshot]:
                 raise EvidenceMismatch("IMMUTABLE_SNAPSHOT_OR_SIDECARS_CHANGED")
+    except BaseException as exc:
+        primary_error = exc
     finally:
-        after = _input_manifest(directory)
-        source_after = protocol.source_manifest()
-        if before != after:
-            raise EvidenceMismatch("FROZEN_STUDY_BYTES_CHANGED_DURING_VERIFICATION")
-        if source_before != source_after:
-            raise EvidenceMismatch("PINNED_EXPERIMENT_SOURCE_CHANGED_DURING_VERIFICATION")
+        integrity_errors = []
+        try:
+            after = _input_manifest(directory)
+            if before != after:
+                integrity_errors.append(EvidenceMismatch("FROZEN_STUDY_BYTES_CHANGED_DURING_VERIFICATION"))
+        except BaseException as exc:
+            integrity_errors.append(exc)
+        try:
+            source_after = protocol.source_manifest()
+            if source_before != source_after:
+                integrity_errors.append(EvidenceMismatch("PINNED_EXPERIMENT_SOURCE_CHANGED_DURING_VERIFICATION"))
+        except BaseException as exc:
+            integrity_errors.append(exc)
+        errors = ([primary_error] if primary_error is not None else []) + integrity_errors
+        if len(errors) == 1:
+            raise errors[0]
+        if errors:
+            raise BaseExceptionGroup("VERIFICATION_AND_INTEGRITY_FAILURES", errors) from None
     answer = {
         "schema": "D2_FORENSICS_SEMANTIC_PRESENTATION_VERIFICATION_1",
         "status": "PASS_SEMANTIC_PRESENTATION_ADAPTER_WITH_NATIVE_INTEGRITY_CHECKS",
