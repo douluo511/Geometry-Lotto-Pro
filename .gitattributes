@@ -5,3 +5,5 @@ research/ssq_dlt_agent_v1/** -text
 .github/workflows/ssq-dlt-agent-v1.yml -text
 research/ssq_dlt_d2_next/** -text
 .github/workflows/ssq-dlt-d2-next.yml -text
+research/ssq_dlt_d2_forensics/** -text
+.github/workflows/ssq-dlt-d2-forensics.yml -text
