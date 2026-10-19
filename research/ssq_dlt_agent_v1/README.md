@@ -25,7 +25,7 @@ python -m research.ssq_dlt_agent_v1 --config C:\GLP\agent-config.json --mode liv
 python -m research.ssq_dlt_agent_v1.acceptance --output C:\GLP\new-acceptance
 ```
 
-`tools-smoke` 實際執行工具但沒有模型；`sdk-fixture` 使用真正 SDK 的工具迴圈搭配固定模擬模型，沒有 HTTP 或付費模型呼叫。兩者都不能算作 live 模型驗收。live 必須明確配置環境 `OPENAI_API_KEY`、`GLP_AGENT_MODEL`，並在 sdk 配置提供已核對的每百萬輸入／輸出 token 價格。缺少任何一項即 BLOCKED，不推測模型與價格。固定官方 Responses API；忽略自定 base URL，拒絕自定標頭，停用代理、重導向、SDK 重試與 tracing。不得把金鑰寫入配置、報告或帳本。
+`tools-smoke` 實際執行工具但沒有模型；`sdk-fixture` 使用真正 SDK 的工具迴圈搭配固定模擬模型，模型不呼叫 OpenAI HTTP API、付費模型呼叫為0。這兩種模式的工具仍會按配置執行真實 AnySearch／官方資料網路請求；它們都不能算作 live 模型驗收。live 必須明確配置環境 `OPENAI_API_KEY`、`GLP_AGENT_MODEL`，並在 sdk 配置提供已核對的每百萬輸入／輸出 token 價格。缺少任何一項即 BLOCKED，不推測模型與價格。固定官方 Responses API；忽略自定 base URL，拒絕自定標頭，停用代理、重導向、SDK 重試與 tracing。不得把金鑰寫入配置、報告或帳本。
 
 配置只接受 state_dir、history、live_sources、discovery、recipient、limits、sdk；樣例見 config.example.json。state_dir 必須與歷史輸入分開，使用新的專屬 SQLite application_id；不接管原始 SQLite。報告有私人路徑及模型輸出，只留在受信任本地。
 
