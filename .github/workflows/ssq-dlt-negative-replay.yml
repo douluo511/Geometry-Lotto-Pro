@@ -1,0 +1,31 @@
+name: Original negative-control replay component
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'research/ssq_dlt_d2_negative_audit/**'
+      - '.github/workflows/ssq-dlt-negative-replay.yml'
+jobs:
+  windows-negative-audit:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      GIT_CONFIG_COUNT: '1'
+      GIT_CONFIG_KEY_0: core.autocrlf
+      GIT_CONFIG_VALUE_0: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Test current audit source with synthetic fault fixtures
+        run: python -m research.ssq_dlt_d2_negative_audit.acceptance --output evidence/negative-replay
+      - name: Preserve receipts even after failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: negative-replay-component
+          path: evidence/negative-replay
+          if-no-files-found: error
