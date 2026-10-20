@@ -1,0 +1,32 @@
+name: SSQ DLT time and conditional inference toolkits
+on:
+  pull_request:
+    paths:
+      - 'research/ssq_dlt_conditional_inference/**'
+      - 'research/ssq_dlt_time_probe/**'
+      - '.github/workflows/ssq-dlt-time-inference.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows-isolated-toolkits:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    env:
+      GIT_CONFIG_COUNT: '1'
+      GIT_CONFIG_KEY_0: core.autocrlf
+      GIT_CONFIG_VALUE_0: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11.9'
+      - name: Test isolated synthetic toolkits without a TSA request
+        run: python -m research.ssq_dlt_conditional_inference.acceptance --output "${{ runner.temp }}/time-inference-receipt"
+      - name: Retain evidence on success or failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: time-inference-component
+          path: ${{ runner.temp }}/time-inference-receipt/
+          if-no-files-found: error

@@ -1,0 +1,55 @@
+Synthetic inference checks only
+===============================
+
+Run this agent-owned portion from the repository root:
+
+    python -m unittest research.ssq_dlt_conditional_inference.tests.test_adaptive_tree -v
+
+The tests enumerate every positive-probability path in finite adaptive ternary
+or binary trees, with depth at most six. They do not sample paths and use no RNG.
+Node probabilities, conditional means, path masses and rejection/noncoverage
+event probabilities use exact Fraction arithmetic. Boundary membership and
+exponentials are numerical: the independent reference uses 100-digit Decimal,
+compared with the module's 80-digit output at absolute tolerance 1e-65.
+Consequently “exact enumeration” does not mean a machine-checked transcendental
+inequality proof or an exact real-arithmetic boundary implementation.
+
+The adaptive ternary law changes both conditional advantage and discordance
+according to the previously observed difference. A separate null tree has
+nonpositive conditional means at every node. The binary hit law also varies
+with the preceding hit; a separate null law is bounded by the explicit p0.
+These are visibly non-IID processes. For every prefix depth, tests integrate
+the true-centered exponential and require expectation <=1, integrate actual
+one-sided/two-sided noncoverage probabilities for the path-specific average
+conditional mean, and check terminal p-value rejection probability in null
+trees. At least one actual tail failure/rejection event is required for the
+selected depth-six fixtures, so all checks are not merely vacuous wide bounds.
+A separate compensated tree has positive conditional means in its first three
+periods, followed by enough negative means to guarantee a nonpositive mean
+only at the fixed sixth endpoint. It checks the broader endpoint-average null
+without pretending that its early prefixes satisfy the per-period null.
+Each prefix is assessed as a separate fixed endpoint; this test collection is
+not a new optional-stopping rule or an unadjusted simultaneous coverage claim.
+
+The paired wrapper is checked against a legal common-outcome binary pair that
+realizes each difference; D=0 can be either 00 or 11 based on observed history.
+The test verifies V=discordant_count/4 and does not split paired observations
+into independent samples. Marginal H tests use [0,1], center=.25, and separately
+exercise null_mean=.35. This checks that the centering constant is distinct
+from the tested mean, and that paired and marginal scales are not confused.
+Grid p-values are independently reconstructed with log(K), rather than using
+the module's coefficient or its computed components as the reference formula.
+
+All numerical method choices, alpha values (including deliberately large values
+that make finite-tree tail events observable), centers and sample counts are
+test fixtures. They register no grid, family, forecasting rule, power target or
+prospective trial. Coverage of these finite trees is not proof of calibration
+for all dependent laws; the primary supermartingale proof supplies that result.
+Neither a passing test nor exact tree probabilities establish prediction skill,
+provenance, a stationary mean, future performance or a persistent lottery edge.
+The average conditional-mean estimand is allowed to differ by realized path.
+
+No archive, lottery outcome, holdout, old result, model selector, prediction
+ledger, external timestamp, network request or live forecast is loaded. A=0,
+NO_EDGE and qualified prospective sample count=0 remain unchanged. Formal 12,
+eight slots and approvals 01–04 remain UNESTABLISHED, as recorded by the user.
