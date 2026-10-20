@@ -1,0 +1,43 @@
+name: SSQ DLT V4.5 Source Cohort Quarantine
+
+on:
+  pull_request:
+    paths:
+      - "research/ssq_dlt_v45_audit/**"
+      - "research/ssq_dlt_agent_v1/core.py"
+      - "research/ssq_dlt_agent_graph/host.py"
+      - ".github/workflows/ssq-dlt-v45-quarantine.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scoped-regression:
+    name: Quarantine regression (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, ubuntu-latest]
+    env:
+      PYTHONUTF8: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+      GIT_CONFIG_COUNT: "1"
+      GIT_CONFIG_KEY_0: core.autocrlf
+      GIT_CONFIG_VALUE_0: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Existing signature dependency
+        run: python -m pip install cryptography==50.0.2
+      - name: Current byte scoped acceptance
+        run: python -B -m research.ssq_dlt_v45_audit.acceptance --output quarantine-ci
+      - name: Retain scoped logs and source hashes
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: quarantine-${{ matrix.os }}
+          path: quarantine-ci

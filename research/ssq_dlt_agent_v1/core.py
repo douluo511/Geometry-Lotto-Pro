@@ -17,6 +17,7 @@ import uuid
 from research.ssq_dlt_v45 import delivery, discovery, models, sources, workflow
 from research.ssq_dlt_v45.replay import replay_ready
 from research.ssq_dlt_v45.store import Store
+from research.ssq_dlt_v45_audit.promotion import registry as quarantine_registry, selection_result
 from .ledger import Ledger
 from .policy import AgentBlocked, BOUNDARY, canonical, digest, native, parse, validate_call, validate_config
 
@@ -24,7 +25,7 @@ from .policy import AgentBlocked, BOUNDARY, canonical, digest, native, parse, va
 def code_manifest():
     base=Path(__file__).resolve().parent.parent
     return {p.relative_to(base).as_posix():hashlib.sha256(p.read_bytes()).hexdigest()
-            for name in ('ssq_dlt_agent_v1','ssq_dlt_v45','ssq_dlt_d2_v44')
+            for name in ('ssq_dlt_agent_v1','ssq_dlt_v45','ssq_dlt_d2_v44','ssq_dlt_v45_audit')
             for p in sorted((base/name).rglob('*'))
             if p.is_file() and p.suffix in ('.py','.ps1','.xml','.txt')
             and not {'tests','__pycache__','evidence'}.intersection(p.relative_to(base/name).parts)}
@@ -218,6 +219,7 @@ class AgentContext:
                        official_next_issue='BLOCKED_NO_EXPLICIT_TARGET_DEADLINE',
                        prospective_evidence='BLOCKED_NO_EXTERNAL_TSA_OR_APPROVAL',
                        random_null={'SSQ':'15/528','DLT':'10/595'},
+                       known_quarantines=quarantine_registry(),model_selection=selection_result([]),
                        hypothesis_count=len(self._rows('hypothesis')))
             return value,deepcopy(value)
         if action=='register_hypothesis':
@@ -268,6 +270,7 @@ class AgentContext:
                     config_sha256=self.config_sha,code_sha256=digest(self.pin),games=games,
                     tool_receipts={k:(v['public'] if v else {'status':'NOT_RUN'}) for k,v in snapshot.items()},
                     hypotheses=self._rows('hypothesis'),experiments=self._rows('experiment'),
+                    known_quarantines=quarantine_registry(),model_selection=selection_result([]),
                     model_calls=self._rows('model_claim'),model_usage=self._rows('model_result'),
                     mail_status='QUEUE_PREPARATION_PENDING' if self.config['recipient'] else 'NOT_CONFIGURED',
                     deadline_enforcement='COOPERATIVE_TOOLS_AND_HTTP_TIMEOUT_NOT_OS_KILL',
@@ -376,6 +379,9 @@ class AgentContext:
 
 
 def render_html(report):
+    if (report.get('known_quarantines')!=quarantine_registry()
+            or report.get('model_selection')!=selection_result([])):
+        raise AgentBlocked('QUARANTINE_REPORT_BOUNDARY_MISMATCH')
     esc=lambda value:html.escape(str(value),quote=True)
     rows=[]; model_tables=[]
     for game,data in report['games'].items():
@@ -399,6 +405,7 @@ def render_html(report):
       '<div class="card"><b>沒有證明 D2 命中率提升。</b><p>固定程式管理選號、統計與准入；Agent 只能安排五組工具。未取得正式批准、可信事前封存及全新前瞻證據。正式八槽未替換。</p>'
       '<p>運行模式：<b>'+esc(report['execution_mode'])+'</b>。SDK_SIMULATED_MODEL 表示使用真正 SDK 執行迴圈與預設模擬模型，沒有呼叫付費模型；TOOLS_SMOKE_NO_MODEL 表示直接驗證工具。</p>'
       '<p>郵件狀態：'+esc(report['mail_status'])+'，此 Agent 僅建立待發佇列。費用採本地保守預留；工具截止為合作式檢查，並非可強制終止程序。</p></div>'
+      '<div class="card"><h2>原負控制隔離</h2><p>原來源試驗的 69／2880 為合成負控制，重現 PASS 不會清除科學反證 FAIL。根因仍 UNRESOLVED，該來源計畫及其派生證據不得晉級。隔離按精確計畫與來源譜系判定，不以模型同名封禁無關版本。</p><p>目前沒有正式准入的新主要挑戰者；原正式12項缺件，不能拿研究家族或合成負控12項代替。</p></div>'
       '<div class="card"><h2>本輪研究</h2><table><tr><th>彩種</th><th>狀態</th><th>歷史期數</th><th>最新完成期</th><th>主 D2</th><th>目標期</th></tr>'+''.join(rows)+'</table>'
       '<p>主 D2 只是固定版本的未指派期別研究輸出，不能視為可購彩的下一期預測。隨機基準：SSQ 15/528；DLT 10/595；合格前瞻樣本 0。</p>'+''.join(model_tables)+'</div>'
       '<div class="card"><h2>工具證據</h2><table>'+tools+'</table><p>'+diagnostic+'</p>'
