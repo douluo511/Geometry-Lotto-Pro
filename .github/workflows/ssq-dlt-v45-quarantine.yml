@@ -35,9 +35,15 @@ jobs:
         run: python -m pip install cryptography==50.0.2
       - name: Current byte scoped acceptance
         run: python -B -m research.ssq_dlt_v45_audit.acceptance --output quarantine-ci
+      - name: Real owned process ledger faults
+        run: python -B -m research.ssq_dlt_v45_audit.ledger_faults --output ledger-fault-ci
+      - name: Read only native recovery verification
+        run: python -B -m research.ssq_dlt_v45_audit.ledger_fault_verify --input ledger-fault-ci
       - name: Retain scoped logs and source hashes
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: quarantine-${{ matrix.os }}
-          path: quarantine-ci
+          path: |
+            quarantine-ci
+            ledger-fault-ci

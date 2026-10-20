@@ -62,3 +62,34 @@ original formal 12, fixed sample/stopping rules and independent prospective
 replication. Keep R2 BLOCKED, formal A0, NO_EDGE, repository independence FAIL and
 Final Gate FAIL. No ticket purchase, paid model calls, email or public release is
 performed by this audit component.
+
+`ledger_faults.py` runs four real OS-process scenarios on one newly created
+fixture ledger using the unchanged, SHA-pinned V4.5 Store: a parent kills an
+owned child before the real COMMIT, kills after append returned True, then
+releases two processes at a common barrier for equal and conflicting payloads.
+The first scenario uses a test-only two-page cache and large fixture payload to
+force uncommitted WAL frames. The child keeps an anchor connection open. Before
+recovery, the parent captures DB+WAL bytes; the WAL parser validates salts and
+cumulative checksums against the SQLite file-format specification. The parent
+never accepts a caller-supplied database or PID. All owned workers have bounded
+waits and are reaped. Python optimization is rejected because it would remove
+the harness assertions. No production ledger or lottery history is opened.
+
+```powershell
+python -B -m research.ssq_dlt_v45_audit.ledger_faults --output C:\research\new-ledger-fault-run
+python -B -m research.ssq_dlt_v45_audit.ledger_fault_verify --input C:\research\new-ledger-fault-run
+```
+
+The four process scenarios supplement the scoped unit suite; they are not four
+more unique unit tests or the complete nine P0 tests. Process termination does
+not establish physical power-loss durability, real boot, elapsed PT30M,
+network-disconnect recovery, Windows 11 or candidate/TSA admission. Those gates
+remain NOT_RUN/BLOCKED. The 49 frozen science sources remain unchanged.
+
+The separate verifier imports neither Store nor the producer's WAL parser. It
+recovers captured DB+WAL pairs using native SQLite in disposable copies, reads
+the closed final fixture with immutable read-only mode, checks worker/phase
+receipts and confirms every input byte remains unchanged. It does not claim an
+independent hardware witness or recompute the producer's frame-count metadata.
+Counterexamples include zero-exit kill claims, relabelled raw phase evidence,
+rehashed corrupted committed WAL and Python optimization removing assertions.
