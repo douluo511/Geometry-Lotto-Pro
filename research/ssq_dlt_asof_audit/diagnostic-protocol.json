@@ -1,0 +1,31 @@
+{
+  "schema": "V45_ASOF_FAULT_AUDIT_1",
+  "scope": "SYNTHETIC_FAULT_INJECTION_OF_EXISTING_DATA_HELPERS_NOT_LOTTERY_MODEL_OR_FULL_END_TO_END_P0",
+  "registered_before_execution": true,
+  "time_trust": "LOCAL_PLAN_ONLY_NOT_EXTERNAL_TIMESTAMP",
+  "functions": ["sources.load_pinned", "sources.agree", "workflow.history_stage"],
+  "games": ["SSQ", "DLT"],
+  "fixture_policy": "Four explicitly synthetic legal rows per game, consecutive January 2000 dates and same-year issue identities; fixed test clock 2000-01-10T00:00:00+00:00; target-value fixture is labelled synthetic and is not a prediction.",
+  "cases": [
+    {"id": "C0", "input": "Untainted synthetic history and matching file SHA", "expected": "Loader accepts; history stage has no target and publication_asof_verified false"},
+    {"id": "C1", "input": "Future dated row", "expected": "F01_FUTURE_OR_INTRADAY_UNPROVEN_DRAW"},
+    {"id": "C2", "input": "Alter old row numbers into synthetic target values, preserve legal old date and issue, re-pin file SHA", "expected": "Loader may accept; history stage must still have no target and publication_asof_verified false; record accepted taint as provenance limitation, not detection PASS"},
+    {"id": "C3", "input": "Alter old row numbers without re-pinning SHA", "expected": "HISTORY_SHA_MISMATCH"},
+    {"id": "C4", "input": "Same re-pinned taint plus forged row available_at and tsa_verified fields", "expected": "Self asserted metadata cannot provide as-of admission; target None and publication_asof_verified false"},
+    {"id": "C5", "input": "Conflicting clean and tainted same-issue official adapter fixtures", "expected": "OFFICIAL_SOURCE_CONFLICT; fixtures must not be represented as real official sources"},
+    {"id": "C6", "input": "Self-asserted late captured_at and sealed_at plus tsa_verified metadata at source stage", "expected": "No trusted as-of admission; target None and publication_asof_verified false; no claim of live TSA verification"},
+    {"id": "C7", "input": "Re-pinned taint only in older row outside mocked recent-source overlap", "expected": "History helper may retain the old taint despite matching recent-source fixtures; no target and publication_asof_verified false; explicitly record unresolved old-value provenance"}
+  ],
+  "precommit_outcomes": {
+    "expected": "PASS_DIAGNOSTIC_EXPECTATIONS_ONLY with tainted value detection limitations and as-of qualification BLOCKED",
+    "unexpected": "FAIL_KEEP_ORIGINAL_OUTPUTS_AND_LOGS",
+    "no_claims": ["actual historical leakage discovered", "trusted official source authenticity", "live TSA fault tested", "full runtime or physical P0 completed", "prediction hit rate improved"]
+  },
+  "new_prediction_candidates": 0,
+  "new_model_parameters": 0,
+  "new_prediction_seeds": 0,
+  "existing_sqlite_opened": false,
+  "lottery_holdout_rows_or_scores_used": false,
+  "formal_A": 0,
+  "decision": "NO_EDGE"
+}

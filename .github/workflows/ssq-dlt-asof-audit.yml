@@ -1,0 +1,32 @@
+name: SSQ DLT as-of fault audit
+on:
+  pull_request:
+    paths:
+      - 'research/ssq_dlt_asof_audit/**'
+      - 'research/ssq_dlt_v45/**'
+      - '.github/workflows/ssq-dlt-asof-audit.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows-asof-audit:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    env:
+      GIT_CONFIG_COUNT: '1'
+      GIT_CONFIG_KEY_0: core.autocrlf
+      GIT_CONFIG_VALUE_0: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11.9'
+      - name: Test synthetic old-value and timestamp faults
+        run: python -m research.ssq_dlt_asof_audit.acceptance --output "${{ runner.temp }}/asof-audit-receipt"
+      - name: Preserve receipts even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: asof-audit-component
+          path: ${{ runner.temp }}/asof-audit-receipt/
+          if-no-files-found: error
