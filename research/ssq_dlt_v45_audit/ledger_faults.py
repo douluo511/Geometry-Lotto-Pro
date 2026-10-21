@@ -80,7 +80,7 @@ class FaultStore(Store):
 
                 def trace(sql):
                     if sql.strip().upper() == "COMMIT":
-                        write_new(self.ready_path, dict(token=self.token, pid=os.getpid(),
+                        write_new(self.ready_path, dict(token=self.token, pid=os.getpid(), parent_pid=os.getppid(),
                             phase="BEFORE_REAL_COMMIT", in_transaction=db.in_transaction, **observed))
                         pause_for_parent()
 
@@ -95,7 +95,7 @@ def worker(output, name, token):
     if not __debug__:
         raise RuntimeError("FAULT_ACCEPTANCE_REQUIRES_ASSERTIONS_ENABLED")
     control = json.loads((output / "control.json").read_bytes())
-    if (control["schema"] != "V45_OWNED_FIXTURE_CONTROL_1" or control["token"] != token
+    if (control["schema"] != "V45_OWNED_FIXTURE_CONTROL_2" or control["token"] != token
             or control["owner_pid"] != os.getppid() or control["output"] != str(output)
             or sha((ROOT / "research/ssq_dlt_v45/store.py").read_bytes()) != STORE_SHA):
         raise ValueError("OWNED_FIXTURE_CONTROL_REQUIRED")
@@ -117,11 +117,11 @@ def worker(output, name, token):
             raise AssertionError("PARENT_DID_NOT_KILL_BEFORE_COMMIT")
         if name == "after_commit":
             result = store.append(KIND, name, payload(name))
-            write_new(ready_path, dict(token=token, pid=os.getpid(), phase="APPEND_RETURNED",
+            write_new(ready_path, dict(token=token, pid=os.getpid(), parent_pid=os.getppid(), phase="APPEND_RETURNED",
                                       append_result=result, **observed))
             pause_for_parent()
         key, variant = name.rsplit("_", 1)
-        write_new(ready_path, dict(token=token, pid=os.getpid(), phase="BEFORE_APPEND", **observed))
+        write_new(ready_path, dict(token=token, pid=os.getpid(), parent_pid=os.getppid(), phase="BEFORE_APPEND", **observed))
         wait_until(lambda: (output / (key + ".start.json")).exists())
         value = payload(key, variant if key == "concurrent_conflict" else "same")
         try:
@@ -130,7 +130,7 @@ def worker(output, name, token):
             if str(exc) != "IMMUTABLE_CONFLICT":
                 raise
             outcome = dict(kind="IMMUTABLE_CONFLICT")
-        write_new(output / (name + ".result.json"), dict(token=token, pid=os.getpid(), **outcome))
+        write_new(output / (name + ".result.json"), dict(token=token, pid=os.getpid(), parent_pid=os.getppid(), **outcome))
     finally:
         anchor.close()
     return 0
@@ -188,7 +188,7 @@ def run(output):
     output.mkdir(parents=True, exist_ok=False)
     before, science_before = source_manifest(), frozen_science()
     token = uuid.uuid4().hex  # IPC identity only, never a prediction seed.
-    write_new(output / "control.json", dict(schema="V45_OWNED_FIXTURE_CONTROL_1",
+    write_new(output / "control.json", dict(schema="V45_OWNED_FIXTURE_CONTROL_2",
         owner_pid=os.getpid(), token=token, output=str(output)))
     write_new(output / "source_manifest.json", before)
     store = Store(output / "fixture.sqlite")
@@ -217,6 +217,7 @@ def run(output):
                 except (json.JSONDecodeError, PermissionError):
                     return None
                 assert value["pid"] == child.pid and value["token"] == token
+                assert value["parent_pid"] == os.getpid()
                 assert value["journal_mode"] == "wal" and value["synchronous"] == 2
                 assert child.poll() is None
                 return value
@@ -273,6 +274,7 @@ def run(output):
                 assert child.wait(timeout=30) == 0
             results = [json.loads((output / (name + suffix + ".result.json")).read_bytes()) for suffix in ("_a", "_b")]
             assert all(r["pid"] == c.pid and r["token"] == token for r, c in zip(results, pair))
+            assert all(r["parent_pid"] == os.getpid() for r in results)
             if name == "concurrent_same":
                 assert sorted(r["inserted"] for r in results if r["kind"] == "APPEND") == [False, True]
                 expected = payload(name)
@@ -302,7 +304,7 @@ def run(output):
     after, science_after = source_manifest(), frozen_science()
     passed = (failure is None and len(cases) == 4 and before == after
               and science_before == science_after and science_after["status"] == "PASS")
-    report = dict(schema="V45_REAL_PROCESS_LEDGER_FAULTS_1",
+    report = dict(schema="V45_REAL_PROCESS_LEDGER_FAULTS_2",
         status="PASS_REAL_PROCESS_SCENARIOS_ONLY" if passed else "FAIL",
         cases=cases, scenarios_passed=len(cases), planned_scenarios=4, failure=failure,
         source_unchanged=before == after, original_frozen_science=science_after,

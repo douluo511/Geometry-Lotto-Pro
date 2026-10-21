@@ -90,6 +90,30 @@ The separate verifier imports neither Store nor the producer's WAL parser. It
 recovers captured DB+WAL pairs using native SQLite in disposable copies, reads
 the closed final fixture with immutable read-only mode, checks worker/phase
 receipts and confirms every input byte remains unchanged. It does not claim an
-independent hardware witness or recompute the producer's frame-count metadata.
+independent hardware witness.
 Counterexamples include zero-exit kill claims, relabelled raw phase evidence,
 rehashed corrupted committed WAL and Python optimization removing assertions.
+
+Independent review of the first receipt verifier found contradictory receipts
+could still pass: malformed control/owner, missing common-start barriers, false
+final payload digests, empty pre-commit WAL and a rehashed false producer source
+pin. The failed review and its probes are retained. Contract v2 binds positive
+parent/child identities, raw start barriers, final payload digests and the exact
+current producer/verifier sources. A separate streaming WAL parser validates
+header/checksums, salts and complete valid/commit frame summaries, in addition
+to native SQLite recovery. Old v1 receipts require their old version-matched
+verifier; they cannot silently become current v2 acceptance. None of these
+consistency checks authenticates a hardware witness or grants formal admission.
+
+A second independent review found that strings such as `"false"` could satisfy
+truthiness checks for source preservation and worker completion. That failed v2
+review is retained. These fields now require literal boolean True. Declared
+research/formal boundaries and recomputed WAL summaries require exact JSON
+types and values; booleans cannot stand in for integer zero or frame counts.
+New adversarial tests retain both observed string failures and those numeric
+confusions. Earlier positive process runs do not erase either failed review.
+
+A third independent probe round found a float alias in a concurrent ready
+PID when both raw and report ready points were changed together. The failed
+46-probe receipt is retained. Ready PIDs now also require exact integers,
+separately from result PIDs, and a regression preserves that exact counterexample.

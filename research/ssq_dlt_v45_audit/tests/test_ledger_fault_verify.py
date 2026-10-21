@@ -68,7 +68,105 @@ class FaultReceiptTests(unittest.TestCase):
         report = json.loads((target / "faults.json").read_bytes())
         report["cases"][1]["captured_wal"]["sha256"] = hashlib.sha256(raw).hexdigest()
         self.replace_report(target, report)
-        with self.assertRaisesRegex(ValueError, "NATIVE_CAPTURE_RECOVERY_MISMATCH"):
+        with self.assertRaisesRegex(ValueError, "WAL_FRAME_SUMMARY_MISMATCH"):
+            verify(target)
+
+    def test_invalid_control_cannot_pass(self):
+        target = self.changed_copy()
+        path = target / "control.json"
+        control = json.loads(path.read_bytes())
+        control.update(schema="INVALID", owner_pid=-12345)
+        path.write_text(json.dumps(control), encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "FIXTURE_CONTROL_CONTRACT"):
+            verify(target)
+
+    def test_positive_relabelled_parent_cannot_pass(self):
+        target = self.changed_copy()
+        path = target / "control.json"
+        control = json.loads(path.read_bytes())
+        control["owner_pid"] += 1000000
+        path.write_text(json.dumps(control), encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "FAULT_PARENT_CHILD_BINDING"):
+            verify(target)
+
+    def test_missing_barrier_cannot_pass(self):
+        target = self.changed_copy()
+        (target / "concurrent_same.start.json").unlink()
+        with self.assertRaisesRegex(ValueError, "CONCURRENT_BARRIER_REQUIRED"):
+            verify(target)
+
+    def test_false_payload_digest_cannot_pass(self):
+        target = self.changed_copy()
+        report = json.loads((target / "faults.json").read_bytes())
+        report["cases"][2]["final_payload_sha256"] = "0" * 64
+        self.replace_report(target, report)
+        with self.assertRaisesRegex(ValueError, "FINAL_PAYLOAD_DIGEST_MISMATCH"):
+            verify(target)
+
+    def test_empty_rehashed_precommit_wal_cannot_pass(self):
+        target = self.changed_copy()
+        path = target / "before_commit.captured.wal"
+        path.write_bytes(b"")
+        report = json.loads((target / "faults.json").read_bytes())
+        report["cases"][0]["captured_wal"].update(bytes=0, sha256=hashlib.sha256(b"").hexdigest(),
+            valid_frames=0, commit_frames=0, valid_frames_after_last_commit=0)
+        self.replace_report(target, report)
+        with self.assertRaisesRegex(ValueError, "WAL_HEADER_REQUIRED"):
+            verify(target)
+
+    def test_rehashed_false_producer_source_cannot_pass(self):
+        target = self.changed_copy()
+        path = target / "source_manifest.json"
+        manifest = json.loads(path.read_bytes())
+        manifest["research/ssq_dlt_v45_audit/ledger_faults.py"] = "0" * 64
+        path.write_text(json.dumps(manifest), encoding="utf-8")
+        report = json.loads((target / "faults.json").read_bytes())
+        compact = json.dumps(manifest, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+        report["source_manifest_sha256"] = hashlib.sha256(compact.encode()).hexdigest()
+        self.replace_report(target, report)
+        with self.assertRaisesRegex(ValueError, "CURRENT_PRODUCER_AND_VERIFIER_SOURCE_BINDING_REQUIRED"):
+            verify(target)
+
+    def test_string_false_source_unchanged_cannot_pass(self):
+        target = self.changed_copy()
+        report = json.loads((target / "faults.json").read_bytes())
+        report["source_unchanged"] = "false"
+        self.replace_report(target, report)
+        with self.assertRaisesRegex(ValueError, "INCOMPLETE_EXECUTION"):
+            verify(target)
+
+    def test_string_false_children_exited_cannot_pass(self):
+        target = self.changed_copy()
+        report = json.loads((target / "faults.json").read_bytes())
+        report["owned_children_exited"] = "false"
+        self.replace_report(target, report)
+        with self.assertRaisesRegex(ValueError, "INCOMPLETE_EXECUTION"):
+            verify(target)
+
+    def test_boolean_cannot_replace_zero_formal_samples(self):
+        target = self.changed_copy()
+        report = json.loads((target / "faults.json").read_bytes())
+        report["formal_A"] = False
+        self.replace_report(target, report)
+        with self.assertRaisesRegex(ValueError, "BOUNDARY_CHANGED"):
+            verify(target)
+
+    def test_boolean_cannot_replace_commit_frame_count(self):
+        target = self.changed_copy()
+        report = json.loads((target / "faults.json").read_bytes())
+        report["cases"][1]["captured_wal"]["commit_frames"] = True
+        self.replace_report(target, report)
+        with self.assertRaisesRegex(ValueError, "WAL_FRAME_SUMMARY_MISMATCH"):
+            verify(target)
+
+    def test_float_concurrency_ready_pid_cannot_alias_integer_result(self):
+        target = self.changed_copy()
+        report = json.loads((target / "faults.json").read_bytes())
+        point = report["cases"][2]["ready_points"][0]
+        point["pid"] = float(point["pid"])
+        (target / "concurrent_same_a.ready.json").write_text(json.dumps(point), encoding="utf-8")
+        self.replace_report(target, report)
+        with self.assertRaisesRegex(ValueError, "RAW_CONCURRENCY_POINT_MISMATCH"):
             verify(target)
 
     def test_optimized_python_rejected_without_output(self):
