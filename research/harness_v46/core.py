@@ -292,6 +292,15 @@ def freeze_shadow(conn, run_id, snapshot, prediction, frozen_at):
         (run_id, prediction["lottery"]),
     ).fetchone()
     if existing is None:
+        # A pre-v0.3 ledger can already contain predictions without this
+        # manifest. Fail closed rather than silently pinning an incompatible
+        # snapshot; legacy data require a new RUN_ID and separate audit.
+        legacy = conn.execute(
+            "SELECT 1 FROM predictions WHERE run_id=? AND lottery=? LIMIT 1",
+            (run_id, prediction["lottery"]),
+        ).fetchone()
+        if legacy is not None:
+            raise GateError("legacy run lacks context; start a new RUN_ID")
         conn.execute(
             "INSERT INTO run_context "
             "(run_id,lottery,target_issue,snapshot_sha256,as_of,sales_cutoff) "
