@@ -18,9 +18,11 @@ def run_forecast(args):
         init_ledger(db)
         actual_local_time = datetime.now(timezone.utc).isoformat()
         receipts = []
-        for candidate in forecasts:
-            sha = freeze_shadow(db, args.run_id, snapshot, candidate, actual_local_time)
-            receipts.append({
+        # All-or-nothing across the six model rows for this lottery and run.
+        with db:
+            for candidate in forecasts:
+                sha = freeze_shadow(db, args.run_id, snapshot, candidate, actual_local_time)
+                receipts.append({
                 "model": candidate["model"],
                 "lottery": candidate["lottery"],
                 "prediction_sha256": sha,
@@ -29,7 +31,8 @@ def run_forecast(args):
                 "ticket": candidate["ticket"],
                 "evidence_class": "SHADOW",
                 "external_tsa": "NOT_RUN",
-            })
+                "parameters_sha256": candidate["parameters_sha256"],
+                })
         print(json.dumps({
             "run_id": args.run_id,
             "created_at_local_untrusted": actual_local_time,
