@@ -100,6 +100,49 @@ class GateTests(unittest.TestCase):
         with self.assertRaises(core.GateError):
             core.validate_forecast(p, data)
 
+    def test_replay_rejects_legal_but_substituted_numbers(self):
+        # All mutations keep legal ball ranges and may preserve primary D2.
+        for lottery in ("SSQ", "DLT"):
+            data = fixture(lottery)
+            rules = core.RULES[lottery]
+            for model in core.MODELS:
+                with self.subTest(lottery=lottery, model=model):
+                    p = core.forecast(data, model)
+                    p["candidates_1_to_5"][2], p["candidates_1_to_5"][3] = (
+                        p["candidates_1_to_5"][3], p["candidates_1_to_5"][2])
+                    with self.assertRaises(core.GateError):
+                        core.validate_forecast(p, data)
+
+                    p = core.forecast(data, model)
+                    other_back = [n for n in range(1, rules["back_pool"] + 1)
+                                  if n not in p["ticket"]["back"]]
+                    p["ticket"]["back"] = sorted(other_back[:rules["back"]])
+                    with self.assertRaises(core.GateError):
+                        core.validate_forecast(p, data)
+
+                    p = core.forecast(data, model)
+                    p["version"] = "forged-version"
+                    with self.assertRaises(core.GateError):
+                        core.validate_forecast(p, data)
+
+                    if lottery == "SSQ":
+                        p = core.forecast(data, model)
+                        filler = next(n for n in range(1, rules["pool"] + 1)
+                                      if n not in p["ticket"]["front"])
+                        sixth = next(n for n in p["ticket"]["front"]
+                                     if n not in p["candidates_1_to_5"])
+                        p["ticket"]["front"] = sorted(
+                            (set(p["ticket"]["front"]) - {sixth}) | {filler})
+                        with self.assertRaises(core.GateError):
+                            core.validate_forecast(p, data)
+
+    def test_null_attribution_cannot_be_replaced(self):
+        data = fixture()
+        p = core.forecast(data, "random_null")
+        p["null_seed_id"] = "substituted"
+        with self.assertRaises(core.GateError):
+            core.validate_forecast(p, data)
+
     def test_immutable_freeze_and_duplicate(self):
         data = fixture()
         p = core.forecast(data, "pairwise_d2")
