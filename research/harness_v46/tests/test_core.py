@@ -163,6 +163,22 @@ class GateTests(unittest.TestCase):
         with self.assertRaises(sqlite3.DatabaseError):
             db.execute("DELETE FROM run_context")
 
+    def test_legacy_rows_require_fresh_run_id(self):
+        original = fixture()
+        db = sqlite3.connect(":memory:")
+        core.init_ledger(db)
+        db.execute(
+            "INSERT INTO predictions VALUES(?,?,?,?,?,?,?,?)",
+            ("LEGACY-RUN", "SSQ", "hot60", "2026-10-21T00:00:00+00:00",
+             core.digest(original), "old_hash", "{}", "SHADOW"),
+        )
+        with self.assertRaisesRegex(core.GateError, "legacy run lacks context"):
+            core.freeze_shadow(db, "LEGACY-RUN", original,
+                               core.forecast(original, "ewma"),
+                               "2026-10-21T00:00:00+00:00")
+        self.assertEqual(
+            db.execute("SELECT count(*) FROM run_context").fetchone()[0], 0)
+
     def test_run_id_cannot_switch_target_issue(self):
         original = fixture()
         changed = fixture()
