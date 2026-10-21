@@ -199,19 +199,42 @@ class Ledger:
                 BEGIN SELECT RAISE(ABORT, 'APPEND_ONLY'); END;
         """)
 
-    def append(self, event_id, kind, payload):
-        encoded = prior.canonical_bytes(payload).decode("utf-8")
-        checksum = prior.digest(payload)
-        old = self.db.execute("SELECT kind,sha256,payload FROM events WHERE event_id=?",
-                              (event_id,)).fetchone()
-        if old is not None:
-            if old != (kind, checksum, encoded):
+    def append_batch(self, records):
+        """One SQL transaction for all dual-game events; no partial SSQ commit.
+
+        A ledger event is keyed by its caller-supplied stable event_id. Exact
+        retries are idempotent; differing bytes or kinds must fail closed.
+        """
+        prepared = []
+        seen = {}
+        for event_id, kind, payload in records:
+            encoded = prior.canonical_bytes(payload).decode("utf-8")
+            checksum = prior.digest(payload)
+            identity = (kind, checksum, encoded)
+            if event_id in seen and seen[event_id] != identity:
                 raise HarnessBlocked("CONFLICTING_REPLAY_ATTEMPT")
-            return checksum
+            seen[event_id] = identity
+            prepared.append((event_id, kind, checksum, encoded))
+        if not prepared:
+            raise HarnessBlocked("EMPTY_ATOMIC_BATCH")
         with self.db:
-            self.db.execute("INSERT INTO events VALUES (?,?,?,?)",
-                            (event_id, kind, checksum, encoded))
-        return checksum
+            for event_id, kind, checksum, encoded in prepared:
+                old = self.db.execute(
+                    "SELECT kind,sha256,payload FROM events WHERE event_id=?",
+                    (event_id,),
+                ).fetchone()
+                if old is not None:
+                    if old != (kind, checksum, encoded):
+                        raise HarnessBlocked("CONFLICTING_REPLAY_ATTEMPT")
+                    continue
+                self.db.execute(
+                    "INSERT INTO events VALUES (?,?,?,?)",
+                    (event_id, kind, checksum, encoded),
+                )
+        return {event_id: checksum for event_id, _, checksum, _ in prepared}
+
+    def append(self, event_id, kind, payload):
+        return self.append_batch([(event_id, kind, payload)])[event_id]
 
     def verify(self):
         rows = self.db.execute("SELECT event_id,sha256,payload FROM events").fetchall()
