@@ -17,7 +17,8 @@ The multi-product repository itself is NOT a final independent release repositor
 - Each algorithm produces 5 ordered front candidates, one unique D2 (first
   two), and one valid full ticket. Back numbers never affect D2.
 - SQLite local append-only guard triggers, uniqueness, same-data identity,
-  cutoff checks, and a read-only score operation.
+  cutoff checks, an atomic single-lottery CLI batch, parameter SHA-256,
+  and a read-only score operation.
 - Synthetic reproducibility, cross-lottery, tamper, and gate tests.
 - No live ingestion, isolated LLM processes, unattended scheduler, external
   trusted timestamps, official draw verification, multi-day statistical trial,
@@ -104,8 +105,10 @@ UNRESOLVED; this bootstrap must not mark it fixed.
    real Windows restart / physical P0, security hardening — BLOCKED.
 6. Local SQLite triggers prevent normal row modification but not DBA-level
    edits or file replacement; they are defense-in-depth, NOT WORM storage.
-7. An interrupted multi-model CLI batch may contain a partial local SHADOW
-   run in this bootstrap. Treat as incomplete; never as a formal release.
+7. The CLI wraps each one-lottery six-model batch in one SQLite transaction:
+   duplicate/fault aborts that batch without partial rows. An SSQ run and a
+   separate DLT run do NOT yet form one atomic dual-lottery batch; partial
+   cross-lottery execution remains BLOCKED from formal release.
 
 **Interpretation:** code/test success validates software contracts only.
 It does not establish improved odds, official data correctness, automated
