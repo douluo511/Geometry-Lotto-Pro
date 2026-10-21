@@ -1,0 +1,33 @@
+name: SSQ DLT process recovery laboratory
+on:
+  pull_request:
+    paths:
+      - 'research/ssq_dlt_process_faults/**'
+      - '.github/workflows/ssq-dlt-process-recovery.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows-process-recovery:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    env:
+      GIT_CONFIG_COUNT: '1'
+      GIT_CONFIG_KEY_0: core.autocrlf
+      GIT_CONFIG_VALUE_0: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Preserve the frozen Windows checkout bytes
+        run: git -c core.autocrlf=false checkout-index --force -- .gitattributes .github/workflows/ssq-dlt-asof-audit.yml .github/workflows/ssq-dlt-negative-replay.yml .github/workflows/ssq-dlt-time-inference.yml .github/workflows/ssq-dlt-process-recovery.yml
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11.9'
+      - name: Component tests and eight real child-process scenarios
+        run: python -m research.ssq_dlt_process_faults.acceptance --output "${{ runner.temp }}/process-recovery-evidence"
+      - name: Preserve failures and original baseline defect
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: process-recovery-laboratory
+          path: ${{ runner.temp }}/process-recovery-evidence/
+          if-no-files-found: error
