@@ -1,0 +1,286 @@
+"""V4.6 isolated research core. No network, purchase, or formal A promotion."""
+from __future__ import annotations
+
+import hashlib
+import json
+import random
+import sqlite3
+from collections import Counter
+from datetime import datetime
+from itertools import combinations
+
+MODELS = ("hot60", "ewma", "shrinkmix", "pairwise_d2", "challenger", "random_null")
+RULES = {
+    "SSQ": {"pool": 33, "front": 6, "back_pool": 16, "back": 1, "d2": 15 / 528},
+    "DLT": {"pool": 35, "front": 5, "back_pool": 12, "back": 2, "d2": 10 / 595},
+}
+VERSION = "v46-research-core-0.1"
+NULL_SEED = "SSQ-DLT-V46-NULL-v1-20261022"  # must be frozen before target
+
+
+class GateError(ValueError):
+    """A hard research gate failed; never fabricate a prediction."""
+
+
+def canon(value):
+    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
+def digest(value):
+    return hashlib.sha256(canon(value).encode("utf-8")).hexdigest()
+
+
+def dt(value):
+    try:
+        stamp = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except (ValueError, AttributeError) as exc:
+        raise GateError("invalid ISO timestamp") from exc
+    if stamp.tzinfo is None:
+        raise GateError("timestamp must include timezone")
+    return stamp
+
+
+def _balls(values, maximum, required):
+    if (not isinstance(values, list) or len(values) != required
+            or any(type(v) is not int or v < 1 or v > maximum for v in values)
+            or len(set(values)) != required or values != sorted(values)):
+        raise GateError("invalid or noncanonical draw balls")
+
+
+def validate_snapshot(snapshot):
+    """Strict as-of structure only. Official authenticity requires 01 review."""
+    if not isinstance(snapshot, dict) or snapshot.get("lottery") not in RULES:
+        raise GateError("invalid lottery")
+    r = RULES[snapshot["lottery"]]
+    draws = snapshot.get("draws")
+    if not isinstance(draws, list) or not draws:
+        raise GateError("missing draw history")
+    as_of, cutoff, target_time = (dt(snapshot[k]) for k in
+                                  ("as_of", "sales_cutoff", "target_draw_at"))
+    if not as_of < cutoff <= target_time:
+        raise GateError("time lock violation")
+    if not str(snapshot.get("target_issue", "")).isdigit():
+        raise GateError("invalid target issue")
+    last_issue, last_time = -1, None
+    for draw in draws:
+        issue = str(draw.get("issue", ""))
+        if not issue.isdigit() or int(issue) <= last_issue:
+            raise GateError("duplicate/out-of-order issue")
+        last_issue = int(issue)
+        _balls(draw["front"], r["pool"], r["front"])
+        _balls(draw["back"], r["back_pool"], r["back"])
+        occurred = dt(draw["drawn_at"])
+        published = dt(draw["published_at"])
+        if not occurred <= published <= as_of:
+            raise GateError("future data or invalid publication time")
+        if last_time is not None and occurred <= last_time:
+            raise GateError("time travel or out-of-order draw")
+        last_time = occurred
+    if int(snapshot["target_issue"]) <= last_issue:
+        raise GateError("target not strictly future")
+    if not last_time < as_of:
+        raise GateError("last draw later than snapshot")
+    return digest(snapshot)
+
+
+def _rng(*parts):
+    seed = hashlib.sha256("|".join(map(str, parts)).encode()).digest()
+    return random.Random(int.from_bytes(seed, "big"))
+
+
+def _rank(scores):
+    # fixed and reproducible tie-break: numeric ascending
+    return sorted(scores, key=lambda n: (-scores[n], n))
+
+
+def _freq(draws, n, pool):
+    count = Counter(x for d in draws[-n:] for x in d["front"])
+    return {i: count[i] / min(n, len(draws)) for i in range(1, pool + 1)}
+
+
+def _pair_scores(draws, pool, window=120):
+    tail = draws[-window:]
+    n = len(tail)
+    counts = Counter(x for d in tail for x in d["front"])
+    pairs = Counter(p for d in tail for p in combinations(d["front"], 2))
+    k = len(tail[0]["front"])
+    scores = {}
+    for a, b in combinations(range(1, pool + 1), 2):
+        expected = counts[a] * counts[b] * (k - 1) / (n * k)
+        # residual shrunk to limit rare-pair noise; hypothesis, not advantage
+        residual = (pairs[(a, b)] - expected) / (n + 200)
+        scores[(a, b)] = ((counts[a] + counts[b]) / n) + residual
+    return scores
+
+
+def _model_ranking(snapshot, model):
+    r = RULES[snapshot["lottery"]]
+    history, pool = snapshot["draws"], r["pool"]
+    if model == "hot60":
+        if len(history) < 60:
+            raise GateError("hot60 needs 60 historical draws")
+        return _rank(_freq(history, 60, pool))
+    if model == "ewma":
+        if len(history) < 60:
+            raise GateError("ewma needs 60 historical draws")
+        weights = {n: 0.0 for n in range(1, pool + 1)}
+        for d in history[-120:]:
+            for n in weights:
+                weights[n] *= .92
+            for n in d["front"]:
+                weights[n] += .08
+        return _rank(weights)
+    if model == "shrinkmix":
+        if len(history) < 60:
+            raise GateError("shrinkmix needs 60 historical draws")
+        recent = _freq(history, 60, pool)
+        lifetime = _freq(history, len(history), pool)
+        k = 60 / (60 + 200)
+        return _rank({i: k * recent[i] + (1 - k) * lifetime[i] for i in recent})
+    if model == "pairwise_d2":
+        if len(history) < 60:
+            raise GateError("pairwise needs 60 historical draws")
+        pairs = _pair_scores(history, pool)
+        first, second = sorted(pairs, key=lambda p: (-pairs[p], p))[0]
+        rest = [n for n in _rank(_freq(history, 60, pool))
+                if n not in (first, second)]
+        return [first, second] + rest
+    if model == "challenger":
+        if len(history) < 120:
+            raise GateError("challenger needs 120 historical draws")
+        windows = [ _pair_scores(history[-w:], pool, w) for w in (30, 60, 120) ]
+        pairs = windows[0].keys()
+        # Robust minimum across fixed windows; a separate falsifiable hypothesis.
+        best = min(pairs, key=lambda p: (-min(d[p] for d in windows), p))
+        rest = [n for n in _rank(_freq(history, 120, pool))
+                if n not in best]
+        return [*best] + rest
+    if model == "random_null":
+        nums = list(range(1, pool + 1))
+        _rng(NULL_SEED, snapshot["lottery"], snapshot["target_issue"], "front").shuffle(nums)
+        return nums
+    raise GateError("unknown model")
+
+
+def forecast(snapshot, model):
+    snapshot_sha = validate_snapshot(snapshot)
+    if model not in MODELS:
+        raise GateError("model not preregistered")
+    r = RULES[snapshot["lottery"]]
+    ranking = _model_ranking(snapshot, model)
+    first_five = ranking[:5]
+    front = sorted(ranking[:r["front"]])
+    others = list(range(1, r["back_pool"] + 1))
+    _rng(NULL_SEED, snapshot["lottery"], snapshot["target_issue"], model, "back").shuffle(others)
+    back = sorted(others[:r["back"]])
+    prediction = {
+        "version": VERSION,
+        "model": model,
+        "lottery": snapshot["lottery"],
+        "target_issue": str(snapshot["target_issue"]),
+        "snapshot_sha256": snapshot_sha,
+        "candidates_1_to_5": first_five,
+        "primary_d2": first_five[:2],
+        "ticket": {"front": front, "back": back},
+        "null_seed_id": NULL_SEED if model == "random_null" else None,
+        "evidence_class": "SHADOW",
+        "formal_a_eligible": False,
+    }
+    validate_forecast(prediction, snapshot)
+    return prediction
+
+
+def validate_forecast(prediction, snapshot):
+    if prediction.get("snapshot_sha256") != validate_snapshot(snapshot):
+        raise GateError("snapshot mismatch")
+    if prediction.get("target_issue") != str(snapshot["target_issue"]):
+        raise GateError("issue mismatch")
+    if prediction.get("lottery") != snapshot["lottery"] or prediction.get("model") not in MODELS:
+        raise GateError("identity mismatch")
+    r = RULES[snapshot["lottery"]]
+    candidates = prediction.get("candidates_1_to_5")
+    if (not isinstance(candidates, list) or len(candidates) != 5
+            or len(set(candidates)) != 5
+            or any(type(x) is not int or not 1 <= x <= r["pool"] for x in candidates)
+            or prediction.get("primary_d2") != candidates[:2]):
+        raise GateError("invalid ordered candidates or primary D2")
+    ticket = prediction.get("ticket", {})
+    _balls(ticket.get("front"), r["pool"], r["front"])
+    _balls(ticket.get("back"), r["back_pool"], r["back"])
+    if not set(candidates).issubset(ticket["front"]):
+        raise GateError("five candidates must be included in ticket")
+    if prediction.get("formal_a_eligible") is not False:
+        raise GateError("research core cannot grant formal A")
+    return True
+
+
+SCHEMA = """
+CREATE TABLE IF NOT EXISTS predictions (
+    run_id TEXT NOT NULL,
+    lottery TEXT NOT NULL,
+    model TEXT NOT NULL,
+    frozen_at TEXT NOT NULL,
+    snapshot_sha256 TEXT NOT NULL,
+    prediction_sha256 TEXT NOT NULL,
+    payload TEXT NOT NULL,
+    evidence_class TEXT NOT NULL CHECK(evidence_class='SHADOW'),
+    PRIMARY KEY(run_id, lottery, model)
+);
+CREATE TRIGGER IF NOT EXISTS prevent_prediction_update BEFORE UPDATE ON predictions
+BEGIN SELECT RAISE(ABORT, 'immutable prediction'); END;
+CREATE TRIGGER IF NOT EXISTS prevent_prediction_delete BEFORE DELETE ON predictions
+BEGIN SELECT RAISE(ABORT, 'immutable prediction'); END;
+CREATE TABLE IF NOT EXISTS audit_events (
+    event_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id TEXT NOT NULL,
+    event_type TEXT NOT NULL,
+    payload TEXT NOT NULL
+);
+CREATE TRIGGER IF NOT EXISTS prevent_audit_update BEFORE UPDATE ON audit_events
+BEGIN SELECT RAISE(ABORT, 'immutable event'); END;
+CREATE TRIGGER IF NOT EXISTS prevent_audit_delete BEFORE DELETE ON audit_events
+BEGIN SELECT RAISE(ABORT, 'immutable event'); END;
+"""
+
+
+def init_ledger(conn):
+    conn.executescript(SCHEMA)
+
+
+def freeze_shadow(conn, run_id, snapshot, prediction, frozen_at):
+    """Atomic local record. This is NOT an external trustworthy timestamp."""
+    validate_forecast(prediction, snapshot)
+    if not run_id or not isinstance(run_id, str):
+        raise GateError("missing run id")
+    if not dt(snapshot["as_of"]) <= dt(frozen_at) < dt(snapshot["sales_cutoff"]):
+        raise GateError("prediction not before sales cutoff")
+    payload = canon(prediction)
+    prediction_sha = hashlib.sha256(payload.encode()).hexdigest()
+    with conn:
+        conn.execute(
+            "INSERT INTO predictions VALUES(?,?,?,?,?,?,?,?)",
+            (run_id, prediction["lottery"], prediction["model"], frozen_at,
+             prediction["snapshot_sha256"], prediction_sha, payload, "SHADOW"))
+        conn.execute(
+            "INSERT INTO audit_events(run_id,event_type,payload) VALUES(?,?,?)",
+            (run_id, "LOCAL_SHADOW_FREEZE", canon({
+                "model": prediction["model"], "lottery": prediction["lottery"],
+                "prediction_sha256": prediction_sha, "external_tsa": "NOT_RUN"})))
+    return prediction_sha
+
+
+def score(frozen_prediction, official_result):
+    """Read-only per-draw diagnostic scoring; no proof of prediction advantage."""
+    if (frozen_prediction["lottery"] != official_result["lottery"]
+            or frozen_prediction["target_issue"] != str(official_result["issue"])):
+        raise GateError("wrong issue or lottery")
+    r = RULES[frozen_prediction["lottery"]]
+    _balls(official_result["front"], r["pool"], r["front"])
+    _balls(official_result["back"], r["back_pool"], r["back"])
+    found = set(official_result["front"])
+    picks = frozen_prediction["candidates_1_to_5"]
+    d = {f"D{k}": int(set(picks[:k]).issubset(found)) for k in range(1, 6)}
+    d["hit_count_5"] = len(set(picks) & found)
+    d["ticket_front_hits"] = len(set(frozen_prediction["ticket"]["front"]) & found)
+    d["ticket_back_hits"] = len(set(frozen_prediction["ticket"]["back"]) & set(official_result["back"]))
+    return d
