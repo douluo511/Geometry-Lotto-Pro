@@ -146,8 +146,8 @@ def validate_candidate(game, candidate):
         prior.validate_numbers(ticket["back"], back_count, back_upper)
     except (TypeError, KeyError, prior.ModelBlocked) as exc:
         raise HarnessBlocked("INVALID_LEGAL_SINGLE") from exc
-    if not set(order[:2]).issubset(ticket["front"]):
-        raise HarnessBlocked("D2_MISSING_FROM_TICKET")
+    if not set(order).issubset(ticket["front"]):
+        raise HarnessBlocked("ORDERED_DAN_MISSING_FROM_TICKET")
 
 
 def score_research(prediction, draw_front, draw_back):
