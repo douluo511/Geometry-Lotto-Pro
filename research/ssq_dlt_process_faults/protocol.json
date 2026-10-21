@@ -1,0 +1,33 @@
+{
+  "schema": "v45-process-recovery-protocol-v1",
+  "scope": "SYNTHETIC_STATE_REAL_PROCESS_TERMINATION_AND_LOOPBACK_SMTP_ONLY",
+  "fixture_clock": "2000-02-07T07:00:00+00:00",
+  "restart_delay_minutes_fixture": 30,
+  "recipient": "synthetic@example.invalid",
+  "external_network": false,
+  "physical_power_or_boot_test": false,
+  "formal_admission": false,
+  "A": 0,
+  "decision": "NO_EDGE",
+  "qualified_prospective_samples": 0,
+  "cases": [
+    {"id": "R00", "name": "Normal runtime and new-process identical retry", "expectation": "One cycle and stable complete report"},
+    {"id": "R01", "name": "External kill after runtime cycle commit before report", "expectation": "Committed cycle survives and restart materializes original report"},
+    {"id": "R02", "name": "External kill after outbox commit before eml", "expectation": "Original outbox reused and one eml materialized"},
+    {"id": "R03", "name": "Original workflow outbox-publication gap", "expectation": "Test suspected report/outbox hash mismatch; preserve observed failure"},
+    {"id": "R04", "name": "Versioned workflow with durable publication intent", "expectation": "Same gap leaves original report SHA bound to outbox and publication"},
+    {"id": "R05", "name": "External kill after send_started before DATA", "expectation": "Zero DATA, UNKNOWN after restart, no automatic resend; possible delivery loss"},
+    {"id": "R06", "name": "External kill after DATA250 before sent commit", "expectation": "One accepted DATA, UNKNOWN after restart, no automatic resend"},
+    {"id": "R07", "name": "Receiver disconnects after complete DATA before250", "expectation": "One received DATA, no250, UNKNOWN after restart, no automatic resend"}
+  ],
+  "prior_covered_excluded": [
+    "Existing uncommitted SQLite child os._exit77 rollback test is not a new result",
+    "Existing SQL trigger UPDATE DELETE REPLACE tests are not rerun as new coverage"
+  ],
+  "fixture_substitutions": [
+    "All history is invented and marked synthetic",
+    "Workflow discover stage is explicitly prefilled as an offline stub; AnySearch is not tested",
+    "Fault hook calls real Store.append and only pauses before or after the named side effect",
+    "SMTP uses a local test CA trusted only by the child, with TLS hostname checking enabled"
+  ]
+}
