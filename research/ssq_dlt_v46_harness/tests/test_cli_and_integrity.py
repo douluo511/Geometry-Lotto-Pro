@@ -4,6 +4,8 @@ import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
+from research.ssq_dlt_v45.models import digest
 
 from research.ssq_dlt_v46_harness.__main__ import predict, synthetic_history
 from research.ssq_dlt_v46_harness.core import HarnessBlocked, Ledger
@@ -45,6 +47,60 @@ class EndToEndTests(unittest.TestCase):
                 predict(snap, db, out)
             self.assertFalse(out.exists())
             self.assertFalse(db.exists())
+
+    def test_conflicting_second_game_rolls_back_first_and_no_output(self):
+        with tempfile.TemporaryDirectory() as root:
+            root = Path(root)
+            snapshot = self.snapshot()
+            snap, out, db = root / "snapshot.json", root / "out.json", root / "ledger.sqlite3"
+            snap.write_text(json.dumps(snapshot), encoding="utf-8")
+            ledger = Ledger(db)
+            # Existing DLT identity has conflicting bytes. SSQ must not remain
+            # newly frozen after the second insert rejects the batch.
+            event_id = "DLT:00066:" + digest(snapshot)
+            ledger.append(event_id, "SHADOW_FORECAST", {"intentionally": "conflicting"})
+            ledger.close()
+            with self.assertRaisesRegex(HarnessBlocked, "CONFLICTING_REPLAY"):
+                predict(snap, db, out)
+            self.assertFalse(out.exists())
+            self.assertEqual(list(root.glob(".out.json.staged-*")), [])
+            ledger = Ledger(db)
+            self.assertEqual(ledger.verify(), 1)
+            self.assertEqual(
+                ledger.db.execute(
+                    "SELECT count(*) FROM events WHERE event_id LIKE 'SSQ:%'"
+                ).fetchone()[0], 0)
+            ledger.close()
+
+    def test_failed_publication_keeps_complete_ledger_no_partial_report(self):
+        with tempfile.TemporaryDirectory() as root:
+            root = Path(root)
+            snap, out, db = root / "snapshot.json", root / "out.json", root / "ledger.sqlite3"
+            snap.write_text(json.dumps(self.snapshot()), encoding="utf-8")
+            with patch("research.ssq_dlt_v46_harness.__main__.os.link",
+                       side_effect=OSError("simulated publish failure")):
+                with self.assertRaisesRegex(HarnessBlocked, "OUTPUT_PUBLISH_FAILED"):
+                    predict(snap, db, out)
+            self.assertFalse(out.exists())
+            self.assertEqual(list(root.glob(".out.json.staged-*")), [])
+            ledger = Ledger(db)
+            self.assertEqual(ledger.verify(), 2)
+            ledger.close()
+
+    def test_batch_ledger_rollback_on_second_event_conflict(self):
+        with tempfile.TemporaryDirectory() as root:
+            ledger = Ledger(Path(root) / "ledger.sqlite3")
+            ledger.append("DLT:existing", "FORECAST", {"data": "original"})
+            with self.assertRaisesRegex(HarnessBlocked, "CONFLICTING_REPLAY"):
+                ledger.append_batch([
+                    ("SSQ:new", "FORECAST", {"data": "candidate"}),
+                    ("DLT:existing", "FORECAST", {"data": "changed"}),
+                ])
+            self.assertEqual(ledger.verify(), 1)
+            self.assertIsNone(ledger.db.execute(
+                "SELECT event_id FROM events WHERE event_id='SSQ:new'"
+            ).fetchone())
+            ledger.close()
 
     def test_sql_replace_also_blocked(self):
         with tempfile.TemporaryDirectory() as root:
