@@ -92,6 +92,10 @@ class GateTests(unittest.TestCase):
         with self.assertRaises(core.GateError):
             core.validate_forecast(p, data)
         p = core.forecast(data, "hot60")
+        p["parameters_sha256"] = "bad"
+        with self.assertRaises(core.GateError):
+            core.validate_forecast(p, data)
+        p = core.forecast(data, "hot60")
         p["formal_a_eligible"] = True
         with self.assertRaises(core.GateError):
             core.validate_forecast(p, data)
@@ -113,6 +117,18 @@ class GateTests(unittest.TestCase):
             db.execute("DELETE FROM predictions")
         with self.assertRaises(sqlite3.DatabaseError):
             db.execute("DELETE FROM audit_events")
+
+    def test_batch_rollback_all_or_nothing(self):
+        data = fixture()
+        p = core.forecast(data, "hot60")
+        db = sqlite3.connect(":memory:")
+        core.init_ledger(db)
+        with self.assertRaises(sqlite3.IntegrityError):
+            with db:
+                core.freeze_shadow(db, "ROLLBACK-TEST", data, p, "2026-10-21T00:00:00+00:00")
+                core.freeze_shadow(db, "ROLLBACK-TEST", data, p, "2026-10-21T00:00:00+00:00")
+        self.assertEqual(db.execute("SELECT count(*) FROM predictions").fetchone()[0], 0)
+        self.assertEqual(db.execute("SELECT count(*) FROM audit_events").fetchone()[0], 0)
 
     def test_late_freeze_blocked(self):
         data = fixture()
