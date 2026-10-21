@@ -117,3 +117,32 @@ A third independent probe round found a float alias in a concurrent ready
 PID when both raw and report ready points were changed together. The failed
 46-probe receipt is retained. Ready PIDs now also require exact integers,
 separately from result PIDs, and a regression preserves that exact counterexample.
+
+`readonly_replay.py` independently reads an existing, closed and checkpointed
+V4.5 research event ledger. It imports no Store, original producer, competition
+or original replay module and opens SQLite with `mode=ro&immutable=1` and query
+only. Any WAL/SHM/journal sidecar, including an empty one, is rejected rather
+than silently ignoring uncheckpointed data or recovering the source. The exact
+49 frozen scientific sources and fixed registry are bound before and after.
+
+```powershell
+python -B -m research.ssq_dlt_v45_audit.readonly_replay --input-ledger C:\research\closed.sqlite --output C:\research\new-readonly-report
+```
+
+Every registered issue remains visible. Complete same-issue prediction/outcome
+pairs receive separate D1--D5 scores for all five fixed research identities;
+the exact primary D2 is checked rather than sliced from D5. The documented
+fixed-seed, per-k Random NULL is independently regenerated. Missing and invalid
+periods remain explicit alongside valid scores. No interim inferential tests
+are run; the fixed research four-vs-NULL paired/Holm comparison is computed only
+when the entire registered plan is complete and valid. This research family
+does not replace the missing original formal12. JSON and per-period CSV reports
+are written only to a new report directory; the input DB and sidecar inventory
+must remain byte-identical. A partial report exits 2 while retaining its rows.
+
+This closes the input-write dependency of the original research replay, which
+appends a replay event. It does not admit official data, eight formal slots,
+candidate TSA, actual authorizations, historical availability or a stopping
+protocol. All outputs retain A0, NO_EDGE and the unresolved negative-control
+source-cohort promotion block. A research fixture is never a qualified future
+observation or evidence of a real D2 advantage.
