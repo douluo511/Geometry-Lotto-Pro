@@ -54,8 +54,14 @@ class LocalGateTests(unittest.TestCase):
             db.close()
 
     def _edit(self, sql, args=()):
-        with sqlite3.connect(self.path) as db:
-            db.execute(sql, args)
+        # A SQLite connection context manager commits but does NOT close.
+        # Windows keeps the database file locked until close() is explicit.
+        db = sqlite3.connect(self.path)
+        try:
+            with db:
+                db.execute(sql, args)
+        finally:
+            db.close()
 
     def test_complete_dual_lottery_batch_passes_local_only(self):
         original = hashlib.sha256(self.path.read_bytes()).hexdigest()
