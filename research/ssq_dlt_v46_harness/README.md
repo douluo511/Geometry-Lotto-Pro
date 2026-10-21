@@ -104,3 +104,24 @@ may be enrolled from this prototype; it deliberately emits `SHADOW_ONLY`,
   freeze receipt/external TSA; end-to-end score process; fault injection;
   Windows task scheduler and operator-visible reporting. **Do not enable
   scheduled predictions until the live target gate is implemented.**
+
+## Dual-lottery batch integrity (research hardening)
+
+The `predict` CLI computes both candidates before committing anything,
+writes the fully formatted report into an unpublished staged file, and inserts
+both SSQ and DLT event records through `Ledger.append_batch` in **one SQLite
+transaction**. A conflicting DLT row rolls back a newly inserted SSQ row.
+The complete report is published with an exclusive atomic hardlink only after
+the ledger is verified. All five ordered dan must occur in the full research
+ticket, not just the first two.
+
+**Important limit:** A SQLite commit and a filesystem publication are not a
+single ACID transaction. If publication fails after the database commit, the
+complete dual-game ledger remains, no report is claimed, and the CLI raises
+`OUTPUT_PUBLISH_FAILED_LEDGER_RETAINED`. This requires operator recovery; it
+is not an official pre-draw artifact nor a signed timestamp. SQLite triggers
+also do not protect against privileged file replacement.
+
+Synthetic tests exercise DLT second-event conflict rollback, unavailable
+report publication, SQL REPLACE rejection, and omitted fifth-dan rejection.
+No results from these tests count toward D2 hit-rate samples.

@@ -63,6 +63,20 @@ class HarnessTests(unittest.TestCase):
         with self.assertRaisesRegex(HarnessBlocked, "POST_HOC"):
             validate_candidate("DLT", p)
 
+    def test_legal_ticket_missing_fifth_dan_is_rejected(self):
+        for game, pool in (("SSQ", 33), ("DLT", 35)):
+            candidate = self.make(game)["models"]["02-HOT60"]
+            removed = candidate["ordered_dan"][4]
+            self.assertIn(removed, candidate["ticket"]["front"])
+            original = candidate["ticket"]["front"]
+            replacement = next(n for n in range(1, pool + 1)
+                               if n not in original)
+            candidate["ticket"]["front"] = sorted(
+                [n for n in original if n != removed] + [replacement])
+            with self.subTest(game=game), self.assertRaisesRegex(
+                    HarnessBlocked, "ORDERED_DAN_MISSING_FROM_TICKET"):
+                validate_candidate(game, candidate)
+
     def test_score_research_only(self):
         p = self.make("DLT")
         draw = synthetic_history("DLT")[-1]

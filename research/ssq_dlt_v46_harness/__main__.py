@@ -2,6 +2,8 @@
 from __future__ import annotations
 import argparse
 import json
+import os
+import tempfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -55,18 +57,45 @@ def predict(snapshot_path, ledger_path, output_path):
                "forecasts": result, "formal_A": 0, "decision": "NO_EDGE",
                "external_timestamp_status": "NOT_RUN", "official_target_admission": "NOT_VERIFIED"}
     text = json.dumps(receipt, ensure_ascii=False, sort_keys=True, indent=2)
-    # O_EXCL blocks silent replacement of a previous output.
     output.parent.mkdir(parents=True, exist_ok=True)
-    with output.open("x", encoding="utf-8") as f:
-        f.write(text + "\n")
-    ledger = Ledger(ledger_path)
+    staged = None
     try:
-        for game, prediction in result.items():
-            ledger.append(game + ":" + prediction["issue"] + ":" + digest(snapshot),
-                          "SHADOW_FORECAST", prediction)
-        ledger.verify()
+        # Stage the complete report; never leave a half-written public output
+        # when SQL admission fails. Stage and final destination share a volume.
+        with tempfile.NamedTemporaryFile(
+            mode="w", encoding="utf-8", dir=output.parent,
+            prefix="." + output.name + ".staged-", delete=False,
+        ) as writer:
+            staged = Path(writer.name)
+            writer.write(text + "\n")
+            writer.flush()
+            os.fsync(writer.fileno())
+
+        # A dual-lottery batch is ONE SQL transaction, not two independent
+        # commits. The ledger remains the source of truth for recovery.
+        ledger = Ledger(ledger_path)
+        try:
+            ledger.append_batch([
+                (game + ":" + prediction["issue"] + ":" + digest(snapshot),
+                 "SHADOW_FORECAST", prediction)
+                for game, prediction in result.items()
+            ])
+            ledger.verify()
+        finally:
+            ledger.close()
+        try:
+            # Atomic, exclusive publication of fully staged bytes. Unlike
+            # os.replace(), hardlink fails if the destination exists.
+            os.link(staged, output)
+        except FileExistsError as exc:
+            raise HarnessBlocked("OUTPUT_MUST_BE_NEW") from exc
+        except OSError as exc:
+            # SQLite may now hold a complete batch, but no report is claimed.
+            # Never pretend two resources commit atomically together.
+            raise HarnessBlocked("OUTPUT_PUBLISH_FAILED_LEDGER_RETAINED") from exc
     finally:
-        ledger.close()
+        if staged is not None:
+            staged.unlink(missing_ok=True)
     return {"status": "SHADOW_ONLY", "output": str(output),
             "sha256": digest(receipt), "formal_A": 0,
             "warning": "Unverified caller snapshot; no external TSA or formal admission"}
