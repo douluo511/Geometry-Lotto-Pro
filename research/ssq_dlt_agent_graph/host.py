@@ -10,6 +10,7 @@ import hashlib
 from pathlib import Path
 
 from research.ssq_dlt_agent_v1.core import AgentContext, code_manifest
+from research.ssq_dlt_v45_audit.promotion import registry as quarantine_registry, selection_result
 from research.ssq_dlt_agent_v1.policy import (
     AgentBlocked, BOUNDARY, canonical, digest, parse, validate_call, validate_config,
 )
@@ -208,6 +209,8 @@ class LegacyHost:
                 or record['report_sha256'] != record['report_id']
                 or report.get('run_id') != self.ctx.run_id
                 or any(report.get(k) != v for k, v in BOUNDARY.items())
+                or report.get('known_quarantines') != quarantine_registry()
+                or report.get('model_selection') != selection_result([])
                 or report.get('sdk_runtime', {}).get('status') != 'GRAPH_TOOL_PIPELINE_COMPLETED'):
             raise GraphBlocked('HOST_REPORT_CONTENT_MISMATCH')
         return dict(report_id=record['report_id'], report_dir=str(directory),
