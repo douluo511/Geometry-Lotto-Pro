@@ -186,6 +186,8 @@ class Ledger:
     """Local append-only idempotent ledger, not a privileged-safe TSA."""
     def __init__(self, path):
         self.db = sqlite3.connect(str(path))
+        self.db.execute("PRAGMA recursive_triggers=ON")
+        self.db.execute("PRAGMA synchronous=FULL")
         self.db.execute(
             "CREATE TABLE IF NOT EXISTS events "
             "(event_id TEXT PRIMARY KEY, kind TEXT NOT NULL, sha256 TEXT NOT NULL, payload TEXT NOT NULL)"
