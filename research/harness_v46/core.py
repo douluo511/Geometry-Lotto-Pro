@@ -14,8 +14,16 @@ RULES = {
     "SSQ": {"pool": 33, "front": 6, "back_pool": 16, "back": 1, "d2": 15 / 528},
     "DLT": {"pool": 35, "front": 5, "back_pool": 12, "back": 2, "d2": 10 / 595},
 }
-VERSION = "v46-research-core-0.1"
+VERSION = "v46-research-core-0.2"
 NULL_SEED = "SSQ-DLT-V46-NULL-v1-20261022"  # must be frozen before target
+PARAMETERS = {
+    "hot60": {"window": 60, "tie_break": "numeric_ascending"},
+    "ewma": {"window": 120, "weight_decay": 0.92, "input_weight": 0.08},
+    "shrinkmix": {"recent_window": 60, "tau": 200},
+    "pairwise_d2": {"window": 120, "pair_residual_tau": 200},
+    "challenger": {"windows": [30, 60, 120], "rule": "maximin_pair_score"},
+    "random_null": {"seed": NULL_SEED, "engine": "CPython_random_MT19937"},
+}
 
 
 class GateError(ValueError):
@@ -179,6 +187,7 @@ def forecast(snapshot, model):
         "lottery": snapshot["lottery"],
         "target_issue": str(snapshot["target_issue"]),
         "snapshot_sha256": snapshot_sha,
+        "parameters_sha256": digest(PARAMETERS[model]),
         "candidates_1_to_5": first_five,
         "primary_d2": first_five[:2],
         "ticket": {"front": front, "back": back},
@@ -197,6 +206,8 @@ def validate_forecast(prediction, snapshot):
         raise GateError("issue mismatch")
     if prediction.get("lottery") != snapshot["lottery"] or prediction.get("model") not in MODELS:
         raise GateError("identity mismatch")
+    if prediction.get("parameters_sha256") != digest(PARAMETERS[prediction["model"]]):
+        raise GateError("model parameters mismatch")
     r = RULES[snapshot["lottery"]]
     candidates = prediction.get("candidates_1_to_5")
     if (not isinstance(candidates, list) or len(candidates) != 5
@@ -256,16 +267,17 @@ def freeze_shadow(conn, run_id, snapshot, prediction, frozen_at):
         raise GateError("prediction not before sales cutoff")
     payload = canon(prediction)
     prediction_sha = hashlib.sha256(payload.encode()).hexdigest()
-    with conn:
-        conn.execute(
-            "INSERT INTO predictions VALUES(?,?,?,?,?,?,?,?)",
-            (run_id, prediction["lottery"], prediction["model"], frozen_at,
-             prediction["snapshot_sha256"], prediction_sha, payload, "SHADOW"))
-        conn.execute(
-            "INSERT INTO audit_events(run_id,event_type,payload) VALUES(?,?,?)",
-            (run_id, "LOCAL_SHADOW_FREEZE", canon({
-                "model": prediction["model"], "lottery": prediction["lottery"],
-                "prediction_sha256": prediction_sha, "external_tsa": "NOT_RUN"})))
+    # No implicit commit: a caller can atomically freeze all model records.
+    # The caller owns the transaction; SHADOW does not claim trusted time.
+    conn.execute(
+        "INSERT INTO predictions VALUES(?,?,?,?,?,?,?,?)",
+        (run_id, prediction["lottery"], prediction["model"], frozen_at,
+         prediction["snapshot_sha256"], prediction_sha, payload, "SHADOW"))
+    conn.execute(
+        "INSERT INTO audit_events(run_id,event_type,payload) VALUES(?,?,?)",
+        (run_id, "LOCAL_SHADOW_FREEZE", canon({
+            "model": prediction["model"], "lottery": prediction["lottery"],
+            "prediction_sha256": prediction_sha, "external_tsa": "NOT_RUN"})))
     return prediction_sha
 
 
