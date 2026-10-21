@@ -1,0 +1,33 @@
+name: SSQ DLT V46 Harness research smoke
+on:
+  push:
+    branches:
+      - research/ssq-dlt-v46-rea-harness
+    paths:
+      - 'research/ssq_dlt_v46_harness/**'
+      - '.github/workflows/ssq-dlt-v46-harness.yml'
+  pull_request:
+    paths:
+      - 'research/ssq_dlt_v46_harness/**'
+      - '.github/workflows/ssq-dlt-v46-harness.yml'
+jobs:
+  research-only:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 12
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Syntax compile (no network or API)
+        run: python -m compileall -q research/ssq_dlt_v46_harness
+      - name: Fail-closed unit suite
+        run: python -m unittest discover -s research/ssq_dlt_v46_harness/tests -v
+      - name: Synthetic-only dual-game smoke
+        run: python -m research.ssq_dlt_v46_harness smoke
