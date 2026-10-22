@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
+from datetime import datetime, timezone
 from pathlib import Path
 
 from . import convergence as cv
@@ -31,7 +32,7 @@ def _readonly_connection(db_path):
     return conn
 
 
-def replay_shadow_feedback(db_path, run_id, outcome):
+def replay_shadow_feedback(db_path, run_id, outcome, *, observed_at=None):
     """Make one deterministic diagnostic receipt from a persisted six-model batch.
 
     Result data are CALLER_UNVERIFIED, regardless of any caller-supplied label.
@@ -51,10 +52,21 @@ def replay_shadow_feedback(db_path, run_id, outcome):
     except (TypeError, ValueError) as exc:
         raise GateError("INVALID_UNVERIFIED_OUTCOME_TIME") from exc
 
+    # A claimed future draw time is not permission to score before the actual
+    # locally observed target window. This clock is still UNTRUSTED evidence.
+    observed = datetime.now(timezone.utc) if observed_at is None else observed_at
+    if (not isinstance(observed, datetime) or observed.tzinfo is None
+            or observed.utcoffset() is None):
+        raise GateError("SCORING_OBSERVATION_CLOCK_MUST_BE_AWARE")
+    if claimed_draw_time > observed:
+        raise GateError("OUTCOME_CLAIMED_DRAW_TIME_IN_FUTURE")
+
     conn = _readonly_connection(db_path)
     try:
         batch_sha256 = cv.check_complete_batch(conn, run_id, game)
         snapshot = load_registered_snapshot(conn, run_id, game)
+        if observed < dt(snapshot["target_draw_at"]):
+            raise GateError("SCORE_BEFORE_LOCKED_TARGET_DRAW_TIME")
         if str(snapshot["target_issue"]) != issue:
             raise GateError("OUTCOME_TARGET_ISSUE_MISMATCH")
         if claimed_draw_time < dt(snapshot["target_draw_at"]):
@@ -106,6 +118,7 @@ def replay_shadow_feedback(db_path, run_id, outcome):
         "target_issue": issue,
         "prediction_batch_sha256": batch_sha256,
         "outcome_claimed_drawn_at_untrusted": outcome["drawn_at"],
+        "scored_at_local_untrusted": observed.isoformat(),
         "outcome_sha256": digest(outcome),
         "outcome_authenticity": "CALLER_UNVERIFIED",
         "predraw_external_seal": "NOT_VERIFIED",
