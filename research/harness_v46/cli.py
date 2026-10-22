@@ -6,11 +6,12 @@ import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .core import MODELS, GateError, canon, forecast, freeze_shadow, init_ledger, score
+from .core import MODELS, GateError, canon, forecast, freeze_shadow, init_ledger, score, validate_study_snapshot
 
 
 def run_forecast(args):
     snapshot = json.loads(Path(args.snapshot).read_text(encoding="utf-8"))
+    validate_study_snapshot(snapshot)
     models = MODELS if args.model == "all" else (args.model,)
     forecasts = [forecast(snapshot, m) for m in models]  # compute before any write
     db = sqlite3.connect(args.database)
