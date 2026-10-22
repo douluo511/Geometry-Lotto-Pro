@@ -402,7 +402,7 @@ def _worker(game: str) -> dict:
     parser_version = str(source_module.PARSER_VERSION)
     raw_artifacts: list[dict] = []
     transport_failures: list[dict] = []
-    source_errors: dict[str, str] = []
+    source_errors: dict[str, str] = {}
     sources: list[dict] = []
 
     if game == "SSQ":
@@ -663,6 +663,25 @@ def collect_live_history(game: str, *, timeout_seconds: int = 600) -> dict:
         raise GateError("OFFICIAL_SOURCE_WORKER_NON_JSON_OUTPUT:" + completed.stdout[-500:]) from exc
     if payload.get("source_files_sha256") != before:
         raise GateError("PARSER_SOURCE_HASH_CHANGED_DURING_HANDOFF")
+    if payload.get("schema") != WORKER_SCHEMA or payload.get("lottery") != game:
+        raise GateError("OFFICIAL_SOURCE_WORKER_IDENTITY_MISMATCH")
+    if payload.get("status") == "WORKER_BLOCKED":
+        source_errors = payload.get("source_errors")
+        if not isinstance(source_errors, dict) or not source_errors:
+            raise GateError("BLOCKED_WORKER_MISSING_SOURCE_ERRORS")
+        return {
+            "schema": SCHEMA, "lottery": game, "status": "BLOCKED",
+            "error": "; ".join(f"{k}: {v}" for k, v in sorted(source_errors.items())),
+            "source_errors": source_errors,
+            "sources": payload.get("sources", []),
+            "unadmitted_raw_artifacts": payload.get("unadmitted_raw_artifacts", []),
+            "transport_failures": payload.get("transport_failures", []),
+            "source_files_sha256": before,
+            "timestamp_trust": "LOCAL_CLOCK_UNTRUSTED",
+            "official_history_admission": "BLOCKED",
+            "official_target_admission": "BLOCKED",
+            "external_tsa": "NOT_RUN", "formal_A": 0, "decision": "NO_EDGE",
+        }
     return validate_worker_payload(payload, expected_game=game)
 
 
@@ -670,13 +689,17 @@ def collect_both() -> dict:
     results, errors = {}, {}
     for game in ("SSQ", "DLT"):
         try:
-            results[game] = collect_live_history(game)
+            result = collect_live_history(game)
+            results[game] = result
+            if result.get("status") == "BLOCKED":
+                errors[game] = str(result.get("error") or "OFFICIAL_INTAKE_BLOCKED")
         except Exception as exc:
             errors[game] = f"{type(exc).__name__}: {exc}"
             results[game] = {
                 "schema": SCHEMA, "lottery": game, "status": "BLOCKED",
                 "error": errors[game], "official_history_admission": "BLOCKED",
-                "official_target_admission": "BLOCKED", "formal_A": 0, "decision": "NO_EDGE",
+                "official_target_admission": "BLOCKED", "external_tsa": "NOT_RUN",
+                "formal_A": 0, "decision": "NO_EDGE",
             }
     return {
         "schema": "V47-OFFICIAL-INTAKE-BUNDLE-1",
@@ -689,18 +712,48 @@ def collect_both() -> dict:
 def write_bundle(bundle: dict, output_dir: str | Path) -> Path:
     destination = Path(output_dir)
     destination.mkdir(parents=True, exist_ok=False)
+
+    def write_encoded(game: str, source_id: str, artifact: dict, *,
+                      base64_key: str, directory: str, filename_prefix: str = ""):
+        encoded = artifact.get(base64_key)
+        if encoded is None:
+            artifact["body_preserved"] = False
+            return
+        try:
+            raw = base64.b64decode(encoded, validate=True)
+        except Exception as exc:
+            raise GateError("RAW_BUNDLE_BASE64_INVALID") from exc
+        if len(raw) != artifact.get("size_bytes") or _sha(raw) != artifact.get("raw_sha256"):
+            raise GateError("RAW_SHA_CHANGED_BEFORE_BUNDLE_WRITE")
+        relative = Path(directory) / game / source_id / (
+            filename_prefix + artifact["raw_sha256"] + ".bin"
+        )
+        target = destination / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with target.open("xb") as handle:
+            handle.write(raw)
+        artifact.pop(base64_key, None)
+        artifact["artifact_path"] = relative.as_posix()
+        artifact["body_preserved"] = True
+
     for game, result in bundle.get("games", {}).items():
         for source in result.get("sources", []):
             for artifact in source.get("raw_artifacts", []):
-                raw = base64.b64decode(artifact.pop("raw_base64"), validate=True)
-                if _sha(raw) != artifact["raw_sha256"]:
-                    raise GateError("RAW_SHA_CHANGED_BEFORE_BUNDLE_WRITE")
-                relative = Path("raw") / game / source["source_id"] / (artifact["raw_sha256"] + ".bin")
-                target = destination / relative
-                target.parent.mkdir(parents=True, exist_ok=True)
-                with target.open("xb") as handle:
-                    handle.write(raw)
-                artifact["artifact_path"] = relative.as_posix()
+                write_encoded(game, source["source_id"], artifact,
+                              base64_key="raw_base64", directory="raw")
+        for idx, artifact in enumerate(result.get("unadmitted_raw_artifacts", []), start=1):
+            source_id = str(artifact.get("_source_id") or artifact.get("source_id") or "unknown")
+            write_encoded(game, source_id, artifact, base64_key="raw_base64",
+                          directory="raw-unadmitted", filename_prefix=f"{idx:04d}-")
+            artifact.pop("_source_id", None)
+            artifact.pop("_source_root", None)
+            artifact.pop("_host", None)
+            artifact["classification"] = "UNADMITTED_RAW_RESPONSE_NOT_CROSSCHECKED"
+        for idx, artifact in enumerate(result.get("transport_failures", []), start=1):
+            source_id = str(artifact.get("source_id") or "unknown")
+            write_encoded(game, source_id, artifact, base64_key="body_base64",
+                          directory="transport-failures", filename_prefix=f"{idx:04d}-")
+            artifact["classification"] = "TRANSPORT_FAILURE_UNTRUSTED_NOT_OFFICIAL_SOURCE_EVIDENCE"
     manifest_path = destination / "intake.json"
     with manifest_path.open("x", encoding="utf-8", newline="\n") as handle:
         json.dump(bundle, handle, ensure_ascii=False, sort_keys=True, indent=2)
@@ -732,7 +785,9 @@ def main(argv: list[str] | None = None) -> int:
             bundle = {
                 "schema": "V47-OFFICIAL-INTAKE-BUNDLE-1",
                 "created_at_local_untrusted": datetime.now(timezone.utc).isoformat(),
-                "games": {args.game: result}, "errors": {},
+                "games": {args.game: result},
+                "errors": ({args.game: str(result.get("error") or "OFFICIAL_INTAKE_BLOCKED")}
+                           if result.get("status") == "BLOCKED" else {}),
                 "official_target_admission": "BLOCKED", "external_tsa": "NOT_RUN",
                 "formal_A": 0, "decision": "NO_EDGE",
             }
