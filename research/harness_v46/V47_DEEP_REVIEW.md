@@ -168,3 +168,14 @@ The validator is bound into the V4.7 run identity via `ORCHESTRATION_SOURCE_FILE
 Exact code HEAD `4d9caee14a8b5ab6458094742ec7874a8034a87f`: https://github.com/douluo511/Geometry-Lotto-Pro/actions/runs/39748499053 — Ubuntu SUCCESS, 62 tests (one Windows-only parser test skipped); Windows Server 2022 SUCCESS, 62 tests (PowerShell parser included).
 
 **Remaining P1 gap:** no live official page fetcher/parser has yet produced the two parsed arrays, and the comparator cannot establish that those arrays were actually parsed from the preserved raw bytes. No 120+ official snapshot is accepted. This is a strict validator interface, not G01 completion.
+
+
+## 12. V4.7 allowlisted raw fetcher — 2026-10-22
+
+Commit `ba497e6944ab7090c402385a9343a02cb399321f` adds `source_fetch.py`; `bc46f0a4d9dd67cab722c7d0c394c0b1c0360dc9` binds it into the RUN_ID orchestration source hash; `72cea071b6d0ef518294af4c41b197065baa0dd4` adds mocked HTTP tests; `51de08dc90da6599772a5a86366ef2f358070baf` asserts the fetcher remains in the source-hash list.
+
+The fetcher performs HTTPS GET only on the per-game allowlist, validates every redirect against the same allowlist, limits response bytes to 25 MB, preserves raw bytes and SHA256, records final URL/content type and the HTTP Last-Modified header separately, and marks the local fetched-at clock untrusted. It deliberately returns `published_at=None`; it does not treat an HTTP header as authoritative page publication time. Network/parser errors fail closed.
+
+Exact CI run for code HEAD `51de08dc90da6599772a5a86366ef2f358070baf`: https://github.com/douluo511/Geometry-Lotto-Pro/actions/runs/39749449435 — Ubuntu SUCCESS, 70 tests (one Windows-only PowerShell parser test skipped); Windows Server 2022 SUCCESS, 70 tests (PowerShell parser included).
+
+**Still NOT_RUN:** no live request to any official lottery site was made by this code change, and no source-specific parser exists. The fetcher only provides a safer raw-byte acquisition primitive; G00/G01 remain BLOCKED until live responses, parser output, 120+ history agreement, actual cutoff, and provenance are independently verified.
