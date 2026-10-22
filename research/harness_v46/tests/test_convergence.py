@@ -23,6 +23,18 @@ class Contracts(unittest.TestCase):
         self.assertEqual(set(run["models"]), set(core.MODELS))
         self.assertEqual(run["qualifications"]["formal_A"], 0)
         self.assertEqual(len(run["harness_source_sha256"]), 64)
+        self.assertIn("schedule.py", cv.ORCHESTRATION_SOURCE_FILES)
+        self.assertIn("cli.py", cv.ORCHESTRATION_SOURCE_FILES)
+        source_root = Path(cv.__file__).parent
+        expected_source_sha = core.digest({
+            "contract": "V47-ORCHESTRATION-SOURCE-1",
+            "files": {
+                name: hashlib.sha256((source_root / name).read_bytes()).hexdigest()
+                for name in cv.ORCHESTRATION_SOURCE_FILES
+            },
+        })
+        self.assertEqual(cv.orchestration_source_sha256(), expected_source_sha)
+        self.assertEqual(run["harness_source_sha256"], expected_source_sha)
         for model, item in run["models"].items():
             self.assertEqual(item["parameters_sha256"], core.digest(core.parameter_contract(model)))
             self.assertEqual(item["model_source_sha256"], core.model_source_sha256())
@@ -162,6 +174,9 @@ class Contracts(unittest.TestCase):
             self.assertEqual(first, cv.tsa_request(db, run, "SSQ"))
         self.assertEqual(first["external_tsa"], "NOT_VERIFIED")
         self.assertEqual(db.execute("SELECT COUNT(*) FROM tsa_claims").fetchone()[0], 1)
+        self.assertEqual(db.execute("PRAGMA recursive_triggers").fetchone()[0], 1)
+        with self.assertRaises(sqlite3.DatabaseError):
+            db.execute("INSERT OR REPLACE INTO tsa_claims SELECT * FROM tsa_claims")
         with self.assertRaises(sqlite3.DatabaseError):
             db.execute("UPDATE tsa_claims SET verification='VERIFIED'")
         db.close()
