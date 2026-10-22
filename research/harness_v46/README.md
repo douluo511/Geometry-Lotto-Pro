@@ -89,6 +89,11 @@ python -m research.harness_v46.cli forecast --snapshot /path/to/01_snapshot.json
 python -m research.harness_v46.cli score --database v46.sqlite --run-id V46-UNIQUE-RUN --official-result /path/to/01_official_result.json
 ~~~
 
+The one-lottery CLI above is a legacy SHADOW compatibility path and rejects
+caller-supplied `V47-` run IDs. Canonical V4.7 IDs are derived from the
+dual-game manifest via `schedule.py`; this does not itself prove official
+sources, trusted pre-draw time, or formal admission.
+
 For score, official_result is an externally verified document with keys
 lottery, issue, front and back; this program cannot itself verify provenance.
 At runtime the CLI obtains its clock from UTC; local metadata alone is **not
