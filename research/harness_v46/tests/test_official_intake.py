@@ -40,6 +40,7 @@ def _source_urls(game):
     return [
         ("national", "sporttery.cn", "https://webapi.sporttery.cn/gateway/history"),
         ("jiangsu", "js-lottery.com", "https://api.js-lottery.com/Lottery/_ListData"),
+        ("gansu", "gstc.org.cn", "https://www.gstc.org.cn/"),
     ]
 
 
@@ -63,21 +64,22 @@ def _payload(game, n=130):
     parser_version = oi._expected_parser_version(game)
     sources = []
     for source_id, root, url in _source_urls(game):
+        source_rows = rows[-20:] if game == "DLT" and source_id == "gansu" else rows
         raw = ("synthetic raw fixture " + game + " " + source_id).encode()
         sources.append({
             "source_id": source_id,
             "source_name": oi.EXPECTED_SOURCE_NAMES[game][source_id],
             "source_root": root,
             "url": url,
-            "draws": copy.deepcopy(rows),
+            "draws": copy.deepcopy(source_rows),
             "receipt": {
-                "status": "PASS", "draw_count": len(rows),
-                "latest_issue": rows[-1]["issue"], "raw_sha256": hashlib.sha256(raw).hexdigest(),
+                "status": "PASS", "draw_count": len(source_rows),
+                "latest_issue": source_rows[-1]["issue"], "raw_sha256": hashlib.sha256(raw).hexdigest(),
                 "fetched_at": "2026-10-22T08:00:00+00:00",
             },
             "raw_artifacts": [_artifact(url, parser_version, raw)],
             "raw_reparse_status": "PASS",
-            "raw_reparse_sha256": oi._rows_sha256(rows),
+            "raw_reparse_sha256": oi._rows_sha256(source_rows),
         })
     return {
         "schema": oi.WORKER_SCHEMA,
@@ -296,6 +298,36 @@ class OfficialIntakeTests(unittest.TestCase):
             self.assertNotIn("raw_base64", artifact)
             with self.assertRaises(FileExistsError):
                 oi.write_bundle({"games": {}}, output)
+
+
+    def test_gansu_recent_history_is_correlated_without_replacing_primary_120(self):
+        report = oi.validate_worker_payload(_payload("DLT"), expected_game="DLT")
+        self.assertEqual(report["primary_source_count"], 2)
+        self.assertEqual(report["corroborating_source_count"], 1)
+        self.assertEqual(report["source_count"], 3)
+        self.assertEqual(report["consensus_draw_count"], 130)
+        gansu = next(x for x in report["corroboration_summaries"] if x["source_id"] == "gansu")
+        self.assertGreaterEqual(gansu["overlap_count"], 10)
+        self.assertEqual(gansu["status"], "MATCHED")
+
+    def test_gansu_conflict_blocks_even_when_primary_sources_match(self):
+        payload = _payload("DLT")
+        gansu = next(x for x in payload["sources"] if x["source_id"] == "gansu")
+        gansu["draws"][3]["front"] = sorted([1, 2, 3, 4, 35])
+        gansu["raw_reparse_sha256"] = oi._rows_sha256(gansu["draws"])
+        gansu["receipt"]["latest_issue"] = gansu["draws"][-1]["issue"]
+        with self.assertRaisesRegex(GateError, "OFFICIAL_SOURCE_DRAW_CONFLICT:gansu"):
+            oi.validate_worker_payload(payload)
+
+    def test_gansu_overlap_below_ten_blocks_corroboration(self):
+        payload = _payload("DLT")
+        gansu = next(x for x in payload["sources"] if x["source_id"] == "gansu")
+        gansu["draws"] = gansu["draws"][-9:]
+        gansu["raw_reparse_sha256"] = oi._rows_sha256(gansu["draws"])
+        gansu["receipt"]["draw_count"] = len(gansu["draws"])
+        gansu["receipt"]["latest_issue"] = gansu["draws"][-1]["issue"]
+        with self.assertRaisesRegex(GateError, "AT_LEAST_10_DRAWS"):
+            oi.validate_worker_payload(payload)
 
 
 if __name__ == "__main__":
