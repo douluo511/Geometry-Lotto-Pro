@@ -108,6 +108,87 @@ class OfficialIntakeTests(unittest.TestCase):
         self.assertEqual(report["consensus_draw_count"], 130)
         self.assertEqual(report["official_history_admission"], "SHADOW_HISTORY_ONLY")
 
+    def test_dlt_jiangsu_plus_gansu_fallback_passes_with_120_primary_and_10_overlap(self):
+        payload = _payload("DLT")
+        rows = payload["sources"][1]["draws"]
+        parser_version = payload["parser_version"]
+        gansu_rows = copy.deepcopy(rows[-20:])
+        raw = b"synthetic Gansu HTML response"
+        url = "https://www.gstc.org.cn/wanfa/dlt_history"
+        payload["sources"].append({
+            "source_id": "gansu",
+            "source_name": oi.EXPECTED_SOURCE_NAMES["DLT"]["gansu"],
+            "source_root": "gstc.org.cn",
+            "url": url,
+            "draws": gansu_rows,
+            "receipt": {
+                "status": "PASS", "draw_count": len(gansu_rows),
+                "latest_issue": gansu_rows[-1]["issue"],
+                "raw_sha256": hashlib.sha256(raw).hexdigest(),
+                "fetched_at": "2026-10-22T08:00:00+00:00",
+            },
+            "raw_artifacts": [_artifact(url, parser_version, raw)],
+            "raw_reparse_status": "PASS",
+            "raw_reparse_sha256": oi._rows_sha256(gansu_rows),
+        })
+        national = payload["sources"][0]
+        failure_body = b"synthetic HTTP 567 WAF body"
+        national["draws"] = []
+        national["receipt"] = None
+        national["error"] = "HTTP 567"
+        national["raw_reparse_status"] = "NOT_RUN_SOURCE_FETCH_FAILED"
+        national_artifact = national["raw_artifacts"][0]
+        national_artifact.update({
+            "raw_sha256": hashlib.sha256(failure_body).hexdigest(),
+            "size_bytes": len(failure_body),
+            "http_status": 567,
+            "content_type": "text/html",
+            "raw_base64": base64.b64encode(failure_body).decode("ascii"),
+        })
+        payload["status"] = "WORKER_FETCH_COMPLETE"
+        payload["errors"] = {"national": "HTTP 567"}
+        report = oi.validate_worker_payload(payload, expected_game="DLT")
+        self.assertEqual(report["status"], "HISTORY_CROSSCHECK_PASS")
+        self.assertEqual(report["selected_source_ids"], ["jiangsu", "gansu"])
+        self.assertEqual(report["consensus_draw_count"], 130)
+        self.assertEqual(report["overlap_count"], 20)
+        self.assertIn("national", report["warnings"])
+        self.assertEqual(report["official_target_admission"], "BLOCKED")
+        self.assertEqual(report["formal_A"], 0)
+
+    def test_dlt_gansu_fallback_conflict_blocks_instead_of_selecting_best_rows(self):
+        payload = _payload("DLT")
+        rows = payload["sources"][1]["draws"]
+        parser_version = payload["parser_version"]
+        gansu_rows = copy.deepcopy(rows[-20:])
+        gansu_rows[5]["front"] = [1, 2, 3, 4, 35]
+        raw = b"synthetic Gansu HTML response"
+        url = "https://www.gstc.org.cn/wanfa/dlt_history"
+        payload["sources"].append({
+            "source_id": "gansu", "source_name": oi.EXPECTED_SOURCE_NAMES["DLT"]["gansu"],
+            "source_root": "gstc.org.cn", "url": url, "draws": gansu_rows,
+            "receipt": {"status": "PASS", "draw_count": 20, "latest_issue": gansu_rows[-1]["issue"],
+                        "raw_sha256": hashlib.sha256(raw).hexdigest(),
+                        "fetched_at": "2026-10-22T08:00:00+00:00"},
+            "raw_artifacts": [_artifact(url, parser_version, raw)],
+            "raw_reparse_status": "PASS", "raw_reparse_sha256": oi._rows_sha256(gansu_rows),
+        })
+        national = payload["sources"][0]
+        national["draws"] = []
+        national["receipt"] = None
+        national["error"] = "HTTP 567"
+        national["raw_reparse_status"] = "NOT_RUN_SOURCE_FETCH_FAILED"
+        failure_body = b"synthetic HTTP 567 WAF body"
+        national["raw_artifacts"][0].update({
+            "raw_sha256": hashlib.sha256(failure_body).hexdigest(),
+            "size_bytes": len(failure_body), "http_status": 567,
+            "content_type": "text/html", "raw_base64": base64.b64encode(failure_body).decode("ascii"),
+        })
+        payload["status"] = "WORKER_FETCH_COMPLETE"
+        payload["errors"] = {"national": "HTTP 567"}
+        with self.assertRaisesRegex(GateError, "OFFICIAL_SOURCE_DRAW_CONFLICT"):
+            oi.validate_worker_payload(payload, expected_game="DLT")
+
     def test_raw_bytes_must_match_declared_sha(self):
         payload = _payload("SSQ")
         artifact = payload["sources"][0]["raw_artifacts"][0]
