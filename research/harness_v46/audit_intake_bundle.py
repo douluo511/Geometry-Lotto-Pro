@@ -73,6 +73,10 @@ def audit_bundle(bundle_dir: str | Path) -> dict:
             errors.append("DECISION_NOT_NO_EDGE")
         if not isinstance(bundle.get("games"), dict):
             errors.append("GAMES_FIELD_INVALID")
+        elif not bundle["games"]:
+            errors.append("GAMES_EMPTY")
+        elif not set(bundle["games"]).issubset({"SSQ", "DLT"}):
+            errors.append("UNKNOWN_GAME_IN_BUNDLE")
         else:
             for game, result in bundle["games"].items():
                 if not isinstance(result, dict):
@@ -80,11 +84,11 @@ def audit_bundle(bundle_dir: str | Path) -> dict:
                     continue
                 if type(result.get("formal_A")) is not int or result.get("formal_A") != 0:
                     errors.append(f"GAME_FORMAL_A_NOT_ZERO:{game}")
-                if result.get("official_target_admission", "BLOCKED") != "BLOCKED":
+                if result.get("official_target_admission") != "BLOCKED":
                     errors.append(f"GAME_TARGET_ADMISSION_NOT_BLOCKED:{game}")
-                if result.get("external_tsa", "NOT_RUN") != "NOT_RUN":
+                if result.get("external_tsa") != "NOT_RUN":
                     errors.append(f"GAME_EXTERNAL_TSA_STATUS_NOT_NOT_RUN:{game}")
-                if result.get("decision", "NO_EDGE") != "NO_EDGE":
+                if result.get("decision") != "NO_EDGE":
                     errors.append(f"GAME_DECISION_NOT_NO_EDGE:{game}")
 
     artifact_records = 0
@@ -141,6 +145,9 @@ def audit_bundle(bundle_dir: str | Path) -> dict:
                 continue
             unique_paths.add(rel)
             verified_records += 1
+
+    if artifact_records == 0:
+        errors.append("NO_RAW_ARTIFACT_RECORDS_FOUND")
 
     return {
         "schema": AUDIT_SCHEMA,
