@@ -14,7 +14,7 @@ Issue：https://github.com/douluo511/Geometry-Lotto-Pro/issues/428
 - 双来源 120+ 已解析记录比较器；校验期号/开奖时间顺序、号码范围、as-of、来源之间一致性及与锁定快照一致性。它不抓取或解析真实网页，故 G00/G01 仍 BLOCKED。
 - 精确 D2 基线二项检验、同期开奖 Random NULL 配对精确检验、交集并集 p 值、明确家族 Holm、模型率精确置信区间和保守配对差区间。输入结果/12项家族均未认证，始终 SHADOW / NO_EDGE。
 - Windows Task Scheduler 代码仅通过静态检查和CI；未在用户主机安装、未做冷启动/断网实测。
-- 最近已观测代码提交 `51de08dc90da6599772a5a86366ef2f358070baf` 的 CI Run #39749449435：Ubuntu/Windows各70项测试成功；Ubuntu跳过一项Windows专用PowerShell解析测试。随后仅有文档更新；每次执行前仍必须核对PR #432当前HEAD及其CI。
+- 最近已观测代码提交 `69543ec9e63e1a84d9c37fc3fdf30efe6011643c` 的 CI Run #39749904945：Ubuntu/Windows各71项测试成功；Ubuntu跳过一项Windows专用PowerShell解析测试。该版本还修复HTTPError状态码报告；每次执行前仍必须核对PR #432当前HEAD及其CI。
 
 ## 下一轮最高优先级
 1. 用 `source_fetch.py` 对两个不同官方根域执行受控live fetch；实现并验证具体官方页面/API解析器。保存真实原始字节、URL、HTTP头、抓取时刻、可证实的发布时间、raw SHA和parser版本SHA。现在只有fetch原语和mock测试，没有live请求或source parser。
