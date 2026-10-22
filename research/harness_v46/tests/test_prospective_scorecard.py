@@ -91,7 +91,7 @@ class ProspectiveFeedbackTests(unittest.TestCase):
             conn.commit()
         finally:
             conn.close()
-        with self.assertRaisesRegex(core.GateError, "FREEZE_OUTSIDE_LOCKED_PREDRAW_WINDOW"):
+        with self.assertRaisesRegex(core.GateError, "FROZEN_PREDICTION_LOCAL_TIME_OUTSIDE_ASOF_CUTOFF"):
             self.replay(self.db, self.run_id, self.outcome())
 
     def test_cumulative_two_lotteries_with_fixed_random_null_and_no_edge(self):
