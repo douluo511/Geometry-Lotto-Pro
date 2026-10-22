@@ -542,7 +542,9 @@ def _worker(game: str) -> dict:
             continue
         try:
             reparsed = _reparse_raw_history(game, source_module, source_id, source["raw_artifacts"])
-            source_draws = _canonical_draws(game, source["draws"])
+            source_draws = _canonical_draws(
+                game, source["draws"], minimum=_source_minimum(game, source_id)
+            )
             if reparsed != source_draws:
                 raise GateError("RAW_REPARSED_ROWS_DIFFER_FROM_SOURCE_OUTPUT:" + source_id)
             source["raw_reparse_status"] = "PASS"
