@@ -35,7 +35,7 @@ NATIONAL_HEADER_PROFILES = (
 )
 NET = NetClient(connect_timeout=10, read_timeout=30, max_attempts=3)
 MAX_PAYLOAD_BYTES = 8 * 1024 * 1024
-PARSER_VERSION = "dlt-source-parser-v2-fail-closed"
+PARSER_VERSION = "dlt-source-parser-v3-gansu-corroboration"
 
 JIANGSU_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
