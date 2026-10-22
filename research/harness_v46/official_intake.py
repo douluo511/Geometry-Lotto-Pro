@@ -450,7 +450,7 @@ def _worker(game: str) -> dict:
                 })
     elif game == "DLT":
         errors = {}
-        national_data = jiangsu_data = None
+        national_data = jiangsu_data = gansu_data = None
         try:
             national_data = source_module.fetch_national_history()
         except Exception as exc:
@@ -459,12 +459,21 @@ def _worker(game: str) -> dict:
             jiangsu_data = source_module.fetch_jiangsu_history()
         except Exception as exc:
             errors["jiangsu"] = f"{type(exc).__name__}: {exc}"
+        try:
+            # Gansu is an additional independent recent-history corroborator.
+            # Its 10+ issue overlap never replaces the 120+ primary-history requirement.
+            gansu_draws, gansu_receipt, gansu_meta = source_module.fetch_gansu_recent(limit=20)
+            gansu_data = (gansu_draws, gansu_receipt, [gansu_meta])
+        except Exception as exc:
+            errors["gansu"] = f"{type(exc).__name__}: {exc}"
 
         source_specs = (
             ("national", "official_sporttery_national", "sporttery.cn",
              "https://webapi.sporttery.cn/gateway/lottery/getHistoryPageListV1.qry", national_data),
             ("jiangsu", "official_jiangsu_sporttery", "js-lottery.com",
              "https://api.js-lottery.com/Lottery/_ListData", jiangsu_data),
+            ("gansu", "official_gansu_sporttery", "gstc.org.cn",
+             getattr(source_module, "GANSU_HISTORY_URL", "https://www.gstc.org.cn/"), gansu_data),
         )
         sources = []
         for source_id, source_name, root, url, data in source_specs:
@@ -485,8 +494,8 @@ def _worker(game: str) -> dict:
                 except Exception as exc:
                     raise GateError("DLT_PARSER_RAW_BODY_BASE64_INVALID") from exc
                 meta = {
-                    "url": entry.get("final_url") or entry.get("requested_url"),
-                    "requested_url": entry.get("requested_url") or entry.get("final_url"),
+                    "url": entry.get("final_url") or entry.get("requested_url") or url,
+                    "requested_url": entry.get("requested_url") or entry.get("final_url") or url,
                     "http_status": entry.get("http_status"),
                     "content_type": entry.get("content_type"),
                     "fetched_at": entry.get("fetched_at"),
