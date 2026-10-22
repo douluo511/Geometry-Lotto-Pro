@@ -111,7 +111,7 @@ class IntakeBundleAuditTests(unittest.TestCase):
         self.assertEqual(report["verified_artifact_records"], 2)
         self.assertEqual(report["unique_raw_file_paths"], 1)
 
-    def test_explicitly_unpreserved_oversized_body_is_counted_not_fabricated(self):
+    def test_explicitly_unpreserved_oversized_body_cannot_pass_audit(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             bundle, artifact, _ = make_bundle(root)
@@ -121,9 +121,55 @@ class IntakeBundleAuditTests(unittest.TestCase):
             bundle["games"]["DLT"]["sources"][0]["raw_artifacts"] = [artifact]
             (root / "intake.json").write_text(json.dumps(bundle), encoding="utf-8")
             report = audit_bundle(root)
-        self.assertEqual(report["status"], "PASS")
+        self.assertEqual(report["status"], "FAIL")
         self.assertEqual(report["unpreserved_oversized_records"], 1)
         self.assertEqual(report["verified_artifact_records"], 0)
+        self.assertTrue(any("RAW_ARTIFACT_UNPRESERVED_OVERSIZED" in x for x in report["errors"]))
+
+    def test_correct_sha_but_wrong_game_path_is_rejected(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            bundle, artifact, raw_path = make_bundle(root)
+            swapped = root / "raw" / "SSQ" / "national" / raw_path.name
+            swapped.parent.mkdir(parents=True, exist_ok=True)
+            swapped.write_bytes(raw_path.read_bytes())
+            artifact["artifact_path"] = swapped.relative_to(root).as_posix()
+            (root / "intake.json").write_text(json.dumps(bundle), encoding="utf-8")
+            report = audit_bundle(root)
+        self.assertEqual(report["status"], "FAIL")
+        self.assertTrue(any("RAW_ARTIFACT_NONCANONICAL_SOURCE_PATH" in x for x in report["errors"]))
+
+    def test_correct_sha_but_unexpected_source_id_is_rejected(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            bundle, _, _ = make_bundle(root)
+            bundle["games"]["DLT"]["sources"][0]["source_id"] = "hebei"
+            (root / "intake.json").write_text(json.dumps(bundle), encoding="utf-8")
+            report = audit_bundle(root)
+        self.assertEqual(report["status"], "FAIL")
+        self.assertIn("RAW_ARTIFACT_SOURCE_ID_INVALID:DLT:hebei", report["errors"])
+
+    def test_correct_sha_but_wrong_sha_named_file_is_rejected(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            bundle, artifact, raw_path = make_bundle(root)
+            wrongly_named = raw_path.with_name("f" * 64 + ".bin")
+            wrongly_named.write_bytes(raw_path.read_bytes())
+            artifact["artifact_path"] = wrongly_named.relative_to(root).as_posix()
+            (root / "intake.json").write_text(json.dumps(bundle), encoding="utf-8")
+            report = audit_bundle(root)
+        self.assertEqual(report["status"], "FAIL")
+        self.assertTrue(any("RAW_ARTIFACT_NONCANONICAL_SOURCE_PATH" in x for x in report["errors"]))
+
+    def test_unlisted_raw_binary_fails_audit(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            make_bundle(root)
+            extra = root / "raw" / "DLT" / "national" / ("f" * 64 + ".bin")
+            extra.write_bytes(b"unlisted raw bytes")
+            report = audit_bundle(root)
+        self.assertEqual(report["status"], "FAIL")
+        self.assertTrue(any("UNREFERENCED_RAW_ARTIFACT" in x for x in report["errors"]))
 
     def test_empty_bundle_cannot_pass_integrity_audit(self):
         with tempfile.TemporaryDirectory() as tmp:
