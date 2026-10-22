@@ -46,13 +46,16 @@ blocked.
 GitHub Actions run `39757108803` passed the deterministic harness suite on both
 `ubuntu-latest` and `windows-2022`: 93 tests per platform, one platform-specific PowerShell
 parser test skipped on Ubuntu. The run tested commit `696feec0c9c948c0cc7a2aa6b8b599d01fdb2c92`,
-including the gate/trace split and the first DLT three-source validation tests. Re-check the latest
-head's CI before treating the current branch as fully green.
+including the gate/trace split and the first DLT three-source validation tests. The latest docs and
+workflow-marker commits do not change the tested Python contract; still re-check CI on the latest
+head before final acceptance.
 
-The earlier live intake run `39754959885` ran the older fallback-only contract: DLT's two primary
-sources cross-checked, but SSQ's national endpoint returned HTTP 403. That run did not test the
-new mandatory Gansu corroboration contract. A new one-shot read-only intake is being run against
-the current branch. Any HTTP 403/567 or other non-200 response is transport evidence, never draw
-data; raw bodies are retained only as untrusted diagnostics.
+Live one-shot run `39757369719` executed the current three-source contract at code commit
+`1635a7ea5580fefb5d5077cd8ab6f3cf05053806`. It failed closed with DLT `SOURCE_FETCH_PARTIAL`
+because the national endpoint returned HTTP 567, and SSQ `SOURCE_FETCH_PARTIAL` because its
+national endpoint returned HTTP 403. The manifest reported `official_target_admission=BLOCKED`,
+`formal_A=0`, `external_tsa=NOT_RUN`, `decision=NO_EDGE`. The raw evidence bundle is artifact
+`12416731323` (`v47-official-intake-39757369719`). This run does not establish a three-source
+DLT pass or an SSQ history cross-check; failed HTTP bodies are transport diagnostics, never draw data.
 
 DLT 69/2880 negative-control anomaly remains unresolved. Formal A=0; NO_EDGE.
