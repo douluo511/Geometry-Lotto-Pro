@@ -108,6 +108,78 @@ class OfficialIntakeTests(unittest.TestCase):
         self.assertEqual(report["consensus_draw_count"], 130)
         self.assertEqual(report["official_history_admission"], "SHADOW_HISTORY_ONLY")
 
+    def test_ssq_hebei_latest_only_is_limited_one_issue_overlap(self):
+        payload = _payload("SSQ")
+        shanghai_rows = payload["sources"][1]["draws"]
+        raw = b"synthetic Hebei home"
+        url = "https://www.yzfcw.com/"
+        payload["sources"].append({
+            "source_id": "hebei", "source_name": oi.EXPECTED_SOURCE_NAMES["SSQ"]["hebei"],
+            "source_root": "yzfcw.com", "url": url,
+            "draws": copy.deepcopy(shanghai_rows[-1:]),
+            "receipt": {
+                "status": "PASS", "draw_count": 1,
+                "latest_issue": shanghai_rows[-1]["issue"],
+                "raw_sha256": hashlib.sha256(raw).hexdigest(),
+                "fetched_at": "2026-10-22T08:00:00+00:00",
+            },
+            "raw_artifacts": [
+                _artifact(url, payload["parser_version"], raw),
+                _artifact("https://www.yzfcw.com/game/ssqAnnounce",
+                          payload["parser_version"], b"synthetic Hebei announcement"),
+            ],
+            "raw_reparse_status": "PASS",
+            "raw_reparse_sha256": oi._rows_sha256(shanghai_rows[-1:]),
+        })
+        national = payload["sources"][0]
+        national["draws"] = []
+        national["receipt"] = None
+        national["error"] = "HTTP 403"
+        national["raw_reparse_status"] = "NOT_RUN_SOURCE_FETCH_FAILED"
+        failed_raw = b"synthetic 403 denial"
+        national["raw_artifacts"][0].update({
+            "raw_sha256": hashlib.sha256(failed_raw).hexdigest(),
+            "size_bytes": len(failed_raw), "http_status": 403,
+            "content_type": "text/html",
+            "raw_base64": base64.b64encode(failed_raw).decode("ascii"),
+        })
+        payload["errors"] = {"national": "HTTP 403"}
+        report = oi.validate_worker_payload(payload, expected_game="SSQ")
+        self.assertEqual(report["status"], "HISTORY_CROSSCHECK_LIMITED")
+        self.assertEqual(report["selected_source_ids"], ["shanghai", "hebei"])
+        self.assertEqual(report["consensus_draw_count"], 1)
+        self.assertEqual(report["primary_history_draw_count"], 130)
+        self.assertEqual(report["unverified_primary_history_draw_count"], 129)
+        self.assertEqual(report["official_history_admission"], "BLOCKED_120_ISSUE_DUAL_SOURCE")
+        self.assertEqual(report["formal_A"], 0)
+
+    def test_hebei_reparse_requires_two_distinct_official_raw_endpoints(self):
+        from types import SimpleNamespace
+
+        def parse_hebei(home, announcement):
+            self.assertEqual(home, b"home bytes")
+            self.assertEqual(announcement, b"announcement bytes")
+            return SimpleNamespace(
+                issue="2026120", draw_date="2026-10-20",
+                front=(13, 14, 16, 18, 20, 31), back=(3,)
+            )
+
+        parser = SimpleNamespace(
+            HEBEI_URL="https://www.yzfcw.com/",
+            HEBEI_ANNOUNCE_URL="https://www.yzfcw.com/game/ssqAnnounce",
+            parse_hebei_latest=parse_hebei,
+        )
+        artifacts = [
+            {"requested_url": parser.HEBEI_URL, "http_status": 200,
+             "raw_base64": base64.b64encode(b"home bytes").decode("ascii")},
+            {"requested_url": parser.HEBEI_ANNOUNCE_URL, "http_status": 200,
+             "raw_base64": base64.b64encode(b"announcement bytes").decode("ascii")},
+        ]
+        rows = oi._reparse_raw_history("SSQ", parser, "hebei", artifacts)
+        self.assertEqual(rows[0]["issue"], "2026120")
+        with self.assertRaisesRegex(GateError, "HEBEI_BOTH_OFFICIAL_RAW_PAGES_REQUIRED"):
+            oi._reparse_raw_history("SSQ", parser, "hebei", artifacts[:1])
+
     def test_dlt_jiangsu_plus_gansu_fallback_passes_with_120_primary_and_10_overlap(self):
         payload = _payload("DLT")
         rows = payload["sources"][1]["draws"]
