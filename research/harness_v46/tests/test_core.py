@@ -118,6 +118,21 @@ class GateTests(unittest.TestCase):
             db.execute("DELETE FROM predictions")
         with self.assertRaises(sqlite3.DatabaseError):
             db.execute("DELETE FROM audit_events")
+        self.assertEqual(db.execute("PRAGMA recursive_triggers").fetchone()[0], 1)
+        # SQLite REPLACE deletes the conflicting row; recursive triggers must
+        # ensure the append-only DELETE guard also blocks that path.
+        with self.assertRaises(sqlite3.DatabaseError):
+            db.execute(
+                "INSERT OR REPLACE INTO predictions VALUES(?,?,?,?,?,?,?,?)",
+                ("TEST-001", "SSQ", "pairwise_d2", "2026-10-21T00:00:00+00:00",
+                 p["snapshot_sha256"], sha, core.canon(p), "SHADOW"),
+            )
+        with self.assertRaises(sqlite3.DatabaseError):
+            db.execute(
+                "INSERT OR REPLACE INTO run_context VALUES(?,?,?,?,?,?)",
+                ("TEST-001", "SSQ", "29999", core.digest(data),
+                 data["as_of"], data["sales_cutoff"]),
+            )
 
     def test_batch_rollback_all_or_nothing(self):
         data = fixture()
