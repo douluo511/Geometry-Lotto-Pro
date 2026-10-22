@@ -10,14 +10,14 @@ Issue：https://github.com/douluo511/Geometry-Lotto-Pro/issues/428
 - V4.7 六研究流、固定 SHA256_SORT_V1 Random NULL、120期历史门槛和参数/模型源码SHA。
 - 双彩种 manifest-derived RUN_ID；manifest、完整规范化 snapshot preimage 均追加式保存。
 - 冻结时绑定 manifest 与 snapshot；08 独立只读批次检查重新加载快照并确定性重放六模型，拒绝合法号码的事后替换。
-- 原始来源字节 SQLite BLOB 保全、每彩种 HTTPS 主机白名单、SHA256与时间字段绑定；来源真实性仍为 NOT_VERIFIED。
+- `source_fetch.py` 已加入受限HTTPS原始字节抓取、每彩种域名白名单、重定向校验、25MB上限；本地抓取时间不可信，HTTP Last-Modified不冒充发布时间。原始字节可通过SQLite BLOB保全，但来源真实性仍为 NOT_VERIFIED。
 - 双来源 120+ 已解析记录比较器；校验期号/开奖时间顺序、号码范围、as-of、来源之间一致性及与锁定快照一致性。它不抓取或解析真实网页，故 G00/G01 仍 BLOCKED。
 - 精确 D2 基线二项检验、同期开奖 Random NULL 配对精确检验、交集并集 p 值、明确家族 Holm、模型率精确置信区间和保守配对差区间。输入结果/12项家族均未认证，始终 SHADOW / NO_EDGE。
 - Windows Task Scheduler 代码仅通过静态检查和CI；未在用户主机安装、未做冷启动/断网实测。
-- 最近已观测代码提交 `066fe9867aa1e4e3c84450b054e75b356fcfdc71` 的 CI Run #39748838910：Ubuntu/Windows 各62项测试成功；Ubuntu跳过一项Windows专用PowerShell解析测试。每次执行前仍必须核对PR #432当前HEAD及其CI。
+- 最近已观测代码提交 `51de08dc90da6599772a5a86366ef2f358070baf` 的 CI Run #39749449435：Ubuntu/Windows各70项测试成功；Ubuntu跳过一项Windows专用PowerShell解析测试。随后仅有文档更新；每次执行前仍必须核对PR #432当前HEAD及其CI。
 
 ## 下一轮最高优先级
-1. 实现并验证具体官方页面/API的抓取与解析；保存实际原始字节、URL、HTTP头、抓取时刻、可证实的发布时间、raw SHA和parser版本SHA。
+1. 用 `source_fetch.py` 对两个不同官方根域执行受控live fetch；实现并验证具体官方页面/API解析器。保存真实原始字节、URL、HTTP头、抓取时刻、可证实的发布时间、raw SHA和parser版本SHA。现在只有fetch原语和mock测试，没有live请求或source parser。
 2. 将两个来源的解析输出与原始字节、120+逐期快照严格绑定；不能仅接受调用者提供的“已解析数组”。逐期核对缺期、重复期、号码、日期和冲突。若来源格式或发布时间不能核实，G01=BLOCKED。
 3. 核验两个彩种的官方最新期、下一合法目标期、停售/开奖时间与休市安排；不得凭开奖星期推定实际停售时间。
 4. 实现外部RFC3161或等价第三方可信时间证明，验证返回令牌/签名和时间；仅生成请求SHA仍为 NOT_VERIFIED。
