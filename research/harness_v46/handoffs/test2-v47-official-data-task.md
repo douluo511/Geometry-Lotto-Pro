@@ -31,3 +31,11 @@
 - 本任务完成前，test3–test8不得生成有效前瞻候选。只有两个彩种各自G00/G01通过，才可向六个模型分发各自同一份锁定快照。
 
 正式状态继续 SHADOW；没有外部可信事前时间证明、授权和独立审计时，不得声称正式 A 或 D2_EDGE_CONFIRMED。
+
+
+## 2026-10-22 live-review notes — source leads, not admission
+
+- Shanghai Welfare Lottery Center homepage currently displays SSQ issue 2026120, dated 2026-10-20: red 13 14 16 18 20 31, blue 03 — https://www.swlc.net.cn/index.html
+- Gansu Sports Lottery Center history page currently displays DLT issue 26120, dated 2026-10-21: front 01 06 10 15 32, back 03 04 — https://www.gstc.org.cn/wanfa/dlt_history
+- These pages establish only the latest visible page facts. They do not satisfy the two-source 120+ history requirement, nor prove the next target's actual sales cutoff or absence of special scheduling.
+- Candidate official roots for controlled verification: SSQ `swlc.net.cn` + `cwl.gov.cn`; DLT `gstc.org.cn` + `fjtc.com.cn` or `sporttery.cn`. The current code can preserve supplied raw bytes and compare supplied parsed rows, but no live official fetch/parser has yet bound raw bytes to parser output. Treat all G00/G01 states as BLOCKED until that gap is closed.
