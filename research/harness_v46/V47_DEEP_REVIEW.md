@@ -179,3 +179,11 @@ The fetcher performs HTTPS GET only on the per-game allowlist, validates every r
 Exact CI run for code HEAD `51de08dc90da6599772a5a86366ef2f358070baf`: https://github.com/douluo511/Geometry-Lotto-Pro/actions/runs/39749449435 — Ubuntu SUCCESS, 70 tests (one Windows-only PowerShell parser test skipped); Windows Server 2022 SUCCESS, 70 tests (PowerShell parser included).
 
 **Still NOT_RUN:** no live request to any official lottery site was made by this code change, and no source-specific parser exists. The fetcher only provides a safer raw-byte acquisition primitive; G00/G01 remain BLOCKED until live responses, parser output, 120+ history agreement, actual cutoff, and provenance are independently verified.
+
+
+## 13. Raw fetch HTTP-status reporting regression — 2026-10-22
+
+- `52bc0cc26a2b589ff1e24815a70134a9d7719212` now preserves an HTTP error code (for example 403) as `SOURCE_HTTP_STATUS_NOT_200:<code>` instead of collapsing every HTTP error into a generic fetch failure.
+- `69543ec9e63e1a84d9c37fc3fdf30efe6011643c` adds the HTTPError regression test.
+- Exact CI: https://github.com/douluo511/Geometry-Lotto-Pro/actions/runs/39749904945 — Ubuntu SUCCESS, 71 tests (one Windows-only PowerShell parser test skipped); Windows Server 2022 SUCCESS, 71 tests.
+- This remains mocked-network evidence only; no live official source request or parser acceptance occurred.
