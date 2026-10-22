@@ -45,15 +45,20 @@ SOURCE_IDS = {
     "DLT": {
         "official_sporttery_national": "national",
         "official_jiangsu_sporttery": "jiangsu",
+        "official_gansu_sporttery": "gansu",
     },
 }
 EXPECTED_ROOTS = {
     "SSQ": {"national": "cwl.gov.cn", "shanghai": "swlc.net.cn"},
-    "DLT": {"national": "sporttery.cn", "jiangsu": "js-lottery.com"},
+    "DLT": {"national": "sporttery.cn", "jiangsu": "js-lottery.com", "gansu": "gstc.org.cn"},
 }
 EXPECTED_SOURCE_NAMES = {
     "SSQ": {"national": "official_cwl_L0", "shanghai": "official_shanghai_L1"},
-    "DLT": {"national": "official_sporttery_national", "jiangsu": "official_jiangsu_sporttery"},
+    "DLT": {
+        "national": "official_sporttery_national",
+        "jiangsu": "official_jiangsu_sporttery",
+        "gansu": "official_gansu_sporttery",
+    },
 }
 REDIRECT_CODES = {301, 302, 303, 307, 308}
 
@@ -110,9 +115,11 @@ def _root_for_url(game: str, url: str) -> tuple[str, str]:
     raise GateError("SOURCE_HOST_NOT_ALLOWLISTED_FOR_GAME")
 
 
-def _canonical_draws(game: str, rows: list[dict]) -> list[dict]:
-    if not isinstance(rows, list) or len(rows) < 120:
-        raise GateError("SOURCE_HISTORY_REQUIRES_AT_LEAST_120_DRAWS")
+def _canonical_draws(game: str, rows: list[dict], *, minimum: int = 120) -> list[dict]:
+    if type(minimum) is not int or minimum < 1:
+        raise GateError("INVALID_SOURCE_HISTORY_MINIMUM")
+    if not isinstance(rows, list) or len(rows) < minimum:
+        raise GateError(f"SOURCE_HISTORY_REQUIRES_AT_LEAST_{minimum}_DRAWS")
     front_max, front_count, back_max, back_count = (
         (33, 6, 16, 1) if game == "SSQ" else (35, 5, 12, 2)
     )
@@ -300,6 +307,10 @@ def _reparse_raw_history(game: str, source_module, source_id: str,
                 parsed_rows.extend(_source_rows(
                     source_module._parse_jiangsu_html(source_module._decode_html(raw))
                 ))
+            elif game == "DLT" and source_id == "gansu":
+                parsed_rows.extend(_source_rows(
+                    source_module._parse_gansu_history(source_module._decode_html(raw))
+                ))
             else:
                 raise GateError("UNKNOWN_RAW_REPARSE_ROUTE")
         except GateError:
@@ -313,7 +324,10 @@ def _reparse_raw_history(game: str, source_module, source_id: str,
         if previous is not None and previous != row:
             raise GateError("RAW_PAGES_CONFLICT_ON_ISSUE:" + issue)
         by_issue[issue] = row
-    reparsed = _canonical_draws(game, sorted(by_issue.values(), key=lambda row: int(row["issue"])))
+    minimum = 10 if game == "DLT" and source_id == "gansu" else 120
+    reparsed = _canonical_draws(
+        game, sorted(by_issue.values(), key=lambda row: int(row["issue"])), minimum=minimum
+    )
     return reparsed
 
 
@@ -346,6 +360,7 @@ def _install_dlt_redirect_guard(game: str, failure_recorder=None) -> None:
                 source_id = {
                     "sporttery.cn": "national",
                     "js-lottery.com": "jiangsu",
+                    "gstc.org.cn": "gansu",
                 }.get(response_root)
                 if source_id is not None:
                     raw = bytes(response.content)
