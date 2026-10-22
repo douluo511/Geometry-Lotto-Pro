@@ -193,7 +193,7 @@ class OfficialIntakeTests(unittest.TestCase):
             )
 
         fake_parser = SimpleNamespace(_draw=parse_draw)
-        artifact = {"raw_base64": base64.b64encode(raw).decode("ascii")}
+        artifact = {"http_status": 200, "raw_base64": base64.b64encode(raw).decode("ascii")}
         reparsed = oi._reparse_raw_history("SSQ", fake_parser, "national", [artifact])
         self.assertEqual(reparsed, rows)
         tampered = json.loads(raw.decode("utf-8"))
@@ -248,9 +248,9 @@ class OfficialIntakeTests(unittest.TestCase):
         self.assertEqual(report["consensus_draw_count"], 0)
 
     def test_dlt_redirect_guard_records_non_200_body_and_blocks_cross_root_redirect(self):
-        from unittest.mock import patch
+        import sys
+        from unittest.mock import Mock, patch
         from types import SimpleNamespace
-        import requests
 
         captured = []
         def record(source_id, meta, raw):
@@ -261,9 +261,10 @@ class OfficialIntakeTests(unittest.TestCase):
             headers={"Content-Type": "text/html"},
             content=b"waf response",
         )
-        with patch("requests.get", return_value=response):
+        fake_requests = SimpleNamespace(get=Mock(return_value=response))
+        with patch.dict(sys.modules, {"requests": fake_requests}):
             oi._install_dlt_redirect_guard("DLT", record)
-            observed = requests.get("https://webapi.sporttery.cn/gateway/history")
+            observed = fake_requests.get("https://webapi.sporttery.cn/gateway/history")
         self.assertEqual(observed.status_code, 567)
         self.assertEqual(captured[0][0], "national")
         self.assertEqual(captured[0][1]["http_status"], 567)
@@ -275,10 +276,11 @@ class OfficialIntakeTests(unittest.TestCase):
             headers={"Content-Type": "text/html", "Location": "https://attacker.example/landing"},
             content=b"redirect body",
         )
-        with patch("requests.get", return_value=redirect):
+        fake_requests = SimpleNamespace(get=Mock(return_value=redirect))
+        with patch.dict(sys.modules, {"requests": fake_requests}):
             oi._install_dlt_redirect_guard("DLT", record)
             with self.assertRaisesRegex(GateError, "HOST_NOT_ALLOWLISTED"):
-                requests.get("https://webapi.sporttery.cn/start")
+                fake_requests.get("https://webapi.sporttery.cn/start")
 
     def test_bundle_writes_raw_files_once_without_overwriting(self):
         report = oi.validate_worker_payload(_payload("SSQ"))
