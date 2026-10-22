@@ -12,7 +12,8 @@ from pathlib import Path
 
 from .core import (MODELS, RULES, VERSION, GateError, canon, digest, dt, score,
                    model_source_sha256, parameter_contract, validate_snapshot,
-                   validate_study_snapshot, validate_run_manifest_record)
+                   validate_study_snapshot, validate_run_manifest_record,
+                   load_registered_snapshot, validate_forecast)
 
 ROLES = {
     "test1": "00-CONTROL", "test2": "01-OFFICIAL-DATA",
@@ -244,6 +245,11 @@ def check_complete_batch(conn, run_id, lottery):
     if (expected_game is None or expected_game.get("snapshot_sha256") != context[0]
             or expected_game.get("issue") != context[1]):
         raise GateError("RUN_MANIFEST_CONTEXT_MISMATCH")
+    snapshot = load_registered_snapshot(conn, run_id, lottery)
+    if (snapshot.get("target_issue") != context[1]
+            or snapshot.get("as_of") != expected_game.get("as_of")
+            or snapshot.get("sales_cutoff") != expected_game.get("sales_cutoff")):
+        raise GateError("RUN_SNAPSHOT_CONTEXT_MISMATCH")
     rows = conn.execute(
         "SELECT model,payload,prediction_sha256,snapshot_sha256 FROM predictions "
         "WHERE run_id=? AND lottery=?", (run_id, lottery)).fetchall()
@@ -254,6 +260,8 @@ def check_complete_batch(conn, run_id, lottery):
         if hashlib.sha256(payload.encode("utf-8")).hexdigest() != checksum or snap != context[0]:
             raise GateError("FROZEN_PREDICTION_INTEGRITY_FAIL")
         p = json.loads(payload)
+        # Independently replay against the persisted snapshot, not just payload hashes.
+        validate_forecast(p, snapshot)
         model_identity = registered["models"].get(model)
         if (p.get("model") != model or p.get("target_issue") != context[1]
                 or p.get("primary_d2") != p.get("candidates_1_to_5", [])[:2]
