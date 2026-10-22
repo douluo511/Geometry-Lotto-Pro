@@ -41,7 +41,7 @@ STAGES = ("SYNC", "VERIFY", "AUTHORIZE", "PREDICT", "FREEZE", "WAIT",
 
 ORCHESTRATION_SOURCE_FILES = (
     "convergence.py", "schedule.py", "cli.py", "statistics.py", "source_validation.py",
-    "source_fetch.py", "official_intake.py",
+    "source_fetch.py", "official_intake.py", "raw_semantic_replay.py", "audit_intake_bundle.py",
     "../../SSQ/SSQ/glp/sources.py", "../../SSQ/SSQ/glp/constants.py",
     "../../SSQ/SSQ/glp/domain.py", "../../SSQ/SSQ/glp/util.py", "../../SSQ/SSQ/glp/net_client.py",
     "../../DLT/src/glp/sources.py", "../../DLT/src/glp/constants.py",

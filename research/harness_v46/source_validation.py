@@ -18,9 +18,11 @@ def _source_root(game: str, url: str) -> tuple[str, str]:
     try:
         parsed = urlsplit(url)
         host = (parsed.hostname or "").lower().rstrip(".")
+        port = parsed.port
     except (TypeError, ValueError) as exc:
         raise GateError("INVALID_SOURCE_URL") from exc
-    if parsed.scheme != "https" or not host or parsed.username or parsed.password or parsed.fragment:
+    if (parsed.scheme != "https" or not host or port not in (None, 443)
+            or parsed.username or parsed.password or parsed.fragment):
         raise GateError("HTTPS_SOURCE_URL_REQUIRED")
     for root in SOURCE_HOSTS_BY_GAME[game]:
         if host == root or host.endswith("." + root):

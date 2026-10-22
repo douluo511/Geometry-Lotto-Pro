@@ -76,6 +76,26 @@ class SourceFetchTests(unittest.TestCase):
         with self.assertRaisesRegex(GateError, "HTTPS_SOURCE_URL_REQUIRED"):
             fetch_raw_source("DLT", "http://www.gstc.org.cn/wanfa/dlt_history")
 
+    def test_nonstandard_https_port_blocks_before_network_and_on_redirect(self):
+        with patch("research.harness_v46.source_fetch.build_opener") as builder:
+            for url in (
+                "https://www.swlc.net.cn:8443/index.html",
+                "https://www.swlc.net.cn:invalid/index.html",
+            ):
+                with self.subTest(url=url), self.assertRaisesRegex(
+                    GateError, "HTTPS_SOURCE_URL_REQUIRED|INVALID_SOURCE_URL"
+                ):
+                    fetch_raw_source("SSQ", url)
+            builder.assert_not_called()
+
+        handler = _SafeRedirectHandler("SSQ")
+        request = Request("https://www.swlc.net.cn/start")
+        with self.assertRaisesRegex(GateError, "HTTPS_SOURCE_URL_REQUIRED"):
+            handler.redirect_request(
+                request, None, 302, "Found", {},
+                "https://www.swlc.net.cn:8443/redirect",
+            )
+
     def test_redirect_outside_allowlist_is_rejected(self):
         handler = _SafeRedirectHandler("SSQ")
         request = Request("https://www.swlc.net.cn/start")

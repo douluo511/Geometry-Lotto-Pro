@@ -974,7 +974,8 @@ def collect_live_history(game: str, *, timeout_seconds: int = 600) -> dict:
     completed = subprocess.run(
         [sys.executable, "-m", "research.harness_v46.official_intake", "--worker", game],
         cwd=str(REPO_ROOT), capture_output=True, text=True, timeout=timeout_seconds,
-        check=False, env={**os.environ, "PYTHONHASHSEED": "0"},
+        encoding="utf-8", check=False,
+        env={**os.environ, "PYTHONHASHSEED": "0", "PYTHONIOENCODING": "utf-8"},
     )
     after = source_file_hashes(game)
     if before != after:
@@ -988,18 +989,38 @@ def collect_live_history(game: str, *, timeout_seconds: int = 600) -> dict:
     if payload.get("source_files_sha256") != before:
         raise GateError("PARSER_SOURCE_HASH_CHANGED_DURING_HANDOFF")
     result = validate_worker_payload(payload, expected_game=game)
-    if payload.get("status") == "WORKER_FETCH_COMPLETE":
-        # A worker's own PASS is never sufficient for a qualifying history.
+    replayed_rows = {
+        source["source_id"]: _rows_sha256(source["draws"])
+        for source in result["sources"]
+        if source.get("raw_reparse_status") == "PASS" and source.get("draws")
+    }
+    if replayed_rows:
+        # A worker's own PASS is never sufficient, including successful sources
+        # within a partial collection that remain available for forensic review.
         # Independently restart the parser in a second Python process and
         # reconstruct each claimed source history from exact retained bytes.
-        replay = subprocess.run(
-            [sys.executable, "-m", "research.harness_v46.raw_semantic_replay",
-             "--game", game],
-            cwd=str(REPO_ROOT), input=json.dumps(payload, ensure_ascii=False,
-                                                 sort_keys=True, separators=(",", ":")),
-            capture_output=True, text=True, timeout=timeout_seconds,
-            check=False, env={**os.environ, "PYTHONHASHSEED": "0"},
-        )
+        try:
+            replay = subprocess.run(
+                [sys.executable, "-m", "research.harness_v46.raw_semantic_replay",
+                 "--game", game],
+                cwd=str(REPO_ROOT), input=json.dumps(payload, ensure_ascii=False,
+                                                     sort_keys=True, separators=(",", ":")),
+                capture_output=True, text=True, timeout=timeout_seconds,
+                encoding="utf-8", check=False,
+                env={**os.environ, "PYTHONHASHSEED": "0", "PYTHONIOENCODING": "utf-8"},
+            )
+        except (subprocess.TimeoutExpired, OSError) as exc:
+            return _quarantine_second_process_replay(
+                result, "SECOND_PROCESS_RAW_REPLAY_EXECUTION_FAILED:"
+                + type(exc).__name__ + ":" + str(exc)[-1000:])
+        try:
+            after_replay = source_file_hashes(game)
+        except (GateError, OSError) as exc:
+            return _quarantine_second_process_replay(
+                result, "PARSER_FILES_UNAVAILABLE_AFTER_RAW_REPLAY:" + str(exc))
+        if after_replay != before:
+            return _quarantine_second_process_replay(
+                result, "PARSER_FILES_CHANGED_DURING_RAW_REPLAY")
         if replay.returncode != 0:
             return _quarantine_second_process_replay(
                 result, "SECOND_PROCESS_RAW_REPLAY_BLOCKED:" + replay.stderr[-1000:])
@@ -1009,20 +1030,27 @@ def collect_live_history(game: str, *, timeout_seconds: int = 600) -> dict:
             return _quarantine_second_process_replay(
                 result, "SECOND_PROCESS_RAW_REPLAY_RECEIPT_INVALID")
         from .core import digest as canonical_digest
-        claimed_ids = sorted(s["source_id"] for s in payload["sources"]
-                             if s.get("raw_reparse_status") == "PASS" and s.get("draws"))
+        expected_receipt = {
+            "schema": "V47-SECOND-PROCESS-SEMANTIC-REPLAY-1",
+            "lottery": game,
+            "worker_payload_sha256": canonical_digest(payload),
+            "parser_source_hashes": before,
+            "verified_source_ids": sorted(replayed_rows),
+            "replayed_rows_sha256": replayed_rows,
+            "status": "SECOND_PROCESS_SAME_PARSER_REPLAY_MATCHED",
+            "source_origin_authenticity": "NOT_VERIFIED",
+            "publication_time_authenticity": "NOT_VERIFIED",
+            "official_G01": "BLOCKED",
+            "formal_A": 0,
+            "decision": "NO_EDGE",
+        }
         if (not isinstance(receipt, dict)
-                or receipt.get("schema") != "V47-SECOND-PROCESS-SEMANTIC-REPLAY-1"
-                or receipt.get("status") != "SECOND_PROCESS_SAME_PARSER_REPLAY_MATCHED"
-                or receipt.get("lottery") != game
-                or receipt.get("worker_payload_sha256") != canonical_digest(payload)
-                or receipt.get("parser_source_hashes") != before
-                or receipt.get("verified_source_ids") != claimed_ids
-                or receipt.get("official_G01") != "BLOCKED"
-                or type(receipt.get("formal_A")) is not int or receipt["formal_A"] != 0):
+                or receipt != expected_receipt
+                or type(receipt.get("formal_A")) is not int):
             return _quarantine_second_process_replay(
                 result, "SECOND_PROCESS_RAW_REPLAY_RECEIPT_MISMATCH")
         result["second_process_raw_replay"] = receipt
+        result["parser_to_raw_binding"] = "SECOND_PROCESS_SAME_PARSER_REPLAY_MATCHED"
     return result
 
 

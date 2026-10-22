@@ -5,6 +5,7 @@ import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from research.harness_v46 import core, convergence as cv, cli
 from research.harness_v46.tests.test_core import fixture
@@ -70,6 +71,26 @@ class Contracts(unittest.TestCase):
         with self.assertRaises(sqlite3.DatabaseError):
             db.execute("INSERT OR REPLACE INTO run_manifests SELECT * FROM run_manifests")
         db.close()
+
+    def test_raw_replay_and_bundle_auditor_changes_reidentify_run(self):
+        snapshots = self.snaps()
+        baseline = cv.manifest(snapshots)
+        original_read = Path.read_bytes
+        source_root = Path(cv.__file__).parent
+        for filename in ("raw_semantic_replay.py", "audit_intake_bundle.py"):
+            with self.subTest(filename=filename):
+                self.assertIn(filename, cv.ORCHESTRATION_SOURCE_FILES)
+                target = (source_root / filename).resolve()
+
+                def changed_read(path):
+                    raw = original_read(path)
+                    return raw + b"\n# synthetic identity mutation\n" if path.resolve() == target else raw
+
+                with patch.object(Path, "read_bytes", changed_read):
+                    changed = cv.manifest(snapshots)
+                self.assertNotEqual(baseline["harness_source_sha256"], changed["harness_source_sha256"])
+                self.assertNotEqual(baseline["run_id"], changed["run_id"])
+        self.assertEqual(baseline, cv.manifest(snapshots))
 
     def test_snapshot_preimage_is_persisted_and_immutable(self):
         db = sqlite3.connect(":memory:")
