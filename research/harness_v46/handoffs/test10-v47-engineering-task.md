@@ -2,26 +2,27 @@
 
 **只在现有 #432 convergence 分支继续；不新建互相竞争的规范 PR，不合并 main。**
 
-PR：https://github.com/douluo511/Geometry-Lotto-Pro/pull/432
-Issue：https://github.com/douluo511/Geometry-Lotto-Pro/issues/428
+PR：https://github.com/douluo511/Geometry-Lotto-Pro/pull/432  
+Issue：https://github.com/douluo511/Geometry-Lotto-Pro/issues/428  
 深度评审：../V47_DEEP_REVIEW.md
 
-## 已完成且不得重复实现
-- 120期最小历史门槛：manifest、CLI forecast、freeze；Pairwise-D2要求120期。
-- V4.7 model/source/parameter identity；SHA256_SORT_V1 Random NULL。
-- V47 RUN_ID绑定游戏快照上下文、模型/参数/源码身份、工具白名单与编排源码身份。
-- Ubuntu与Windows Server 2022最新合成 CI 每个平台36项通过。
-- 历史 V4.5/V4.6证据不迁移、不覆写；正式 A=0 / NO_EDGE。
+## 当前已提交的实现
+- V4.7 六研究流、固定 SHA256_SORT_V1 Random NULL、120期历史门槛和参数/模型源码SHA。
+- 双彩种 manifest-derived RUN_ID；manifest、完整规范化 snapshot preimage 均追加式保存。
+- 冻结时绑定 manifest 与 snapshot；08 独立只读批次检查重新加载快照并确定性重放六模型，拒绝合法号码的事后替换。
+- 原始来源字节 SQLite BLOB 保全、每彩种 HTTPS 主机白名单、SHA256与时间字段绑定；来源真实性仍为 NOT_VERIFIED。
+- 双来源 120+ 已解析记录比较器；校验期号/开奖时间顺序、号码范围、as-of、来源之间一致性及与锁定快照一致性。它不抓取或解析真实网页，故 G00/G01 仍 BLOCKED。
+- 精确 D2 基线二项检验、同期开奖 Random NULL 配对精确检验、交集并集 p 值、明确家族 Holm、模型率精确置信区间和保守配对差区间。输入结果/12项家族均未认证，始终 SHADOW / NO_EDGE。
+- Windows Task Scheduler 代码仅通过静态检查和CI；未在用户主机安装、未做冷启动/断网实测。
+- 最近已观测代码提交 `066fe9867aa1e4e3c84450b054e75b356fcfdc71` 的 CI Run #39748838910：Ubuntu/Windows 各62项测试成功；Ubuntu跳过一项Windows专用PowerShell解析测试。每次执行前仍必须核对PR #432当前HEAD及其CI。
 
-## 继续完成的阻塞项
-1. **官方来源解析**：只允许官方来源白名单；保存原始字节、发布时间、抓取时间和SHA；实现两个官方来源的逐期语义比对与缺期/冲突拒绝。不能把本地文件SHA等同官方真实性。
-2. **真实快照契约**：把原始文件字节SHA、规范化快照SHA、目标期/停售/开奖时间、as-of和来源证据分别登记；缺任何必需字段即 BLOCKED。
-3. **真实外部TSA**：实现一个有响应签名验证的外部RFC3161或等价可信时间提供者接口；只生成请求哈希仍然是 NOT_VERIFIED。
-4. **冻结与统计**：持久化模型注册表和预注册协议；追加式提交清单；独立只读评分需验证官方结果证据、目标期、全部六流完整性、唯一主D2、同期开奖Random NULL配对与固定停止规则。
-5. **阶段护栏**：逐阶段要求对应证据字段；不能仅靠写入通用 `SHADOW` 状态就将所有关卡标记为通过。未授权/未验证阶段必须明确 BLOCKED/NOT_RUN。
-6. **九项 P0 故障注入**：时间穿越、留出集篡改、伪造授权、TSA/SHA失败、官方冲突、缺期/重复写入、槽位替换、指标/择优偏差、断网/断电恢复。区分合成故障与真实主机验收。
-7. **Windows真实运行**：在用户主机记录 Task Scheduler 实际触发、冷启动、断网、30分钟补偿和禁止补造预测的日志；GitHub CI不能代替此证据。
-8. **版本与迁移**：PR #427 的 V4.5公式包装与 V4.7核心不得直接视为同算法。任何移植都需要明确映射、参数SHA、源码SHA、等价测试和新版本身份。
+## 下一轮最高优先级
+1. 实现并验证具体官方页面/API的抓取与解析；保存实际原始字节、URL、HTTP头、抓取时刻、可证实的发布时间、raw SHA和parser版本SHA。
+2. 将两个来源的解析输出与原始字节、120+逐期快照严格绑定；不能仅接受调用者提供的“已解析数组”。逐期核对缺期、重复期、号码、日期和冲突。若来源格式或发布时间不能核实，G01=BLOCKED。
+3. 核验两个彩种的官方最新期、下一合法目标期、停售/开奖时间与休市安排；不得凭开奖星期推定实际停售时间。
+4. 实现外部RFC3161或等价第三方可信时间证明，验证返回令牌/签名和时间；仅生成请求SHA仍为 NOT_VERIFIED。
+5. 将正式12项假说映射到既有注册身份；未确认映射之前，新统计模块只是算术工具，不能冒充有效预注册。新 Challenger 另行预注册。
+6. 继续执行九类P0，严格区分合成注入与真实主机验收；保留DLT 69/2880负控异常，直到根因证据闭环。
 
-## 交付格式
-实际改动文件、commit SHA、最新CI run及逐平台测试数、P0矩阵、真实/合成证据分类、未完成项、正式A样本数、统计裁决。不要自动购买彩票，不得宣称预测优势。
+## 每轮交付格式
+实际改动文件、Commit SHA、最新CI Run与逐平台测试数、P0矩阵、原始数据/快照/参数/源码SHA、外部封存状态、正式A样本数、NO_EDGE裁决、未解决问题与下一项可证伪假说。禁止自动购买彩票；禁止宣称其他ChatGPT聊天框已自动互通。
