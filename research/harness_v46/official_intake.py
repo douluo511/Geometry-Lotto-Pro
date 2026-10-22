@@ -173,8 +173,8 @@ def _validate_artifacts(game: str, source: dict, parser_version: str) -> list[di
             raise GateError("RAW_ARTIFACT_SOURCE_ROOT_MISMATCH")
         if artifact["parser_version"] != parser_version:
             raise GateError("PARSER_VERSION_MISMATCH")
-        if type(artifact["http_status"]) is not int or artifact["http_status"] != 200:
-            raise GateError("RAW_ARTIFACT_HTTP_STATUS_NOT_200")
+        if type(artifact["http_status"]) is not int or not 100 <= artifact["http_status"] <= 599:
+            raise GateError("RAW_ARTIFACT_HTTP_STATUS_INVALID")
         if not isinstance(artifact["content_type"], str) or not artifact["content_type"].strip():
             raise GateError("RAW_ARTIFACT_CONTENT_TYPE_MISSING")
         try:
@@ -194,7 +194,7 @@ def _validate_artifacts(game: str, source: dict, parser_version: str) -> list[di
             "requested_url": artifact["requested_url"], "host": host,
             "source_root": root, "raw_sha256": artifact["raw_sha256"],
             "size_bytes": len(raw), "content_type": artifact["content_type"],
-            "http_status": 200, "fetched_at_local_untrusted": artifact["fetched_at"],
+            "http_status": artifact["http_status"], "fetched_at_local_untrusted": artifact["fetched_at"],
             "parser_version": parser_version, "raw_base64": artifact["raw_base64"],
         })
     return validated
@@ -210,8 +210,9 @@ def _normalize_worker_artifact(game: str, source_id: str, meta: dict, raw: bytes
     _, requested_root = _root_for_url(game, requested_url)
     if root != requested_root:
         raise GateError("SOURCE_REDIRECT_CHANGED_OFFICIAL_ROOT")
-    if int(meta.get("http_status", 0)) != 200:
-        raise GateError("RAW_SOURCE_HTTP_STATUS_NOT_200")
+    status = meta.get("http_status")
+    if type(status) is not int or not 100 <= status <= 599:
+        raise GateError("RAW_SOURCE_HTTP_STATUS_INVALID")
     content_type = str(meta.get("content_type") or "")
     fetched_at = str(meta.get("fetched_at") or "")
     try:
@@ -228,7 +229,7 @@ def _normalize_worker_artifact(game: str, source_id: str, meta: dict, raw: bytes
     return {
         "url": url, "requested_url": requested_url, "raw_sha256": digest,
         "size_bytes": len(raw), "content_type": content_type,
-        "http_status": 200, "fetched_at": fetched_at,
+        "http_status": status, "fetched_at": fetched_at,
         "parser_version": parser_version,
         "raw_base64": base64.b64encode(raw).decode("ascii"),
         "_source_id": source_id, "_source_root": root, "_host": host,
@@ -252,6 +253,10 @@ def _reparse_raw_history(game: str, source_module, source_id: str,
             raw = base64.b64decode(artifact["raw_base64"], validate=True)
         except Exception as exc:
             raise GateError("RAW_REPARSE_BASE64_INVALID") from exc
+        if artifact.get("http_status") != 200:
+            # Failed HTTP responses are preserved as diagnostic evidence but are
+            # never parsed as draw data, even if the server returned HTML/JSON.
+            continue
         if not raw:
             # Some SSQ history endpoints transiently return empty HTTP 200 bodies;
             # preserve and hash them, but never treat them as a successful draw page.
