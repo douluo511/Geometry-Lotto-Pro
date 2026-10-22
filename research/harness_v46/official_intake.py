@@ -729,13 +729,17 @@ def validate_worker_payload(payload: dict, *, expected_game: str | None = None) 
     artifact_count = sum(len(source["raw_artifacts"]) for source in checked_sources)
     return {
         "schema": SCHEMA, "lottery": game, "status": "HISTORY_CROSSCHECK_PASS",
-        "source_count": 2, "source_roots": [s["source_root"] for s in checked_sources],
+        "source_count": len(checked_sources), "primary_source_count": len(primary),
+        "corroborating_source_count": len(corroboration_summaries),
+        "source_roots": [s["source_root"] for s in checked_sources],
         "source_summaries": [
             {"source_id": s["source_id"], "source_root": s["source_root"],
+             "role": "PRIMARY" if s["source_id"] in primary_ids else "CORROBORATOR",
              "draw_count": s["draw_count"], "latest_issue": s["draws"][-1]["issue"],
              "raw_artifact_count": len(s["raw_artifacts"]), "parser_version": parser_version}
             for s in checked_sources
         ],
+        "corroboration_summaries": corroboration_summaries,
         "consensus_draw_count": len(consensus), "consensus_draws": consensus,
         "sources": checked_sources, "source_files_sha256": current_hashes,
         "collection_started_at_local_untrusted": payload.get("collection_started_at_local_untrusted"),
