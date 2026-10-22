@@ -1,4 +1,5 @@
-# Windows Task Scheduler handler: logs actual invocation, but never self-certifies time.
+# V4.7 Windows Task Scheduler handler: logs invocation but never self-certifies time.
+# The legacy filename is retained so reviewed references remain stable.
 param([Parameter(Mandatory=$true)][string]$ConfigFile)
 $ErrorActionPreference = 'Stop'
 $cfg = Get-Content -LiteralPath $ConfigFile -Raw | ConvertFrom-Json
@@ -10,10 +11,10 @@ Set-Location -LiteralPath $root
 $stamp = [DateTimeOffset]::UtcNow.ToString('o')
 $logdir = Split-Path -Parent $cfg.log_path
 if (-not (Test-Path -LiteralPath $logdir)) { throw 'PRECREATED_LOG_DIRECTORY_REQUIRED' }
-"[$stamp] V46-SHADOW actual handler invocation (local time is not trusted)" | Out-File -FilePath $cfg.log_path -Encoding utf8 -Append
+"[$stamp] V47-SHADOW actual handler invocation (local time is not trusted)" | Out-File -FilePath $cfg.log_path -Encoding utf8 -Append
 # The Python module itself prevents off-schedule, changed RUN_ID and post-cutoff writes.
 $output = & $cfg.python_exe -m research.harness_v46.schedule --snapshot-bundle $cfg.snapshot_bundle --database $cfg.database 2>&1
 $code = $LASTEXITCODE
 $output | Out-String | Out-File -FilePath $cfg.log_path -Encoding utf8 -Append
 "[exit_code=$code] local receipt only, formal_A=0" | Out-File -FilePath $cfg.log_path -Encoding utf8 -Append
-if ($code -ne 0) { throw 'V46_SHADOW_COMPENSATION_RUN_FAILED' }
+if ($code -ne 0) { throw 'V47_SHADOW_COMPENSATION_RUN_FAILED' }
