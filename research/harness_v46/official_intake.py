@@ -682,7 +682,33 @@ def collect_live_history(game: str, *, timeout_seconds: int = 600) -> dict:
             "official_target_admission": "BLOCKED",
             "external_tsa": "NOT_RUN", "formal_A": 0, "decision": "NO_EDGE",
         }
-    return validate_worker_payload(payload, expected_game=game)
+    try:
+        return validate_worker_payload(payload, expected_game=game)
+    except Exception as exc:
+        # A parser/schema/source conflict is a BLOCK, not a reason to discard the raw
+        # artifacts needed to diagnose it. Preserve bytes as UNADMITTED evidence.
+        unadmitted = []
+        candidates = []
+        for source in payload.get("sources", []) if isinstance(payload.get("sources"), list) else []:
+            if not isinstance(source, dict):
+                continue
+            candidates.append({k: v for k, v in source.items() if k != "raw_artifacts"})
+            artifacts = source.get("raw_artifacts", [])
+            if isinstance(artifacts, list):
+                for artifact in artifacts:
+                    if isinstance(artifact, dict):
+                        unadmitted.append({**artifact, "_source_id": source.get("source_id", "unknown")})
+        error = f"{type(exc).__name__}: {exc}"
+        return {
+            "schema": SCHEMA, "lottery": game, "status": "BLOCKED",
+            "error": error, "source_errors": {"cross_source_validation": error},
+            "source_candidates": candidates, "sources": [],
+            "unadmitted_raw_artifacts": unadmitted,
+            "transport_failures": payload.get("transport_failures", []),
+            "source_files_sha256": before, "timestamp_trust": "LOCAL_CLOCK_UNTRUSTED",
+            "official_history_admission": "BLOCKED", "official_target_admission": "BLOCKED",
+            "external_tsa": "NOT_RUN", "formal_A": 0, "decision": "NO_EDGE",
+        }
 
 
 def collect_both() -> dict:
