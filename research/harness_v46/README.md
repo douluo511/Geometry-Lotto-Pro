@@ -25,9 +25,11 @@ The multi-product repository itself is NOT a final independent release repositor
   prediction carries the exact installed `core.py` source SHA256.
 - Each algorithm produces 5 ordered front candidates, one unique D2 (first
   two), and one valid full ticket. Back numbers never affect D2.
-- SQLite local append-only guard triggers, uniqueness, immutable RUN_ID +
-  lottery context (target issue, snapshot SHA256, as-of and cutoff),
-  cutoff checks, a 120-draw minimum at study manifest, CLI and freeze gates,
+- SQLite local append-only guard triggers, uniqueness, an immutable persisted
+  V4.7 manifest preimage/SHA256, immutable RUN_ID + lottery context (target
+  issue, snapshot SHA256, as-of and cutoff), and model/source identity checks
+  before V47 freeze; cutoff checks, a 120-draw minimum at study manifest,
+  CLI and freeze gates,
   Pairwise-D2's registered 120-draw window, parameter/source SHA-256, and a
   read-only score operation. Application writer initialization enables
   `recursive_triggers` and tests reject `INSERT OR REPLACE` against frozen
