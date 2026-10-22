@@ -239,3 +239,52 @@ python -m research.harness_v46.raw_semantic_replay --game SSQ < worker-ssq.json
 No customer betting/purchase is performed. This prototype has no verified
 external predraw TSA, independent official draw scoring, or future D2 edge.
 `formal_A=0`, `NO_EDGE` throughout.
+
+## V4.7 prospective SHADOW prediction / scoring loop
+
+The research objective is iterative: run the **actual fixed model versions**
+before a future draw, save and show the model numbers and local evidence, then
+score exactly those frozen predictions after the draw. New experimental
+hypotheses and algorithms must be **versioned for future forecasts only**;
+old D2 numbers are never rewritten, even when scoring is unfavorable.
+Repeated future observations and paired `random_null` comparison are required
+to evaluate improvement; a successful local run alone never proves a D2 edge.
+
+New explicit on-demand command (does not change the existing Windows JST task
+window). This accepts a **two-game 120+-draw as-of snapshot** with explicit
+target issue and sales cutoff and enforces the current local clock before
+that cutoff. Its source claims are **NOT** authenticated G01 and local
+timestamp is **NOT** an external notarized pre-draw seal:
+
+```sh
+python -m research.harness_v46.prospective_cycle forecast \
+  --snapshot-bundle my_prepared_SSQ_DLT_snapshots.json \
+  --database ./shadow_v47.sqlite3
+```
+
+The output contains both lotteries, all six actual frozen model candidates,
+`primary_d2`, complete tickets, model code SHA, parameter hashes, local
+freeze times and the immutable prediction-batch hashes. Keep the `run_id`.
+Show the same stored cards any time without re-forecasting:
+
+```sh
+python -m research.harness_v46.prospective_cycle show \
+  --database ./shadow_v47.sqlite3 --run-id V47-REPLACE_WITH_REPORTED_ID
+```
+
+After the target drawing, construct `results.json` as a map with exactly
+`SSQ` and `DLT` keys; each value must have `lottery`, `issue`,
+`front`, `back` (real draw numbers). Score *read-only*:
+
+```sh
+python -m research.harness_v46.prospective_cycle score \
+  --database ./shadow_v47.sqlite3 --run-id V47-REPLACE_WITH_REPORTED_ID \
+  --result-bundle results.json
+```
+
+This computes D1-D5 per model and each arm's same-draw D2 difference versus
+the fixed `random_null` stream. **Until independent source, cutoff,
+postdraw-result, externally timestamped preregistration and future dataset
+acceptance exist, it is SHADOW-only, A=0 and NO_EDGE**. The user-supplied
+result file is not deemed authentic. No ticket purchase is performed, and the
+original V4.5 formal eight slots are untouched.
