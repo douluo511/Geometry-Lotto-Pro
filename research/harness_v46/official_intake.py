@@ -41,7 +41,8 @@ PARSER_FILES = {
     ),
 }
 SOURCE_IDS = {
-    "SSQ": {"official_cwl_L0": "national", "official_shanghai_L1": "shanghai"},
+    "SSQ": {"official_cwl_L0": "national", "official_shanghai_L1": "shanghai",
+            "official_guangdong_L2": "guangdong"},
     "DLT": {
         "official_sporttery_national": "national",
         "official_jiangsu_sporttery": "jiangsu",
@@ -49,11 +50,13 @@ SOURCE_IDS = {
     },
 }
 EXPECTED_ROOTS = {
-    "SSQ": {"national": "cwl.gov.cn", "shanghai": "swlc.net.cn"},
+    "SSQ": {"national": "cwl.gov.cn", "shanghai": "swlc.net.cn",
+            "guangdong": "gdfc.org.cn"},
     "DLT": {"national": "sporttery.cn", "jiangsu": "js-lottery.com", "gansu": "gstc.org.cn"},
 }
 EXPECTED_SOURCE_NAMES = {
-    "SSQ": {"national": "official_cwl_L0", "shanghai": "official_shanghai_L1"},
+    "SSQ": {"national": "official_cwl_L0", "shanghai": "official_shanghai_L1",
+            "guangdong": "official_guangdong_L2"},
     "DLT": {
         "national": "official_sporttery_national",
         "jiangsu": "official_jiangsu_sporttery",
@@ -160,6 +163,37 @@ def _canonical_draws(game: str, rows: list[dict], *, minimum: int = 120) -> list
     return clean
 
 
+def _canonical_number_only_draws(game: str, rows: list[dict], *, minimum: int = 10) -> list[dict]:
+    """Validate issue+balls-only corroborators without inventing draw dates."""
+    if type(minimum) is not int or minimum < 1:
+        raise GateError("INVALID_SOURCE_HISTORY_MINIMUM")
+    if not isinstance(rows, list) or len(rows) < minimum:
+        raise GateError(f"SOURCE_HISTORY_REQUIRES_AT_LEAST_{minimum}_DRAWS")
+    front_max, front_count, back_max, back_count = (
+        (33, 6, 16, 1) if game == "SSQ" else (35, 5, 12, 2)
+    )
+    clean, seen, last_issue = [], set(), -1
+    for row in rows:
+        if not isinstance(row, dict) or set(row) != {"issue", "front", "back"}:
+            raise GateError("INVALID_SOURCE_DRAW_SCHEMA")
+        issue = str(row["issue"])
+        if not issue.isdigit() or int(issue) <= last_issue or issue in seen:
+            raise GateError("DUPLICATE_OR_OUT_OF_ORDER_SOURCE_ISSUE")
+        front, back = row["front"], row["back"]
+        if (not isinstance(front, list) or len(front) != front_count
+                or any(type(n) is not int or not 1 <= n <= front_max for n in front)
+                or front != sorted(front) or len(set(front)) != front_count):
+            raise GateError("INVALID_SOURCE_FRONT_NUMBERS")
+        if (not isinstance(back, list) or len(back) != back_count
+                or any(type(n) is not int or not 1 <= n <= back_max for n in back)
+                or back != sorted(back) or len(set(back)) != back_count):
+            raise GateError("INVALID_SOURCE_BACK_NUMBERS")
+        clean.append({"issue": issue, "front": front, "back": back})
+        seen.add(issue)
+        last_issue = int(issue)
+    return clean
+
+
 def _validate_artifacts(game: str, source: dict, parser_version: str) -> list[dict]:
     source_id = source.get("source_id")
     source_root = source.get("source_root")
@@ -247,11 +281,15 @@ def _normalize_worker_artifact(game: str, source_id: str, meta: dict, raw: bytes
 
 
 def _source_rows(draws) -> list[dict]:
-    return [
-        {"issue": str(d.issue), "draw_date": str(d.draw_date)[:10],
-         "front": list(d.front), "back": list(d.back)}
-        for d in draws
-    ]
+    rows = []
+    for draw in draws:
+        if isinstance(draw, dict) and set(draw) == {"issue", "front", "back"}:
+            rows.append({"issue": str(draw["issue"]),
+                         "front": list(draw["front"]), "back": list(draw["back"])})
+        else:
+            rows.append({"issue": str(draw.issue), "draw_date": str(draw.draw_date)[:10],
+                         "front": list(draw.front), "back": list(draw.back)})
+    return rows
 
 
 def _reparse_raw_history(game: str, source_module, source_id: str,
@@ -288,6 +326,8 @@ def _reparse_raw_history(game: str, source_module, source_id: str,
                     })
             elif game == "SSQ" and source_id == "shanghai":
                 parsed_rows.extend(_source_rows(source_module.parse_shanghai_history(raw)))
+            elif game == "SSQ" and source_id == "guangdong":
+                parsed_rows.extend(source_module.parse_guangdong_recent_history(raw))
             elif game == "DLT" and source_id == "national":
                 payload = json.loads(raw.decode("utf-8-sig"))
                 value = payload.get("value") or {} if isinstance(payload, dict) else {}
@@ -407,7 +447,7 @@ def _worker(game: str) -> dict:
         raise GateError("PARSER_VERSION_CHANGED_DURING_IMPORT")
 
     if game == "SSQ":
-        from glp.constants import SSQ_HISTORY_START_ISSUE
+        from glp.constants import SSQ_HISTORY_START_ISSUE, GUANGDONG_HISTORY_URL
 
         def recorder(meta, raw):
             source_name = str(meta.get("source") or "")
@@ -418,20 +458,20 @@ def _worker(game: str) -> dict:
                 game, source_id, meta, bytes(raw), parser_version
             ))
 
-        source_specs = (
+        primary_specs = (
             ("national", "official_cwl_L0",
+             "https://www.cwl.gov.cn/cwl_admin/front/cwlkj/search/kjxx/findDrawNotice",
              lambda: source_module.fetch_national_history(record_raw=recorder)),
             ("shanghai", "official_shanghai_L1",
+             "https://www.swlc.net.cn/lottery/ssq.html",
              lambda: source_module.fetch_shanghai_full_history(
                  start_issue=SSQ_HISTORY_START_ISSUE, record_raw=recorder
              )),
         )
         sources = []
         errors = {}
-        for source_id, source_name, fetch in source_specs:
-            root = "cwl.gov.cn" if source_id == "national" else "swlc.net.cn"
-            url = ("https://www.cwl.gov.cn/cwl_admin/front/cwlkj/search/kjxx/findDrawNotice"
-                   if source_id == "national" else "https://www.swlc.net.cn/lottery/ssq.html")
+        for source_id, source_name, url, fetch in primary_specs:
+            root = EXPECTED_ROOTS[game][source_id]
             try:
                 draws, receipt, _manifest = fetch()
                 sources.append({
@@ -449,6 +489,35 @@ def _worker(game: str) -> dict:
                     "source_id": source_id, "source_name": source_name,
                     "source_root": root, "url": url, "draws": [],
                     "receipt": None, "error": errors[source_id],
+                })
+
+        # Fetch the recent regional corroborator only when the two 120+ primary
+        # sources do not both fetch. It is never substituted for a long history.
+        if errors:
+            source_id, source_name, url = (
+                "guangdong", "official_guangdong_L2", GUANGDONG_HISTORY_URL
+            )
+            try:
+                draws, receipt, _meta = source_module.fetch_guangdong_recent_history(
+                    limit=50, record_raw=recorder
+                )
+                sources.append({
+                    "source_id": source_id, "source_name": source_name,
+                    "source_root": EXPECTED_ROOTS[game][source_id],
+                    "url": url, "draws": _source_rows(draws),
+                    "receipt": {
+                        "status": receipt.status, "draw_count": receipt.draw_count,
+                        "latest_issue": receipt.latest_issue, "raw_sha256": receipt.raw_sha256,
+                        "fetched_at": receipt.fetched_at,
+                    },
+                })
+            except Exception as exc:
+                errors[source_id] = f"{type(exc).__name__}: {exc}"
+                sources.append({
+                    "source_id": source_id, "source_name": source_name,
+                    "source_root": EXPECTED_ROOTS[game][source_id],
+                    "url": url, "draws": [], "receipt": None,
+                    "error": errors[source_id],
                 })
     elif game == "DLT":
         errors = {}
@@ -544,9 +613,7 @@ def _worker(game: str) -> dict:
             continue
         try:
             reparsed = _reparse_raw_history(game, source_module, source_id, source["raw_artifacts"])
-            source_draws = _canonical_draws(
-                game, source["draws"], minimum=_source_minimum(game, source_id)
-            )
+            source_draws = _canonical_source_draws(game, source_id, source["draws"])
             if reparsed != source_draws:
                 raise GateError("RAW_REPARSED_ROWS_DIFFER_FROM_SOURCE_OUTPUT:" + source_id)
             source["raw_reparse_status"] = "PASS"
@@ -563,7 +630,9 @@ def _worker(game: str) -> dict:
         if source.get("raw_reparse_status") == "PASS" and source.get("draws")
     }
     if game == "SSQ":
-        has_valid_pair = {"national", "shanghai"}.issubset(valid_ids)
+        has_valid_pair = any(pair.issubset(valid_ids) for pair in (
+            {"national", "shanghai"}, {"national", "guangdong"}, {"shanghai", "guangdong"}
+        ))
     else:
         has_valid_pair = any(pair.issubset(valid_ids) for pair in (
             {"national", "jiangsu"}, {"national", "gansu"}, {"jiangsu", "gansu"}
@@ -584,12 +653,22 @@ def _source_id_set_valid(game: str, source_items: list[dict]) -> bool:
     if len(ids) != len(source_items) or len(set(ids)) != len(ids):
         return False
     if game == "SSQ":
-        return len(ids) == 2 and set(ids) == {"national", "shanghai"}
+        return 2 <= len(ids) <= 3 and set(ids).issubset({"national", "shanghai", "guangdong"})
     return 2 <= len(ids) <= 3 and set(ids).issubset({"national", "jiangsu", "gansu"})
 
 
 def _source_minimum(game: str, source_id: str) -> int:
-    return 10 if game == "DLT" and source_id == "gansu" else 120
+    if game == "DLT" and source_id == "gansu":
+        return 10
+    if game == "SSQ" and source_id == "guangdong":
+        return 10
+    return 120
+
+
+def _canonical_source_draws(game: str, source_id: str, rows: list[dict]) -> list[dict]:
+    if game == "SSQ" and source_id == "guangdong":
+        return _canonical_number_only_draws(game, rows, minimum=_source_minimum(game, source_id))
+    return _canonical_draws(game, rows, minimum=_source_minimum(game, source_id))
 
 
 def _validate_partial_worker_payload(payload: dict, game: str, parser_version: str,
@@ -613,9 +692,7 @@ def _validate_partial_worker_payload(payload: dict, game: str, parser_version: s
         artifacts = _validate_artifacts(game, source, parser_version) if raw_list else []
         valid_draws = []
         if source.get("raw_reparse_status") == "PASS" and source.get("draws"):
-            valid_draws = _canonical_draws(
-                game, source["draws"], minimum=_source_minimum(game, source_id)
-            )
+            valid_draws = _canonical_source_draws(game, source_id, source["draws"])
             if source.get("raw_reparse_sha256") != _rows_sha256(valid_draws):
                 raise GateError("RAW_REPARSE_SHA_MISMATCH")
             receipt = source.get("receipt")
@@ -705,9 +782,7 @@ def validate_worker_payload(payload: dict, *, expected_game: str | None = None) 
         rows = []
         valid_source = source.get("raw_reparse_status") == "PASS" and bool(source.get("draws"))
         if valid_source:
-            rows = _canonical_draws(
-                game, source["draws"], minimum=_source_minimum(game, source_id)
-            )
+            rows = _canonical_source_draws(game, source_id, source["draws"])
             if source.get("raw_reparse_sha256") != _rows_sha256(rows):
                 raise GateError("RAW_REPARSE_SHA_MISMATCH")
             receipt = source.get("receipt")
@@ -730,7 +805,14 @@ def validate_worker_payload(payload: dict, *, expected_game: str | None = None) 
         })
 
     if game == "SSQ":
-        pair_ids, minimum_overlap = ("national", "shanghai"), 120
+        if {"national", "shanghai"}.issubset(candidates):
+            pair_ids, minimum_overlap = ("national", "shanghai"), 120
+        elif {"shanghai", "guangdong"}.issubset(candidates):
+            pair_ids, minimum_overlap = ("shanghai", "guangdong"), 10
+        elif {"national", "guangdong"}.issubset(candidates):
+            pair_ids, minimum_overlap = ("national", "guangdong"), 10
+        else:
+            raise GateError("NO_VALID_TWO_SOURCE_PAIR")
     elif {"national", "jiangsu"}.issubset(candidates):
         pair_ids, minimum_overlap = ("national", "jiangsu"), 120
     elif {"national", "gansu"}.issubset(candidates):
@@ -742,12 +824,18 @@ def validate_worker_payload(payload: dict, *, expected_game: str | None = None) 
 
     pair = [candidates[pair_ids[0]], candidates[pair_ids[1]]]
     maps = [{row["issue"]: row for row in source["draws"]} for source in pair]
-    if pair[0]["draws"][-1]["issue"] != pair[1]["draws"][-1]["issue"]:
+    if minimum_overlap >= 120 and pair[0]["draws"][-1]["issue"] != pair[1]["draws"][-1]["issue"]:
         raise GateError("OFFICIAL_SOURCE_LATEST_ISSUE_MISMATCH")
     common = sorted(set(maps[0]) & set(maps[1]), key=int)
     if len(common) < minimum_overlap:
         raise GateError("OFFICIAL_SOURCE_OVERLAP_TOO_SMALL")
-    mismatches = [issue for issue in common if maps[0][issue] != maps[1][issue]]
+    mismatches = [
+        issue for issue in common
+        if (maps[0][issue]["front"] != maps[1][issue]["front"]
+            or maps[0][issue]["back"] != maps[1][issue]["back"]
+            or ("draw_date" in maps[0][issue] and "draw_date" in maps[1][issue]
+                and maps[0][issue]["draw_date"] != maps[1][issue]["draw_date"]))
+    ]
     if mismatches:
         raise GateError("OFFICIAL_SOURCE_DRAW_CONFLICT:" + ",".join(mismatches[:10]))
     primary = pair[0]
