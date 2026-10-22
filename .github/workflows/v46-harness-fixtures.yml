@@ -1,7 +1,10 @@
-name: V4.6 research harness synthetic tests
+# Legacy filename retained; this workflow validates the V4.7 SHADOW contract.
+name: V4.7 research harness synthetic tests
 on:
   push:
-    branches: ["research/ssq-dlt-v46-harness-bootstrap-20261022"]
+    branches:
+      - "research/ssq-dlt-v46-harness-bootstrap-20261022"
+      - "research/ssq-dlt-v46-test10-convergence-20261022"
     paths:
       - "research/harness_v46/**"
       - ".github/workflows/v46-harness-fixtures.yml"
