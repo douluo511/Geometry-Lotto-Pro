@@ -8,6 +8,7 @@ external timestamping and formal-A eligibility remain blocked.
 from __future__ import annotations
 
 import argparse
+import ast
 import base64
 import hashlib
 import json
@@ -63,6 +64,26 @@ def source_file_hashes(game: str) -> dict[str, str]:
             raise GateError("PARSER_DEPENDENCY_MISSING:" + rel)
         result[rel] = _sha(path.read_bytes())
     return result
+
+
+def _expected_parser_version(game: str) -> str:
+    source_path = REPO_ROOT / PARSER_FILES[game][0]
+    try:
+        tree = ast.parse(source_path.read_text(encoding="utf-8"))
+    except (OSError, SyntaxError) as exc:
+        raise GateError("PARSER_SOURCE_NOT_PARSEABLE") from exc
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign) and any(
+            isinstance(target, ast.Name) and target.id == "PARSER_VERSION"
+            for target in node.targets
+        ):
+            try:
+                value = ast.literal_eval(node.value)
+            except (ValueError, TypeError) as exc:
+                raise GateError("PARSER_VERSION_NOT_LITERAL") from exc
+            if isinstance(value, str) and value:
+                return value
+    raise GateError("PARSER_VERSION_CONSTANT_MISSING")
 
 
 def _root_for_url(game: str, url: str) -> tuple[str, str]:
@@ -155,7 +176,9 @@ def _validate_artifacts(game: str, source: dict, parser_version: str) -> list[di
         if len(raw) != artifact["size_bytes"] or _sha(raw) != artifact["raw_sha256"]:
             raise GateError("RAW_ARTIFACT_BYTES_SHA_MISMATCH")
         try:
-            datetime.fromisoformat(artifact["fetched_at"].replace("Z", "+00:00"))
+            fetched_stamp = datetime.fromisoformat(artifact["fetched_at"].replace("Z", "+00:00"))
+            if fetched_stamp.tzinfo is None:
+                raise ValueError("timezone is required")
         except (TypeError, ValueError) as exc:
             raise GateError("RAW_ARTIFACT_FETCH_TIME_INVALID") from exc
         validated.append({
@@ -184,7 +207,9 @@ def _normalize_worker_artifact(game: str, source_id: str, meta: dict, raw: bytes
     content_type = str(meta.get("content_type") or "")
     fetched_at = str(meta.get("fetched_at") or "")
     try:
-        datetime.fromisoformat(fetched_at.replace("Z", "+00:00"))
+        fetched_stamp = datetime.fromisoformat(fetched_at.replace("Z", "+00:00"))
+        if fetched_stamp.tzinfo is None:
+            raise ValueError("timezone is required")
     except ValueError as exc:
         raise GateError("RAW_SOURCE_FETCH_TIME_INVALID") from exc
     digest = _sha(raw)
@@ -460,6 +485,8 @@ def validate_worker_payload(payload: dict, *, expected_game: str | None = None) 
     parser_version = payload.get("parser_version")
     if not isinstance(parser_version, str) or not parser_version:
         raise GateError("PARSER_VERSION_REQUIRED")
+    if parser_version != _expected_parser_version(game):
+        raise GateError("PARSER_VERSION_DOES_NOT_MATCH_SOURCE_CODE")
     source_items = payload.get("sources")
     if not isinstance(source_items, list) or len(source_items) != 2:
         raise GateError("EXACTLY_TWO_SOURCE_HISTORIES_REQUIRED")
