@@ -80,7 +80,7 @@ def run_score(args):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="V4.6 dual lottery SHADOW runner")
+    parser = argparse.ArgumentParser(description="V4.7 dual lottery SHADOW runner")
     sub = parser.add_subparsers(dest="command", required=True)
     p = sub.add_parser("forecast")
     p.add_argument("--snapshot", required=True)
