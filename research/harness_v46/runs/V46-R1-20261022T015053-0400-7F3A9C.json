@@ -1,0 +1,111 @@
+{
+  "run_id": "V46-R1-20261022T015053-0400-7F3A9C",
+  "registered_at": "2026-10-22T01:50:53-04:00",
+  "registered_at_utc": "2026-10-22T05:50:53Z",
+  "state": "PREP",
+  "overall_gate": "BLOCKED",
+  "formal_A_eligible": false,
+  "note": "Registration is not an external trusted timestamp. Separate ChatGPT chats were not messaged by this run.",
+  "lotteries": {
+    "SSQ": {
+      "latest_draw_observed": {
+        "issue": "2026120",
+        "date": "2026-10-20",
+        "red": [
+          13,
+          14,
+          16,
+          18,
+          20,
+          31
+        ],
+        "blue": 3,
+        "source": "https://www.swlc.net.cn/lottery/ssq.html?limit=100&view=previous"
+      },
+      "provisional_target": {
+        "issue": "2026121",
+        "date": "2026-10-22",
+        "draw_time_local": "21:15 Asia/Shanghai",
+        "official_target_confirmation": "NOT_VERIFIED"
+      },
+      "sales_cutoff_local": null,
+      "sales_cutoff_state": "BLOCKED_NOT_CONFIRMED_FROM_CURRENT_OFFICIAL_SOURCE",
+      "official_history_page_observed_rows": 100,
+      "required_history_rows": 120,
+      "structured_snapshot_created": false,
+      "snapshot_sha256": null,
+      "G00": "BLOCKED",
+      "G01": "BLOCKED"
+    },
+    "DLT": {
+      "latest_draw_observed": {
+        "issue": "26120",
+        "date": "2026-10-21",
+        "front": [
+          1,
+          6,
+          10,
+          15,
+          32
+        ],
+        "back": [
+          3,
+          4
+        ],
+        "source": "https://www.gstc.org.cn/wanfa/dlt_history"
+      },
+      "provisional_target": {
+        "issue": "26121",
+        "date": "2026-10-24",
+        "draw_time_local": "21:25 Asia/Shanghai",
+        "official_target_confirmation": "NOT_VERIFIED"
+      },
+      "sales_cutoff_local": "21:00 Asia/Shanghai",
+      "sales_cutoff_source": "https://m.lottery.gov.cn/xxgk/tzggz/20221220/10027143.html",
+      "official_history_page_observed_rows": 20,
+      "required_history_rows": 120,
+      "structured_snapshot_created": false,
+      "snapshot_sha256": null,
+      "G00": "BLOCKED",
+      "G01": "BLOCKED"
+    }
+  },
+  "agent_handoff": {
+    "test2": "NOT_SENT_SEPARATE_CHAT_UNAVAILABLE",
+    "test3_to_test8": "NOT_STARTED_WAITING_FOR_G01",
+    "test9": "NOT_STARTED_WAITING_FOR_FROZEN_SUBMISSIONS",
+    "test10": "NOT_SENT_SEPARATE_CHAT_UNAVAILABLE"
+  },
+  "engineering": {
+    "repository": "douluo511/Geometry-Lotto-Pro",
+    "branch": "research/ssq-dlt-v46-harness-bootstrap-20261022",
+    "head_sha": "1cd80efdcf3ad9b33577c9cac5736fdad85a29f9",
+    "pull_request": 425,
+    "pull_request_state": "OPEN_DRAFT_NOT_MERGED",
+    "base_sha": "c2b0db6876d2aae874f8cf4d08f52455c8eaf152",
+    "relevant_ci_run": 39667599443,
+    "relevant_ci_conclusion": "SUCCESS",
+    "latest_relevant_commit_test_count": 13,
+    "latest_relevant_ci_platforms": [
+      "ubuntu-latest",
+      "windows-2022"
+    ],
+    "known_missing": [
+      "official snapshot ingestion",
+      "external TSA",
+      "real multi-agent orchestration",
+      "full P0 fault injection",
+      "independent official result ingestion"
+    ]
+  },
+  "gate_policy": {
+    "G00": "official target, issue calendar, sales cutoff, draw time, holiday check",
+    "G01": "at least 120 validated records, strict as-of, source URLs, structured snapshot, reproducible SHA256",
+    "G02": "same per-lottery snapshot SHA passed to test3-test8; isolated current outputs",
+    "G03": "complete model identity, 1-5 ranked candidates, unique D2, legal ticket, params and data SHA",
+    "G04": "authorized freeze plus verifiable external pre-draw timestamp; otherwise SHADOW",
+    "G05": "official draw result verification",
+    "G06": "test9 read-only scoring and pre-registered statistics",
+    "G07": "independent audit and formal decision"
+  }
+}
