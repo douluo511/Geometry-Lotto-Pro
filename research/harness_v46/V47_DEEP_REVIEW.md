@@ -187,3 +187,34 @@ Exact CI run for code HEAD `51de08dc90da6599772a5a86366ef2f358070baf`: https://g
 - `69543ec9e63e1a84d9c37fc3fdf30efe6011643c` adds the HTTPError regression test.
 - Exact CI: https://github.com/douluo511/Geometry-Lotto-Pro/actions/runs/39749904945 — Ubuntu SUCCESS, 71 tests (one Windows-only PowerShell parser test skipped); Windows Server 2022 SUCCESS, 71 tests.
 - This remains mocked-network evidence only; no live official source request or parser acceptance occurred.
+
+
+## 12. Live official-history intake: first attempt and corrective pass — 2026-10-22
+
+A one-shot read-only GitHub Actions workflow was added at `.github/workflows/v47-live-official-intake.yml`. It is triggered only by changing `research/harness_v46/LIVE_INTAKE_TRIGGER.json`, has `contents: read` permissions, uploads raw intake artifacts for 30 days, and never predicts or purchases tickets.
+
+### First real network attempt
+
+Run #39752241618: https://github.com/douluo511/Geometry-Lotto-Pro/actions/runs/39752241618
+
+Observed:
+- DLT national source: both configured header profiles returned HTTP 567.
+- SSQ intake stopped on a non-200 response before trying the second history source.
+- The resulting bundle had no raw response bytes, exposing a real evidence-loss defect in the intake adapter.
+- Both games remained BLOCKED; target admission BLOCKED; formal A=0; NO_EDGE.
+
+### Corrective code now in branch
+
+- `official_intake.py` attempts the two source histories independently; a failed first source no longer prevents the second attempt.
+- Non-200 bodies are captured as diagnostic artifacts with actual status, raw SHA256, URL/root, parser version and local untrusted fetch time; they are never parsed as draw records.
+- The DLT Requests redirect wrapper is root-bound and captures non-200 responses before the game parser rejects them.
+- Partial collection output preserves any successful source history and every available raw diagnostic artifact in a `SOURCE_FETCH_PARTIAL` bundle. Such a bundle has zero consensus rows and cannot pass official-history admission.
+- Added offline tests for HTTP 567 preservation, cross-root redirect rejection and source parser raw-body reparse.
+
+Latest synthetic CI after these changes: Run #39753091719, Ubuntu and Windows Server 2022 SUCCESS, 87 tests per platform (Ubuntu skips one Windows-only PowerShell parser test): https://github.com/douluo511/Geometry-Lotto-Pro/actions/runs/39753091719
+
+A second live attempt was triggered on HEAD `4b5a9b064967f2a6a03f60775cae3d43195a452d`: https://github.com/douluo511/Geometry-Lotto-Pro/actions/runs/39753171769. Its final result must be inspected before claiming any source was captured or cross-checked.
+
+### Non-negotiable boundary
+
+Even a successful `HISTORY_CROSSCHECK_PASS` is historical source evidence only. Target issue, sales cutoff, draw schedule, publication time and external TSA are separate gates. No live official dual-source 120+ history has yet been admitted as of this review entry; do not change G00/G01 or the three top-level verdicts without exact-run evidence.
