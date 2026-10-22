@@ -1,6 +1,7 @@
 """Offline unit tests for allowlisted raw-source acquisition."""
 import hashlib
 import unittest
+from urllib.error import HTTPError
 from unittest.mock import patch
 from urllib.request import Request
 
@@ -99,6 +100,13 @@ class SourceFetchTests(unittest.TestCase):
         response = FakeResponse(status=403)
         with patch("research.harness_v46.source_fetch.build_opener", return_value=FakeOpener(response)):
             with self.assertRaisesRegex(GateError, "HTTP_STATUS_NOT_200"):
+                fetch_raw_source("SSQ", "https://www.swlc.net.cn/index.html")
+
+    def test_http_error_preserves_status_code(self):
+        error = HTTPError("https://www.swlc.net.cn/index.html", 403, "Forbidden", {}, None)
+        with patch("research.harness_v46.source_fetch.build_opener") as builder:
+            builder.return_value.open.side_effect = error
+            with self.assertRaisesRegex(GateError, "SOURCE_HTTP_STATUS_NOT_200:403"):
                 fetch_raw_source("SSQ", "https://www.swlc.net.cn/index.html")
 
     def test_unknown_game_and_invalid_timeout_block(self):
