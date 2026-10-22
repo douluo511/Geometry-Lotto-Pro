@@ -18,13 +18,24 @@ class Contracts(unittest.TestCase):
         snaps = self.snaps()
         run = cv.manifest(snaps)
         self.assertEqual(run, cv.manifest(snaps))
-        self.assertTrue(run["run_id"].startswith("V46-"))
+        self.assertTrue(run["run_id"].startswith("V47-"))
         self.assertEqual(set(run["games"]), {"SSQ", "DLT"})
         self.assertEqual(set(run["models"]), set(core.MODELS))
         self.assertEqual(run["qualifications"]["formal_A"], 0)
+        self.assertEqual(len(run["harness_source_sha256"]), 64)
+        for model, item in run["models"].items():
+            self.assertEqual(item["parameters_sha256"], core.digest(core.parameter_contract(model)))
+            self.assertEqual(item["model_source_sha256"], core.model_source_sha256())
         changed = self.snaps()
         changed["SSQ"]["provenance"]["revision"] = "changed"
         self.assertNotEqual(run["run_id"], cv.manifest(changed)["run_id"])
+        original_window = core.PARAMETERS["hot60"]["window"]
+        try:
+            core.PARAMETERS["hot60"]["window"] = original_window + 1
+            changed_registry = cv.manifest(self.snaps())
+            self.assertNotEqual(run["run_id"], changed_registry["run_id"])
+        finally:
+            core.PARAMETERS["hot60"]["window"] = original_window
 
     def test_handoff_no_cross_model_and_no_forged_model_role(self):
         run_id = cv.manifest(self.snaps())["run_id"]
@@ -212,7 +223,7 @@ class Contracts(unittest.TestCase):
             db_path = Path(td) / "must_not_exist.sqlite3"
             snapshot_path.write_text(json.dumps(fixture(size=119)), encoding="utf-8")
             args = type("Args", (), {"snapshot": str(snapshot_path),
-                                     "database": str(db_path), "run_id": "V46-UNDER120",
+                                     "database": str(db_path), "run_id": "V47-UNDER120",
                                      "model": "all"})()
             with self.assertRaisesRegex(core.GateError, "study requires at least 120"):
                 cli.run_forecast(args)
