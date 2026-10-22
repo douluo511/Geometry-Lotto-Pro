@@ -786,18 +786,28 @@ def validate_worker_payload(payload: dict, *, expected_game: str | None = None) 
     if mismatches:
         raise GateError("OFFICIAL_SOURCE_DRAW_CONFLICT:" + ",".join(mismatches[:10]))
     primary = pair[0]
+    verified_overlap = [maps[0][issue] for issue in common]
+    # A 120+ primary history with 20 independently checked recent rows must
+    # NEVER be labelled as 120+ independently verified consensus history.
+    full_dual_source = len(common) >= 120
+    evidence_tier = "FULL_120_PLUS_OVERLAP" if full_dual_source else "LIMITED_RECENT_OVERLAP"
     artifact_count = sum(len(source["raw_artifacts"]) for source in checked_sources)
     errors = payload.get("errors", {})
     if not isinstance(errors, dict):
         raise GateError("INVALID_SOURCE_ERRORS")
     warnings = {k: v for k, v in errors.items() if k not in pair_ids}
     return {
-        "schema": SCHEMA, "lottery": game, "status": "HISTORY_CROSSCHECK_PASS",
+        "schema": SCHEMA, "lottery": game,
+        "status": "HISTORY_CROSSCHECK_PASS" if full_dual_source else "HISTORY_CROSSCHECK_LIMITED",
+        "history_validation_tier": evidence_tier,
         "source_count": 2, "selected_source_ids": list(pair_ids),
         "source_roots": [s["source_root"] for s in pair],
         "overlap_count": len(common),
-        "consensus_draw_count": len(primary["draws"]),
-        "consensus_draws": primary["draws"],
+        "consensus_draw_count": len(verified_overlap),
+        "consensus_draws": verified_overlap,
+        "primary_history_draw_count": len(primary["draws"]),
+        "primary_history_draws": primary["draws"],
+        "unverified_primary_history_draw_count": len(primary["draws"]) - len(common),
         "source_summaries": [
             {"source_id": s["source_id"], "source_root": s["source_root"],
              "draw_count": s["draw_count"],
@@ -814,10 +824,14 @@ def validate_worker_payload(payload: dict, *, expected_game: str | None = None) 
         "parser_to_raw_binding": "SAME_PROCESS_REPARSE_MATCHED",
         "source_origin_authenticity": "NOT_CRYPTOGRAPHICALLY_VERIFIED",
         "publication_time_authenticity": "NOT_VERIFIED",
-        "official_history_admission": "SHADOW_HISTORY_ONLY",
+        "official_history_admission": (
+            "SHADOW_HISTORY_ONLY" if full_dual_source else "BLOCKED_120_ISSUE_DUAL_SOURCE"
+        ),
         "official_target_admission": "BLOCKED", "external_tsa": "NOT_RUN",
         "formal_A": 0, "decision": "NO_EDGE", "warnings": warnings,
         "limitations": [
+            "Independently agreed issues only are reported as consensus_draws; primary_history_draws are not all independently verified.",
+            "A fallback recent overlap smaller than 120 does not satisfy the preregistered dual-source 120+ gate.",
             "This is a two-source history cross-check, not target/cutoff admission.",
             "Source publication times and origin are not independently authenticated.",
             "Local capture timestamps are not trusted timestamps; an external seal must precede any forecast.",
