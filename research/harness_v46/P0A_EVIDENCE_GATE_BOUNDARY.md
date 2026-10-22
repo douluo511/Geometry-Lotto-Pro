@@ -89,3 +89,27 @@ This confirms byte preservation, not that failed HTTP bodies are official draw d
 automated auditor will be exercised by the next one-shot intake.
 
 DLT 69/2880 negative-control anomaly remains unresolved. Formal A=0; NO_EDGE.
+
+## Follow-on P0-A: raw provenance and write-once audit receipt — 2026-10-22
+
+An independent review found that checking an artifact's bytes against a declared SHA256 was
+insufficient to bind the file to the declared game and official source. The auditor now requires
+`raw/<game>/<source_id>/<sha256>.bin` exactly, with source IDs restricted to the audited game's
+allowlist. Cross-game, cross-source, wrong-hash-named, symlink, and unlisted raw files are refused.
+The auditor also rejects oversized/unpreserved evidence instead of certifying incomplete raw
+preservation, and writes `intake-audit.json` once using exclusive file creation so an older audit
+receipt cannot be overwritten on rerun.
+
+GitHub Actions [run 39765806469](https://github.com/douluo511/Geometry-Lotto-Pro/actions/runs/39765806469)
+validated the canonical-path and orphan-file checks on both Ubuntu and Windows: 112 tests per
+platform; the Ubuntu suite skipped one Windows-only PowerShell syntax test. Following the
+write-once receipt and unlisted-sidecar tests, [run 39765963248](https://github.com/douluo511/Geometry-Lotto-Pro/actions/runs/39765963248)
+passed 114 tests per platform on exact code commit
+`a7085051d74518499fb1d73a2f905b075662efc3` (Ubuntu skipped one Windows-only test).
+An offline recheck against preserved live artifact `12416888557` at issue time again found 64
+manifest records, 64 canonical paths, 64 SHA/size matches and no unreferenced raw file.
+This offline check is NOT a new live full-history source admission and does not establish an
+external trusted timestamp or prediction edge.
+
+The full source/cutoff gates and independent V4.5 formal-slot authorization remain blocked;
+formal A=0, NO_EDGE, and DLT 69/2880 negative-control anomaly remains open.
