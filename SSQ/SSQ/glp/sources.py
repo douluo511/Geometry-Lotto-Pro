@@ -1028,3 +1028,69 @@ def fetch_guangdong_recent_history(
         "广东省福利彩票发行中心双色球统计指标表；仅作期号与号码交叉核验，不提供独立开奖日期",
     )
     return rows, receipt, meta
+
+
+
+def parse_guangdong_recent_history(raw: bytes | str) -> list[dict]:
+    """Parse Guangdong's official SSQ statistics table as issue+balls only.
+
+    The table does not publish a trustworthy draw-date field. Do not invent one:
+    this regional source corroborates issue IDs and balls only.
+    """
+    text = _text(raw)
+    pattern = re.compile(r"(?<!\d)(20\d{5})\s+(\d{2}(?:,\d{2}){5};\d{2})(?!\d)")
+    matches = list(pattern.finditer(text))
+    rows = []
+    seen = set()
+    for match in matches:
+        issue, result = match.group(1), match.group(2)
+        if issue in seen:
+            raise SourceError("Guangdong statistics page repeats issue " + issue)
+        seen.add(issue)
+        red_text, blue_text = result.split(";", 1)
+        try:
+            front = sorted(int(token) for token in red_text.split(","))
+            back = [int(blue_text)]
+        except ValueError as exc:
+            raise SourceError("Guangdong SSQ row contains a nonnumeric ball") from exc
+        if (len(front) != 6 or len(set(front)) != 6
+                or any(n < 1 or n > 33 for n in front)
+                or len(back) != 1 or not 1 <= back[0] <= 16):
+            raise SourceError("Guangdong SSQ row has invalid balls for issue " + issue)
+        rows.append({"issue": issue, "front": front, "back": back})
+    if len(rows) < 10:
+        raise SourceError("Guangdong SSQ statistics page has fewer than 10 parseable rows")
+    rows.sort(key=lambda row: int(row["issue"]))
+    if any(int(rows[i]["issue"]) >= int(rows[i + 1]["issue"]) for i in range(len(rows) - 1)):
+        raise SourceError("Guangdong SSQ issues are not strictly increasing")
+    return rows
+
+
+def fetch_guangdong_recent_history(
+    limit: int = 50, record_raw: RawRecorder | None = None,
+) -> tuple[list[dict], SourceReceipt, dict]:
+    """Fetch an independent 10+ issue SSQ corroborator, never a 120+ primary history."""
+    if type(limit) is not int or not 10 <= limit <= 50:
+        raise SourceError("Guangdong recent-history limit must be between 10 and 50")
+    headers = dict(HEADERS)
+    headers["Referer"] = "https://www.gdfc.org.cn/"
+    response = _get_official(
+        "official_guangdong_L2", GUANGDONG_HISTORY_URL, record_raw, headers=headers
+    )
+    response.raise_for_status()
+    raw = bytes(response.content)
+    _record_response(record_raw, "official_guangdong_L2", response, raw, GUANGDONG_HISTORY_URL)
+    _response_body(response, "Guangdong SSQ statistics page", json_expected=False, raw=raw)
+    rows = parse_guangdong_recent_history(raw)[-limit:]
+    meta = _validate_http_payload(response, raw, expected="html")
+    meta.update({
+        "source_identity": "official_guangdong_L2",
+        "requested_url": GUANGDONG_HISTORY_URL,
+        "parser_version": PARSER_VERSION,
+        "history_semantics": "ISSUE_AND_BALLS_ONLY_NO_DRAW_DATE_FIELD",
+    })
+    receipt = _response_receipt(
+        "official_guangdong_L2", response, raw, len(rows), rows[-1]["issue"],
+        "广东省福利彩票发行中心双色球统计指标表；仅作期号与号码交叉核验，不提供独立开奖日期",
+    )
+    return rows, receipt, meta
