@@ -66,7 +66,7 @@ class IntakeBundleAuditTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             _, _, raw_path = make_bundle(root)
-            raw_path.write_bytes(b"tampered after manifest")
+            raw_path.write_bytes(b"X" * len(b"blocked HTTP 567 body"))
             report = audit_bundle(root)
         self.assertEqual(report["status"], "FAIL")
         self.assertTrue(any("RAW_ARTIFACT_SHA256_MISMATCH" in error for error in report["errors"]))
