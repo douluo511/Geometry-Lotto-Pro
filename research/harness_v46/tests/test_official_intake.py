@@ -220,6 +220,13 @@ class OfficialIntakeTests(unittest.TestCase):
         with self.assertRaisesRegex(GateError, "AT_LEAST_120"):
             oi.validate_worker_payload(payload)
 
+    def test_same_day_historical_issues_are_allowed_when_issue_order_is_increasing(self):
+        rows = _draws("DLT", 130)
+        rows[51]["draw_date"] = rows[50]["draw_date"]
+        normalized = oi._canonical_draws("DLT", rows)
+        self.assertEqual(normalized[50]["draw_date"], normalized[51]["draw_date"])
+        self.assertLess(int(normalized[50]["issue"]), int(normalized[51]["issue"]))
+
     def test_unallowlisted_host_blocks(self):
         payload = _payload("SSQ")
         payload["sources"][0]["url"] = "https://example.org/lottery"
