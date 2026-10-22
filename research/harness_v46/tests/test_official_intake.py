@@ -262,5 +262,27 @@ class OfficialIntakeTests(unittest.TestCase):
                              "TRANSPORT_FAILURE_UNTRUSTED_NOT_OFFICIAL_SOURCE_EVIDENCE")
 
 
+    def test_cross_source_validation_failure_keeps_raw_bytes_unadmitted(self):
+        payload = _payload("SSQ")
+        completed = __import__("subprocess").CompletedProcess(
+            args=["python", "-m", "research.harness_v46.official_intake"],
+            returncode=0, stdout=json.dumps(payload), stderr="",
+        )
+        source_hashes = payload["source_files_sha256"]
+        with patch.object(oi.subprocess, "run", return_value=completed), \
+             patch.object(oi, "source_file_hashes", return_value=source_hashes), \
+             patch.object(oi, "validate_worker_payload",
+                          side_effect=GateError("OFFICIAL_SOURCE_DRAW_CONFLICT:2026120")):
+            result = oi.collect_live_history("SSQ")
+        self.assertEqual(result["status"], "BLOCKED")
+        self.assertIn("OFFICIAL_SOURCE_DRAW_CONFLICT", result["error"])
+        self.assertEqual(result["sources"], [])
+        self.assertEqual(len(result["unadmitted_raw_artifacts"]), 2)
+        for artifact in result["unadmitted_raw_artifacts"]:
+            self.assertIn("_source_id", artifact)
+            self.assertTrue(artifact["raw_base64"])
+        self.assertEqual(result["formal_A"], 0)
+
+
 if __name__ == "__main__":
     unittest.main()
