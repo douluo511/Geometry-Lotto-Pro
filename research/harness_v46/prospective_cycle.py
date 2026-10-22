@@ -14,6 +14,7 @@ from pathlib import Path
 from .core import MODELS, RULES, GateError
 from .convergence import check_complete_batch, score_readonly
 from .schedule import scheduled_once
+from .prospective_scorecard import replay_shadow_feedback, summarize_shadow_feedback
 
 
 def frozen_forecast_report(database, run_id):
@@ -92,19 +93,32 @@ def forecast_on_demand(snapshots, database, *, now=None):
     return result
 
 
-def evaluate_after_draw(database, run_id, result_bundle):
+def evaluate_after_draw(database, run_id, result_bundle, *, observed_at=None):
     """Read-only per-draw D2 comparison; no update/backfill/auto learning."""
     frozen = frozen_forecast_report(database, run_id)
     if not isinstance(result_bundle, dict) or set(result_bundle) != set(RULES):
         raise GateError("EXACTLY_TWO_GAME_RESULTS_REQUIRED")
-    scored = {}
+    scored, feedback_receipts = {}, {}
     for game in ("SSQ", "DLT"):
         result = result_bundle[game]
         if not isinstance(result, dict) or result.get("lottery") != game:
             raise GateError("DRAW_RESULT_GAME_IDENTITY_MISMATCH")
         if str(result.get("issue")) != frozen["games"][game]["target_issue"]:
             raise GateError("RESULT_ISSUE_DIFFERS_FROM_FROZEN_ISSUE")
+        # Time/order verification precedes scoring. The clock, result source
+        # and target chronology remain LOCAL/CALLER_UNVERIFIED, not formal A.
+        feedback = replay_shadow_feedback(
+            database, run_id, result, observed_at=observed_at
+        )
         review = score_readonly(database, run_id, result)
+        if (feedback["prediction_batch_sha256"] != review["prediction_batch_sha256"]
+                or feedback["prediction_batch_sha256"] != frozen["games"][game]["prediction_batch_sha256"]):
+            raise GateError("SHADOW_FEEDBACK_BATCH_IDENTITY_MISMATCH")
+        for model in MODELS:
+            for k in range(1, 6):
+                if feedback["models"][model]["D" + str(k)] != review["scores"][model]["D" + str(k)]:
+                    raise GateError("FEEDBACK_DIFFERENT_FROM_READONLY_SCORE")
+        feedback_receipts[game] = feedback
         if review["prediction_batch_sha256"] != frozen["games"][game]["prediction_batch_sha256"]:
             raise GateError("FROZEN_BATCH_CHANGED_BETWEEN_SHOW_AND_SCORE")
         scored[game] = review
@@ -117,10 +131,36 @@ def evaluate_after_draw(database, run_id, result_bundle):
             for game in ("SSQ", "DLT")
         },
         "games": scored,
+        "shadow_feedback_receipts": feedback_receipts,
         "outcome_source": "CALLER_UNVERIFIED",
         "paired_control": "SAME_DRAW_RANDOM_NULL",
         "eligibility_for_prospective_edge": "BLOCKED_UNAUTHENTICATED_EVIDENCE",
         "improvement_policy": "NEXT_VERSION_ONLY_NEVER_REWRITE_FROZEN_HISTORY",
+        "formal_A": 0, "decision": "NO_EDGE",
+    }
+
+
+def summarize_from_frozen_runs(records, *, observed_at=None):
+    """Recompute every cumulative D2 bit from original ledgers, never cards."""
+    if not isinstance(records, list) or not records:
+        raise GateError("CUMULATIVE_REQUIRES_NONEMPTY_RUNS")
+    cards = []
+    for record in records:
+        if not isinstance(record, dict) or set(record) != {"database", "run_id", "results"}:
+            raise GateError("INVALID_CUMULATIVE_RUN_CONTRACT")
+        report = evaluate_after_draw(
+            record["database"], record["run_id"], record["results"],
+            observed_at=observed_at,
+        )
+        cards.extend(report["shadow_feedback_receipts"][game] for game in ("SSQ", "DLT"))
+    summary = summarize_shadow_feedback(cards)
+    return {
+        "schema": "V47-FROZEN-CUMULATIVE-SHADOW-1",
+        "run_count": len(records), "summary": summary,
+        "source_of_d2": "REPLAYED_ORIGINAL_FROZEN_LEDGER_ROWS",
+        "official_result_authenticity": "CALLER_UNVERIFIED",
+        "preregistration_verified": False,
+        "evidence_class": "SHADOW_DIAGNOSTIC_ONLY",
         "formal_A": 0, "decision": "NO_EDGE",
     }
 
@@ -138,6 +178,9 @@ def main(argv=None):
     s.add_argument("--database", required=True)
     s.add_argument("--run-id", required=True)
     s.add_argument("--result-bundle", required=True)
+    c = sub.add_parser("cumulative", help="Re-score original frozen runs, summarize D2/NULL rates")
+    c.add_argument("--runs-json", required=True,
+                   help="JSON list of {database,run_id,results:{SSQ:{...},DLT:{...}}}")
     args = parser.parse_args(argv)
     try:
         if args.command == "forecast":
@@ -145,9 +188,12 @@ def main(argv=None):
             result = forecast_on_demand(snapshot, args.database)
         elif args.command == "show":
             result = frozen_forecast_report(args.database, args.run_id)
-        else:
+        elif args.command == "score":
             observed = json.loads(Path(args.result_bundle).read_text(encoding="utf-8"))
             result = evaluate_after_draw(args.database, args.run_id, observed)
+        else:
+            records = json.loads(Path(args.runs_json).read_text(encoding="utf-8"))
+            result = summarize_from_frozen_runs(records)
         print(json.dumps(result, ensure_ascii=False, sort_keys=True, indent=2))
         return 0
     except (GateError, sqlite3.Error, OSError, ValueError, KeyError, TypeError) as exc:

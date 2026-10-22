@@ -288,3 +288,53 @@ postdraw-result, externally timestamped preregistration and future dataset
 acceptance exist, it is SHADOW-only, A=0 and NO_EDGE**. The user-supplied
 result file is not deemed authentic. No ticket purchase is performed, and the
 original V4.5 formal eight slots are untouched.
+
+## V4.7 cumulative postdraw learning loop — strictly SHADOW
+
+The `prospective_cycle score` and `cumulative` commands now require a
+claimed `drawn_at` ISO timestamp (with timezone) for each outcome. Scoring
+is **refused** unless the locally observed current time has passed the
+locked `target_draw_at`, and the supplied claimed draw time is no later
+than that observation. This is a *local chronology sanity guard*, not
+cryptographic official-result validation, independently trusted clock or
+G01/official target gate PASS.
+
+Run a past/future draw pair with outcomes shaped as:
+
+```json
+{
+  "SSQ": {"lottery":"SSQ","issue":"<FROZEN_TARGET_ISSUE>",
+          "front":[1,2,3,4,5,6],"back":[1],
+          "drawn_at":"<ACTUAL_TIME_WITH_TIMEZONE>"},
+  "DLT": {"lottery":"DLT","issue":"<FROZEN_TARGET_ISSUE>",
+          "front":[1,2,3,4,5],"back":[1,2],
+          "drawn_at":"<ACTUAL_TIME_WITH_TIMEZONE>"}
+}
+```
+
+To produce a descriptive multi-draw cumulative scorecard, construct a JSON
+**list** with one object per prior dual-game freeze: each object must contain
+`database` (the immutable SQLite path), `run_id` and `results` (the
+two-game outcome map shown above). Then:
+
+```sh
+python -m research.harness_v46.prospective_cycle cumulative --runs-json runs.json
+```
+
+The cumulative command replays all six frozen model rows for each
+`(lottery, issue)` against the caller's outcome, checks every batch
+identity, rejects duplicated target pairs and summarizes hits/eligible
+draws and same-draw paired Random NULL differences separately for SSQ
+and DLT. It **never** trusts precomputed submitted hit counts or accepts
+a supplied PASS assertion. Read-only scoring never alters earlier
+predictions; algorithm changes belong only to future versions.
+
+The independent `prospective_scorecard.py` scorer originates from
+research PR #448 and its code bytes are now locked into each new V4.7
+run manifest. Historical run IDs from older code are not retrospectively
+relabelled as current studies. This bridge remains `A=0, NO_EDGE`,
+`CALLER_UNVERIFIED` and `SHADOW_DIAGNOSTIC_ONLY` even if an arm
+reports many correct D2s. Actual future draws cannot be used to support
+a formal edge until independent official results, authentic pre-sale
+seals, preregistered confirmatory family and correct sample accounting
+are verified.

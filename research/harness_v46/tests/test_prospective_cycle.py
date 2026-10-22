@@ -17,8 +17,14 @@ class ProspectiveCycleTests(unittest.TestCase):
     def setUp(self):
         self.snaps = {g: fixture(g) for g in ("SSQ", "DLT")}
         self.before = datetime(2026, 10, 20, 8, 0, tzinfo=timezone.utc)
+        self.after = datetime(2026, 10, 23, 15, 0, tzinfo=timezone.utc)
         # Tuesday: must not be the old Mon/Wed/Sat JST delivery window.
         self.assertFalse(schedule.due_in_jst(self.before))
+
+    def score(self, database, run_id, results):
+        return cycle.evaluate_after_draw(
+            database, run_id, results, observed_at=self.after
+        )
 
     def _results(self):
         return {
@@ -26,6 +32,7 @@ class ProspectiveCycleTests(unittest.TestCase):
                 "lottery": game, "issue": str(snapshot["target_issue"]),
                 "front": list(snapshot["draws"][-2]["front"]),
                 "back": list(snapshot["draws"][-2]["back"]),
+                "drawn_at": "2026-10-23T21:05:00+08:00",
             }
             for game, snapshot in self.snaps.items()
         }
@@ -62,7 +69,7 @@ class ProspectiveCycleTests(unittest.TestCase):
             second = cycle.frozen_forecast_report(path, run_id)
             self.assertEqual(first, second)
             results = self._results()
-            scored = cycle.evaluate_after_draw(path, run_id, results)
+            scored = self.score(path, run_id, results)
             self.assertEqual(scored["outcome_source"], "CALLER_UNVERIFIED")
             self.assertEqual(scored["paired_control"], "SAME_DRAW_RANDOM_NULL")
             self.assertEqual(scored["formal_A"], 0)
@@ -92,7 +99,7 @@ class ProspectiveCycleTests(unittest.TestCase):
             wrong = self._results()
             wrong["DLT"]["issue"] = "30000"
             with self.assertRaisesRegex(core.GateError, "RESULT_ISSUE_DIFFERS"):
-                cycle.evaluate_after_draw(path, run_id, wrong)
+                self.score(path, run_id, wrong)
             self.assertEqual(original, hashlib.sha256(path.read_bytes()).hexdigest())
 
     def test_partial_or_swapped_draw_results_blocked(self):
@@ -101,11 +108,11 @@ class ProspectiveCycleTests(unittest.TestCase):
             run_id = cycle.forecast_on_demand(self.snaps, path, now=self.before)["run_id"]
             results = self._results()
             with self.assertRaisesRegex(core.GateError, "EXACTLY_TWO_GAME"):
-                cycle.evaluate_after_draw(path, run_id, {"SSQ": results["SSQ"]})
+                self.score(path, run_id, {"SSQ": results["SSQ"]})
             swapped = self._results()
             swapped["SSQ"]["lottery"] = "DLT"
             with self.assertRaisesRegex(core.GateError, "DRAW_RESULT_GAME"):
-                cycle.evaluate_after_draw(path, run_id, swapped)
+                self.score(path, run_id, swapped)
 
     def test_local_clock_after_cutoff_does_not_create_any_run(self):
         with tempfile.TemporaryDirectory() as td:
@@ -152,6 +159,58 @@ class ProspectiveCycleTests(unittest.TestCase):
             con.close()
             cards = cycle.frozen_forecast_report(path, report["run_id"])
             self.assertEqual(len(cards["games"]["SSQ"]["models"]), 6)
+
+    def test_future_draw_cannot_be_scored_even_with_valid_claimed_time(self):
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "ledger.sqlite3"
+            run_id = cycle.forecast_on_demand(self.snaps, path, now=self.before)["run_id"]
+            before = hashlib.sha256(path.read_bytes()).hexdigest()
+            with self.assertRaisesRegex(core.GateError, "SCORE_BEFORE_LOCKED_TARGET_DRAW_TIME"):
+                cycle.evaluate_after_draw(
+                    path, run_id, self._results(),
+                    observed_at=datetime(2026, 10, 23, 12, 59, tzinfo=timezone.utc),
+                )
+            with self.assertRaisesRegex(core.GateError, "OUTCOME_CLAIMED_DRAW_TIME_IN_FUTURE"):
+                cycle.evaluate_after_draw(
+                    path, run_id, self._results(),
+                    observed_at=datetime(2026, 10, 23, 13, 0, tzinfo=timezone.utc),
+                )
+            self.assertEqual(before, hashlib.sha256(path.read_bytes()).hexdigest())
+
+    def test_cumulative_recomputes_original_ledger_not_supplied_scorecards(self):
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "ledger.sqlite3"
+            run_id = cycle.forecast_on_demand(self.snaps, path, now=self.before)["run_id"]
+            source_bytes = path.read_bytes()
+            records = [{"database": str(path), "run_id": run_id, "results": self._results()}]
+            report = cycle.summarize_from_frozen_runs(records, observed_at=self.after)
+            self.assertEqual(report["summary"]["unique_lottery_issue_count"], 2)
+            self.assertEqual(report["source_of_d2"], "REPLAYED_ORIGINAL_FROZEN_LEDGER_ROWS")
+            self.assertEqual(report["summary"]["games"]["SSQ"]["hot60"]["draws"], 1)
+            self.assertEqual(report["summary"]["games"]["DLT"]["random_null"]["draws"], 1)
+            self.assertEqual(report["formal_A"], 0)
+            self.assertEqual(report["decision"], "NO_EDGE")
+            self.assertEqual(source_bytes, path.read_bytes())
+            # Two records for one issue would double-count a draw, so hard stop.
+            with self.assertRaisesRegex(core.GateError, "DUPLICATE_TARGET_IN_FEEDBACK"):
+                cycle.summarize_from_frozen_runs(records * 2, observed_at=self.after)
+            with self.assertRaisesRegex(core.GateError, "INVALID_CUMULATIVE_RUN_CONTRACT"):
+                cycle.summarize_from_frozen_runs([{
+                    "run_id": run_id, "results": self._results(),
+                    "forged_D2_rate": 1.0,
+                }], observed_at=self.after)
+
+    def test_future_cumulative_request_does_not_leak_premature_score(self):
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "ledger.sqlite3"
+            run_id = cycle.forecast_on_demand(self.snaps, path, now=self.before)["run_id"]
+            records = [{"database": str(path), "run_id": run_id, "results": self._results()}]
+            before = path.read_bytes()
+            with self.assertRaisesRegex(core.GateError, "SCORE_BEFORE_LOCKED_TARGET_DRAW_TIME"):
+                cycle.summarize_from_frozen_runs(
+                    records, observed_at=datetime(2026, 10, 23, 12, 0, tzinfo=timezone.utc)
+                )
+            self.assertEqual(before, path.read_bytes())
 
     def test_missing_or_non_v47_run_never_generates_new_predictions(self):
         with tempfile.TemporaryDirectory() as td:
