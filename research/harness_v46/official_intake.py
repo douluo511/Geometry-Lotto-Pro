@@ -471,9 +471,8 @@ def _worker(game: str) -> dict:
         raise GateError("UNKNOWN_LOTTERY_FOR_SOURCE_INTAKE")
 
     for source in sources:
-        internal_artifacts = [
-            item for item in raw_artifacts if item["_source_id"] == source["source_id"]
-        ]
+        source_id = source["source_id"]
+        internal_artifacts = [item for item in raw_artifacts if item["_source_id"] == source_id]
         source["raw_artifacts"] = [
             {k: v for k, v in item.items()
              if k in {"url", "requested_url", "raw_sha256", "size_bytes", "content_type",
@@ -481,14 +480,25 @@ def _worker(game: str) -> dict:
             for item in internal_artifacts
         ]
         if not source["raw_artifacts"]:
-            raise GateError("SOURCE_RAW_ARTIFACTS_MISSING")
-        reparsed = _reparse_raw_history(game, source_module, source["source_id"],
-                                        source["raw_artifacts"])
-        source_draws = _canonical_draws(game, source["draws"])
-        if reparsed != source_draws:
-            raise GateError("RAW_REPARSED_ROWS_DIFFER_FROM_SOURCE_OUTPUT:" + source["source_id"])
-        source["raw_reparse_status"] = "PASS"
-        source["raw_reparse_sha256"] = _rows_sha256(reparsed)
+            if not source.get("error"):
+                source["error"] = "SOURCE_RAW_ARTIFACTS_MISSING"
+                errors[source_id] = source["error"]
+            source["raw_reparse_status"] = "NOT_RUN"
+            continue
+        if source.get("error") or not source.get("draws"):
+            source["raw_reparse_status"] = "NOT_RUN_SOURCE_FETCH_FAILED"
+            continue
+        try:
+            reparsed = _reparse_raw_history(game, source_module, source_id, source["raw_artifacts"])
+            source_draws = _canonical_draws(game, source["draws"])
+            if reparsed != source_draws:
+                raise GateError("RAW_REPARSED_ROWS_DIFFER_FROM_SOURCE_OUTPUT:" + source_id)
+            source["raw_reparse_status"] = "PASS"
+            source["raw_reparse_sha256"] = _rows_sha256(reparsed)
+        except Exception as exc:
+            source["error"] = f"{type(exc).__name__}: {exc}"
+            errors[source_id] = source["error"]
+            source["raw_reparse_status"] = "FAIL"
     source_hashes_after = source_file_hashes(game)
     if source_hashes_before != source_hashes_after:
         raise GateError("PARSER_FILES_CHANGED_DURING_FETCH")
@@ -497,7 +507,8 @@ def _worker(game: str) -> dict:
         "parser_version": parser_version, "source_files_sha256": source_hashes_after,
         "collection_started_at_local_untrusted": started,
         "collection_finished_at_local_untrusted": datetime.now(timezone.utc).isoformat(),
-        "sources": sources, "status": "WORKER_FETCH_COMPLETE",
+        "sources": sources, "errors": errors,
+        "status": "WORKER_FETCH_PARTIAL" if errors else "WORKER_FETCH_COMPLETE",
         "timestamp_trust": "LOCAL_CLOCK_UNTRUSTED",
     }
 
