@@ -58,15 +58,14 @@ def replay_shadow_feedback(db_path, run_id, outcome, *, observed_at=None):
     if (not isinstance(observed, datetime) or observed.tzinfo is None
             or observed.utcoffset() is None):
         raise GateError("SCORING_OBSERVATION_CLOCK_MUST_BE_AWARE")
-    if claimed_draw_time > observed:
-        raise GateError("OUTCOME_CLAIMED_DRAW_TIME_IN_FUTURE")
-
     conn = _readonly_connection(db_path)
     try:
         batch_sha256 = cv.check_complete_batch(conn, run_id, game)
         snapshot = load_registered_snapshot(conn, run_id, game)
         if observed < dt(snapshot["target_draw_at"]):
             raise GateError("SCORE_BEFORE_LOCKED_TARGET_DRAW_TIME")
+        if claimed_draw_time > observed:
+            raise GateError("OUTCOME_CLAIMED_DRAW_TIME_IN_FUTURE")
         if str(snapshot["target_issue"]) != issue:
             raise GateError("OUTCOME_TARGET_ISSUE_MISMATCH")
         if claimed_draw_time < dt(snapshot["target_draw_at"]):
