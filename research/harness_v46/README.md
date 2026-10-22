@@ -189,3 +189,42 @@ On the verified third live read-only run #39754959885 (2026-10-22), DLT Jiangsu 
 On P0-A live intake run #39758924010, the collector retained 64 raw artifacts and a separate SHA audit confirmed all 64 paths, byte sizes, and SHA256 values matched the manifest (artifact ID `12416888557`). SSQ returned `HISTORY_CROSSCHECK_LIMITED`: CWL HTTP 403, Shanghai 2,078 rows, and Hebei independently agreed on one latest issue (`2026120`, 2026-10-20, red 13/14/16/18/20/31, blue 03), which is not full-history admission. DLT remained `SOURCE_FETCH_PARTIAL`: the national endpoint returned two HTTP-567 bodies; 30 Jiangsu HTTP-200 pages were retained but quarantined for date anomalies at issues 16003 and 16005; Gansu's 20 recent rows parsed, latest issue 26120, but could not replace the missing/quarantined primary histories. The run ended with target admission BLOCKED, external TSA NOT_RUN, formal_A=0, and NO_EDGE. ZIP SHA256 `a43f6e1a141bb59b4a4b5ab2f282b260b5616dbfdefbbd05e62384201ca28c85`; manifest SHA256 `f05367ba2099e90e7e97cea88c06e29b43270614e2df5c4bed3439635d588e8e`. This verifies byte preservation only, not the authenticity of failed HTTP responses.
   
 This collector is **historical-source intake only**. It does not certify a target issue, actual sales cutoff, publication time, trusted timestamp, or prediction. Local capture times remain untrusted; `official_target_admission=BLOCKED`, `formal_A=0`, and `NO_EDGE` remain mandatory. GitHub's one-shot workflow is limited to the convergence branch and isolated P0-A research branches, and is triggered only by changing `LIVE_INTAKE_TRIGGER.json`; it uploads raw evidence as a temporary Actions artifact and never writes source data to `main`.
+
+## V4.7 G01 shadow second-process semantic replay (experimental)
+
+The `official_intake.collect_live_history` dispatcher now **fails closed** when
+a nominally complete worker payload cannot be reconstructed in a separate
+Python process from its preserved successful HTTP response bytes. The replay
+process imports the pinned per-game `glp.sources` parser from an isolated
+interpreter (SSQ and DLT both use the same Python package name). Its executable
+source file is included in each game's before/after source-hash lock.
+Every source asserting `raw_reparse_status=PASS` must independently reproduce
+the identical canonical records and SHA; malformed/raw-free, fake internally
+self-consistent draw arrays are blocked. Dispatcher checks the complete
+process receipt against the input SHA, parser source hashes and source IDs.
+Partial intake remains BLOCKED and retains diagnostic bodies; it is never
+a qualified full source batch.
+
+**Scope limit:** this is cross-*process* validation using the **same pinned
+parser algorithms**; it is not independent parser implementation verification,
+TLS provenance proof, certified official publication times or verification
+of a real next target/cutoff. The code path runs only on a host with the
+existing SSQ/DLT parser dependencies installed. Unit tests use invented
+fixtures and mocked process failures; successful local tests are not a
+live-official-source run. G00/G01 are BLOCKED until separately reviewed original
+source evidence, provenance and current source accessibility can be audited.
+Any second-process error blocks the source admission; it must not be silently
+replaced by a worker's self-attested replay status.
+
+To reproduce synthetic checks from the repo root:
+```sh
+python -m unittest discover -s research/harness_v46/tests -v
+```
+The optional command below consumes a **worker JSON payload from stdin**
+for an offline SHADOW check; it neither fetches data nor admits a lottery issue:
+```sh
+python -m research.harness_v46.raw_semantic_replay --game SSQ < worker-ssq.json
+```
+No customer betting/purchase is performed. This prototype has no verified
+external predraw TSA, independent official draw scoring, or future D2 edge.
+`formal_A=0`, `NO_EDGE` throughout.
