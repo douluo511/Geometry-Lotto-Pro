@@ -118,7 +118,6 @@ def replay_shadow_feedback(db_path, run_id, outcome, *, observed_at=None):
         "target_issue": issue,
         "prediction_batch_sha256": batch_sha256,
         "outcome_claimed_drawn_at_untrusted": outcome["drawn_at"],
-        "scored_at_local_untrusted": observed.isoformat(),
         "outcome_sha256": digest(outcome),
         "outcome_authenticity": "CALLER_UNVERIFIED",
         "predraw_external_seal": "NOT_VERIFIED",
