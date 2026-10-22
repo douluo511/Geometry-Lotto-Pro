@@ -8,7 +8,7 @@
 - 最新代码提交：见 PR #432 当前 HEAD；不要引用过期 SHA。
 - V4.7 深度评审：../V47_DEEP_REVIEW.md
 - test2 官方数据任务：./test2-v47-official-data-task.md
-- 最近已观测代码HEAD `066fe9867aa1e4e3c84450b054e75b356fcfdc71` 的 CI Run #39748838910：Ubuntu/Windows各62项测试成功；Ubuntu跳过一项Windows专用PowerShell解析测试。执行前必须重新核对PR #432当前HEAD与最新CI。CI通过不代表官方数据、外部TSA、真实主机自动化或预测优势通过。
+- 最近已观测代码HEAD `69543ec9e63e1a84d9c37fc3fdf30efe6011643c` 的 CI Run #39749904945：Ubuntu/Windows各71项测试成功；Ubuntu跳过一项Windows专用PowerShell解析测试。执行前必须重新核对PR #432当前HEAD与最新CI。CI通过不代表官方数据、外部TSA、真实主机自动化或预测优势通过。
 - main 未合并；V4.5 正式 M04/M05-1..5/M06/M07 身份及历史证据不变。
 
 ## 立即行动
