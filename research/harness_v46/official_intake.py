@@ -139,10 +139,10 @@ def _canonical_draws(game: str, rows: list[dict], *, minimum: int = 120) -> list
             parsed_day = datetime.strptime(day[:10], "%Y-%m-%d").date()
         except ValueError as exc:
             raise GateError("INVALID_SOURCE_DRAW_DATE") from exc
-        # Different issue IDs may legitimately share a calendar date in old records.
-        # Reject date regressions, but allow same-day rows when issue order is increasing.
-        if parsed_day.isoformat() != day[:10] or (last_date is not None and parsed_day < last_date):
-            raise GateError("NONMONOTONIC_SOURCE_DRAW_DATE")
+        # Duplicate dates cannot be silently accepted: historical corrections require
+        # an explicit independently verified exception in a new source contract.
+        if parsed_day.isoformat() != day[:10] or (last_date is not None and parsed_day <= last_date):
+            raise GateError("NONMONOTONIC_SOURCE_DRAW_DATE:" + issue + ":" + day[:10])
         front, back = row["front"], row["back"]
         if (not isinstance(front, list) or len(front) != front_count
                 or any(type(n) is not int or not 1 <= n <= front_max for n in front)
@@ -158,6 +158,33 @@ def _canonical_draws(game: str, rows: list[dict], *, minimum: int = 120) -> list
         seen.add(issue)
         last_issue, last_date = int(issue), parsed_day
     return clean
+
+
+def calendar_diagnostics(game: str, rows: list[dict]) -> list[dict]:
+    """Diagnostic anomalies only; never rewrite official timestamps or draw dates."""
+    if game not in SOURCE_IDS or not isinstance(rows, list):
+        raise GateError("INVALID_CALENDAR_DIAGNOSTIC_INPUT")
+    anomalies = []
+    previous = None
+    for row in rows:
+        if not isinstance(row, dict):
+            raise GateError("INVALID_CALENDAR_DIAGNOSTIC_ROW")
+        issue, day = str(row.get("issue", "")), str(row.get("draw_date", ""))
+        try:
+            actual = datetime.strptime(day, "%Y-%m-%d").date()
+        except ValueError:
+            anomalies.append({"issue": issue, "draw_date": day, "reason": "INVALID_DATE"})
+            continue
+        if previous is not None and actual <= previous:
+            anomalies.append({"issue": issue, "draw_date": day,
+                              "reason": "DATE_NOT_STRICTLY_INCREASING"})
+        if game == "DLT" and actual.weekday() not in {0, 2, 5}:
+            # Flag for source-backed exception review rather than claiming a
+            # calendar exception can never happen.
+            anomalies.append({"issue": issue, "draw_date": day,
+                              "reason": "OUTSIDE_REGULAR_MON_WED_SAT_DRAW_CALENDAR"})
+        previous = actual
+    return anomalies
 
 
 def _validate_artifacts(game: str, source: dict, parser_version: str) -> list[dict]:
@@ -543,6 +570,12 @@ def _worker(game: str) -> dict:
             source["raw_reparse_status"] = "NOT_RUN_SOURCE_FETCH_FAILED"
             continue
         try:
+            anomalies = calendar_diagnostics(game, source["draws"])
+            if anomalies:
+                source["calendar_anomalies"] = anomalies
+                raise GateError("SOURCE_DRAW_CALENDAR_ANOMALIES:" + json.dumps(
+                    anomalies[:12], ensure_ascii=False, sort_keys=True
+                ))
             reparsed = _reparse_raw_history(game, source_module, source_id, source["raw_artifacts"])
             source_draws = _canonical_draws(
                 game, source["draws"], minimum=_source_minimum(game, source_id)
@@ -629,6 +662,7 @@ def _validate_partial_worker_payload(payload: dict, game: str, parser_version: s
             "draws": valid_draws, "draw_count": len(valid_draws),
             "raw_artifacts": artifacts, "receipt": source.get("receipt"),
             "error": source.get("error"),
+            "calendar_anomalies": source.get("calendar_anomalies", []),
             "raw_reparse_status": source.get("raw_reparse_status", "NOT_RUN"),
         })
     errors = payload.get("errors", {})
@@ -644,7 +678,8 @@ def _validate_partial_worker_payload(payload: dict, game: str, parser_version: s
              "draw_count": s["draw_count"],
              "latest_issue": s["draws"][-1]["issue"] if s["draws"] else None,
              "raw_artifact_count": len(s["raw_artifacts"]),
-             "raw_reparse_status": s["raw_reparse_status"], "error": s["error"]}
+             "raw_reparse_status": s["raw_reparse_status"], "error": s["error"],
+             "calendar_anomalies": s["calendar_anomalies"]}
             for s in checked_sources
         ],
         "consensus_draw_count": 0, "consensus_draws": [], "sources": checked_sources,
