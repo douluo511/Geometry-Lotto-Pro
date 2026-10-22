@@ -96,3 +96,15 @@
 - `ENGINEERING_PASS`：最新提交在 Ubuntu/Windows CI 通过，并完成真实 P0 故障注入；合成测试通过只是其中一部分。
 - `RESEARCH_VALID`：真实官方 as-of 数据、事前唯一主D2、不可覆写提交、外部可信事前时间证明、官方结果独立核验与只读复盘齐全。
 - `D2_EDGE_CONFIRMED`：冻结模型在未来未见开奖中，同时满足预注册的基线与同期 Random NULL 优势、置信区间/校正/停止规则与独立复验。
+
+
+## 7. Follow-up integrity hardening — 2026-10-22
+
+At reviewed HEAD `0b4ba1c195df365d3ef5bb2fefcc795655e7ed42`, the convergence branch adds two narrowly scoped fixes:
+
+- Ledger and workflow initialization enable `PRAGMA recursive_triggers=ON` on application write connections. Regression tests now attempt `INSERT OR REPLACE` against frozen prediction, run-context and TSA rows; these paths must fail on initialized application connections.
+- The V4.7 manifest's orchestration-source identity is now a canonical digest over `convergence.py`, `schedule.py`, `cli.py`, `windows_shadow_tasks.ps1` and `invoke_v46_shadow.ps1`, so changes to the scheduler/CLI entrypoints change the manifest identity. `core.py` remains separately bound by each model-source SHA.
+
+Observed exact-head CI run: https://github.com/douluo511/Geometry-Lotto-Pro/actions/runs/39732792617 — Ubuntu and Windows Server 2022 both succeeded with 36 tests each; Ubuntu skips the Windows-only PowerShell parser test, while Windows runs it.
+
+**Security boundary:** SQLite `recursive_triggers` is connection-specific. This improves the application's initialized write paths; it does not stop a separate client using different PRAGMA settings, a privileged user changing the database file, or replacement of the entire file. These triggers are defense-in-depth, not WORM storage. External trusted pre-cutoff evidence remains BLOCKED / NOT_RUN.
