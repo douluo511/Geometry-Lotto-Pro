@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - research/ssq-dlt-v46-test10-convergence-20261022
+      - research/ssq-dlt-v47-p0a-rebased-current-20261022
     paths:
       - research/harness_v46/LIVE_INTAKE_TRIGGER.json
 
