@@ -139,7 +139,9 @@ def _canonical_draws(game: str, rows: list[dict], *, minimum: int = 120) -> list
             parsed_day = datetime.strptime(day[:10], "%Y-%m-%d").date()
         except ValueError as exc:
             raise GateError("INVALID_SOURCE_DRAW_DATE") from exc
-        if parsed_day.isoformat() != day[:10] or (last_date is not None and parsed_day <= last_date):
+        # Different issue IDs may legitimately share a calendar date in old records.
+        # Reject date regressions, but allow same-day rows when issue order is increasing.
+        if parsed_day.isoformat() != day[:10] or (last_date is not None and parsed_day < last_date):
             raise GateError("NONMONOTONIC_SOURCE_DRAW_DATE")
         front, back = row["front"], row["back"]
         if (not isinstance(front, list) or len(front) != front_count
