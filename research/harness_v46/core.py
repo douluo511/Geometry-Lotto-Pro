@@ -334,6 +334,8 @@ BEGIN SELECT RAISE(ABORT, 'immutable event'); END;
 
 
 def init_ledger(conn):
+    # REPLACE may delete conflicting rows; keep delete guards active on this writer connection.
+    conn.execute("PRAGMA recursive_triggers = ON")
     conn.executescript(SCHEMA)
 
 
