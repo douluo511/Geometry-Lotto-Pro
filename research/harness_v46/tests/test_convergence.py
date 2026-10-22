@@ -341,7 +341,7 @@ class Contracts(unittest.TestCase):
         with self.assertRaisesRegex(core.GateError, "CONFLICTING_WORKFLOW_RETRY"):
             cv.append_stage(db, run, "SSQ", "SYNC",
                             {**blocked, "reason": "DIFFERENT_REASON"})
-        with self.assertRaisesRegex(core.GateError, "CONFLICTING_SHADOW_TRACE_RETRY"):
+        with self.assertRaisesRegex(core.GateError, "SHADOW_TRACE_BATCH_HASH_MISMATCH"):
             cv.append_shadow_trace(db, run, "SSQ", "FREEZE",
                                    {"status": "SHADOW_UNVERIFIED", "evidence_class": "SHADOW",
                                     "formal_A": 0, "batch_sha256": "0" * 64})
