@@ -95,6 +95,12 @@ def _payload(game, n=130):
 
 
 class OfficialIntakeTests(unittest.TestCase):
+    def test_intake_orchestrator_is_in_source_integrity_lock(self):
+        for game in ("SSQ", "DLT"):
+            hashes = oi.source_file_hashes(game)
+            self.assertIn("research/harness_v46/official_intake.py", hashes)
+            self.assertEqual(len(hashes["research/harness_v46/official_intake.py"]), 64)
+
     def test_synthetic_ssq_dual_source_match_stays_shadow_only(self):
         report = oi.validate_worker_payload(_payload("SSQ"), expected_game="SSQ")
         self.assertEqual(report["status"], "HISTORY_CROSSCHECK_PASS")
