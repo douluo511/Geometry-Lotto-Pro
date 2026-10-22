@@ -12,7 +12,7 @@ from pathlib import Path
 
 from .core import (MODELS, RULES, VERSION, GateError, canon, digest, dt, score,
                    model_source_sha256, parameter_contract, validate_snapshot,
-                   validate_study_snapshot)
+                   validate_study_snapshot, validate_run_manifest_record)
 
 ROLES = {
     "test1": "00-CONTROL", "test2": "01-OFFICIAL-DATA",
@@ -159,8 +159,10 @@ def manifest(snapshots):
         "harness_source_sha256": harness_source_sha,
     }
     run_id = "V47-" + digest(identity)[:32]
-    return {"schema": "V47-RUN-1", "run_id": run_id, "games": games,
-            "models": models, "tool_whitelist": tool_whitelist,
+    return {"schema": "V47-RUN-1", "run_id": run_id,
+            "identity": identity, "identity_sha256": digest(identity),
+            "games": games, "models": models,
+            "tool_whitelist": tool_whitelist,
             "harness_source_sha256": harness_source_sha,
             "qualifications": {"challenger": "EXPLORATORY_UNREGISTERED",
                                "all_arms": "SHADOW_ONLY", "formal_A": 0},
@@ -197,13 +199,51 @@ def init_workflow(conn):
     conn.executescript(WORKFLOW_SCHEMA)
 
 
+def register_manifest(conn, value):
+    """Persist the complete manifest preimage before any V47 prediction row."""
+    if not isinstance(value, dict) or value.get("schema") != "V47-RUN-1":
+        raise GateError("INVALID_V47_MANIFEST")
+    identity = value.get("identity")
+    if (not isinstance(identity, dict)
+            or value.get("identity_sha256") != digest(identity)
+            or value.get("run_id") != "V47-" + digest(identity)[:32]):
+        raise GateError("V47_MANIFEST_DERIVATION_MISMATCH")
+    for key in ("games", "models", "tool_whitelist", "harness_source_sha256"):
+        if value.get(key) != identity.get(key):
+            raise GateError("V47_MANIFEST_IDENTITY_PAYLOAD_MISMATCH")
+    if set(value.get("models", {})) != set(MODELS) or set(value.get("games", {})) != set(RULES):
+        raise GateError("V47_MANIFEST_INCOMPLETE")
+    payload = canon(value)
+    checksum = hashlib.sha256(payload.encode("utf-8")).hexdigest()
+    existing = conn.execute(
+        "SELECT manifest_sha256,payload FROM run_manifests WHERE run_id=?",
+        (value["run_id"],),
+    ).fetchone()
+    if existing is None:
+        conn.execute(
+            "INSERT INTO run_manifests(run_id,manifest_sha256,payload,evidence_class) "
+            "VALUES(?,?,?,'SHADOW')",
+            (value["run_id"], checksum, payload),
+        )
+    elif existing != (checksum, payload):
+        raise GateError("CONFLICTING_V47_MANIFEST_RETRY")
+    return checksum
+
+
 def check_complete_batch(conn, run_id, lottery):
-    """Exactly six frozen model rows, one immutable per-game context."""
+    """Exactly six frozen model rows and a matching persisted V4.7 manifest."""
+    registered = validate_run_manifest_record(conn, run_id)
+    if registered is None:
+        raise GateError("V47_MANIFEST_REQUIRED")
+    expected_game = registered["games"].get(lottery)
     context = conn.execute(
         "SELECT snapshot_sha256,target_issue FROM run_context WHERE run_id=? AND lottery=?",
         (run_id, lottery)).fetchone()
     if context is None:
         raise GateError("MISSING_LOCKED_RUN_CONTEXT")
+    if (expected_game is None or expected_game.get("snapshot_sha256") != context[0]
+            or expected_game.get("issue") != context[1]):
+        raise GateError("RUN_MANIFEST_CONTEXT_MISMATCH")
     rows = conn.execute(
         "SELECT model,payload,prediction_sha256,snapshot_sha256 FROM predictions "
         "WHERE run_id=? AND lottery=?", (run_id, lottery)).fetchall()
@@ -214,7 +254,13 @@ def check_complete_batch(conn, run_id, lottery):
         if hashlib.sha256(payload.encode("utf-8")).hexdigest() != checksum or snap != context[0]:
             raise GateError("FROZEN_PREDICTION_INTEGRITY_FAIL")
         p = json.loads(payload)
-        if p.get("model") != model or p.get("target_issue") != context[1] or p.get("primary_d2") != p.get("candidates_1_to_5", [])[:2]:
+        model_identity = registered["models"].get(model)
+        if (p.get("model") != model or p.get("target_issue") != context[1]
+                or p.get("primary_d2") != p.get("candidates_1_to_5", [])[:2]
+                or model_identity is None
+                or p.get("version") != model_identity.get("version")
+                or p.get("parameters_sha256") != model_identity.get("parameters_sha256")
+                or p.get("model_source_sha256") != model_identity.get("model_source_sha256")):
             raise GateError("FROZEN_MODEL_IDENTITY_FAIL")
         hashes[model] = checksum
     return digest(hashes)
