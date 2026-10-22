@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from datetime import date, timedelta
 from pathlib import Path
+from unittest.mock import patch
 
 from research.harness_v46 import official_intake as oi
 from research.harness_v46.core import GateError
@@ -163,6 +164,57 @@ class OfficialIntakeTests(unittest.TestCase):
         with self.assertRaisesRegex(GateError, "PARSER_VERSION_MISMATCH"):
             oi.validate_worker_payload(payload)
 
+    def test_empty_http_200_body_is_preserved_but_not_used_as_draw_page(self):
+        payload = _payload("SSQ")
+        source = payload["sources"][0]
+        raw = b""
+        artifact = _artifact(source["url"], payload["parser_version"], raw)
+        source["raw_artifacts"].append(artifact)
+        report = oi.validate_worker_payload(payload)
+        self.assertEqual(report["status"], "HISTORY_CROSSCHECK_PASS")
+        self.assertEqual(report["raw_artifact_count"], 3)
+        self.assertEqual(report["formal_A"], 0)
+
+    def test_raw_reparse_uses_exact_preserved_bytes_for_ssq_national(self):
+        import json
+        from types import SimpleNamespace
+
+        rows = _draws("SSQ", 130)
+        raw = json.dumps({"result": [
+            {"code": r["issue"], "date": r["draw_date"],
+             "red": r["front"], "blue": r["back"]}
+            for r in rows
+        ]}).encode("utf-8")
+
+        def parse_draw(issue, day, reds, blue):
+            return SimpleNamespace(
+                issue=str(issue), draw_date=str(day),
+                front=tuple(sorted(int(n) for n in reds)),
+                back=tuple(int(n) for n in blue),
+            )
+
+        fake_parser = SimpleNamespace(_draw=parse_draw)
+        artifact = {"raw_base64": base64.b64encode(raw).decode("ascii")}
+        reparsed = oi._reparse_raw_history("SSQ", fake_parser, "national", [artifact])
+        self.assertEqual(reparsed, rows)
+        tampered = json.loads(raw.decode("utf-8"))
+        tampered["result"][10]["red"] = [1, 2, 3, 4, 5, 6]
+        artifact["raw_base64"] = base64.b64encode(
+            json.dumps(tampered).encode("utf-8")
+        ).decode("ascii")
+        observed = oi._reparse_raw_history("SSQ", fake_parser, "national", [artifact])
+        self.assertNotEqual(observed, rows)
+
+    def test_source_identity_cannot_be_swapped_between_official_roots(self):
+        payload = _payload("DLT")
+        source = payload["sources"][0]
+        source["url"] = "https://api.js-lottery.com/Lottery/_ListData"
+        source["source_root"] = "js-lottery.com"
+        source["raw_artifacts"][0]["url"] = source["url"]
+        source["raw_artifacts"][0]["requested_url"] = source["url"]
+        with self.assertRaisesRegex(GateError, "SOURCE_ID_NOT_BOUND_TO_EXPECTED_OFFICIAL_ROOT"):
+            oi.validate_worker_payload(payload)
+
     def test_receipt_count_must_match_parsed_history(self):
         payload = _payload("SSQ")
         payload["sources"][0]["receipt"]["draw_count"] -= 1
@@ -197,7 +249,7 @@ class OfficialIntakeTests(unittest.TestCase):
         self.assertEqual(item["http_status"], 567)
         self.assertEqual(item["raw_sha256"], hashlib.sha256(raw).hexdigest())
         self.assertEqual(base64.b64decode(item["body_base64"]), raw)
-        self.assertEqual(item["body_preserved"], True)
+        self.assertTrue(item["body_preserved"])
         self.assertIn("UNTRUSTED_NOT_OFFICIAL_SOURCE_EVIDENCE", item["classification"])
 
     def test_blocked_worker_returns_diagnostics_instead_of_losing_manifest(self):
@@ -261,7 +313,6 @@ class OfficialIntakeTests(unittest.TestCase):
             self.assertEqual(record["classification"],
                              "TRANSPORT_FAILURE_UNTRUSTED_NOT_OFFICIAL_SOURCE_EVIDENCE")
 
-
     def test_cross_source_validation_failure_keeps_raw_bytes_unadmitted(self):
         payload = _payload("SSQ")
         completed = __import__("subprocess").CompletedProcess(
@@ -282,7 +333,6 @@ class OfficialIntakeTests(unittest.TestCase):
             self.assertIn("_source_id", artifact)
             self.assertTrue(artifact["raw_base64"])
         self.assertEqual(result["formal_A"], 0)
-
 
     def test_bundle_keeps_duplicate_raw_response_bodies_without_overwrite(self):
         report = oi.validate_worker_payload(_payload("SSQ"))
