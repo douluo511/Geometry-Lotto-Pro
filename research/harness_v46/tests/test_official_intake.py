@@ -460,6 +460,23 @@ class OfficialIntakeTests(unittest.TestCase):
             with self.assertRaisesRegex(GateError, "HOST_NOT_ALLOWLISTED"):
                 fake_requests.get("https://webapi.sporttery.cn/start")
 
+    def test_repeated_identical_raw_retry_bodies_share_one_file_keep_two_receipts(self):
+        report = oi.validate_worker_payload(_payload("SSQ"))
+        first = report["sources"][0]["raw_artifacts"][0]
+        report["sources"][0]["raw_artifacts"].append(copy.deepcopy(first))
+        bundle = {"schema": "V47-OFFICIAL-INTAKE-BUNDLE-1",
+                  "games": {"SSQ": report}, "errors": {}}
+        with tempfile.TemporaryDirectory() as tmp:
+            path = oi.write_bundle(bundle, Path(tmp) / "bundle")
+            manifest = json.loads(path.read_text(encoding="utf-8"))
+            artifacts = manifest["games"]["SSQ"]["sources"][0]["raw_artifacts"]
+            self.assertEqual(len(artifacts), 2)
+            self.assertEqual(artifacts[0]["artifact_path"], artifacts[1]["artifact_path"])
+            files = list((path.parent / "raw" / "SSQ" / "national").glob("*.bin"))
+            self.assertEqual(len(files), 1)
+            self.assertEqual(hashlib.sha256(files[0].read_bytes()).hexdigest(),
+                             artifacts[0]["raw_sha256"])
+
     def test_bundle_writes_raw_files_once_without_overwriting(self):
         report = oi.validate_worker_payload(_payload("SSQ"))
         bundle = {"schema": "V47-OFFICIAL-INTAKE-BUNDLE-1", "games": {"SSQ": report}, "errors": {}}
