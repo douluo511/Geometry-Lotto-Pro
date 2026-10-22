@@ -40,7 +40,7 @@ STAGES = ("SYNC", "VERIFY", "AUTHORIZE", "PREDICT", "FREEZE", "WAIT",
 
 
 ORCHESTRATION_SOURCE_FILES = (
-    "convergence.py", "schedule.py", "cli.py",
+    "convergence.py", "schedule.py", "cli.py", "statistics.py",
     "windows_shadow_tasks.ps1", "invoke_v46_shadow.ps1",
 )
 
