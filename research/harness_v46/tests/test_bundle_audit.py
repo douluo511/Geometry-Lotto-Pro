@@ -124,6 +124,23 @@ class IntakeBundleAuditTests(unittest.TestCase):
         self.assertEqual(report["unpreserved_oversized_records"], 1)
         self.assertEqual(report["verified_artifact_records"], 0)
 
+    def test_empty_bundle_cannot_pass_integrity_audit(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            bundle = {
+                "schema": "V47-OFFICIAL-INTAKE-BUNDLE-1",
+                "official_target_admission": "BLOCKED",
+                "external_tsa": "NOT_RUN",
+                "formal_A": 0,
+                "decision": "NO_EDGE",
+                "games": {},
+            }
+            (root / "intake.json").write_text(json.dumps(bundle), encoding="utf-8")
+            report = audit_bundle(root)
+        self.assertEqual(report["status"], "FAIL")
+        self.assertIn("GAMES_EMPTY", report["errors"])
+        self.assertIn("NO_RAW_ARTIFACT_RECORDS_FOUND", report["errors"])
+
     def test_missing_manifest_fails_closed(self):
         with tempfile.TemporaryDirectory() as tmp:
             report = audit_bundle(tmp)
