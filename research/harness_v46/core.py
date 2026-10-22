@@ -290,6 +290,17 @@ def validate_forecast(prediction, snapshot):
 
 
 SCHEMA = """
+-- Persist the full V4.7 identity preimage; RUN_ID alone is not the audit record.
+CREATE TABLE IF NOT EXISTS run_manifests (
+    run_id TEXT PRIMARY KEY,
+    manifest_sha256 TEXT NOT NULL,
+    payload TEXT NOT NULL,
+    evidence_class TEXT NOT NULL CHECK(evidence_class='SHADOW')
+);
+CREATE TRIGGER IF NOT EXISTS prevent_manifest_update BEFORE UPDATE ON run_manifests
+BEGIN SELECT RAISE(ABORT, 'immutable run manifest'); END;
+CREATE TRIGGER IF NOT EXISTS prevent_manifest_delete BEFORE DELETE ON run_manifests
+BEGIN SELECT RAISE(ABORT, 'immutable run manifest'); END;
 -- One immutable snapshot identity per RUN_ID and lottery. A six-agent batch
 -- must never silently mix differently sourced histories or target issues.
 CREATE TABLE IF NOT EXISTS run_context (
@@ -339,12 +350,44 @@ def init_ledger(conn):
     conn.executescript(SCHEMA)
 
 
+def validate_run_manifest_record(conn, run_id):
+    """Load and validate a registered V4.7 manifest; legacy non-V47 SHADOW runs remain separate."""
+    if not isinstance(run_id, str) or not run_id.startswith("V47-"):
+        return None
+    try:
+        row = conn.execute(
+            "SELECT manifest_sha256,payload FROM run_manifests WHERE run_id=?",
+            (run_id,),
+        ).fetchone()
+    except sqlite3.OperationalError as exc:
+        raise GateError("V47_RUN_MANIFEST_TABLE_MISSING") from exc
+    if row is None:
+        raise GateError("V47_RUN_MANIFEST_NOT_REGISTERED")
+    checksum, payload = row
+    if hashlib.sha256(payload.encode("utf-8")).hexdigest() != checksum:
+        raise GateError("V47_RUN_MANIFEST_HASH_MISMATCH")
+    try:
+        value = json.loads(payload)
+    except (TypeError, ValueError) as exc:
+        raise GateError("V47_RUN_MANIFEST_INVALID_JSON") from exc
+    identity = value.get("identity")
+    if (value.get("schema") != "V47-RUN-1" or not isinstance(identity, dict)
+            or value.get("identity_sha256") != digest(identity)
+            or run_id != "V47-" + digest(identity)[:32]):
+        raise GateError("V47_RUN_MANIFEST_IDENTITY_MISMATCH")
+    for key in ("games", "models", "tool_whitelist", "harness_source_sha256"):
+        if value.get(key) != identity.get(key):
+            raise GateError("V47_RUN_MANIFEST_PAYLOAD_MISMATCH")
+    return value
+
+
 def freeze_shadow(conn, run_id, snapshot, prediction, frozen_at):
     """Atomic local record. This is NOT an external trustworthy timestamp."""
     validate_study_snapshot(snapshot)
     validate_forecast(prediction, snapshot)
     if not run_id or not isinstance(run_id, str):
         raise GateError("missing run id")
+    registered_manifest = validate_run_manifest_record(conn, run_id)
     if not dt(snapshot["as_of"]) <= dt(frozen_at) < dt(snapshot["sales_cutoff"]):
         raise GateError("prediction not before sales cutoff")
     # The context must be pinned before inserting the first agent prediction.
@@ -358,6 +401,23 @@ def freeze_shadow(conn, run_id, snapshot, prediction, frozen_at):
         "FROM run_context WHERE run_id=? AND lottery=?",
         (run_id, prediction["lottery"]),
     ).fetchone()
+    if existing is not None and tuple(existing) != identity:
+        raise GateError("RUN_ID lottery context mismatch: different snapshot or target")
+    if registered_manifest is not None:
+        game_identity = registered_manifest["games"].get(prediction["lottery"])
+        model_identity = registered_manifest["models"].get(prediction["model"])
+        if (game_identity is None
+                or game_identity.get("issue") != str(snapshot["target_issue"])
+                or game_identity.get("snapshot_sha256") != prediction["snapshot_sha256"]
+                or game_identity.get("as_of") != snapshot["as_of"]
+                or game_identity.get("sales_cutoff") != snapshot["sales_cutoff"]
+                or game_identity.get("target_draw_at") != snapshot["target_draw_at"]):
+            raise GateError("V47_RUN_MANIFEST_GAME_CONTEXT_MISMATCH")
+        if (model_identity is None
+                or model_identity.get("version") != prediction["version"]
+                or model_identity.get("parameters_sha256") != prediction["parameters_sha256"]
+                or model_identity.get("model_source_sha256") != prediction["model_source_sha256"]):
+            raise GateError("V47_RUN_MANIFEST_MODEL_IDENTITY_MISMATCH")
     if existing is None:
         # A pre-v0.3 ledger can already contain predictions without this
         # manifest. Fail closed rather than silently pinning an incompatible
@@ -374,8 +434,6 @@ def freeze_shadow(conn, run_id, snapshot, prediction, frozen_at):
             "VALUES (?,?,?,?,?,?)",
             (run_id, prediction["lottery"], *identity),
         )
-    elif tuple(existing) != identity:
-        raise GateError("RUN_ID lottery context mismatch: different snapshot or target")
     payload = canon(prediction)
     prediction_sha = hashlib.sha256(payload.encode()).hexdigest()
     # No implicit commit: a caller can atomically freeze all model records.
