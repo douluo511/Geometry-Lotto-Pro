@@ -154,7 +154,7 @@ class OfficialIntakeTests(unittest.TestCase):
         artifact = source["raw_artifacts"][0]
         artifact["url"] = source["url"]
         artifact["requested_url"] = source["url"]
-        with self.assertRaisesRegex(GateError, "TWO_DISTINCT_OFFICIAL_SOURCE_ROOTS"):
+        with self.assertRaisesRegex(GateError, "SOURCE_ID_NOT_BOUND_TO_EXPECTED_OFFICIAL_ROOT"):
             oi.validate_worker_payload(payload)
 
     def test_raw_artifact_parser_version_must_match(self):
