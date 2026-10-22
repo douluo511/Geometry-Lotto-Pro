@@ -584,9 +584,7 @@ def _worker(game: str) -> dict:
             continue
         try:
             reparsed = _reparse_raw_history(game, source_module, source_id, source["raw_artifacts"])
-            source_draws = _canonical_draws(
-                game, source["draws"], minimum=_source_minimum(game, source_id)
-            )
+            source_draws = _canonical_source_draws(game, source_id, source["draws"])
             if reparsed != source_draws:
                 raise GateError("RAW_REPARSED_ROWS_DIFFER_FROM_SOURCE_OUTPUT:" + source_id)
             source["raw_reparse_status"] = "PASS"
@@ -663,9 +661,7 @@ def _validate_partial_worker_payload(payload: dict, game: str, parser_version: s
         artifacts = _validate_artifacts(game, source, parser_version) if raw_list else []
         valid_draws = []
         if source.get("raw_reparse_status") == "PASS" and source.get("draws"):
-            valid_draws = _canonical_draws(
-                game, source["draws"], minimum=_source_minimum(game, source_id)
-            )
+            valid_draws = _canonical_source_draws(game, source_id, source["draws"])
             if source.get("raw_reparse_sha256") != _rows_sha256(valid_draws):
                 raise GateError("RAW_REPARSE_SHA_MISMATCH")
             receipt = source.get("receipt")
@@ -755,9 +751,7 @@ def validate_worker_payload(payload: dict, *, expected_game: str | None = None) 
         rows = []
         valid_source = source.get("raw_reparse_status") == "PASS" and bool(source.get("draws"))
         if valid_source:
-            rows = _canonical_draws(
-                game, source["draws"], minimum=_source_minimum(game, source_id)
-            )
+            rows = _canonical_source_draws(game, source_id, source["draws"])
             if source.get("raw_reparse_sha256") != _rows_sha256(rows):
                 raise GateError("RAW_REPARSE_SHA_MISMATCH")
             receipt = source.get("receipt")
