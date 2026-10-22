@@ -108,3 +108,10 @@ At reviewed HEAD `0b4ba1c195df365d3ef5bb2fefcc795655e7ed42`, the convergence bra
 Observed exact-head CI run: https://github.com/douluo511/Geometry-Lotto-Pro/actions/runs/39732792617 — Ubuntu and Windows Server 2022 both succeeded with 36 tests each; Ubuntu skips the Windows-only PowerShell parser test, while Windows runs it.
 
 **Security boundary:** SQLite `recursive_triggers` is connection-specific. This improves the application's initialized write paths; it does not stop a separate client using different PRAGMA settings, a privileged user changing the database file, or replacement of the entire file. These triggers are defense-in-depth, not WORM storage. External trusted pre-cutoff evidence remains BLOCKED / NOT_RUN.
+
+
+## 8. V4.7 RUN_ID CLI guard — 2026-10-22
+
+The single-lottery compatibility CLI now rejects caller-supplied IDs beginning with `V47-` and reports `V47_RUN_ID_REQUIRES_DUAL_GAME_MANIFEST_USE_SCHEDULE`. The canonical V4.7 prefix must come from the dual-game manifest path in `schedule.py`; the older one-game CLI remains SHADOW/compatibility only. This prevents the ordinary CLI from presenting an arbitrary caller string as a manifest-derived V4.7 run identity. It is not a general sandbox against direct Python callers or privileged database access.
+
+Exact-head CI for code HEAD `036aa9f0b12d55758ebf2c88717a37c0358404b1`: https://github.com/douluo511/Geometry-Lotto-Pro/actions/runs/39733193819 — Ubuntu and Windows Server 2022 both passed 37 tests; Ubuntu skipped the Windows-only PowerShell parser test.
