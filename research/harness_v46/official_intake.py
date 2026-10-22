@@ -47,6 +47,14 @@ SOURCE_IDS = {
         "official_jiangsu_sporttery": "jiangsu",
     },
 }
+EXPECTED_ROOTS = {
+    "SSQ": {"national": "cwl.gov.cn", "shanghai": "swlc.net.cn"},
+    "DLT": {"national": "sporttery.cn", "jiangsu": "js-lottery.com"},
+}
+EXPECTED_SOURCE_NAMES = {
+    "SSQ": {"national": "official_cwl_L0", "shanghai": "official_shanghai_L1"},
+    "DLT": {"national": "official_sporttery_national", "jiangsu": "official_jiangsu_sporttery"},
+}
 REDIRECT_CODES = {301, 302, 303, 307, 308}
 
 
@@ -499,8 +507,12 @@ def validate_worker_payload(payload: dict, *, expected_game: str | None = None) 
         source_id = source.get("source_id")
         url = source.get("url")
         host, root = _root_for_url(game, url)
+        if root != EXPECTED_ROOTS[game].get(source_id):
+            raise GateError("SOURCE_ID_NOT_BOUND_TO_EXPECTED_OFFICIAL_ROOT")
         if source.get("source_root") != root:
             raise GateError("SOURCE_ROOT_IDENTITY_MISMATCH")
+        if source.get("source_name") != EXPECTED_SOURCE_NAMES[game].get(source_id):
+            raise GateError("SOURCE_NAME_IDENTITY_MISMATCH")
         rows = _canonical_draws(game, source.get("draws"))
         artifacts = _validate_artifacts(game, source, parser_version)
         if source.get("raw_reparse_status") != "PASS":
