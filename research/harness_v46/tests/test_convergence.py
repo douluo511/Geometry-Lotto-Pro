@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from research.harness_v46 import core, convergence as cv
+from research.harness_v46 import core, convergence as cv, cli
 from research.harness_v46.tests.test_core import fixture
 
 
@@ -199,6 +199,24 @@ class Contracts(unittest.TestCase):
             db = sqlite3.connect(path)
             self.assertEqual(db.execute("SELECT COUNT(*) FROM audit_events").fetchone()[0], 6)
             db.close()
+
+    def test_manifest_blocks_less_than_120_draws(self):
+        snapshots = self.snaps()
+        snapshots["DLT"] = fixture("DLT", size=119)
+        with self.assertRaisesRegex(core.GateError, "study requires at least 120"):
+            cv.manifest(snapshots)
+
+    def test_cli_blocks_before_creating_ledger_without_120_draws(self):
+        with tempfile.TemporaryDirectory() as td:
+            snapshot_path = Path(td) / "under120.json"
+            db_path = Path(td) / "must_not_exist.sqlite3"
+            snapshot_path.write_text(json.dumps(fixture(size=119)), encoding="utf-8")
+            args = type("Args", (), {"snapshot": str(snapshot_path),
+                                     "database": str(db_path), "run_id": "V46-UNDER120",
+                                     "model": "all"})()
+            with self.assertRaisesRegex(core.GateError, "study requires at least 120"):
+                cli.run_forecast(args)
+            self.assertFalse(db_path.exists())
 
 
 if __name__ == "__main__":
