@@ -222,6 +222,21 @@ def validate_forecast(prediction, snapshot):
         raise GateError("five candidates must be included in ticket")
     if prediction.get("formal_a_eligible") is not False:
         raise GateError("research core cannot grant formal A")
+    if prediction.get("version") != VERSION or prediction.get("evidence_class") != "SHADOW":
+        raise GateError("model version or research evidence class mismatch")
+    if prediction.get("null_seed_id") != (NULL_SEED if prediction["model"] == "random_null" else None):
+        raise GateError("NULL seed attribution mismatch")
+    # Reconstruct deterministically, including legal filler and rear-zone balls.
+    # Merely checking ball ranges allows a valid-looking substituted ticket.
+    expected_ranking = _model_ranking(snapshot, prediction["model"])
+    if candidates != expected_ranking[:5]:
+        raise GateError("candidate ranking does not match declared model")
+    if ticket["front"] != sorted(expected_ranking[:r["front"]]):
+        raise GateError("ticket front does not match declared model")
+    expected_back = list(range(1, r["back_pool"] + 1))
+    _rng(NULL_SEED, snapshot["lottery"], snapshot["target_issue"], prediction["model"], "back").shuffle(expected_back)
+    if ticket["back"] != sorted(expected_back[:r["back"]]):
+        raise GateError("ticket back does not match declared model")
     return True
 
 
@@ -313,6 +328,17 @@ def freeze_shadow(conn, run_id, snapshot, prediction, frozen_at):
     prediction_sha = hashlib.sha256(payload.encode()).hexdigest()
     # No implicit commit: a caller can atomically freeze all model records.
     # The caller owns the transaction; SHADOW does not claim trusted time.
+    # Exact retries are idempotent: never change the original frozen_at or
+    # re-emit a freeze event. Any changed content remains a hard conflict.
+    previous = conn.execute(
+        "SELECT prediction_sha256,payload FROM predictions "
+        "WHERE run_id=? AND lottery=? AND model=?",
+        (run_id, prediction["lottery"], prediction["model"]),
+    ).fetchone()
+    if previous is not None:
+        if previous != (prediction_sha, payload):
+            raise GateError("conflicting repeated prediction")
+        return prediction_sha
     conn.execute(
         "INSERT INTO predictions VALUES(?,?,?,?,?,?,?,?)",
         (run_id, prediction["lottery"], prediction["model"], frozen_at,
