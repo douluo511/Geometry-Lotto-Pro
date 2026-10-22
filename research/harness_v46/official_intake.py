@@ -291,6 +291,26 @@ def _source_rows(draws) -> list[dict]:
 def _reparse_raw_history(game: str, source_module, source_id: str,
                          artifacts: list[dict]) -> list[dict]:
     """Reparse each nonempty preserved response body and compare it to the parser's aggregate."""
+    if game == "SSQ" and source_id == "hebei":
+        home, announcement = [], []
+        for artifact in artifacts:
+            if artifact.get("http_status") != 200:
+                continue
+            try:
+                raw = base64.b64decode(artifact["raw_base64"], validate=True)
+            except Exception as exc:
+                raise GateError("HEBEI_RAW_BASE64_INVALID") from exc
+            requested = artifact.get("requested_url")
+            if requested == source_module.HEBEI_URL:
+                home.append(raw)
+            elif requested == source_module.HEBEI_ANNOUNCE_URL:
+                announcement.append(raw)
+            else:
+                raise GateError("UNEXPECTED_HEBEI_SOURCE_ENDPOINT")
+        if len(home) != 1 or len(announcement) != 1:
+            raise GateError("HEBEI_BOTH_OFFICIAL_RAW_PAGES_REQUIRED")
+        draw = source_module.parse_hebei_latest(home[0], announcement[0])
+        return _canonical_draws(game, _source_rows([draw]), minimum=1)
     parsed_rows = []
     for artifact in artifacts:
         try:
@@ -483,6 +503,31 @@ def _worker(game: str) -> dict:
                     "source_id": source_id, "source_name": source_name,
                     "source_root": root, "url": url, "draws": [],
                     "receipt": None, "error": errors[source_id],
+                })
+        # Hebei is an independent official provincial publisher, but its
+        # homepage + announcement provide only the latest issue, never 120+.
+        if "national" in errors:
+            try:
+                hebei_draw, hebei_receipt, _raw_pages = source_module.fetch_hebei_latest(
+                    record_raw=recorder
+                )
+                sources.append({
+                    "source_id": "hebei", "source_name": "official_hebei_L2",
+                    "source_root": "yzfcw.com", "url": source_module.HEBEI_URL,
+                    "draws": _source_rows([hebei_draw]),
+                    "receipt": {
+                        "status": hebei_receipt.status, "draw_count": hebei_receipt.draw_count,
+                        "latest_issue": hebei_receipt.latest_issue,
+                        "raw_sha256": hebei_receipt.raw_sha256,
+                        "fetched_at": hebei_receipt.fetched_at,
+                    },
+                })
+            except Exception as exc:
+                errors["hebei"] = f"{type(exc).__name__}: {exc}"
+                sources.append({
+                    "source_id": "hebei", "source_name": "official_hebei_L2",
+                    "source_root": "yzfcw.com", "url": source_module.HEBEI_URL,
+                    "draws": [], "receipt": None, "error": errors["hebei"],
                 })
     elif game == "DLT":
         errors = {}
