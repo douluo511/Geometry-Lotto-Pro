@@ -844,22 +844,27 @@ def validate_worker_payload(payload: dict, *, expected_game: str | None = None) 
         if "gansu" not in candidates:
             raise GateError("MANDATORY_GANSU_CORROBORATOR_MISSING")
         corroborator = candidates["gansu"]
-        if corroborator["draws"][-1]["issue"] != primary["draws"][-1]["issue"]:
-            raise GateError("GANSU_LATEST_ISSUE_MISMATCH")
-        primary_map = {row["issue"]: row for row in primary["draws"]}
         gansu_map = {row["issue"]: row for row in corroborator["draws"]}
-        gansu_overlap = sorted(set(primary_map) & set(gansu_map), key=int)
-        if len(gansu_overlap) < 10:
-            raise GateError("GANSU_OVERLAP_LT_10")
-        gansu_conflicts = [
-            issue for issue in gansu_overlap if primary_map[issue] != gansu_map[issue]
-        ]
-        if gansu_conflicts:
-            raise GateError("GANSU_DRAW_CONFLICT:" + ",".join(gansu_conflicts[:10]))
-        corroboration_summaries.append({
-            "source_id": "gansu", "source_root": corroborator["source_root"],
-            "overlap_count": len(gansu_overlap), "status": "MATCHED",
-        })
+        # Gansu must independently overlap and agree with BOTH full-history primaries;
+        # a 10+ match against only one source is insufficient for three-source corroboration.
+        for primary_source in pair:
+            if corroborator["draws"][-1]["issue"] != primary_source["draws"][-1]["issue"]:
+                raise GateError("GANSU_LATEST_ISSUE_MISMATCH:" + primary_source["source_id"])
+            primary_map = {row["issue"]: row for row in primary_source["draws"]}
+            gansu_overlap = sorted(set(primary_map) & set(gansu_map), key=int)
+            if len(gansu_overlap) < 10:
+                raise GateError("GANSU_OVERLAP_LT_10_WITH_PRIMARY:" + primary_source["source_id"])
+            gansu_conflicts = [
+                issue for issue in gansu_overlap if primary_map[issue] != gansu_map[issue]
+            ]
+            if gansu_conflicts:
+                raise GateError("GANSU_DRAW_CONFLICT:" + primary_source["source_id"] + ":" +
+                                ",".join(gansu_conflicts[:10]))
+            corroboration_summaries.append({
+                "source_id": "gansu", "source_root": corroborator["source_root"],
+                "compared_to": primary_source["source_id"],
+                "overlap_count": len(gansu_overlap), "status": "MATCHED",
+            })
     verified_overlap = [maps[0][issue] for issue in common]
     # A 120+ primary history with 20 independently checked recent rows must
     # NEVER be labelled as 120+ independently verified consensus history.
@@ -876,7 +881,7 @@ def validate_worker_payload(payload: dict, *, expected_game: str | None = None) 
         "history_validation_tier": evidence_tier,
         "source_count": len(checked_sources), "selected_source_count": len(pair),
         "primary_source_count": 2,
-        "corroborating_source_count": len(corroboration_summaries),
+        "corroborating_source_count": len({item["source_id"] for item in corroboration_summaries}),
         "selected_source_ids": list(pair_ids),
         "source_roots": [s["source_root"] for s in pair],
         "all_source_roots": [s["source_root"] for s in checked_sources],
