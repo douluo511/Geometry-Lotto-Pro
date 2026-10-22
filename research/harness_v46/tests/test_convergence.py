@@ -68,6 +68,30 @@ class Contracts(unittest.TestCase):
             db.execute("INSERT OR REPLACE INTO run_manifests SELECT * FROM run_manifests")
         db.close()
 
+    def test_snapshot_preimage_is_persisted_and_immutable(self):
+        db = sqlite3.connect(":memory:")
+        core.init_ledger(db)
+        cv.init_workflow(db)
+        snapshots = self.snaps()
+        run_manifest = cv.manifest(snapshots)
+        with db:
+            cv.register_manifest(db, run_manifest)
+            for game in ("SSQ", "DLT"):
+                core.register_snapshot(db, run_manifest["run_id"], snapshots[game])
+        for game in ("SSQ", "DLT"):
+            loaded = core.load_registered_snapshot(db, run_manifest["run_id"], game)
+            self.assertEqual(loaded, snapshots[game])
+            row = db.execute(
+                "SELECT snapshot_sha256,payload,evidence_class FROM run_snapshots "
+                "WHERE run_id=? AND lottery=?", (run_manifest["run_id"], game),
+            ).fetchone()
+            self.assertEqual(row[0], hashlib.sha256(row[1].encode("utf-8")).hexdigest())
+            self.assertEqual(row[2], "SHADOW")
+        self.assertEqual(db.execute("SELECT COUNT(*) FROM run_snapshots").fetchone()[0], 2)
+        with self.assertRaises(sqlite3.DatabaseError):
+            db.execute("INSERT OR REPLACE INTO run_snapshots SELECT * FROM run_snapshots")
+        db.close()
+
     def test_v47_freeze_requires_registered_manifest(self):
         db = sqlite3.connect(":memory:")
         core.init_ledger(db)
@@ -133,6 +157,7 @@ class Contracts(unittest.TestCase):
         frozen_at = "2026-10-21T00:00:00+00:00"
         with conn:
             cv.register_manifest(conn, run_manifest)
+            core.register_snapshot(conn, run_id, snap)
             for name in core.MODELS:
                 p = core.forecast(snap, name)
                 core.freeze_shadow(conn, run_id, snap, p, frozen_at)
@@ -153,8 +178,24 @@ class Contracts(unittest.TestCase):
         with self.assertRaisesRegex(core.GateError, "ranking"):
             core.freeze_shadow(db, run, snap, malicious, frozen_at)
         self.assertEqual(db.execute("SELECT COUNT(*) FROM audit_events").fetchone()[0], 6)
-        with self.assertRaises(sqlite3.DatabaseError):
-            db.execute("UPDATE predictions SET payload='tamper'")
+        # Simulate a privileged file-level rewrite that updates both payload and hash.
+        # The independent audit must still reject a legal-looking substituted model output.
+        db.execute("DROP TRIGGER prevent_prediction_update")
+        row = db.execute(
+            "SELECT payload FROM predictions WHERE run_id=? AND lottery='SSQ' AND model='hot60'",
+            (run,),
+        ).fetchone()
+        altered = json.loads(row[0])
+        altered["candidates_1_to_5"][2:4] = altered["candidates_1_to_5"][2:4][::-1]
+        altered_payload = core.canon(altered)
+        altered_sha = hashlib.sha256(altered_payload.encode("utf-8")).hexdigest()
+        db.execute(
+            "UPDATE predictions SET payload=?,prediction_sha256=? "
+            "WHERE run_id=? AND lottery='SSQ' AND model='hot60'",
+            (altered_payload, altered_sha, run),
+        )
+        with self.assertRaisesRegex(core.GateError, "ranking"):
+            cv.check_complete_batch(db, run, "SSQ")
         db.close()
 
     def test_run_snapshot_switch_rejected(self):
@@ -162,7 +203,7 @@ class Contracts(unittest.TestCase):
         run, snap = self.prepare_batch(db)
         changed = fixture("SSQ")
         changed["provenance"]["revision"] = 3
-        with self.assertRaisesRegex(core.GateError, "context mismatch"):
+        with self.assertRaisesRegex(core.GateError, "V47_FREEZE_SNAPSHOT_DIFFERS"):
             core.freeze_shadow(db, run, changed, core.forecast(changed, "hot60"),
                                "2026-10-21T00:00:00+00:00")
         db.close()
@@ -221,6 +262,7 @@ class Contracts(unittest.TestCase):
         run = run_manifest["run_id"]
         with db:
             cv.register_manifest(db, run_manifest)
+            core.register_snapshot(db, run, snap)
             for name in core.MODELS[:-1]:
                 core.freeze_shadow(db, run, snap, core.forecast(snap, name),
                                    "2026-10-21T00:00:00+00:00")
