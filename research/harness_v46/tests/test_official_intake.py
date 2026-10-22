@@ -148,10 +148,14 @@ class OfficialIntakeTests(unittest.TestCase):
         payload["status"] = "WORKER_FETCH_COMPLETE"
         payload["errors"] = {"national": "HTTP 567"}
         report = oi.validate_worker_payload(payload, expected_game="DLT")
-        self.assertEqual(report["status"], "HISTORY_CROSSCHECK_PASS")
+        self.assertEqual(report["status"], "HISTORY_CROSSCHECK_LIMITED")
         self.assertEqual(report["selected_source_ids"], ["jiangsu", "gansu"])
-        self.assertEqual(report["consensus_draw_count"], 130)
+        self.assertEqual(report["consensus_draw_count"], 20)
+        self.assertEqual(report["primary_history_draw_count"], 130)
+        self.assertEqual(report["unverified_primary_history_draw_count"], 110)
         self.assertEqual(report["overlap_count"], 20)
+        self.assertEqual(report["official_history_admission"], "BLOCKED_120_ISSUE_DUAL_SOURCE")
+        self.assertEqual(len(report["consensus_draws"]), 20)
         self.assertIn("national", report["warnings"])
         self.assertEqual(report["official_target_admission"], "BLOCKED")
         self.assertEqual(report["formal_A"], 0)
@@ -220,12 +224,26 @@ class OfficialIntakeTests(unittest.TestCase):
         with self.assertRaisesRegex(GateError, "AT_LEAST_120"):
             oi.validate_worker_payload(payload)
 
-    def test_same_day_historical_issues_are_allowed_when_issue_order_is_increasing(self):
+    def test_same_day_historical_issues_are_quarantined_until_evidence_review(self):
         rows = _draws("DLT", 130)
         rows[51]["draw_date"] = rows[50]["draw_date"]
-        normalized = oi._canonical_draws("DLT", rows)
-        self.assertEqual(normalized[50]["draw_date"], normalized[51]["draw_date"])
-        self.assertLess(int(normalized[50]["issue"]), int(normalized[51]["issue"]))
+        with self.assertRaisesRegex(GateError, "NONMONOTONIC_SOURCE_DRAW_DATE"):
+            oi._canonical_draws("DLT", rows)
+
+    def test_real_2016_history_calendar_anomalies_are_detected_without_rewriting(self):
+        rows = [
+            {"issue": "16002", "draw_date": "2016-01-04"},
+            {"issue": "16003", "draw_date": "2016-01-07"},
+            {"issue": "16004", "draw_date": "2016-01-11"},
+            {"issue": "16005", "draw_date": "2016-01-11"},
+        ]
+        anomalies = oi.calendar_diagnostics("DLT", rows)
+        self.assertIn({"issue": "16003", "draw_date": "2016-01-07",
+                       "reason": "OUTSIDE_REGULAR_MON_WED_SAT_DRAW_CALENDAR"}, anomalies)
+        self.assertIn({"issue": "16005", "draw_date": "2016-01-11",
+                       "reason": "DATE_NOT_STRICTLY_INCREASING"}, anomalies)
+        self.assertEqual(rows[1]["draw_date"], "2016-01-07")
+        self.assertEqual(rows[2]["draw_date"], "2016-01-11")
 
     def test_unallowlisted_host_blocks(self):
         payload = _payload("SSQ")
