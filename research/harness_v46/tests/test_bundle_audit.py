@@ -55,6 +55,7 @@ class IntakeBundleAuditTests(unittest.TestCase):
             make_bundle(root, status=567)
             report = audit_bundle(root)
         self.assertEqual(report["status"], "PASS")
+        self.assertEqual(len(report["auditor_source_sha256"]), 64)
         self.assertEqual(report["artifact_records"], 1)
         self.assertEqual(report["verified_artifact_records"], 1)
         self.assertEqual(report["unique_raw_file_paths"], 1)
