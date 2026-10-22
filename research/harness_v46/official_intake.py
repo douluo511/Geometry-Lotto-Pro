@@ -31,6 +31,7 @@ PARSER_FILES = {
         "SSQ/SSQ/glp/domain.py",
         "SSQ/SSQ/glp/util.py",
         "SSQ/SSQ/glp/net_client.py",
+        "research/harness_v46/official_intake.py",
     ),
     "DLT": (
         "DLT/src/glp/sources.py",
@@ -38,6 +39,7 @@ PARSER_FILES = {
         "DLT/src/glp/domain.py",
         "DLT/src/glp/util.py",
         "DLT/src/glp/net_client.py",
+        "research/harness_v46/official_intake.py",
     ),
 }
 SOURCE_IDS = {
@@ -461,25 +463,21 @@ def _worker(game: str) -> dict:
             jiangsu_data = source_module.fetch_jiangsu_history()
         except Exception as exc:
             errors["jiangsu"] = f"{type(exc).__name__}: {exc}"
-        # The Gansu official history page provides a smaller recent window.
-        # Use it only as an independent fallback paired with a 120+ issue primary.
-        if national_data is None or jiangsu_data is None:
-            try:
-                gansu_data = source_module.fetch_gansu_recent(20)
-            except Exception as exc:
-                errors["gansu"] = f"{type(exc).__name__}: {exc}"
+        # Gansu is a third, recent-history corroborator, never a replacement for
+        # either of the two >=120-draw primary sources.
+        try:
+            gansu_data = source_module.fetch_gansu_recent(20)
+        except Exception as exc:
+            errors["gansu"] = f"{type(exc).__name__}: {exc}"
 
         source_specs = [
             ("national", "official_sporttery_national", "sporttery.cn",
              "https://webapi.sporttery.cn/gateway/lottery/getHistoryPageListV1.qry", national_data),
             ("jiangsu", "official_jiangsu_sporttery", "js-lottery.com",
              "https://api.js-lottery.com/Lottery/_ListData", jiangsu_data),
+            ("gansu", "official_gansu_sporttery", "gstc.org.cn",
+             "https://www.gstc.org.cn/wanfa/dlt_history", gansu_data),
         ]
-        if national_data is None or jiangsu_data is None:
-            source_specs.append((
-                "gansu", "official_gansu_sporttery", "gstc.org.cn",
-                "https://www.gstc.org.cn/wanfa/dlt_history", gansu_data,
-            ))
         sources = []
         for source_id, source_name, root, url, data in source_specs:
             if data is None:
@@ -565,9 +563,7 @@ def _worker(game: str) -> dict:
     if game == "SSQ":
         has_valid_pair = {"national", "shanghai"}.issubset(valid_ids)
     else:
-        has_valid_pair = any(pair.issubset(valid_ids) for pair in (
-            {"national", "jiangsu"}, {"national", "gansu"}, {"jiangsu", "gansu"}
-        ))
+        has_valid_pair = {"national", "jiangsu", "gansu"}.issubset(valid_ids)
     return {
         "schema": WORKER_SCHEMA, "lottery": game,
         "parser_version": parser_version, "source_files_sha256": source_hashes_after,
@@ -585,7 +581,7 @@ def _source_id_set_valid(game: str, source_items: list[dict]) -> bool:
         return False
     if game == "SSQ":
         return len(ids) == 2 and set(ids) == {"national", "shanghai"}
-    return 2 <= len(ids) <= 3 and set(ids).issubset({"national", "jiangsu", "gansu"})
+    return len(ids) == 3 and set(ids) == {"national", "jiangsu", "gansu"}
 
 
 def _source_minimum(game: str, source_id: str) -> int:
@@ -733,12 +729,9 @@ def validate_worker_payload(payload: dict, *, expected_game: str | None = None) 
         pair_ids, minimum_overlap = ("national", "shanghai"), 120
     elif {"national", "jiangsu"}.issubset(candidates):
         pair_ids, minimum_overlap = ("national", "jiangsu"), 120
-    elif {"national", "gansu"}.issubset(candidates):
-        pair_ids, minimum_overlap = ("national", "gansu"), 10
-    elif {"jiangsu", "gansu"}.issubset(candidates):
-        pair_ids, minimum_overlap = ("jiangsu", "gansu"), 10
     else:
-        raise GateError("NO_VALID_TWO_SOURCE_PAIR")
+        # Gansu is not allowed to substitute for a missing primary history.
+        raise GateError("NO_VALID_PRIMARY_TWO_SOURCE_PAIR")
 
     pair = [candidates[pair_ids[0]], candidates[pair_ids[1]]]
     maps = [{row["issue"]: row for row in source["draws"]} for source in pair]
@@ -751,6 +744,27 @@ def validate_worker_payload(payload: dict, *, expected_game: str | None = None) 
     if mismatches:
         raise GateError("OFFICIAL_SOURCE_DRAW_CONFLICT:" + ",".join(mismatches[:10]))
     primary = pair[0]
+    corroboration_summaries = []
+    if game == "DLT":
+        if "gansu" not in candidates:
+            raise GateError("MANDATORY_GANSU_CORROBORATOR_MISSING")
+        corroborator = candidates["gansu"]
+        if corroborator["draws"][-1]["issue"] != primary["draws"][-1]["issue"]:
+            raise GateError("GANSU_LATEST_ISSUE_MISMATCH")
+        primary_map = {row["issue"]: row for row in primary["draws"]}
+        gansu_map = {row["issue"]: row for row in corroborator["draws"]}
+        gansu_overlap = sorted(set(primary_map) & set(gansu_map), key=int)
+        if len(gansu_overlap) < 10:
+            raise GateError("GANSU_OVERLAP_LT_10")
+        gansu_conflicts = [
+            issue for issue in gansu_overlap if primary_map[issue] != gansu_map[issue]
+        ]
+        if gansu_conflicts:
+            raise GateError("GANSU_DRAW_CONFLICT:" + ",".join(gansu_conflicts[:10]))
+        corroboration_summaries.append({
+            "source_id": "gansu", "source_root": corroborator["source_root"],
+            "overlap_count": len(gansu_overlap), "status": "MATCHED",
+        })
     artifact_count = sum(len(source["raw_artifacts"]) for source in checked_sources)
     errors = payload.get("errors", {})
     if not isinstance(errors, dict):
@@ -758,8 +772,13 @@ def validate_worker_payload(payload: dict, *, expected_game: str | None = None) 
     warnings = {k: v for k, v in errors.items() if k not in pair_ids}
     return {
         "schema": SCHEMA, "lottery": game, "status": "HISTORY_CROSSCHECK_PASS",
-        "source_count": 2, "selected_source_ids": list(pair_ids),
-        "source_roots": [s["source_root"] for s in pair],
+        "source_count": len(checked_sources),
+        "primary_source_count": 2,
+        "corroborating_source_count": len(corroboration_summaries),
+        "selected_source_ids": list(pair_ids),
+        "source_roots": [s["source_root"] for s in checked_sources],
+        "primary_source_roots": [s["source_root"] for s in pair],
+        "corroboration_summaries": corroboration_summaries,
         "overlap_count": len(common),
         "consensus_draw_count": len(primary["draws"]),
         "consensus_draws": primary["draws"],
