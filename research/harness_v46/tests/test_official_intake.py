@@ -40,6 +40,7 @@ def _source_urls(game):
     return [
         ("national", "sporttery.cn", "https://webapi.sporttery.cn/gateway/history"),
         ("jiangsu", "js-lottery.com", "https://api.js-lottery.com/Lottery/_ListData"),
+        ("gansu", "gstc.org.cn", "https://www.gstc.org.cn/wanfa/dlt_history"),
     ]
 
 
@@ -63,21 +64,22 @@ def _payload(game, n=130):
     parser_version = oi._expected_parser_version(game)
     sources = []
     for source_id, root, url in _source_urls(game):
+        source_rows = rows[-20:] if game == "DLT" and source_id == "gansu" else rows
         raw = ("synthetic raw fixture " + game + " " + source_id).encode()
         sources.append({
             "source_id": source_id,
             "source_name": oi.EXPECTED_SOURCE_NAMES[game][source_id],
             "source_root": root,
             "url": url,
-            "draws": copy.deepcopy(rows),
+            "draws": copy.deepcopy(source_rows),
             "receipt": {
-                "status": "PASS", "draw_count": len(rows),
-                "latest_issue": rows[-1]["issue"], "raw_sha256": hashlib.sha256(raw).hexdigest(),
+                "status": "PASS", "draw_count": len(source_rows),
+                "latest_issue": source_rows[-1]["issue"], "raw_sha256": hashlib.sha256(raw).hexdigest(),
                 "fetched_at": "2026-10-22T08:00:00+00:00",
             },
             "raw_artifacts": [_artifact(url, parser_version, raw)],
             "raw_reparse_status": "PASS",
-            "raw_reparse_sha256": oi._rows_sha256(rows),
+            "raw_reparse_sha256": oi._rows_sha256(source_rows),
         })
     return {
         "schema": oi.WORKER_SCHEMA,
@@ -93,6 +95,12 @@ def _payload(game, n=130):
 
 
 class OfficialIntakeTests(unittest.TestCase):
+    def test_intake_orchestrator_is_in_source_integrity_lock(self):
+        for game in ("SSQ", "DLT"):
+            hashes = oi.source_file_hashes(game)
+            self.assertIn("research/harness_v46/official_intake.py", hashes)
+            self.assertEqual(len(hashes["research/harness_v46/official_intake.py"]), 64)
+
     def test_synthetic_ssq_dual_source_match_stays_shadow_only(self):
         report = oi.validate_worker_payload(_payload("SSQ"), expected_game="SSQ")
         self.assertEqual(report["status"], "HISTORY_CROSSCHECK_PASS")
@@ -108,89 +116,70 @@ class OfficialIntakeTests(unittest.TestCase):
         self.assertEqual(report["consensus_draw_count"], 130)
         self.assertEqual(report["official_history_admission"], "SHADOW_HISTORY_ONLY")
 
-    def test_dlt_jiangsu_plus_gansu_fallback_passes_with_120_primary_and_10_overlap(self):
+    def test_dlt_requires_two_primary_histories_plus_gansu_corroboration(self):
+        report = oi.validate_worker_payload(_payload("DLT"), expected_game="DLT")
+        self.assertEqual(report["status"], "HISTORY_CROSSCHECK_PASS")
+        self.assertEqual(report["history_validation_tier"], "FULL_120_PLUS_OVERLAP")
+        self.assertEqual(report["source_count"], 3)
+        self.assertEqual(report["selected_source_count"], 2)
+        self.assertEqual(report["primary_source_count"], 2)
+        self.assertEqual(report["corroborating_source_count"], 1)
+        self.assertEqual(report["selected_source_ids"], ["national", "jiangsu"])
+        self.assertEqual(report["consensus_draw_count"], 130)
+        self.assertEqual(report["overlap_count"], 130)
+        gansu = next(x for x in report["corroboration_summaries"] if x["source_id"] == "gansu")
+        self.assertGreaterEqual(gansu["overlap_count"], 10)
+        self.assertEqual(gansu["status"], "MATCHED")
+        self.assertEqual(report["official_target_admission"], "BLOCKED")
+        self.assertEqual(report["formal_A"], 0)
+        self.assertEqual(report["decision"], "NO_EDGE")
+
+    def test_missing_primary_history_blocks_even_when_gansu_matches_remaining_primary(self):
         payload = _payload("DLT")
-        rows = payload["sources"][1]["draws"]
-        parser_version = payload["parser_version"]
-        gansu_rows = copy.deepcopy(rows[-20:])
-        raw = b"synthetic Gansu HTML response"
-        url = "https://www.gstc.org.cn/wanfa/dlt_history"
-        payload["sources"].append({
-            "source_id": "gansu",
-            "source_name": oi.EXPECTED_SOURCE_NAMES["DLT"]["gansu"],
-            "source_root": "gstc.org.cn",
-            "url": url,
-            "draws": gansu_rows,
-            "receipt": {
-                "status": "PASS", "draw_count": len(gansu_rows),
-                "latest_issue": gansu_rows[-1]["issue"],
-                "raw_sha256": hashlib.sha256(raw).hexdigest(),
-                "fetched_at": "2026-10-22T08:00:00+00:00",
-            },
-            "raw_artifacts": [_artifact(url, parser_version, raw)],
-            "raw_reparse_status": "PASS",
-            "raw_reparse_sha256": oi._rows_sha256(gansu_rows),
-        })
         national = payload["sources"][0]
         failure_body = b"synthetic HTTP 567 WAF body"
         national["draws"] = []
         national["receipt"] = None
         national["error"] = "HTTP 567"
         national["raw_reparse_status"] = "NOT_RUN_SOURCE_FETCH_FAILED"
-        national_artifact = national["raw_artifacts"][0]
-        national_artifact.update({
+        national["raw_artifacts"][0].update({
             "raw_sha256": hashlib.sha256(failure_body).hexdigest(),
-            "size_bytes": len(failure_body),
-            "http_status": 567,
+            "size_bytes": len(failure_body), "http_status": 567,
             "content_type": "text/html",
             "raw_base64": base64.b64encode(failure_body).decode("ascii"),
         })
         payload["status"] = "WORKER_FETCH_COMPLETE"
         payload["errors"] = {"national": "HTTP 567"}
-        report = oi.validate_worker_payload(payload, expected_game="DLT")
-        self.assertEqual(report["status"], "HISTORY_CROSSCHECK_LIMITED")
-        self.assertEqual(report["selected_source_ids"], ["jiangsu", "gansu"])
-        self.assertEqual(report["consensus_draw_count"], 20)
-        self.assertEqual(report["primary_history_draw_count"], 130)
-        self.assertEqual(report["unverified_primary_history_draw_count"], 110)
-        self.assertEqual(report["overlap_count"], 20)
-        self.assertEqual(report["official_history_admission"], "BLOCKED_120_ISSUE_DUAL_SOURCE")
-        self.assertEqual(len(report["consensus_draws"]), 20)
-        self.assertIn("national", report["warnings"])
-        self.assertEqual(report["official_target_admission"], "BLOCKED")
-        self.assertEqual(report["formal_A"], 0)
+        with self.assertRaisesRegex(GateError, "NO_VALID_PRIMARY_TWO_SOURCE_PAIR"):
+            oi.validate_worker_payload(payload, expected_game="DLT")
 
-    def test_dlt_gansu_fallback_conflict_blocks_instead_of_selecting_best_rows(self):
+    def test_gansu_conflict_blocks_even_when_both_primary_sources_match(self):
         payload = _payload("DLT")
-        rows = payload["sources"][1]["draws"]
-        parser_version = payload["parser_version"]
-        gansu_rows = copy.deepcopy(rows[-20:])
-        gansu_rows[5]["front"] = [1, 2, 3, 4, 35]
-        raw = b"synthetic Gansu HTML response"
-        url = "https://www.gstc.org.cn/wanfa/dlt_history"
-        payload["sources"].append({
-            "source_id": "gansu", "source_name": oi.EXPECTED_SOURCE_NAMES["DLT"]["gansu"],
-            "source_root": "gstc.org.cn", "url": url, "draws": gansu_rows,
-            "receipt": {"status": "PASS", "draw_count": 20, "latest_issue": gansu_rows[-1]["issue"],
-                        "raw_sha256": hashlib.sha256(raw).hexdigest(),
-                        "fetched_at": "2026-10-22T08:00:00+00:00"},
-            "raw_artifacts": [_artifact(url, parser_version, raw)],
-            "raw_reparse_status": "PASS", "raw_reparse_sha256": oi._rows_sha256(gansu_rows),
-        })
-        national = payload["sources"][0]
-        national["draws"] = []
-        national["receipt"] = None
-        national["error"] = "HTTP 567"
-        national["raw_reparse_status"] = "NOT_RUN_SOURCE_FETCH_FAILED"
-        failure_body = b"synthetic HTTP 567 WAF body"
-        national["raw_artifacts"][0].update({
-            "raw_sha256": hashlib.sha256(failure_body).hexdigest(),
-            "size_bytes": len(failure_body), "http_status": 567,
-            "content_type": "text/html", "raw_base64": base64.b64encode(failure_body).decode("ascii"),
-        })
-        payload["status"] = "WORKER_FETCH_COMPLETE"
-        payload["errors"] = {"national": "HTTP 567"}
-        with self.assertRaisesRegex(GateError, "OFFICIAL_SOURCE_DRAW_CONFLICT"):
+        gansu = payload["sources"][2]
+        gansu["draws"][5]["front"] = sorted([1, 2, 3, 4, 35])
+        gansu["raw_reparse_sha256"] = oi._rows_sha256(gansu["draws"])
+        gansu["receipt"]["latest_issue"] = gansu["draws"][-1]["issue"]
+        with self.assertRaisesRegex(GateError, "GANSU_DRAW_CONFLICT"):
+            oi.validate_worker_payload(payload, expected_game="DLT")
+
+    def test_gansu_history_under_ten_draws_is_rejected(self):
+        payload = _payload("DLT")
+        gansu = payload["sources"][2]
+        gansu["draws"] = gansu["draws"][-9:]
+        gansu["raw_reparse_sha256"] = oi._rows_sha256(gansu["draws"])
+        gansu["receipt"]["draw_count"] = len(gansu["draws"])
+        gansu["receipt"]["latest_issue"] = gansu["draws"][-1]["issue"]
+        with self.assertRaisesRegex(GateError, "SOURCE_HISTORY_REQUIRES_AT_LEAST_10_DRAWS"):
+            oi.validate_worker_payload(payload, expected_game="DLT")
+
+    def test_gansu_latest_issue_must_match_primary_history(self):
+        payload = _payload("DLT")
+        gansu = payload["sources"][2]
+        for row in gansu["draws"]:
+            row["issue"] = str(int(row["issue"]) - 1)
+        gansu["raw_reparse_sha256"] = oi._rows_sha256(gansu["draws"])
+        gansu["receipt"]["latest_issue"] = gansu["draws"][-1]["issue"]
+        with self.assertRaisesRegex(GateError, "GANSU_LATEST_ISSUE_MISMATCH"):
             oi.validate_worker_payload(payload, expected_game="DLT")
 
     def test_raw_bytes_must_match_declared_sha(self):
