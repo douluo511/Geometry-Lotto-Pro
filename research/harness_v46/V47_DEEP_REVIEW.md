@@ -261,3 +261,21 @@ Windows Server 2022 SUCCESS, 95 tests. Unit/CI success is *synthetic gate eviden
 **Independent next action:** obtain a trustworthy second full SSQ historical publisher and a DLT full source not HTTP-blocked, or reconcile the Jiangsu dated issues using independently preserved, authenticated originals with explicit versioned exception receipts. Rerun the chronology+raw-page gate, require 120+ actual cross-source overlapping issues, then separately verify sales cutoff, pre-draw TSA and read-only replay. No manual data correction or prospective-A backfill is allowed.
 
 Unchanged verdicts: ENGINEERING_PASS=NOT_YET (real Windows physical P0 incomplete); RESEARCH_VALID=NO; D2_EDGE_CONFIRMED=NO; formal A=0; NO_EDGE.
+
+## 10. test2 raw-byte evidence admission gap — 2026-10-22
+
+An independent review of `official_intake.validate_worker_payload` found that a
+worker payload could report `raw_reparse_status=PASS` and matching self-declared
+draw digests despite containing an empty `raw_artifacts` list. With two such
+claimed sources, the historical cross-check could report `HISTORY_CROSSCHECK_PASS`
+without retaining any actual HTTP response bytes. A second variant could retain
+only an HTTP error body while claiming successful draw replay.
+
+The isolated research hardening patch rejects both variants when a source is
+eligible for cross-source comparison: a claimed replay now requires at least
+one preserved artifact with nonempty HTTP 200 response bytes. Regression tests
+cover SSQ and DLT. This closes **only** the raw-free-replay loophole; it does
+not independently authenticate official source identity, prove that retained
+bytes actually decode to the claimed rows, validate a target/cutoff or create
+external TSA evidence. The existing worker-side reparse remains necessary, and
+the G00/G01 gates remain BLOCKED until genuine independent verification.
