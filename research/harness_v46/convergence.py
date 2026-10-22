@@ -40,7 +40,12 @@ STAGES = ("SYNC", "VERIFY", "AUTHORIZE", "PREDICT", "FREEZE", "WAIT",
 
 
 ORCHESTRATION_SOURCE_FILES = (
-    "convergence.py", "schedule.py", "cli.py", "statistics.py", "source_validation.py", "source_fetch.py",
+    "convergence.py", "schedule.py", "cli.py", "statistics.py", "source_validation.py",
+    "source_fetch.py", "official_intake.py",
+    "../../SSQ/SSQ/glp/sources.py", "../../SSQ/SSQ/glp/constants.py",
+    "../../SSQ/SSQ/glp/domain.py", "../../SSQ/SSQ/glp/util.py", "../../SSQ/SSQ/glp/net_client.py",
+    "../../DLT/src/glp/sources.py", "../../DLT/src/glp/constants.py",
+    "../../DLT/src/glp/domain.py", "../../DLT/src/glp/util.py", "../../DLT/src/glp/net_client.py",
     "windows_shadow_tasks.ps1", "invoke_v46_shadow.ps1",
 )
 
