@@ -764,9 +764,10 @@ def write_bundle(bundle: dict, output_dir: str | Path) -> Path:
 
     for game, result in bundle.get("games", {}).items():
         for source in result.get("sources", []):
-            for artifact in source.get("raw_artifacts", []):
+            for idx, artifact in enumerate(source.get("raw_artifacts", []), start=1):
                 write_encoded(game, source["source_id"], artifact,
-                              base64_key="raw_base64", directory="raw")
+                              base64_key="raw_base64", directory="raw",
+                              filename_prefix=f"{idx:04d}-")
         for idx, artifact in enumerate(result.get("unadmitted_raw_artifacts", []), start=1):
             source_id = str(artifact.get("_source_id") or artifact.get("source_id") or "unknown")
             write_encoded(game, source_id, artifact, base64_key="raw_base64",
