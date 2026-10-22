@@ -630,7 +630,9 @@ def _worker(game: str) -> dict:
         if source.get("raw_reparse_status") == "PASS" and source.get("draws")
     }
     if game == "SSQ":
-        has_valid_pair = {"national", "shanghai"}.issubset(valid_ids)
+        has_valid_pair = any(pair.issubset(valid_ids) for pair in (
+            {"national", "shanghai"}, {"national", "guangdong"}, {"shanghai", "guangdong"}
+        ))
     else:
         has_valid_pair = any(pair.issubset(valid_ids) for pair in (
             {"national", "jiangsu"}, {"national", "gansu"}, {"jiangsu", "gansu"}
@@ -803,7 +805,14 @@ def validate_worker_payload(payload: dict, *, expected_game: str | None = None) 
         })
 
     if game == "SSQ":
-        pair_ids, minimum_overlap = ("national", "shanghai"), 120
+        if {"national", "shanghai"}.issubset(candidates):
+            pair_ids, minimum_overlap = ("national", "shanghai"), 120
+        elif {"shanghai", "guangdong"}.issubset(candidates):
+            pair_ids, minimum_overlap = ("shanghai", "guangdong"), 10
+        elif {"national", "guangdong"}.issubset(candidates):
+            pair_ids, minimum_overlap = ("national", "guangdong"), 10
+        else:
+            raise GateError("NO_VALID_TWO_SOURCE_PAIR")
     elif {"national", "jiangsu"}.issubset(candidates):
         pair_ids, minimum_overlap = ("national", "jiangsu"), 120
     elif {"national", "gansu"}.issubset(candidates):
@@ -815,12 +824,18 @@ def validate_worker_payload(payload: dict, *, expected_game: str | None = None) 
 
     pair = [candidates[pair_ids[0]], candidates[pair_ids[1]]]
     maps = [{row["issue"]: row for row in source["draws"]} for source in pair]
-    if pair[0]["draws"][-1]["issue"] != pair[1]["draws"][-1]["issue"]:
+    if minimum_overlap >= 120 and pair[0]["draws"][-1]["issue"] != pair[1]["draws"][-1]["issue"]:
         raise GateError("OFFICIAL_SOURCE_LATEST_ISSUE_MISMATCH")
     common = sorted(set(maps[0]) & set(maps[1]), key=int)
     if len(common) < minimum_overlap:
         raise GateError("OFFICIAL_SOURCE_OVERLAP_TOO_SMALL")
-    mismatches = [issue for issue in common if maps[0][issue] != maps[1][issue]]
+    mismatches = [
+        issue for issue in common
+        if (maps[0][issue]["front"] != maps[1][issue]["front"]
+            or maps[0][issue]["back"] != maps[1][issue]["back"]
+            or ("draw_date" in maps[0][issue] and "draw_date" in maps[1][issue]
+                and maps[0][issue]["draw_date"] != maps[1][issue]["draw_date"]))
+    ]
     if mismatches:
         raise GateError("OFFICIAL_SOURCE_DRAW_CONFLICT:" + ",".join(mismatches[:10]))
     primary = pair[0]
