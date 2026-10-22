@@ -175,7 +175,8 @@ def _validate_artifacts(game: str, source: dict, parser_version: str) -> list[di
             raise GateError("PARSER_VERSION_MISMATCH")
         if type(artifact["http_status"]) is not int or not 100 <= artifact["http_status"] <= 599:
             raise GateError("RAW_ARTIFACT_HTTP_STATUS_INVALID")
-        if not isinstance(artifact["content_type"], str) or not artifact["content_type"].strip():
+        if (not isinstance(artifact["content_type"], str)
+                or (artifact["http_status"] == 200 and not artifact["content_type"].strip())):
             raise GateError("RAW_ARTIFACT_CONTENT_TYPE_MISSING")
         try:
             raw = base64.b64decode(artifact["raw_base64"], validate=True)
