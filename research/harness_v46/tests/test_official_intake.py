@@ -220,6 +220,66 @@ class OfficialIntakeTests(unittest.TestCase):
         with self.assertRaisesRegex(GateError, "RECEIPT_DOES_NOT_MATCH"):
             oi.validate_worker_payload(payload)
 
+    def test_partial_intake_preserves_non_200_failure_body_and_stays_blocked(self):
+        payload = _payload("DLT")
+        payload["status"] = "WORKER_FETCH_PARTIAL"
+        payload["errors"] = {"national": "HTTP 567"}
+        source = payload["sources"][0]
+        source["draws"] = []
+        source["receipt"] = None
+        source["error"] = "HTTP 567"
+        source["raw_reparse_status"] = "NOT_RUN_SOURCE_FETCH_FAILED"
+        raw = b"synthetic HTTP 567 block page"
+        artifact = source["raw_artifacts"][0]
+        artifact.update({
+            "raw_sha256": hashlib.sha256(raw).hexdigest(),
+            "size_bytes": len(raw),
+            "content_type": "",
+            "http_status": 567,
+            "raw_base64": base64.b64encode(raw).decode("ascii"),
+        })
+        report = oi.validate_worker_payload(payload)
+        self.assertEqual(report["status"], "SOURCE_FETCH_PARTIAL")
+        self.assertEqual(report["formal_A"], 0)
+        self.assertEqual(report["official_history_admission"], "BLOCKED")
+        national = next(s for s in report["sources"] if s["source_id"] == "national")
+        self.assertEqual(national["raw_artifacts"][0]["http_status"], 567)
+        self.assertEqual(base64.b64decode(national["raw_artifacts"][0]["raw_base64"]), raw)
+        self.assertEqual(report["consensus_draw_count"], 0)
+
+    def test_dlt_redirect_guard_records_non_200_body_and_blocks_cross_root_redirect(self):
+        from unittest.mock import patch
+        from types import SimpleNamespace
+        import requests
+
+        captured = []
+        def record(source_id, meta, raw):
+            captured.append((source_id, meta, raw))
+        response = SimpleNamespace(
+            status_code=567,
+            url="https://webapi.sporttery.cn/gateway/history",
+            headers={"Content-Type": "text/html"},
+            content=b"waf response",
+        )
+        with patch("requests.get", return_value=response):
+            oi._install_dlt_redirect_guard("DLT", record)
+            observed = requests.get("https://webapi.sporttery.cn/gateway/history")
+        self.assertEqual(observed.status_code, 567)
+        self.assertEqual(captured[0][0], "national")
+        self.assertEqual(captured[0][1]["http_status"], 567)
+        self.assertEqual(captured[0][2], b"waf response")
+
+        redirect = SimpleNamespace(
+            status_code=302,
+            url="https://webapi.sporttery.cn/start",
+            headers={"Content-Type": "text/html", "Location": "https://attacker.example/landing"},
+            content=b"redirect body",
+        )
+        with patch("requests.get", return_value=redirect):
+            oi._install_dlt_redirect_guard("DLT", record)
+            with self.assertRaisesRegex(GateError, "HOST_NOT_ALLOWLISTED"):
+                requests.get("https://webapi.sporttery.cn/start")
+
     def test_bundle_writes_raw_files_once_without_overwriting(self):
         report = oi.validate_worker_payload(_payload("SSQ"))
         bundle = {"schema": "V47-OFFICIAL-INTAKE-BUNDLE-1", "games": {"SSQ": report}, "errors": {}}
