@@ -171,8 +171,8 @@ Still BLOCKED/NOT_RUN: live official-source fetch and parser, two-source 120+ is
 
 Approved source roots in this branch:
 
-- SSQ: China Welfare Lottery Center `cwl.gov.cn` plus Shanghai Welfare Lottery Center `swlc.net.cn`.
-- DLT: China Sports Lottery `sporttery.cn` plus Jiangsu Sports Lottery `js-lottery.com` (the Jiangsu site is linked from the Gansu provincial sports-lottery official site).
+- SSQ full history: China Welfare Lottery Center `cwl.gov.cn` plus Shanghai Welfare Lottery Center `swlc.net.cn`. When the CWL endpoint is blocked, Hebei Welfare Lottery `yzfcw.com` may cross-check **one latest issue only**, using its homepage and announcement page together.
+- DLT full history: China Sports Lottery `sporttery.cn` plus Jiangsu Sports Lottery `js-lottery.com`. If a full source fails, the Gansu Sports Lottery `gstc.org.cn` may cross-check a **recent 10+ issue window**, not a full 120+ independent history.
 
 Run on a network-enabled host with Python and Requests installed:
 
@@ -181,6 +181,8 @@ python -m pip install requests
 python -m research.harness_v46.official_intake --game ALL --output-dir artifacts/official-intake-<unique-run-id>
 ```
 
-The output directory must not already exist. The bundle contains `intake.json` and `raw/<game>/<source>/<sha256>.bin` artifacts. It is designed to fail closed: both source histories must each contain at least 120 validated draws; the latest issue must agree; every overlapping issue/result/date must match; and the parser output must exactly match a reparse of the preserved successful response bytes. If a source is blocked, the collector attempts the other source and preserves available failure bodies/raw responses in a `SOURCE_FETCH_PARTIAL` bundle.
+The output directory must not already exist. The bundle contains `intake.json` and `raw/<game>/<source>/<sha256>.bin` artifacts. It is designed to fail closed: full 120+ independent source admission requires **at least 120 issue IDs overlapping between two distinct approved roots**, exact agreement on issue/date/balls, both source byte-to-parser replays, and strict increasing draw dates. An SSQ Hebei latest-only fallback and DLT Gansu recent-window fallback receive `HISTORY_CROSSCHECK_LIMITED`, with `consensus_draws` containing only the independently matched rows and a separately labelled `primary_history_draws` for older unverified entries; neither can pass the full 120+ gate. Disagreeing or malformed source dates cause quarantine rather than silent correction. Failed sources preserve their raw diagnostic bodies, even HTTP 403/567, and never count as successful draw pages.
 
+On the verified third live read-only run #39754959885 (2026-10-22), DLT Jiangsu delivered 2,934 primary-history rows with only 20 matching Gansu rows; SSQ Shanghai delivered 2,078 rows while the CWL endpoint returned HTTP 403. These do **not** establish 120+ dual-source consensus. In the Jiangsu DLT historical rows, issues 16003 and 16004 contain dates 2016-01-07 and 2016-01-11 respectively; independent public records instead identify 2016-01-06 and 2016-01-09. The raw-source values are retained unmodified and quarantined pending independent source-backed reconciliation.
+  
 This collector is **historical-source intake only**. It does not certify a target issue, actual sales cutoff, publication time, trusted timestamp, or prediction. Local capture times remain untrusted; `official_target_admission=BLOCKED`, `formal_A=0`, and `NO_EDGE` remain mandatory. GitHub's one-shot workflow is limited to this branch and is triggered only by changing `LIVE_INTAKE_TRIGGER.json`; it uploads raw evidence as a temporary Actions artifact and never writes source data to `main`.
