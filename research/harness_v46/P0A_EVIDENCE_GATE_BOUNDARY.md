@@ -44,12 +44,21 @@ blocked.
 
 ## Synthetic verification
 
-GitHub Actions run `39759559614` passed the deterministic harness suite on both
-`ubuntu-latest` and `windows-2022`: 100 tests per platform, one platform-specific PowerShell
-parser test skipped on Ubuntu. The run tested head `80da858b4fa48f395f8a2d47aa691c32ff53de6e`,
-including gate/trace separation, the source self-hash lock, the DLT primary 120+ overlap gate,
-Gansu 10+ overlap against BOTH primaries, chronology quarantine, SSQ Hebei latest-only fallback,
-and duplicate raw-receipt handling.
+GitHub Actions run `39760961219` passed the deterministic harness suite on both
+`ubuntu-latest` and `windows-2022`: 108 tests per platform, one platform-specific PowerShell
+parser test skipped on Ubuntu. The run tested head `425b4865804e25a53d53f611c5ac9db832cd7051`,
+including gate/trace separation, the source self-hash lock, DLT primary 120+ overlap, Gansu 10+
+exact overlap against BOTH primary histories, chronology quarantine, SSQ Hebei latest-only
+fallback, duplicate raw-receipt handling, and the independent bundle auditor.
+
+## Independent raw-bundle auditor
+
+`audit_intake_bundle.py` verifies the saved manifest, safe relative artifact paths, raw-file SHA256
+and byte sizes, the explicit blocked-admission guards, and records the auditor source SHA256. It
+permits a valid audit PASS when source fetching failed, because it audits byte integrity rather than
+source authenticity. The one-shot workflow now runs this audit before upload and includes
+`intake-audit.json` in the retained Actions artifact; the final report fails if the audit is missing
+or fails.
 
 ## Live read-only intake evidence
 
@@ -76,6 +85,7 @@ Raw evidence artifact: `12416888557`
 artifact paths exist and each file's SHA256 and byte size match its manifest; zero integrity errors.
 ZIP SHA256: `a43f6e1a141bb59b4a4b5ab2f282b260b5616dbfdefbbd05e62384201ca28c85`.
 Manifest SHA256: `f05367ba2099e90e7e97cea88c06e29b43270614e2df5c4bed3439635d588e8e`.
-This confirms byte preservation, not that failed HTTP bodies are official draw data.
+This confirms byte preservation, not that failed HTTP bodies are official draw data. The new
+automated auditor will be exercised by the next one-shot intake.
 
 DLT 69/2880 negative-control anomaly remains unresolved. Formal A=0; NO_EDGE.
