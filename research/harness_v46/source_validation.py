@@ -48,7 +48,7 @@ def _normalize_rows(game: str, rows: list[dict], as_of: str, *, minimum: int = M
         drawn, published = dt(row["drawn_at"]), dt(row["published_at"])
         if not drawn <= published <= dt(as_of):
             raise GateError("SOURCE_HISTORY_AFTER_ASOF_OR_BAD_PUBLICATION_TIME")
-        if last_drawn is not None and drawn < last_drawn:
+        if last_drawn is not None and drawn <= last_drawn:
             raise GateError("SOURCE_HISTORY_TIME_ORDER_VIOLATION")
         normalized.append({
             "issue": issue,
