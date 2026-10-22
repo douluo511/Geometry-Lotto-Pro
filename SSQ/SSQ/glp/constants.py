@@ -11,10 +11,12 @@ BACK_PICK = 1
 NATIONAL_URL = "https://www.cwl.gov.cn/cwl_admin/front/cwlkj/search/kjxx/findDrawNotice"
 SHANGHAI_URL = "https://www.swlc.net.cn/lottery/ssq.html?limit=100&view=previous"
 SHANGHAI_HISTORY_URL = "https://www.swlc.net.cn/lottery/ssq.html"
+# Guangdong provincial welfare lottery official statistics table; 50 recent SSQ issues.
+GUANGDONG_HISTORY_URL = "https://www.gdfc.org.cn/sjfx/tjzb8_50.html"
 SSQ_HISTORY_START_ISSUE = "2013001"
 HEBEI_URL = "https://www.yzfcw.com/"
 HEBEI_ANNOUNCE_URL = "https://www.yzfcw.com/game/ssqAnnounce"
-SOURCE_NAMES = ("national", "shanghai", "hebei")
+SOURCE_NAMES = ("national", "shanghai", "hebei", "guangdong")
 FOUR_ENTRIES = ("预测下一期", "一键更新", "一键修复", "高级分析")
 DAN_STATES = ("NULL_DAN", "RESEARCH_DAN", "WATCHLIST_DAN", "CERTIFIED_DAN")
 
