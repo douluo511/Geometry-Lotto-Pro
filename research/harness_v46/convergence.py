@@ -192,6 +192,8 @@ BEGIN SELECT RAISE(ABORT, 'immutable TSA claim'); END;
 
 
 def init_workflow(conn):
+    # Preserve immutable guards for INSERT OR REPLACE on workflow/TSA rows.
+    conn.execute("PRAGMA recursive_triggers = ON")
     conn.executescript(WORKFLOW_SCHEMA)
 
 
