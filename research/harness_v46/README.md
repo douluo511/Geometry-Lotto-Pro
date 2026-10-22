@@ -1,3 +1,5 @@
+# SSQ + DLT V4.7: canonical evidence contract and isolated SHADOW harness
+
 ## V4.7 implementation status: stricter synthetic admission only
 
 **Status: development research only; no formal A, no verified prospective advantage.**
