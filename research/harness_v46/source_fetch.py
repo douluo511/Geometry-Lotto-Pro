@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 from datetime import datetime, timezone
 from urllib.parse import urlsplit
+from urllib.error import HTTPError
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from .core import MAX_RAW_SOURCE_BYTES, SOURCE_HOSTS_BY_GAME, GateError
@@ -87,6 +88,8 @@ def fetch_raw_source(game: str, url: str, *, timeout: float = 15.0,
             last_modified = response.headers.get("Last-Modified")
     except GateError:
         raise
+    except HTTPError as exc:
+        raise GateError(f"SOURCE_HTTP_STATUS_NOT_200:{exc.code}") from exc
     except Exception as exc:
         raise GateError("RAW_SOURCE_FETCH_FAILED:" + type(exc).__name__) from exc
     return {
