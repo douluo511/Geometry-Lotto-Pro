@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from research.harness_v46.audit_intake_bundle import audit_bundle
+from research.harness_v46.audit_intake_bundle import audit_bundle, main as audit_main
 from research.harness_v46.core import MAX_RAW_SOURCE_BYTES
 
 
@@ -170,6 +170,26 @@ class IntakeBundleAuditTests(unittest.TestCase):
             report = audit_bundle(root)
         self.assertEqual(report["status"], "FAIL")
         self.assertTrue(any("UNREFERENCED_RAW_ARTIFACT" in x for x in report["errors"]))
+
+    def test_unlisted_nonbinary_file_in_raw_tree_fails_audit(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            make_bundle(root)
+            extra = root / "raw" / "DLT" / "national" / "unlisted-receipt.txt"
+            extra.write_text("untracked content", encoding="utf-8")
+            report = audit_bundle(root)
+        self.assertEqual(report["status"], "FAIL")
+        self.assertTrue(any("UNREFERENCED_RAW_ARTIFACT" in x for x in report["errors"]))
+
+    def test_existing_audit_receipt_must_not_be_overwritten(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            make_bundle(root)
+            audit_path = root / "intake-audit.json"
+            audit_path.write_text('{"original":true}', encoding="utf-8")
+            with self.assertRaises(FileExistsError):
+                audit_main(["--bundle-dir", str(root)])
+            self.assertEqual(audit_path.read_text(encoding="utf-8"), '{"original":true}')
 
     def test_empty_bundle_cannot_pass_integrity_audit(self):
         with tempfile.TemporaryDirectory() as tmp:
