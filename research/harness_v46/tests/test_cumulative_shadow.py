@@ -119,7 +119,7 @@ class CumulativeShadowTests(unittest.TestCase):
         with self.assertRaisesRegex(core.GateError, "EXACTLY_TWO_UNVERIFIED_OUTCOMES"):
             cohort.cumulative_shadow_review([a])
         with self.assertRaisesRegex(core.GateError, "STRICT_CUMULATIVE_INPUT"):
-            cohort.cumulative_shadow_review([{"database": self.db, "run_id": "fake", "results": {}}])
+            cohort.cumulative_shadow_review([{"database": self.db, "run_id": "fake", "results": {}, "D2": 1}])
         with self.assertRaisesRegex(core.GateError, "NONEMPTY_PROSPECTIVE_CYCLES"):
             cohort.cumulative_shadow_review([])
 
