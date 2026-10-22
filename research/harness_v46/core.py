@@ -8,6 +8,7 @@ from collections import Counter
 from datetime import datetime
 from pathlib import Path
 from itertools import combinations
+from urllib.parse import urlsplit
 
 MODELS = ("hot60", "ewma", "shrinkmix", "pairwise_d2", "challenger", "random_null")
 RULES = {
@@ -19,6 +20,11 @@ VERSION = "v47-research-core-0.1"
 NULL_SEED = "SSQ-DLT-V47-NULL-SHA256-SORT-v1-20261022"  # pre-registered new control stream
 RANKING_TIE_BREAK = "score_descending_then_numeric_ascending"
 TICKET_BACK_ENGINE = "SHA256_SORT_V1"
+SOURCE_HOSTS_BY_GAME = {
+    "SSQ": ("swlc.net.cn", "cwl.gov.cn"),
+    "DLT": ("gstc.org.cn", "fjtc.com.cn", "sporttery.cn", "lottery.gov.cn"),
+}
+MAX_RAW_SOURCE_BYTES = 25_000_000
 PARAMETERS = {
     "hot60": {"window": 60, "tie_break": "numeric_ascending"},
     "ewma": {"window": 120, "weight_decay": 0.92, "input_weight": 0.08},
@@ -329,6 +335,26 @@ CREATE TRIGGER IF NOT EXISTS prevent_snapshot_update BEFORE UPDATE ON run_snapsh
 BEGIN SELECT RAISE(ABORT, 'immutable run snapshot'); END;
 CREATE TRIGGER IF NOT EXISTS prevent_snapshot_delete BEFORE DELETE ON run_snapshots
 BEGIN SELECT RAISE(ABORT, 'immutable run snapshot'); END;
+-- Raw source bytes are preserved, but their origin and publication time remain unverified claims.
+CREATE TABLE IF NOT EXISTS source_artifacts (
+    artifact_id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL,
+    lottery TEXT NOT NULL CHECK(lottery IN ('SSQ', 'DLT')),
+    source_url TEXT NOT NULL,
+    source_host TEXT NOT NULL,
+    raw_sha256 TEXT NOT NULL,
+    raw_bytes BLOB NOT NULL,
+    content_type TEXT NOT NULL,
+    published_at TEXT NOT NULL,
+    fetched_at TEXT NOT NULL,
+    source_authenticity TEXT NOT NULL CHECK(source_authenticity='NOT_VERIFIED'),
+    evidence_class TEXT NOT NULL CHECK(evidence_class='SHADOW'),
+    UNIQUE(run_id, lottery, source_url)
+);
+CREATE TRIGGER IF NOT EXISTS prevent_source_artifact_update BEFORE UPDATE ON source_artifacts
+BEGIN SELECT RAISE(ABORT, 'immutable raw source artifact'); END;
+CREATE TRIGGER IF NOT EXISTS prevent_source_artifact_delete BEFORE DELETE ON source_artifacts
+BEGIN SELECT RAISE(ABORT, 'immutable raw source artifact'); END;
 CREATE TABLE IF NOT EXISTS predictions (
     run_id TEXT NOT NULL,
     lottery TEXT NOT NULL,
@@ -443,6 +469,78 @@ def load_registered_snapshot(conn, run_id, lottery):
     if snapshot.get("lottery") != lottery:
         raise GateError("V47_SNAPSHOT_LOTTERY_MISMATCH")
     return snapshot
+
+
+def register_source_artifact(conn, run_id, lottery, source_url, raw_bytes, *,
+                             published_at, fetched_at, content_type):
+    """Preserve raw bytes for a registered snapshot; never authenticate the source."""
+    snapshot = load_registered_snapshot(conn, run_id, lottery)
+    if not isinstance(raw_bytes, (bytes, bytearray)) or not raw_bytes:
+        raise GateError("EMPTY_OR_INVALID_RAW_SOURCE_BYTES")
+    raw_bytes = bytes(raw_bytes)
+    if len(raw_bytes) > MAX_RAW_SOURCE_BYTES:
+        raise GateError("RAW_SOURCE_TOO_LARGE")
+    if not isinstance(content_type, str) or not content_type.strip():
+        raise GateError("RAW_SOURCE_CONTENT_TYPE_REQUIRED")
+    try:
+        parsed = urlsplit(source_url)
+        host = (parsed.hostname or "").lower().rstrip(".")
+    except (TypeError, ValueError) as exc:
+        raise GateError("INVALID_SOURCE_URL") from exc
+    if (parsed.scheme != "https" or not host or parsed.username or parsed.password
+            or parsed.fragment):
+        raise GateError("HTTPS_SOURCE_URL_REQUIRED")
+    if not any(host == allowed or host.endswith("." + allowed)
+               for allowed in SOURCE_HOSTS_BY_GAME[lottery]):
+        raise GateError("SOURCE_HOST_NOT_ALLOWLISTED_FOR_GAME")
+    if not dt(published_at) <= dt(fetched_at) <= dt(snapshot["as_of"]):
+        raise GateError("SOURCE_ARTIFACT_AFTER_ASOF")
+    raw_sha = hashlib.sha256(raw_bytes).hexdigest()
+    provenance = snapshot.get("provenance")
+    claims = provenance.get("sources") if isinstance(provenance, dict) else None
+    matched = any(
+        isinstance(claim, dict)
+        and claim.get("url") == source_url
+        and claim.get("raw_sha256") == raw_sha
+        and claim.get("published_at") == published_at
+        and claim.get("fetched_at") == fetched_at
+        and claim.get("content_type") == content_type
+        for claim in (claims if isinstance(claims, list) else [])
+    )
+    if not matched:
+        raise GateError("RAW_SOURCE_NOT_BOUND_TO_SNAPSHOT_PREIMAGE")
+    artifact_identity = {
+        "schema": "V47-RAW-SOURCE-1", "run_id": run_id, "lottery": lottery,
+        "url": source_url, "host": host, "raw_sha256": raw_sha,
+        "published_at": published_at, "fetched_at": fetched_at,
+        "content_type": content_type,
+    }
+    artifact_id = digest(artifact_identity)
+    old = conn.execute(
+        "SELECT artifact_id,raw_sha256,published_at,fetched_at,content_type "
+        "FROM source_artifacts WHERE run_id=? AND lottery=? AND source_url=?",
+        (run_id, lottery, source_url),
+    ).fetchone()
+    expected = (artifact_id, raw_sha, published_at, fetched_at, content_type)
+    if old is not None:
+        if old != expected:
+            raise GateError("CONFLICTING_RAW_SOURCE_ARTIFACT_RETRY")
+        stored = conn.execute(
+            "SELECT raw_bytes FROM source_artifacts WHERE artifact_id=?", (artifact_id,)
+        ).fetchone()
+        if stored is None or bytes(stored[0]) != raw_bytes:
+            raise GateError("RAW_SOURCE_RETRY_BYTES_MISMATCH")
+        return {"artifact_id": artifact_id, "raw_sha256": raw_sha,
+                "size_bytes": len(raw_bytes), "source_authenticity": "NOT_VERIFIED"}
+    conn.execute(
+        "INSERT INTO source_artifacts(artifact_id,run_id,lottery,source_url,source_host,"
+        "raw_sha256,raw_bytes,content_type,published_at,fetched_at,source_authenticity,evidence_class) "
+        "VALUES(?,?,?,?,?,?,?,?,?,?,'NOT_VERIFIED','SHADOW')",
+        (artifact_id, run_id, lottery, source_url, host, raw_sha, raw_bytes,
+         content_type, published_at, fetched_at),
+    )
+    return {"artifact_id": artifact_id, "raw_sha256": raw_sha,
+            "size_bytes": len(raw_bytes), "source_authenticity": "NOT_VERIFIED"}
 
 
 def freeze_shadow(conn, run_id, snapshot, prediction, frozen_at):
