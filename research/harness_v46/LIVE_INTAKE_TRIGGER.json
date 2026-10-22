@@ -7,5 +7,7 @@
   "formal_A": 0,
   "external_tsa": "NOT_RUN",
   "decision": "NO_EDGE",
-  "warning": "The workflow output is SHADOW historical-source evidence only. It cannot admit a target issue or certify sales cutoff/publication time."
+  "warning": "The workflow output is SHADOW historical-source evidence only. It cannot admit a target issue or certify sales cutoff/publication time.",
+  "attempt": 2,
+  "note": "Retry after fixing non-200 response preservation and continuing to the independent second source; read-only only."
 }
