@@ -269,6 +269,29 @@ class OfficialIntakeTests(unittest.TestCase):
         with self.assertRaisesRegex(GateError, "GANSU_LATEST_ISSUE_MISMATCH"):
             oi.validate_worker_payload(payload, expected_game="DLT")
 
+    def test_claimed_replay_without_raw_artifacts_blocks_for_both_games(self):
+        for game in ("SSQ", "DLT"):
+            payload = _payload(game)
+            payload["sources"][0]["raw_artifacts"] = []
+            with self.subTest(game=game), self.assertRaisesRegex(
+                    GateError, "REPARSED_SOURCE_REQUIRES_RAW_ARTIFACTS"):
+                oi.validate_worker_payload(payload, expected_game=game)
+
+    def test_error_body_cannot_back_claim_successful_raw_replay(self):
+        for game in ("SSQ", "DLT"):
+            payload = _payload(game)
+            source = payload["sources"][0]
+            raw = b"<html>upstream error</html>"
+            artifact = source["raw_artifacts"][0]
+            artifact["http_status"] = 567
+            artifact["content_type"] = "text/html"
+            artifact["raw_sha256"] = hashlib.sha256(raw).hexdigest()
+            artifact["size_bytes"] = len(raw)
+            artifact["raw_base64"] = base64.b64encode(raw).decode("ascii")
+            with self.subTest(game=game), self.assertRaisesRegex(
+                    GateError, "REPARSED_SOURCE_REQUIRES_SUCCESSFUL_RAW_BODY"):
+                oi.validate_worker_payload(payload, expected_game=game)
+
     def test_raw_bytes_must_match_declared_sha(self):
         payload = _payload("SSQ")
         artifact = payload["sources"][0]["raw_artifacts"][0]
