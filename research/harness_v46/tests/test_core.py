@@ -216,6 +216,24 @@ class GateTests(unittest.TestCase):
         with self.assertRaises(core.GateError):
             core.score(p, result)
 
+    def test_pairwise_requires_registered_120_window(self):
+        data = fixture(size=119)
+        with self.assertRaisesRegex(core.GateError, "requires 120 historical draws"):
+            core.forecast(data, "pairwise_d2")
+        data = fixture(size=120)
+        self.assertTrue(core.forecast(data, "pairwise_d2"))
+
+    def test_freeze_rejects_under_120_draw_study(self):
+        data = fixture(size=119)
+        prediction = core.forecast(data, "hot60")
+        db = sqlite3.connect(":memory:")
+        core.init_ledger(db)
+        with self.assertRaisesRegex(core.GateError, "study requires at least 120"):
+            core.freeze_shadow(db, "UNDER-120", data, prediction,
+                               "2026-10-21T00:00:00+00:00")
+        self.assertEqual(db.execute("SELECT COUNT(*) FROM predictions").fetchone()[0], 0)
+        db.close()
+
 
 if __name__ == "__main__":
     unittest.main()
