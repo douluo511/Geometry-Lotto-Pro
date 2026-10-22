@@ -32,6 +32,7 @@ PARSER_FILES = {
         "SSQ/SSQ/glp/util.py",
         "SSQ/SSQ/glp/net_client.py",
         "research/harness_v46/official_intake.py",
+        "research/harness_v46/raw_semantic_replay.py",
     ),
     "DLT": (
         "DLT/src/glp/sources.py",
@@ -40,6 +41,7 @@ PARSER_FILES = {
         "DLT/src/glp/util.py",
         "DLT/src/glp/net_client.py",
         "research/harness_v46/official_intake.py",
+        "research/harness_v46/raw_semantic_replay.py",
     ),
 }
 SOURCE_IDS = {
@@ -939,6 +941,32 @@ def validate_worker_payload(payload: dict, *, expected_game: str | None = None) 
         ],
     }
 
+def _quarantine_second_process_replay(result: dict, reason: str) -> dict:
+    """Retain raw diagnostic artifacts but prohibit use of unverified history.
+
+    Source rows remain inside sources for an independent forensic reviewer;
+    authoritative consensus and primary history fields are emptied so no
+    downstream model may silently consume a falsely admitted full history.
+    """
+    result["status"] = "SECOND_PROCESS_RAW_REPLAY_BLOCKED"
+    result["history_validation_tier"] = "UNVERIFIED_REPLAY_FAILURE"
+    result["consensus_draw_count"] = 0
+    result["consensus_draws"] = []
+    result["primary_history_draw_count"] = 0
+    result["primary_history_draws"] = []
+    result["unverified_primary_history_draw_count"] = 0
+    result["parser_to_raw_binding"] = "SECOND_PROCESS_REPLAY_BLOCKED"
+    result["official_history_admission"] = "BLOCKED"
+    result["official_target_admission"] = "BLOCKED"
+    result["formal_A"] = 0
+    result["external_tsa"] = "NOT_RUN"
+    result["decision"] = "NO_EDGE"
+    errors = result.get("errors")
+    result["errors"] = {**(errors if isinstance(errors, dict) else {}),
+                        "second_process_replay": reason}
+    return result
+
+
 def collect_live_history(game: str, *, timeout_seconds: int = 600) -> dict:
     if game not in SOURCE_IDS:
         raise GateError("UNKNOWN_LOTTERY_FOR_SOURCE_INTAKE")
@@ -959,7 +987,43 @@ def collect_live_history(game: str, *, timeout_seconds: int = 600) -> dict:
         raise GateError("OFFICIAL_SOURCE_WORKER_NON_JSON_OUTPUT:" + completed.stdout[-500:]) from exc
     if payload.get("source_files_sha256") != before:
         raise GateError("PARSER_SOURCE_HASH_CHANGED_DURING_HANDOFF")
-    return validate_worker_payload(payload, expected_game=game)
+    result = validate_worker_payload(payload, expected_game=game)
+    if payload.get("status") == "WORKER_FETCH_COMPLETE":
+        # A worker's own PASS is never sufficient for a qualifying history.
+        # Independently restart the parser in a second Python process and
+        # reconstruct each claimed source history from exact retained bytes.
+        replay = subprocess.run(
+            [sys.executable, "-m", "research.harness_v46.raw_semantic_replay",
+             "--game", game],
+            cwd=str(REPO_ROOT), input=json.dumps(payload, ensure_ascii=False,
+                                                 sort_keys=True, separators=(",", ":")),
+            capture_output=True, text=True, timeout=timeout_seconds,
+            check=False, env={**os.environ, "PYTHONHASHSEED": "0"},
+        )
+        if replay.returncode != 0:
+            return _quarantine_second_process_replay(
+                result, "SECOND_PROCESS_RAW_REPLAY_BLOCKED:" + replay.stderr[-1000:])
+        try:
+            receipt = json.loads(replay.stdout)
+        except (TypeError, ValueError):
+            return _quarantine_second_process_replay(
+                result, "SECOND_PROCESS_RAW_REPLAY_RECEIPT_INVALID")
+        from .core import digest as canonical_digest
+        claimed_ids = sorted(s["source_id"] for s in payload["sources"]
+                             if s.get("raw_reparse_status") == "PASS" and s.get("draws"))
+        if (not isinstance(receipt, dict)
+                or receipt.get("schema") != "V47-SECOND-PROCESS-SEMANTIC-REPLAY-1"
+                or receipt.get("status") != "SECOND_PROCESS_SAME_PARSER_REPLAY_MATCHED"
+                or receipt.get("lottery") != game
+                or receipt.get("worker_payload_sha256") != canonical_digest(payload)
+                or receipt.get("parser_source_hashes") != before
+                or receipt.get("verified_source_ids") != claimed_ids
+                or receipt.get("official_G01") != "BLOCKED"
+                or type(receipt.get("formal_A")) is not int or receipt["formal_A"] != 0):
+            return _quarantine_second_process_replay(
+                result, "SECOND_PROCESS_RAW_REPLAY_RECEIPT_MISMATCH")
+        result["second_process_raw_replay"] = receipt
+    return result
 
 
 def collect_both() -> dict:
