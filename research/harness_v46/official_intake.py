@@ -31,6 +31,7 @@ PARSER_FILES = {
         "SSQ/SSQ/glp/domain.py",
         "SSQ/SSQ/glp/util.py",
         "SSQ/SSQ/glp/net_client.py",
+        "research/harness_v46/official_intake.py",
     ),
     "DLT": (
         "DLT/src/glp/sources.py",
@@ -38,6 +39,7 @@ PARSER_FILES = {
         "DLT/src/glp/domain.py",
         "DLT/src/glp/util.py",
         "DLT/src/glp/net_client.py",
+        "research/harness_v46/official_intake.py",
     ),
 }
 SOURCE_IDS = {
