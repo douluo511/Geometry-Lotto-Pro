@@ -41,7 +41,8 @@ PARSER_FILES = {
     ),
 }
 SOURCE_IDS = {
-    "SSQ": {"official_cwl_L0": "national", "official_shanghai_L1": "shanghai"},
+    "SSQ": {"official_cwl_L0": "national", "official_shanghai_L1": "shanghai",
+            "official_guangdong_L2": "guangdong"},
     "DLT": {
         "official_sporttery_national": "national",
         "official_jiangsu_sporttery": "jiangsu",
@@ -49,11 +50,13 @@ SOURCE_IDS = {
     },
 }
 EXPECTED_ROOTS = {
-    "SSQ": {"national": "cwl.gov.cn", "shanghai": "swlc.net.cn"},
+    "SSQ": {"national": "cwl.gov.cn", "shanghai": "swlc.net.cn",
+            "guangdong": "gdfc.org.cn"},
     "DLT": {"national": "sporttery.cn", "jiangsu": "js-lottery.com", "gansu": "gstc.org.cn"},
 }
 EXPECTED_SOURCE_NAMES = {
-    "SSQ": {"national": "official_cwl_L0", "shanghai": "official_shanghai_L1"},
+    "SSQ": {"national": "official_cwl_L0", "shanghai": "official_shanghai_L1",
+            "guangdong": "official_guangdong_L2"},
     "DLT": {
         "national": "official_sporttery_national",
         "jiangsu": "official_jiangsu_sporttery",
@@ -247,11 +250,15 @@ def _normalize_worker_artifact(game: str, source_id: str, meta: dict, raw: bytes
 
 
 def _source_rows(draws) -> list[dict]:
-    return [
-        {"issue": str(d.issue), "draw_date": str(d.draw_date)[:10],
-         "front": list(d.front), "back": list(d.back)}
-        for d in draws
-    ]
+    rows = []
+    for draw in draws:
+        if isinstance(draw, dict) and set(draw) == {"issue", "front", "back"}:
+            rows.append({"issue": str(draw["issue"]),
+                         "front": list(draw["front"]), "back": list(draw["back"])})
+        else:
+            rows.append({"issue": str(draw.issue), "draw_date": str(draw.draw_date)[:10],
+                         "front": list(draw.front), "back": list(draw.back)})
+    return rows
 
 
 def _reparse_raw_history(game: str, source_module, source_id: str,
