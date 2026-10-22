@@ -148,6 +148,111 @@ class Contracts(unittest.TestCase):
             with self.assertRaisesRegex(core.GateError, "SOURCE_AFTER_ASOF"):
                 cv.verify_local_source_bytes(snap, bad)
 
+    def test_raw_source_bytes_are_allowlisted_persisted_and_immutable(self):
+        db = sqlite3.connect(":memory:")
+        core.init_ledger(db)
+        cv.init_workflow(db)
+        snapshot = fixture("SSQ")
+        raw_a = b"<html>official-source-a synthetic test</html>"
+        raw_b = b"<html>official-source-b synthetic test</html>"
+        published = "2026-10-19T00:00:00+00:00"
+        fetched = "2026-10-19T01:00:00+00:00"
+        sources = [
+            {"url": "https://www.swlc.net.cn/lottery/ssq.html?limit=100",
+             "raw_sha256": hashlib.sha256(raw_a).hexdigest(),
+             "published_at": published, "fetched_at": fetched,
+             "content_type": "text/html"},
+            {"url": "https://www.cwl.gov.cn/ygkj/wqkjgg/ssq/",
+             "raw_sha256": hashlib.sha256(raw_b).hexdigest(),
+             "published_at": published, "fetched_at": fetched,
+             "content_type": "text/html"},
+        ]
+        snapshot["provenance"]["sources"] = sources
+        snapshots = self.snaps()
+        snapshots["SSQ"] = snapshot
+        run_manifest = cv.manifest(snapshots)
+        run = run_manifest["run_id"]
+        with db:
+            cv.register_manifest(db, run_manifest)
+            core.register_snapshot(db, run, snapshot)
+            first = core.register_source_artifact(
+                db, run, "SSQ", sources[0]["url"], raw_a,
+                published_at=published, fetched_at=fetched, content_type="text/html")
+            again = core.register_source_artifact(
+                db, run, "SSQ", sources[0]["url"], raw_a,
+                published_at=published, fetched_at=fetched, content_type="text/html")
+            second = core.register_source_artifact(
+                db, run, "SSQ", sources[1]["url"], raw_b,
+                published_at=published, fetched_at=fetched, content_type="text/html")
+        self.assertEqual(first, again)
+        self.assertEqual(first["source_authenticity"], "NOT_VERIFIED")
+        self.assertNotEqual(first["artifact_id"], second["artifact_id"])
+        stored = db.execute(
+            "SELECT raw_sha256,raw_bytes,source_authenticity FROM source_artifacts "
+            "WHERE artifact_id=?", (first["artifact_id"],)).fetchone()
+        self.assertEqual(stored[0], hashlib.sha256(raw_a).hexdigest())
+        self.assertEqual(bytes(stored[1]), raw_a)
+        self.assertEqual(stored[2], "NOT_VERIFIED")
+        with self.assertRaises(sqlite3.DatabaseError):
+            db.execute("INSERT OR REPLACE INTO source_artifacts SELECT * FROM source_artifacts")
+        with self.assertRaises(sqlite3.DatabaseError):
+            db.execute("DELETE FROM source_artifacts")
+        db.close()
+
+    def test_raw_source_artifact_rejects_unapproved_host_and_unbound_bytes(self):
+        db = sqlite3.connect(":memory:")
+        core.init_ledger(db)
+        cv.init_workflow(db)
+        snapshot = fixture("SSQ")
+        raw = b"fixture raw bytes"
+        published = "2026-10-19T00:00:00+00:00"
+        fetched = "2026-10-19T01:00:00+00:00"
+        url = "https://example.org/ssq.html"
+        snapshot["provenance"]["sources"] = [{
+            "url": url, "raw_sha256": hashlib.sha256(raw).hexdigest(),
+            "published_at": published, "fetched_at": fetched, "content_type": "text/html"}]
+        snapshots = self.snaps()
+        snapshots["SSQ"] = snapshot
+        manifest = cv.manifest(snapshots)
+        with db:
+            cv.register_manifest(db, manifest)
+            core.register_snapshot(db, manifest["run_id"], snapshot)
+            with self.assertRaisesRegex(core.GateError, "HOST_NOT_ALLOWLISTED"):
+                core.register_source_artifact(
+                    db, manifest["run_id"], "SSQ", url, raw,
+                    published_at=published, fetched_at=fetched, content_type="text/html")
+            with self.assertRaisesRegex(core.GateError, "NOT_BOUND_TO_SNAPSHOT"):
+                core.register_source_artifact(
+                    db, manifest["run_id"], "SSQ",
+                    "https://www.swlc.net.cn/lottery/ssq.html", b"changed",
+                    published_at=published, fetched_at=fetched, content_type="text/html")
+        self.assertEqual(db.execute("SELECT COUNT(*) FROM source_artifacts").fetchone()[0], 0)
+        db.close()
+
+    def test_raw_source_artifact_rejects_time_after_asof(self):
+        db = sqlite3.connect(":memory:")
+        core.init_ledger(db)
+        cv.init_workflow(db)
+        snapshot = fixture("DLT")
+        raw = b"synthetic source bytes"
+        published = "2026-10-19T00:00:00+00:00"
+        fetched = "2026-10-21T00:00:00+00:00"
+        url = "https://www.gstc.org.cn/wanfa/dlt_history"
+        snapshot["provenance"]["sources"] = [{
+            "url": url, "raw_sha256": hashlib.sha256(raw).hexdigest(),
+            "published_at": published, "fetched_at": fetched, "content_type": "text/html"}]
+        snapshots = self.snaps()
+        snapshots["DLT"] = snapshot
+        manifest = cv.manifest(snapshots)
+        with db:
+            cv.register_manifest(db, manifest)
+            core.register_snapshot(db, manifest["run_id"], snapshot)
+            with self.assertRaisesRegex(core.GateError, "ARTIFACT_AFTER_ASOF"):
+                core.register_source_artifact(
+                    db, manifest["run_id"], "DLT", url, raw,
+                    published_at=published, fetched_at=fetched, content_type="text/html")
+        db.close()
+
     def prepare_batch(self, conn, lottery="SSQ"):
         snap = fixture(lottery)
         run_manifest = cv.manifest(self.snaps())
