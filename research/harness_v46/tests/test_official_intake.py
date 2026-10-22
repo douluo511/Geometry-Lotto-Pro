@@ -31,12 +31,15 @@ def _draws(game, n=130):
     return rows
 
 
-def _source_urls(game):
+def _source_urls(game, include_guangdong=False):
     if game == "SSQ":
-        return [
+        sources = [
             ("national", "cwl.gov.cn", "https://www.cwl.gov.cn/cwl_admin/front/history"),
             ("shanghai", "swlc.net.cn", "https://www.swlc.net.cn/lottery/ssq.html"),
         ]
+        if include_guangdong:
+            sources.append(("guangdong", "gdfc.org.cn", "https://www.gdfc.org.cn/sjfx/tjzb8_50.html"))
+        return sources
     return [
         ("national", "sporttery.cn", "https://webapi.sporttery.cn/gateway/history"),
         ("jiangsu", "js-lottery.com", "https://api.js-lottery.com/Lottery/_ListData"),
@@ -58,26 +61,36 @@ def _artifact(url, parser_version, raw):
     }
 
 
-def _payload(game, n=130):
+def _payload(game, n=130, include_guangdong=False):
     rows = _draws(game, n)
     parser_version = oi._expected_parser_version(game)
     sources = []
-    for source_id, root, url in _source_urls(game):
+    for source_id, root, url in _source_urls(game, include_guangdong=include_guangdong):
+        if game == "SSQ" and source_id == "guangdong":
+            source_rows = [
+                {"issue": row["issue"], "front": list(row["front"]), "back": list(row["back"])}
+                for row in rows[-50:]
+            ]
+        else:
+            source_rows = copy.deepcopy(rows)
         raw = ("synthetic raw fixture " + game + " " + source_id).encode()
+        artifact = _artifact(url, parser_version, raw)
+        if game == "SSQ" and source_id == "guangdong":
+            artifact["content_type"] = "text/html"
         sources.append({
             "source_id": source_id,
             "source_name": oi.EXPECTED_SOURCE_NAMES[game][source_id],
             "source_root": root,
             "url": url,
-            "draws": copy.deepcopy(rows),
+            "draws": source_rows,
             "receipt": {
-                "status": "PASS", "draw_count": len(rows),
-                "latest_issue": rows[-1]["issue"], "raw_sha256": hashlib.sha256(raw).hexdigest(),
+                "status": "PASS", "draw_count": len(source_rows),
+                "latest_issue": source_rows[-1]["issue"], "raw_sha256": hashlib.sha256(raw).hexdigest(),
                 "fetched_at": "2026-10-22T08:00:00+00:00",
             },
-            "raw_artifacts": [_artifact(url, parser_version, raw)],
+            "raw_artifacts": [artifact],
             "raw_reparse_status": "PASS",
-            "raw_reparse_sha256": oi._rows_sha256(rows),
+            "raw_reparse_sha256": oi._rows_sha256(source_rows),
         })
     return {
         "schema": oi.WORKER_SCHEMA,
@@ -384,6 +397,59 @@ class OfficialIntakeTests(unittest.TestCase):
             self.assertNotIn("raw_base64", artifact)
             with self.assertRaises(FileExistsError):
                 oi.write_bundle({"games": {}}, output)
+
+
+    def test_ssq_shanghai_guangdong_fallback_uses_recent_overlap_not_fabricated_dates(self):
+        payload = _payload("SSQ", include_guangdong=True)
+        payload["sources"] = [s for s in payload["sources"] if s["source_id"] != "national"]
+        report = oi.validate_worker_payload(payload, expected_game="SSQ")
+        self.assertEqual(report["status"], "HISTORY_CROSSCHECK_PASS")
+        self.assertEqual(report["selected_source_ids"], ["shanghai", "guangdong"])
+        self.assertEqual(report["overlap_count"], 50)
+        self.assertEqual(report["consensus_draw_count"], 130)
+        self.assertIn("national", report["warnings"])
+        self.assertEqual(report["official_history_admission"], "SHADOW_HISTORY_ONLY")
+        self.assertEqual(report["official_target_admission"], "BLOCKED")
+        self.assertEqual(report["formal_A"], 0)
+
+    def test_ssq_guangdong_number_conflict_blocks_fallback(self):
+        payload = _payload("SSQ", include_guangdong=True)
+        payload["sources"] = [s for s in payload["sources"] if s["source_id"] != "national"]
+        guangdong = next(s for s in payload["sources"] if s["source_id"] == "guangdong")
+        guangdong["draws"][5]["front"] = [1, 2, 3, 4, 5, 6]
+        guangdong["raw_reparse_sha256"] = oi._rows_sha256(guangdong["draws"])
+        with self.assertRaisesRegex(GateError, "OFFICIAL_SOURCE_DRAW_CONFLICT"):
+            oi.validate_worker_payload(payload, expected_game="SSQ")
+
+    def test_ssq_guangdong_requires_ten_recent_issues(self):
+        payload = _payload("SSQ", include_guangdong=True)
+        payload["sources"] = [s for s in payload["sources"] if s["source_id"] != "national"]
+        guangdong = next(s for s in payload["sources"] if s["source_id"] == "guangdong")
+        guangdong["draws"] = guangdong["draws"][-9:]
+        guangdong["receipt"]["draw_count"] = 9
+        guangdong["raw_reparse_sha256"] = oi._rows_sha256(guangdong["draws"])
+        with self.assertRaisesRegex(GateError, "SOURCE_HISTORY_REQUIRES_AT_LEAST_10_DRAWS"):
+            oi.validate_worker_payload(payload, expected_game="SSQ")
+
+    def test_guangdong_parser_extracts_issue_and_balls_without_inventing_dates(self):
+        rows = _draws("SSQ", 12)
+        html_rows = []
+        for row in rows:
+            balls = ",".join(f"{n:02d}" for n in row["front"]) + ";" + f"{row['back'][0]:02d}"
+            html_rows.append(f"<tr><td>{row['issue']}</td><td>{balls}</td><td>stat</td></tr>")
+        raw = ("<html><body><table>" + "".join(html_rows) + "</table></body></html>").encode()
+        parsed = __import__("sys").path
+        import sys
+        source_root = str(oi.REPO_ROOT / "SSQ" / "SSQ")
+        if source_root not in sys.path:
+            sys.path.insert(0, source_root)
+        from glp.sources import parse_guangdong_recent_history
+        actual = parse_guangdong_recent_history(raw)
+        self.assertEqual(actual, [
+            {"issue": row["issue"], "front": row["front"], "back": row["back"]}
+            for row in rows
+        ])
+        self.assertNotIn("draw_date", actual[0])
 
 
 if __name__ == "__main__":
