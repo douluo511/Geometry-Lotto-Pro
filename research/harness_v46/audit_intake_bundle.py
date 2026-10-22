@@ -151,6 +151,7 @@ def audit_bundle(bundle_dir: str | Path) -> dict:
 
     return {
         "schema": AUDIT_SCHEMA,
+        "auditor_source_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
         "status": "PASS" if not errors else "FAIL",
         "purpose": "BYTE_INTEGRITY_ONLY_NOT_SOURCE_AUTHENTICITY",
         "bundle_manifest_sha256": manifest_sha256,
