@@ -796,6 +796,17 @@ def validate_worker_payload(payload: dict, *, expected_game: str | None = None) 
         rows = []
         valid_source = source.get("raw_reparse_status") == "PASS" and bool(source.get("draws"))
         if valid_source:
+            # A producer may not claim raw-to-parser replay PASS without any
+            # retained successful raw HTTP response. Otherwise a caller could
+            # supply two invented >=120-row arrays and matching self-computed
+            # hashes to receive HISTORY_CROSSCHECK_PASS with zero source bytes.
+            # This guard alone does NOT establish source authenticity or
+            # independently reparse the worker's bytes.
+            if not artifacts:
+                raise GateError("REPARSED_SOURCE_REQUIRES_RAW_ARTIFACTS")
+            if not any(a["http_status"] == 200 and a["size_bytes"] > 0
+                       for a in artifacts):
+                raise GateError("REPARSED_SOURCE_REQUIRES_SUCCESSFUL_RAW_BODY")
             rows = _canonical_draws(
                 game, source["draws"], minimum=_source_minimum(game, source_id)
             )
