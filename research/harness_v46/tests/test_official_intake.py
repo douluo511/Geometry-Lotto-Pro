@@ -425,6 +425,41 @@ class OfficialIntakeTests(unittest.TestCase):
         with self.assertRaisesRegex(GateError, "RECEIPT_DOES_NOT_MATCH"):
             oi.validate_worker_payload(payload)
 
+    def test_partial_claimed_replay_rejects_absent_raw_evidence(self):
+        # The full-batch gate must not be bypassable by downgrading a response
+        # status to WORKER_FETCH_PARTIAL while claiming parser replay PASS.
+        for game in ("SSQ", "DLT"):
+            payload = _payload(game)
+            payload["status"] = "WORKER_FETCH_PARTIAL"
+            payload["sources"][0]["raw_artifacts"] = []
+            with self.subTest(game=game), self.assertRaisesRegex(
+                    GateError, "REPARSED_SOURCE_REQUIRES_RAW_ARTIFACTS"):
+                oi.validate_worker_payload(payload, expected_game=game)
+
+    def test_partial_claimed_replay_rejects_error_only_bytes(self):
+        for game in ("SSQ", "DLT"):
+            payload = _payload(game)
+            payload["status"] = "WORKER_FETCH_PARTIAL"
+            artifact = payload["sources"][0]["raw_artifacts"][0]
+            raw = b"only an HTTP error, not an official draw page"
+            artifact["raw_sha256"] = hashlib.sha256(raw).hexdigest()
+            artifact["size_bytes"] = len(raw)
+            artifact["http_status"] = 503
+            artifact["content_type"] = "text/html"
+            artifact["raw_base64"] = base64.b64encode(raw).decode("ascii")
+            with self.subTest(game=game), self.assertRaisesRegex(
+                    GateError, "REPARSED_SOURCE_REQUIRES_SUCCESSFUL_RAW_BODY"):
+                oi.validate_worker_payload(payload, expected_game=game)
+
+    def test_worker_unrecognized_status_cannot_disguise_partial(self):
+        for game in ("SSQ", "DLT"):
+            for fake in ("PASS", "FORMAL_A", None, "SHADOW_PASSED"):
+                payload = _payload(game)
+                payload["status"] = fake
+                with self.subTest(game=game, fake=fake), self.assertRaisesRegex(
+                        GateError, "INVALID_WORKER_FETCH_STATUS"):
+                    oi.validate_worker_payload(payload, expected_game=game)
+
     def test_partial_intake_preserves_non_200_failure_body_and_stays_blocked(self):
         payload = _payload("DLT")
         payload["status"] = "WORKER_FETCH_PARTIAL"
