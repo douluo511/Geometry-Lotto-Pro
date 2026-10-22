@@ -6,7 +6,7 @@ import sqlite3
 from datetime import datetime, timezone, time, timedelta
 from pathlib import Path
 
-from .core import MODELS, GateError, dt, forecast, freeze_shadow, init_ledger
+from .core import MODELS, GateError, dt, forecast, freeze_shadow, init_ledger, register_snapshot
 from .convergence import (STAGES, append_stage, check_complete_batch, init_workflow,
                            manifest, register_manifest, tsa_request)
 
@@ -56,6 +56,9 @@ def scheduled_once(snapshots, database, now=None):
         receipts = {}
         with conn:
             manifest_sha = register_manifest(conn, identity)
+            # Persist both exact snapshot preimages before any model can freeze.
+            for game in ("SSQ", "DLT"):
+                register_snapshot(conn, run_id, snapshots[game])
             for game in ("SSQ", "DLT"):
                 s = snapshots[game]
                 target = str(s["target_issue"])
