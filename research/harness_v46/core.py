@@ -21,7 +21,7 @@ NULL_SEED = "SSQ-DLT-V47-NULL-SHA256-SORT-v1-20261022"  # pre-registered new con
 RANKING_TIE_BREAK = "score_descending_then_numeric_ascending"
 TICKET_BACK_ENGINE = "SHA256_SORT_V1"
 SOURCE_HOSTS_BY_GAME = {
-    "SSQ": ("swlc.net.cn", "cwl.gov.cn"),
+    "SSQ": ("swlc.net.cn", "cwl.gov.cn", "yzfcw.com"),
     "DLT": ("gstc.org.cn", "fjtc.com.cn", "sporttery.cn", "lottery.gov.cn", "js-lottery.com"),
 }
 MAX_RAW_SOURCE_BYTES = 25_000_000
