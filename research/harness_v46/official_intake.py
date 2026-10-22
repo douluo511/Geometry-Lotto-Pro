@@ -575,14 +575,24 @@ def _worker(game: str) -> dict:
     }
 
 
+def _source_id_set_valid(game: str, source_items: list[dict]) -> bool:
+    ids = [s.get("source_id") for s in source_items if isinstance(s, dict)]
+    if len(ids) != len(source_items) or len(set(ids)) != len(ids):
+        return False
+    if game == "SSQ":
+        return len(ids) == 2 and set(ids) == {"national", "shanghai"}
+    return 2 <= len(ids) <= 3 and set(ids).issubset({"national", "jiangsu", "gansu"})
+
+
+def _source_minimum(game: str, source_id: str) -> int:
+    return 10 if game == "DLT" and source_id == "gansu" else 120
+
+
 def _validate_partial_worker_payload(payload: dict, game: str, parser_version: str,
                                     current_hashes: dict[str, str]) -> dict:
     source_items = payload.get("sources")
-    if not isinstance(source_items, list) or len(source_items) != 2:
-        raise GateError("EXACTLY_TWO_SOURCE_RECORDS_REQUIRED_FOR_PARTIAL_INTAKE")
-    expected_ids = set(SOURCE_IDS[game].values())
-    if {s.get("source_id") for s in source_items if isinstance(s, dict)} != expected_ids:
-        raise GateError("SOURCE_IDENTITY_SET_MISMATCH")
+    if not isinstance(source_items, list) or not _source_id_set_valid(game, source_items):
+        raise GateError("INVALID_PARTIAL_SOURCE_IDENTITY_SET")
     checked_sources = []
     for source in source_items:
         source_id = source.get("source_id")
@@ -599,7 +609,9 @@ def _validate_partial_worker_payload(payload: dict, game: str, parser_version: s
         artifacts = _validate_artifacts(game, source, parser_version) if raw_list else []
         valid_draws = []
         if source.get("raw_reparse_status") == "PASS" and source.get("draws"):
-            valid_draws = _canonical_draws(game, source["draws"])
+            valid_draws = _canonical_draws(
+                game, source["draws"], minimum=_source_minimum(game, source_id)
+            )
             if source.get("raw_reparse_sha256") != _rows_sha256(valid_draws):
                 raise GateError("RAW_REPARSE_SHA_MISMATCH")
             receipt = source.get("receipt")
@@ -618,6 +630,7 @@ def _validate_partial_worker_payload(payload: dict, game: str, parser_version: s
     errors = payload.get("errors", {})
     if not isinstance(errors, dict):
         raise GateError("INVALID_PARTIAL_SOURCE_ERRORS")
+    artifact_count = sum(len(s["raw_artifacts"]) for s in checked_sources)
     return {
         "schema": SCHEMA, "lottery": game, "status": "SOURCE_FETCH_PARTIAL",
         "source_count": sum(bool(s["draws"]) for s in checked_sources),
@@ -634,15 +647,15 @@ def _validate_partial_worker_payload(payload: dict, game: str, parser_version: s
         "source_files_sha256": current_hashes,
         "collection_started_at_local_untrusted": payload.get("collection_started_at_local_untrusted"),
         "collection_finished_at_local_untrusted": payload.get("collection_finished_at_local_untrusted"),
-        "raw_artifact_count": sum(len(s["raw_artifacts"]) for s in checked_sources),
-        "raw_byte_sha_validation": "PASS",
+        "raw_artifact_count": artifact_count,
+        "raw_byte_sha_validation": "PASS" if artifact_count else "NO_ARTIFACTS",
         "source_origin_authenticity": "NOT_CRYPTOGRAPHICALLY_VERIFIED",
         "publication_time_authenticity": "NOT_VERIFIED",
         "official_history_admission": "BLOCKED",
         "official_target_admission": "BLOCKED", "external_tsa": "NOT_RUN",
         "formal_A": 0, "decision": "NO_EDGE", "errors": errors,
         "limitations": [
-            "At least one source failed or its raw-byte reparse gate did not pass.",
+            "No qualified two-source pair passed all source, raw-byte, parser and overlap checks.",
             "Preserved failure bodies are diagnostic evidence, not draw data.",
             "No target issue, sales cutoff, trusted pre-draw timestamp, or formal-A eligibility is established.",
         ],
@@ -666,13 +679,11 @@ def validate_worker_payload(payload: dict, *, expected_game: str | None = None) 
     if payload.get("status") != "WORKER_FETCH_COMPLETE":
         return _validate_partial_worker_payload(payload, game, parser_version, current_hashes)
     source_items = payload.get("sources")
-    if not isinstance(source_items, list) or len(source_items) != 2:
-        raise GateError("EXACTLY_TWO_SOURCE_HISTORIES_REQUIRED")
-    expected_ids = set(SOURCE_IDS[game].values())
-    if {s.get("source_id") for s in source_items if isinstance(s, dict)} != expected_ids:
-        raise GateError("SOURCE_IDENTITY_SET_MISMATCH")
+    if not isinstance(source_items, list) or not _source_id_set_valid(game, source_items):
+        raise GateError("INVALID_COMPLETE_SOURCE_IDENTITY_SET")
 
     checked_sources = []
+    candidates = {}
     for source in source_items:
         source_id = source.get("source_id")
         url = source.get("url")
@@ -683,65 +694,97 @@ def validate_worker_payload(payload: dict, *, expected_game: str | None = None) 
             raise GateError("SOURCE_ROOT_IDENTITY_MISMATCH")
         if source.get("source_name") != EXPECTED_SOURCE_NAMES[game].get(source_id):
             raise GateError("SOURCE_NAME_IDENTITY_MISMATCH")
-        rows = _canonical_draws(game, source.get("draws"))
-        artifacts = _validate_artifacts(game, source, parser_version)
-        if source.get("raw_reparse_status") != "PASS":
-            raise GateError("RAW_REPARSE_NOT_PASSED")
-        if source.get("raw_reparse_sha256") != _rows_sha256(rows):
-            raise GateError("RAW_REPARSE_SHA_MISMATCH")
-        receipt = source.get("receipt")
-        if (not isinstance(receipt, dict) or receipt.get("status") != "PASS"
-                or receipt.get("draw_count") != len(rows)
-                or receipt.get("latest_issue") != rows[-1]["issue"]):
-            raise GateError("SOURCE_RECEIPT_DOES_NOT_MATCH_PARSED_HISTORY")
+        raw_list = source.get("raw_artifacts", [])
+        if not isinstance(raw_list, list):
+            raise GateError("INVALID_RAW_ARTIFACT_LIST")
+        artifacts = _validate_artifacts(game, source, parser_version) if raw_list else []
+        rows = []
+        valid_source = source.get("raw_reparse_status") == "PASS" and bool(source.get("draws"))
+        if valid_source:
+            rows = _canonical_draws(
+                game, source["draws"], minimum=_source_minimum(game, source_id)
+            )
+            if source.get("raw_reparse_sha256") != _rows_sha256(rows):
+                raise GateError("RAW_REPARSE_SHA_MISMATCH")
+            receipt = source.get("receipt")
+            if (not isinstance(receipt, dict) or receipt.get("status") != "PASS"
+                    or receipt.get("draw_count") != len(rows)
+                    or receipt.get("latest_issue") != rows[-1]["issue"]):
+                raise GateError("SOURCE_RECEIPT_DOES_NOT_MATCH_PARSED_HISTORY")
+            candidates[source_id] = {
+                "source_id": source_id, "source_name": source.get("source_name"),
+                "url": url, "host": host, "source_root": root,
+                "draws": rows, "draw_count": len(rows), "raw_artifacts": artifacts,
+                "receipt": receipt,
+            }
         checked_sources.append({
             "source_id": source_id, "source_name": source.get("source_name"),
             "url": url, "host": host, "source_root": root,
             "draws": rows, "draw_count": len(rows), "raw_artifacts": artifacts,
-            "receipt": source.get("receipt"),
+            "receipt": source.get("receipt"), "error": source.get("error"),
+            "raw_reparse_status": source.get("raw_reparse_status", "NOT_RUN"),
         })
-    if checked_sources[0]["source_root"] == checked_sources[1]["source_root"]:
-        raise GateError("TWO_DISTINCT_OFFICIAL_SOURCE_ROOTS_REQUIRED")
 
-    maps = [{row["issue"]: row for row in source["draws"]} for source in checked_sources]
-    if checked_sources[0]["draws"][-1]["issue"] != checked_sources[1]["draws"][-1]["issue"]:
+    if game == "SSQ":
+        pair_ids, minimum_overlap = ("national", "shanghai"), 120
+    elif {"national", "jiangsu"}.issubset(candidates):
+        pair_ids, minimum_overlap = ("national", "jiangsu"), 120
+    elif {"national", "gansu"}.issubset(candidates):
+        pair_ids, minimum_overlap = ("national", "gansu"), 10
+    elif {"jiangsu", "gansu"}.issubset(candidates):
+        pair_ids, minimum_overlap = ("jiangsu", "gansu"), 10
+    else:
+        raise GateError("NO_VALID_TWO_SOURCE_PAIR")
+
+    pair = [candidates[pair_ids[0]], candidates[pair_ids[1]]]
+    maps = [{row["issue"]: row for row in source["draws"]} for source in pair]
+    if pair[0]["draws"][-1]["issue"] != pair[1]["draws"][-1]["issue"]:
         raise GateError("OFFICIAL_SOURCE_LATEST_ISSUE_MISMATCH")
     common = sorted(set(maps[0]) & set(maps[1]), key=int)
-    if len(common) < 120:
-        raise GateError("OFFICIAL_SOURCE_OVERLAP_LT_120")
+    if len(common) < minimum_overlap:
+        raise GateError("OFFICIAL_SOURCE_OVERLAP_TOO_SMALL")
     mismatches = [issue for issue in common if maps[0][issue] != maps[1][issue]]
     if mismatches:
         raise GateError("OFFICIAL_SOURCE_DRAW_CONFLICT:" + ",".join(mismatches[:10]))
-    consensus = _canonical_draws(game, [maps[0][issue] for issue in common])
+    primary = pair[0]
     artifact_count = sum(len(source["raw_artifacts"]) for source in checked_sources)
+    errors = payload.get("errors", {})
+    if not isinstance(errors, dict):
+        raise GateError("INVALID_SOURCE_ERRORS")
+    warnings = {k: v for k, v in errors.items() if k not in pair_ids}
     return {
         "schema": SCHEMA, "lottery": game, "status": "HISTORY_CROSSCHECK_PASS",
-        "source_count": 2, "source_roots": [s["source_root"] for s in checked_sources],
+        "source_count": 2, "selected_source_ids": list(pair_ids),
+        "source_roots": [s["source_root"] for s in pair],
+        "overlap_count": len(common),
+        "consensus_draw_count": len(primary["draws"]),
+        "consensus_draws": primary["draws"],
         "source_summaries": [
             {"source_id": s["source_id"], "source_root": s["source_root"],
-             "draw_count": s["draw_count"], "latest_issue": s["draws"][-1]["issue"],
-             "raw_artifact_count": len(s["raw_artifacts"]), "parser_version": parser_version}
+             "draw_count": s["draw_count"],
+             "latest_issue": s["draws"][-1]["issue"] if s["draws"] else None,
+             "raw_artifact_count": len(s["raw_artifacts"]),
+             "raw_reparse_status": s["raw_reparse_status"],
+             "error": s["error"], "parser_version": parser_version}
             for s in checked_sources
         ],
-        "consensus_draw_count": len(consensus), "consensus_draws": consensus,
         "sources": checked_sources, "source_files_sha256": current_hashes,
         "collection_started_at_local_untrusted": payload.get("collection_started_at_local_untrusted"),
         "collection_finished_at_local_untrusted": payload.get("collection_finished_at_local_untrusted"),
-        "raw_artifact_count": artifact_count, "raw_byte_sha_validation": "PASS",
-        "parser_to_raw_binding": "SAME_PROCESS_SOURCE_PARSER_OUTPUT_AND_RAW_BYTES",
+        "raw_artifact_count": artifact_count, "raw_byte_sha_validation": "PASS" if artifact_count else "NO_ARTIFACTS",
+        "parser_to_raw_binding": "SAME_PROCESS_REPARSE_MATCHED",
         "source_origin_authenticity": "NOT_CRYPTOGRAPHICALLY_VERIFIED",
         "publication_time_authenticity": "NOT_VERIFIED",
         "official_history_admission": "SHADOW_HISTORY_ONLY",
         "official_target_admission": "BLOCKED", "external_tsa": "NOT_RUN",
-        "formal_A": 0, "decision": "NO_EDGE",
+        "formal_A": 0, "decision": "NO_EDGE", "warnings": warnings,
         "limitations": [
-            "Raw bytes and parsed records are emitted by the same existing parser process and are hash-bound, but source publication times and origin are not independently authenticated.",
-            "The collector does not derive or certify the next target issue, actual sales cutoff, or special draw schedule.",
-            "Local capture timestamps are not trusted timestamps; a verified external seal must be applied before any forecast.",
-            "This bundle is historical source evidence only and cannot promote a prediction to formal A.",
+            "This is a two-source history cross-check, not target/cutoff admission.",
+            "Source publication times and origin are not independently authenticated.",
+            "Local capture timestamps are not trusted timestamps; an external seal must precede any forecast.",
+            "The verified overlap does not upgrade any model to formal A or demonstrate a D2 edge.",
         ],
     }
-
 
 def collect_live_history(game: str, *, timeout_seconds: int = 600) -> dict:
     if game not in SOURCE_IDS:
