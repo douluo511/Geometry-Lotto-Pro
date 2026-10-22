@@ -698,6 +698,13 @@ def _validate_partial_worker_payload(payload: dict, game: str, parser_version: s
         artifacts = _validate_artifacts(game, source, parser_version) if raw_list else []
         valid_draws = []
         if source.get("raw_reparse_status") == "PASS" and source.get("draws"):
+            # A partial batch must never show valid source rows based only on
+            # worker assertions. Apply the same raw-evidence contract as FULL.
+            if not artifacts:
+                raise GateError("REPARSED_SOURCE_REQUIRES_RAW_ARTIFACTS")
+            if not any(a["http_status"] == 200 and a["size_bytes"] > 0
+                       for a in artifacts):
+                raise GateError("REPARSED_SOURCE_REQUIRES_SUCCESSFUL_RAW_BODY")
             valid_draws = _canonical_draws(
                 game, source["draws"], minimum=_source_minimum(game, source_id)
             )
@@ -767,8 +774,10 @@ def validate_worker_payload(payload: dict, *, expected_game: str | None = None) 
         raise GateError("PARSER_VERSION_REQUIRED")
     if parser_version != _expected_parser_version(game):
         raise GateError("PARSER_VERSION_DOES_NOT_MATCH_SOURCE_CODE")
-    if payload.get("status") != "WORKER_FETCH_COMPLETE":
+    if payload.get("status") == "WORKER_FETCH_PARTIAL":
         return _validate_partial_worker_payload(payload, game, parser_version, current_hashes)
+    if payload.get("status") != "WORKER_FETCH_COMPLETE":
+        raise GateError("INVALID_WORKER_FETCH_STATUS")
     source_items = payload.get("sources")
     if not isinstance(source_items, list) or not _source_id_set_valid(game, source_items):
         raise GateError("INVALID_COMPLETE_SOURCE_IDENTITY_SET")
@@ -792,6 +801,13 @@ def validate_worker_payload(payload: dict, *, expected_game: str | None = None) 
         rows = []
         valid_source = source.get("raw_reparse_status") == "PASS" and bool(source.get("draws"))
         if valid_source:
+            # P0: a successful parser replay requires retained successful HTTP bytes.
+            # Self-claimed rows, receipt hashes or an error-body are insufficient.
+            if not artifacts:
+                raise GateError("REPARSED_SOURCE_REQUIRES_RAW_ARTIFACTS")
+            if not any(a["http_status"] == 200 and a["size_bytes"] > 0
+                       for a in artifacts):
+                raise GateError("REPARSED_SOURCE_REQUIRES_SUCCESSFUL_RAW_BODY")
             rows = _canonical_draws(
                 game, source["draws"], minimum=_source_minimum(game, source_id)
             )

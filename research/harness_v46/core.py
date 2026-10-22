@@ -177,8 +177,9 @@ def _model_ranking(snapshot, model):
             raise GateError("hot60 needs 60 historical draws")
         return _rank(_freq(history, 60, pool))
     if model == "ewma":
-        if len(history) < 60:
-            raise GateError("ewma needs 60 historical draws")
+        # Fixed V4.7 study warm-up; direct calls cannot bypass 120-draw minimum.
+        if len(history) < MIN_STUDY_HISTORY:
+            raise GateError("ewma registered window requires 120 historical draws")
         weights = {n: 0.0 for n in range(1, pool + 1)}
         for d in history[-120:]:
             for n in weights:
@@ -187,8 +188,9 @@ def _model_ranking(snapshot, model):
                 weights[n] += .08
         return _rank(weights)
     if model == "shrinkmix":
-        if len(history) < 60:
-            raise GateError("shrinkmix needs 60 historical draws")
+        # Same V4.7 study minimum for direct and batched predictions.
+        if len(history) < MIN_STUDY_HISTORY:
+            raise GateError("shrinkmix registered study requires 120 historical draws")
         recent = _freq(history, 60, pool)
         lifetime = _freq(history, len(history), pool)
         k = 60 / (60 + 200)
