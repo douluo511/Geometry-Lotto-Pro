@@ -199,9 +199,10 @@ class OfficialIntakeTests(unittest.TestCase):
         self.assertEqual(report["selected_source_ids"], ["national", "jiangsu"])
         self.assertEqual(report["consensus_draw_count"], 130)
         self.assertEqual(report["overlap_count"], 130)
-        gansu = next(x for x in report["corroboration_summaries"] if x["source_id"] == "gansu")
-        self.assertGreaterEqual(gansu["overlap_count"], 10)
-        self.assertEqual(gansu["status"], "MATCHED")
+        gansu_summaries = [x for x in report["corroboration_summaries"] if x["source_id"] == "gansu"]
+        self.assertEqual({x["compared_to"] for x in gansu_summaries}, {"national", "jiangsu"})
+        self.assertTrue(all(x["overlap_count"] >= 10 and x["status"] == "MATCHED"
+                            for x in gansu_summaries))
         self.assertEqual(report["official_target_admission"], "BLOCKED")
         self.assertEqual(report["formal_A"], 0)
         self.assertEqual(report["decision"], "NO_EDGE")
@@ -242,6 +243,20 @@ class OfficialIntakeTests(unittest.TestCase):
         gansu["receipt"]["draw_count"] = len(gansu["draws"])
         gansu["receipt"]["latest_issue"] = gansu["draws"][-1]["issue"]
         with self.assertRaisesRegex(GateError, "SOURCE_HISTORY_REQUIRES_AT_LEAST_10_DRAWS"):
+            oi.validate_worker_payload(payload, expected_game="DLT")
+
+    def test_gansu_must_overlap_ten_issues_with_each_primary(self):
+        payload = _payload("DLT", n=150)
+        gansu_issues = {row["issue"] for row in payload["sources"][2]["draws"]}
+        jiangsu = payload["sources"][1]
+        jiangsu["draws"] = [
+            row for row in jiangsu["draws"]
+            if row["issue"] not in set(sorted(gansu_issues, key=int)[:11])
+        ]
+        jiangsu["raw_reparse_sha256"] = oi._rows_sha256(jiangsu["draws"])
+        jiangsu["receipt"]["draw_count"] = len(jiangsu["draws"])
+        jiangsu["receipt"]["latest_issue"] = jiangsu["draws"][-1]["issue"]
+        with self.assertRaisesRegex(GateError, "GANSU_OVERLAP_LT_10_WITH_PRIMARY:jiangsu"):
             oi.validate_worker_payload(payload, expected_game="DLT")
 
     def test_gansu_latest_issue_must_match_primary_history(self):
