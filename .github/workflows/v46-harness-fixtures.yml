@@ -5,6 +5,7 @@ on:
     branches:
       - "research/ssq-dlt-v46-harness-bootstrap-20261022"
       - "research/ssq-dlt-v46-test10-convergence-20261022"
+      - "research/ssq-dlt-v47-p0a-r5-20261022"
     paths:
       - "research/harness_v46/**"
       - ".github/workflows/v46-harness-fixtures.yml"
