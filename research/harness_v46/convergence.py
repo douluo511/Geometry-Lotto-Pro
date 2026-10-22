@@ -191,6 +191,15 @@ CREATE TRIGGER IF NOT EXISTS tsa_no_update BEFORE UPDATE ON tsa_claims
 BEGIN SELECT RAISE(ABORT, 'immutable TSA claim'); END;
 CREATE TRIGGER IF NOT EXISTS tsa_no_delete BEFORE DELETE ON tsa_claims
 BEGIN SELECT RAISE(ABORT, 'immutable TSA claim'); END;
+CREATE TABLE IF NOT EXISTS shadow_trace_events(
+    run_id TEXT NOT NULL, lottery TEXT NOT NULL, stage TEXT NOT NULL,
+    event_sha256 TEXT NOT NULL, payload TEXT NOT NULL,
+    PRIMARY KEY(run_id,lottery,stage)
+);
+CREATE TRIGGER IF NOT EXISTS shadow_trace_no_update BEFORE UPDATE ON shadow_trace_events
+BEGIN SELECT RAISE(ABORT, 'immutable shadow trace'); END;
+CREATE TRIGGER IF NOT EXISTS shadow_trace_no_delete BEFORE DELETE ON shadow_trace_events
+BEGIN SELECT RAISE(ABORT, 'immutable shadow trace'); END;
 """
 
 
@@ -275,15 +284,28 @@ def check_complete_batch(conn, run_id, lottery):
 
 
 def append_stage(conn, run_id, lottery, stage, evidence):
-    """Ordered, append-only, idempotent transitions; does not award formal PASS."""
+    """Fail-closed verified-gate journal. Caller text cannot authenticate a gate."""
     if lottery not in RULES or stage not in STAGES or not isinstance(run_id, str) or not run_id.startswith("V47-"):
         raise GateError("INVALID_STAGE_IDENTITY")
-    if not isinstance(evidence, dict) or evidence.get("formal_A") not in (None, 0, False):
+    if not isinstance(evidence, dict):
+        raise GateError("INVALID_GATE_EVIDENCE")
+    if type(evidence.get("formal_A")) is not int or evidence["formal_A"] != 0:
         raise GateError("FORMAL_A_FORBIDDEN")
-    if evidence.get("status") in ("FORMAL", "A", "PASS_OFFICIAL", "TSA_VERIFIED"):
-        raise GateError("UNSUPPORTED_AUTHORITY_CLAIM")
+    if "status" in evidence:
+        raise GateError("LEGACY_STATUS_FIELD_NOT_GATE_EVIDENCE")
+    allowed = {"gate_status", "evidence_class", "formal_A", "reason"}
+    if set(evidence) != allowed:
+        raise GateError("INVALID_GATE_EVIDENCE_CONTRACT")
+    if evidence["evidence_class"] not in ("SHADOW", "SYNTHETIC"):
+        raise GateError("UNVERIFIED_EVIDENCE_CLASS_FORBIDDEN")
+    if evidence["gate_status"] not in ("NOT_RUN", "BLOCKED", "FAIL", "PASS"):
+        raise GateError("INVALID_GATE_STATUS")
+    if not isinstance(evidence["reason"], str) or not evidence["reason"]:
+        raise GateError("GATE_REASON_REQUIRED")
+    if evidence["gate_status"] == "PASS":
+        raise GateError("INDEPENDENT_GATE_VERIFIER_REQUIRED")
     record = {"run_id": run_id, "lottery": lottery, "stage": stage,
-              "evidence": evidence, "class": "SHADOW"}
+              "evidence": evidence, "class": evidence["evidence_class"]}
     payload, checksum = canon(record), digest(record)
     previous = conn.execute(
         "SELECT event_sha256,payload FROM workflow_events "
@@ -292,18 +314,56 @@ def append_stage(conn, run_id, lottery, stage, evidence):
         if previous != (checksum, payload):
             raise GateError("CONFLICTING_WORKFLOW_RETRY")
         return checksum
-    done = [row[0] for row in conn.execute(
-        "SELECT stage FROM workflow_events WHERE run_id=? AND lottery=? ORDER BY rowid",
-        (run_id, lottery))]
-    if done != list(STAGES[:len(done)]) or stage != STAGES[len(done)]:
+    done = conn.execute(
+        "SELECT stage,payload FROM workflow_events WHERE run_id=? AND lottery=? ORDER BY rowid",
+        (run_id, lottery)).fetchall()
+    if [row[0] for row in done] != list(STAGES[:len(done)]) or stage != STAGES[len(done)]:
         raise GateError("STAGE_ORDER_VIOLATION")
+    if stage != "SYNC":
+        previous_evidence = json.loads(done[-1][1])["evidence"]
+        if previous_evidence["gate_status"] != "PASS":
+            raise GateError("UPSTREAM_GATE_NOT_VERIFIED")
+        raise GateError("INDEPENDENT_GATE_VERIFIER_REQUIRED")
+    conn.execute("INSERT INTO workflow_events VALUES(?,?,?,?,?)",
+                 (run_id, lottery, stage, checksum, payload))
+    return checksum
+
+
+def append_shadow_trace(conn, run_id, lottery, stage, evidence):
+    """Append-only trace for research execution; it is not a verified gate receipt."""
+    if (lottery not in RULES or stage not in STAGES[:6]
+            or not isinstance(run_id, str) or not run_id.startswith("V47-")):
+        raise GateError("INVALID_SHADOW_TRACE_STAGE")
+    if (not isinstance(evidence, dict)
+            or evidence.get("status") != "SHADOW_UNVERIFIED"
+            or evidence.get("evidence_class") != "SHADOW"
+            or type(evidence.get("formal_A")) is not int
+            or evidence["formal_A"] != 0
+            or set(evidence) - {"status", "evidence_class", "formal_A", "batch_sha256"}):
+        raise GateError("SHADOW_TRACE_CANNOT_ASSERT_AUTHORITY")
     if stage == "FREEZE":
         batch = check_complete_batch(conn, run_id, lottery)
         if evidence.get("batch_sha256") != batch:
-            raise GateError("BATCH_HASH_MISMATCH")
-    conn.execute(
-        "INSERT INTO workflow_events VALUES(?,?,?,?,?)",
-        (run_id, lottery, stage, checksum, payload))
+            raise GateError("SHADOW_TRACE_BATCH_HASH_MISMATCH")
+    elif "batch_sha256" in evidence:
+        raise GateError("BATCH_HASH_ONLY_ALLOWED_AT_FREEZE")
+    record = {"run_id": run_id, "lottery": lottery, "stage": stage,
+              "evidence": evidence, "class": "SHADOW_TRACE_ONLY"}
+    payload, checksum = canon(record), digest(record)
+    previous = conn.execute(
+        "SELECT event_sha256,payload FROM shadow_trace_events "
+        "WHERE run_id=? AND lottery=? AND stage=?", (run_id, lottery, stage)).fetchone()
+    if previous is not None:
+        if previous != (checksum, payload):
+            raise GateError("CONFLICTING_SHADOW_TRACE_RETRY")
+        return checksum
+    done = [row[0] for row in conn.execute(
+        "SELECT stage FROM shadow_trace_events WHERE run_id=? AND lottery=? ORDER BY rowid",
+        (run_id, lottery))]
+    if done != list(STAGES[:len(done)]) or stage != STAGES[len(done)]:
+        raise GateError("SHADOW_TRACE_ORDER_VIOLATION")
+    conn.execute("INSERT INTO shadow_trace_events VALUES(?,?,?,?,?)",
+                 (run_id, lottery, stage, checksum, payload))
     return checksum
 
 
