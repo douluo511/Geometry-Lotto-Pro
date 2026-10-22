@@ -140,3 +140,16 @@ UNRESOLVED; this bootstrap must not mark it fixed.
 **Interpretation:** code/test success validates software contracts only.
 It does not establish improved odds, official data correctness, automated
 publication, credible time sealing, or eligibility for gambling purchases.
+
+
+## V4.7 P0 evidence hardening — 2026-10-22
+
+- The immutable `run_snapshots` table stores the exact canonical normalized snapshot JSON under `(run_id, lottery)`. `register_snapshot` checks it against the persisted manifest; the freeze gate rejects any caller-supplied snapshot that differs from the registered preimage.
+- Independent batch checking loads and re-hashes that snapshot, then replays every frozen prediction with the currently registered model source and parameter contract. A database rewrite that updates both prediction JSON and its local SHA but substitutes a legal-looking ranking is rejected by replay.
+- The immutable `source_artifacts` table can retain actual raw source bytes as a BLOB, along with the URL claim, allowlisted hostname, raw SHA256, content type, and claimed publication/fetch times. It only accepts HTTPS hostnames on the per-game allowlist and binds each artifact's metadata/SHA to the registered snapshot preimage. Every record remains `source_authenticity=NOT_VERIFIED`: this helper does not fetch the URL, parse HTML/JSON, authenticate page publication times, or establish official-source truth. No real official raw bytes have been admitted by this code change.
+- `statistics.py` provides deterministic exact upper-tail binomial arithmetic against the theoretical D2 baseline, exact one-sided paired sign/McNemar arithmetic against same-draw Random NULL, candidate-level intersection-union `max(p_baseline,p_paired_null)`, Holm adjustment over an explicitly supplied exact hypothesis list, exact model-rate intervals, and a conservative paired-rate-difference interval. The family is explicitly marked `CALLER_SUPPLIED_UNVERIFIED`; this module cannot verify the legacy 12 identities, preregistration time, official outcomes or TSA. It always returns `SHADOW_ONLY / formal_A=0 / NO_EDGE`.
+- The V4.7 run manifest's orchestration-source hash now includes `statistics.py`, so changes to statistical evaluation code change the canonical RUN_ID.
+
+Exact-head synthetic CI for code HEAD `d1f2ab42f9e170fcae0c5d98101e4321e18ea804`: https://github.com/douluo511/Geometry-Lotto-Pro/actions/runs/39747892642 — Ubuntu and Windows Server 2022 both succeeded with 54 tests; Ubuntu skipped the Windows-only PowerShell parser test, and Windows ran it.
+
+Still BLOCKED/NOT_RUN: live official-source fetch and parser, two-source 120+ issue semantic comparison, official next-target/sales-cutoff admission, external RFC3161/independent witness validation, real Windows task installation/cold boot/offline recovery, verified official-result replay, actual preregistration identity mapping, DLT 69/2880 negative-control root cause, and any prospective D2 advantage.
