@@ -69,7 +69,7 @@ def _payload(game, n=130, include_guangdong=False):
         if game == "SSQ" and source_id == "guangdong":
             source_rows = [
                 {"issue": row["issue"], "front": list(row["front"]), "back": list(row["back"])}
-                for row in rows[-50:]
+                for row in rows[-50:-20]
             ]
         else:
             source_rows = copy.deepcopy(rows)
@@ -401,11 +401,23 @@ class OfficialIntakeTests(unittest.TestCase):
 
     def test_ssq_shanghai_guangdong_fallback_uses_recent_overlap_not_fabricated_dates(self):
         payload = _payload("SSQ", include_guangdong=True)
-        payload["sources"] = [s for s in payload["sources"] if s["source_id"] != "national"]
+        national = next(s for s in payload["sources"] if s["source_id"] == "national")
+        failure_body = b"synthetic HTTP 403 source denial"
+        national["draws"] = []
+        national["receipt"] = None
+        national["error"] = "HTTP 403"
+        national["raw_reparse_status"] = "NOT_RUN_SOURCE_FETCH_FAILED"
+        national["raw_artifacts"][0].update({
+            "raw_sha256": hashlib.sha256(failure_body).hexdigest(),
+            "size_bytes": len(failure_body), "http_status": 403,
+            "content_type": "text/html",
+            "raw_base64": base64.b64encode(failure_body).decode("ascii"),
+        })
+        payload["errors"] = {"national": "HTTP 403"}
         report = oi.validate_worker_payload(payload, expected_game="SSQ")
         self.assertEqual(report["status"], "HISTORY_CROSSCHECK_PASS")
         self.assertEqual(report["selected_source_ids"], ["shanghai", "guangdong"])
-        self.assertEqual(report["overlap_count"], 50)
+        self.assertEqual(report["overlap_count"], 30)
         self.assertEqual(report["consensus_draw_count"], 130)
         self.assertIn("national", report["warnings"])
         self.assertEqual(report["official_history_admission"], "SHADOW_HISTORY_ONLY")
@@ -438,7 +450,6 @@ class OfficialIntakeTests(unittest.TestCase):
             balls = ",".join(f"{n:02d}" for n in row["front"]) + ";" + f"{row['back'][0]:02d}"
             html_rows.append(f"<tr><td>{row['issue']}</td><td>{balls}</td><td>stat</td></tr>")
         raw = ("<html><body><table>" + "".join(html_rows) + "</table></body></html>").encode()
-        parsed = __import__("sys").path
         import sys
         source_root = str(oi.REPO_ROOT / "SSQ" / "SSQ")
         if source_root not in sys.path:
