@@ -295,6 +295,8 @@ def _reparse_raw_history(game: str, source_module, source_id: str,
                     })
             elif game == "SSQ" and source_id == "shanghai":
                 parsed_rows.extend(_source_rows(source_module.parse_shanghai_history(raw)))
+            elif game == "SSQ" and source_id == "guangdong":
+                parsed_rows.extend(source_module.parse_guangdong_recent_history(raw))
             elif game == "DLT" and source_id == "national":
                 payload = json.loads(raw.decode("utf-8-sig"))
                 value = payload.get("value") or {} if isinstance(payload, dict) else {}
