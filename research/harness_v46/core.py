@@ -187,8 +187,10 @@ def _model_ranking(snapshot, model):
                 weights[n] += .08
         return _rank(weights)
     if model == "shrinkmix":
-        if len(history) < 60:
-            raise GateError("shrinkmix needs 60 historical draws")
+        # Keep the direct model entry consistent with the V4.7 study/freeze
+        # minimum; never silently use a different-size lifetime prior.
+        if len(history) < MIN_STUDY_HISTORY:
+            raise GateError("shrinkmix registered study requires 120 historical draws")
         recent = _freq(history, 60, pool)
         lifetime = _freq(history, len(history), pool)
         k = 60 / (60 + 200)
