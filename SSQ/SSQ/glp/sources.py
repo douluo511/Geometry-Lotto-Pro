@@ -16,8 +16,8 @@ import requests
 
 from glp.net_client import NetClient
 from glp.constants import (
-    HEBEI_ANNOUNCE_URL, HEBEI_URL, NATIONAL_URL, SHANGHAI_HISTORY_URL,
-    SHANGHAI_URL, SSQ_HISTORY_START_ISSUE,
+    GUANGDONG_HISTORY_URL, HEBEI_ANNOUNCE_URL, HEBEI_URL, NATIONAL_URL,
+    SHANGHAI_HISTORY_URL, SHANGHAI_URL, SSQ_HISTORY_START_ISSUE,
 )
 from glp.domain import CanonicalDataset, Draw, SourceReceipt
 from glp.util import canonical_json, sha256_bytes, sha256_json, utc_now
@@ -37,7 +37,7 @@ TIMEOUT = (20, 30)
 NET = NetClient(connect_timeout=20, read_timeout=30, max_attempts=3)
 MAX_LATEST_AGE_DAYS = 7
 MAX_RESPONSE_BYTES = 8 * 1024 * 1024
-PARSER_VERSION = "ssq-source-parser-v8.6-fail-closed+raw-v1"
+PARSER_VERSION = "ssq-source-parser-v8.7-guangdong-recent+raw-v1"
 RawRecorder = Callable[[dict, bytes], None]
 
 
@@ -962,3 +962,69 @@ def _build_canonical_impl(
         "canonical_payload_sha256": sha256_bytes(canonical_json(draw_dicts).encode("utf-8")),
     }
     return dataset, evidence
+
+
+def parse_guangdong_recent_history(raw: bytes | str) -> list[dict]:
+    """Parse Guangdong's official SSQ statistics table as issue+balls only.
+
+    This page does not publish a trustworthy draw-date field in its table. Do not
+    invent one: the regional source corroborates issue IDs and balls only.
+    """
+    text = _text(raw)
+    pattern = re.compile(r"(?<!\d)(20\d{5})\s+(\d{2}(?:,\d{2}){5};\d{2})(?!\d)")
+    matches = list(pattern.finditer(text))
+    rows = []
+    seen = set()
+    for match in matches:
+        issue, result = match.group(1), match.group(2)
+        if issue in seen:
+            raise SourceError("Guangdong statistics page repeats issue " + issue)
+        seen.add(issue)
+        red_text, blue_text = result.split(";", 1)
+        try:
+            front = sorted(int(token) for token in red_text.split(","))
+            back = [int(blue_text)]
+        except ValueError as exc:
+            raise SourceError("Guangdong SSQ row contains a nonnumeric ball") from exc
+        if (len(front) != 6 or len(set(front)) != 6
+                or any(n < 1 or n > 33 for n in front)
+                or len(back) != 1 or not 1 <= back[0] <= 16):
+            raise SourceError("Guangdong SSQ row has invalid balls for issue " + issue)
+        rows.append({"issue": issue, "front": front, "back": back})
+    if len(rows) < 10:
+        raise SourceError("Guangdong SSQ statistics page has fewer than 10 parseable rows")
+    rows.sort(key=lambda row: int(row["issue"]))
+    if any(int(rows[i]["issue"]) >= int(rows[i + 1]["issue"]) for i in range(len(rows) - 1)):
+        raise SourceError("Guangdong SSQ issues are not strictly increasing")
+    return rows
+
+
+def fetch_guangdong_recent_history(
+    limit: int = 50, record_raw: RawRecorder | None = None,
+) -> tuple[list[dict], SourceReceipt, dict]:
+    """Fetch an independent 10+ issue SSQ corroborator, not a 120+ primary history."""
+    if type(limit) is not int or not 10 <= limit <= 50:
+        raise SourceError("Guangdong recent-history limit must be between 10 and 50")
+    headers = dict(HEADERS)
+    headers["Referer"] = "https://www.gdfc.org.cn/"
+    response = _get_official(
+        "official_guangdong_L2", GUANGDONG_HISTORY_URL, record_raw, headers=headers
+    )
+    response.raise_for_status()
+    raw = bytes(response.content)
+    _record_response(record_raw, "official_guangdong_L2", response, raw, GUANGDONG_HISTORY_URL)
+    _response_body(response, "Guangdong SSQ statistics page", json_expected=False, raw=raw)
+    rows = parse_guangdong_recent_history(raw)
+    rows = rows[-limit:]
+    meta = _validate_http_payload(response, raw, expected="html")
+    meta.update({
+        "source_identity": "official_guangdong_L2",
+        "requested_url": GUANGDONG_HISTORY_URL,
+        "parser_version": PARSER_VERSION,
+        "history_semantics": "ISSUE_AND_BALLS_ONLY_NO_DRAW_DATE_FIELD",
+    })
+    receipt = _response_receipt(
+        "official_guangdong_L2", response, raw, len(rows), rows[-1]["issue"],
+        "广东省福利彩票发行中心双色球统计指标表；仅作期号与号码交叉核验，不提供独立开奖日期",
+    )
+    return rows, receipt, meta
