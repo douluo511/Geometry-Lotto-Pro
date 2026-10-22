@@ -234,6 +234,22 @@ class GateTests(unittest.TestCase):
         self.assertEqual(db.execute("SELECT COUNT(*) FROM predictions").fetchone()[0], 0)
         db.close()
 
+    def test_v47_parameter_contract_covers_global_ticket_generation(self):
+        data = fixture()
+        for model in core.MODELS:
+            prediction = core.forecast(data, model)
+            self.assertEqual(prediction["parameters_sha256"],
+                             core.digest(core.parameter_contract(model)))
+            self.assertEqual(prediction["model_source_sha256"],
+                             core.model_source_sha256())
+        spec = core.parameter_contract("random_null")
+        self.assertEqual(spec["ticket_back"]["engine"], "SHA256_SORT_V1")
+        self.assertIn("lottery_rules_sha256", spec)
+        first = core._stable_permutation(list(range(1, 34)), core.NULL_SEED, "SSQ", "29999", "front")
+        second = core._stable_permutation(list(reversed(range(1, 34))), core.NULL_SEED, "SSQ", "29999", "front")
+        self.assertEqual(first, second)
+        self.assertEqual(sorted(first), list(range(1, 34)))
+
 
 if __name__ == "__main__":
     unittest.main()
