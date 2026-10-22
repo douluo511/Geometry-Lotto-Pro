@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - research/ssq-dlt-v46-test10-convergence-20261022
+      - research/ssq-dlt-v47-p0a-r5-20261022
     paths:
       - research/harness_v46/LIVE_INTAKE_TRIGGER.json
 
@@ -48,7 +49,14 @@ jobs:
             --game ALL \
             --output-dir "out/official-intake-${{ github.run_id }}"
 
-      - name: Upload raw response bytes and intake manifest
+      - name: Independently audit raw response bundle integrity
+        if: always()
+        continue-on-error: true
+        run: |
+          python -m research.harness_v46.audit_intake_bundle \
+            --bundle-dir "out/official-intake-${{ github.run_id }}"
+
+      - name: Upload raw response bytes, manifest and integrity audit
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -64,7 +72,18 @@ jobs:
           import json
           import sys
           from pathlib import Path
-          path = Path("out/official-intake-${{ github.run_id }}/intake.json")
+          root = Path("out/official-intake-${{ github.run_id }}")
+          audit_path = root / "intake-audit.json"
+          audit_status = "MISSING"
+          if audit_path.is_file():
+              audit = json.loads(audit_path.read_text(encoding="utf-8"))
+              audit_status = audit.get("status", "INVALID")
+              print(f"raw_bundle_integrity={audit_status}")
+              if audit_status != "PASS":
+                  print(f"raw_bundle_integrity_errors={json.dumps(audit.get('errors', []), ensure_ascii=False)}")
+          else:
+              print("raw_bundle_integrity=MISSING")
+          path = root / "intake.json"
           if not path.is_file():
               print("BLOCKED: intake manifest was not produced.")
               sys.exit(1)
@@ -75,5 +94,5 @@ jobs:
               print(f"  formal_A={result.get('formal_A', 0)}")
           print(f"errors={json.dumps(bundle.get('errors', {}), ensure_ascii=False, sort_keys=True)}")
           print("External TSA: NOT_RUN; formal A: 0; decision: NO_EDGE.")
-          sys.exit(1 if bundle.get("errors") else 0)
+          sys.exit(1 if bundle.get("errors") or audit_status != "PASS" else 0)
           PY
