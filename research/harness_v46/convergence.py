@@ -200,7 +200,7 @@ def append_stage(conn, run_id, lottery, stage, evidence):
             raise GateError("CONFLICTING_WORKFLOW_RETRY")
         return checksum
     done = [row[0] for row in conn.execute(
-        "SELECT stage FROM workflow_events WHERE run_id=? AND lottery=?",
+        "SELECT stage FROM workflow_events WHERE run_id=? AND lottery=? ORDER BY rowid",
         (run_id, lottery))]
     if done != list(STAGES[:len(done)]) or stage != STAGES[len(done)]:
         raise GateError("STAGE_ORDER_VIOLATION")
