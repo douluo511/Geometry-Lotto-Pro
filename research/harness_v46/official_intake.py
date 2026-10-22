@@ -950,16 +950,31 @@ def write_bundle(bundle: dict, output_dir: str | Path) -> Path:
     destination = Path(output_dir)
     destination.mkdir(parents=True, exist_ok=False)
     for game, result in bundle.get("games", {}).items():
+        if game not in SOURCE_IDS:
+            raise GateError("UNKNOWN_LOTTERY_FOR_BUNDLE_WRITE")
         for source in result.get("sources", []):
+            source_id = source.get("source_id")
+            if source_id not in SOURCE_IDS[game].values():
+                raise GateError("INVALID_SOURCE_ID_FOR_BUNDLE_WRITE")
             for artifact in source.get("raw_artifacts", []):
-                raw = base64.b64decode(artifact.pop("raw_base64"), validate=True)
-                if _sha(raw) != artifact["raw_sha256"]:
+                raw = base64.b64decode(artifact["raw_base64"], validate=True)
+                digest = artifact.get("raw_sha256")
+                if (not isinstance(digest, str) or len(digest) != 64
+                        or any(x not in "0123456789abcdef" for x in digest)
+                        or _sha(raw) != digest):
                     raise GateError("RAW_SHA_CHANGED_BEFORE_BUNDLE_WRITE")
-                relative = Path("raw") / game / source["source_id"] / (artifact["raw_sha256"] + ".bin")
+                relative = Path("raw") / game / source_id / (digest + ".bin")
                 target = destination / relative
                 target.parent.mkdir(parents=True, exist_ok=True)
-                with target.open("xb") as handle:
-                    handle.write(raw)
+                if target.exists():
+                    # Multiple identical WAF/empty retry bodies can legitimately
+                    # share a SHA. Preserve every HTTP receipt, write bytes once.
+                    if not target.is_file() or target.is_symlink() or _sha(target.read_bytes()) != digest:
+                        raise GateError("RAW_ARTIFACT_COLLISION")
+                else:
+                    with target.open("xb") as handle:
+                        handle.write(raw)
+                artifact.pop("raw_base64")
                 artifact["artifact_path"] = relative.as_posix()
     manifest_path = destination / "intake.json"
     with manifest_path.open("x", encoding="utf-8", newline="\n") as handle:
