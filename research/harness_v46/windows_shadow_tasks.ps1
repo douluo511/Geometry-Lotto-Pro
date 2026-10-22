@@ -1,9 +1,9 @@
-# V4.6 SHADOW task registration. Installation is opt-in; no lottery purchase.
-# Requires Windows Task Scheduler cmdlets and a reviewed local config JSON.
+# V4.7 SHADOW task registration. Installation is opt-in; no lottery purchase.
+# The legacy filename is retained so reviewed references remain stable.
 param(
     [Parameter(Mandatory=$true)][string]$ConfigFile,
     [switch]$Install,
-    [string]$TaskName = 'SSQDLT-V46-SHADOW'
+    [string]$TaskName = 'SSQDLT-V47-SHADOW'
 )
 $ErrorActionPreference = 'Stop'
 $ConfigFile = (Resolve-Path -LiteralPath $ConfigFile).Path
@@ -34,8 +34,13 @@ $weekdayNames = @($localDates | ForEach-Object { $_.DayOfWeek.ToString() })
 $scheduledLocal = [datetime]::Today.Add($localDates[0].TimeOfDay)
 Write-Output "PREVIEW: JST Mon/Wed/Sat 16:00 => local $($weekdayNames -join '/') $($times[0])"
 Write-Output 'RECOVERY: at boot and every 30 minutes; handler rechecks JST weekday, time, as-of and cutoff.'
-Write-Output 'STATUS: SHADOW_ONLY, no official admission, no verified external TSA, no boot evidence'
+Write-Output 'STATUS: V4.7 SHADOW_ONLY, no official admission, no verified external TSA, no boot evidence'
 if (-not $Install) { Write-Output 'NOT_INSTALLED: pass -Install on reviewed Windows host'; return }
+
+# Refuse any existing task name. Never use Register-ScheduledTask -Force here:
+# a pre-existing V4.6 or unrelated task must not be overwritten by this installer.
+$existingTask = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+if ($null -ne $existingTask) { throw "TASK_ALREADY_EXISTS_REFUSING_OVERWRITE:$TaskName" }
 
 $handler = Join-Path $PSScriptRoot 'invoke_v46_shadow.ps1'
 if (-not (Test-Path -LiteralPath $handler)) { throw 'MISSING_HANDLER' }
@@ -46,5 +51,6 @@ $atBoot = New-ScheduledTaskTrigger -AtStartup
 # A real host must verify indefinite repetition and triggers in Task Scheduler.
 $recovery = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes 30)
 $settings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Minutes 10)
-Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger @($weekly,$atBoot,$recovery) -Settings $settings -Description 'V4.6 SHADOW-only as-of guarded runner' -Force | Out-Null
+# No -Force: if a race creates the task after the preflight check, registration must fail closed.
+Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger @($weekly,$atBoot,$recovery) -Settings $settings -Description 'V4.7 SHADOW-only as-of guarded runner' | Out-Null
 Write-Output "REGISTERED: $TaskName; inspect actual triggers, raw logs and reboot evidence before acceptance"
