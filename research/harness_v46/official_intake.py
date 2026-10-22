@@ -513,6 +513,80 @@ def _worker(game: str) -> dict:
     }
 
 
+def _validate_partial_worker_payload(payload: dict, game: str, parser_version: str,
+                                    current_hashes: dict[str, str]) -> dict:
+    source_items = payload.get("sources")
+    if not isinstance(source_items, list) or len(source_items) != 2:
+        raise GateError("EXACTLY_TWO_SOURCE_RECORDS_REQUIRED_FOR_PARTIAL_INTAKE")
+    expected_ids = set(SOURCE_IDS[game].values())
+    if {s.get("source_id") for s in source_items if isinstance(s, dict)} != expected_ids:
+        raise GateError("SOURCE_IDENTITY_SET_MISMATCH")
+    checked_sources = []
+    for source in source_items:
+        source_id = source.get("source_id")
+        host, root = _root_for_url(game, source.get("url"))
+        if root != EXPECTED_ROOTS[game].get(source_id):
+            raise GateError("SOURCE_ID_NOT_BOUND_TO_EXPECTED_OFFICIAL_ROOT")
+        if source.get("source_root") != root:
+            raise GateError("SOURCE_ROOT_IDENTITY_MISMATCH")
+        if source.get("source_name") != EXPECTED_SOURCE_NAMES[game].get(source_id):
+            raise GateError("SOURCE_NAME_IDENTITY_MISMATCH")
+        raw_list = source.get("raw_artifacts", [])
+        if not isinstance(raw_list, list):
+            raise GateError("INVALID_PARTIAL_RAW_ARTIFACT_LIST")
+        artifacts = _validate_artifacts(game, source, parser_version) if raw_list else []
+        valid_draws = []
+        if source.get("raw_reparse_status") == "PASS" and source.get("draws"):
+            valid_draws = _canonical_draws(game, source["draws"])
+            if source.get("raw_reparse_sha256") != _rows_sha256(valid_draws):
+                raise GateError("RAW_REPARSE_SHA_MISMATCH")
+            receipt = source.get("receipt")
+            if (not isinstance(receipt, dict) or receipt.get("status") != "PASS"
+                    or receipt.get("draw_count") != len(valid_draws)
+                    or receipt.get("latest_issue") != valid_draws[-1]["issue"]):
+                raise GateError("SOURCE_RECEIPT_DOES_NOT_MATCH_PARSED_HISTORY")
+        checked_sources.append({
+            "source_id": source_id, "source_name": source.get("source_name"),
+            "url": source["url"], "host": host, "source_root": root,
+            "draws": valid_draws, "draw_count": len(valid_draws),
+            "raw_artifacts": artifacts, "receipt": source.get("receipt"),
+            "error": source.get("error"),
+            "raw_reparse_status": source.get("raw_reparse_status", "NOT_RUN"),
+        })
+    errors = payload.get("errors", {})
+    if not isinstance(errors, dict):
+        raise GateError("INVALID_PARTIAL_SOURCE_ERRORS")
+    return {
+        "schema": SCHEMA, "lottery": game, "status": "SOURCE_FETCH_PARTIAL",
+        "source_count": sum(bool(s["draws"]) for s in checked_sources),
+        "source_roots": [s["source_root"] for s in checked_sources],
+        "source_summaries": [
+            {"source_id": s["source_id"], "source_root": s["source_root"],
+             "draw_count": s["draw_count"],
+             "latest_issue": s["draws"][-1]["issue"] if s["draws"] else None,
+             "raw_artifact_count": len(s["raw_artifacts"]),
+             "raw_reparse_status": s["raw_reparse_status"], "error": s["error"]}
+            for s in checked_sources
+        ],
+        "consensus_draw_count": 0, "consensus_draws": [], "sources": checked_sources,
+        "source_files_sha256": current_hashes,
+        "collection_started_at_local_untrusted": payload.get("collection_started_at_local_untrusted"),
+        "collection_finished_at_local_untrusted": payload.get("collection_finished_at_local_untrusted"),
+        "raw_artifact_count": sum(len(s["raw_artifacts"]) for s in checked_sources),
+        "raw_byte_sha_validation": "PASS",
+        "source_origin_authenticity": "NOT_CRYPTOGRAPHICALLY_VERIFIED",
+        "publication_time_authenticity": "NOT_VERIFIED",
+        "official_history_admission": "BLOCKED",
+        "official_target_admission": "BLOCKED", "external_tsa": "NOT_RUN",
+        "formal_A": 0, "decision": "NO_EDGE", "errors": errors,
+        "limitations": [
+            "At least one source failed or its raw-byte reparse gate did not pass.",
+            "Preserved failure bodies are diagnostic evidence, not draw data.",
+            "No target issue, sales cutoff, trusted pre-draw timestamp, or formal-A eligibility is established.",
+        ],
+    }
+
+
 def validate_worker_payload(payload: dict, *, expected_game: str | None = None) -> dict:
     if not isinstance(payload, dict) or payload.get("schema") != WORKER_SCHEMA:
         raise GateError("INVALID_OFFICIAL_INTAKE_WORKER_SCHEMA")
@@ -527,6 +601,8 @@ def validate_worker_payload(payload: dict, *, expected_game: str | None = None) 
         raise GateError("PARSER_VERSION_REQUIRED")
     if parser_version != _expected_parser_version(game):
         raise GateError("PARSER_VERSION_DOES_NOT_MATCH_SOURCE_CODE")
+    if payload.get("status") != "WORKER_FETCH_COMPLETE":
+        return _validate_partial_worker_payload(payload, game, parser_version, current_hashes)
     source_items = payload.get("sources")
     if not isinstance(source_items, list) or len(source_items) != 2:
         raise GateError("EXACTLY_TWO_SOURCE_HISTORIES_REQUIRED")
@@ -633,6 +709,10 @@ def collect_both() -> dict:
     for game in ("SSQ", "DLT"):
         try:
             results[game] = collect_live_history(game)
+            if results[game].get("status") != "HISTORY_CROSSCHECK_PASS":
+                errors[game] = json.dumps(results[game].get("errors", {
+                    "intake": "OFFICIAL_HISTORY_NOT_CROSSCHECKED"
+                }), ensure_ascii=False, sort_keys=True)
         except Exception as exc:
             errors[game] = f"{type(exc).__name__}: {exc}"
             results[game] = {
@@ -691,10 +771,15 @@ def main(argv: list[str] | None = None) -> int:
     else:
         try:
             result = collect_live_history(args.game)
+            game_errors = {} if result.get("status") == "HISTORY_CROSSCHECK_PASS" else {
+                args.game: json.dumps(result.get("errors", {
+                    "intake": "OFFICIAL_HISTORY_NOT_CROSSCHECKED"
+                }), ensure_ascii=False, sort_keys=True)
+            }
             bundle = {
                 "schema": "V47-OFFICIAL-INTAKE-BUNDLE-1",
                 "created_at_local_untrusted": datetime.now(timezone.utc).isoformat(),
-                "games": {args.game: result}, "errors": {},
+                "games": {args.game: result}, "errors": game_errors,
                 "official_target_admission": "BLOCKED", "external_tsa": "NOT_RUN",
                 "formal_A": 0, "decision": "NO_EDGE",
             }
