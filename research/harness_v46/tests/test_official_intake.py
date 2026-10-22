@@ -185,5 +185,82 @@ class OfficialIntakeTests(unittest.TestCase):
                 oi.write_bundle({"games": {}}, output)
 
 
+    def test_transport_failure_is_preserved_as_untrusted_not_official(self):
+        raw = b"network intermediary returned HTTP 567"
+        item = oi._transport_failure(
+            "DLT", "national",
+            "https://webapi.sporttery.cn/gateway/history",
+            "https://webapi.sporttery.cn/gateway/history",
+            567, "text/plain", raw, "2026-10-22T09:00:00+00:00",
+            oi._expected_parser_version("DLT"),
+        )
+        self.assertEqual(item["http_status"], 567)
+        self.assertEqual(item["raw_sha256"], hashlib.sha256(raw).hexdigest())
+        self.assertEqual(base64.b64decode(item["body_base64"]), raw)
+        self.assertEqual(item["body_preserved"], True)
+        self.assertIn("UNTRUSTED_NOT_OFFICIAL_SOURCE_EVIDENCE", item["classification"])
+
+    def test_blocked_worker_returns_diagnostics_instead_of_losing_manifest(self):
+        source_hashes = oi.source_file_hashes("SSQ")
+        payload = {
+            "schema": oi.WORKER_SCHEMA, "lottery": "SSQ",
+            "source_files_sha256": source_hashes, "status": "WORKER_BLOCKED",
+            "source_errors": {"national": "HTTP status 567"},
+            "sources": [], "unadmitted_raw_artifacts": [],
+            "transport_failures": [{
+                "source_id": "national", "expected_source_root": "cwl.gov.cn",
+                "requested_url": "https://www.cwl.gov.cn/history",
+                "response_url_untrusted": "https://www.cwl.gov.cn/history",
+                "http_status": 567, "content_type": "text/plain",
+                "fetched_at_local_untrusted": "2026-10-22T09:00:00+00:00",
+                "parser_version": oi._expected_parser_version("SSQ"),
+                "raw_sha256": hashlib.sha256(b"blocked").hexdigest(),
+                "size_bytes": 7, "body_base64": base64.b64encode(b"blocked").decode(),
+                "body_preserved": True,
+                "classification": "TRANSPORT_FAILURE_UNTRUSTED_NOT_OFFICIAL_SOURCE_EVIDENCE",
+            }],
+        }
+        completed = __import__("subprocess").CompletedProcess(
+            args=["python", "-m", "research.harness_v46.official_intake"],
+            returncode=0, stdout=json.dumps(payload), stderr="",
+        )
+        with patch.object(oi.subprocess, "run", return_value=completed), \
+             patch.object(oi, "source_file_hashes", return_value=source_hashes):
+            result = oi.collect_live_history("SSQ")
+        self.assertEqual(result["status"], "BLOCKED")
+        self.assertEqual(result["formal_A"], 0)
+        self.assertEqual(result["official_target_admission"], "BLOCKED")
+        self.assertEqual(result["transport_failures"][0]["http_status"], 567)
+        self.assertIn("HTTP status 567", result["error"])
+
+    def test_bundle_persists_transport_failure_bytes_separately(self):
+        raw = b"synthetic transport failure body"
+        failure = oi._transport_failure(
+            "SSQ", "national", "https://www.cwl.gov.cn/history",
+            "https://www.cwl.gov.cn/history", 567, "text/plain", raw,
+            "2026-10-22T09:00:00+00:00", oi._expected_parser_version("SSQ"),
+        )
+        bundle = {
+            "schema": "V47-OFFICIAL-INTAKE-BUNDLE-1",
+            "games": {"SSQ": {
+                "schema": oi.SCHEMA, "lottery": "SSQ", "status": "BLOCKED",
+                "sources": [], "unadmitted_raw_artifacts": [],
+                "transport_failures": [failure],
+                "official_target_admission": "BLOCKED", "formal_A": 0, "decision": "NO_EDGE",
+            }},
+            "errors": {"SSQ": "HTTP status 567"},
+            "official_target_admission": "BLOCKED", "formal_A": 0, "decision": "NO_EDGE",
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest_path = oi.write_bundle(bundle, Path(tmp) / "bundle")
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            record = manifest["games"]["SSQ"]["transport_failures"][0]
+            self.assertTrue(record["body_preserved"])
+            self.assertNotIn("body_base64", record)
+            self.assertTrue((manifest_path.parent / record["artifact_path"]).is_file())
+            self.assertEqual(record["classification"],
+                             "TRANSPORT_FAILURE_UNTRUSTED_NOT_OFFICIAL_SOURCE_EVIDENCE")
+
+
 if __name__ == "__main__":
     unittest.main()
