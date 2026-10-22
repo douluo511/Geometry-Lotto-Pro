@@ -20,8 +20,8 @@ def sources(game):
             {"url": "https://www.cwl.gov.cn/ygkj/wqkjgg/ssq/", "raw_sha256": "b" * 64},
         )
     return (
-        {"url": "https://www.gstc.org.cn/wanfa/dlt_history", "raw_sha256": "a" * 64},
-        {"url": "https://www.fjtc.com.cn/node_309522.htm?gameType=f", "raw_sha256": "b" * 64},
+        {"url": "https://webapi.sporttery.cn/gateway/lottery/getHistoryPageListV1.qry", "raw_sha256": "a" * 64},
+        {"url": "https://api.js-lottery.com/Lottery/_ListData", "raw_sha256": "b" * 64},
     )
 
 
@@ -89,6 +89,18 @@ class SourceValidationTests(unittest.TestCase):
         report_snapshot = copy.deepcopy(snap)
         with self.assertRaisesRegex(GateError, "SOURCE_HISTORY_DIFFERS"):
             compare_source_histories(report_snapshot, a, rows_a, b, rows_b)
+
+    def test_dlt_recent_gansu_fallback_checks_overlap_and_keeps_full_primary_history(self):
+        snap = fixture("DLT")
+        primary = {"url": "https://api.js-lottery.com/Lottery/_ListData", "raw_sha256": "a" * 64}
+        recent = {"url": "https://www.gstc.org.cn/wanfa/dlt_history", "raw_sha256": "b" * 64}
+        rows = parsed(snap)
+        report = compare_source_histories(snap, recent, rows[-20:], primary, rows)
+        self.assertEqual(report["history_rows"], 140)
+        self.assertEqual(report["overlap_rows"], 20)
+        self.assertEqual(report["primary_source_root"], "js-lottery.com")
+        self.assertEqual(report["official_G01"], "BLOCKED")
+        self.assertEqual(report["formal_A"], 0)
 
     def test_publication_after_asof_blocks(self):
         snap = fixture("DLT")
