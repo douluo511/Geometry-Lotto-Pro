@@ -316,6 +316,19 @@ CREATE TRIGGER IF NOT EXISTS prevent_context_update BEFORE UPDATE ON run_context
 BEGIN SELECT RAISE(ABORT, 'immutable run context'); END;
 CREATE TRIGGER IF NOT EXISTS prevent_context_delete BEFORE DELETE ON run_context
 BEGIN SELECT RAISE(ABORT, 'immutable run context'); END;
+-- Persist the exact normalized snapshot preimage so an independent auditor can replay.
+CREATE TABLE IF NOT EXISTS run_snapshots (
+    run_id TEXT NOT NULL,
+    lottery TEXT NOT NULL CHECK(lottery IN ('SSQ', 'DLT')),
+    snapshot_sha256 TEXT NOT NULL,
+    payload TEXT NOT NULL,
+    evidence_class TEXT NOT NULL CHECK(evidence_class='SHADOW'),
+    PRIMARY KEY(run_id, lottery)
+);
+CREATE TRIGGER IF NOT EXISTS prevent_snapshot_update BEFORE UPDATE ON run_snapshots
+BEGIN SELECT RAISE(ABORT, 'immutable run snapshot'); END;
+CREATE TRIGGER IF NOT EXISTS prevent_snapshot_delete BEFORE DELETE ON run_snapshots
+BEGIN SELECT RAISE(ABORT, 'immutable run snapshot'); END;
 CREATE TABLE IF NOT EXISTS predictions (
     run_id TEXT NOT NULL,
     lottery TEXT NOT NULL,
@@ -381,6 +394,57 @@ def validate_run_manifest_record(conn, run_id):
     return value
 
 
+def register_snapshot(conn, run_id, snapshot):
+    """Persist the complete normalized snapshot under its manifest-derived identity."""
+    checksum = validate_study_snapshot(snapshot)
+    manifest = validate_run_manifest_record(conn, run_id)
+    if manifest is None:
+        raise GateError("V47_RUN_MANIFEST_REQUIRED_FOR_SNAPSHOT")
+    game = manifest["games"].get(snapshot["lottery"])
+    if (game is None or game.get("snapshot_sha256") != checksum
+            or game.get("issue") != str(snapshot["target_issue"])
+            or game.get("as_of") != snapshot["as_of"]
+            or game.get("sales_cutoff") != snapshot["sales_cutoff"]
+            or game.get("target_draw_at") != snapshot["target_draw_at"]):
+        raise GateError("V47_SNAPSHOT_MANIFEST_MISMATCH")
+    payload = canon(snapshot)
+    existing = conn.execute(
+        "SELECT snapshot_sha256,payload FROM run_snapshots WHERE run_id=? AND lottery=?",
+        (run_id, snapshot["lottery"]),
+    ).fetchone()
+    if existing is None:
+        conn.execute(
+            "INSERT INTO run_snapshots(run_id,lottery,snapshot_sha256,payload,evidence_class) "
+            "VALUES(?,?,?,?, 'SHADOW')",
+            (run_id, snapshot["lottery"], checksum, payload),
+        )
+    elif existing != (checksum, payload):
+        raise GateError("CONFLICTING_V47_SNAPSHOT_RETRY")
+    return checksum
+
+
+def load_registered_snapshot(conn, run_id, lottery):
+    """Load and re-hash the exact stored snapshot; never trust its stored SHA alone."""
+    row = conn.execute(
+        "SELECT snapshot_sha256,payload,evidence_class FROM run_snapshots "
+        "WHERE run_id=? AND lottery=?", (run_id, lottery),
+    ).fetchone()
+    if row is None:
+        raise GateError("V47_SNAPSHOT_NOT_REGISTERED")
+    checksum, payload, evidence_class = row
+    if evidence_class != "SHADOW" or hashlib.sha256(payload.encode("utf-8")).hexdigest() != checksum:
+        raise GateError("V47_SNAPSHOT_HASH_OR_CLASS_MISMATCH")
+    try:
+        snapshot = json.loads(payload)
+    except (TypeError, ValueError) as exc:
+        raise GateError("V47_SNAPSHOT_INVALID_JSON") from exc
+    if canon(snapshot) != payload or validate_study_snapshot(snapshot) != checksum:
+        raise GateError("V47_SNAPSHOT_CANONICAL_REPLAY_MISMATCH")
+    if snapshot.get("lottery") != lottery:
+        raise GateError("V47_SNAPSHOT_LOTTERY_MISMATCH")
+    return snapshot
+
+
 def freeze_shadow(conn, run_id, snapshot, prediction, frozen_at):
     """Atomic local record. This is NOT an external trustworthy timestamp."""
     validate_study_snapshot(snapshot)
@@ -388,6 +452,10 @@ def freeze_shadow(conn, run_id, snapshot, prediction, frozen_at):
     if not run_id or not isinstance(run_id, str):
         raise GateError("missing run id")
     registered_manifest = validate_run_manifest_record(conn, run_id)
+    if registered_manifest is not None:
+        stored_snapshot = load_registered_snapshot(conn, run_id, prediction["lottery"])
+        if canon(stored_snapshot) != canon(snapshot):
+            raise GateError("V47_FREEZE_SNAPSHOT_DIFFERS_FROM_REGISTERED_PREIMAGE")
     if not dt(snapshot["as_of"]) <= dt(frozen_at) < dt(snapshot["sales_cutoff"]):
         raise GateError("prediction not before sales cutoff")
     # The context must be pinned before inserting the first agent prediction.
