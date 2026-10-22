@@ -7,8 +7,8 @@ from datetime import datetime, timezone, time, timedelta
 from pathlib import Path
 
 from .core import MODELS, GateError, dt, forecast, freeze_shadow, init_ledger, register_snapshot
-from .convergence import (STAGES, append_stage, check_complete_batch, init_workflow,
-                           manifest, register_manifest, tsa_request)
+from .convergence import (STAGES, append_stage, append_shadow_trace, check_complete_batch,
+                           init_workflow, manifest, register_manifest, tsa_request)
 
 JST = timezone(timedelta(hours=9), name="JST")  # Japan does not use DST
 DAYS = {0, 2, 5}  # Mon/Wed/Sat: target delivery run, not actual lottery draw date
@@ -77,11 +77,18 @@ def scheduled_once(snapshots, database, now=None):
                     prediction = forecast(s, model)
                     freeze_shadow(conn, run_id, s, prediction, now.isoformat())
                 batch = check_complete_batch(conn, run_id, game)
+                # The scheduler runs a SHADOW study, not a verified official gate.
+                # Never record unverified VERIFY/AUTHORIZE/PREDICT/FREEZE as passed.
+                append_stage(conn, run_id, game, "SYNC", {
+                    "gate_status": "BLOCKED", "evidence_class": "SHADOW",
+                    "formal_A": 0, "reason": "OFFICIAL_TARGET_AND_SOURCE_NOT_VERIFIED",
+                })
                 for stage in STAGES[:6]:
-                    proof = {"status": "SHADOW_UNVERIFIED", "formal_A": 0}
+                    proof = {"status": "SHADOW_UNVERIFIED", "evidence_class": "SHADOW",
+                             "formal_A": 0}
                     if stage == "FREEZE":
                         proof["batch_sha256"] = batch
-                    append_stage(conn, run_id, game, stage, proof)
+                    append_shadow_trace(conn, run_id, game, stage, proof)
                 tsa_request(conn, run_id, game)
                 receipts[game] = {"target_issue": str(s["target_issue"]),
                                   "batch_sha256": batch, "model_count": len(MODELS)}
@@ -89,6 +96,8 @@ def scheduled_once(snapshots, database, now=None):
                 "manifest_sha256": manifest_sha, "games": receipts,
                 "official_source_authenticity": "NOT_VERIFIED",
                 "authorization": "NOT_FORMAL", "external_tsa": "NOT_VERIFIED",
+                "gate_status": "BLOCKED", "evidence_class": "SHADOW",
+                "shadow_trace_status": "UNVERIFIED_EXECUTION_ONLY",
                 "timestamp_trust": "LOCAL_ONLY", "formal_A": 0, "decision": "NO_EDGE"}
     finally:
         conn.close()
