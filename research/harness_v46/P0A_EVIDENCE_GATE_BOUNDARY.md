@@ -33,27 +33,49 @@ rows must not be reinterpreted as verified gate receipts.
 
 DLT history admission requires all three source identities to be present in the intake record:
 national and Jiangsu primary histories, each with at least 120 valid draws and at least 120 matching
-issues between the two primaries, plus Gansu's recent official history with at least 10 matching overlapping issue IDs against
-EACH primary source. Gansu is a third corroborator only; it cannot substitute for either missing
-primary history. Latest issue, date, and balls must agree; any issue mismatch blocks cross-check admission.
+issues between the two primaries, plus Gansu's recent official history with at least 10 matching
+overlapping issue IDs against EACH primary source. Gansu is a third corroborator only; it cannot
+substitute for either missing primary history. Latest issue, date, and balls must agree; any issue
+mismatch blocks cross-check admission.
 
 Even when this history check passes, the result is `SHADOW_HISTORY_ONLY`; publication-time
 authenticity, target/cutoff admission, external TSA verification and formal-A eligibility remain
 blocked.
 
-## Verification
+## Synthetic verification
 
-GitHub Actions run `39759416096` passed the deterministic harness suite on both
+GitHub Actions run `39759559614` passed the deterministic harness suite on both
 `ubuntu-latest` and `windows-2022`: 100 tests per platform, one platform-specific PowerShell
-parser test skipped on Ubuntu. The run tested code commit `4aaadfdc81f86e90a63c1d57f72b8406f69eb02c`,
-including the gate/trace split, source self-hash lock, primary DLT 120+ overlap, and Gansu 10+ exact
-corroboration against BOTH primary histories.
+parser test skipped on Ubuntu. The run tested head `80da858b4fa48f395f8a2d47aa691c32ff53de6e`,
+including gate/trace separation, the source self-hash lock, the DLT primary 120+ overlap gate,
+Gansu 10+ overlap against BOTH primaries, chronology quarantine, SSQ Hebei latest-only fallback,
+and duplicate raw-receipt handling.
 
-Live one-shot run `39757369719` on the earlier branch recorded DLT national HTTP 567 and SSQ national
-HTTP 403, both blocked. A second live intake run `39758924010` was started on code commit
-`c6500dcfb3213c4a9e84947f092a576f2f22a698`; it uses the latest upstream SSQ Hebei route and the
-mandatory DLT three-source collection, but predates the final explicit check that Gansu overlap each
-primary. Its result is still pending at the time of this edit. Any live result is source-access
-and historical-only evidence, not target/cutoff admission; raw HTTP failures are never draw data.
+## Live read-only intake evidence
+
+Run `39758924010` (code SHA `c6500dcfb3213c4a9e84947f092a576f2f22a698`) completed with the
+expected fail-closed result. It predates the final explicit code check that Gansu must overlap each
+primary separately; the live sources failed before that final cross-source check could be reached.
+The run still provides real source-access and preserved-raw evidence:
+
+- **SSQ — `HISTORY_CROSSCHECK_LIMITED`**: CWL national endpoint HTTP 403; Shanghai returned 2,078
+  parsed rows; Hebei homepage plus announcement independently agreed on only issue `2026120`,
+  dated 2026-10-20, red `13,14,16,18,20,31`, blue `03`. Independent overlap=1, so full 120+ dual-source
+  admission remains blocked.
+- **DLT — `SOURCE_FETCH_PARTIAL`**: national Sports Lottery returned two HTTP-567 responses;
+  Jiangsu returned 30 HTTP-200 raw pages but its parsed history was quarantined for issue `16003`
+  dated 2016-01-07 (outside the regular Mon/Wed/Sat draw calendar) and issue `16005` dated
+  2016-01-11 (not strictly increasing). Gansu returned 20 raw-reparsed recent rows, latest issue
+  `26120`, but cannot substitute for either failed/quarantined primary history.
+- Overall `official_target_admission=BLOCKED`, `external_tsa=NOT_RUN`, `formal_A=0`,
+  `decision=NO_EDGE`. The red workflow exit means source admission was not achieved, not that the
+  evidence was silently accepted.
+
+Raw evidence artifact: `12416888557`
+(`v47-official-intake-39758924010`). An independent archive audit verified all 64/64 listed raw
+artifact paths exist and each file's SHA256 and byte size match its manifest; zero integrity errors.
+ZIP SHA256: `a43f6e1a141bb59b4a4b5ab2f282b260b5616dbfdefbbd05e62384201ca28c85`.
+Manifest SHA256: `f05367ba2099e90e7e97cea88c06e29b43270614e2df5c4bed3439635d588e8e`.
+This confirms byte preservation, not that failed HTTP bodies are official draw data.
 
 DLT 69/2880 negative-control anomaly remains unresolved. Formal A=0; NO_EDGE.
