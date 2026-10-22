@@ -38,9 +38,22 @@ STAGES = ("SYNC", "VERIFY", "AUTHORIZE", "PREDICT", "FREEZE", "WAIT",
           "REPLAY", "SCORE", "AUDIT", "REPORT", "NEXT")
 
 
+ORCHESTRATION_SOURCE_FILES = (
+    "convergence.py", "schedule.py", "cli.py",
+    "windows_shadow_tasks.ps1", "invoke_v46_shadow.ps1",
+)
+
+
 def orchestration_source_sha256():
-    """SHA256 of exact installed orchestration source bytes."""
-    return hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
+    """Bind every checked-in execution entrypoint that can affect a run."""
+    root = Path(__file__).parent
+    files = {}
+    for name in ORCHESTRATION_SOURCE_FILES:
+        path = root / name
+        if not path.is_file():
+            raise GateError("ORCHESTRATION_SOURCE_MISSING:" + name)
+        files[name] = hashlib.sha256(path.read_bytes()).hexdigest()
+    return digest({"contract": "V47-ORCHESTRATION-SOURCE-1", "files": files})
 
 
 def require_tool(role, name):
