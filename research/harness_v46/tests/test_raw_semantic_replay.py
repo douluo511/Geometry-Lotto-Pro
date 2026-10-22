@@ -4,7 +4,9 @@ import copy
 import hashlib
 import json
 import subprocess
+import tempfile
 import unittest
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -94,9 +96,28 @@ class IndependentRawReplayTests(unittest.TestCase):
         )
         with patch.object(oi.subprocess, "run",
                           side_effect=[simulated_worker, simulated_replay]) as runner:
-            with self.assertRaisesRegex(GateError, "SECOND_PROCESS_RAW_REPLAY_BLOCKED"):
-                oi.collect_live_history("SSQ", timeout_seconds=10)
+            receipt = oi.collect_live_history("SSQ", timeout_seconds=10)
         self.assertEqual(runner.call_count, 2)
+        self.assertEqual(receipt["status"], "SECOND_PROCESS_RAW_REPLAY_BLOCKED")
+        self.assertEqual(receipt["official_history_admission"], "BLOCKED")
+        self.assertEqual(receipt["formal_A"], 0)
+        self.assertEqual(receipt["consensus_draws"], [])
+        self.assertEqual(receipt["primary_history_draws"], [])
+        self.assertIn("SECOND_PROCESS_RAW_REPLAY_BLOCKED",
+                      receipt["errors"]["second_process_replay"])
+        # Original bytes are retained for forensic review in a fresh bundle.
+        with tempfile.TemporaryDirectory() as root:
+            path = oi.write_bundle({
+                "schema": "V47-OFFICIAL-INTAKE-BUNDLE-1",
+                "games": {"SSQ": receipt},
+                "errors": {"SSQ": receipt["errors"]["second_process_replay"]},
+                "formal_A": 0, "official_target_admission": "BLOCKED",
+                "external_tsa": "NOT_RUN", "decision": "NO_EDGE",
+            }, Path(root) / "source-evidence")
+            written = json.loads(path.read_text(encoding="utf-8"))
+            artifact = written["games"]["SSQ"]["sources"][0]["raw_artifacts"][0]
+            self.assertEqual((path.parent / artifact["artifact_path"]).read_bytes(),
+                             base64.b64decode(payload["sources"][0]["raw_artifacts"][0]["raw_base64"]))
 
     def test_fake_receipt_cannot_qualify_source_collection(self):
         payload = _payload("DLT")
@@ -117,8 +138,13 @@ class IndependentRawReplayTests(unittest.TestCase):
         )
         with patch.object(oi.subprocess, "run",
                           side_effect=[simulated_worker, simulated_replay]):
-            with self.assertRaisesRegex(GateError, "SECOND_PROCESS_RAW_REPLAY_RECEIPT_MISMATCH"):
-                oi.collect_live_history("DLT", timeout_seconds=10)
+            receipt = oi.collect_live_history("DLT", timeout_seconds=10)
+        self.assertEqual(receipt["status"], "SECOND_PROCESS_RAW_REPLAY_BLOCKED")
+        self.assertEqual(receipt["official_history_admission"], "BLOCKED")
+        self.assertEqual(receipt["consensus_draw_count"], 0)
+        self.assertEqual(receipt["formal_A"], 0)
+        self.assertEqual(receipt["errors"]["second_process_replay"],
+                         "SECOND_PROCESS_RAW_REPLAY_RECEIPT_MISMATCH")
 
     def test_replay_parser_version_mismatch_fails_closed(self):
         payload = synthetic_national_ssq()
