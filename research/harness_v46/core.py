@@ -14,6 +14,7 @@ RULES = {
     "SSQ": {"pool": 33, "front": 6, "back_pool": 16, "back": 1, "d2": 15 / 528},
     "DLT": {"pool": 35, "front": 5, "back_pool": 12, "back": 2, "d2": 10 / 595},
 }
+MIN_STUDY_HISTORY = 120
 VERSION = "v46-research-core-0.2"
 NULL_SEED = "SSQ-DLT-V46-NULL-v1-20261022"  # must be frozen before target
 PARAMETERS = {
@@ -91,6 +92,14 @@ def validate_snapshot(snapshot):
     return digest(snapshot)
 
 
+def validate_study_snapshot(snapshot):
+    """Admission gate for a complete six-stream research run; structure alone is not official proof."""
+    checksum = validate_snapshot(snapshot)
+    if len(snapshot["draws"]) < MIN_STUDY_HISTORY:
+        raise GateError("study requires at least 120 historical draws")
+    return checksum
+
+
 def _rng(*parts):
     seed = hashlib.sha256("|".join(map(str, parts)).encode()).digest()
     return random.Random(int.from_bytes(seed, "big"))
@@ -146,8 +155,8 @@ def _model_ranking(snapshot, model):
         k = 60 / (60 + 200)
         return _rank({i: k * recent[i] + (1 - k) * lifetime[i] for i in recent})
     if model == "pairwise_d2":
-        if len(history) < 60:
-            raise GateError("pairwise needs 60 historical draws")
+        if len(history) < 120:
+            raise GateError("pairwise_d2 registered window requires 120 historical draws")
         pairs = _pair_scores(history, pool)
         first, second = sorted(pairs, key=lambda p: (-pairs[p], p))[0]
         rest = [n for n in _rank(_freq(history, 60, pool))
@@ -290,6 +299,7 @@ def init_ledger(conn):
 
 def freeze_shadow(conn, run_id, snapshot, prediction, frozen_at):
     """Atomic local record. This is NOT an external trustworthy timestamp."""
+    validate_study_snapshot(snapshot)
     validate_forecast(prediction, snapshot)
     if not run_id or not isinstance(run_id, str):
         raise GateError("missing run id")
