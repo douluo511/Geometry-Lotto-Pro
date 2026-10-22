@@ -1,8 +1,10 @@
-# SSQ + DLT V4.6: isolated multi-agent SHADOW bootstrap
+## V4.7 implementation status: stricter synthetic admission only
 
 **Status: development research only; no formal A, no verified prospective advantage.**
 This folder does not alter SSQ/ or DLT/ production applications, historical V4.5
 model identities M04/M05-1..5/M06/M07, frozen tests, prior decisions, or seed data.
+The current research-core identity is `v47-research-core-0.1`; earlier V4.6
+branches and records remain immutable historical evidence.
 The multi-product repository itself is NOT a final independent release repository.
 
 ## Scope actually implemented
@@ -12,14 +14,20 @@ The multi-product repository itself is NOT a final independent release repositor
 - Five *experimental* selectors: Hot60, EWMA(0.08), ShrinkMix(tau=200),
   Pairwise-D2(residual shrinkage), and a single fixed challenger using the
   minimum across preselected 30/60/120 windows.
-- One deterministic Random NULL with a fixed, committed seed. It is a
+- One deterministic Random NULL with the preregistered seed ID
+  `SSQ-DLT-V47-NULL-SHA256-SORT-v1-20261022`. Its permutation uses SHA256
+  ranking, not Python's version-dependent `random.shuffle`; it is a
   negative-control *arm*, NOT another candidate for selecting a champion.
+- Parameter SHA256 now covers model parameters, engine version, lottery-rule
+  digest, tie-breaking rule, and ticket-back generation/seed contract. Each
+  prediction carries the exact installed `core.py` source SHA256.
 - Each algorithm produces 5 ordered front candidates, one unique D2 (first
   two), and one valid full ticket. Back numbers never affect D2.
 - SQLite local append-only guard triggers, uniqueness, immutable RUN_ID +
   lottery context (target issue, snapshot SHA256, as-of and cutoff),
-  cutoff checks, an atomic single-lottery CLI batch, parameter SHA-256,
-  and a read-only score operation. Existing pre-context ledger rows cannot be
+  cutoff checks, a 120-draw minimum at study manifest, CLI and freeze gates,
+  Pairwise-D2's registered 120-draw window, parameter/source SHA-256, and a
+  read-only score operation. Existing pre-context ledger rows cannot be
   silently adopted into a new context; resume them under a new RUN_ID only.
 - Synthetic reproducibility, cross-lottery, tamper, and gate tests.
 - No live ingestion, isolated LLM processes, unattended scheduler, external
@@ -61,8 +69,9 @@ official source. Example structure (illustrative, not genuine lottery data):
 ~~~
 
 **The dates, issue and numbers in this example are invented fixtures.**
-Production batches need at least 120 vetted earlier draws for all five
-experimental models. Draws must be sorted by issue and occurrence. Only
+This one-row example deliberately fails the V4.7 study admission gate.
+Production batches need at least 120 vetted earlier draws for both games and
+all six research arms before a complete study RUN_ID can be admitted. Draws must be sorted by issue and occurrence. Only
 prospective, not-yet-drawn and pre-sales-cutoff targets may enter a fresh
 forecast attempt.
 
@@ -77,8 +86,11 @@ python -m research.harness_v46.cli score --database v46.sqlite --run-id V46-UNIQ
 For score, official_result is an externally verified document with keys
 lottery, issue, front and back; this program cannot itself verify provenance.
 At runtime the CLI obtains its clock from UTC; local metadata alone is **not
-an independently trusted TSA**. Git SHA, JSON hashes and SQLite triggers do
-not guarantee tamper-proof or verifiable pre-draw existence. Store external
+an independently trusted TSA**. `snapshot_sha256` is the canonical semantic
+JSON digest; `raw_evidence[].sha256` is the SHA256 of the exact source-file
+bytes. These are different objects and must never be conflated. Git SHA,
+JSON hashes and SQLite triggers do not guarantee tamper-proof or verifiable
+pre-draw existence. Store external
 TSA token, independent witness, and source snapshots before any claim to A.
 
 ## Statistical contract
