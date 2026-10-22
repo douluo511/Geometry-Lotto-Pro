@@ -42,8 +42,8 @@ class SourceValidationTests(unittest.TestCase):
         a, b = sources("DLT")
         other = parsed(snap)
         row = other[30]
-        value = row["front"][-1]
-        row["front"][-1] = value - 1 if value - 1 > row["front"][-2] else value + 1
+        replacement = next(n for n in range(1, 36) if n not in row["front"])
+        row["front"][-1] = replacement
         row["front"].sort()
         with self.assertRaisesRegex(GateError, "SOURCE_HISTORY_CONFLICT"):
             compare_source_histories(snap, a, parsed(snap), b, other)
@@ -82,8 +82,8 @@ class SourceValidationTests(unittest.TestCase):
         rows_a = parsed(snap)
         rows_b = parsed(snap)
         row = rows_a[10]
-        value = row["front"][-1]
-        row["front"][-1] = value - 1 if value - 1 > row["front"][-2] else value + 1
+        replacement = next(n for n in range(1, 34) if n not in row["front"])
+        row["front"][-1] = replacement
         row["front"].sort()
         rows_b = copy.deepcopy(rows_a)
         report_snapshot = copy.deepcopy(snap)
