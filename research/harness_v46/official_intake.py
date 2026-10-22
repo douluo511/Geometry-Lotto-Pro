@@ -152,7 +152,7 @@ def _validate_artifacts(game: str, source: dict, parser_version: str) -> list[di
             raw = base64.b64decode(artifact["raw_base64"], validate=True)
         except Exception as exc:
             raise GateError("RAW_ARTIFACT_BASE64_INVALID") from exc
-        if not raw or len(raw) != artifact["size_bytes"] or _sha(raw) != artifact["raw_sha256"]:
+        if len(raw) != artifact["size_bytes"] or _sha(raw) != artifact["raw_sha256"]:
             raise GateError("RAW_ARTIFACT_BYTES_SHA_MISMATCH")
         try:
             datetime.fromisoformat(artifact["fetched_at"].replace("Z", "+00:00"))
@@ -171,8 +171,8 @@ def _validate_artifacts(game: str, source: dict, parser_version: str) -> list[di
 
 def _normalize_worker_artifact(game: str, source_id: str, meta: dict, raw: bytes,
                                parser_version: str) -> dict:
-    if not isinstance(raw, bytes) or not raw:
-        raise GateError("EMPTY_RAW_SOURCE_BYTES")
+    if not isinstance(raw, bytes):
+        raise GateError("RAW_SOURCE_BYTES_TYPE_INVALID")
     url = str(meta.get("url") or meta.get("final_url") or "")
     requested_url = str(meta.get("requested_url") or url)
     host, root = _root_for_url(game, url)
