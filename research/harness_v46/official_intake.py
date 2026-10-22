@@ -792,6 +792,13 @@ def validate_worker_payload(payload: dict, *, expected_game: str | None = None) 
         rows = []
         valid_source = source.get("raw_reparse_status") == "PASS" and bool(source.get("draws"))
         if valid_source:
+            # P0: a successful parser replay requires retained successful HTTP bytes.
+            # Self-claimed rows, receipt hashes or an error-body are insufficient.
+            if not artifacts:
+                raise GateError("REPARSED_SOURCE_REQUIRES_RAW_ARTIFACTS")
+            if not any(a["http_status"] == 200 and a["size_bytes"] > 0
+                       for a in artifacts):
+                raise GateError("REPARSED_SOURCE_REQUIRES_SUCCESSFUL_RAW_BODY")
             rows = _canonical_draws(
                 game, source["draws"], minimum=_source_minimum(game, source_id)
             )
