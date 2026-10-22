@@ -33,9 +33,9 @@ rows must not be reinterpreted as verified gate receipts.
 
 DLT history admission requires all three source identities to be present in the intake record:
 national and Jiangsu primary histories, each with at least 120 valid draws and at least 120 matching
-issues between the two primaries, plus Gansu's recent official history with at least 10 matching
-overlapping issues. Gansu is a third corroborator only; it cannot substitute for either missing
-primary history. Any issue mismatch blocks cross-check admission.
+issues between the two primaries, plus Gansu's recent official history with at least 10 matching overlapping issue IDs against
+EACH primary source. Gansu is a third corroborator only; it cannot substitute for either missing
+primary history. Latest issue, date, and balls must agree; any issue mismatch blocks cross-check admission.
 
 Even when this history check passes, the result is `SHADOW_HISTORY_ONLY`; publication-time
 authenticity, target/cutoff admission, external TSA verification and formal-A eligibility remain
@@ -43,19 +43,17 @@ blocked.
 
 ## Verification
 
-GitHub Actions run `39757108803` passed the deterministic harness suite on both
-`ubuntu-latest` and `windows-2022`: 93 tests per platform, one platform-specific PowerShell
-parser test skipped on Ubuntu. The run tested commit `696feec0c9c948c0cc7a2aa6b8b599d01fdb2c92`,
-including the gate/trace split and the first DLT three-source validation tests. The latest docs and
-workflow-marker commits do not change the tested Python contract; still re-check CI on the latest
-head before final acceptance.
+GitHub Actions run `39759416096` passed the deterministic harness suite on both
+`ubuntu-latest` and `windows-2022`: 100 tests per platform, one platform-specific PowerShell
+parser test skipped on Ubuntu. The run tested code commit `4aaadfdc81f86e90a63c1d57f72b8406f69eb02c`,
+including the gate/trace split, source self-hash lock, primary DLT 120+ overlap, and Gansu 10+ exact
+corroboration against BOTH primary histories.
 
-Live one-shot run `39757369719` executed the current three-source contract at code commit
-`1635a7ea5580fefb5d5077cd8ab6f3cf05053806`. It failed closed with DLT `SOURCE_FETCH_PARTIAL`
-because the national endpoint returned HTTP 567, and SSQ `SOURCE_FETCH_PARTIAL` because its
-national endpoint returned HTTP 403. The manifest reported `official_target_admission=BLOCKED`,
-`formal_A=0`, `external_tsa=NOT_RUN`, `decision=NO_EDGE`. The raw evidence bundle is artifact
-`12416731323` (`v47-official-intake-39757369719`). This run does not establish a three-source
-DLT pass or an SSQ history cross-check; failed HTTP bodies are transport diagnostics, never draw data.
+Live one-shot run `39757369719` on the earlier branch recorded DLT national HTTP 567 and SSQ national
+HTTP 403, both blocked. A second live intake run `39758924010` was started on code commit
+`c6500dcfb3213c4a9e84947f092a576f2f22a698`; it uses the latest upstream SSQ Hebei route and the
+mandatory DLT three-source collection, but predates the final explicit check that Gansu overlap each
+primary. Its result is still pending at the time of this edit. Any live result is source-access
+and historical-only evidence, not target/cutoff admission; raw HTTP failures are never draw data.
 
 DLT 69/2880 negative-control anomaly remains unresolved. Formal A=0; NO_EDGE.
