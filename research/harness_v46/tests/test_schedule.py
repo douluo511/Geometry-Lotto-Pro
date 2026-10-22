@@ -83,6 +83,19 @@ class SchedulerTests(unittest.TestCase):
                 self.assertEqual(conn.execute("SELECT COUNT(*) FROM " + table).fetchone()[0], 0)
             conn.close()
 
+    def test_windows_installer_is_non_destructive_and_v47_labelled(self):
+        folder = Path(sch.__file__).parent
+        installer = (folder / "windows_shadow_tasks.ps1").read_text(encoding="utf-8")
+        handler = (folder / "invoke_v46_shadow.ps1").read_text(encoding="utf-8")
+        self.assertIn("$TaskName = 'SSQDLT-V47-SHADOW'", installer)
+        self.assertIn("TASK_ALREADY_EXISTS_REFUSING_OVERWRITE", installer)
+        self.assertNotRegex(installer, r"(?m)^Register-ScheduledTask.*-Force")
+        self.assertNotIn("SSQDLT-V46-SHADOW", installer)
+        self.assertIn("V4.7 SHADOW-only as-of guarded runner", installer)
+        self.assertIn("V47-SHADOW actual handler invocation", handler)
+        self.assertIn("V47_SHADOW_COMPENSATION_RUN_FAILED", handler)
+        self.assertNotIn("V46-SHADOW", handler)
+
     @unittest.skipUnless(os.name == "nt", "Windows PowerShell parser only")
     def test_windows_powershell_syntax(self):
         pwsh = shutil.which("pwsh")
