@@ -34,7 +34,9 @@ class SchedulerTests(unittest.TestCase):
             self.assertEqual(first["run_id"], retry["run_id"])
             self.assertEqual(first["status"], "SHADOW_ONLY")
             self.assertEqual(first["external_tsa"], "NOT_VERIFIED")
+            self.assertEqual(len(first["manifest_sha256"]), 64)
             db = sqlite3.connect(db_path)
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM run_manifests").fetchone()[0], 1)
             self.assertEqual(db.execute("SELECT COUNT(*) FROM predictions").fetchone()[0], 12)
             self.assertEqual(db.execute("SELECT COUNT(*) FROM audit_events").fetchone()[0], 12)
             self.assertEqual(db.execute("SELECT COUNT(*) FROM workflow_events").fetchone()[0], 12)
@@ -76,7 +78,7 @@ class SchedulerTests(unittest.TestCase):
             with self.assertRaises(sqlite3.DatabaseError):
                 sch.scheduled_once(self.snaps, path, self.now)
             conn = sqlite3.connect(path)
-            for table in ("predictions", "audit_events", "scheduled_target_guard",
+            for table in ("run_manifests", "predictions", "audit_events", "scheduled_target_guard",
                           "workflow_events", "tsa_claims", "run_context"):
                 self.assertEqual(conn.execute("SELECT COUNT(*) FROM " + table).fetchone()[0], 0)
             conn.close()
