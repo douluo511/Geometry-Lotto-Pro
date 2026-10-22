@@ -1,0 +1,79 @@
+name: V4.7 One-Shot Official History Intake (SHADOW)
+
+on:
+  push:
+    branches:
+      - research/ssq-dlt-v46-test10-convergence-20261022
+    paths:
+      - research/harness_v46/LIVE_INTAKE_TRIGGER.json
+
+permissions:
+  contents: read
+
+jobs:
+  collect-official-history:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout exact branch commit
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install source parser dependency
+        run: python -m pip install --disable-pip-version-check requests
+
+      - name: Validate one-shot request marker
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          marker = json.loads(Path("research/harness_v46/LIVE_INTAKE_TRIGGER.json").read_text(encoding="utf-8"))
+          assert marker.get("schema") == "V47-LIVE-INTAKE-TRIGGER-1"
+          assert marker.get("run_once") is True
+          assert marker.get("no_prediction") is True
+          assert marker.get("no_ticket_purchase") is True
+          assert marker.get("formal_A") == 0
+          print("Marker valid: read-only historical source intake only.")
+          PY
+
+      - name: Fetch and cross-check both official histories
+        id: intake
+        continue-on-error: true
+        run: |
+          python -m research.harness_v46.official_intake \
+            --game ALL \
+            --output-dir "out/official-intake-${{ github.run_id }}"
+
+      - name: Upload raw response bytes and intake manifest
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v47-official-intake-${{ github.run_id }}
+          path: out/official-intake-${{ github.run_id }}/
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Report the actual admission result
+        if: always()
+        run: |
+          python - <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+          path = Path("out/official-intake-${{ github.run_id }}/intake.json")
+          if not path.is_file():
+              print("BLOCKED: intake manifest was not produced.")
+              sys.exit(1)
+          bundle = json.loads(path.read_text(encoding="utf-8"))
+          for game, result in bundle.get("games", {}).items():
+              print(f"{game}: {result.get('status', 'BLOCKED')}")
+              print(f"  official_target_admission={result.get('official_target_admission', 'BLOCKED')}")
+              print(f"  formal_A={result.get('formal_A', 0)}")
+          print(f"errors={json.dumps(bundle.get('errors', {}), ensure_ascii=False, sort_keys=True)}")
+          print("External TSA: NOT_RUN; formal A: 0; decision: NO_EDGE.")
+          sys.exit(1 if bundle.get("errors") else 0)
+          PY
