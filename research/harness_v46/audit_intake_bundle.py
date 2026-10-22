@@ -177,9 +177,11 @@ def audit_bundle(bundle_dir: str | Path) -> dict:
     # entry matches; an archive should not silently carry extra draw-like bytes.
     raw_dir = root / "raw"
     if raw_dir.exists():
-        for raw_file in raw_dir.rglob("*.bin"):
+        for raw_file in raw_dir.rglob("*"):
             rel = raw_file.relative_to(root).as_posix()
-            if rel not in unique_paths:
+            if raw_file.is_symlink():
+                errors.append(f"SYMLINK_IN_RAW_EVIDENCE_TREE:{rel}")
+            elif raw_file.is_file() and rel not in unique_paths:
                 errors.append(f"UNREFERENCED_RAW_ARTIFACT:{rel}")
 
     return {
@@ -211,8 +213,10 @@ def main(argv=None) -> int:
     root.mkdir(parents=True, exist_ok=True)
     report = audit_bundle(root)
     output = root / "intake-audit.json"
-    output.write_text(json.dumps(report, ensure_ascii=False, sort_keys=True, indent=2) + "\n",
-                      encoding="utf-8")
+    # Raw artifacts and audit receipts are write-once; never erase an earlier
+    # failed audit or replace a previously recorded auditor-source hash.
+    with output.open("x", encoding="utf-8", newline="\n") as handle:
+        handle.write(json.dumps(report, ensure_ascii=False, sort_keys=True, indent=2) + "\n")
     print(json.dumps(report, ensure_ascii=False, sort_keys=True))
     return 0 if report["status"] == "PASS" else 2
 
