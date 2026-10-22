@@ -284,5 +284,24 @@ class OfficialIntakeTests(unittest.TestCase):
         self.assertEqual(result["formal_A"], 0)
 
 
+    def test_bundle_keeps_duplicate_raw_response_bodies_without_overwrite(self):
+        report = oi.validate_worker_payload(_payload("SSQ"))
+        duplicate = copy.deepcopy(report["sources"][0]["raw_artifacts"][0])
+        report["sources"][0]["raw_artifacts"].append(duplicate)
+        bundle = {
+            "schema": "V47-OFFICIAL-INTAKE-BUNDLE-1",
+            "games": {"SSQ": report}, "errors": {},
+            "official_target_admission": "BLOCKED", "formal_A": 0, "decision": "NO_EDGE",
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest_path = oi.write_bundle(bundle, Path(tmp) / "bundle")
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            artifacts = manifest["games"]["SSQ"]["sources"][0]["raw_artifacts"]
+            self.assertEqual(len(artifacts), 2)
+            self.assertNotEqual(artifacts[0]["artifact_path"], artifacts[1]["artifact_path"])
+            self.assertTrue((manifest_path.parent / artifacts[0]["artifact_path"]).is_file())
+            self.assertTrue((manifest_path.parent / artifacts[1]["artifact_path"]).is_file())
+
+
 if __name__ == "__main__":
     unittest.main()
