@@ -1,0 +1,270 @@
+"""Synthetic fixtures only: never counted as qualified lottery predictions."""
+import random
+import sqlite3
+import unittest
+from datetime import datetime, timedelta, timezone
+
+from research.harness_v46 import core
+
+
+def fixture(lottery="SSQ", size=140):
+    r = core.RULES[lottery]
+    start = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    draws = []
+    for i in range(size):
+        rng = random.Random(98765 + i * 3 + (0 if lottery == "SSQ" else 1))
+        stamp = start + timedelta(days=i)
+        draws.append({
+            "issue": str(26001 + i),
+            "front": sorted(rng.sample(range(1, r["pool"] + 1), r["front"])),
+            "back": sorted(rng.sample(range(1, r["back_pool"] + 1), r["back"])),
+            "drawn_at": stamp.isoformat(),
+            "published_at": (stamp + timedelta(hours=1)).isoformat(),
+        })
+    return {
+        "lottery": lottery,
+        "as_of": "2026-10-20T00:00:00+00:00",
+        "sales_cutoff": "2026-10-23T12:00:00+08:00",
+        "target_draw_at": "2026-10-23T21:00:00+08:00",
+        "target_issue": "29999",
+        "draws": draws,
+        "provenance": {"status": "SYNTHETIC_FIXTURE_NOT_OFFICIAL"},
+    }
+
+
+class GateTests(unittest.TestCase):
+    def test_six_agents_two_lotteries_deterministic(self):
+        for lottery in ("SSQ", "DLT"):
+            data = fixture(lottery)
+            for model in core.MODELS:
+                with self.subTest(lottery=lottery, model=model):
+                    p = core.forecast(data, model)
+                    self.assertEqual(p, core.forecast(data, model))
+                    self.assertEqual(len(p["candidates_1_to_5"]), 5)
+                    self.assertEqual(p["primary_d2"], p["candidates_1_to_5"][:2])
+                    self.assertTrue(core.validate_forecast(p, data))
+                    self.assertEqual(p["evidence_class"], "SHADOW")
+                    self.assertFalse(p["formal_a_eligible"])
+
+    def test_null_not_moved_by_history(self):
+        a = fixture()
+        b = fixture()
+        b["draws"][1]["front"], b["draws"][2]["front"] = (
+            b["draws"][2]["front"], b["draws"][1]["front"])
+        # Only the historical contents changed, not random NULL's selections.
+        self.assertEqual(
+            core.forecast(a, "random_null")["candidates_1_to_5"],
+            core.forecast(b, "random_null")["candidates_1_to_5"])
+
+    def test_future_publication_rejected(self):
+        data = fixture()
+        data["draws"][-1]["published_at"] = "2026-10-24T00:00:00+00:00"
+        with self.assertRaises(core.GateError):
+            core.forecast(data, "hot60")
+
+    def test_duplicate_or_out_of_order_rejected(self):
+        data = fixture()
+        data["draws"][2]["issue"] = data["draws"][1]["issue"]
+        with self.assertRaises(core.GateError):
+            core.validate_snapshot(data)
+
+    def test_time_and_target_gates(self):
+        data = fixture()
+        data["target_issue"] = data["draws"][-1]["issue"]
+        with self.assertRaises(core.GateError):
+            core.validate_snapshot(data)
+        data = fixture()
+        data["as_of"] = "2026-10-24T00:00:00+08:00"
+        with self.assertRaises(core.GateError):
+            core.validate_snapshot(data)
+
+    def test_incomplete_history_blocked(self):
+        data = fixture(size=59)
+        for model in core.MODELS[:5]:
+            with self.subTest(model=model), self.assertRaises(core.GateError):
+                core.forecast(data, model)
+        self.assertTrue(core.forecast(data, "random_null"))
+
+    def test_tamper_rejected(self):
+        data = fixture()
+        p = core.forecast(data, "hot60")
+        p["primary_d2"] = list(reversed(p["primary_d2"]))
+        with self.assertRaises(core.GateError):
+            core.validate_forecast(p, data)
+        p = core.forecast(data, "hot60")
+        p["parameters_sha256"] = "bad"
+        with self.assertRaises(core.GateError):
+            core.validate_forecast(p, data)
+        p = core.forecast(data, "hot60")
+        p["formal_a_eligible"] = True
+        with self.assertRaises(core.GateError):
+            core.validate_forecast(p, data)
+
+    def test_immutable_freeze_and_duplicate(self):
+        data = fixture()
+        p = core.forecast(data, "pairwise_d2")
+        db = sqlite3.connect(":memory:")
+        core.init_ledger(db)
+        sha = core.freeze_shadow(db, "TEST-001", data, p, "2026-10-21T00:00:00+00:00")
+        self.assertEqual(len(sha), 64)
+        self.assertEqual(db.execute("SELECT count(*) FROM audit_events").fetchone()[0], 1)
+        # Exact same prediction is an idempotent retry; source rows stay frozen.
+        self.assertEqual(core.freeze_shadow(db, "TEST-001", data, p,
+                                           "2026-10-21T00:00:00+00:00"), sha)
+        self.assertEqual(db.execute("SELECT count(*) FROM audit_events").fetchone()[0], 1)
+        with self.assertRaises(sqlite3.DatabaseError):
+            db.execute("UPDATE predictions SET evidence_class='A'")
+        with self.assertRaises(sqlite3.DatabaseError):
+            db.execute("DELETE FROM predictions")
+        with self.assertRaises(sqlite3.DatabaseError):
+            db.execute("DELETE FROM audit_events")
+        self.assertEqual(db.execute("PRAGMA recursive_triggers").fetchone()[0], 1)
+        # SQLite REPLACE deletes the conflicting row; recursive triggers must
+        # ensure the append-only DELETE guard also blocks that path.
+        with self.assertRaises(sqlite3.DatabaseError):
+            db.execute(
+                "INSERT OR REPLACE INTO predictions VALUES(?,?,?,?,?,?,?,?)",
+                ("TEST-001", "SSQ", "pairwise_d2", "2026-10-21T00:00:00+00:00",
+                 p["snapshot_sha256"], sha, core.canon(p), "SHADOW"),
+            )
+        with self.assertRaises(sqlite3.DatabaseError):
+            db.execute(
+                "INSERT OR REPLACE INTO run_context VALUES(?,?,?,?,?,?)",
+                ("TEST-001", "SSQ", "29999", core.digest(data),
+                 data["as_of"], data["sales_cutoff"]),
+            )
+
+    def test_batch_rollback_all_or_nothing(self):
+        data = fixture()
+        p = core.forecast(data, "hot60")
+        db = sqlite3.connect(":memory:")
+        core.init_ledger(db)
+        altered = dict(p)
+        altered["version"] = "forged-version"
+        with self.assertRaises(core.GateError):
+            with db:
+                core.freeze_shadow(db, "ROLLBACK-TEST", data, p, "2026-10-21T00:00:00+00:00")
+                core.freeze_shadow(db, "ROLLBACK-TEST", data, altered, "2026-10-21T00:00:00+00:00")
+        self.assertEqual(db.execute("SELECT count(*) FROM predictions").fetchone()[0], 0)
+        self.assertEqual(db.execute("SELECT count(*) FROM audit_events").fetchone()[0], 0)
+
+    def test_run_id_lottery_snapshot_identity_is_immutable(self):
+        original = fixture("SSQ")
+        altered = fixture("SSQ")
+        altered["provenance"]["revision"] = "different-as-of-evidence"
+        self.assertNotEqual(core.digest(original), core.digest(altered))
+        db = sqlite3.connect(":memory:")
+        core.init_ledger(db)
+        frozen_at = "2026-10-21T00:00:00+00:00"
+        first = core.forecast(original, "hot60")
+        core.freeze_shadow(db, "MIXED-CONTEXT", original, first, frozen_at)
+        # A distinct model is legitimate only if the locked data are identical.
+        second = core.forecast(altered, "ewma")
+        with self.assertRaisesRegex(core.GateError, "context mismatch"):
+            core.freeze_shadow(db, "MIXED-CONTEXT", altered, second, frozen_at)
+        self.assertEqual(
+            db.execute("SELECT count(*) FROM predictions").fetchone()[0], 1)
+        self.assertEqual(
+            db.execute("SELECT snapshot_sha256 FROM run_context "
+                       "WHERE run_id='MIXED-CONTEXT' AND lottery='SSQ'")
+            .fetchone()[0], core.digest(original))
+        # Models on the same as-of data, and a second lottery, remain allowed.
+        core.freeze_shadow(db, "MIXED-CONTEXT", original,
+                           core.forecast(original, "ewma"), frozen_at)
+        other_lottery = fixture("DLT")
+        core.freeze_shadow(db, "MIXED-CONTEXT", other_lottery,
+                           core.forecast(other_lottery, "hot60"), frozen_at)
+        self.assertEqual(
+            db.execute("SELECT count(*) FROM run_context").fetchone()[0], 2)
+        with self.assertRaises(sqlite3.DatabaseError):
+            db.execute("UPDATE run_context SET target_issue='0'")
+        with self.assertRaises(sqlite3.DatabaseError):
+            db.execute("DELETE FROM run_context")
+
+    def test_legacy_rows_require_fresh_run_id(self):
+        original = fixture()
+        db = sqlite3.connect(":memory:")
+        core.init_ledger(db)
+        db.execute(
+            "INSERT INTO predictions VALUES(?,?,?,?,?,?,?,?)",
+            ("LEGACY-RUN", "SSQ", "hot60", "2026-10-21T00:00:00+00:00",
+             core.digest(original), "old_hash", "{}", "SHADOW"),
+        )
+        with self.assertRaisesRegex(core.GateError, "legacy run lacks context"):
+            core.freeze_shadow(db, "LEGACY-RUN", original,
+                               core.forecast(original, "ewma"),
+                               "2026-10-21T00:00:00+00:00")
+        self.assertEqual(
+            db.execute("SELECT count(*) FROM run_context").fetchone()[0], 0)
+
+    def test_run_id_cannot_switch_target_issue(self):
+        original = fixture()
+        changed = fixture()
+        changed["target_issue"] = "29998"
+        db = sqlite3.connect(":memory:")
+        core.init_ledger(db)
+        frozen_at = "2026-10-21T00:00:00+00:00"
+        core.freeze_shadow(db, "TARGET-SWITCH", original,
+                           core.forecast(original, "hot60"), frozen_at)
+        with self.assertRaisesRegex(core.GateError, "context mismatch"):
+            core.freeze_shadow(db, "TARGET-SWITCH", changed,
+                               core.forecast(changed, "ewma"), frozen_at)
+
+    def test_late_freeze_blocked(self):
+        data = fixture()
+        p = core.forecast(data, "hot60")
+        db = sqlite3.connect(":memory:")
+        core.init_ledger(db)
+        with self.assertRaises(core.GateError):
+            core.freeze_shadow(db, "TEST-002", data, p, "2026-10-24T00:00:00+08:00")
+        self.assertEqual(db.execute("SELECT count(*) FROM predictions").fetchone()[0], 0)
+
+    def test_scoring_d2_front_only(self):
+        data = fixture("DLT")
+        p = core.forecast(data, "hot60")
+        front = sorted(p["candidates_1_to_5"])
+        result = {"lottery": "DLT", "issue": "29999", "front": front, "back": [1, 2]}
+        scores = core.score(p, result)
+        self.assertEqual([scores[f"D{k}"] for k in range(1, 6)], [1, 1, 1, 1, 1])
+        self.assertEqual(scores["hit_count_5"], 5)
+        result["issue"] = "29998"
+        with self.assertRaises(core.GateError):
+            core.score(p, result)
+
+    def test_pairwise_requires_registered_120_window(self):
+        data = fixture(size=119)
+        with self.assertRaisesRegex(core.GateError, "requires 120 historical draws"):
+            core.forecast(data, "pairwise_d2")
+        data = fixture(size=120)
+        self.assertTrue(core.forecast(data, "pairwise_d2"))
+
+    def test_freeze_rejects_under_120_draw_study(self):
+        data = fixture(size=119)
+        prediction = core.forecast(data, "hot60")
+        db = sqlite3.connect(":memory:")
+        core.init_ledger(db)
+        with self.assertRaisesRegex(core.GateError, "study requires at least 120"):
+            core.freeze_shadow(db, "UNDER-120", data, prediction,
+                               "2026-10-21T00:00:00+00:00")
+        self.assertEqual(db.execute("SELECT COUNT(*) FROM predictions").fetchone()[0], 0)
+        db.close()
+
+    def test_v47_parameter_contract_covers_global_ticket_generation(self):
+        data = fixture()
+        for model in core.MODELS:
+            prediction = core.forecast(data, model)
+            self.assertEqual(prediction["parameters_sha256"],
+                             core.digest(core.parameter_contract(model)))
+            self.assertEqual(prediction["model_source_sha256"],
+                             core.model_source_sha256())
+        spec = core.parameter_contract("random_null")
+        self.assertEqual(spec["ticket_back"]["engine"], "SHA256_SORT_V1")
+        self.assertIn("lottery_rules_sha256", spec)
+        first = core._stable_permutation(list(range(1, 34)), core.NULL_SEED, "SSQ", "29999", "front")
+        second = core._stable_permutation(list(reversed(range(1, 34))), core.NULL_SEED, "SSQ", "29999", "front")
+        self.assertEqual(first, second)
+        self.assertEqual(sorted(first), list(range(1, 34)))
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -1,0 +1,13 @@
+{
+  "schema": "V47-LIVE-INTAKE-TRIGGER-1",
+  "run_once": true,
+  "purpose": "Read-only fetch and cross-check of at least 120 historical SSQ and DLT draws from two preapproved official-domain roots per game.",
+  "no_prediction": true,
+  "no_ticket_purchase": true,
+  "formal_A": 0,
+  "external_tsa": "NOT_RUN",
+  "decision": "NO_EDGE",
+  "warning": "The workflow output is SHADOW historical-source evidence only. It cannot admit a target issue or certify sales cutoff/publication time.",
+  "attempt": 4,
+  "note": "Verify DLT 2016 calendar anomaly quarantine; attempt official Hebei two-page latest SSQ fallback while CWL 403; no prediction, no purchase, formal A=0."
+}
