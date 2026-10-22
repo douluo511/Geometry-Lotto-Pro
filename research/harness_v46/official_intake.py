@@ -163,6 +163,37 @@ def _canonical_draws(game: str, rows: list[dict], *, minimum: int = 120) -> list
     return clean
 
 
+def _canonical_number_only_draws(game: str, rows: list[dict], *, minimum: int = 10) -> list[dict]:
+    """Validate issue+balls-only corroborators without inventing draw dates."""
+    if type(minimum) is not int or minimum < 1:
+        raise GateError("INVALID_SOURCE_HISTORY_MINIMUM")
+    if not isinstance(rows, list) or len(rows) < minimum:
+        raise GateError(f"SOURCE_HISTORY_REQUIRES_AT_LEAST_{minimum}_DRAWS")
+    front_max, front_count, back_max, back_count = (
+        (33, 6, 16, 1) if game == "SSQ" else (35, 5, 12, 2)
+    )
+    clean, seen, last_issue = [], set(), -1
+    for row in rows:
+        if not isinstance(row, dict) or set(row) != {"issue", "front", "back"}:
+            raise GateError("INVALID_SOURCE_DRAW_SCHEMA")
+        issue = str(row["issue"])
+        if not issue.isdigit() or int(issue) <= last_issue or issue in seen:
+            raise GateError("DUPLICATE_OR_OUT_OF_ORDER_SOURCE_ISSUE")
+        front, back = row["front"], row["back"]
+        if (not isinstance(front, list) or len(front) != front_count
+                or any(type(n) is not int or not 1 <= n <= front_max for n in front)
+                or front != sorted(front) or len(set(front)) != front_count):
+            raise GateError("INVALID_SOURCE_FRONT_NUMBERS")
+        if (not isinstance(back, list) or len(back) != back_count
+                or any(type(n) is not int or not 1 <= n <= back_max for n in back)
+                or back != sorted(back) or len(set(back)) != back_count):
+            raise GateError("INVALID_SOURCE_BACK_NUMBERS")
+        clean.append({"issue": issue, "front": front, "back": back})
+        seen.add(issue)
+        last_issue = int(issue)
+    return clean
+
+
 def _validate_artifacts(game: str, source: dict, parser_version: str) -> list[dict]:
     source_id = source.get("source_id")
     source_root = source.get("source_root")
@@ -593,12 +624,22 @@ def _source_id_set_valid(game: str, source_items: list[dict]) -> bool:
     if len(ids) != len(source_items) or len(set(ids)) != len(ids):
         return False
     if game == "SSQ":
-        return len(ids) == 2 and set(ids) == {"national", "shanghai"}
+        return 2 <= len(ids) <= 3 and set(ids).issubset({"national", "shanghai", "guangdong"})
     return 2 <= len(ids) <= 3 and set(ids).issubset({"national", "jiangsu", "gansu"})
 
 
 def _source_minimum(game: str, source_id: str) -> int:
-    return 10 if game == "DLT" and source_id == "gansu" else 120
+    if game == "DLT" and source_id == "gansu":
+        return 10
+    if game == "SSQ" and source_id == "guangdong":
+        return 10
+    return 120
+
+
+def _canonical_source_draws(game: str, source_id: str, rows: list[dict]) -> list[dict]:
+    if game == "SSQ" and source_id == "guangdong":
+        return _canonical_number_only_draws(game, rows, minimum=_source_minimum(game, source_id))
+    return _canonical_draws(game, rows, minimum=_source_minimum(game, source_id))
 
 
 def _validate_partial_worker_payload(payload: dict, game: str, parser_version: str,
