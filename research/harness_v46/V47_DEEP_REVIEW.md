@@ -157,3 +157,14 @@ The subsequent README/review-document commits are documentation only; always ins
 - `ENGINEERING_PASS`: **NOT YET**. Synthetic cross-platform CI passes, but the nine physical P0 acceptance cases and real Windows cold-boot/offline recovery have not all been run.
 - `RESEARCH_VALID`: **NO**. No live official dual-source 120+ draw snapshots, independently authenticated result receipts, or verified external pre-cutoff seal.
 - `D2_EDGE_CONFIRMED`: **NO / NO_EDGE**. No qualified prospective A sample; no result here is evidence of improved odds.
+
+
+## 11. V4.7 two-source semantic history comparator — 2026-10-22
+
+Commit `47293f6f1ad30b484d3e801d1f2a3e31901a233d` adds `source_validation.py`. It validates two parsed 120+ draw histories against each other and the registered normalized snapshot; enforces the per-game HTTPS hostname allowlist and distinct official-domain roots; checks unique/increasing issue identifiers, strictly increasing draw times, legal sorted ball ranges, publication <= as-of, and exact semantic agreement. It returns `semantic_agreement=MATCHED` only for matching caller-supplied parsed rows, while keeping `source_origin_authenticity=NOT_VERIFIED`, `official_G01=BLOCKED`, `formal_A=0`, and `NO_EDGE`.
+
+The validator is bound into the V4.7 run identity via `ORCHESTRATION_SOURCE_FILES`. Synthetic test coverage includes matching 140-row histories, 119-row rejection, same-root source rejection, unallowlisted host, duplicate issue, post-as-of publication, disagreement between sources, and source rows that agree with each other but differ from the locked snapshot.
+
+Exact code HEAD `4d9caee14a8b5ab6458094742ec7874a8034a87f`: https://github.com/douluo511/Geometry-Lotto-Pro/actions/runs/39748499053 — Ubuntu SUCCESS, 62 tests (one Windows-only parser test skipped); Windows Server 2022 SUCCESS, 62 tests (PowerShell parser included).
+
+**Remaining P1 gap:** no live official page fetcher/parser has yet produced the two parsed arrays, and the comparator cannot establish that those arrays were actually parsed from the preserved raw bytes. No 120+ official snapshot is accepted. This is a strict validator interface, not G01 completion.
