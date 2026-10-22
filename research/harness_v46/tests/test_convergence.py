@@ -232,6 +232,20 @@ class Contracts(unittest.TestCase):
         with self.assertRaisesRegex(core.GateError, "study requires at least 120"):
             cv.manifest(snapshots)
 
+    def test_cli_rejects_caller_supplied_v47_run_id(self):
+        with tempfile.TemporaryDirectory() as td:
+            snapshot_path = Path(td) / "snapshot.json"
+            db_path = Path(td) / "must_not_exist.sqlite3"
+            snapshot_path.write_text(json.dumps(fixture()), encoding="utf-8")
+            args = type("Args", (), {"snapshot": str(snapshot_path),
+                                     "database": str(db_path), "run_id": "V47-MANUAL-ID",
+                                     "model": "all"})()
+            with self.assertRaisesRegex(
+                core.GateError, "V47_RUN_ID_REQUIRES_DUAL_GAME_MANIFEST"
+            ):
+                cli.run_forecast(args)
+            self.assertFalse(db_path.exists())
+
     def test_cli_blocks_before_creating_ledger_without_120_draws(self):
         with tempfile.TemporaryDirectory() as td:
             snapshot_path = Path(td) / "under120.json"
