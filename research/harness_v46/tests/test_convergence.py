@@ -25,6 +25,7 @@ class Contracts(unittest.TestCase):
         self.assertEqual(len(run["harness_source_sha256"]), 64)
         self.assertIn("schedule.py", cv.ORCHESTRATION_SOURCE_FILES)
         self.assertIn("cli.py", cv.ORCHESTRATION_SOURCE_FILES)
+        self.assertIn("statistics.py", cv.ORCHESTRATION_SOURCE_FILES)
         source_root = Path(cv.__file__).parent
         expected_source_sha = core.digest({
             "contract": "V47-ORCHESTRATION-SOURCE-1",
