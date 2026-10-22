@@ -21,3 +21,15 @@ Execute next:
 6. Run the exact test suite and report commit SHA, CI run URL, pass/fail logs, unimplemented gates, and no-overclaim status.
 
 Do not merge main, do not modify V4.5 records, do not buy tickets, and do not label any missing function PASS.
+
+## Additional PRs found during this run (do not assume merged)
+
+- PR #425: standalone bootstrap; branch head advances with this run register.
+- PR #426: immutable per-RUN_ID/per-lottery snapshot context; base is an earlier #425 commit.
+- PR #427: separate ten-role harness implementation with a different schema; keep as historical SHADOW until translation and algorithm equivalence are proven.
+- PR #429: dual-lottery atomic ledger and staged publication.
+- PR #430: paired D2 exact comparison / Holm-12 exploratory guard.
+- PR #431: independent read-only 12/12 batch completeness and tamper gate.
+- PR #432: test10 convergence proposal, including `convergence.py`, JST scheduling/recovery scripts and tests. Its inspected CI run #39730492488 passed 31 tests on Ubuntu and Windows; this remains synthetic-only and does not verify official sources, external TSA, or real host scheduling.
+
+Recommended next integration path from the convergence review: use #426's immutable context schema, port #425's deterministic forecast replay hardening, and use #432's explicit translation/role contract; selectively port #429 atomic dual-lottery batch, #430 evaluator and #431 read-only completeness gate only after API/version compatibility tests. Keep every PR draft and do not merge main during this run. Do not transfer or mix forecast rows between different algorithm versions/branches.
