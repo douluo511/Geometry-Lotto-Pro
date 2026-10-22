@@ -316,34 +316,61 @@ class Contracts(unittest.TestCase):
                                "2026-10-21T00:00:00+00:00")
         db.close()
 
-    def test_six_slot_gate_and_ordering(self):
+    def test_shadow_trace_does_not_award_official_gate_pass(self):
         db = sqlite3.connect(":memory:")
-        run, snap = self.prepare_batch(db)
+        run, _ = self.prepare_batch(db)
         batch = cv.check_complete_batch(db, run, "SSQ")
+        blocked = {"gate_status": "BLOCKED", "evidence_class": "SHADOW",
+                   "formal_A": 0, "reason": "OFFICIAL_TARGET_AND_SOURCE_NOT_VERIFIED"}
         with self.assertRaisesRegex(core.GateError, "STAGE_ORDER_VIOLATION"):
-            cv.append_stage(db, run, "SSQ", "FREEZE", {"batch_sha256": batch})
+            cv.append_stage(db, run, "SSQ", "FREEZE", blocked)
+        first = cv.append_stage(db, run, "SSQ", "SYNC", blocked)
+        self.assertEqual(first, cv.append_stage(db, run, "SSQ", "SYNC", blocked))
+        with self.assertRaisesRegex(core.GateError, "UPSTREAM_GATE_NOT_VERIFIED"):
+            cv.append_stage(db, run, "SSQ", "VERIFY", blocked)
         with db:
-            for stage in cv.STAGES:
-                details = {"formal_A": 0, "status": "SHADOW"}
+            for stage in cv.STAGES[:6]:
+                trace = {"status": "SHADOW_UNVERIFIED", "evidence_class": "SHADOW",
+                         "formal_A": 0}
                 if stage == "FREEZE":
-                    details["batch_sha256"] = batch
-                sha = cv.append_stage(db, run, "SSQ", stage, details)
-                self.assertEqual(sha, cv.append_stage(db, run, "SSQ", stage, details))
-        self.assertEqual(db.execute("SELECT COUNT(*) FROM workflow_events").fetchone()[0], len(cv.STAGES))
+                    trace["batch_sha256"] = batch
+                sha = cv.append_shadow_trace(db, run, "SSQ", stage, trace)
+                self.assertEqual(sha, cv.append_shadow_trace(db, run, "SSQ", stage, trace))
+        self.assertEqual(db.execute("SELECT COUNT(*) FROM workflow_events").fetchone()[0], 1)
+        self.assertEqual(db.execute("SELECT COUNT(*) FROM shadow_trace_events").fetchone()[0], 6)
         with self.assertRaisesRegex(core.GateError, "CONFLICTING_WORKFLOW_RETRY"):
-            cv.append_stage(db, run, "SSQ", "VERIFY", {"status": "altered"})
-        with self.assertRaises(sqlite3.DatabaseError):
-            db.execute("DELETE FROM workflow_events")
+            cv.append_stage(db, run, "SSQ", "SYNC",
+                            {**blocked, "reason": "DIFFERENT_REASON"})
+        with self.assertRaisesRegex(core.GateError, "CONFLICTING_SHADOW_TRACE_RETRY"):
+            cv.append_shadow_trace(db, run, "SSQ", "FREEZE",
+                                   {"status": "SHADOW_UNVERIFIED", "evidence_class": "SHADOW",
+                                    "formal_A": 0, "batch_sha256": "0" * 64})
+        for table in ("workflow_events", "shadow_trace_events"):
+            with self.assertRaises(sqlite3.DatabaseError):
+                db.execute("DELETE FROM " + table)
+            with self.assertRaises(sqlite3.DatabaseError):
+                db.execute("INSERT OR REPLACE INTO " + table + " SELECT * FROM " + table)
         db.close()
 
     def test_forged_authorization_rejected(self):
         db = sqlite3.connect(":memory:")
         run, _ = self.prepare_batch(db)
-        cv.append_stage(db, run, "SSQ", "SYNC", {})
+        blocked = {"gate_status": "BLOCKED", "evidence_class": "SHADOW",
+                   "formal_A": 0, "reason": "MISSING_OFFICIAL_AUTHORIZATION"}
+        cv.append_stage(db, run, "SSQ", "SYNC", blocked)
         with self.assertRaisesRegex(core.GateError, "FORMAL_A_FORBIDDEN"):
-            cv.append_stage(db, run, "SSQ", "VERIFY", {"formal_A": 1})
-        with self.assertRaisesRegex(core.GateError, "UNSUPPORTED_AUTHORITY"):
-            cv.append_stage(db, run, "SSQ", "VERIFY", {"status": "TSA_VERIFIED"})
+            cv.append_stage(db, run, "SSQ", "VERIFY", {**blocked, "formal_A": 1})
+        with self.assertRaisesRegex(core.GateError, "LEGACY_STATUS_FIELD_NOT_GATE_EVIDENCE"):
+            cv.append_stage(db, run, "SSQ", "VERIFY",
+                            {**blocked, "status": "TSA_VERIFIED"})
+        with self.assertRaisesRegex(core.GateError, "INDEPENDENT_GATE_VERIFIER_REQUIRED"):
+            cv.append_stage(db, run, "SSQ", "VERIFY", {**blocked, "gate_status": "PASS"})
+        with self.assertRaisesRegex(core.GateError, "UNVERIFIED_EVIDENCE_CLASS_FORBIDDEN"):
+            cv.append_stage(db, run, "SSQ", "VERIFY",
+                            {**blocked, "evidence_class": "FORMAL_A"})
+        with self.assertRaisesRegex(core.GateError, "UPSTREAM_GATE_NOT_VERIFIED"):
+            cv.append_stage(db, run, "SSQ", "VERIFY", blocked)
+        self.assertEqual(db.execute("SELECT COUNT(*) FROM workflow_events").fetchone()[0], 1)
         db.close()
 
     def test_tsa_interface_does_not_fabricate_proof(self):
