@@ -201,10 +201,8 @@ class OfficialIntakeTests(unittest.TestCase):
         artifact["raw_base64"] = base64.b64encode(
             json.dumps(tampered).encode("utf-8")
         ).decode("ascii")
-        with self.assertRaisesRegex(GateError, "RAW_REPARSED_ROWS"):
-            observed = oi._reparse_raw_history("SSQ", fake_parser, "national", [artifact])
-            if observed != rows:
-                raise GateError("RAW_REPARSED_ROWS_DIFFER_FROM_FROZEN_ROWS")
+        observed = oi._reparse_raw_history("SSQ", fake_parser, "national", [artifact])
+        self.assertNotEqual(observed, rows)
 
     def test_source_identity_cannot_be_swapped_between_official_roots(self):
         payload = _payload("DLT")
