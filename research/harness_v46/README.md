@@ -163,3 +163,24 @@ Still BLOCKED/NOT_RUN: live official-source fetch and parser, two-source 120+ is
 ## V4.7 allowlisted raw fetcher
 
 `source_fetch.py` can fetch raw bytes over HTTPS only from the per-game source-host allowlist, validates redirects against the same allowlist, enforces a 25 MB ceiling, records the final URL/content type/HTTP Last-Modified header/raw SHA256 and labels the local fetch time as untrusted. It intentionally returns `published_at=None`: an HTTP Last-Modified header is not treated as official page publication time. The module does not parse results, authenticate the site, or grant G00/G01. Unit tests use mocked HTTP responses; no live official-source request has been executed by this change.
+
+
+## V4.7 real-source intake adapter
+
+`official_intake.py` is the live collector entry point. It launches the existing SSQ and DLT parsers in separate Python subprocesses because both projects use the package name `glp`. It hashes the exact parser/dependency files before and after collection, preserves each raw HTTP response as a SHA256-addressed binary artifact, and reparses every successful nonempty response body before allowing its source history into the two-source comparison. Non-200 bodies are retained as diagnostic evidence and are never parsed as draws.
+
+Approved source roots in this branch:
+
+- SSQ: China Welfare Lottery Center `cwl.gov.cn` plus Shanghai Welfare Lottery Center `swlc.net.cn`.
+- DLT: China Sports Lottery `sporttery.cn` plus Jiangsu Sports Lottery `js-lottery.com` (the Jiangsu site is linked from the Gansu provincial sports-lottery official site).
+
+Run on a network-enabled host with Python and Requests installed:
+
+```powershell
+python -m pip install requests
+python -m research.harness_v46.official_intake --game ALL --output-dir artifacts/official-intake-<unique-run-id>
+```
+
+The output directory must not already exist. The bundle contains `intake.json` and `raw/<game>/<source>/<sha256>.bin` artifacts. It is designed to fail closed: both source histories must each contain at least 120 validated draws; the latest issue must agree; every overlapping issue/result/date must match; and the parser output must exactly match a reparse of the preserved successful response bytes. If a source is blocked, the collector attempts the other source and preserves available failure bodies/raw responses in a `SOURCE_FETCH_PARTIAL` bundle.
+
+This collector is **historical-source intake only**. It does not certify a target issue, actual sales cutoff, publication time, trusted timestamp, or prediction. Local capture times remain untrusted; `official_target_admission=BLOCKED`, `formal_A=0`, and `NO_EDGE` remain mandatory. GitHub's one-shot workflow is limited to this branch and is triggered only by changing `LIVE_INTAKE_TRIGGER.json`; it uploads raw evidence as a temporary Actions artifact and never writes source data to `main`.
