@@ -39,7 +39,15 @@ class SchedulerTests(unittest.TestCase):
             self.assertEqual(db.execute("SELECT COUNT(*) FROM run_manifests").fetchone()[0], 1)
             self.assertEqual(db.execute("SELECT COUNT(*) FROM predictions").fetchone()[0], 12)
             self.assertEqual(db.execute("SELECT COUNT(*) FROM audit_events").fetchone()[0], 12)
-            self.assertEqual(db.execute("SELECT COUNT(*) FROM workflow_events").fetchone()[0], 12)
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM workflow_events").fetchone()[0], 2)
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM shadow_trace_events").fetchone()[0], 12)
+            for item in db.execute("SELECT payload FROM workflow_events"):
+                event = __import__("json").loads(item[0])
+                self.assertEqual(event["stage"], "SYNC")
+                self.assertEqual(event["evidence"]["gate_status"], "BLOCKED")
+                self.assertEqual(event["evidence"]["evidence_class"], "SHADOW")
+            self.assertEqual(first["gate_status"], "BLOCKED")
+            self.assertEqual(first["shadow_trace_status"], "UNVERIFIED_EXECUTION_ONLY")
             self.assertEqual(db.execute("SELECT COUNT(*) FROM scheduled_target_guard").fetchone()[0], 2)
             self.assertEqual(db.execute("SELECT COUNT(*) FROM tsa_claims").fetchone()[0], 2)
             db.close()
@@ -79,7 +87,7 @@ class SchedulerTests(unittest.TestCase):
                 sch.scheduled_once(self.snaps, path, self.now)
             conn = sqlite3.connect(path)
             for table in ("run_manifests", "predictions", "audit_events", "scheduled_target_guard",
-                          "workflow_events", "tsa_claims", "run_context"):
+                          "workflow_events", "shadow_trace_events", "tsa_claims", "run_context"):
                 self.assertEqual(conn.execute("SELECT COUNT(*) FROM " + table).fetchone()[0], 0)
             conn.close()
 
