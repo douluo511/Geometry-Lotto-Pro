@@ -49,6 +49,35 @@ class Contracts(unittest.TestCase):
         finally:
             core.PARAMETERS["hot60"]["window"] = original_window
 
+    def test_manifest_is_persisted_idempotently_and_immutable(self):
+        db = sqlite3.connect(":memory:")
+        core.init_ledger(db)
+        cv.init_workflow(db)
+        run_manifest = cv.manifest(self.snaps())
+        with db:
+            first = cv.register_manifest(db, run_manifest)
+            self.assertEqual(first, cv.register_manifest(db, run_manifest))
+        stored = db.execute(
+            "SELECT manifest_sha256,payload,evidence_class FROM run_manifests WHERE run_id=?",
+            (run_manifest["run_id"],),
+        ).fetchone()
+        self.assertEqual(stored[0], hashlib.sha256(stored[1].encode("utf-8")).hexdigest())
+        self.assertEqual(json.loads(stored[1]), run_manifest)
+        self.assertEqual(stored[2], "SHADOW")
+        with self.assertRaises(sqlite3.DatabaseError):
+            db.execute("INSERT OR REPLACE INTO run_manifests SELECT * FROM run_manifests")
+        db.close()
+
+    def test_v47_freeze_requires_registered_manifest(self):
+        db = sqlite3.connect(":memory:")
+        core.init_ledger(db)
+        snap = fixture("SSQ")
+        prediction = core.forecast(snap, "hot60")
+        with self.assertRaisesRegex(core.GateError, "V47_RUN_MANIFEST_NOT_REGISTERED"):
+            core.freeze_shadow(db, "V47-MISSING-MANIFEST", snap, prediction,
+                               "2026-10-21T00:00:00+00:00")
+        db.close()
+
     def test_handoff_no_cross_model_and_no_forged_model_role(self):
         run_id = cv.manifest(self.snaps())["run_id"]
         self.assertEqual(len(cv.ROLES), 10)
@@ -97,11 +126,13 @@ class Contracts(unittest.TestCase):
 
     def prepare_batch(self, conn, lottery="SSQ"):
         snap = fixture(lottery)
-        run_id = cv.manifest(self.snaps())["run_id"]
+        run_manifest = cv.manifest(self.snaps())
+        run_id = run_manifest["run_id"]
         core.init_ledger(conn)
         cv.init_workflow(conn)
         frozen_at = "2026-10-21T00:00:00+00:00"
         with conn:
+            cv.register_manifest(conn, run_manifest)
             for name in core.MODELS:
                 p = core.forecast(snap, name)
                 core.freeze_shadow(conn, run_id, snap, p, frozen_at)
@@ -186,8 +217,10 @@ class Contracts(unittest.TestCase):
         core.init_ledger(db)
         cv.init_workflow(db)
         snap = fixture("SSQ")
-        run = cv.manifest(self.snaps())["run_id"]
+        run_manifest = cv.manifest(self.snaps())
+        run = run_manifest["run_id"]
         with db:
+            cv.register_manifest(db, run_manifest)
             for name in core.MODELS[:-1]:
                 core.freeze_shadow(db, run, snap, core.forecast(snap, name),
                                    "2026-10-21T00:00:00+00:00")
