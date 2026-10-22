@@ -126,3 +126,34 @@ Before freezing a prediction under a `V47-` ID, the core now requires a register
 The legacy single-game CLI refuses caller-supplied `V47-` IDs and remains a separate SHADOW compatibility path. This is still local SQLite evidence, not an external timestamp or tamper-proof witness.
 
 Exact-head CI for code HEAD `adee485f4d9b24df3fa4eddac7c63fc2a467e4d1`: https://github.com/douluo511/Geometry-Lotto-Pro/actions/runs/39733607591 — Ubuntu and Windows Server 2022 both passed 39 tests; Ubuntu skipped the Windows-only PowerShell parser test.
+
+
+## 10. V4.7 follow-up P0: snapshot replay, raw-source custody, and exact D2 arithmetic — 2026-10-22
+
+The following code changes are committed to the existing convergence branch; no new competing PR was created:
+
+1. `6ac7d70009f258c09ec718e721099cd5929ecfc7` — added immutable `run_snapshots` table and `register_snapshot` / `load_registered_snapshot` helpers. The normalized snapshot preimage is now retained rather than only its hash.
+2. `39062a4aa939cd2a475e21a7c01aa253c7eb2a18` — the independent six-model batch audit reloads the stored snapshot and calls deterministic `validate_forecast` for each frozen model. It rejects a changed ranking even if a privileged rewrite updates both the prediction payload and local SHA consistently.
+3. `e68173192c0981118afce139088df3fff3ddb1fd` — the canonical scheduler registers both SSQ and DLT snapshot preimages in the same transaction before any prediction freezes.
+4. `c0067deee9268adf475db4ee8df8a2cfeee12db3` / `19d40d0ba5f537413e5919fe21349fdaf4a4dfa6` — added a standard-library-only statistical arithmetic module and synthetic tests: exact binomial upper-tail test against the known D2 baseline; exact one-sided paired sign/McNemar comparison against same-draw Random NULL; candidate-level intersection-union p-value `max(p_baseline,p_paired_null)`; Holm adjustment over an explicitly enumerated family; exact model-rate interval; and a conservative paired rate-difference interval.
+5. `fcdae5699972dfdafad28163f82d9775fc4d9b41` — the RUN manifest now binds `statistics.py` into the orchestration source digest.
+6. `fa3c2ba5bab8587fdbb2cf8451886506ca2c5eea` / `b7859d68348bb07ae51ba4afcd749ca92d4600e6` — added immutable raw-source byte custody as a SQLite BLOB with raw SHA256, HTTPS per-game hostname allowlist, as-of bounds, and mandatory metadata/hash binding to the snapshot preimage.
+
+### Critical qualification
+
+The source-artifact helper preserves bytes that a caller supplies; it **does not fetch URLs, parse official source formats, prove that the bytes came from the stated URL, authenticate publication times, or establish that a source is official**. `source_authenticity` remains `NOT_VERIFIED`. The statistical module accepts caller-supplied D2 bits and family mappings; `preregistration_verified=false`, `formal_A=0`, and `NO_EDGE` remain hard-coded. The original 12 hypothesis identities have not been proven to match the new module's caller-supplied family. The unregistered challenger cannot be selected retrospectively.
+
+### Exact observed CI
+
+Code HEAD `d1f2ab42f9e170fcae0c5d98101e4321e18ea804`: https://github.com/douluo511/Geometry-Lotto-Pro/actions/runs/39747892642
+
+- Windows Server 2022: SUCCESS, 54 tests; PowerShell parser test ran.
+- Ubuntu: SUCCESS, 54 tests; one Windows-only PowerShell parser test skipped as expected.
+
+The subsequent README/review-document commits are documentation only; always inspect CI at the latest HEAD before treating the branch as current.
+
+### Current status after this tranche
+
+- `ENGINEERING_PASS`: **NOT YET**. Synthetic cross-platform CI passes, but the nine physical P0 acceptance cases and real Windows cold-boot/offline recovery have not all been run.
+- `RESEARCH_VALID`: **NO**. No live official dual-source 120+ draw snapshots, independently authenticated result receipts, or verified external pre-cutoff seal.
+- `D2_EDGE_CONFIRMED`: **NO / NO_EDGE**. No qualified prospective A sample; no result here is evidence of improved odds.
