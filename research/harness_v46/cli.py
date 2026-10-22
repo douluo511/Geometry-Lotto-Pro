@@ -12,6 +12,12 @@ from .core import MODELS, GateError, canon, forecast, freeze_shadow, init_ledger
 def run_forecast(args):
     snapshot = json.loads(Path(args.snapshot).read_text(encoding="utf-8"))
     validate_study_snapshot(snapshot)
+    if str(args.run_id).startswith("V47-"):
+        raise GateError(
+            "V47_RUN_ID_REQUIRES_DUAL_GAME_MANIFEST_USE_SCHEDULE"
+        )
+    # This single-lottery CLI is a legacy SHADOW path; canonical V4.7 RUN_IDs
+    # must be derived from the dual-game manifest in schedule.py.
     models = MODELS if args.model == "all" else (args.model,)
     forecasts = [forecast(snapshot, m) for m in models]  # compute before any write
     db = sqlite3.connect(args.database)
