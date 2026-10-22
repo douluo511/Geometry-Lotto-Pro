@@ -244,6 +244,21 @@ def validate_forecast(prediction, snapshot):
 
 
 SCHEMA = """
+-- One immutable snapshot identity per RUN_ID and lottery. A six-agent batch
+-- must never silently mix differently sourced histories or target issues.
+CREATE TABLE IF NOT EXISTS run_context (
+    run_id TEXT NOT NULL,
+    lottery TEXT NOT NULL CHECK(lottery IN ('SSQ', 'DLT')),
+    target_issue TEXT NOT NULL,
+    snapshot_sha256 TEXT NOT NULL,
+    as_of TEXT NOT NULL,
+    sales_cutoff TEXT NOT NULL,
+    PRIMARY KEY(run_id, lottery)
+);
+CREATE TRIGGER IF NOT EXISTS prevent_context_update BEFORE UPDATE ON run_context
+BEGIN SELECT RAISE(ABORT, 'immutable run context'); END;
+CREATE TRIGGER IF NOT EXISTS prevent_context_delete BEFORE DELETE ON run_context
+BEGIN SELECT RAISE(ABORT, 'immutable run context'); END;
 CREATE TABLE IF NOT EXISTS predictions (
     run_id TEXT NOT NULL,
     lottery TEXT NOT NULL,
@@ -283,6 +298,35 @@ def freeze_shadow(conn, run_id, snapshot, prediction, frozen_at):
         raise GateError("missing run id")
     if not dt(snapshot["as_of"]) <= dt(frozen_at) < dt(snapshot["sales_cutoff"]):
         raise GateError("prediction not before sales cutoff")
+    # The context must be pinned before inserting the first agent prediction.
+    # This is only a local consistency guard, not official provenance or TSA.
+    identity = (
+        str(snapshot["target_issue"]), prediction["snapshot_sha256"],
+        snapshot["as_of"], snapshot["sales_cutoff"],
+    )
+    existing = conn.execute(
+        "SELECT target_issue,snapshot_sha256,as_of,sales_cutoff "
+        "FROM run_context WHERE run_id=? AND lottery=?",
+        (run_id, prediction["lottery"]),
+    ).fetchone()
+    if existing is None:
+        # A pre-v0.3 ledger can already contain predictions without this
+        # manifest. Fail closed rather than silently pinning an incompatible
+        # snapshot; legacy data require a new RUN_ID and separate audit.
+        legacy = conn.execute(
+            "SELECT 1 FROM predictions WHERE run_id=? AND lottery=? LIMIT 1",
+            (run_id, prediction["lottery"]),
+        ).fetchone()
+        if legacy is not None:
+            raise GateError("legacy run lacks context; start a new RUN_ID")
+        conn.execute(
+            "INSERT INTO run_context "
+            "(run_id,lottery,target_issue,snapshot_sha256,as_of,sales_cutoff) "
+            "VALUES (?,?,?,?,?,?)",
+            (run_id, prediction["lottery"], *identity),
+        )
+    elif tuple(existing) != identity:
+        raise GateError("RUN_ID lottery context mismatch: different snapshot or target")
     payload = canon(prediction)
     prediction_sha = hashlib.sha256(payload.encode()).hexdigest()
     # No implicit commit: a caller can atomically freeze all model records.

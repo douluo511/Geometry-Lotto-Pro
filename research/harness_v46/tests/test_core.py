@@ -173,6 +173,68 @@ class GateTests(unittest.TestCase):
         self.assertEqual(db.execute("SELECT count(*) FROM predictions").fetchone()[0], 0)
         self.assertEqual(db.execute("SELECT count(*) FROM audit_events").fetchone()[0], 0)
 
+    def test_run_id_lottery_snapshot_identity_is_immutable(self):
+        original = fixture("SSQ")
+        altered = fixture("SSQ")
+        altered["provenance"]["revision"] = "different-as-of-evidence"
+        self.assertNotEqual(core.digest(original), core.digest(altered))
+        db = sqlite3.connect(":memory:")
+        core.init_ledger(db)
+        frozen_at = "2026-10-21T00:00:00+00:00"
+        first = core.forecast(original, "hot60")
+        core.freeze_shadow(db, "MIXED-CONTEXT", original, first, frozen_at)
+        # A distinct model is legitimate only if the locked data are identical.
+        second = core.forecast(altered, "ewma")
+        with self.assertRaisesRegex(core.GateError, "context mismatch"):
+            core.freeze_shadow(db, "MIXED-CONTEXT", altered, second, frozen_at)
+        self.assertEqual(
+            db.execute("SELECT count(*) FROM predictions").fetchone()[0], 1)
+        self.assertEqual(
+            db.execute("SELECT snapshot_sha256 FROM run_context "
+                       "WHERE run_id='MIXED-CONTEXT' AND lottery='SSQ'")
+            .fetchone()[0], core.digest(original))
+        # Models on the same as-of data, and a second lottery, remain allowed.
+        core.freeze_shadow(db, "MIXED-CONTEXT", original,
+                           core.forecast(original, "ewma"), frozen_at)
+        other_lottery = fixture("DLT")
+        core.freeze_shadow(db, "MIXED-CONTEXT", other_lottery,
+                           core.forecast(other_lottery, "hot60"), frozen_at)
+        self.assertEqual(
+            db.execute("SELECT count(*) FROM run_context").fetchone()[0], 2)
+        with self.assertRaises(sqlite3.DatabaseError):
+            db.execute("UPDATE run_context SET target_issue='0'")
+        with self.assertRaises(sqlite3.DatabaseError):
+            db.execute("DELETE FROM run_context")
+
+    def test_legacy_rows_require_fresh_run_id(self):
+        original = fixture()
+        db = sqlite3.connect(":memory:")
+        core.init_ledger(db)
+        db.execute(
+            "INSERT INTO predictions VALUES(?,?,?,?,?,?,?,?)",
+            ("LEGACY-RUN", "SSQ", "hot60", "2026-10-21T00:00:00+00:00",
+             core.digest(original), "old_hash", "{}", "SHADOW"),
+        )
+        with self.assertRaisesRegex(core.GateError, "legacy run lacks context"):
+            core.freeze_shadow(db, "LEGACY-RUN", original,
+                               core.forecast(original, "ewma"),
+                               "2026-10-21T00:00:00+00:00")
+        self.assertEqual(
+            db.execute("SELECT count(*) FROM run_context").fetchone()[0], 0)
+
+    def test_run_id_cannot_switch_target_issue(self):
+        original = fixture()
+        changed = fixture()
+        changed["target_issue"] = "29998"
+        db = sqlite3.connect(":memory:")
+        core.init_ledger(db)
+        frozen_at = "2026-10-21T00:00:00+00:00"
+        core.freeze_shadow(db, "TARGET-SWITCH", original,
+                           core.forecast(original, "hot60"), frozen_at)
+        with self.assertRaisesRegex(core.GateError, "context mismatch"):
+            core.freeze_shadow(db, "TARGET-SWITCH", changed,
+                               core.forecast(changed, "ewma"), frozen_at)
+
     def test_late_freeze_blocked(self):
         data = fixture()
         p = core.forecast(data, "hot60")

@@ -16,9 +16,11 @@ The multi-product repository itself is NOT a final independent release repositor
   negative-control *arm*, NOT another candidate for selecting a champion.
 - Each algorithm produces 5 ordered front candidates, one unique D2 (first
   two), and one valid full ticket. Back numbers never affect D2.
-- SQLite local append-only guard triggers, uniqueness, same-data identity,
+- SQLite local append-only guard triggers, uniqueness, immutable RUN_ID +
+  lottery context (target issue, snapshot SHA256, as-of and cutoff),
   cutoff checks, an atomic single-lottery CLI batch, parameter SHA-256,
-  and a read-only score operation.
+  and a read-only score operation. Existing pre-context ledger rows cannot be
+  silently adopted into a new context; resume them under a new RUN_ID only.
 - Synthetic reproducibility, cross-lottery, tamper, and gate tests.
 - No live ingestion, isolated LLM processes, unattended scheduler, external
   trusted timestamps, official draw verification, multi-day statistical trial,
