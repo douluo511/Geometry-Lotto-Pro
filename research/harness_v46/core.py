@@ -3,10 +3,10 @@ from __future__ import annotations
 
 import hashlib
 import json
-import random
 import sqlite3
 from collections import Counter
 from datetime import datetime
+from pathlib import Path
 from itertools import combinations
 
 MODELS = ("hot60", "ewma", "shrinkmix", "pairwise_d2", "challenger", "random_null")
@@ -15,15 +15,17 @@ RULES = {
     "DLT": {"pool": 35, "front": 5, "back_pool": 12, "back": 2, "d2": 10 / 595},
 }
 MIN_STUDY_HISTORY = 120
-VERSION = "v46-research-core-0.2"
-NULL_SEED = "SSQ-DLT-V46-NULL-v1-20261022"  # must be frozen before target
+VERSION = "v47-research-core-0.1"
+NULL_SEED = "SSQ-DLT-V47-NULL-SHA256-SORT-v1-20261022"  # pre-registered new control stream
+RANKING_TIE_BREAK = "score_descending_then_numeric_ascending"
+TICKET_BACK_ENGINE = "SHA256_SORT_V1"
 PARAMETERS = {
     "hot60": {"window": 60, "tie_break": "numeric_ascending"},
     "ewma": {"window": 120, "weight_decay": 0.92, "input_weight": 0.08},
     "shrinkmix": {"recent_window": 60, "tau": 200},
     "pairwise_d2": {"window": 120, "pair_residual_tau": 200},
     "challenger": {"windows": [30, 60, 120], "rule": "maximin_pair_score"},
-    "random_null": {"seed": NULL_SEED, "engine": "CPython_random_MT19937"},
+    "random_null": {"seed": NULL_SEED, "engine": TICKET_BACK_ENGINE},
 }
 
 
@@ -37,6 +39,30 @@ def canon(value):
 
 def digest(value):
     return hashlib.sha256(canon(value).encode("utf-8")).hexdigest()
+
+
+def model_source_sha256():
+    """SHA256 of the exact installed model-core source bytes."""
+    return hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
+
+
+def parameter_contract(model):
+    """Include global tie-break, lottery rules and ticket generation in the parameter identity."""
+    if model not in MODELS:
+        raise GateError("unknown model for parameter contract")
+    return {
+        "contract": "V47-PARAMETER-CONTRACT-1",
+        "model": model,
+        "model_version": VERSION,
+        "model_parameters": PARAMETERS[model],
+        "ranking_tie_break": RANKING_TIE_BREAK,
+        "lottery_rules_sha256": digest(RULES),
+        "ticket_back": {
+            "engine": TICKET_BACK_ENGINE,
+            "seed_id": NULL_SEED,
+            "derivation": "sha256(joined identity fields); rank each ball by sha256(prefix|ball)",
+        },
+    }
 
 
 def dt(value):
@@ -100,9 +126,16 @@ def validate_study_snapshot(snapshot):
     return checksum
 
 
-def _rng(*parts):
-    seed = hashlib.sha256("|".join(map(str, parts)).encode()).digest()
-    return random.Random(int.from_bytes(seed, "big"))
+def _stable_permutation(values, *parts):
+    """Cross-platform deterministic permutation independent of Python's random module."""
+    prefix = "|".join(map(str, parts)).encode("utf-8")
+    return sorted(
+        values,
+        key=lambda value: (
+            hashlib.sha256(prefix + b"|" + str(value).encode("ascii")).digest(),
+            value,
+        ),
+    )
 
 
 def _rank(scores):
@@ -174,8 +207,8 @@ def _model_ranking(snapshot, model):
         return [*best] + rest
     if model == "random_null":
         nums = list(range(1, pool + 1))
-        _rng(NULL_SEED, snapshot["lottery"], snapshot["target_issue"], "front").shuffle(nums)
-        return nums
+        return _stable_permutation(nums, NULL_SEED, snapshot["lottery"],
+                                   snapshot["target_issue"], "front")
     raise GateError("unknown model")
 
 
@@ -187,8 +220,10 @@ def forecast(snapshot, model):
     ranking = _model_ranking(snapshot, model)
     first_five = ranking[:5]
     front = sorted(ranking[:r["front"]])
-    others = list(range(1, r["back_pool"] + 1))
-    _rng(NULL_SEED, snapshot["lottery"], snapshot["target_issue"], model, "back").shuffle(others)
+    others = _stable_permutation(
+        list(range(1, r["back_pool"] + 1)), NULL_SEED,
+        snapshot["lottery"], snapshot["target_issue"], model, "back"
+    )
     back = sorted(others[:r["back"]])
     prediction = {
         "version": VERSION,
@@ -196,7 +231,8 @@ def forecast(snapshot, model):
         "lottery": snapshot["lottery"],
         "target_issue": str(snapshot["target_issue"]),
         "snapshot_sha256": snapshot_sha,
-        "parameters_sha256": digest(PARAMETERS[model]),
+        "parameters_sha256": digest(parameter_contract(model)),
+        "model_source_sha256": model_source_sha256(),
         "candidates_1_to_5": first_five,
         "primary_d2": first_five[:2],
         "ticket": {"front": front, "back": back},
@@ -215,8 +251,10 @@ def validate_forecast(prediction, snapshot):
         raise GateError("issue mismatch")
     if prediction.get("lottery") != snapshot["lottery"] or prediction.get("model") not in MODELS:
         raise GateError("identity mismatch")
-    if prediction.get("parameters_sha256") != digest(PARAMETERS[prediction["model"]]):
+    if prediction.get("parameters_sha256") != digest(parameter_contract(prediction["model"])):
         raise GateError("model parameters mismatch")
+    if prediction.get("model_source_sha256") != model_source_sha256():
+        raise GateError("model source SHA256 mismatch")
     r = RULES[snapshot["lottery"]]
     candidates = prediction.get("candidates_1_to_5")
     if (not isinstance(candidates, list) or len(candidates) != 5
@@ -242,8 +280,10 @@ def validate_forecast(prediction, snapshot):
         raise GateError("candidate ranking does not match declared model")
     if ticket["front"] != sorted(expected_ranking[:r["front"]]):
         raise GateError("ticket front does not match declared model")
-    expected_back = list(range(1, r["back_pool"] + 1))
-    _rng(NULL_SEED, snapshot["lottery"], snapshot["target_issue"], prediction["model"], "back").shuffle(expected_back)
+    expected_back = _stable_permutation(
+        list(range(1, r["back_pool"] + 1)), NULL_SEED,
+        snapshot["lottery"], snapshot["target_issue"], prediction["model"], "back"
+    )
     if ticket["back"] != sorted(expected_back[:r["back"]]):
         raise GateError("ticket back does not match declared model")
     return True
