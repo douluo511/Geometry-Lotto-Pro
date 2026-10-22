@@ -115,3 +115,14 @@ Observed exact-head CI run: https://github.com/douluo511/Geometry-Lotto-Pro/acti
 The single-lottery compatibility CLI now rejects caller-supplied IDs beginning with `V47-` and reports `V47_RUN_ID_REQUIRES_DUAL_GAME_MANIFEST_USE_SCHEDULE`. The canonical V4.7 prefix must come from the dual-game manifest path in `schedule.py`; the older one-game CLI remains SHADOW/compatibility only. This prevents the ordinary CLI from presenting an arbitrary caller string as a manifest-derived V4.7 run identity. It is not a general sandbox against direct Python callers or privileged database access.
 
 Exact-head CI for code HEAD `036aa9f0b12d55758ebf2c88717a37c0358404b1`: https://github.com/douluo511/Geometry-Lotto-Pro/actions/runs/39733193819 — Ubuntu and Windows Server 2022 both passed 37 tests; Ubuntu skipped the Windows-only PowerShell parser test.
+
+
+## 9. Persisted V4.7 manifest preimage — 2026-10-22
+
+The canonical scheduler now stores the full manifest payload and its SHA256 in an immutable `run_manifests` table inside the same SQLite transaction as the dual-game target guards, forecasts, workflow stages and TSA-request records. Exact retries are idempotent; conflicting manifest payloads fail closed.
+
+Before freezing a prediction under a `V47-` ID, the core now requires a registered manifest, validates the manifest payload hash and ID derivation, and checks that the target game snapshot and model parameter/source identities match the registered manifest. Read-only batch audit also verifies the persisted manifest and per-model identity.
+
+The legacy single-game CLI refuses caller-supplied `V47-` IDs and remains a separate SHADOW compatibility path. This is still local SQLite evidence, not an external timestamp or tamper-proof witness.
+
+Exact-head CI for code HEAD `adee485f4d9b24df3fa4eddac7c63fc2a467e4d1`: https://github.com/douluo511/Geometry-Lotto-Pro/actions/runs/39733607591 — Ubuntu and Windows Server 2022 both passed 39 tests; Ubuntu skipped the Windows-only PowerShell parser test.
