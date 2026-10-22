@@ -210,6 +210,79 @@ def _source_rows(draws) -> list[dict]:
     ]
 
 
+def _reparse_raw_history(game: str, source_module, source_id: str,
+                         artifacts: list[dict]) -> list[dict]:
+    """Reparse each nonempty preserved response body and compare it to the parser's aggregate."""
+    parsed_rows = []
+    for artifact in artifacts:
+        try:
+            raw = base64.b64decode(artifact["raw_base64"], validate=True)
+        except Exception as exc:
+            raise GateError("RAW_REPARSE_BASE64_INVALID") from exc
+        if not raw:
+            # Some SSQ history endpoints transiently return empty HTTP 200 bodies;
+            # preserve and hash them, but never treat them as a successful draw page.
+            continue
+        try:
+            if game == "SSQ" and source_id == "national":
+                payload = json.loads(raw.decode("utf-8-sig"))
+                rows = payload.get("result") if isinstance(payload, dict) else None
+                if not isinstance(rows, list):
+                    raise GateError("SSQ_NATIONAL_RAW_SCHEMA_CHANGED")
+                for row in rows:
+                    if not isinstance(row, dict):
+                        raise GateError("SSQ_NATIONAL_RAW_ROW_INVALID")
+                    draw = source_module._draw(row.get("code"), row.get("date"),
+                                               row.get("red"), row.get("blue"))
+                    parsed_rows.append({
+                        "issue": str(draw.issue), "draw_date": str(draw.draw_date)[:10],
+                        "front": list(draw.front), "back": list(draw.back),
+                    })
+            elif game == "SSQ" and source_id == "shanghai":
+                parsed_rows.extend(_source_rows(source_module.parse_shanghai_history(raw)))
+            elif game == "DLT" and source_id == "national":
+                payload = json.loads(raw.decode("utf-8-sig"))
+                value = payload.get("value") or {} if isinstance(payload, dict) else {}
+                rows = value.get("list") or value.get("records") or []
+                if not isinstance(rows, list):
+                    raise GateError("DLT_NATIONAL_RAW_SCHEMA_CHANGED")
+                for row in rows:
+                    if not isinstance(row, dict):
+                        raise GateError("DLT_NATIONAL_RAW_ROW_INVALID")
+                    draw = source_module._parse_result(
+                        str(row.get("lotteryDrawNum")), str(row.get("lotteryDrawTime")),
+                        str(row.get("lotteryDrawResult")),
+                    )
+                    parsed_rows.append({
+                        "issue": str(draw.issue), "draw_date": str(draw.draw_date)[:10],
+                        "front": list(draw.front), "back": list(draw.back),
+                    })
+            elif game == "DLT" and source_id == "jiangsu":
+                parsed_rows.extend(_source_rows(
+                    source_module._parse_jiangsu_html(source_module._decode_html(raw))
+                ))
+            else:
+                raise GateError("UNKNOWN_RAW_REPARSE_ROUTE")
+        except GateError:
+            raise
+        except Exception as exc:
+            raise GateError("RAW_REPARSE_FAILED:" + source_id + ":" + type(exc).__name__) from exc
+    by_issue = {}
+    for row in parsed_rows:
+        issue = row["issue"]
+        previous = by_issue.get(issue)
+        if previous is not None and previous != row:
+            raise GateError("RAW_PAGES_CONFLICT_ON_ISSUE:" + issue)
+        by_issue[issue] = row
+    reparsed = _canonical_draws(game, sorted(by_issue.values(), key=lambda row: int(row["issue"])))
+    return reparsed
+
+
+def _rows_sha256(rows: list[dict]) -> str:
+    payload = json.dumps(rows, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return _sha(payload.encode("utf-8"))
+
+
 def _install_dlt_redirect_guard(game: str) -> None:
     """Bound DLT Requests redirects to the original allowlisted registrable root."""
     import requests
@@ -344,14 +417,24 @@ def _worker(game: str) -> dict:
         raise GateError("UNKNOWN_LOTTERY_FOR_SOURCE_INTAKE")
 
     for source in sources:
+        internal_artifacts = [
+            item for item in raw_artifacts if item["_source_id"] == source["source_id"]
+        ]
         source["raw_artifacts"] = [
             {k: v for k, v in item.items()
              if k in {"url", "requested_url", "raw_sha256", "size_bytes", "content_type",
                       "http_status", "fetched_at", "parser_version", "raw_base64"}}
-            for item in raw_artifacts if item["_source_id"] == source["source_id"]
+            for item in internal_artifacts
         ]
-    if any(not source["raw_artifacts"] for source in sources):
-        raise GateError("SOURCE_RAW_ARTIFACTS_MISSING")
+        if not source["raw_artifacts"]:
+            raise GateError("SOURCE_RAW_ARTIFACTS_MISSING")
+        reparsed = _reparse_raw_history(game, source_module, source["source_id"],
+                                        source["raw_artifacts"])
+        source_draws = _canonical_draws(game, source["draws"])
+        if reparsed != source_draws:
+            raise GateError("RAW_REPARSED_ROWS_DIFFER_FROM_SOURCE_OUTPUT:" + source["source_id"])
+        source["raw_reparse_status"] = "PASS"
+        source["raw_reparse_sha256"] = _rows_sha256(reparsed)
     source_hashes_after = source_file_hashes(game)
     if source_hashes_before != source_hashes_after:
         raise GateError("PARSER_FILES_CHANGED_DURING_FETCH")
@@ -393,6 +476,15 @@ def validate_worker_payload(payload: dict, *, expected_game: str | None = None) 
             raise GateError("SOURCE_ROOT_IDENTITY_MISMATCH")
         rows = _canonical_draws(game, source.get("draws"))
         artifacts = _validate_artifacts(game, source, parser_version)
+        if source.get("raw_reparse_status") != "PASS":
+            raise GateError("RAW_REPARSE_NOT_PASSED")
+        if source.get("raw_reparse_sha256") != _rows_sha256(rows):
+            raise GateError("RAW_REPARSE_SHA_MISMATCH")
+        receipt = source.get("receipt")
+        if (not isinstance(receipt, dict) or receipt.get("status") != "PASS"
+                or receipt.get("draw_count") != len(rows)
+                or receipt.get("latest_issue") != rows[-1]["issue"]):
+            raise GateError("SOURCE_RECEIPT_DOES_NOT_MATCH_PARSED_HISTORY")
         checked_sources.append({
             "source_id": source_id, "source_name": source.get("source_name"),
             "url": url, "host": host, "source_root": root,
