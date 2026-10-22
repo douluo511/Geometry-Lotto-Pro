@@ -386,26 +386,57 @@ def _worker(game: str) -> dict:
              )),
         )
         sources = []
+        errors = {}
         for source_id, source_name, fetch in source_specs:
-            draws, receipt, _manifest = fetch()
-            sources.append({
-                "source_id": source_id, "source_name": source_name,
-                "source_root": "cwl.gov.cn" if source_id == "national" else "swlc.net.cn",
-                "url": "https://www.cwl.gov.cn/cwl_admin/front/cwlkj/search/kjxx/findDrawNotice"
-                       if source_id == "national" else "https://www.swlc.net.cn/lottery/ssq.html",
-                "draws": _source_rows(draws),
-                "receipt": {
-                    "status": receipt.status, "draw_count": receipt.draw_count,
-                    "latest_issue": receipt.latest_issue, "raw_sha256": receipt.raw_sha256,
-                    "fetched_at": receipt.fetched_at,
-                },
-            })
+            root = "cwl.gov.cn" if source_id == "national" else "swlc.net.cn"
+            url = ("https://www.cwl.gov.cn/cwl_admin/front/cwlkj/search/kjxx/findDrawNotice"
+                   if source_id == "national" else "https://www.swlc.net.cn/lottery/ssq.html")
+            try:
+                draws, receipt, _manifest = fetch()
+                sources.append({
+                    "source_id": source_id, "source_name": source_name,
+                    "source_root": root, "url": url, "draws": _source_rows(draws),
+                    "receipt": {
+                        "status": receipt.status, "draw_count": receipt.draw_count,
+                        "latest_issue": receipt.latest_issue, "raw_sha256": receipt.raw_sha256,
+                        "fetched_at": receipt.fetched_at,
+                    },
+                })
+            except Exception as exc:
+                errors[source_id] = f"{type(exc).__name__}: {exc}"
+                sources.append({
+                    "source_id": source_id, "source_name": source_name,
+                    "source_root": root, "url": url, "draws": [],
+                    "receipt": None, "error": errors[source_id],
+                })
     elif game == "DLT":
-        national_draws, national_receipt, national_manifest = source_module.fetch_national_history()
-        jiangsu_draws, jiangsu_receipt, jiangsu_manifest = source_module.fetch_jiangsu_history()
-        for source_id, manifest in (
-            ("national", national_manifest), ("jiangsu", jiangsu_manifest),
-        ):
+        errors = {}
+        national_data = jiangsu_data = None
+        try:
+            national_data = source_module.fetch_national_history()
+        except Exception as exc:
+            errors["national"] = f"{type(exc).__name__}: {exc}"
+        try:
+            jiangsu_data = source_module.fetch_jiangsu_history()
+        except Exception as exc:
+            errors["jiangsu"] = f"{type(exc).__name__}: {exc}"
+
+        source_specs = (
+            ("national", "official_sporttery_national", "sporttery.cn",
+             "https://webapi.sporttery.cn/gateway/lottery/getHistoryPageListV1.qry", national_data),
+            ("jiangsu", "official_jiangsu_sporttery", "js-lottery.com",
+             "https://api.js-lottery.com/Lottery/_ListData", jiangsu_data),
+        )
+        sources = []
+        for source_id, source_name, root, url, data in source_specs:
+            if data is None:
+                sources.append({
+                    "source_id": source_id, "source_name": source_name,
+                    "source_root": root, "url": url, "draws": [],
+                    "receipt": None, "error": errors.get(source_id, "SOURCE_FETCH_FAILED"),
+                })
+                continue
+            draws, receipt, manifest = data
             for entry in manifest:
                 encoded = entry.get("body_b64")
                 if not isinstance(encoded, str):
@@ -427,30 +458,15 @@ def _worker(game: str) -> dict:
                 raw_artifacts.append(_normalize_worker_artifact(
                     game, source_id, meta, raw, parser_version
                 ))
-        sources = [
-            {
-                "source_id": "national", "source_name": "official_sporttery_national",
-                "source_root": "sporttery.cn",
-                "url": "https://webapi.sporttery.cn/gateway/lottery/getHistoryPageListV1.qry",
-                "draws": _source_rows(national_draws),
+            sources.append({
+                "source_id": source_id, "source_name": source_name,
+                "source_root": root, "url": url, "draws": _source_rows(draws),
                 "receipt": {
-                    "status": national_receipt.status, "draw_count": national_receipt.draw_count,
-                    "latest_issue": national_receipt.latest_issue, "raw_sha256": national_receipt.raw_sha256,
-                    "fetched_at": national_receipt.fetched_at,
+                    "status": receipt.status, "draw_count": receipt.draw_count,
+                    "latest_issue": receipt.latest_issue, "raw_sha256": receipt.raw_sha256,
+                    "fetched_at": receipt.fetched_at,
                 },
-            },
-            {
-                "source_id": "jiangsu", "source_name": "official_jiangsu_sporttery",
-                "source_root": "js-lottery.com",
-                "url": "https://api.js-lottery.com/Lottery/_ListData",
-                "draws": _source_rows(jiangsu_draws),
-                "receipt": {
-                    "status": jiangsu_receipt.status, "draw_count": jiangsu_receipt.draw_count,
-                    "latest_issue": jiangsu_receipt.latest_issue, "raw_sha256": jiangsu_receipt.raw_sha256,
-                    "fetched_at": jiangsu_receipt.fetched_at,
-                },
-            },
-        ]
+            })
     else:
         raise GateError("UNKNOWN_LOTTERY_FOR_SOURCE_INTAKE")
 
