@@ -177,8 +177,11 @@ def _model_ranking(snapshot, model):
             raise GateError("hot60 needs 60 historical draws")
         return _rank(_freq(history, 60, pool))
     if model == "ewma":
-        if len(history) < 60:
-            raise GateError("ewma needs 60 historical draws")
+        # The registered V4.7 study uses an exact 120-draw warm-up.
+        # Do not silently emit a different, shorter-window algorithm even
+        # through a direct forecast() call that bypasses the batch CLI.
+        if len(history) < 120:
+            raise GateError("ewma registered window requires 120 historical draws")
         weights = {n: 0.0 for n in range(1, pool + 1)}
         for d in history[-120:]:
             for n in weights:
