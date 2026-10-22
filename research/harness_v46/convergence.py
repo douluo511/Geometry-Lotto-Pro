@@ -1,4 +1,4 @@
-"""test10 convergence contract for synthetic / unverified V4.6 SHADOW studies.
+"""test10 convergence contract for synthetic / unverified V4.7 SHADOW studies.
 
 This is not a sandbox, a trusted clock, an official-data verifier, a TSA client,
 or authority to promote a prediction to formal A. No model choices live here.
