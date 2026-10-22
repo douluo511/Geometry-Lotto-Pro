@@ -1,13 +1,13 @@
 {
   "schema": "V47-LIVE-INTAKE-TRIGGER-1",
   "run_once": true,
-  "purpose": "Read-only fetch and cross-check of at least 120 historical SSQ and DLT draws from two preapproved official-domain roots per game.",
+  "purpose": "Read-only historical intake: SSQ requires two independent official roots with >=120 matching draws; DLT requires national+Jiangsu primary histories with >=120 matching draws plus >=10 matching recent issues from Gansu as a third corroborator.",
   "no_prediction": true,
   "no_ticket_purchase": true,
   "formal_A": 0,
   "external_tsa": "NOT_RUN",
   "decision": "NO_EDGE",
   "warning": "The workflow output is SHADOW historical-source evidence only. It cannot admit a target issue or certify sales cutoff/publication time.",
-  "attempt": 2,
-  "note": "Retry after fixing non-200 response preservation and continuing to the independent second source; read-only only."
+  "attempt": 3,
+  "note": "One-shot validation after V4.7 P0-A fail-closed gate separation, self-hashed intake orchestrator, and mandatory three-source DLT corroboration. Preserve raw failures; no forecast, no ticket purchase, no formal-A admission."
 }
