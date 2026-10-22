@@ -447,7 +447,7 @@ def _worker(game: str) -> dict:
         raise GateError("PARSER_VERSION_CHANGED_DURING_IMPORT")
 
     if game == "SSQ":
-        from glp.constants import SSQ_HISTORY_START_ISSUE
+        from glp.constants import SSQ_HISTORY_START_ISSUE, GUANGDONG_HISTORY_URL
 
         def recorder(meta, raw):
             source_name = str(meta.get("source") or "")
@@ -458,20 +458,20 @@ def _worker(game: str) -> dict:
                 game, source_id, meta, bytes(raw), parser_version
             ))
 
-        source_specs = (
+        primary_specs = (
             ("national", "official_cwl_L0",
+             "https://www.cwl.gov.cn/cwl_admin/front/cwlkj/search/kjxx/findDrawNotice",
              lambda: source_module.fetch_national_history(record_raw=recorder)),
             ("shanghai", "official_shanghai_L1",
+             "https://www.swlc.net.cn/lottery/ssq.html",
              lambda: source_module.fetch_shanghai_full_history(
                  start_issue=SSQ_HISTORY_START_ISSUE, record_raw=recorder
              )),
         )
         sources = []
         errors = {}
-        for source_id, source_name, fetch in source_specs:
-            root = "cwl.gov.cn" if source_id == "national" else "swlc.net.cn"
-            url = ("https://www.cwl.gov.cn/cwl_admin/front/cwlkj/search/kjxx/findDrawNotice"
-                   if source_id == "national" else "https://www.swlc.net.cn/lottery/ssq.html")
+        for source_id, source_name, url, fetch in primary_specs:
+            root = EXPECTED_ROOTS[game][source_id]
             try:
                 draws, receipt, _manifest = fetch()
                 sources.append({
@@ -489,6 +489,35 @@ def _worker(game: str) -> dict:
                     "source_id": source_id, "source_name": source_name,
                     "source_root": root, "url": url, "draws": [],
                     "receipt": None, "error": errors[source_id],
+                })
+
+        # Fetch the recent regional corroborator only when the two 120+ primary
+        # sources do not both fetch. It is never substituted for a long history.
+        if errors:
+            source_id, source_name, url = (
+                "guangdong", "official_guangdong_L2", GUANGDONG_HISTORY_URL
+            )
+            try:
+                draws, receipt, _meta = source_module.fetch_guangdong_recent_history(
+                    limit=50, record_raw=recorder
+                )
+                sources.append({
+                    "source_id": source_id, "source_name": source_name,
+                    "source_root": EXPECTED_ROOTS[game][source_id],
+                    "url": url, "draws": _source_rows(draws),
+                    "receipt": {
+                        "status": receipt.status, "draw_count": receipt.draw_count,
+                        "latest_issue": receipt.latest_issue, "raw_sha256": receipt.raw_sha256,
+                        "fetched_at": receipt.fetched_at,
+                    },
+                })
+            except Exception as exc:
+                errors[source_id] = f"{type(exc).__name__}: {exc}"
+                sources.append({
+                    "source_id": source_id, "source_name": source_name,
+                    "source_root": EXPECTED_ROOTS[game][source_id],
+                    "url": url, "draws": [], "receipt": None,
+                    "error": errors[source_id],
                 })
     elif game == "DLT":
         errors = {}
