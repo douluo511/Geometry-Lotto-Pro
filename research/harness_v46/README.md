@@ -38,9 +38,14 @@ The multi-product repository itself is NOT a final independent release repositor
   rows cannot be silently adopted into a new context; resume them under a new
   RUN_ID only.
 - Synthetic reproducibility, cross-lottery, tamper, and gate tests.
-- No live ingestion, isolated LLM processes, unattended scheduler, external
-  trusted timestamps, official draw verification, multi-day statistical trial,
-  or official A gate. CLI always emits SHADOW.
+- SHADOW live historical collection and second-process replay of preserved
+  HTTP bodies are implemented. The replay uses the same pinned parser;
+  source origin, historical publication time and independent upstream custody
+  remain unauthenticated. See `V47_INDEPENDENT_AUDIT_R1.md` and
+  `V47_INDEPENDENT_AUDIT_R2.md` for measured evidence and remaining blockers.
+- No OS-enforced producer isolation, accepted unattended host scheduler,
+  verified external trusted timestamp, authenticated official outcome intake,
+  qualified prospective trial or official A gate. CLI always emits SHADOW.
 
 ## Roles: chat instructions are not execution permissions
 

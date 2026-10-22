@@ -246,10 +246,15 @@ def register_manifest(conn, value):
 
 
 def check_complete_batch(conn, run_id, lottery):
-    """Exactly six frozen model rows and a matching persisted V4.7 manifest."""
+    """Replay six SHADOW rows and local time bounds, never trusted pre-draw time."""
     registered = validate_run_manifest_record(conn, run_id)
     if registered is None:
         raise GateError("V47_MANIFEST_REQUIRED")
+    manifest_class = conn.execute(
+        "SELECT evidence_class FROM run_manifests WHERE run_id=?", (run_id,),
+    ).fetchone()
+    if manifest_class is None or manifest_class[0] != "SHADOW":
+        raise GateError("V47_MANIFEST_EVIDENCE_CLASS_NOT_SHADOW")
     expected_game = registered["games"].get(lottery)
     context = conn.execute(
         "SELECT snapshot_sha256,target_issue FROM run_context WHERE run_id=? AND lottery=?",
@@ -265,12 +270,25 @@ def check_complete_batch(conn, run_id, lottery):
             or snapshot.get("sales_cutoff") != expected_game.get("sales_cutoff")):
         raise GateError("RUN_SNAPSHOT_CONTEXT_MISMATCH")
     rows = conn.execute(
-        "SELECT model,payload,prediction_sha256,snapshot_sha256 FROM predictions "
+        "SELECT model,payload,prediction_sha256,snapshot_sha256,frozen_at,evidence_class FROM predictions "
         "WHERE run_id=? AND lottery=?", (run_id, lottery)).fetchall()
     if len(rows) != len(MODELS) or {x[0] for x in rows} != set(MODELS):
         raise GateError("INCOMPLETE_SIX_MODEL_BATCH")
     hashes = {}
-    for model, payload, checksum, snap in rows:
+    as_of, cutoff = dt(snapshot["as_of"]), dt(snapshot["sales_cutoff"])
+    for model, payload, checksum, snap, frozen_at, evidence_class in rows:
+        if evidence_class != "SHADOW":
+            raise GateError("FROZEN_PREDICTION_EVIDENCE_CLASS_NOT_SHADOW")
+        if not isinstance(frozen_at, str):
+            raise GateError("FROZEN_PREDICTION_INVALID_LOCAL_TIMESTAMP")
+        try:
+            local_frozen_at = dt(frozen_at)
+        except GateError as exc:
+            raise GateError("FROZEN_PREDICTION_INVALID_LOCAL_TIMESTAMP") from exc
+        if not as_of <= local_frozen_at < cutoff:
+            raise GateError("FROZEN_PREDICTION_LOCAL_TIME_OUTSIDE_ASOF_CUTOFF")
+        # This consistency check cannot authenticate the local clock or replace
+        # an independently verified external timestamp before sales cutoff.
         if hashlib.sha256(payload.encode("utf-8")).hexdigest() != checksum or snap != context[0]:
             raise GateError("FROZEN_PREDICTION_INTEGRITY_FAIL")
         p = json.loads(payload)

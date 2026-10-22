@@ -3,9 +3,13 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
+from types import SimpleNamespace
 
+from research.harness_v46 import official_intake as oi
 from research.harness_v46.audit_intake_bundle import audit_bundle, main as audit_main
 from research.harness_v46.core import MAX_RAW_SOURCE_BYTES
+from research.harness_v46.tests.test_official_intake import _payload
 
 
 def make_bundle(root: Path, *, body=b"blocked HTTP 567 body", status=567):
@@ -48,7 +52,308 @@ def make_bundle(root: Path, *, body=b"blocked HTTP 567 body", status=567):
     return bundle, artifact, raw_path
 
 
+def make_worker_bundle(parent: Path, *, stdout=b"untrusted worker\r\n\xff",
+                       stderr=b"untrusted stderr\r\n", complete=True):
+    result = oi._quarantine_worker_output(
+        "SSQ", "synthetic parent validation failure", stdout, stderr,
+        returncode=2 if complete else None, capture_complete=complete)
+    bundle = {
+        "schema": "V47-OFFICIAL-INTAKE-BUNDLE-1", "games": {"SSQ": result},
+        "errors": {"SSQ": "synthetic failure"}, "formal_A": 0, "decision": "NO_EDGE",
+        "official_target_admission": "BLOCKED", "external_tsa": "NOT_RUN",
+    }
+    path = oi.write_bundle(bundle, parent / "worker-evidence")
+    physical = oi._physical_root(path)
+    return physical.parent, json.loads(physical.read_text(encoding="utf-8"))
+
+
 class IntakeBundleAuditTests(unittest.TestCase):
+    def check_long_bundle_round_trip_and_tamper(self, result, *, http_count, stream_count):
+        bundle = {
+            "schema": "V47-OFFICIAL-INTAKE-BUNDLE-1", "games": {"SSQ": result},
+            "errors": {"SSQ": "synthetic long path fixture"},
+            "formal_A": 0, "decision": "NO_EDGE", "official_target_admission": "BLOCKED",
+            "external_tsa": "NOT_RUN",
+        }
+        # An extended temporary root also lets Windows clean up >260-character
+        # children without changing registry or machine-wide path settings.
+        with tempfile.TemporaryDirectory(dir=oi._physical_root(tempfile.gettempdir())) as tmp:
+            destination = Path(tmp).joinpath("a" * 60, "b" * 60, "c" * 60, "d" * 60)
+            manifest = oi.write_bundle(bundle, destination)
+            self.assertGreater(len(str(manifest)), 260)
+            self.assertFalse(str(manifest).startswith("\\\\?\\"))
+            physical_manifest = oi._physical_root(manifest)
+            root = physical_manifest.parent
+            saved = json.loads(physical_manifest.read_text(encoding="utf-8"))
+            saved_result = saved["games"]["SSQ"]
+            if stream_count:
+                relative = saved_result["worker_output_capture"]["streams"][0]["artifact_path"]
+            else:
+                relative = saved_result["sources"][0]["raw_artifacts"][0]["artifact_path"]
+            self.assertFalse(Path(relative).is_absolute())
+            self.assertNotIn("\\\\?\\", relative)
+            target = root / relative
+            self.assertGreater(len(str(target)), 260)
+            self.assertEqual(audit_main(["--bundle-dir", str(manifest.parent)]), 0)
+            receipt_path = root / "intake-audit.json"
+            receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+            self.assertEqual(receipt["status"], "PASS")
+            self.assertEqual(receipt["verified_artifact_records"], http_count)
+            self.assertEqual(receipt["verified_worker_output_stream_records"], stream_count)
+            old_manifest, old_receipt = physical_manifest.read_bytes(), receipt_path.read_bytes()
+            with self.assertRaises(FileExistsError):
+                oi.write_bundle(bundle, manifest.parent)
+            with self.assertRaises(FileExistsError):
+                audit_main(["--bundle-dir", str(manifest.parent)])
+            self.assertEqual(physical_manifest.read_bytes(), old_manifest)
+            self.assertEqual(receipt_path.read_bytes(), old_receipt)
+            target.write_bytes(b"X" * len(target.read_bytes()))
+            tampered = audit_bundle(manifest.parent)
+            self.assertEqual(tampered["status"], "FAIL")
+            self.assertTrue(any("MISMATCH" in error for error in tampered["errors"]))
+
+    def test_long_absolute_diagnostic_paths_support_write_cli_audit_and_tamper(self):
+        result = oi._quarantine_worker_output("SSQ", "synthetic long path failure",
+                                             b"worker stdout\r\n", b"stderr\xff",
+                                             returncode=2, capture_complete=True)
+        self.check_long_bundle_round_trip_and_tamper(result, http_count=0, stream_count=2)
+
+    def test_long_absolute_raw_paths_support_write_cli_audit_and_tamper(self):
+        result = oi._quarantine_second_process_replay(
+            oi.validate_worker_payload(_payload("SSQ")), "synthetic long path fixture")
+        self.check_long_bundle_round_trip_and_tamper(result, http_count=2, stream_count=0)
+
+    def test_diagnostic_only_capture_passes_byte_audit_without_http_admission(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root, _ = make_worker_bundle(Path(tmp))
+            before = {p.relative_to(root).as_posix(): p.read_bytes()
+                      for p in root.rglob("*") if p.is_file()}
+            report = audit_bundle(root)
+            after = {p.relative_to(root).as_posix(): p.read_bytes()
+                     for p in root.rglob("*") if p.is_file()}
+        self.assertEqual(report["status"], "PASS")
+        self.assertEqual(before, after)
+        self.assertEqual(report["artifact_records"], 0)
+        self.assertEqual(report["verified_artifact_records"], 0)
+        self.assertEqual(report["worker_output_stream_records"], 2)
+        self.assertEqual(report["verified_worker_output_stream_records"], 2)
+        self.assertEqual(report["http_raw_evidence_status"],
+                         "NOT_PRESENT_OR_UNVALIDATED_PROCESS_OUTPUT_ONLY")
+        self.assertEqual(report["admission_guard"]["formal_A"], 0)
+        self.assertEqual(report["admission_guard"]["decision"], "NO_EDGE")
+
+    def test_worker_capture_byte_tamper_and_missing_file_fail_audit(self):
+        for missing in (False, True):
+            with self.subTest(missing=missing), tempfile.TemporaryDirectory() as tmp:
+                root, bundle = make_worker_bundle(Path(tmp))
+                stream = bundle["games"]["SSQ"]["worker_output_capture"]["streams"][0]
+                saved = root / stream["artifact_path"]
+                if missing:
+                    saved.unlink()
+                else:
+                    saved.write_bytes(b"X" * stream["size_bytes"])
+                report = audit_bundle(root)
+                self.assertEqual(report["status"], "FAIL")
+                self.assertTrue(any("WORKER_OUTPUT_" in error for error in report["errors"]))
+
+    def test_worker_capture_wrong_game_stream_sha_and_traversal_paths_fail(self):
+        for path in ("../escape.bin", "diagnostics/DLT/worker/stdout/" + "0" * 64 + ".bin",
+                     "diagnostics/SSQ/worker/stderr/" + "0" * 64 + ".bin"):
+            with self.subTest(path=path), tempfile.TemporaryDirectory() as tmp:
+                root, bundle = make_worker_bundle(Path(tmp))
+                bundle["games"]["SSQ"]["worker_output_capture"]["streams"][0]["artifact_path"] = path
+                (root / "intake.json").write_text(json.dumps(bundle), encoding="utf-8")
+                report = audit_bundle(root)
+                self.assertEqual(report["status"], "FAIL")
+                self.assertIn("WORKER_OUTPUT_NONCANONICAL_PATH:SSQ:stdout", report["errors"])
+
+    def test_worker_capture_guard_rejects_claims_and_non_integer_zero_counts(self):
+        replacements = {
+            "source_origin_authenticity": "VERIFIED",
+            "publication_time_authenticity": "VERIFIED",
+            "history_validation_tier": "VERIFIED_HISTORY",
+            "official_history_admission": "SHADOW_HISTORY_ONLY",
+            "raw_byte_sha_validation": "PASS",
+            "source_count": False,
+            "raw_artifact_count": 0.0,
+            "consensus_draw_count": False,
+            "primary_history_draw_count": 0.0,
+            "consensus_draws": [{"issue": "untrusted"}],
+        }
+        for field, value in replacements.items():
+            with self.subTest(field=field), tempfile.TemporaryDirectory() as tmp:
+                root, bundle = make_worker_bundle(Path(tmp))
+                bundle["games"]["SSQ"][field] = value
+                (root / "intake.json").write_text(json.dumps(bundle), encoding="utf-8")
+                report = audit_bundle(root)
+                self.assertEqual(report["status"], "FAIL")
+                self.assertIn("WORKER_OUTPUT_QUARANTINE_GUARD_INVALID:SSQ", report["errors"])
+
+    def test_worker_capture_cannot_attach_http_records_through_diagnostic_aliases(self):
+        for field in ("unadmitted_raw_artifacts", "transport_failures"):
+            with self.subTest(field=field), tempfile.TemporaryDirectory() as tmp:
+                root, bundle = make_worker_bundle(Path(tmp))
+                raw = b"plausible synthetic HTTP body"
+                sha = hashlib.sha256(raw).hexdigest()
+                rel = f"raw/SSQ/national/{sha}.bin"
+                saved = root / rel
+                saved.parent.mkdir(parents=True, exist_ok=True)
+                saved.write_bytes(raw)
+                bundle["games"]["SSQ"][field] = [{
+                    "source_id": "national", "artifact_path": rel,
+                    "raw_sha256": sha, "size_bytes": len(raw), "http_status": 200,
+                }]
+                (root / "intake.json").write_text(json.dumps(bundle), encoding="utf-8")
+                report = audit_bundle(root)
+                self.assertEqual(report["status"], "FAIL")
+                self.assertIn("WORKER_OUTPUT_QUARANTINE_GUARD_INVALID:SSQ", report["errors"])
+
+    def test_removed_worker_capture_cannot_launder_failed_stdout_as_http(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root, bundle = make_worker_bundle(Path(tmp))
+            result = bundle["games"]["SSQ"]
+            capture = result.pop("worker_output_capture")
+            raw = (root / capture["streams"][0]["artifact_path"]).read_bytes()
+            for stream in capture["streams"]:
+                (root / stream["artifact_path"]).unlink()
+            sha = hashlib.sha256(raw).hexdigest()
+            rel = f"raw/SSQ/national/{sha}.bin"
+            target = root / rel
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(raw)
+            result.update(source_count=1, raw_artifact_count=1, sources=[{
+                "source_id": "national", "raw_reparse_status": "PASS",
+                "draws": [{"issue": "invented worker claim"}],
+                "raw_artifacts": [{"artifact_path": rel, "raw_sha256": sha,
+                                   "size_bytes": len(raw), "http_status": 200}],
+            }])
+            (root / "intake.json").write_text(json.dumps(bundle), encoding="utf-8")
+            report = audit_bundle(root)
+        self.assertEqual(report["status"], "FAIL")
+        self.assertIn("WORKER_OUTPUT_CAPTURE_MISSING:SSQ", report["errors"])
+        self.assertIn("WORKER_OUTPUT_QUARANTINE_GUARD_INVALID:SSQ", report["errors"])
+        self.assertEqual(report["artifact_records"], 0)
+        self.assertEqual(report["verified_artifact_records"], 0)
+
+    def test_worker_capture_unreferenced_output_fails_audit(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root, _ = make_worker_bundle(Path(tmp))
+            extra = root / "diagnostics" / "unlisted.bin"
+            extra.write_bytes(b"unlisted diagnostic")
+            report = audit_bundle(root)
+        self.assertEqual(report["status"], "FAIL")
+        self.assertIn("UNREFERENCED_WORKER_OUTPUT_FILE:diagnostics/unlisted.bin", report["errors"])
+
+    def test_worker_capture_checks_every_parent_directory_for_symlinks(self):
+        for relative in ("diagnostics", "diagnostics/SSQ", "diagnostics/SSQ/worker",
+                         "diagnostics/SSQ/worker/stdout"):
+            with self.subTest(parent=relative), tempfile.TemporaryDirectory() as tmp:
+                root, _ = make_worker_bundle(Path(tmp))
+                original = Path.is_symlink
+                def is_symlink(path):
+                    return path == root / relative or original(path)
+                with patch.object(Path, "is_symlink", is_symlink):
+                    report = audit_bundle(root)
+                self.assertEqual(report["status"], "FAIL")
+                self.assertIn("WORKER_OUTPUT_FILE_UNSAFE_OR_MISSING:SSQ:stdout", report["errors"])
+
+    def test_worker_capture_rejects_reparse_points_at_every_path_component(self):
+        relatives = ("diagnostics", "diagnostics/SSQ", "diagnostics/SSQ/worker",
+                     "diagnostics/SSQ/worker/stdout")
+        for relative in relatives:
+            with self.subTest(parent=relative), tempfile.TemporaryDirectory() as tmp:
+                root, _ = make_worker_bundle(Path(tmp))
+                original_lstat = Path.lstat
+                def lstat(path):
+                    actual = original_lstat(path)
+                    if path == root / relative:
+                        return SimpleNamespace(st_mode=actual.st_mode,
+                                               st_file_attributes=0x400)
+                    return actual
+                with patch.object(Path, "lstat", lstat):
+                    # is_symlink remains False for the simulated Windows junction.
+                    self.assertFalse((root / relative).is_symlink())
+                    report = audit_bundle(root)
+                self.assertEqual(report["status"], "FAIL")
+                self.assertIn("WORKER_OUTPUT_FILE_UNSAFE_OR_MISSING:SSQ:stdout", report["errors"])
+                self.assertEqual(report["verified_worker_output_stream_records"],
+                                 1 if relative.endswith("stdout") else 0)
+
+    def test_original_raw_evidence_rejects_reparse_points_at_every_path_component(self):
+        for relative in ("raw", "raw/DLT", "raw/DLT/national"):
+            with self.subTest(parent=relative), tempfile.TemporaryDirectory() as tmp:
+                root = oi._physical_root(tmp)
+                make_bundle(root)
+                original_lstat = Path.lstat
+                def lstat(path):
+                    actual = original_lstat(path)
+                    if path == root / relative:
+                        return SimpleNamespace(st_mode=actual.st_mode,
+                                               st_file_attributes=0x400)
+                    return actual
+                with patch.object(Path, "lstat", lstat):
+                    report = audit_bundle(root)
+                self.assertEqual(report["status"], "FAIL")
+                self.assertEqual(report["verified_artifact_records"], 0)
+                self.assertTrue(any("REPARSE_POINT" in error for error in report["errors"]))
+
+    def test_worker_capture_malformed_stream_names_or_missing_status_fail_closed(self):
+        for name in ([], {}, None, "stderr"):
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as tmp:
+                root, bundle = make_worker_bundle(Path(tmp))
+                bundle["games"]["SSQ"]["worker_output_capture"]["streams"][0]["stream"] = name
+                (root / "intake.json").write_text(json.dumps(bundle), encoding="utf-8")
+                report = audit_bundle(root)
+                self.assertEqual(report["status"], "FAIL")
+                self.assertIn("WORKER_OUTPUT_STREAM_SET_INVALID:SSQ", report["errors"])
+
+    def test_incomplete_worker_capture_reports_missing_stream_without_inventing_http(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root, _ = make_worker_bundle(Path(tmp), stdout=b"partial output", stderr=None,
+                                         complete=False)
+            report = audit_bundle(root)
+        self.assertEqual(report["status"], "PASS")
+        self.assertEqual(report["verified_worker_output_stream_records"], 1)
+        self.assertEqual(report["unavailable_worker_output_streams"], 1)
+        self.assertEqual(report["incomplete_worker_output_games"], ["SSQ"])
+        self.assertEqual(report["artifact_records"], 0)
+        self.assertTrue(report["worker_output_limitations"])
+
+    def test_worker_capture_non_string_byte_representation_returns_fail_receipt(self):
+        for value in ([], {}, None):
+            with self.subTest(representation=value), tempfile.TemporaryDirectory() as tmp:
+                root, bundle = make_worker_bundle(Path(tmp))
+                bundle["games"]["SSQ"]["worker_output_capture"]["streams"][0]["byte_representation"] = value
+                (root / "intake.json").write_text(json.dumps(bundle), encoding="utf-8")
+                report = audit_bundle(root)
+                self.assertEqual(report["status"], "FAIL")
+                self.assertIn("WORKER_OUTPUT_STREAM_SCHEMA_INVALID:SSQ:stdout", report["errors"])
+
+    def test_no_worker_output_never_certifies_preserved_evidence(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root, _ = make_worker_bundle(Path(tmp), stdout=None, stderr=None, complete=False)
+            report = audit_bundle(root)
+        self.assertEqual(report["status"], "FAIL")
+        self.assertEqual(report["artifact_records"], 0)
+        self.assertEqual(report["verified_worker_output_stream_records"], 0)
+        self.assertEqual(report["unavailable_worker_output_streams"], 2)
+        self.assertIn("NO_RAW_ARTIFACT_RECORDS_FOUND", report["errors"])
+
+    def test_not_captured_worker_stream_cannot_claim_bytes_or_complete_capture(self):
+        for complete in (False, True):
+            with self.subTest(complete=complete), tempfile.TemporaryDirectory() as tmp:
+                root, bundle = make_worker_bundle(Path(tmp), stdout=b"partial", stderr=None,
+                                                  complete=False)
+                capture = bundle["games"]["SSQ"]["worker_output_capture"]
+                capture["capture_complete"] = complete
+                capture["returncode"] = 2 if complete else None
+                if not complete:
+                    capture["streams"][1]["size_bytes"] = 0
+                (root / "intake.json").write_text(json.dumps(bundle), encoding="utf-8")
+                report = audit_bundle(root)
+                self.assertEqual(report["status"], "FAIL")
+                self.assertIn("WORKER_OUTPUT_NOT_CAPTURED_CONFLICT:SSQ:stderr", report["errors"])
+
     def test_valid_blocked_bundle_passes_integrity_and_marks_http_failure_diagnostic(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

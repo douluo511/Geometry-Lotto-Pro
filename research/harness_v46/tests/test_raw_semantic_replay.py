@@ -155,9 +155,9 @@ class IndependentRawReplayTests(unittest.TestCase):
             if "--worker" in command:
                 # An offline child emits the worker fixture through real pipes.
                 # It exercises both ends of the worker transport without fetching.
-                code = ("import sys; sys.stdout.write(sys.stdin.read()); "
+                code = ("import sys; sys.stdout.buffer.write(sys.stdin.buffer.read()); "
                         "sys.stderr.write('worker:\\u6e90\\u7ad9\\u9519\\u8bef')")
-                kwargs["input"] = json.dumps(payload, ensure_ascii=False)
+                kwargs["input"] = json.dumps(payload, ensure_ascii=False).encode("utf-8")
                 child = original_run([sys.executable, "-c", code], **kwargs)
                 completed_children["worker"] = child
                 return child
@@ -176,7 +176,7 @@ class IndependentRawReplayTests(unittest.TestCase):
         self.assertEqual(result["status"], "SOURCE_FETCH_PARTIAL")
         self.assertEqual(result["errors"], {"shanghai": "源站错误"})
         self.assertEqual(json.loads(completed_children["worker"].stdout), payload)
-        self.assertEqual(completed_children["worker"].stderr, "worker:源站错误")
+        self.assertEqual(completed_children["worker"].stderr, "worker:源站错误".encode("utf-8"))
         self.assertEqual(completed_children["replay"].stderr, "replay:复核诊断")
         self.assertEqual(result["second_process_raw_replay"]["decision"], "NO_EDGE")
 
