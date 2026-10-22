@@ -218,3 +218,46 @@ A second live attempt was triggered on HEAD `4b5a9b064967f2a6a03f60775cae3d43195
 ### Non-negotiable boundary
 
 Even a successful `HISTORY_CROSSCHECK_PASS` is historical source evidence only. Target issue, sales cutoff, draw schedule, publication time and external TSA are separate gates. No live official dual-source 120+ history has yet been admitted as of this review entry; do not change G00/G01 or the three top-level verdicts without exact-run evidence.
+
+
+## 14. Independent live-evidence review: DLT chronology quarantine and SSQ Hebei fallback — 2026-10-22
+
+**This section supersedes earlier optimistic interpretations of DLT HISTORY_CROSSCHECK_PASS.**
+Do not treat the quantity of primary-history rows as the independently agreed overlap count.
+
+### Run #39754959885 — third actual live intake
+
+Workflow: https://github.com/douluo511/Geometry-Lotto-Pro/actions/runs/39754959885
+Artifact: https://github.com/douluo511/Geometry-Lotto-Pro/actions/runs/39754959885/artifacts/12415656424
+
+- DLT: Jiangsu 2,934 rows, latest 26120; Gansu 20 rows, latest 26120; **only 20 issue IDs agreed across independent roots**. National Sporttery requests returned HTTP 567 in both configured profiles. Third-run output mistakenly labelled 2,934 primary rows as "consensus_draws" and HISTORY_CROSSCHECK_PASS; this conflated primary-only and independently verified history.
+- SSQ: Shanghai 2,078 rows, latest 2026120; CWL national HTTP 403. Shanghai-only history is not a two-source 120+ history.
+- 2016 DLT Jiangsu raw dates contain reproducible anomalies: 16003 = 2016-01-07 (Thursday, historical reporting indicates Wednesday 2016-01-06), 16004 = 2016-01-11 (historical reporting indicates Saturday 2016-01-09), while 16005 is also dated 2016-01-11. Original raw bodies are retained without modification. Independently inspect official documents, including https://www.sport.gov.cn/n20001280/n20745751/n20767297/c21206580/content.html (16004 drawn Jan 9) and https://yntc8.cn/news/2016010742904.html (16003 drawn Jan 6); these web documents are corroboration, **not a replacement for authenticated original draw-source capture**.
+
+### Code and audit response
+
+- Enforce strictly increasing draw dates and quarantine DLT chronology anomalies before source-history admission; report issue/date/reason rather than silently accepting or overwriting a bad date.
+- Distinguish HISTORY_CROSSCHECK_LIMITED (1–119 independently matched issues) from HISTORY_CROSSCHECK_PASS (>=120 matched issues). "consensus_draws" now contains **only independently matched rows**; "primary_history_draws" contains the larger primary-only unverified historical set.
+- Add official provincial Hebei SSQ latest-result fallback with its homepage + official announcement, both independently parsed from preserved response bytes. This route is latest-only and cannot pass the 120+ history gate.
+- Deduplicate identical SHA-addressed HTTP retry bodies on disk while preserving all response receipts, and validate source IDs before writing paths.
+- No artificial correction to source history, no substitution of third-party lottery pages for original official evidence, and no upgrades to G00/G01, statistical sample eligibility, or official draw cutoff verification.
+
+### Run #39758011787 — fourth actual live intake
+
+Workflow: https://github.com/douluo511/Geometry-Lotto-Pro/actions/runs/39758011787
+Artifact: https://github.com/douluo511/Geometry-Lotto-Pro/actions/runs/39758011787/artifacts/12417055858
+
+- SSQ HISTORY_CROSSCHECK_LIMITED: Shanghai 2,078 history rows; Hebei homepage + announcement agree on **one** latest issue, 2026120, 2026-10-20, red 13/14/16/18/20/31, blue 03. CWL HTTP 403. Independent overlap=1; full dual-source 120+ admission BLOCKED.
+- DLT SOURCE_FETCH_PARTIAL: Jiangsu raw 30 HTTP-200 pages received and retained but quarantined due two calendar anomalies above. Gansu 20 valid recent rows; national two HTTP-567 bodies retained. No independently admitted full historical set.
+- Actual output overall exit=failure by design: any lottery lacking full 120+ admission keeps the workflow red. Both official target admissions BLOCKED, external TSA NOT_RUN, formal A=0 and NO_EDGE.
+
+### Exact CI after calendar gate and Hebei fallback
+
+Run #39758256554 (HEAD 75a553a28fbf1240b3b6137faa553ed50b3d0ae5):
+https://github.com/douluo511/Geometry-Lotto-Pro/actions/runs/39758256554
+Ubuntu SUCCESS, 95 tests (one Windows-only PowerShell parser test skipped);
+Windows Server 2022 SUCCESS, 95 tests. Unit/CI success is *synthetic gate evidence* only, not live full-history success or real Windows fault-injection acceptance.
+
+**Independent next action:** obtain a trustworthy second full SSQ historical publisher and a DLT full source not HTTP-blocked, or reconcile the Jiangsu dated issues using independently preserved, authenticated originals with explicit versioned exception receipts. Rerun the chronology+raw-page gate, require 120+ actual cross-source overlapping issues, then separately verify sales cutoff, pre-draw TSA and read-only replay. No manual data correction or prospective-A backfill is allowed.
+
+Unchanged verdicts: ENGINEERING_PASS=NOT_YET (real Windows physical P0 incomplete); RESEARCH_VALID=NO; D2_EDGE_CONFIRMED=NO; formal A=0; NO_EDGE.
