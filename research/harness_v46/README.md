@@ -153,3 +153,8 @@ publication, credible time sealing, or eligibility for gambling purchases.
 Exact-head synthetic CI for code HEAD `d1f2ab42f9e170fcae0c5d98101e4321e18ea804`: https://github.com/douluo511/Geometry-Lotto-Pro/actions/runs/39747892642 — Ubuntu and Windows Server 2022 both succeeded with 54 tests; Ubuntu skipped the Windows-only PowerShell parser test, and Windows ran it.
 
 Still BLOCKED/NOT_RUN: live official-source fetch and parser, two-source 120+ issue semantic comparison, official next-target/sales-cutoff admission, external RFC3161/independent witness validation, real Windows task installation/cold boot/offline recovery, verified official-result replay, actual preregistration identity mapping, DLT 69/2880 negative-control root cause, and any prospective D2 advantage.
+
+
+## V4.7 source-history comparison contract
+
+`source_validation.py` now validates two caller-parsed 120+ draw histories against each other and the immutable normalized snapshot. It checks the per-game HTTPS host allowlist, requires distinct official-domain roots, validates issue/date ordering, number ranges, publication timestamps against as-of, and rejects any row or snapshot disagreement. A matching result is explicitly `semantic_agreement=MATCHED` while `official_G01=BLOCKED`: the module does not fetch or parse the raw bytes and cannot prove that supplied parsed rows came from the named pages. Synthetic test fixtures only; no official history was admitted.
