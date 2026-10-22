@@ -7,7 +7,7 @@ No PR merged; main, older V4.5 evidence, and DLT 69/2880 negative-control eviden
 
 | Source | HEAD inspected | Base | Strength | Critical gap |
 |---|---|---|---|---|
-| #425 | `1cd80efdcf3ad9b33577c9cac5736fdad85a29f9` | main | standalone six-stream, per-game transaction, format + deterministic replay from 2 subsequent commits | no run_context in its HEAD, no official proof |
+| #425 | `27b635d21c90eb7b67fc81b894f8db2982cde3fe (HEAD observed before V4.7 branch changes)` | main | standalone six-stream, per-game transaction, format + deterministic replay from 2 subsequent commits | no run_context in its HEAD, no official proof |
 | #426 | `a258b84a4bc1fa96b964126aa683fc7b10ba9a48` | earlier #425 `86bd2833...` | immutable (run_id, lottery, issue, snapshot hash, as-of, cutoff); rejects legacy row adoption | lacks #425's latest two deterministic-replay hardening commits |
 | #427 | `fd11edb01e74515aa1195ff59f0b5ad2f3a660f2` | V4.5 Agent Graph branch | explicit ten-role mapping, V4.5 reuse, six research streams | different JSON snapshot and model APIs; no run_context, no cutoff, no external seal; two-game file written before separate ledger appends |
 
@@ -67,3 +67,19 @@ The workflow must be read with its exact branch commit and raw job logs. `PASS` 
 ### Scientific unchanged contract
 
 SSQ D2: 15/528 = 2.8409%; DLT D2: 10/595 = 1.6807%. Target +1 percentage point in each game is a challenge hypothesis only. The new challenger remains EXPLORATORY_UNREGISTERED, not a preregistered competitor. V4.5 M04, M05-1..5, M06, M07 retain their separate formal slot identities. Historical formal A=0, NO_EDGE, no automatic ticket purchase.
+
+
+## V4.7 delta committed on the #432 convergence branch
+
+The convergence branch has now been hardened in-place; it remains a Draft SHADOW PR and has not been merged to main.
+
+- The full study manifest, CLI forecast entry and freeze operation now require at least 120 historical draws per lottery. A 60–119-row snapshot may still exercise a low-level research function, but it cannot be admitted/frozen as a complete study run.
+- Pairwise-D2 now blocks histories shorter than its declared 120-draw window.
+- Model version is `v47-research-core-0.1`; the new Random NULL seed ID is `SSQ-DLT-V47-NULL-SHA256-SORT-v1-20261022`. The V4.7 permutation uses SHA256 rank sorting rather than Python `random.shuffle`; V4.6 results remain a separate historical version.
+- Parameter SHA now includes model parameters, version, lottery-rule digest, ranking tie-break and back-zone generation/seed contract. Each forecast records the exact core source SHA256.
+- The RUN_ID now uses the `V47-` namespace and binds both game contexts, the model registry, parameter/source hashes, tool whitelist and orchestration source SHA. A change in any registered identity produces a different RUN_ID.
+- New regression tests cover the 120-draw gate, Pairwise's 120-draw requirement, full parameter/source hashes and input-order-independent SHA256 permutations.
+
+These changes still do **not** verify official source authenticity, establish a real external TSA receipt, send messages to separate ChatGPT chats, prove host scheduler/reboot execution, or establish D2 advantage. Check the latest Ubuntu and Windows Actions logs before marking even synthetic engineering tests PASS.
+
+See [V4.7 deep review](V47_DEEP_REVIEW.md) for the full PR compatibility matrix, exact algorithm definitions, remaining blockers, and independent sample-size calculation.
