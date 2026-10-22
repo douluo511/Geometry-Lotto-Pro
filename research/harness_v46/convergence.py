@@ -10,7 +10,7 @@ import json
 import sqlite3
 from pathlib import Path
 
-from .core import MODELS, PARAMETERS, RULES, VERSION, GateError, canon, digest, dt, score, validate_snapshot
+from .core import MODELS, PARAMETERS, RULES, VERSION, GateError, canon, digest, dt, score, validate_snapshot, validate_study_snapshot
 
 ROLES = {
     "test1": "00-CONTROL", "test2": "01-OFFICIAL-DATA",
@@ -114,7 +114,7 @@ def manifest(snapshots):
         s = snapshots[game]
         if s.get("lottery") != game:
             raise GateError("GAME_SNAPSHOT_MISMATCH")
-        checksum = validate_snapshot(s)
+        checksum = validate_study_snapshot(s)
         games[game] = {
             "issue": str(s["target_issue"]), "as_of": s["as_of"],
             "sales_cutoff": s["sales_cutoff"], "target_draw_at": s["target_draw_at"],
