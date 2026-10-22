@@ -29,8 +29,12 @@ The multi-product repository itself is NOT a final independent release repositor
   lottery context (target issue, snapshot SHA256, as-of and cutoff),
   cutoff checks, a 120-draw minimum at study manifest, CLI and freeze gates,
   Pairwise-D2's registered 120-draw window, parameter/source SHA-256, and a
-  read-only score operation. Existing pre-context ledger rows cannot be
-  silently adopted into a new context; resume them under a new RUN_ID only.
+  read-only score operation. Application writer initialization enables
+  `recursive_triggers` and tests reject `INSERT OR REPLACE` against frozen
+  rows. This is connection-specific defense-in-depth, not WORM storage or
+  protection against privileged file replacement. Existing pre-context ledger
+  rows cannot be silently adopted into a new context; resume them under a new
+  RUN_ID only.
 - Synthetic reproducibility, cross-lottery, tamper, and gate tests.
 - No live ingestion, isolated LLM processes, unattended scheduler, external
   trusted timestamps, official draw verification, multi-day statistical trial,
