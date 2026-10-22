@@ -3,14 +3,13 @@ from __future__ import annotations
 import argparse
 import json
 import sqlite3
-from datetime import datetime, timezone, time
+from datetime import datetime, timezone, time, timedelta
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
 from .core import MODELS, GateError, dt, forecast, freeze_shadow, init_ledger
 from .convergence import STAGES, append_stage, check_complete_batch, init_workflow, manifest, tsa_request
 
-JST = ZoneInfo("Asia/Tokyo")
+JST = timezone(timedelta(hours=9), name="JST")  # Japan does not use DST
 DAYS = {0, 2, 5}  # Mon/Wed/Sat: target delivery run, not actual lottery draw date
 
 GUARD_SCHEMA = """
