@@ -158,3 +158,8 @@ Still BLOCKED/NOT_RUN: live official-source fetch and parser, two-source 120+ is
 ## V4.7 source-history comparison contract
 
 `source_validation.py` now validates two caller-parsed 120+ draw histories against each other and the immutable normalized snapshot. It checks the per-game HTTPS host allowlist, requires distinct official-domain roots, validates issue/date ordering, number ranges, publication timestamps against as-of, and rejects any row or snapshot disagreement. A matching result is explicitly `semantic_agreement=MATCHED` while `official_G01=BLOCKED`: the module does not fetch or parse the raw bytes and cannot prove that supplied parsed rows came from the named pages. Synthetic test fixtures only; no official history was admitted.
+
+
+## V4.7 allowlisted raw fetcher
+
+`source_fetch.py` can fetch raw bytes over HTTPS only from the per-game source-host allowlist, validates redirects against the same allowlist, enforces a 25 MB ceiling, records the final URL/content type/HTTP Last-Modified header/raw SHA256 and labels the local fetch time as untrusted. It intentionally returns `published_at=None`: an HTTP Last-Modified header is not treated as official page publication time. The module does not parse results, authenticate the site, or grant G00/G01. Unit tests use mocked HTTP responses; no live official-source request has been executed by this change.
