@@ -450,7 +450,7 @@ def _worker(game: str) -> dict:
                 })
     elif game == "DLT":
         errors = {}
-        national_data = jiangsu_data = None
+        national_data = jiangsu_data = gansu_data = None
         try:
             national_data = source_module.fetch_national_history()
         except Exception as exc:
@@ -459,13 +459,25 @@ def _worker(game: str) -> dict:
             jiangsu_data = source_module.fetch_jiangsu_history()
         except Exception as exc:
             errors["jiangsu"] = f"{type(exc).__name__}: {exc}"
+        # The Gansu official history page provides a smaller recent window.
+        # Use it only as an independent fallback paired with a 120+ issue primary.
+        if national_data is None or jiangsu_data is None:
+            try:
+                gansu_data = source_module.fetch_gansu_recent(20)
+            except Exception as exc:
+                errors["gansu"] = f"{type(exc).__name__}: {exc}"
 
-        source_specs = (
+        source_specs = [
             ("national", "official_sporttery_national", "sporttery.cn",
              "https://webapi.sporttery.cn/gateway/lottery/getHistoryPageListV1.qry", national_data),
             ("jiangsu", "official_jiangsu_sporttery", "js-lottery.com",
              "https://api.js-lottery.com/Lottery/_ListData", jiangsu_data),
-        )
+        ]
+        if national_data is None or jiangsu_data is None:
+            source_specs.append((
+                "gansu", "official_gansu_sporttery", "gstc.org.cn",
+                "https://www.gstc.org.cn/wanfa/dlt_history", gansu_data,
+            ))
         sources = []
         for source_id, source_name, root, url, data in source_specs:
             if data is None:
@@ -476,7 +488,8 @@ def _worker(game: str) -> dict:
                 })
                 continue
             draws, receipt, manifest = data
-            for entry in manifest:
+            manifest_items = manifest if isinstance(manifest, list) else [manifest]
+            for entry in manifest_items:
                 encoded = entry.get("body_b64")
                 if not isinstance(encoded, str):
                     raise GateError("DLT_PARSER_RAW_BODY_MISSING")
@@ -541,13 +554,23 @@ def _worker(game: str) -> dict:
     source_hashes_after = source_file_hashes(game)
     if source_hashes_before != source_hashes_after:
         raise GateError("PARSER_FILES_CHANGED_DURING_FETCH")
+    valid_ids = {
+        source["source_id"] for source in sources
+        if source.get("raw_reparse_status") == "PASS" and source.get("draws")
+    }
+    if game == "SSQ":
+        has_valid_pair = {"national", "shanghai"}.issubset(valid_ids)
+    else:
+        has_valid_pair = any(pair.issubset(valid_ids) for pair in (
+            {"national", "jiangsu"}, {"national", "gansu"}, {"jiangsu", "gansu"}
+        ))
     return {
         "schema": WORKER_SCHEMA, "lottery": game,
         "parser_version": parser_version, "source_files_sha256": source_hashes_after,
         "collection_started_at_local_untrusted": started,
         "collection_finished_at_local_untrusted": datetime.now(timezone.utc).isoformat(),
         "sources": sources, "errors": errors,
-        "status": "WORKER_FETCH_PARTIAL" if errors else "WORKER_FETCH_COMPLETE",
+        "status": "WORKER_FETCH_COMPLETE" if has_valid_pair else "WORKER_FETCH_PARTIAL",
         "timestamp_trust": "LOCAL_CLOCK_UNTRUSTED",
     }
 
