@@ -1,13 +1,13 @@
 {
   "schema": "V47-LIVE-INTAKE-TRIGGER-1",
   "run_once": true,
-  "purpose": "Read-only fetch and cross-check of at least 120 historical SSQ and DLT draws from two preapproved official-domain roots per game.",
+  "purpose": "Read-only historical intake: SSQ full-history admission requires national CWL plus Shanghai histories with >=120 matching issues; Hebei is latest-issue corroboration only and cannot replace full-history evidence. DLT requires national+Jiangsu primary histories with >=120 matching issues plus >=10 matching recent issues from Gansu as a third corroborator.",
   "no_prediction": true,
   "no_ticket_purchase": true,
   "formal_A": 0,
   "external_tsa": "NOT_RUN",
   "decision": "NO_EDGE",
   "warning": "The workflow output is SHADOW historical-source evidence only. It cannot admit a target issue or certify sales cutoff/publication time.",
-  "attempt": 3,
-  "note": "Retry after allowing same-day historical issue rows and adding Gansu recent-history fallback for DLT; read-only, no predictions."
+  "attempt": 4,
+  "note": "One-shot verification on latest convergence base after strict date-anomaly quarantine, P0-A gate/SHADOW separation, intake self-hash lock, and mandatory three-source DLT corroboration. Preserve raw failures; no prediction, no ticket purchase, no formal-A admission."
 }
