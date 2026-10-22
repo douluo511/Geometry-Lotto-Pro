@@ -214,7 +214,13 @@ fixtures and mocked process failures; successful local tests are not a
 live-official-source run. G00/G01 are BLOCKED until separately reviewed original
 source evidence, provenance and current source accessibility can be audited.
 Any second-process error blocks the source admission; it must not be silently
-replaced by a worker's self-attested replay status.
+replaced by a worker's self-attested replay status. On an invalid replay receipt
+or a failing replay subprocess, the dispatcher now returns
+`SECOND_PROCESS_RAW_REPLAY_BLOCKED`: both consensus and primary forecast
+history fields are cleared, `official_history_admission=BLOCKED`, while
+individual source rows and raw HTTP artifacts remain as quarantined diagnostics
+for `write_bundle` and an independent audit. They must never be used for a
+new prediction or treated as accepted history.
 
 To reproduce synthetic checks from the repo root:
 ```sh
