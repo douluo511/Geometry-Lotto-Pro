@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from .core import GateError, SOURCE_HOSTS_BY_GAME
+from .core import GateError, MAX_RAW_SOURCE_BYTES, SOURCE_HOSTS_BY_GAME
 
 SCHEMA = "V47-OFFICIAL-INTAKE-1"
 WORKER_SCHEMA = "V47-OFFICIAL-INTAKE-WORKER-1"
@@ -202,6 +202,32 @@ def _validate_artifacts(game: str, source: dict, parser_version: str) -> list[di
     return validated
 
 
+def _transport_failure(game: str, source_id: str, requested_url: str,
+                      response_url: str, status: int, content_type: str,
+                      raw: bytes, fetched_at: str, parser_version: str) -> dict:
+    """Preserve bounded transport-failure evidence without calling it official source data."""
+    if game not in EXPECTED_ROOTS or source_id not in EXPECTED_ROOTS[game]:
+        raise GateError("UNKNOWN_TRANSPORT_FAILURE_SOURCE")
+    if not isinstance(raw, bytes):
+        raise GateError("TRANSPORT_FAILURE_BODY_TYPE_INVALID")
+    body = base64.b64encode(raw).decode("ascii") if len(raw) <= MAX_RAW_SOURCE_BYTES else None
+    return {
+        "source_id": source_id,
+        "expected_source_root": EXPECTED_ROOTS[game][source_id],
+        "requested_url": str(requested_url),
+        "response_url_untrusted": str(response_url),
+        "http_status": int(status),
+        "content_type": str(content_type or ""),
+        "fetched_at_local_untrusted": str(fetched_at),
+        "parser_version": str(parser_version),
+        "raw_sha256": _sha(raw),
+        "size_bytes": len(raw),
+        "body_base64": body,
+        "body_preserved": body is not None,
+        "classification": "TRANSPORT_FAILURE_UNTRUSTED_NOT_OFFICIAL_SOURCE_EVIDENCE",
+    }
+
+
 def _normalize_worker_artifact(game: str, source_id: str, meta: dict, raw: bytes,
                                parser_version: str) -> dict:
     if not isinstance(raw, bytes):
@@ -318,8 +344,9 @@ def _rows_sha256(rows: list[dict]) -> str:
     return _sha(payload.encode("utf-8"))
 
 
-def _install_dlt_redirect_guard(game: str) -> None:
-    """Bound DLT Requests redirects to the original allowlisted registrable root."""
+def _install_dlt_redirect_guard(game: str, transport_failures: list[dict],
+                                parser_version: str) -> None:
+    """Bound redirects and retain failed HTTP responses as untrusted transport evidence."""
     import requests
     from urllib.parse import urljoin
 
@@ -329,13 +356,28 @@ def _install_dlt_redirect_guard(game: str) -> None:
         params = kwargs.pop("params", None)
         allow_redirects = kwargs.pop("allow_redirects", True)
         _, initial_root = _root_for_url(game, str(url))
+        source_id = next(
+            (sid for sid, root in EXPECTED_ROOTS[game].items() if root == initial_root),
+            None,
+        )
+        if source_id is None:
+            raise GateError("SOURCE_ID_NOT_BOUND_TO_EXPECTED_OFFICIAL_ROOT")
         current_url, current_params = str(url), params
         for _ in range(6):
             response = original_get(
                 current_url, *args, params=current_params,
                 allow_redirects=False, **kwargs,
             )
-            if not allow_redirects or int(response.status_code) not in REDIRECT_CODES:
+            status = int(getattr(response, "status_code", 0) or 0)
+            if status != 200 and status not in REDIRECT_CODES:
+                transport_failures.append(_transport_failure(
+                    game, source_id, current_url,
+                    str(getattr(response, "url", "") or current_url),
+                    status, str(getattr(response, "headers", {}).get("Content-Type", "")),
+                    bytes(getattr(response, "content", b"")),
+                    datetime.now(timezone.utc).isoformat(), parser_version,
+                ))
+            if not allow_redirects or status not in REDIRECT_CODES:
                 return response
             location = response.headers.get("Location")
             if not location:
@@ -355,12 +397,13 @@ def _worker(game: str) -> dict:
     source_hashes_before = source_file_hashes(game)
     source_dir = REPO_ROOT / ("SSQ/SSQ" if game == "SSQ" else "DLT/src")
     sys.path.insert(0, str(source_dir))
-    if game == "DLT":
-        _install_dlt_redirect_guard(game)
     import glp.sources as source_module
 
     parser_version = str(source_module.PARSER_VERSION)
     raw_artifacts: list[dict] = []
+    transport_failures: list[dict] = []
+    source_errors: dict[str, str] = []
+    sources: list[dict] = []
 
     if game == "SSQ":
         from glp.constants import SSQ_HISTORY_START_ISSUE
@@ -370,6 +413,16 @@ def _worker(game: str) -> dict:
             source_id = SOURCE_IDS[game].get(source_name)
             if source_id is None:
                 raise GateError("UNEXPECTED_SSQ_SOURCE_ID:" + source_name)
+            if int(meta.get("http_status", 0)) != 200:
+                transport_failures.append(_transport_failure(
+                    game, source_id, str(meta.get("requested_url") or meta.get("url") or ""),
+                    str(meta.get("url") or meta.get("requested_url") or ""),
+                    int(meta.get("http_status", 0)), str(meta.get("content_type") or ""),
+                    bytes(raw), str(meta.get("fetched_at") or datetime.now(timezone.utc).isoformat()),
+                    parser_version,
+                ))
+                # A recorder is observational: never mask the parser's own retry/error path.
+                return
             raw_artifacts.append(_normalize_worker_artifact(
                 game, source_id, meta, bytes(raw), parser_version
             ))
@@ -382,103 +435,118 @@ def _worker(game: str) -> dict:
                  start_issue=SSQ_HISTORY_START_ISSUE, record_raw=recorder
              )),
         )
-        sources = []
         for source_id, source_name, fetch in source_specs:
-            draws, receipt, _manifest = fetch()
-            sources.append({
-                "source_id": source_id, "source_name": source_name,
-                "source_root": "cwl.gov.cn" if source_id == "national" else "swlc.net.cn",
-                "url": "https://www.cwl.gov.cn/cwl_admin/front/cwlkj/search/kjxx/findDrawNotice"
-                       if source_id == "national" else "https://www.swlc.net.cn/lottery/ssq.html",
-                "draws": _source_rows(draws),
-                "receipt": {
-                    "status": receipt.status, "draw_count": receipt.draw_count,
-                    "latest_issue": receipt.latest_issue, "raw_sha256": receipt.raw_sha256,
-                    "fetched_at": receipt.fetched_at,
-                },
-            })
+            try:
+                draws, receipt, _manifest = fetch()
+                sources.append({
+                    "source_id": source_id, "source_name": source_name,
+                    "source_root": EXPECTED_ROOTS[game][source_id],
+                    "url": "https://www.cwl.gov.cn/cwl_admin/front/cwlkj/search/kjxx/findDrawNotice"
+                           if source_id == "national" else "https://www.swlc.net.cn/lottery/ssq.html",
+                    "draws": _source_rows(draws),
+                    "receipt": {
+                        "status": receipt.status, "draw_count": receipt.draw_count,
+                        "latest_issue": receipt.latest_issue, "raw_sha256": receipt.raw_sha256,
+                        "fetched_at": receipt.fetched_at,
+                    },
+                })
+            except Exception as exc:
+                source_errors[source_id] = f"{type(exc).__name__}: {exc}"
+
     elif game == "DLT":
-        national_draws, national_receipt, national_manifest = source_module.fetch_national_history()
-        jiangsu_draws, jiangsu_receipt, jiangsu_manifest = source_module.fetch_jiangsu_history()
-        for source_id, manifest in (
-            ("national", national_manifest), ("jiangsu", jiangsu_manifest),
-        ):
-            for entry in manifest:
-                encoded = entry.get("body_b64")
-                if not isinstance(encoded, str):
-                    raise GateError("DLT_PARSER_RAW_BODY_MISSING")
-                try:
-                    raw = base64.b64decode(encoded, validate=True)
-                except Exception as exc:
-                    raise GateError("DLT_PARSER_RAW_BODY_BASE64_INVALID") from exc
-                meta = {
-                    "url": entry.get("final_url") or entry.get("requested_url"),
-                    "requested_url": entry.get("requested_url") or entry.get("final_url"),
-                    "http_status": entry.get("http_status"),
-                    "content_type": entry.get("content_type"),
-                    "fetched_at": entry.get("fetched_at"),
-                    "sha256": entry.get("sha256"),
-                    "bytes": entry.get("bytes"),
-                    "parser_version": entry.get("parser_version"),
-                }
-                raw_artifacts.append(_normalize_worker_artifact(
-                    game, source_id, meta, raw, parser_version
-                ))
-        sources = [
-            {
-                "source_id": "national", "source_name": "official_sporttery_national",
-                "source_root": "sporttery.cn",
-                "url": "https://webapi.sporttery.cn/gateway/lottery/getHistoryPageListV1.qry",
-                "draws": _source_rows(national_draws),
-                "receipt": {
-                    "status": national_receipt.status, "draw_count": national_receipt.draw_count,
-                    "latest_issue": national_receipt.latest_issue, "raw_sha256": national_receipt.raw_sha256,
-                    "fetched_at": national_receipt.fetched_at,
-                },
-            },
-            {
-                "source_id": "jiangsu", "source_name": "official_jiangsu_sporttery",
-                "source_root": "js-lottery.com",
-                "url": "https://api.js-lottery.com/Lottery/_ListData",
-                "draws": _source_rows(jiangsu_draws),
-                "receipt": {
-                    "status": jiangsu_receipt.status, "draw_count": jiangsu_receipt.draw_count,
-                    "latest_issue": jiangsu_receipt.latest_issue, "raw_sha256": jiangsu_receipt.raw_sha256,
-                    "fetched_at": jiangsu_receipt.fetched_at,
-                },
-            },
-        ]
+        _install_dlt_redirect_guard(game, transport_failures, parser_version)
+        source_specs = (
+            ("national", "official_sporttery_national",
+             "https://webapi.sporttery.cn/gateway/lottery/getHistoryPageListV1.qry",
+             source_module.fetch_national_history),
+            ("jiangsu", "official_jiangsu_sporttery",
+             "https://api.js-lottery.com/Lottery/_ListData",
+             source_module.fetch_jiangsu_history),
+        )
+        for source_id, source_name, source_url, fetch in source_specs:
+            try:
+                draws, receipt, source_manifest = fetch()
+                for entry in source_manifest:
+                    encoded = entry.get("body_b64")
+                    if not isinstance(encoded, str):
+                        raise GateError("DLT_PARSER_RAW_BODY_MISSING")
+                    try:
+                        raw = base64.b64decode(encoded, validate=True)
+                    except Exception as exc:
+                        raise GateError("DLT_PARSER_RAW_BODY_BASE64_INVALID") from exc
+                    meta = {
+                        "url": entry.get("final_url") or entry.get("requested_url") or source_url,
+                        "requested_url": entry.get("requested_url") or source_url,
+                        "http_status": entry.get("http_status"),
+                        "content_type": entry.get("content_type"),
+                        "fetched_at": entry.get("fetched_at"),
+                        "sha256": entry.get("sha256"),
+                        "bytes": entry.get("bytes"),
+                        "parser_version": entry.get("parser_version"),
+                    }
+                    raw_artifacts.append(_normalize_worker_artifact(
+                        game, source_id, meta, raw, parser_version
+                    ))
+                sources.append({
+                    "source_id": source_id, "source_name": source_name,
+                    "source_root": EXPECTED_ROOTS[game][source_id], "url": source_url,
+                    "draws": _source_rows(draws),
+                    "receipt": {
+                        "status": receipt.status, "draw_count": receipt.draw_count,
+                        "latest_issue": receipt.latest_issue, "raw_sha256": receipt.raw_sha256,
+                        "fetched_at": receipt.fetched_at,
+                    },
+                })
+            except Exception as exc:
+                source_errors[source_id] = f"{type(exc).__name__}: {exc}"
     else:
         raise GateError("UNKNOWN_LOTTERY_FOR_SOURCE_INTAKE")
 
+    verified_sources = []
     for source in sources:
-        internal_artifacts = [
-            item for item in raw_artifacts if item["_source_id"] == source["source_id"]
-        ]
+        source_id = source["source_id"]
+        internal_artifacts = [item for item in raw_artifacts if item["_source_id"] == source_id]
+        if not internal_artifacts:
+            source_errors[source_id] = "GateError: SOURCE_RAW_ARTIFACTS_MISSING"
+            continue
         source["raw_artifacts"] = [
             {k: v for k, v in item.items()
              if k in {"url", "requested_url", "raw_sha256", "size_bytes", "content_type",
                       "http_status", "fetched_at", "parser_version", "raw_base64"}}
             for item in internal_artifacts
         ]
-        if not source["raw_artifacts"]:
-            raise GateError("SOURCE_RAW_ARTIFACTS_MISSING")
-        reparsed = _reparse_raw_history(game, source_module, source["source_id"],
-                                        source["raw_artifacts"])
-        source_draws = _canonical_draws(game, source["draws"])
-        if reparsed != source_draws:
-            raise GateError("RAW_REPARSED_ROWS_DIFFER_FROM_SOURCE_OUTPUT:" + source["source_id"])
-        source["raw_reparse_status"] = "PASS"
-        source["raw_reparse_sha256"] = _rows_sha256(reparsed)
+        try:
+            reparsed = _reparse_raw_history(game, source_module, source_id, source["raw_artifacts"])
+            source_draws = _canonical_draws(game, source["draws"])
+            if reparsed != source_draws:
+                raise GateError("RAW_REPARSED_ROWS_DIFFER_FROM_SOURCE_OUTPUT:" + source_id)
+            source["raw_reparse_status"] = "PASS"
+            source["raw_reparse_sha256"] = _rows_sha256(reparsed)
+            verified_sources.append(source)
+        except Exception as exc:
+            source_errors[source_id] = f"{type(exc).__name__}: {exc}"
+
     source_hashes_after = source_file_hashes(game)
     if source_hashes_before != source_hashes_after:
         raise GateError("PARSER_FILES_CHANGED_DURING_FETCH")
+    failed_ids = set(source_errors)
+    unadmitted = [
+        {k: v for k, v in item.items()
+         if k in {"url", "requested_url", "raw_sha256", "size_bytes", "content_type",
+                  "http_status", "fetched_at", "parser_version", "raw_base64",
+                  "_source_id", "_source_root", "_host"}}
+        for item in raw_artifacts if item["_source_id"] in failed_ids
+    ]
     return {
         "schema": WORKER_SCHEMA, "lottery": game,
         "parser_version": parser_version, "source_files_sha256": source_hashes_after,
         "collection_started_at_local_untrusted": started,
         "collection_finished_at_local_untrusted": datetime.now(timezone.utc).isoformat(),
-        "sources": sources, "status": "WORKER_FETCH_COMPLETE",
+        "sources": verified_sources,
+        "source_errors": source_errors,
+        "unadmitted_raw_artifacts": unadmitted,
+        "transport_failures": transport_failures,
+        "status": "WORKER_BLOCKED" if source_errors else "WORKER_FETCH_COMPLETE",
         "timestamp_trust": "LOCAL_CLOCK_UNTRUSTED",
     }
 
