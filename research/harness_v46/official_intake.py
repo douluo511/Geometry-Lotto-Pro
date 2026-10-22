@@ -41,7 +41,11 @@ PARSER_FILES = {
     ),
 }
 SOURCE_IDS = {
-    "SSQ": {"official_cwl_L0": "national", "official_shanghai_L1": "shanghai"},
+    "SSQ": {
+        "official_cwl_L0": "national",
+        "official_shanghai_L1": "shanghai",
+        "official_hebei_L2": "hebei",
+    },
     "DLT": {
         "official_sporttery_national": "national",
         "official_jiangsu_sporttery": "jiangsu",
@@ -49,11 +53,14 @@ SOURCE_IDS = {
     },
 }
 EXPECTED_ROOTS = {
-    "SSQ": {"national": "cwl.gov.cn", "shanghai": "swlc.net.cn"},
+    "SSQ": {"national": "cwl.gov.cn", "shanghai": "swlc.net.cn", "hebei": "yzfcw.com"},
     "DLT": {"national": "sporttery.cn", "jiangsu": "js-lottery.com", "gansu": "gstc.org.cn"},
 }
 EXPECTED_SOURCE_NAMES = {
-    "SSQ": {"national": "official_cwl_L0", "shanghai": "official_shanghai_L1"},
+    "SSQ": {
+        "national": "official_cwl_L0", "shanghai": "official_shanghai_L1",
+        "hebei": "official_hebei_L2",
+    },
     "DLT": {
         "national": "official_sporttery_national",
         "jiangsu": "official_jiangsu_sporttery",
@@ -596,7 +603,9 @@ def _worker(game: str) -> dict:
         if source.get("raw_reparse_status") == "PASS" and source.get("draws")
     }
     if game == "SSQ":
-        has_valid_pair = {"national", "shanghai"}.issubset(valid_ids)
+        has_valid_pair = any(pair.issubset(valid_ids) for pair in (
+            {"national", "shanghai"}, {"shanghai", "hebei"}
+        ))
     else:
         has_valid_pair = any(pair.issubset(valid_ids) for pair in (
             {"national", "jiangsu"}, {"national", "gansu"}, {"jiangsu", "gansu"}
@@ -617,11 +626,13 @@ def _source_id_set_valid(game: str, source_items: list[dict]) -> bool:
     if len(ids) != len(source_items) or len(set(ids)) != len(ids):
         return False
     if game == "SSQ":
-        return len(ids) == 2 and set(ids) == {"national", "shanghai"}
+        return len(ids) in (2, 3) and {"national", "shanghai"}.issubset(ids) and set(ids).issubset({"national", "shanghai", "hebei"})
     return 2 <= len(ids) <= 3 and set(ids).issubset({"national", "jiangsu", "gansu"})
 
 
 def _source_minimum(game: str, source_id: str) -> int:
+    if game == "SSQ" and source_id == "hebei":
+        return 1
     return 10 if game == "DLT" and source_id == "gansu" else 120
 
 
@@ -764,8 +775,12 @@ def validate_worker_payload(payload: dict, *, expected_game: str | None = None) 
             "raw_reparse_status": source.get("raw_reparse_status", "NOT_RUN"),
         })
 
-    if game == "SSQ":
+    if game == "SSQ" and {"national", "shanghai"}.issubset(candidates):
         pair_ids, minimum_overlap = ("national", "shanghai"), 120
+    elif game == "SSQ" and {"shanghai", "hebei"}.issubset(candidates):
+        pair_ids, minimum_overlap = ("shanghai", "hebei"), 1
+    elif game == "SSQ":
+        raise GateError("NO_VALID_SSQ_OFFICIAL_SOURCE_PAIR")
     elif {"national", "jiangsu"}.issubset(candidates):
         pair_ids, minimum_overlap = ("national", "jiangsu"), 120
     elif {"national", "gansu"}.issubset(candidates):
