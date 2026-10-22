@@ -10,7 +10,9 @@ import json
 import sqlite3
 from pathlib import Path
 
-from .core import MODELS, PARAMETERS, RULES, VERSION, GateError, canon, digest, dt, score, validate_snapshot, validate_study_snapshot
+from .core import (MODELS, RULES, VERSION, GateError, canon, digest, dt, score,
+                   model_source_sha256, parameter_contract, validate_snapshot,
+                   validate_study_snapshot)
 
 ROLES = {
     "test1": "00-CONTROL", "test2": "01-OFFICIAL-DATA",
@@ -36,6 +38,11 @@ STAGES = ("SYNC", "VERIFY", "AUTHORIZE", "PREDICT", "FREEZE", "WAIT",
           "REPLAY", "SCORE", "AUDIT", "REPORT", "NEXT")
 
 
+def orchestration_source_sha256():
+    """SHA256 of exact installed orchestration source bytes."""
+    return hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
+
+
 def require_tool(role, name):
     """Capability declaration for orchestrator; actual host must enforce it."""
     if role not in ROLES or name not in TOOLS[role]:
@@ -45,7 +52,7 @@ def require_tool(role, name):
 
 def handoff(run_id, lottery, sender, receiver, kind, payload):
     """Serializable handoff, not proof that two ChatGPT tabs are connected."""
-    if not isinstance(run_id, str) or not run_id.startswith("V46-"):
+    if not isinstance(run_id, str) or not run_id.startswith("V47-"):
         raise GateError("INVALID_RUN_ID")
     if lottery not in RULES or sender not in ROLES or receiver not in ROLES:
         raise GateError("INVALID_HANDOFF_IDENTITY")
@@ -66,7 +73,7 @@ def handoff(run_id, lottery, sender, receiver, kind, payload):
         model = payload.get("model")
         if MODEL_ROLES.get(model) != sender:
             raise GateError("MODEL_ROLE_IDENTITY_MISMATCH")
-    return {"schema": "V46-HANDOFF-1", "run_id": run_id, "lottery": lottery,
+    return {"schema": "V47-HANDOFF-1", "run_id": run_id, "lottery": lottery,
             "sender": sender, "receiver": receiver, "kind": kind,
             "payload_sha256": digest(payload), "payload": payload,
             "claim": "UNVERIFIED_EXTERNAL_HANDOFF_SHADOW_ONLY"}
@@ -120,11 +127,28 @@ def manifest(snapshots):
             "sales_cutoff": s["sales_cutoff"], "target_draw_at": s["target_draw_at"],
             "snapshot_sha256": checksum,
         }
-    run_id = "V46-" + digest(games)[:32]
-    return {"schema": "V46-RUN-1", "run_id": run_id, "games": games,
-            "models": {m: {"role": MODEL_ROLES[m], "version": VERSION,
-                            "parameters_sha256": digest(PARAMETERS[m])} for m in MODELS},
-            "tool_whitelist": {k: sorted(v) for k, v in TOOLS.items()},
+    models = {
+        m: {
+            "role": MODEL_ROLES[m],
+            "version": VERSION,
+            "parameters_sha256": digest(parameter_contract(m)),
+            "model_source_sha256": model_source_sha256(),
+        }
+        for m in MODELS
+    }
+    tool_whitelist = {k: sorted(v) for k, v in TOOLS.items()}
+    harness_source_sha = orchestration_source_sha256()
+    identity = {
+        "protocol": "V47-RUN-1",
+        "games": games,
+        "models": models,
+        "tool_whitelist": tool_whitelist,
+        "harness_source_sha256": harness_source_sha,
+    }
+    run_id = "V47-" + digest(identity)[:32]
+    return {"schema": "V47-RUN-1", "run_id": run_id, "games": games,
+            "models": models, "tool_whitelist": tool_whitelist,
+            "harness_source_sha256": harness_source_sha,
             "qualifications": {"challenger": "EXPLORATORY_UNREGISTERED",
                                "all_arms": "SHADOW_ONLY", "formal_A": 0},
             "official_evidence": "BLOCKED", "external_tsa": "NOT_RUN",
@@ -183,7 +207,7 @@ def check_complete_batch(conn, run_id, lottery):
 
 def append_stage(conn, run_id, lottery, stage, evidence):
     """Ordered, append-only, idempotent transitions; does not award formal PASS."""
-    if lottery not in RULES or stage not in STAGES or not isinstance(run_id, str) or not run_id.startswith("V46-"):
+    if lottery not in RULES or stage not in STAGES or not isinstance(run_id, str) or not run_id.startswith("V47-"):
         raise GateError("INVALID_STAGE_IDENTITY")
     if not isinstance(evidence, dict) or evidence.get("formal_A") not in (None, 0, False):
         raise GateError("FORMAL_A_FORBIDDEN")
@@ -217,7 +241,7 @@ def append_stage(conn, run_id, lottery, stage, evidence):
 def tsa_request(conn, run_id, lottery):
     """Creates immutable outgoing request record; NOT a receipt verification."""
     batch_sha = check_complete_batch(conn, run_id, lottery)
-    request_sha = digest({"schema": "V46-TSA-REQUEST-1", "run_id": run_id,
+    request_sha = digest({"schema": "V47-TSA-REQUEST-1", "run_id": run_id,
                           "lottery": lottery, "batch_sha256": batch_sha})
     old = conn.execute("SELECT prediction_batch_sha256,request_sha256 FROM tsa_claims "
                        "WHERE run_id=? AND lottery=?", (run_id, lottery)).fetchone()
