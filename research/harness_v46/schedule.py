@@ -1,4 +1,4 @@
-"""Windows/CLI compensation handler. SHADOW ONLY. No trusted scheduling proof."""
+"""V4.7 Windows/CLI compensation handler. SHADOW ONLY; no trusted scheduling proof."""
 from __future__ import annotations
 import argparse
 import json
@@ -89,7 +89,7 @@ def scheduled_once(snapshots, database, now=None):
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="V4.6 JST delivery/recovery gate, SHADOW ONLY")
+    parser = argparse.ArgumentParser(description="V4.7 JST delivery/recovery gate, SHADOW ONLY")
     parser.add_argument("--snapshot-bundle", required=True,
                         help="JSON map with exactly SSQ and DLT vetted as-of snapshot objects")
     parser.add_argument("--database", required=True)
