@@ -66,7 +66,7 @@ def _payload(game, n=130):
         raw = ("synthetic raw fixture " + game + " " + source_id).encode()
         sources.append({
             "source_id": source_id,
-            "source_name": "synthetic_" + source_id,
+            "source_name": oi.EXPECTED_SOURCE_NAMES[game][source_id],
             "source_root": root,
             "url": url,
             "draws": copy.deepcopy(rows),
