@@ -7,7 +7,8 @@ from datetime import datetime, timezone, time, timedelta
 from pathlib import Path
 
 from .core import MODELS, GateError, dt, forecast, freeze_shadow, init_ledger
-from .convergence import STAGES, append_stage, check_complete_batch, init_workflow, manifest, tsa_request
+from .convergence import (STAGES, append_stage, check_complete_batch, init_workflow,
+                           manifest, register_manifest, tsa_request)
 
 JST = timezone(timedelta(hours=9), name="JST")  # Japan does not use DST
 DAYS = {0, 2, 5}  # Mon/Wed/Sat: target delivery run, not actual lottery draw date
@@ -54,6 +55,7 @@ def scheduled_once(snapshots, database, now=None):
         conn.executescript(GUARD_SCHEMA)
         receipts = {}
         with conn:
+            manifest_sha = register_manifest(conn, identity)
             for game in ("SSQ", "DLT"):
                 s = snapshots[game]
                 target = str(s["target_issue"])
@@ -80,7 +82,8 @@ def scheduled_once(snapshots, database, now=None):
                 tsa_request(conn, run_id, game)
                 receipts[game] = {"target_issue": str(s["target_issue"]),
                                   "batch_sha256": batch, "model_count": len(MODELS)}
-        return {"status": "SHADOW_ONLY", "run_id": run_id, "games": receipts,
+        return {"status": "SHADOW_ONLY", "run_id": run_id,
+                "manifest_sha256": manifest_sha, "games": receipts,
                 "official_source_authenticity": "NOT_VERIFIED",
                 "authorization": "NOT_FORMAL", "external_tsa": "NOT_VERIFIED",
                 "timestamp_trust": "LOCAL_ONLY", "formal_A": 0, "decision": "NO_EDGE"}
