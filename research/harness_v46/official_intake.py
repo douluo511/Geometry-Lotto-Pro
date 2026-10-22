@@ -322,8 +322,8 @@ def _rows_sha256(rows: list[dict]) -> str:
     return _sha(payload.encode("utf-8"))
 
 
-def _install_dlt_redirect_guard(game: str) -> None:
-    """Bound DLT Requests redirects to the original allowlisted registrable root."""
+def _install_dlt_redirect_guard(game: str, failure_recorder=None) -> None:
+    """Bound redirects and preserve non-200 response bodies as untrusted diagnostics."""
     import requests
     from urllib.parse import urljoin
 
@@ -339,7 +339,25 @@ def _install_dlt_redirect_guard(game: str) -> None:
                 current_url, *args, params=current_params,
                 allow_redirects=False, **kwargs,
             )
-            if not allow_redirects or int(response.status_code) not in REDIRECT_CODES:
+            status = int(response.status_code)
+            if status != 200 and failure_recorder is not None:
+                final_url = str(response.url or current_url)
+                _, response_root = _root_for_url(game, final_url)
+                source_id = {
+                    "sporttery.cn": "national",
+                    "js-lottery.com": "jiangsu",
+                }.get(response_root)
+                if source_id is not None:
+                    raw = bytes(response.content)
+                    failure_recorder(source_id, {
+                        "url": final_url, "requested_url": current_url,
+                        "http_status": status,
+                        "content_type": str(response.headers.get("Content-Type", "")),
+                        "fetched_at": datetime.now(timezone.utc).isoformat(),
+                        "sha256": _sha(raw), "bytes": len(raw),
+                        "parser_version": _expected_parser_version(game),
+                    }, raw)
+            if not allow_redirects or status not in REDIRECT_CODES:
                 return response
             location = response.headers.get("Location")
             if not location:
@@ -359,12 +377,17 @@ def _worker(game: str) -> dict:
     source_hashes_before = source_file_hashes(game)
     source_dir = REPO_ROOT / ("SSQ/SSQ" if game == "SSQ" else "DLT/src")
     sys.path.insert(0, str(source_dir))
-    if game == "DLT":
-        _install_dlt_redirect_guard(game)
-    import glp.sources as source_module
-
-    parser_version = str(source_module.PARSER_VERSION)
     raw_artifacts: list[dict] = []
+    parser_version = _expected_parser_version(game)
+    if game == "DLT":
+        def record_dlt_failure(source_id, meta, raw):
+            raw_artifacts.append(_normalize_worker_artifact(
+                game, source_id, meta, bytes(raw), parser_version
+            ))
+        _install_dlt_redirect_guard(game, record_dlt_failure)
+    import glp.sources as source_module
+    if str(source_module.PARSER_VERSION) != parser_version:
+        raise GateError("PARSER_VERSION_CHANGED_DURING_IMPORT")
 
     if game == "SSQ":
         from glp.constants import SSQ_HISTORY_START_ISSUE
