@@ -108,8 +108,9 @@ class GateTests(unittest.TestCase):
         sha = core.freeze_shadow(db, "TEST-001", data, p, "2026-10-21T00:00:00+00:00")
         self.assertEqual(len(sha), 64)
         self.assertEqual(db.execute("SELECT count(*) FROM audit_events").fetchone()[0], 1)
-        with self.assertRaises(sqlite3.IntegrityError):
-            core.freeze_shadow(db, "TEST-001", data, p, "2026-10-21T00:00:00+00:00")
+        # Exact same prediction is an idempotent retry; source rows stay frozen.
+        self.assertEqual(core.freeze_shadow(db, "TEST-001", data, p,
+                                           "2026-10-21T00:00:00+00:00"), sha)
         self.assertEqual(db.execute("SELECT count(*) FROM audit_events").fetchone()[0], 1)
         with self.assertRaises(sqlite3.DatabaseError):
             db.execute("UPDATE predictions SET evidence_class='A'")
@@ -123,10 +124,12 @@ class GateTests(unittest.TestCase):
         p = core.forecast(data, "hot60")
         db = sqlite3.connect(":memory:")
         core.init_ledger(db)
-        with self.assertRaises(sqlite3.IntegrityError):
+        altered = dict(p)
+        altered["version"] = "forged-version"
+        with self.assertRaises(core.GateError):
             with db:
                 core.freeze_shadow(db, "ROLLBACK-TEST", data, p, "2026-10-21T00:00:00+00:00")
-                core.freeze_shadow(db, "ROLLBACK-TEST", data, p, "2026-10-21T00:00:00+00:00")
+                core.freeze_shadow(db, "ROLLBACK-TEST", data, altered, "2026-10-21T00:00:00+00:00")
         self.assertEqual(db.execute("SELECT count(*) FROM predictions").fetchone()[0], 0)
         self.assertEqual(db.execute("SELECT count(*) FROM audit_events").fetchone()[0], 0)
 
