@@ -2,10 +2,13 @@ import base64
 import copy
 import hashlib
 import json
+import subprocess
+import sys
 import tempfile
 import unittest
 from datetime import date, timedelta
 from pathlib import Path
+from unittest.mock import patch
 
 from research.harness_v46 import official_intake as oi
 from research.harness_v46.core import GateError
@@ -95,6 +98,163 @@ def _payload(game, n=130):
 
 
 class OfficialIntakeTests(unittest.TestCase):
+    def assert_untrusted_output_only(self, result, stdout, stderr):
+        self.assertEqual(result["status"], "WORKER_OUTPUT_QUARANTINED")
+        self.assertEqual(result["sources"], [])
+        self.assertEqual(result["raw_artifact_count"], 0)
+        self.assertEqual(result["consensus_draws"], [])
+        self.assertEqual(result["primary_history_draws"], [])
+        self.assertEqual(result["official_history_admission"], "BLOCKED")
+        self.assertEqual(result["official_target_admission"], "BLOCKED")
+        self.assertEqual(result["formal_A"], 0)
+        self.assertEqual(result["decision"], "NO_EDGE")
+        capture = result["worker_output_capture"]
+        self.assertEqual(capture["trust"], "UNTRUSTED_PROCESS_OUTPUT")
+        self.assertEqual(capture["raw_http_evidence"], "NOT_VALIDATED")
+        for stream, expected in zip(capture["streams"], (stdout, stderr)):
+            if expected is None:
+                self.assertEqual(stream["capture_status"], "NOT_CAPTURED")
+                self.assertNotIn("bytes_base64", stream)
+            else:
+                expected_bytes = expected.encode("utf-8") if isinstance(expected, str) else expected
+                self.assertEqual(base64.b64decode(stream["bytes_base64"]), expected_bytes)
+                self.assertEqual(stream["sha256"], hashlib.sha256(expected_bytes).hexdigest())
+
+    def test_parent_validation_failures_preserve_untrusted_output_not_sources(self):
+        payload = _payload("SSQ")
+        conflicting = copy.deepcopy(payload)
+        conflicting["sources"][1]["draws"][3]["front"] = [1, 2, 3, 4, 5, 6]
+        conflicting["sources"][1]["raw_reparse_sha256"] = oi._rows_sha256(
+            conflicting["sources"][1]["draws"])
+        wrong_source = copy.deepcopy(payload)
+        wrong_source["sources"][0]["source_id"] = "../../untrusted"
+        wrong_handoff = {**payload, "source_files_sha256": {}}
+        malformed_source = {**payload, "sources": [None]}
+        cases = [
+            ("conflicting rows", 0, json.dumps(conflicting).encode()),
+            ("illegal source", 0, json.dumps(wrong_source).encode()),
+            ("hash handoff", 0, json.dumps(wrong_handoff).encode()),
+            ("malformed source", 0, json.dumps(malformed_source).encode()),
+            ("not object", 0, b"[]\r\n"),
+            ("invalid JSON", 0, b"not-json\r\n"),
+            ("invalid UTF8", 0, b"\xff\xfe\r\n"),
+            ("nonzero exit", 2, json.dumps(payload).encode()),
+        ]
+        stderr = b"diagnostic\r\n\xff"
+        for name, returncode, stdout in cases:
+            with self.subTest(case=name):
+                worker = subprocess.CompletedProcess(["worker"], returncode, stdout, stderr)
+                with patch.object(oi.subprocess, "run", return_value=worker) as runner:
+                    result = oi.collect_live_history("SSQ", timeout_seconds=10)
+                self.assertEqual(runner.call_count, 1)
+                self.assert_untrusted_output_only(result, stdout, stderr)
+                self.assertTrue(result["worker_output_capture"]["capture_complete"])
+                self.assertEqual(result["worker_output_capture"]["returncode"], returncode)
+
+    def test_post_worker_hash_changes_or_read_failures_preserve_output(self):
+        payload = _payload("SSQ")
+        stdout, stderr = json.dumps(payload).encode(), b"original stderr\r\n"
+        hashes = payload["source_files_sha256"]
+        changed = {**hashes, "SSQ/SSQ/glp/sources.py": "0" * 64}
+        for after in (changed, GateError("PARSER_DEPENDENCY_MISSING:synthetic"),
+                      OSError("synthetic read failure")):
+            with self.subTest(after=type(after).__name__):
+                worker = subprocess.CompletedProcess(["worker"], 0, stdout, stderr)
+                with patch.object(oi.subprocess, "run", return_value=worker):
+                    with patch.object(oi, "source_file_hashes", side_effect=[hashes, after]):
+                        result = oi.collect_live_history("SSQ", timeout_seconds=10)
+                self.assert_untrusted_output_only(result, stdout, stderr)
+
+    def test_real_worker_pipe_capture_preserves_crlf_and_non_utf8_stderr(self):
+        payload = _payload("SSQ")
+        payload["sources"][1]["draws"][3]["front"] = [1, 2, 3, 4, 5, 6]
+        payload["sources"][1]["raw_reparse_sha256"] = oi._rows_sha256(
+            payload["sources"][1]["draws"])
+        stdout = json.dumps(payload).encode() + b"\r\n"
+        stderr = b"untrusted diagnostic\r\n\xff"
+        original_run = subprocess.run
+        for returncode in (0, 2):
+            with self.subTest(returncode=returncode):
+                def run(command, **kwargs):
+                    self.assertIn("--worker", command)
+                    self.assertNotIn("encoding", kwargs)
+                    self.assertFalse(kwargs.get("text", False))
+                    kwargs["input"] = stdout
+                    code = ("import sys; sys.stdout.buffer.write(sys.stdin.buffer.read()); "
+                            "sys.stderr.buffer.write(b'untrusted diagnostic\\r\\n\\xff'); "
+                            f"sys.exit({returncode})")
+                    return original_run([sys.executable, "-c", code], **kwargs)
+                with patch.object(oi.subprocess, "run", side_effect=run):
+                    result = oi.collect_live_history("SSQ", timeout_seconds=30)
+                self.assert_untrusted_output_only(result, stdout, stderr)
+                self.assertEqual(result["worker_output_capture"]["streams"][0]["byte_representation"],
+                                 "ORIGINAL_PIPE_BYTES")
+                recovered = json.loads(base64.b64decode(
+                    result["worker_output_capture"]["streams"][0]["bytes_base64"]))
+                self.assertEqual(
+                    base64.b64decode(recovered["sources"][0]["raw_artifacts"][0]["raw_base64"]),
+                    base64.b64decode(payload["sources"][0]["raw_artifacts"][0]["raw_base64"]),
+                )
+
+    def test_text_worker_test_double_is_not_claimed_as_original_pipe_bytes(self):
+        worker = subprocess.CompletedProcess(["worker"], 2, "invalid worker text\r\n", "error")
+        with patch.object(oi.subprocess, "run", return_value=worker):
+            result = oi.collect_live_history("SSQ", timeout_seconds=10)
+        self.assert_untrusted_output_only(result, worker.stdout, worker.stderr)
+        self.assertEqual(result["worker_output_capture"]["streams"][0]["byte_representation"],
+                         "UTF8_REENCODED_TEXT")
+
+    def test_worker_timeout_partial_output_and_launch_failure_never_invent_bytes(self):
+        failures = [
+            subprocess.TimeoutExpired(["worker"], 10, output=b"partial\r\n", stderr=b"error\xff"),
+            subprocess.TimeoutExpired(["worker"], 10),
+            OSError("synthetic worker launch failure"),
+        ]
+        for failure in failures:
+            with self.subTest(failure=str(failure)):
+                with patch.object(oi.subprocess, "run", side_effect=failure):
+                    result = oi.collect_live_history("SSQ", timeout_seconds=10)
+                self.assert_untrusted_output_only(
+                    result, getattr(failure, "output", None), getattr(failure, "stderr", None))
+                self.assertFalse(result["worker_output_capture"]["capture_complete"])
+                self.assertIsNone(result["worker_output_capture"]["returncode"])
+
+    def test_collect_both_keeps_completed_worker_output_on_validation_failure(self):
+        workers = [subprocess.CompletedProcess(["worker"], 0, b"not-json", b"SSQ error"),
+                   subprocess.CompletedProcess(["worker"], 2, b"DLT diagnostic", b"DLT error")]
+        with patch.object(oi.subprocess, "run", side_effect=workers):
+            bundle = oi.collect_both()
+        for game, worker in zip(("SSQ", "DLT"), workers):
+            self.assert_untrusted_output_only(bundle["games"][game], worker.stdout, worker.stderr)
+            self.assertIn(game, bundle["errors"])
+
+    def test_worker_capture_write_failure_preserves_caller_and_allows_fresh_retry(self):
+        result = oi._quarantine_worker_output("SSQ", "invented failure", b"stdout\r\n",
+                                             b"stderr\xff", returncode=2, capture_complete=True)
+        bundle = {"games": {"SSQ": result}}
+        original = copy.deepcopy(bundle)
+        original_open = Path.open
+        def failing_open(path, *args, **kwargs):
+            if path.name == "intake.json":
+                raise OSError("synthetic manifest write failure")
+            return original_open(path, *args, **kwargs)
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.object(Path, "open", failing_open):
+                with self.assertRaisesRegex(OSError, "synthetic manifest"):
+                    oi.write_bundle(bundle, Path(tmp) / "failed")
+            self.assertEqual(bundle, original)
+            path = oi.write_bundle(bundle, Path(tmp) / "retry")
+            self.assertTrue(path.is_file())
+            self.assertEqual(bundle, original)
+            saved = json.loads(path.read_text(encoding="utf-8"))
+            for stream, raw in zip(saved["games"]["SSQ"]["worker_output_capture"]["streams"],
+                                   (b"stdout\r\n", b"stderr\xff")):
+                self.assertEqual((path.parent / stream["artifact_path"]).read_bytes(), raw)
+            original_manifest = path.read_bytes()
+            with self.assertRaises(FileExistsError):
+                oi.write_bundle(bundle, path.parent)
+            self.assertEqual(path.read_bytes(), original_manifest)
+
     def test_intake_orchestrator_is_in_source_integrity_lock(self):
         for game in ("SSQ", "DLT"):
             hashes = oi.source_file_hashes(game)

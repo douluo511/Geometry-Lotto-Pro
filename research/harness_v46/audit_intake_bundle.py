@@ -8,6 +8,8 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
+import stat
 from pathlib import Path, PurePosixPath
 
 from .core import MAX_RAW_SOURCE_BYTES, GateError
@@ -21,12 +23,51 @@ SOURCE_IDS_BY_GAME = {
 }
 
 
+def _physical_root(path: str | Path) -> Path:
+    """Resolve and inspect Windows evidence through extended-length paths."""
+    absolute = os.path.abspath(os.fspath(path))
+    if os.name == "nt" and not absolute.startswith("\\\\?\\"):
+        absolute = ("\\\\?\\UNC\\" + absolute[2:] if absolute.startswith("\\\\")
+                    else "\\\\?\\" + absolute)
+    return Path(absolute).resolve()
+
+
+def _is_link_or_reparse_point(path: Path) -> bool:
+    """Reject symlinks and Windows junctions under Python 3.11 alike."""
+    try:
+        if path.is_symlink():
+            return True
+        metadata = path.lstat()
+    except OSError:
+        return True
+    return bool(getattr(metadata, "st_file_attributes", 0)
+                & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400))
+
+
+def _has_unsafe_path_component(root: Path, relative: str) -> bool:
+    parts = PurePosixPath(relative).parts
+    return any(_is_link_or_reparse_point(root / Path(*parts[:i]))
+               for i in range(1, len(parts) + 1))
+
+
+def _evidence_tree_entries(directory: Path):
+    """List untrusted evidence trees without traversing links or junctions."""
+    for child in directory.iterdir():
+        yield child
+        if not _is_link_or_reparse_point(child) and child.is_dir():
+            yield from _evidence_tree_entries(child)
+
+
 def _iter_artifacts(bundle: dict):
     games = bundle.get("games", {})
     if not isinstance(games, dict):
         return
     for game, result in games.items():
         if not isinstance(result, dict):
+            continue
+        if result.get("status") == "WORKER_OUTPUT_QUARANTINED" or "worker_output_capture" in result:
+            # Forensic process output cannot become HTTP records even if a
+            # tampered manifest adds source-like fields or deletes the envelope.
             continue
         sources = result.get("sources", [])
         if isinstance(sources, list):
@@ -48,9 +89,120 @@ def _iter_artifacts(bundle: dict):
                         ), artifact
 
 
+def _audit_worker_captures(bundle: dict, root: Path, errors: list[str]) -> dict:
+    """Check process-output bytes independently; never count them as HTTP records."""
+    records = verified = unavailable = 0
+    paths: set[str] = set()
+    incomplete_games = []
+    games = bundle.get("games")
+    if not isinstance(games, dict):
+        return {"records": 0, "verified": 0, "unavailable": 0, "paths": paths,
+                "incomplete_games": []}
+    for game, result in games.items():
+        if not isinstance(result, dict):
+            continue
+        if "worker_output_capture" not in result and result.get("status") != "WORKER_OUTPUT_QUARANTINED":
+            continue
+        # An arbitrary failed worker JSON must never be laundered into model
+        # rows/HTTP artifacts by moving it into this diagnostic-only envelope.
+        empty_fields = {
+            "sources": [], "source_summaries": [], "source_count": 0,
+            "unadmitted_raw_artifacts": [], "transport_failures": [],
+            "raw_artifact_count": 0, "consensus_draws": [], "consensus_draw_count": 0,
+            "primary_history_draws": [], "primary_history_draw_count": 0,
+            "unverified_primary_history_draw_count": 0,
+        }
+        if (result.get("status") != "WORKER_OUTPUT_QUARANTINED"
+                or result.get("history_validation_tier") != "UNVERIFIED_WORKER_OUTPUT"
+                or result.get("official_history_admission") != "BLOCKED"
+                or result.get("lottery") != game
+                or result.get("source_origin_authenticity") != "NOT_VERIFIED"
+                or result.get("publication_time_authenticity") != "NOT_VERIFIED"
+                or result.get("parser_to_raw_binding") != "NOT_VERIFIED"
+                or result.get("raw_byte_sha_validation") != "NOT_RUN_UNTRUSTED_PROCESS_OUTPUT"
+                or any(result.get(name) != expected or type(result.get(name)) is not type(expected)
+                       for name, expected in empty_fields.items())):
+            errors.append(f"WORKER_OUTPUT_QUARANTINE_GUARD_INVALID:{game}")
+        if "worker_output_capture" not in result:
+            errors.append(f"WORKER_OUTPUT_CAPTURE_MISSING:{game}")
+            continue
+        capture = result["worker_output_capture"]
+        if (game not in SOURCE_IDS_BY_GAME or not isinstance(capture, dict)
+                or capture.get("schema") != "V47-UNTRUSTED-WORKER-OUTPUT-1"
+                or capture.get("trust") != "UNTRUSTED_PROCESS_OUTPUT"
+                or capture.get("raw_http_evidence") != "NOT_VALIDATED"
+                or type(capture.get("capture_complete")) is not bool
+                or (capture.get("returncode") is not None
+                    and type(capture["returncode"]) is not int)
+                or (capture.get("capture_complete") is True
+                    and type(capture.get("returncode")) is not int)):
+            errors.append(f"WORKER_OUTPUT_CAPTURE_SCHEMA_INVALID:{game}")
+            continue
+        if not capture["capture_complete"]:
+            incomplete_games.append(game)
+        streams = capture.get("streams")
+        if (not isinstance(streams, list) or len(streams) != 2
+                or any(not isinstance(stream, dict) for stream in streams)
+                or any(not isinstance(stream.get("stream"), str) for stream in streams)
+                or {stream.get("stream") for stream in streams} != {"stdout", "stderr"}):
+            errors.append(f"WORKER_OUTPUT_STREAM_SET_INVALID:{game}")
+            continue
+        for stream in streams:
+            records += 1
+            name = stream["stream"]
+            if stream.get("capture_status") == "NOT_CAPTURED":
+                unavailable += 1
+                if (set(stream) != {"stream", "capture_status"}
+                        or capture["capture_complete"]):
+                    errors.append(f"WORKER_OUTPUT_NOT_CAPTURED_CONFLICT:{game}:{name}")
+                continue
+            expected_keys = {"stream", "capture_status", "byte_representation",
+                             "sha256", "size_bytes", "artifact_path"}
+            if (set(stream) != expected_keys or stream.get("capture_status") != "CAPTURED"
+                    or not isinstance(stream.get("byte_representation"), str)
+                    or stream.get("byte_representation") not in {
+                        "ORIGINAL_PIPE_BYTES", "UTF8_REENCODED_TEXT"}):
+                errors.append(f"WORKER_OUTPUT_STREAM_SCHEMA_INVALID:{game}:{name}")
+                continue
+            sha, size, rel = stream["sha256"], stream["size_bytes"], stream["artifact_path"]
+            if (not isinstance(sha, str) or len(sha) != 64
+                    or any(c not in "0123456789abcdef" for c in sha)
+                    or type(size) is not int or size < 0):
+                errors.append(f"WORKER_OUTPUT_BYTES_METADATA_INVALID:{game}:{name}")
+                continue
+            canonical = f"diagnostics/{game}/worker/{name}/{sha}.bin"
+            if not isinstance(rel, str) or rel != canonical:
+                errors.append(f"WORKER_OUTPUT_NONCANONICAL_PATH:{game}:{name}")
+                continue
+            unresolved = root / Path(*PurePosixPath(rel).parts)
+            if _has_unsafe_path_component(root, rel):
+                errors.append(f"WORKER_OUTPUT_FILE_UNSAFE_OR_MISSING:{game}:{name}")
+                continue
+            try:
+                candidate = unresolved.resolve()
+            except (OSError, RuntimeError):
+                errors.append(f"WORKER_OUTPUT_FILE_UNSAFE_OR_MISSING:{game}:{name}")
+                continue
+            if not candidate.is_relative_to(root) or not candidate.is_file():
+                errors.append(f"WORKER_OUTPUT_FILE_UNSAFE_OR_MISSING:{game}:{name}")
+                continue
+            try:
+                raw = candidate.read_bytes()
+            except OSError:
+                errors.append(f"WORKER_OUTPUT_FILE_UNREADABLE:{game}:{name}")
+                continue
+            if len(raw) != size or hashlib.sha256(raw).hexdigest() != sha:
+                errors.append(f"WORKER_OUTPUT_BYTES_MISMATCH:{game}:{name}")
+                continue
+            verified += 1
+            paths.add(rel)
+    return {"records": records, "verified": verified, "unavailable": unavailable,
+            "paths": paths, "incomplete_games": incomplete_games}
+
+
 def audit_bundle(bundle_dir: str | Path) -> dict:
     """Return an audit receipt; never modify the intake manifest or raw source bytes."""
-    root = Path(bundle_dir).resolve()
+    root = _physical_root(bundle_dir)
     manifest_path = root / "intake.json"
     errors: list[str] = []
     bundle = None
@@ -143,8 +295,8 @@ def audit_bundle(bundle_dir: str | Path) -> dict:
                 errors.append(f"RAW_ARTIFACT_NONCANONICAL_SOURCE_PATH:{game}:{source_id}:{rel}")
                 continue
             unresolved = root / Path(*pure.parts)
-            if unresolved.is_symlink():
-                errors.append(f"RAW_ARTIFACT_SYMLINK_NOT_ALLOWED:{game}:{source_id}:{rel}")
+            if _has_unsafe_path_component(root, rel):
+                errors.append(f"RAW_ARTIFACT_LINK_OR_REPARSE_POINT_NOT_ALLOWED:{game}:{source_id}:{rel}")
                 continue
             candidate = unresolved.resolve()
             if not candidate.is_relative_to(root) or candidate == root:
@@ -170,19 +322,37 @@ def audit_bundle(bundle_dir: str | Path) -> dict:
             unique_paths.add(rel)
             verified_records += 1
 
-    if artifact_records == 0:
+    diagnostic = _audit_worker_captures(bundle, root, errors) if isinstance(bundle, dict) else {
+        "records": 0, "verified": 0, "unavailable": 0, "paths": set(), "incomplete_games": []
+    }
+    if artifact_records == 0 and diagnostic["verified"] == 0:
         errors.append("NO_RAW_ARTIFACT_RECORDS_FOUND")
 
     # Detect unlisted SHA-named files even when every referenced manifest
     # entry matches; an archive should not silently carry extra draw-like bytes.
     raw_dir = root / "raw"
     if raw_dir.exists():
-        for raw_file in raw_dir.rglob("*"):
-            rel = raw_file.relative_to(root).as_posix()
-            if raw_file.is_symlink():
-                errors.append(f"SYMLINK_IN_RAW_EVIDENCE_TREE:{rel}")
-            elif raw_file.is_file() and rel not in unique_paths:
-                errors.append(f"UNREFERENCED_RAW_ARTIFACT:{rel}")
+        if _is_link_or_reparse_point(raw_dir):
+            errors.append("LINK_OR_REPARSE_POINT_IN_RAW_EVIDENCE_TREE:raw")
+        else:
+            for raw_file in _evidence_tree_entries(raw_dir):
+                rel = raw_file.relative_to(root).as_posix()
+                if _is_link_or_reparse_point(raw_file):
+                    errors.append(f"LINK_OR_REPARSE_POINT_IN_RAW_EVIDENCE_TREE:{rel}")
+                elif raw_file.is_file() and rel not in unique_paths:
+                    errors.append(f"UNREFERENCED_RAW_ARTIFACT:{rel}")
+
+    diagnostic_dir = root / "diagnostics"
+    if diagnostic_dir.exists():
+        if _is_link_or_reparse_point(diagnostic_dir):
+            errors.append("LINK_OR_REPARSE_POINT_IN_WORKER_OUTPUT_TREE:diagnostics")
+        else:
+            for saved in _evidence_tree_entries(diagnostic_dir):
+                rel = saved.relative_to(root).as_posix()
+                if _is_link_or_reparse_point(saved):
+                    errors.append(f"LINK_OR_REPARSE_POINT_IN_WORKER_OUTPUT_TREE:{rel}")
+                elif saved.is_file() and rel not in diagnostic["paths"]:
+                    errors.append(f"UNREFERENCED_WORKER_OUTPUT_FILE:{rel}")
 
     return {
         "schema": AUDIT_SCHEMA,
@@ -195,6 +365,19 @@ def audit_bundle(bundle_dir: str | Path) -> dict:
         "unique_raw_file_paths": len(unique_paths),
         "diagnostic_non_200_responses": diagnostic_http_responses,
         "unpreserved_oversized_records": unpreserved_oversized_records,
+        "worker_output_stream_records": diagnostic["records"],
+        "verified_worker_output_stream_records": diagnostic["verified"],
+        "unavailable_worker_output_streams": diagnostic["unavailable"],
+        "incomplete_worker_output_games": diagnostic["incomplete_games"],
+        "worker_output_validation_scope": "PROCESS_OUTPUT_BYTES_ONLY_HTTP_CLAIMS_UNVALIDATED",
+        "worker_output_limitations": [
+            "Diagnostic stream hashes certify preserved process output only, never embedded HTTP, source, row or timestamp claims.",
+            "Incomplete captures cannot recover HTTP bytes that the worker never emitted before timeout or termination.",
+        ] if diagnostic["records"] else [],
+        "http_raw_evidence_status": (
+            "BYTE_INTEGRITY_ONLY_NOT_SOURCE_AUTHENTICITY" if artifact_records
+            else "NOT_PRESENT_OR_UNVALIDATED_PROCESS_OUTPUT_ONLY"
+        ),
         "admission_guard": {
             "official_target_admission": "BLOCKED",
             "external_tsa": "NOT_RUN",
@@ -209,7 +392,7 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--bundle-dir", required=True, help="Directory containing intake.json and raw/")
     args = parser.parse_args(argv)
-    root = Path(args.bundle_dir)
+    root = _physical_root(args.bundle_dir)
     root.mkdir(parents=True, exist_ok=True)
     report = audit_bundle(root)
     output = root / "intake-audit.json"

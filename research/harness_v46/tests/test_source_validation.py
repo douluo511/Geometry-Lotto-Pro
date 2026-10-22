@@ -62,6 +62,25 @@ class SourceValidationTests(unittest.TestCase):
         with self.assertRaisesRegex(GateError, "SOURCE_HOST_NOT_ALLOWLISTED"):
             compare_source_histories(snap, a, parsed(snap), b, parsed(snap))
 
+    def test_nonstandard_https_port_blocks_even_on_allowlisted_domain(self):
+        snap = fixture("SSQ")
+        a, b = sources("SSQ")
+        for url in (
+            "https://www.swlc.net.cn:444/lottery/ssq.html",
+            "https://www.swlc.net.cn:0/lottery/ssq.html",
+            "https://www.swlc.net.cn:invalid/lottery/ssq.html",
+        ):
+            with self.subTest(url=url), self.assertRaisesRegex(
+                GateError, "HTTPS_SOURCE_URL_REQUIRED|INVALID_SOURCE_URL"
+            ):
+                modified = dict(a, url=url)
+                compare_source_histories(snap, modified, parsed(snap), b, parsed(snap))
+
+        # Explicit 443 is semantically the standard HTTPS port, not a bypass.
+        allowed = dict(a, url="https://www.swlc.net.cn:443/lottery/ssq.html")
+        report = compare_source_histories(snap, allowed, parsed(snap), b, parsed(snap))
+        self.assertEqual(report["official_G01"], "BLOCKED")
+
     def test_less_than_120_rows_blocks(self):
         snap = fixture("SSQ")
         a, b = sources("SSQ")

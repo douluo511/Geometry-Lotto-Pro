@@ -6,7 +6,7 @@ registration, trusted pre-draw existence, or the authenticity of draw results.
 """
 from __future__ import annotations
 
-from math import exp, lgamma, log, log1p
+from math import exp, expm1, fsum, lgamma, log, log1p
 from typing import Any
 
 from .core import MODELS, RULES, GateError
@@ -36,8 +36,37 @@ def _pmf(k: int, n: int, p: float) -> float:
     return exp(log_value)
 
 
+def _log_tail_from_boundary(k: int, n: int, p: float, *, upper: bool) -> float:
+    """Sum a tail away from its largest term, without exponentiating its PMF.
+
+    The caller chooses a boundary on the appropriate side of the mode. Relative
+    terms therefore decrease; even a PMF smaller than the float range can seed
+    the recurrence. Only the final tail probability is converted back to float.
+    """
+    log_pmf = (lgamma(n + 1) - lgamma(k + 1) - lgamma(n - k + 1)
+               + k * log(p) + (n - k) * log1p(-p))
+
+    def relative_terms():
+        term = 1.0
+        yield term
+        if upper:
+            for x in range(k, n):
+                term *= ((n - x) / (x + 1)) * (p / (1 - p))
+                if term == 0.0:
+                    break
+                yield term
+        else:
+            for x in range(k, 0, -1):
+                term *= (x / (n - x + 1)) * ((1 - p) / p)
+                if term == 0.0:
+                    break
+                yield term
+
+    return min(0.0, log_pmf + log(fsum(relative_terms())))
+
+
 def exact_binomial_upper_tail(k: int, n: int, p: float) -> float:
-    """P[X >= k] for X~Binomial(n,p), using a stable recurrence."""
+    """P[X >= k] for X~Binomial(n,p), with mode-side log-scaled tails."""
     _validate_binomial(k, n, p)
     if k == 0:
         return 1.0
@@ -45,12 +74,11 @@ def exact_binomial_upper_tail(k: int, n: int, p: float) -> float:
         return 0.0
     if p == 1:
         return 1.0
-    term = _pmf(k, n, p)
-    total = term
-    for x in range(k, n):
-        term *= ((n - x) / (x + 1)) * (p / (1 - p))
-        total += term
-    return min(1.0, max(0.0, total))
+    if k > n * p:
+        return exp(_log_tail_from_boundary(k, n, p, upper=True))
+    # A right tail crossing the mode is the complement of a decreasing left
+    # tail. Starting at k directly can underflow and falsely report p=0.
+    return -expm1(_log_tail_from_boundary(k - 1, n, p, upper=False))
 
 
 def _lower_tail(k: int, n: int, p: float) -> float:
@@ -63,12 +91,9 @@ def _lower_tail(k: int, n: int, p: float) -> float:
         return 1.0
     if p == 1:
         return 0.0
-    term = _pmf(k, n, p)
-    total = term
-    for x in range(k, 0, -1):
-        term *= (x / (n - x + 1)) * ((1 - p) / p)
-        total += term
-    return min(1.0, max(0.0, total))
+    if k < n * p:
+        return exp(_log_tail_from_boundary(k, n, p, upper=False))
+    return -expm1(_log_tail_from_boundary(k + 1, n, p, upper=True))
 
 
 def clopper_pearson(k: int, n: int, confidence: float = 0.95) -> tuple[float, float]:

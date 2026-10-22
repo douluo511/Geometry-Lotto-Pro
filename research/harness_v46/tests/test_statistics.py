@@ -1,5 +1,7 @@
 """Synthetic arithmetic tests only; they never assert official evidence or predictive edge."""
 import unittest
+from decimal import Decimal, localcontext
+from math import comb
 
 from research.harness_v46.core import MODELS
 from research.harness_v46.statistics import (
@@ -22,6 +24,20 @@ def row(game, issue, overrides=None):
     return {"lottery": game, "issue": str(issue), "scores": scores}
 
 
+def decimal_upper_tail(k, n, numerator, denominator):
+    """Independent high-precision oracle; no production log/float-tail helpers."""
+    with localcontext() as ctx:
+        ctx.prec = 90
+        p = Decimal(numerator) / Decimal(denominator)
+        q = 1 - p
+        term = Decimal(comb(n, k)) * p ** k * q ** (n - k)
+        total = term
+        for x in range(k, n):
+            term *= Decimal(n - x) * p / (Decimal(x + 1) * q)
+            total += term
+        return float(total)
+
+
 class StatisticsTests(unittest.TestCase):
     def test_exact_binomial_tail_small_counts(self):
         self.assertEqual(exact_binomial_upper_tail(4, 4, 0.5), 1 / 16)
@@ -40,6 +56,57 @@ class StatisticsTests(unittest.TestCase):
         low, high = clopper_pearson(4, 10, 0.95)
         self.assertLessEqual(low, 0.4)
         self.assertGreaterEqual(high, 0.4)
+
+    def test_large_binomial_tails_match_independent_decimal_oracle(self):
+        cases = (
+            (1, 2500, 1, 2),       # formerly returned zero instead of one
+            (1250, 2500, 1, 2),    # near the mode
+            (1350, 2500, 1, 2),    # small but representable right tail
+            (1, 30000, 15, 528),   # actual SSQ baseline, formerly zero
+            (900, 30000, 15, 528),
+            (9988, 10000, 999, 1000),
+            (10000, 10000, 999, 1000),
+        )
+        for k, n, numerator, denominator in cases:
+            with self.subTest(k=k, n=n, p=(numerator, denominator)):
+                expected = decimal_upper_tail(k, n, numerator, denominator)
+                actual = exact_binomial_upper_tail(k, n, numerator / denominator)
+                self.assertAlmostEqual(actual, expected, delta=max(1e-300, abs(expected) * 2e-9))
+
+    def test_large_exact_intervals_are_ordered_and_cover_observed_rate(self):
+        for k, n in ((1, 2500), (2499, 2500), (1, 30000), (900, 30000)):
+            with self.subTest(k=k, n=n):
+                low, high = clopper_pearson(k, n)
+                self.assertLessEqual(0, low)
+                self.assertLessEqual(low, k / n)
+                self.assertLessEqual(k / n, high)
+                self.assertLessEqual(high, 1)
+                self.assertAlmostEqual(exact_binomial_upper_tail(k, n, low), .025, delta=2e-9)
+                self.assertAlmostEqual(exact_binomial_upper_tail(k + 1, n, high), .975, delta=2e-9)
+
+    def test_zero_and_one_probability_and_count_boundaries(self):
+        for n in (0, 1, 2500, 30000):
+            self.assertEqual(exact_binomial_upper_tail(0, n, 0), 1)
+            self.assertEqual(exact_binomial_upper_tail(0, n, 1), 1)
+            if n:
+                self.assertEqual(exact_binomial_upper_tail(n, n, 0), 0)
+                self.assertEqual(exact_binomial_upper_tail(n, n, 1), 1)
+                self.assertEqual(clopper_pearson(0, n)[0], 0)
+                self.assertEqual(clopper_pearson(n, n)[1], 1)
+
+    def test_many_losses_cannot_become_tiny_joint_or_holm_pvalue(self):
+        # Previously both right-tail seeds underflowed, turning 1 win against
+        # 29,999 losses into a joint p-value and adjusted p-value of zero.
+        rows = [row("SSQ", i, {"hot60": int(i == 1), "random_null": int(i != 1)})
+                for i in range(1, 30001)]
+        report = evaluate_shadow_d2(rows, [family()[0]], expected_family_size=1)
+        item = report["results"][0]
+        self.assertEqual(item["p_exact_vs_fair"], 1)
+        self.assertEqual(item["p_exact_paired_vs_null"], 1)
+        self.assertEqual(item["p_joint_intersection_union"], 1)
+        self.assertEqual(item["holm_adjusted_p_unverified_family"], 1)
+        self.assertEqual(report["formal_A"], 0)
+        self.assertEqual(report["decision"], "NO_EDGE")
 
     def test_holm_requires_exact_named_family(self):
         ids = [f"h{i}" for i in range(12)]

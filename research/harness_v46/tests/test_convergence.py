@@ -5,6 +5,7 @@ import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from research.harness_v46 import core, convergence as cv, cli
 from research.harness_v46.tests.test_core import fixture
@@ -70,6 +71,26 @@ class Contracts(unittest.TestCase):
         with self.assertRaises(sqlite3.DatabaseError):
             db.execute("INSERT OR REPLACE INTO run_manifests SELECT * FROM run_manifests")
         db.close()
+
+    def test_raw_replay_and_bundle_auditor_changes_reidentify_run(self):
+        snapshots = self.snaps()
+        baseline = cv.manifest(snapshots)
+        original_read = Path.read_bytes
+        source_root = Path(cv.__file__).parent
+        for filename in ("raw_semantic_replay.py", "audit_intake_bundle.py"):
+            with self.subTest(filename=filename):
+                self.assertIn(filename, cv.ORCHESTRATION_SOURCE_FILES)
+                target = (source_root / filename).resolve()
+
+                def changed_read(path):
+                    raw = original_read(path)
+                    return raw + b"\n# synthetic identity mutation\n" if path.resolve() == target else raw
+
+                with patch.object(Path, "read_bytes", changed_read):
+                    changed = cv.manifest(snapshots)
+                self.assertNotEqual(baseline["harness_source_sha256"], changed["harness_source_sha256"])
+                self.assertNotEqual(baseline["run_id"], changed["run_id"])
+        self.assertEqual(baseline, cv.manifest(snapshots))
 
     def test_snapshot_preimage_is_persisted_and_immutable(self):
         db = sqlite3.connect(":memory:")
@@ -315,6 +336,94 @@ class Contracts(unittest.TestCase):
             core.freeze_shadow(db, run, changed, core.forecast(changed, "hot60"),
                                "2026-10-21T00:00:00+00:00")
         db.close()
+
+    def test_batch_replay_rejects_invalid_or_out_of_window_stored_freezes(self):
+        cases = (
+            ("2026-10-19T23:59:59.999999+00:00", "LOCAL_TIME_OUTSIDE_ASOF_CUTOFF"),
+            ("2026-10-23T04:00:00+00:00", "LOCAL_TIME_OUTSIDE_ASOF_CUTOFF"),
+            ("2026-10-25T00:00:00+00:00", "LOCAL_TIME_OUTSIDE_ASOF_CUTOFF"),
+            ("2026-10-21T00:00:00", "INVALID_LOCAL_TIMESTAMP"),
+            ("not-a-timestamp", "INVALID_LOCAL_TIMESTAMP"),
+            ("2026-10-21T00:00:00+24:00", "INVALID_LOCAL_TIMESTAMP"),
+            (b"2026-10-21T00:00:00+00:00", "INVALID_LOCAL_TIMESTAMP"),
+        )
+        for frozen_at, error in cases:
+            with self.subTest(frozen_at=frozen_at):
+                db = sqlite3.connect(":memory:")
+                self.addCleanup(db.close)
+                run, _ = self.prepare_batch(db)
+                # As in the model-payload replay test, simulate a privileged
+                # imported/file-level rewrite, not an application write bypass.
+                db.execute("DROP TRIGGER prevent_prediction_update")
+                db.execute("UPDATE predictions SET frozen_at=? WHERE model='hot60'", (frozen_at,))
+                before = db.total_changes
+                with self.assertRaisesRegex(core.GateError, error):
+                    cv.check_complete_batch(db, run, "SSQ")
+                self.assertEqual(before, db.total_changes)
+
+    def test_batch_replay_checks_stored_freeze_time_for_every_model(self):
+        for model in core.MODELS:
+            with self.subTest(model=model):
+                db = sqlite3.connect(":memory:")
+                self.addCleanup(db.close)
+                run, _ = self.prepare_batch(db)
+                db.execute("DROP TRIGGER prevent_prediction_update")
+                db.execute("UPDATE predictions SET frozen_at=? WHERE model=?",
+                           ("2026-10-25T00:00:00+00:00", model))
+                with self.assertRaisesRegex(core.GateError, "LOCAL_TIME_OUTSIDE_ASOF_CUTOFF"):
+                    cv.check_complete_batch(db, run, "SSQ")
+
+    def test_batch_replay_accepts_valid_local_bounds_and_offsets_without_writes(self):
+        for lottery in ("SSQ", "DLT"):
+            db = sqlite3.connect(":memory:")
+            self.addCleanup(db.close)
+            run, _ = self.prepare_batch(db, lottery)
+            expected = cv.check_complete_batch(db, run, lottery)
+            db.execute("DROP TRIGGER prevent_prediction_update")
+            for frozen_at in (
+                "2026-10-20T00:00:00Z",             # as_of is inclusive
+                "2026-10-21T09:00:00+09:00",       # original instant in JST
+                "2026-10-20T20:00:00-04:00",       # original instant in New York
+                "2026-10-23T03:59:59.999999+00:00",  # one microsecond before cutoff
+            ):
+                with self.subTest(lottery=lottery, frozen_at=frozen_at):
+                    db.execute("UPDATE predictions SET frozen_at=?", (frozen_at,))
+                    before = db.total_changes
+                    self.assertEqual(expected, cv.check_complete_batch(db, run, lottery))
+                    self.assertEqual(expected, cv.check_complete_batch(db, run, lottery))
+                    self.assertEqual(before, db.total_changes)
+
+    def test_batch_replay_rejects_rewritten_storage_evidence_classes(self):
+        for table, trigger, error in (
+            ("predictions", "prevent_prediction_update", "FROZEN_PREDICTION_EVIDENCE_CLASS_NOT_SHADOW"),
+            ("run_manifests", "prevent_manifest_update", "V47_MANIFEST_EVIDENCE_CLASS_NOT_SHADOW"),
+            ("run_snapshots", "prevent_snapshot_update", "V47_SNAPSHOT_HASH_OR_CLASS_MISMATCH"),
+        ):
+            with self.subTest(table=table):
+                db = sqlite3.connect(":memory:")
+                self.addCleanup(db.close)
+                run, _ = self.prepare_batch(db)
+                db.execute("DROP TRIGGER " + trigger)
+                db.execute("PRAGMA ignore_check_constraints=ON")
+                db.execute("UPDATE " + table + " SET evidence_class='FORMAL_A'")
+                with self.assertRaisesRegex(core.GateError, error):
+                    cv.check_complete_batch(db, run, "SSQ")
+
+    def test_readonly_scoring_rejects_bad_stored_time_without_changing_ledger(self):
+        with tempfile.TemporaryDirectory() as root:
+            path = Path(root) / "ledger.sqlite3"
+            with sqlite3.connect(path) as db:
+                run, snap = self.prepare_batch(db)
+                db.execute("DROP TRIGGER prevent_prediction_update")
+                db.execute("UPDATE predictions SET frozen_at=? WHERE model='hot60'",
+                           ("2026-10-25T00:00:00+00:00",))
+            db.close()
+            before = path.read_bytes()
+            outcome = {"lottery": "SSQ", "issue": snap["target_issue"],
+                       "front": [1, 2, 3, 4, 5, 6], "back": [1]}
+            with self.assertRaisesRegex(core.GateError, "LOCAL_TIME_OUTSIDE_ASOF_CUTOFF"):
+                cv.score_readonly(path, run, outcome)
+            self.assertEqual(path.read_bytes(), before)
 
     def test_shadow_trace_does_not_award_official_gate_pass(self):
         db = sqlite3.connect(":memory:")

@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import ast
 import base64
+import copy
 import hashlib
 import json
 import os
@@ -76,6 +77,15 @@ REDIRECT_CODES = {301, 302, 303, 307, 308}
 
 def _sha(raw: bytes) -> str:
     return hashlib.sha256(raw).hexdigest()
+
+
+def _physical_root(path: str | Path) -> Path:
+    """Use one normalized physical namespace for all Windows evidence I/O."""
+    absolute = os.path.abspath(os.fspath(path))
+    if os.name == "nt" and not absolute.startswith("\\\\?\\"):
+        absolute = ("\\\\?\\UNC\\" + absolute[2:] if absolute.startswith("\\\\")
+                    else "\\\\?\\" + absolute)
+    return Path(absolute).resolve()
 
 
 def source_file_hashes(game: str) -> dict[str, str]:
@@ -967,39 +977,141 @@ def _quarantine_second_process_replay(result: dict, reason: str) -> dict:
     return result
 
 
+def _capture_worker_output(stdout, stderr, *, returncode, capture_complete: bool) -> dict:
+    """Preserve untrusted process output, without interpreting it as HTTP evidence."""
+    streams = []
+    for name, value in (("stdout", stdout), ("stderr", stderr)):
+        if value is None:
+            streams.append({"stream": name, "capture_status": "NOT_CAPTURED"})
+            continue
+        # Real workers are captured in binary mode. Text is accepted only for
+        # callers/test doubles and is explicitly not called original pipe bytes.
+        if isinstance(value, bytes):
+            raw, representation = value, "ORIGINAL_PIPE_BYTES"
+        elif isinstance(value, str):
+            raw, representation = value.encode("utf-8"), "UTF8_REENCODED_TEXT"
+        else:
+            raise GateError("WORKER_OUTPUT_STREAM_TYPE_INVALID")
+        streams.append({
+            "stream": name, "capture_status": "CAPTURED",
+            "byte_representation": representation,
+            "sha256": _sha(raw), "size_bytes": len(raw),
+            "bytes_base64": base64.b64encode(raw).decode("ascii"),
+        })
+    return {
+        "schema": "V47-UNTRUSTED-WORKER-OUTPUT-1",
+        "trust": "UNTRUSTED_PROCESS_OUTPUT",
+        "raw_http_evidence": "NOT_VALIDATED",
+        "capture_complete": capture_complete, "returncode": returncode,
+        "streams": streams,
+    }
+
+
+def _quarantine_worker_output(game: str, reason: str, stdout=None, stderr=None, *,
+                              returncode=None, capture_complete: bool = False) -> dict:
+    """Keep failed parent handoffs recoverable without admitting any worker claims."""
+    return {
+        "schema": SCHEMA, "lottery": game, "status": "WORKER_OUTPUT_QUARANTINED",
+        "history_validation_tier": "UNVERIFIED_WORKER_OUTPUT",
+        "source_count": 0, "sources": [], "source_summaries": [],
+        "unadmitted_raw_artifacts": [], "transport_failures": [],
+        "raw_artifact_count": 0,
+        "raw_byte_sha_validation": "NOT_RUN_UNTRUSTED_PROCESS_OUTPUT",
+        "consensus_draw_count": 0, "consensus_draws": [],
+        "primary_history_draw_count": 0, "primary_history_draws": [],
+        "unverified_primary_history_draw_count": 0,
+        "parser_to_raw_binding": "NOT_VERIFIED",
+        "source_origin_authenticity": "NOT_VERIFIED",
+        "publication_time_authenticity": "NOT_VERIFIED",
+        "official_history_admission": "BLOCKED", "official_target_admission": "BLOCKED",
+        "external_tsa": "NOT_RUN", "formal_A": 0, "decision": "NO_EDGE",
+        "errors": {"worker_output_validation": reason},
+        "worker_output_capture": _capture_worker_output(
+            stdout, stderr, returncode=returncode, capture_complete=capture_complete
+        ),
+        "limitations": [
+            "Captured worker output is untrusted diagnostic evidence, never admitted HTTP or model input.",
+            "Embedded raw_base64 bodies remain recoverable in captured stdout; no source identity, HTTP status, row or timestamp claim is validated.",
+            "HTTP bytes never emitted before worker timeout or termination are NOT_CAPTURED; no streaming journal exists.",
+        ],
+    }
+
+
 def collect_live_history(game: str, *, timeout_seconds: int = 600) -> dict:
     if game not in SOURCE_IDS:
         raise GateError("UNKNOWN_LOTTERY_FOR_SOURCE_INTAKE")
     before = source_file_hashes(game)
-    completed = subprocess.run(
-        [sys.executable, "-m", "research.harness_v46.official_intake", "--worker", game],
-        cwd=str(REPO_ROOT), capture_output=True, text=True, timeout=timeout_seconds,
-        check=False, env={**os.environ, "PYTHONHASHSEED": "0"},
-    )
-    after = source_file_hashes(game)
-    if before != after:
-        raise GateError("PARSER_FILES_CHANGED_DURING_FETCH")
-    if completed.returncode != 0:
-        raise GateError("OFFICIAL_SOURCE_WORKER_FAILED:" + completed.stderr[-2000:])
     try:
-        payload = json.loads(completed.stdout)
-    except json.JSONDecodeError as exc:
-        raise GateError("OFFICIAL_SOURCE_WORKER_NON_JSON_OUTPUT:" + completed.stdout[-500:]) from exc
-    if payload.get("source_files_sha256") != before:
-        raise GateError("PARSER_SOURCE_HASH_CHANGED_DURING_HANDOFF")
-    result = validate_worker_payload(payload, expected_game=game)
-    if payload.get("status") == "WORKER_FETCH_COMPLETE":
-        # A worker's own PASS is never sufficient for a qualifying history.
+        # Capture exact pipe bytes: text mode would decode and normalize CRLF
+        # before a failed worker's diagnostic evidence could be preserved.
+        completed = subprocess.run(
+            [sys.executable, "-m", "research.harness_v46.official_intake", "--worker", game],
+            cwd=str(REPO_ROOT), capture_output=True, timeout=timeout_seconds,
+            check=False,
+            env={**os.environ, "PYTHONHASHSEED": "0", "PYTHONIOENCODING": "utf-8"},
+        )
+    except subprocess.TimeoutExpired as exc:
+        return _quarantine_worker_output(
+            game, "OFFICIAL_SOURCE_WORKER_TIMEOUT:" + str(exc),
+            exc.output, exc.stderr, capture_complete=False)
+    except OSError as exc:
+        return _quarantine_worker_output(
+            game, "OFFICIAL_SOURCE_WORKER_LAUNCH_FAILED:" + str(exc))
+    try:
+        after = source_file_hashes(game)
+        if before != after:
+            raise GateError("PARSER_FILES_CHANGED_DURING_FETCH")
+        if completed.returncode != 0:
+            raise GateError("OFFICIAL_SOURCE_WORKER_FAILED:EXIT_" + str(completed.returncode))
+        stdout = completed.stdout
+        if isinstance(stdout, bytes):
+            stdout = stdout.decode("utf-8")
+        payload = json.loads(stdout)
+        if not isinstance(payload, dict):
+            raise GateError("OFFICIAL_SOURCE_WORKER_PAYLOAD_NOT_OBJECT")
+        if payload.get("source_files_sha256") != before:
+            raise GateError("PARSER_SOURCE_HASH_CHANGED_DURING_HANDOFF")
+        result = validate_worker_payload(payload, expected_game=game)
+    except Exception as exc:
+        # Every completed handoff failure retains both output streams, including
+        # malformed/non-UTF8 JSON and parser/contract errors. Do not promote its
+        # arbitrary source IDs, paths, rows or HTTP metadata into sources.
+        return _quarantine_worker_output(
+            game, type(exc).__name__ + ":" + str(exc),
+            completed.stdout, completed.stderr,
+            returncode=completed.returncode, capture_complete=True)
+    replayed_rows = {
+        source["source_id"]: _rows_sha256(source["draws"])
+        for source in result["sources"]
+        if source.get("raw_reparse_status") == "PASS" and source.get("draws")
+    }
+    if replayed_rows:
+        # A worker's own PASS is never sufficient, including successful sources
+        # within a partial collection that remain available for forensic review.
         # Independently restart the parser in a second Python process and
         # reconstruct each claimed source history from exact retained bytes.
-        replay = subprocess.run(
-            [sys.executable, "-m", "research.harness_v46.raw_semantic_replay",
-             "--game", game],
-            cwd=str(REPO_ROOT), input=json.dumps(payload, ensure_ascii=False,
-                                                 sort_keys=True, separators=(",", ":")),
-            capture_output=True, text=True, timeout=timeout_seconds,
-            check=False, env={**os.environ, "PYTHONHASHSEED": "0"},
-        )
+        try:
+            replay = subprocess.run(
+                [sys.executable, "-m", "research.harness_v46.raw_semantic_replay",
+                 "--game", game],
+                cwd=str(REPO_ROOT), input=json.dumps(payload, ensure_ascii=False,
+                                                     sort_keys=True, separators=(",", ":")),
+                capture_output=True, text=True, timeout=timeout_seconds,
+                encoding="utf-8", check=False,
+                env={**os.environ, "PYTHONHASHSEED": "0", "PYTHONIOENCODING": "utf-8"},
+            )
+        except (subprocess.TimeoutExpired, OSError, UnicodeError) as exc:
+            return _quarantine_second_process_replay(
+                result, "SECOND_PROCESS_RAW_REPLAY_EXECUTION_FAILED:"
+                + type(exc).__name__ + ":" + str(exc)[-1000:])
+        try:
+            after_replay = source_file_hashes(game)
+        except (GateError, OSError) as exc:
+            return _quarantine_second_process_replay(
+                result, "PARSER_FILES_UNAVAILABLE_AFTER_RAW_REPLAY:" + str(exc))
+        if after_replay != before:
+            return _quarantine_second_process_replay(
+                result, "PARSER_FILES_CHANGED_DURING_RAW_REPLAY")
         if replay.returncode != 0:
             return _quarantine_second_process_replay(
                 result, "SECOND_PROCESS_RAW_REPLAY_BLOCKED:" + replay.stderr[-1000:])
@@ -1009,20 +1121,27 @@ def collect_live_history(game: str, *, timeout_seconds: int = 600) -> dict:
             return _quarantine_second_process_replay(
                 result, "SECOND_PROCESS_RAW_REPLAY_RECEIPT_INVALID")
         from .core import digest as canonical_digest
-        claimed_ids = sorted(s["source_id"] for s in payload["sources"]
-                             if s.get("raw_reparse_status") == "PASS" and s.get("draws"))
+        expected_receipt = {
+            "schema": "V47-SECOND-PROCESS-SEMANTIC-REPLAY-1",
+            "lottery": game,
+            "worker_payload_sha256": canonical_digest(payload),
+            "parser_source_hashes": before,
+            "verified_source_ids": sorted(replayed_rows),
+            "replayed_rows_sha256": replayed_rows,
+            "status": "SECOND_PROCESS_SAME_PARSER_REPLAY_MATCHED",
+            "source_origin_authenticity": "NOT_VERIFIED",
+            "publication_time_authenticity": "NOT_VERIFIED",
+            "official_G01": "BLOCKED",
+            "formal_A": 0,
+            "decision": "NO_EDGE",
+        }
         if (not isinstance(receipt, dict)
-                or receipt.get("schema") != "V47-SECOND-PROCESS-SEMANTIC-REPLAY-1"
-                or receipt.get("status") != "SECOND_PROCESS_SAME_PARSER_REPLAY_MATCHED"
-                or receipt.get("lottery") != game
-                or receipt.get("worker_payload_sha256") != canonical_digest(payload)
-                or receipt.get("parser_source_hashes") != before
-                or receipt.get("verified_source_ids") != claimed_ids
-                or receipt.get("official_G01") != "BLOCKED"
-                or type(receipt.get("formal_A")) is not int or receipt["formal_A"] != 0):
+                or receipt != expected_receipt
+                or type(receipt.get("formal_A")) is not int):
             return _quarantine_second_process_replay(
                 result, "SECOND_PROCESS_RAW_REPLAY_RECEIPT_MISMATCH")
         result["second_process_raw_replay"] = receipt
+        result["parser_to_raw_binding"] = "SECOND_PROCESS_SAME_PARSER_REPLAY_MATCHED"
     return result
 
 
@@ -1051,11 +1170,46 @@ def collect_both() -> dict:
 
 
 def write_bundle(bundle: dict, output_dir: str | Path) -> Path:
-    destination = Path(output_dir)
+    # Writing paths into the saved manifest must not consume the caller's only
+    # byte copy if a later write fails or the caller needs a fresh destination.
+    bundle = copy.deepcopy(bundle)
+    destination = _physical_root(output_dir)
     destination.mkdir(parents=True, exist_ok=False)
     for game, result in bundle.get("games", {}).items():
         if game not in SOURCE_IDS:
             raise GateError("UNKNOWN_LOTTERY_FOR_BUNDLE_WRITE")
+        capture = result.get("worker_output_capture")
+        if capture is not None:
+            if (not isinstance(capture, dict)
+                    or capture.get("schema") != "V47-UNTRUSTED-WORKER-OUTPUT-1"
+                    or capture.get("trust") != "UNTRUSTED_PROCESS_OUTPUT"
+                    or capture.get("raw_http_evidence") != "NOT_VALIDATED"):
+                raise GateError("INVALID_UNTRUSTED_WORKER_CAPTURE")
+            streams = capture.get("streams")
+            if (not isinstance(streams, list) or len(streams) != 2
+                    or any(not isinstance(stream, dict) for stream in streams)
+                    or any(not isinstance(stream.get("stream"), str) for stream in streams)
+                    or {stream.get("stream") for stream in streams} != {"stdout", "stderr"}):
+                raise GateError("INVALID_WORKER_CAPTURE_STREAM_SET")
+            for stream in streams:
+                if stream.get("capture_status") == "NOT_CAPTURED":
+                    if set(stream) != {"stream", "capture_status"}:
+                        raise GateError("NOT_CAPTURED_WORKER_STREAM_HAS_BYTES")
+                    continue
+                if stream.get("capture_status") != "CAPTURED":
+                    raise GateError("INVALID_WORKER_CAPTURE_STATUS")
+                raw = base64.b64decode(stream["bytes_base64"], validate=True)
+                sha = _sha(raw)
+                if (stream.get("sha256") != sha or type(stream.get("size_bytes")) is not int
+                        or stream["size_bytes"] != len(raw)):
+                    raise GateError("WORKER_CAPTURE_BYTES_CHANGED_BEFORE_WRITE")
+                relative = Path("diagnostics") / game / "worker" / stream["stream"] / (sha + ".bin")
+                target = destination / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                with target.open("xb") as handle:
+                    handle.write(raw)
+                stream.pop("bytes_base64")
+                stream["artifact_path"] = relative.as_posix()
         for source in result.get("sources", []):
             source_id = source.get("source_id")
             if source_id not in SOURCE_IDS[game].values():
@@ -1084,7 +1238,12 @@ def write_bundle(bundle: dict, output_dir: str | Path) -> Path:
     with manifest_path.open("x", encoding="utf-8", newline="\n") as handle:
         json.dump(bundle, handle, ensure_ascii=False, sort_keys=True, indent=2)
         handle.write("\n")
-    return manifest_path
+    display_root = str(destination)
+    if display_root.lower().startswith("\\\\?\\unc\\"):
+        display_root = "\\\\" + display_root[8:]
+    elif display_root.startswith("\\\\?\\"):
+        display_root = display_root[4:]
+    return Path(display_root) / "intake.json"
 
 
 def main(argv: list[str] | None = None) -> int:
