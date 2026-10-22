@@ -565,9 +565,9 @@ def _worker(game: str) -> dict:
 def _validate_partial_worker_payload(payload: dict, game: str, parser_version: str,
                                     current_hashes: dict[str, str]) -> dict:
     source_items = payload.get("sources")
-    if not isinstance(source_items, list) or len(source_items) != 2:
-        raise GateError("EXACTLY_TWO_SOURCE_RECORDS_REQUIRED_FOR_PARTIAL_INTAKE")
     expected_ids = set(SOURCE_IDS[game].values())
+    if not isinstance(source_items, list) or len(source_items) != len(expected_ids):
+        raise GateError("SOURCE_RECORD_COUNT_MISMATCH_FOR_PARTIAL_INTAKE")
     if {s.get("source_id") for s in source_items if isinstance(s, dict)} != expected_ids:
         raise GateError("SOURCE_IDENTITY_SET_MISMATCH")
     checked_sources = []
@@ -586,7 +586,8 @@ def _validate_partial_worker_payload(payload: dict, game: str, parser_version: s
         artifacts = _validate_artifacts(game, source, parser_version) if raw_list else []
         valid_draws = []
         if source.get("raw_reparse_status") == "PASS" and source.get("draws"):
-            valid_draws = _canonical_draws(game, source["draws"])
+            minimum = 10 if game == "DLT" and source_id == "gansu" else 120
+            valid_draws = _canonical_draws(game, source["draws"], minimum=minimum)
             if source.get("raw_reparse_sha256") != _rows_sha256(valid_draws):
                 raise GateError("RAW_REPARSE_SHA_MISMATCH")
             receipt = source.get("receipt")
@@ -653,9 +654,9 @@ def validate_worker_payload(payload: dict, *, expected_game: str | None = None) 
     if payload.get("status") != "WORKER_FETCH_COMPLETE":
         return _validate_partial_worker_payload(payload, game, parser_version, current_hashes)
     source_items = payload.get("sources")
-    if not isinstance(source_items, list) or len(source_items) != 2:
-        raise GateError("EXACTLY_TWO_SOURCE_HISTORIES_REQUIRED")
     expected_ids = set(SOURCE_IDS[game].values())
+    if not isinstance(source_items, list) or len(source_items) != len(expected_ids):
+        raise GateError("SOURCE_HISTORY_COUNT_MISMATCH")
     if {s.get("source_id") for s in source_items if isinstance(s, dict)} != expected_ids:
         raise GateError("SOURCE_IDENTITY_SET_MISMATCH")
 
@@ -670,7 +671,8 @@ def validate_worker_payload(payload: dict, *, expected_game: str | None = None) 
             raise GateError("SOURCE_ROOT_IDENTITY_MISMATCH")
         if source.get("source_name") != EXPECTED_SOURCE_NAMES[game].get(source_id):
             raise GateError("SOURCE_NAME_IDENTITY_MISMATCH")
-        rows = _canonical_draws(game, source.get("draws"))
+        minimum = 10 if game == "DLT" and source_id == "gansu" else 120
+        rows = _canonical_draws(game, source.get("draws"), minimum=minimum)
         artifacts = _validate_artifacts(game, source, parser_version)
         if source.get("raw_reparse_status") != "PASS":
             raise GateError("RAW_REPARSE_NOT_PASSED")
@@ -687,19 +689,43 @@ def validate_worker_payload(payload: dict, *, expected_game: str | None = None) 
             "draws": rows, "draw_count": len(rows), "raw_artifacts": artifacts,
             "receipt": source.get("receipt"),
         })
-    if checked_sources[0]["source_root"] == checked_sources[1]["source_root"]:
+    primary_ids = ("national", "shanghai") if game == "SSQ" else ("national", "jiangsu")
+    primary_by_id = {source["source_id"]: source for source in checked_sources
+                     if source["source_id"] in primary_ids}
+    if set(primary_by_id) != set(primary_ids):
+        raise GateError("PRIMARY_SOURCE_SET_INCOMPLETE")
+    primary = [primary_by_id[source_id] for source_id in primary_ids]
+    if primary[0]["source_root"] == primary[1]["source_root"]:
         raise GateError("TWO_DISTINCT_OFFICIAL_SOURCE_ROOTS_REQUIRED")
-
-    maps = [{row["issue"]: row for row in source["draws"]} for source in checked_sources]
-    if checked_sources[0]["draws"][-1]["issue"] != checked_sources[1]["draws"][-1]["issue"]:
+    primary_maps = [{row["issue"]: row for row in source["draws"]} for source in primary]
+    if primary[0]["draws"][-1]["issue"] != primary[1]["draws"][-1]["issue"]:
         raise GateError("OFFICIAL_SOURCE_LATEST_ISSUE_MISMATCH")
-    common = sorted(set(maps[0]) & set(maps[1]), key=int)
+    common = sorted(set(primary_maps[0]) & set(primary_maps[1]), key=int)
     if len(common) < 120:
         raise GateError("OFFICIAL_SOURCE_OVERLAP_LT_120")
-    mismatches = [issue for issue in common if maps[0][issue] != maps[1][issue]]
+    mismatches = [issue for issue in common if primary_maps[0][issue] != primary_maps[1][issue]]
     if mismatches:
         raise GateError("OFFICIAL_SOURCE_DRAW_CONFLICT:" + ",".join(mismatches[:10]))
-    consensus = _canonical_draws(game, [maps[0][issue] for issue in common])
+    consensus = _canonical_draws(game, [primary_maps[0][issue] for issue in common])
+    consensus_map = {row["issue"]: row for row in consensus}
+
+    corroboration_summaries = []
+    for source in checked_sources:
+        if source["source_id"] in primary_ids:
+            continue
+        corroborator_map = {row["issue"]: row for row in source["draws"]}
+        overlap = sorted(set(corroborator_map) & set(consensus_map), key=int)
+        minimum_overlap = 10 if game == "DLT" and source["source_id"] == "gansu" else 120
+        if len(overlap) < minimum_overlap:
+            raise GateError("CORROBORATING_SOURCE_OVERLAP_TOO_SMALL:" + source["source_id"])
+        conflicts = [issue for issue in overlap if corroborator_map[issue] != consensus_map[issue]]
+        if conflicts:
+            raise GateError("OFFICIAL_SOURCE_DRAW_CONFLICT:" + source["source_id"] + ":" +
+                            ",".join(conflicts[:10]))
+        corroboration_summaries.append({
+            "source_id": source["source_id"], "source_root": source["source_root"],
+            "overlap_count": len(overlap), "status": "MATCHED",
+        })
     artifact_count = sum(len(source["raw_artifacts"]) for source in checked_sources)
     return {
         "schema": SCHEMA, "lottery": game, "status": "HISTORY_CROSSCHECK_PASS",
