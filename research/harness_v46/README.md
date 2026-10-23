@@ -390,3 +390,68 @@ Cumulative feedback now treats ASCII numeric issue aliases such as `29999`
 and `029999` as the same target. Original frozen spelling is retained, while
 duplicate aliases cannot inflate eligible draws; malformed/non-ASCII issue
 identifiers are refused.
+
+## Date-only raw observations and external TSA transport
+
+Official history pages commonly expose only a draw date, without its exact
+publication time. The explicit `V47-DATE-OBSERVED-SHADOW-1` snapshot contract
+therefore accepts source-extracted `issue`, `draw_date`, `front`, `back` rows
+and a bound observation receipt. It never manufactures `drawn_at` or
+`published_at`. The old timestamp-based contract remains strict; unknown
+contract markers and mixed row schemas fail closed.
+
+The alternative requires exactly 120 rows under the declared
+`LATEST_120_VALIDATED_DRAWS_V1` policy, legal balls, increasing issue/date
+identity, prior China-local capture dates, capture completion no later than
+as-of, and the existing future-target/cutoff ordering. Raw hashes, parser
+identity, selected-row digest and local capture time are bound into each
+snapshot. These are consistency checks, not official/source/clock authority.
+The original source comparator and formal G01 requirements are unchanged.
+Old frozen runs must be replayed with their original pinned source bundle;
+this new validation implementation changes source identity for future runs.
+
+`recent_observation` independently acquires two whole recent pages, validates
+all 200 rows before selecting the fixed latest 120, preserves original bytes,
+and reparses them in an isolated process using pinned production parsers.
+Unaccounted/malformed rows, duplicates, calendar anomalies, altered bytes or
+changed parser sources block the whole new observation. It never takes a
+tail from a previously quarantined full-history bundle. A recent single
+primary source is still `CALLER_UNVERIFIED`; it cannot replace the formal
+independent-source consensus requirements. Capture records stay outside the
+legacy source-artifact table, whose publication timestamp must not be faked.
+Successful malformed response bodies are preserved before parsing. HTTP error
+bodies and oversized prefixes are not retained by this observation utility;
+those failures cannot be cited as complete HTTP custody. No seven-day
+freshness or official publication-time admission is inferred from this window.
+
+```sh
+python -m research.harness_v46.recent_observation capture SSQ new-ssq-observation
+python -m research.harness_v46.recent_observation capture DLT new-dlt-observation
+python -m research.harness_v46.recent_observation verify new-ssq-observation
+```
+
+The `tsa_transport` CLI sends only an already prepared timestamp-query file:
+
+```sh
+python -m research.harness_v46.tsa_transport \
+  --request request.tsq --output-dir new-transport-attempt \
+  --tsa-url https://freetsa.org/tsr
+```
+
+It requires HTTPS with normal TLS validation, refuses redirects, bounds
+request/response sizes, and preserves diagnostic response bytes and receipt
+in a new directory. HTTP success means `RESPONSE_PRESERVED_NOT_VERIFIED`;
+use the separate cryptographic verifier for the exact data/query, nonce,
+signature/chain, pinned CA and signed-time checks. Transport never grants
+formal TSA or source approval and never substitutes a local timestamp.
+
+For the current research task, actual model output is explicitly held until
+the future target issue **and** sales cutoff are independently authenticated.
+Calendar-derived candidate issues are not authorization to forecast. A TSA
+response on a raw-observation manifest proves only existence of those bytes
+under the selected caller trust root; it is not a prediction pre-draw seal.
+An RFC3161 response without declared accuracy cannot establish the strict
+UTC upper bound required by `predraw_seal`; unspecified accuracy is never
+treated as zero. The strict verifier continues to reject such a token.
+All integration fixtures are synthetic and remain outside real research.
+`formal_A=0`, `NO_EDGE` throughout.

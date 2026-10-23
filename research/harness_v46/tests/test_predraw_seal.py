@@ -145,6 +145,13 @@ class PredrawSealTests(unittest.TestCase):
             self.prepare()
         self.assertEqual(original, (self.dir / "seal" / "request.tsq").read_bytes())
 
+    def test_unspecified_accuracy_never_implies_zero_time_error(self):
+        # A real external source-only response omitted this optional field.
+        # Its signature can be valid while a strict pre-cutoff bound is unknown.
+        with self.assertRaisesRegex(core.GateError, "RFC3161_TIME_OR_ACCURACY_UNSUPPORTED"):
+            self.seal_module()._signed_time_bounds(
+                "Time stamp: Oct 23 05:43:45 2026 GMT\nAccuracy: unspecified\n")
+
     def test_naive_clock_and_unpinned_root_are_rejected(self):
         for pin, now in ((self.pin, self.now.replace(tzinfo=None)), ("", self.now)):
             with self.subTest(pin=pin), self.assertRaises(core.GateError):

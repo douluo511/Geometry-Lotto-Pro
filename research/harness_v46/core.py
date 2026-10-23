@@ -90,6 +90,11 @@ def _balls(values, maximum, required):
 
 def validate_snapshot(snapshot):
     """Strict as-of structure only. Official authenticity requires 01 review."""
+    if isinstance(snapshot, dict) and "snapshot_contract" in snapshot:
+        from .observed_snapshot import CONTRACT, validate_observed_snapshot
+        if snapshot["snapshot_contract"] != CONTRACT:
+            raise GateError("unknown snapshot contract")
+        return validate_observed_snapshot(snapshot)
     if not isinstance(snapshot, dict) or snapshot.get("lottery") not in RULES:
         raise GateError("invalid lottery")
     r = RULES[snapshot["lottery"]]
