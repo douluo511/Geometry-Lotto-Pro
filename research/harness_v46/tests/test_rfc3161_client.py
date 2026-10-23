@@ -50,6 +50,33 @@ class TsaClientTests(unittest.TestCase):
         with self.assertRaisesRegex(core.GateError, "TSA_HTTPS_URL_REQUIRED"):
             tsa.submit_query_https("https://localhost/tsr", b"\x30\x00")
 
+    def test_https_post_preserves_der_and_requires_timestamp_reply_mime(self):
+        query = b"\x30\x00"
+        class FakeResponse:
+            status = 200
+            def __init__(self, mime):
+                self.headers = {"Content-Type": mime}
+            def __enter__(self):
+                return self
+            def __exit__(self, *args):
+                return False
+            def read(self, n):
+                return b"\x30\x01\x00"
+        opener = mock.Mock()
+        opener.open.return_value = FakeResponse("application/timestamp-reply")
+        with mock.patch.object(tsa.urllib.request, "build_opener", return_value=opener):
+            response = tsa.submit_query_https("https://freetsa.org/tsr", query)
+        self.assertEqual(response, b"\x30\x01\x00")
+        req = opener.open.call_args.args[0]
+        self.assertEqual(req.get_method(), "POST")
+        self.assertEqual(req.data, query)
+        self.assertEqual(req.get_header("Content-type"), "application/timestamp-query")
+        self.assertEqual(req.get_header("Accept"), "application/timestamp-reply")
+        opener.open.return_value = FakeResponse("text/html")
+        with mock.patch.object(tsa.urllib.request, "build_opener", return_value=opener):
+            with self.assertRaisesRegex(core.GateError, "TSA_RESPONSE_CONTENT_TYPE_INVALID"):
+                tsa.submit_query_https("https://freetsa.org/tsr", query)
+
     def test_bad_or_missing_trust_anchor_fails_before_crypto(self):
         with tempfile.TemporaryDirectory() as root:
             db, commitment = self._context(root)
