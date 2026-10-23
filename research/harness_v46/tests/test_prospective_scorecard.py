@@ -8,7 +8,8 @@ from datetime import datetime, timezone
 from copy import deepcopy
 from pathlib import Path
 
-from research.harness_v46 import convergence as cv, core, prospective_scorecard as feedback
+from research.harness_v46 import convergence as cv, core, prospective_cycle as cycle
+from research.harness_v46 import prospective_scorecard as feedback
 from research.harness_v46.tests.test_core import fixture
 
 
@@ -133,6 +134,39 @@ class ProspectiveFeedbackTests(unittest.TestCase):
                 self.db, self.run_id, invented,
                 observed_at=datetime(2026, 10, 23, 13, 0, tzinfo=timezone.utc),
             )
+
+    def test_numeric_issue_alias_cannot_count_one_target_twice(self):
+        original = self.replay(self.db, self.run_id, self.outcome())
+        aliases = deepcopy(self.snaps)
+        for snapshot in aliases.values():
+            snapshot["target_issue"] = "029999"
+        alias_db = Path(self.tmp.name) / "alias.sqlite"
+        alias_run = cycle.forecast_on_demand(
+            aliases, alias_db, now=datetime(2026, 10, 21, tzinfo=timezone.utc)
+        )["run_id"]
+        aliased = self.replay(alias_db, alias_run, {**self.outcome(), "issue": "029999"})
+        self.assertNotEqual(original["run_id"], aliased["run_id"])
+        before = (self.db.read_bytes(), alias_db.read_bytes())
+        with self.assertRaisesRegex(core.GateError, "DUPLICATE_TARGET_IN_FEEDBACK"):
+            feedback.summarize_shadow_feedback([original, aliased])
+        self.assertEqual(before, (self.db.read_bytes(), alias_db.read_bytes()))
+
+    def test_cumulative_target_rejects_non_ascii_and_malformed_issue(self):
+        card = self.replay(self.db, self.run_id, self.outcome())
+        for issue in ("２９９９９", "²", "29999.0", " 29999", "", None, 29999, True):
+            with self.subTest(issue=issue):
+                changed = {**card, "target_issue": issue}
+                changed["receipt_sha256"] = core.digest({
+                    k: v for k, v in changed.items() if k != "receipt_sha256"
+                })
+                with self.assertRaisesRegex(core.GateError, "INVALID_FEEDBACK_TARGET"):
+                    feedback.summarize_shadow_feedback([changed])
+
+    def test_replay_rejects_non_ascii_issue_identity_before_ledger_access(self):
+        for issue in ("２９９９９", "²"):
+            with self.subTest(issue=issue):
+                with self.assertRaisesRegex(core.GateError, "INVALID_UNVERIFIED_OUTCOME_IDENTITY"):
+                    self.replay(self.db, self.run_id, {**self.outcome(), "issue": issue})
 
     def test_naive_observation_clock_rejected(self):
         with self.assertRaisesRegex(core.GateError, "SCORING_OBSERVATION_CLOCK_MUST_BE_AWARE"):

@@ -338,3 +338,55 @@ reports many correct D2s. Actual future draws cannot be used to support
 a formal edge until independent official results, authentic pre-sale
 seals, preregistered confirmatory family and correct sample accounting
 are verified.
+
+## Portable pre-draw RFC3161 evidence (caller trust policy, still SHADOW)
+
+`predraw_seal` exports the original manifest, both full snapshots and all 12
+validated frozen prediction rows into one canonical `payload.json`. It creates
+a SHA256 RFC3161 request with a random nonce in a new directory, refuses
+requests at/after either locked sales cutoff and never overwrites an old seal.
+No forecast is regenerated and the original database is read-only.
+
+First select and independently review a TSA trust root; keep its exact file
+SHA256 as `TRUST_ROOT_SHA256`. This code cannot approve that policy for you.
+After a genuine pre-draw `forecast`, create a request:
+
+```sh
+python -m research.harness_v46.predraw_seal request \
+  --database shadow.sqlite3 --run-id V47-REPLACE_WITH_REPORTED_ID \
+  --seal-dir seal-original --trust-root-sha256 TRUST_ROOT_SHA256
+```
+
+Submit `seal-original/request.tsq` to the selected RFC3161 service, preserving
+the original binary response as `response.tsr`. The CLI does not make network
+requests or substitute a local clock/self-issued response if the service fails.
+Then verify the exact data, request nonce, signature and chain:
+
+```sh
+python -m research.harness_v46.predraw_seal verify \
+  --database shadow.sqlite3 --run-id V47-REPLACE_WITH_REPORTED_ID \
+  --seal-dir seal-original --response response.tsr --ca-file approved-ca.pem \
+  --trust-root-sha256 TRUST_ROOT_SHA256
+```
+
+Requires OpenSSL 3 (`--openssl` can select its executable). Verification uses
+only the explicitly pinned CA file, an empty CA directory and that same pinned
+CA store. The signed `genTime` plus the token's stated accuracy must be strictly
+earlier than **both claimed** sales cutoffs. Missing/unsupported time accuracy,
+altered payloads, missing/mismatched nonces, invalid signatures/chains and late
+tokens fail closed. Preserve the original database, code version, payload,
+request, response and trust-root file together; a local directory is not WORM.
+
+`PASS_UNDER_CALLER_PIN` is a cryptographic component result, **not** independent
+approval of the caller's TSA, official source, issue, cutoff or preregistration.
+The receipt keeps `trust_policy=CALLER_SUPPLIED_UNVERIFIED`, official target
+and formal TSA admission BLOCKED, `formal_A=0`, `NO_EDGE`. Unit tests actually
+sign and verify RFC3161 responses under a temporary **test CA**, never an
+external TSA or an official lottery forecast. Certificate revocation and
+long-term archival validation are not implemented. Protocol reference:
+https://docs.openssl.org/3.0/man1/openssl-ts/.
+
+Cumulative feedback now treats ASCII numeric issue aliases such as `29999`
+and `029999` as the same target. Original frozen spelling is retained, while
+duplicate aliases cannot inflate eligible draws; malformed/non-ASCII issue
+identifiers are refused.

@@ -45,7 +45,8 @@ def replay_shadow_feedback(db_path, run_id, outcome, *, observed_at=None):
     }:
         raise GateError("STRICT_UNVERIFIED_OUTCOME_SCHEMA_REQUIRED")
     game, issue = outcome["lottery"], outcome["issue"]
-    if game not in RULES or not isinstance(issue, str) or not issue.isdigit():
+    if (game not in RULES or not isinstance(issue, str)
+            or not issue.isascii() or not issue.isdigit()):
         raise GateError("INVALID_UNVERIFIED_OUTCOME_IDENTITY")
     try:
         claimed_draw_time = dt(outcome["drawn_at"])
@@ -150,9 +151,12 @@ def summarize_shadow_feedback(cards):
                 or card.get("predraw_external_seal") != "NOT_VERIFIED"):
             raise GateError("UNVERIFIED_SCORECARD_CANNOT_PROMOTE_AUTHORITY")
         game, issue = card.get("lottery"), card.get("target_issue")
-        if game not in RULES or not isinstance(issue, str) or not issue.isdigit():
+        if (game not in RULES or not isinstance(issue, str)
+                or not issue.isascii() or not issue.isdigit()):
             raise GateError("INVALID_FEEDBACK_TARGET")
-        key = game, issue
+        # Preserve the frozen spelling in receipts, but count one numeric target
+        # once even if another ledger used a leading-zero issue alias.
+        key = game, str(int(issue))
         if key in seen:
             raise GateError("DUPLICATE_TARGET_IN_FEEDBACK")
         seen.add(key)
