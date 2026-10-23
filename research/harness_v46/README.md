@@ -390,3 +390,76 @@ Cumulative feedback now treats ASCII numeric issue aliases such as `29999`
 and `029999` as the same target. Original frozen spelling is retained, while
 duplicate aliases cannot inflate eligible draws; malformed/non-ASCII issue
 identifiers are refused.
+
+## V4.7 SHADOW Bot — idempotent local tick (prototype; not deployed)
+
+`python -m research.harness_v46.shadow_bot --config config.json` is
+a **single, immediate, externally schedulable tick**, not a daemon. The Bot
+uses the repository's existing real six-model SSQ/DLT computation, locked
+dual-game manifest, target-issue guard and read-only scoring, rather than
+generating random entertainment numbers.
+
+Create `config.json` in a controlled local directory:
+
+```json
+{
+  "schema": "V47-SHADOW-BOT-CONFIG-1",
+  "snapshot_bundle": "snapshots.json",
+  "database": "shadow-v47.sqlite3",
+  "result_bundle": "draw-results.json",
+  "receipts_dir": "receipts"
+}
+```
+
+Precreate the `receipts/` directory. The two-game `snapshots.json` must be
+a valid, recent, **separately supplied** as-of snapshot with SSQ/DLT histories,
+official target issue candidates, `sales_cutoff`, and `target_draw_at`.
+Do not place synthetic fixture snapshots in a real automated deployment.
+The Bot cannot obtain/authenticate official draw data or future target
+identities by itself. `draw-results.json` may be absent before the draw,
+and may only contain results for the previously locked exact target issue
+with complete `lottery`, `issue`, `front`, `back`, `drawn_at`.
+
+On every tick:
+- Before `as_of`, returns `WAIT_ASOF`, without creating a ledger.
+- Before the **earliest SSQ/DLT cutoff**, runs real fixed model code
+  into one SQLite ledger transaction if this exact manifest's run ID has not
+  yet been frozen. Retry reads the **same** existing 12 frozen model records.
+- After the cutoff, with no original frozen run, returns
+  `BLOCKED_MISSED_PREDRAW_FREEZE` without any retrospective forecast.
+- After freezing but before draw, returns `SHADOW_FROZEN_WAIT_DRAW`.
+- After draw, if the results file is absent, returns
+  `SHADOW_FROZEN_WAIT_RESULT`.
+- Given results, scores stored predictions read-only and writes
+  `SHADOW_SCORE_RECORDED` including separate D1–D5 and paired D2/NULL
+  diagnostics.
+
+For a new target issue, update the *external snapshot inputs* and run the
+same tick again; previous runs/receipts remain in the same ledger/directory.
+It refuses corrupted databases, changed prior receipt bytes, wrong target
+issues, unqualified missing files, early scores and untrusted formal-A
+promotions. The local receipt files are created once with SHA256 and
+`O_EXCL` and never silently overwritten by a different result.
+They are **local evidence only**, modifiable by privileged actors, not
+external RFC3161 authorization. If a receipt write fails, audit the local
+ledger and partial file before retrying.
+
+To schedule, an operator must explicitly install their own Windows Task
+Scheduler task or other local service invoking this command. A GitHub-hosted
+Actions runner is **ephemeral**: its default job filesystem must not be used
+as a persistent trusted pre-draw journal. No scheduled runner is installed
+by this PR, and no claims are made about cold-boot/resume success.
+
+Run the synthetic safety suite from the exact PR HEAD:
+
+```sh
+python -m unittest discover -s research/harness_v46/tests -v
+```
+
+**Scientific boundaries:** Bots cannot prove predictive edge by merely
+optimizing on past draws; new algorithms must be versioned and tested on
+fresh future draws. No real official next-target admission, authenticated
+caller outcomes or trusted timestamp is furnished by this Bot prototype.
+Keep V4.5's eight formal slots and `main` untouched; formal `A=0`,
+`NO_EDGE`, `ENGINEERING_PASS=NOT_YET`, `RESEARCH_VALID=NOT_YET`,
+`D2_EDGE_CONFIRMED=NO`.
