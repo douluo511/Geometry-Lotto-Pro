@@ -77,6 +77,11 @@ class TsaClientTests(unittest.TestCase):
             commands = []
             def fake_run(args, **kwargs):
                 commands.append(args)
+                if "-query" in args:
+                    return subprocess.CompletedProcess(
+                        args, 0,
+                        stdout=b"Hash Algorithm: sha256\nNonce: 0xAB123\nCertificate required: yes\n",
+                        stderr=b"")
                 if "-reply" in args:
                     return subprocess.CompletedProcess(args, 0,
                         stdout=b"Status info:\nStatus: Granted.\nTime stamp: Oct 20 08:05:00 2026 GMT\n", stderr=b"")
@@ -101,6 +106,11 @@ class TsaClientTests(unittest.TestCase):
             cafile = Path(root) / "root.pem"
             cafile.write_text("-----BEGIN CERTIFICATE-----\nFAKE\n-----END CERTIFICATE-----\n")
             def fake_run(args, **kwargs):
+                if "-query" in args:
+                    return subprocess.CompletedProcess(
+                        args, 0,
+                        stdout=b"Hash Algorithm: sha256\nNonce: 0xAB123\nCertificate required: yes\n",
+                        stderr=b"")
                 if "-reply" in args:
                     return subprocess.CompletedProcess(args, 0,
                         stdout=b"Status info:\nTime stamp: Oct 24 08:05:00 2026 GMT\n", stderr=b"")
