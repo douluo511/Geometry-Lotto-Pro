@@ -352,3 +352,44 @@ new synthetic CI. Replaying the fixed original seed, auditing the exact
 issue/seed stream and trying separate generator/label-permutation ablations
 remain independent research gates.
 
+
+## Dual-game pre-draw SHA-256 commitment preparation (stacked PR #460)
+
+After a successful local SHADOW freeze, export a read-only, deterministic
+two-game commitment JSON. Supply the exact `V47-...` ID from `forecast`:
+
+```sh
+python -m research.harness_v46.prospective_cycle commitment \\
+  --database ./shadow_v47.sqlite3 \\
+  --run-id V47-REPLACE_WITH_REPORTED_ID > predraw-commitment.json
+
+python -m research.harness_v46.prospective_cycle verify-commitment \\
+  --database ./shadow_v47.sqlite3 \\
+  --commitment-file predraw-commitment.json
+```
+
+`preimage` includes the original V4.7 manifest digest, orchestration source
+digest, both issue IDs/as-of/cutoff/draw times, both snapshot and frozen batch
+hashes, and six individual prediction hashes and **untrusted local freeze
+times** for each game. `message_imprint_sha256` is SHA256 of the **compact,
+sorted-key UTF-8 canonical JSON of `preimage`** (the `core.canon` encoding),
+**not** SHA256 of the pretty-printed outer commitment JSON file. Preserve the
+full preimage and submitted digest together.
+
+A third-party RFC3161 time-stamp service could later issue a signed token
+over this exact 32-byte SHA256 message imprint. **This implementation does not
+send a request, verify a token, validate a TSA certificate or trust chain,
+verify the signed time against the independently established sale cutoff, or
+publish the original evidence outside this computer.** An independently
+accepted signed token must be validated against a separate vetted trust
+policy before any `external_tsa=VERIFIED` conclusion could be considered.
+The replay command verifies **only** that the claimed commitment exactly
+matches this local frozen ledger; anyone able to replace the entire ledger
+or its software can still fabricate locally consistent data.
+
+All results remain `external_tsa=NOT_REQUESTED`,
+`independent_timestamp_verified=false`,
+`official_source_authenticated=false`, `formal_A=0`, `NO_EDGE`.
+A valid local digest or Git commit does not establish pre-draw existence or
+official outcome provenance. Synthetic tests cannot unblock research admission.
+
