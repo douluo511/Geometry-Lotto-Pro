@@ -83,5 +83,9 @@ timestamped protocol. A proposed horizon is 1,000 qualified future draws per
 game, no optional stopping, with Holm correction across the two game hypotheses
 and both baseline/NULL comparisons required for success. This proposal is not
 the authenticated legacy family and cannot enter its existing 12 slots.
-Failure to meet the prespecified criterion falsifies the proposed advantage;
-missing trust evidence blocks eligibility rather than counting as success.
+Failure to meet the significance criterion leaves the advantage unconfirmed;
+it does not by itself demonstrate absence of an effect. For a falsifiable
+minimum-effect claim, propose an absolute D2-rate gain of at least 0.01 against
+both comparators and preregister simultaneous one-sided bounds: an upper bound
+below 0.01 refutes that minimum-effect claim. The complete interval protocol
+must be frozen before sampling. Missing trust evidence blocks eligibility.
