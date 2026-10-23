@@ -28,7 +28,7 @@ Write-Output "BOT_PREVIEW: $TaskName"
 Write-Output 'CADENCE: once every 30 minutes and at startup (local host clock; untrusted)'
 Write-Output "SOURCE: $source"
 Write-Output "CONFIG: $configPath"
-Write-Output 'AUTHORITY: SHADOW_ONLY, A=0, NO_EDGE; no externally trusted preregistration'
+Write-Output 'AUTHORITY: SHADOW_ONLY, formal A=0, NO_EDGE; no externally trusted preregistration'
 Write-Output 'WARNING: operator must independently verify persistent storage, source input, cutoff, PowerShell task exit logs and reboot recovery'
 if (-not $Install) {
     Write-Output 'NOT_INSTALLED: requires explicit -Install on a reviewed Windows host'
