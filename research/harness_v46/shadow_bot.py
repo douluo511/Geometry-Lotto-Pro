@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import os
 import sqlite3
 from datetime import datetime, timezone
@@ -24,14 +25,46 @@ from .prospective_cycle import (
 )
 
 BOT_SCHEMA = "V47-SHADOW-BOT-CONFIG-1"
+MAX_BOT_JSON_BYTES = 32_000_000
+
+
+def _unique_json_object(pairs):
+    # JSON object identity must be unambiguous at EVERY nesting level.
+    # Python's json.loads default silently keeps the last duplicate key.
+    data = {}
+    for key, value in pairs:
+        if key in data:
+            raise GateError("BOT_JSON_DUPLICATE_KEY:" + key)
+        data[key] = value
+    return data
+
+
+def _reject_json_nonfinite(value):
+    raise GateError("BOT_JSON_NONFINITE_NUMBER:" + value)
+
+
+def _finite_json_float(value):
+    parsed = float(value)
+    if not math.isfinite(parsed):
+        raise GateError("BOT_JSON_NONFINITE_NUMBER:" + value)
+    return parsed
 
 
 def _read_object(path):
     if not path.is_file():
         raise GateError("BOT_REQUIRED_INPUT_FILE_MISSING:" + path.name)
     try:
-        value = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, ValueError) as exc:
+        if path.stat().st_size > MAX_BOT_JSON_BYTES:
+            raise GateError("BOT_INPUT_JSON_TOO_LARGE:" + path.name)
+        value = json.loads(
+            path.read_text(encoding="utf-8"),
+            object_pairs_hook=_unique_json_object,
+            parse_constant=_reject_json_nonfinite,
+            parse_float=_finite_json_float,
+        )
+    except GateError:
+        raise
+    except (OSError, UnicodeError, ValueError, OverflowError) as exc:
         raise GateError("BOT_INPUT_JSON_INVALID:" + path.name) from exc
     if not isinstance(value, dict):
         raise GateError("BOT_INPUT_REQUIRES_OBJECT:" + path.name)
