@@ -297,3 +297,42 @@ postdraw-result, externally timestamped preregistration and future dataset
 acceptance exist, it is SHADOW-only, A=0 and NO_EDGE**. The user-supplied
 result file is not deemed authentic. No ticket purchase is performed, and the
 original V4.5 formal eight slots are untouched.
+
+## V4.7 multi-draw SHADOW study receipts — read-only replay, NOT research admission
+
+Collect each individual `prospective_cycle score` JSON report exactly as emitted
+after its target draw into a JSON array, `my_score_receipts.json`. Run:
+
+```sh
+python -m research.harness_v46.prospective_cycle study \\
+  --database ./shadow_v47.sqlite3 --receipts-file my_score_receipts.json
+```
+
+The study command validates each report SHA, recomputes every supplied
+result against the six-model frozen ledger, rejects altered scores, incomplete
+two-game receipts and duplicate RUN_ID/game-issue pairs, and executes the
+existing exact D2 vs fair-rate and same-draw fixed Random NULL statistical
+arithmetic across the *submitted* draws, with 12-family Holm arithmetic.
+The output binds sorted score-receipt hashes and a canonical study-row hash.
+It uses a SQLite read-only connection and does not rerun models or mutate
+older predictions.
+
+IMPORTANT: the command cannot establish that submitted reports include
+**all scheduled trials**, that any outcome came from an official source, that
+the data were independently notarized before sales closed, or that the
+historical 12-comparison research protocol was prospectively registered.
+Consequently `official_results_authenticated=false`,
+`preregistration_verified=false`, `coverage=CALLER_SUBMITTED_RECEIPTS_ONLY`,
+`formal_A=0`, and `NO_EDGE` are permanent output gates for this SHADOW
+aggregator. A small p-value does NOT override those blockers.
+
+The original DLT negative-control anomaly reported in PR #419
+(69/2880 vs same-draw NULL 42/2880, one-sided fair-binomial p about
+0.00284511, legacy Holm-12 adjusted p about 0.03414135) remains
+`FALSIFIED_REPRODUCED_NOT_FIXED`: a reproduced rejection is not a root-cause
+diagnosis and cannot be repaired by changing seeds or retroactively removing
+runs. PR #419's complete historical 2880-draw replay is not part of this
+new synthetic CI. Replaying the fixed original seed, auditing the exact
+issue/seed stream and trying separate generator/label-permutation ablations
+remain independent research gates.
+
