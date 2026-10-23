@@ -65,5 +65,68 @@ class ReceiptAtomicityTests(unittest.TestCase):
         self.assertEqual(list(self.receipts.iterdir()), [self.path])
 
 
+    def test_integrated_failed_receipt_flush_keeps_frozen_run_and_allows_rescore(self):
+        import hashlib
+        from datetime import datetime, timezone
+        from research.harness_v46.tests.test_core import fixture
+        root = Path(self.tmp.name) / "integrated"
+        frozen_at = datetime(2026, 10, 20, 8, tzinfo=timezone.utc)
+        after_draw = datetime(2026, 10, 23, 15, tzinfo=timezone.utc)
+        snapshots = {g: fixture(g) for g in ("SSQ", "DLT")}
+        first = closed_loop.advance_workspace(root, snapshots=snapshots,
+                                              observed_at=frozen_at)
+        run_id = first["run_ids"][0]
+        ledger = root / "ledger.sqlite3"
+        original_sha = hashlib.sha256(ledger.read_bytes()).hexdigest()
+        outcome = {
+            g: {"lottery": g, "issue": "29999",
+                "front": list(snapshots[g]["draws"][-2]["front"]),
+                "back": list(snapshots[g]["draws"][-2]["back"]),
+                "drawn_at": "2026-10-23T21:05:00+08:00"}
+            for g in ("SSQ", "DLT")
+        }
+        folder = root / "outcomes"
+        folder.mkdir(exist_ok=True)
+        (folder / (run_id + ".json")).write_text(json.dumps(outcome), encoding="utf-8")
+        receipt = root / "receipts" / (run_id + ".json")
+        with patch.object(closed_loop.os, "fsync", side_effect=OSError("injected flush failure")):
+            with self.assertRaisesRegex(OSError, "injected flush failure"):
+                closed_loop.advance_workspace(root, observed_at=after_draw)
+        self.assertFalse(receipt.exists())
+        self.assertEqual(hashlib.sha256(ledger.read_bytes()).hexdigest(), original_sha)
+        result = closed_loop.advance_workspace(root, observed_at=after_draw)
+        self.assertEqual(result["status"], "STUDY_SHADOW_READY")
+        self.assertEqual(result["study"]["draws_by_game"], {"SSQ": 1, "DLT": 1})
+        self.assertEqual(result["study"]["statistical_analysis"]["family_size"], 12)
+        self.assertEqual(result["formal_A"], 0)
+        self.assertEqual(result["decision"], "NO_EDGE")
+        self.assertTrue(receipt.exists())
+        self.assertEqual(hashlib.sha256(ledger.read_bytes()).hexdigest(), original_sha)
+
+    def test_two_concurrent_replays_publish_identical_receipt_once(self):
+        from datetime import datetime, timezone
+        from research.harness_v46.tests.test_core import fixture
+        root = Path(self.tmp.name) / "concurrent"
+        before = datetime(2026, 10, 20, 8, tzinfo=timezone.utc)
+        after = datetime(2026, 10, 23, 15, tzinfo=timezone.utc)
+        snapshots = {g: fixture(g) for g in ("SSQ", "DLT")}
+        run_id = closed_loop.advance_workspace(root, snapshots=snapshots, observed_at=before)["run_ids"][0]
+        outcome = {g: {"lottery": g, "issue": "29999",
+                       "front": list(snapshots[g]["draws"][-2]["front"]),
+                       "back": list(snapshots[g]["draws"][-2]["back"]),
+                       "drawn_at": "2026-10-23T21:05:00+08:00"}
+                   for g in ("SSQ", "DLT")}
+        path = root / "outcomes"
+        path.mkdir()
+        (path / (run_id + ".json")).write_text(json.dumps(outcome), encoding="utf-8")
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            results = list(executor.map(
+                lambda _: closed_loop.advance_workspace(root, observed_at=after), range(2)
+            ))
+        self.assertEqual(results[0], results[1])
+        self.assertEqual(results[0]["status"], "STUDY_SHADOW_READY")
+        self.assertEqual(len(list((root / "receipts").glob("*.json"))), 1)
+
+
 if __name__ == "__main__":
     unittest.main()
