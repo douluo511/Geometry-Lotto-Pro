@@ -255,6 +255,80 @@ class ShadowBotTests(unittest.TestCase):
             bot.tick(self.config, observed_at=datetime(2026, 10, 20, 8))
         self.assertFalse(self.ledger.exists())
 
+    def test_duplicate_config_keys_block_before_freeze(self):
+        # Python's normal json.loads silently keeps the last duplicate.
+        self.config.write_text(
+            '{"schema":"V47-SHADOW-BOT-CONFIG-1",'
+            '"snapshot_bundle":"snapshots.json",'
+            '"database":"unexpected.sqlite3","database":"prediction.sqlite3",'
+            '"result_bundle":"result.json","receipts_dir":"receipts"}',
+            encoding="utf-8",
+        )
+        with self.assertRaisesRegex(GateError, "BOT_JSON_DUPLICATE_KEY"):
+            bot.tick(self.config, observed_at=BEFORE)
+        self.assertFalse(self.ledger.exists())
+        self.assertFalse((self.folder / "unexpected.sqlite3").exists())
+
+    def test_duplicate_nested_target_issue_blocks_forecast(self):
+        raw = self.snapshot_file.read_text(encoding="utf-8")
+        needle = '"target_issue": "29999"'
+        self.assertIn(needle, raw)
+        raw = raw.replace(needle, '"target_issue": "29998", ' + needle, 1)
+        self.snapshot_file.write_text(raw, encoding="utf-8")
+        with self.assertRaisesRegex(GateError, "BOT_JSON_DUPLICATE_KEY"):
+            bot.tick(self.config, observed_at=BEFORE)
+        self.assertFalse(self.ledger.exists())
+
+    def test_duplicate_nested_outcome_ball_list_blocks_scoring(self):
+        bot.tick(self.config, observed_at=BEFORE)
+        self._write_results()
+        before = self.ledger.read_bytes()
+        raw = self.outcome_file.read_text(encoding="utf-8")
+        self.assertIn('"front": ', raw)
+        raw = raw.replace('"front": ', '"front": [1, 2, 3, 4, 5, 6], "front": ', 1)
+        self.outcome_file.write_text(raw, encoding="utf-8")
+        with self.assertRaisesRegex(GateError, "BOT_JSON_DUPLICATE_KEY"):
+            bot.tick(self.config, observed_at=AFTER)
+        self.assertFalse(list(self.receipts.glob("*-score.json")))
+        self.assertEqual(self.ledger.read_bytes(), before)
+
+    def test_nonfinite_snapshot_number_is_invalid_evidence(self):
+        self.snapshots["SSQ"]["provenance"]["nonfinite"] = float("nan")
+        self._write_snapshots()
+        with self.assertRaisesRegex(GateError, "BOT_JSON_NONFINITE_NUMBER"):
+            bot.tick(self.config, observed_at=BEFORE)
+        self.assertFalse(self.ledger.exists())
+
+    def test_escaped_duplicate_json_key_is_still_a_collision(self):
+        raw = self.snapshot_file.read_text(encoding="utf-8")
+        needle = '"target_issue": "29999"'
+        self.assertIn(needle, raw)
+        raw = raw.replace(
+            needle, '"target_issue": "29998", "\\u0074arget_issue": "29999"', 1
+        )
+        self.snapshot_file.write_text(raw, encoding="utf-8")
+        with self.assertRaisesRegex(GateError, "BOT_JSON_DUPLICATE_KEY"):
+            bot.tick(self.config, observed_at=BEFORE)
+        self.assertFalse(self.ledger.exists())
+
+    def test_json_numeric_exponent_overflow_is_nonfinite(self):
+        self.snapshots["SSQ"]["provenance"]["overflow"] = "MARKER"
+        self._write_snapshots()
+        raw = self.snapshot_file.read_text(encoding="utf-8")
+        self.snapshot_file.write_text(
+            raw.replace('"MARKER"', '1e999999', 1), encoding="utf-8"
+        )
+        with self.assertRaisesRegex(GateError, "BOT_JSON_NONFINITE_NUMBER"):
+            bot.tick(self.config, observed_at=BEFORE)
+        self.assertFalse(self.ledger.exists())
+
+    def test_oversized_snapshot_file_blocked_without_loading(self):
+        with self.snapshot_file.open("wb") as handle:
+            handle.truncate(32_000_001)
+        with self.assertRaisesRegex(GateError, "BOT_INPUT_JSON_TOO_LARGE"):
+            bot.tick(self.config, observed_at=BEFORE)
+        self.assertFalse(self.ledger.exists())
+
     def test_existing_corrupt_database_never_reinitialized(self):
         self.ledger.write_bytes(b"pretend official ledger")
         original = self.ledger.read_bytes()

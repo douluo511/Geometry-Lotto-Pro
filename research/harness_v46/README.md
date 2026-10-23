@@ -524,3 +524,21 @@ Every actual run remains `SHADOW`, `A=0`, `NO_EDGE`. CI can verify syntax
 and a dry-run on Windows but **not** unattended operation on the user's
 machine. Do not install two overlapping research handlers on the same
 ledger without an independent concurrency lock or verified scheduling plan.
+
+## V4.7 Bot JSON evidence ingress: strict fail-closed contract
+
+The Bot's local `config.json`, `snapshots.json`, `draw-results.json`
+and archived score receipts are parsed with a **strict JSON decoder**.
+Duplicate object keys at any depth are rejected, including equivalent
+escaped names (e.g. `"target_issue"` and `"\\u0074arget_issue"`).
+Nonstandard `NaN`/`Infinity` literals and numeric exponents that
+overflow finite IEEE floats are rejected. Source JSON files larger than
+**32,000,000 bytes** are rejected before loading. None of those inputs may
+quietly select the last conflicting issue, ball list, model identity or
+result from an ambiguous record. The `BOT_JSON_*` errors remain hard
+BLOCKED without granting official source authenticity.
+
+These checks protect the **local Bot input boundary only**. They are not
+signatures, verified official publication evidence, a trusted clock,
+a race-free filesystem sandbox or an independent RFC3161 TSA.
+The separate host scheduler remains opt-in, and A=0 / NO_EDGE.
