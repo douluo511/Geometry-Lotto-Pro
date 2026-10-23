@@ -38,8 +38,26 @@ def _read_object(path):
     return value
 
 
+def _reject_linked_components(path, *, allow_leaf=False):
+    """Fail closed on static linked path ancestors before file or DB access.
+
+    This is a defense against accidental local path redirection. It does not
+    defeat TOCTOU swaps, Windows junctions, a privileged operator or mutable
+    filesystem state, and never upgrades local receipts into trusted evidence.
+    """
+    requested = Path(path)
+    if ".." in requested.parts:
+        raise GateError("BOT_PARENT_TRAVERSAL_FORBIDDEN")
+    absolute = requested.absolute()
+    components = absolute.parents if allow_leaf else (absolute, *absolute.parents)
+    if any(component.is_symlink() for component in components):
+        raise GateError("BOT_SYMLINK_PATH_COMPONENT_FORBIDDEN")
+    return absolute
+
+
 def _config(path):
-    location = Path(path).resolve()
+    # Never dereference a symlink before validating where the config lives.
+    location = _reject_linked_components(path)
     item = _read_object(location)
     if set(item) != {"schema", "snapshot_bundle", "database", "result_bundle", "receipts_dir"}:
         raise GateError("BOT_CONFIG_FIELDS_INVALID")
@@ -53,17 +71,25 @@ def _config(path):
     ):
         raise GateError("BOT_RESULT_PATH_MUST_BE_STRING_OR_NULL")
 
-    def resolve(value):
-        p = Path(value)
-        # Normalize lexical location WITHOUT dereferencing symlinks: security
-        # checks must still see and reject symlinked evidence directories.
-        return Path(os.path.abspath(p if p.is_absolute() else location.parent / p))
+    def resolve(value, *, receipt_directory=False):
+        candidate = Path(value)
+        if ".." in candidate.parts:
+            raise GateError("BOT_PARENT_TRAVERSAL_FORBIDDEN")
+        # Lexically normalize without silently hiding linked ancestors.
+        location_path = Path(os.path.abspath(
+            candidate if candidate.is_absolute() else location.parent / candidate
+        ))
+        return _reject_linked_components(
+            location_path, allow_leaf=receipt_directory
+        )
 
     return {
         "snapshot_bundle": resolve(item["snapshot_bundle"]),
         "database": resolve(item["database"]),
         "result_bundle": None if item["result_bundle"] is None else resolve(item["result_bundle"]),
-        "receipts_dir": resolve(item["receipts_dir"]),
+        # The existing leaf-specific diagnostic is retained for compatibility;
+        # all ancestor directories are checked before any freeze side effect.
+        "receipts_dir": resolve(item["receipts_dir"], receipt_directory=True),
     }
 
 
