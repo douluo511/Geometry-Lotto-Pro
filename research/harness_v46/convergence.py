@@ -45,6 +45,7 @@ ORCHESTRATION_SOURCE_FILES = (
     "prospective_scorecard.py",
     "prospective_cycle.py",
     "predraw_seal.py",
+    "observed_snapshot.py", "recent_observation.py", "tsa_transport.py",
     "../../SSQ/SSQ/glp/sources.py", "../../SSQ/SSQ/glp/constants.py",
     "../../SSQ/SSQ/glp/domain.py", "../../SSQ/SSQ/glp/util.py", "../../SSQ/SSQ/glp/net_client.py",
     "../../DLT/src/glp/sources.py", "../../DLT/src/glp/constants.py",
