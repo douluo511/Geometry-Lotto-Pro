@@ -186,6 +186,19 @@ class TsaClientTests(unittest.TestCase):
             self.assertFalse(accepted["independent_cutoff_authenticated"])
             self.assertEqual(accepted["formal_A"], 0)
 
+            # An otherwise valid signed response with NO nonce cannot establish
+            # timely response freshness and must fail before chain acceptance.
+            run("ts", "-query", "-sha256", "-digest",
+                commitment["message_imprint_sha256"], "-cert",
+                "-no_nonce", "-out", base / "nononce.tsq")
+            run("ts", "-reply", "-config", cfg, "-queryfile",
+                base / "nononce.tsq", "-out", base / "nononce.tsr")
+            with self.assertRaisesRegex(core.GateError, "TSA_QUERY_NONCE_REQUIRED"):
+                tsa.verify_response(
+                    db, commitment, (base / "nononce.tsq").read_bytes(),
+                    (base / "nononce.tsr").read_bytes(),
+                    ca_file=str(base / "ca.crt"),
+                )
             # Same signed response must fail a fresh random-nonce request.
             different_query = tsa.make_query(db, commitment)
             self.assertNotEqual(query, different_query)
