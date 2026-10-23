@@ -194,9 +194,12 @@ def evaluate_shadow_d2(
         if not isinstance(row, dict):
             raise EvaluationBlocked("INVALID_DRAW_ROW")
         game, issue, scores = row.get("lottery"), row.get("issue"), row.get("scores")
-        if game not in RULES or not isinstance(issue, str) or not issue.isdigit():
+        if (game not in RULES or not isinstance(issue, str)
+                or not issue.isascii() or not issue.isdigit()):
             raise EvaluationBlocked("INVALID_DRAW_IDENTITY")
-        key = (game, issue)
+        # Count a draw once per game and numeric issue, regardless of padding.
+        # Preserve the caller's original spelling in by_game for diagnostics.
+        key = (game, issue.lstrip("0") or "0")
         if key in seen:
             raise EvaluationBlocked("DUPLICATE_DRAW")
         seen.add(key)
