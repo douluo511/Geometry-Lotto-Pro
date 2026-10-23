@@ -45,6 +45,42 @@ class ProspectiveStudyTests(unittest.TestCase):
             self.assertEqual(len(report["statistical_analysis"]["results"]), 12)
             self.assertEqual(hashlib.sha256(db.read_bytes()).hexdigest(), before_sha)
 
+    def test_study_rejects_cherry_picked_frozen_runs(self):
+        """A valid but selected winning receipt must not hide another frozen run."""
+        with tempfile.TemporaryDirectory() as td:
+            db = Path(td) / "shadow.sqlite3"
+            one = self._freeze_and_score(db, "29999")
+            self._freeze_and_score(db, "30000")
+            original = hashlib.sha256(db.read_bytes()).hexdigest()
+            with self.assertRaisesRegex(core.GateError, "STUDY_COVERAGE_MISSING_FROZEN_RUNS"):
+                cycle.summarize_prospective_receipts(db, [one])
+            self.assertEqual(original, hashlib.sha256(db.read_bytes()).hexdigest())
+
+    def test_study_rejects_missing_result_for_registered_future_target(self):
+        """A forecast with no result must be reported rather than silently dropped."""
+        with tempfile.TemporaryDirectory() as td:
+            db = Path(td) / "shadow.sqlite3"
+            one = self._freeze_and_score(db, "29999")
+            future = {game: {**snapshot, "target_issue": "30000"}
+                      for game, snapshot in self.snaps.items()}
+            cycle.forecast_on_demand(future, db, now=self.before)
+            with self.assertRaisesRegex(core.GateError, "STUDY_COVERAGE_MISSING_FROZEN_RUNS"):
+                cycle.summarize_prospective_receipts(db, [one])
+
+    def test_complete_local_roster_receipt_has_explicit_untrusted_coverage(self):
+        with tempfile.TemporaryDirectory() as td:
+            db = Path(td) / "shadow.sqlite3"
+            one = self._freeze_and_score(db, "29999")
+            two = self._freeze_and_score(db, "30000")
+            report = cycle.summarize_prospective_receipts(db, [two, one])
+            self.assertEqual(report["local_ledger_roster"]["run_count"], 2)
+            self.assertEqual(report["local_ledger_roster"]["status"],
+                             "ALL_LOCAL_FROZEN_RUNS_PRESENT_NOT_OFFICIAL_SCHEDULE")
+            self.assertEqual(report["local_ledger_roster"]["run_ids_sha256"],
+                             core.digest(sorted([one["run_id"], two["run_id"]])))
+            self.assertFalse(report["preregistration_verified"])
+            self.assertEqual(report["decision"], "NO_EDGE")
+
     def test_modified_score_with_rehashed_outer_receipt_still_blocked(self):
         with tempfile.TemporaryDirectory() as td:
             db = Path(td) / "shadow.sqlite3"
