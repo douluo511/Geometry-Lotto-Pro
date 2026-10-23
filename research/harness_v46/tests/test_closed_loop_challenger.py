@@ -34,6 +34,18 @@ class ClosedLoopChallengerTests(unittest.TestCase):
                 names={v[0] for v in c.execute("SELECT DISTINCT model FROM predictions")}
                 self.assertEqual(names, set(core.MODELS))
 
+    def test_invalid_optional_experiment_fails_before_any_forecast_side_effect(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp) / "workspace"
+            good = {game: fixture(game, size=145) for game in core.RULES}
+            invalid = {game: fixture(game, size=120) for game in core.RULES}
+            with self.assertRaisesRegex(core.GateError,
+                                        "D2_CHALLENGER_NO_HELDOUT_HISTORY"):
+                closed_loop.advance_workspace(
+                    workspace, snapshots=good, research_history=invalid,
+                    observed_at=datetime(2026, 10, 20, 8, tzinfo=timezone.utc))
+            self.assertFalse((workspace / "ledger.sqlite3").exists())
+
     def test_absent_optional_history_does_not_forge_experimental_result(self):
         with tempfile.TemporaryDirectory() as tmp:
             report = closed_loop.advance_workspace(
