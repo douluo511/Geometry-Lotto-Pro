@@ -299,6 +299,29 @@ class ShadowBotTests(unittest.TestCase):
             bot.tick(self.config, observed_at=BEFORE)
         self.assertFalse(self.ledger.exists())
 
+    def test_escaped_duplicate_json_key_is_still_a_collision(self):
+        raw = self.snapshot_file.read_text(encoding="utf-8")
+        needle = '"target_issue": "29999"'
+        self.assertIn(needle, raw)
+        raw = raw.replace(
+            needle, '"target_issue": "29998", "\\u0074arget_issue": "29999"', 1
+        )
+        self.snapshot_file.write_text(raw, encoding="utf-8")
+        with self.assertRaisesRegex(GateError, "BOT_JSON_DUPLICATE_KEY"):
+            bot.tick(self.config, observed_at=BEFORE)
+        self.assertFalse(self.ledger.exists())
+
+    def test_json_numeric_exponent_overflow_is_nonfinite(self):
+        self.snapshots["SSQ"]["provenance"]["overflow"] = "MARKER"
+        self._write_snapshots()
+        raw = self.snapshot_file.read_text(encoding="utf-8")
+        self.snapshot_file.write_text(
+            raw.replace('"MARKER"', '1e999999', 1), encoding="utf-8"
+        )
+        with self.assertRaisesRegex(GateError, "BOT_JSON_NONFINITE_NUMBER"):
+            bot.tick(self.config, observed_at=BEFORE)
+        self.assertFalse(self.ledger.exists())
+
     def test_oversized_snapshot_file_blocked_without_loading(self):
         with self.snapshot_file.open("wb") as handle:
             handle.truncate(32_000_001)
