@@ -317,6 +317,22 @@ The output binds sorted score-receipt hashes and a canonical study-row hash.
 It uses a SQLite read-only connection and does not rerun models or mutate
 older predictions.
 
+**Local ledger roster guard:** before publishing any statistical summary,
+`study` lists *every* `run_id` in the same SQLite ledger's immutable
+`run_manifests` table and rejects the entire submission with
+`STUDY_COVERAGE_MISSING_FROZEN_RUNS` when any locally frozen run lacks a
+complete paired score receipt. An unscored future target therefore blocks
+a full-ledger summary rather than silently vanishing from the denominator.
+The report states `local_ledger_roster.status=
+ALL_LOCAL_FROZEN_RUNS_PRESENT_NOT_OFFICIAL_SCHEDULE` and binds the
+sorted local run roster via SHA256.
+
+This guard is **not an officially preregistered schedule or full
+intention-to-treat record**. It cannot see predictions kept in a separate
+database, periods never frozen, or records erased by a privileged operator.
+Run a separately witnessed, immutable target-calendar registry and external
+custody checks before claiming complete prospective coverage.
+
 IMPORTANT: the command cannot establish that submitted reports include
 **all scheduled trials**, that any outcome came from an official source, that
 the data were independently notarized before sales closed, or that the
