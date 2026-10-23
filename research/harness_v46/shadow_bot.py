@@ -207,7 +207,9 @@ def tick(config_path, *, observed_at=None):
             "results": saved["caller_supplied_result_bundle"],
         })
     cumulative = summarize_from_frozen_runs(records, observed_at=now)
-    cumulative_receipt = _persist_once(config["receipts_dir"], "cumulative", cumulative)
+    cumulative_receipt = _persist_once(
+        config["receipts_dir"], "cumulative", {**cumulative, "run_id": run_id}
+    )
     return {**common, "status": "SHADOW_SCORE_RECORDED",
             "forecast_receipt": frozen_receipt, "score_receipt": score_receipt,
             "cumulative_receipt": cumulative_receipt,
