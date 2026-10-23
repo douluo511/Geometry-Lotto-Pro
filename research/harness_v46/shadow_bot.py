@@ -12,6 +12,7 @@ import argparse
 import hashlib
 import json
 import os
+import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -93,6 +94,22 @@ def _persist_once(directory, label, report):
             "trust": "LOCAL_WRITABLE_NOT_EXTERNAL_SEAL"}
 
 
+def _has_run(database, run_id):
+    if not database.is_file():
+        return False
+    try:
+        conn = sqlite3.connect(database.as_uri() + "?mode=ro", uri=True)
+        try:
+            conn.execute("PRAGMA query_only=ON")
+            return conn.execute(
+                "SELECT 1 FROM run_manifests WHERE run_id=?", (run_id,)
+            ).fetchone() is not None
+        finally:
+            conn.close()
+    except sqlite3.Error as exc:
+        raise GateError("BOT_EXISTING_LEDGER_CANNOT_BE_INSPECTED") from exc
+
+
 def tick(config_path, *, observed_at=None):
     """Execute an immediate retry-safe, fail-closed bot cycle.
 
@@ -122,7 +139,7 @@ def tick(config_path, *, observed_at=None):
     }
     if now < as_of:
         return {**common, "status": "WAIT_ASOF"}
-    if not config["database"].is_file():
+    if not _has_run(config["database"], run_id):
         if now >= cutoff:
             # Never backfill an old target as though it were pre-draw.
             return {**common, "status": "BLOCKED_MISSED_PREDRAW_FREEZE"}
