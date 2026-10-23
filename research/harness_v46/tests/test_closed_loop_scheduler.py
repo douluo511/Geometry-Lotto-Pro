@@ -29,6 +29,64 @@ class ClosedLoopSchedulerTests(unittest.TestCase):
         self.assertNotIn("Register-ScheduledTask -Force", install)
         self.assertNotIn("Register-ScheduledTask -TaskName $TaskName -Force", install)
 
+    def test_bot_invoker_supports_independent_ssq_and_dlt_game_snapshots(self):
+        script = (ROOT / "invoke_closed_loop.ps1").read_text(encoding="utf-8")
+        self.assertIn("ssq_snapshot_bundle", script)
+        self.assertIn("dlt_snapshot_bundle", script)
+        self.assertIn("--game-snapshot", script)
+        self.assertIn("--game", script)
+        self.assertIn("foreach", script)
+        self.assertIn("SSQ", script)
+        self.assertIn("DLT", script)
+
+    @unittest.skipUnless(os.name == "nt", "Actual PowerShell Bot tick Windows only")
+    def test_bot_actual_powershell_tick_freezes_two_game_issues_without_shared_run(self):
+        from datetime import datetime, timedelta, timezone
+        from contextlib import closing
+        from research.harness_v46.tests.test_core import fixture
+        import sqlite3
+        import sys
+        exe = shutil.which("powershell.exe")
+        if not exe:
+            self.skipTest("PowerShell unavailable")
+        with tempfile.TemporaryDirectory() as td:
+            base = Path(td)
+            now = datetime.now(timezone.utc)
+            paths = {}
+            for game in ("SSQ", "DLT"):
+                snap = fixture(game)
+                snap["as_of"] = (now - timedelta(minutes=10)).isoformat()
+                snap["sales_cutoff"] = (now + timedelta(hours=3)).isoformat()
+                snap["target_draw_at"] = (now + timedelta(hours=4)).isoformat()
+                f = base / (game + ".json")
+                f.write_text(json.dumps(snap), encoding="utf-8")
+                paths[game] = str(f)
+            workspace = base / "persist"
+            cfg = base / "config.json"
+            cfg.write_text(json.dumps({
+                "repository_root": str(ROOT.parents[1]),
+                "python_exe": sys.executable,
+                "workspace": str(workspace), "log_path": str(base / "bot.log"),
+                "ssq_snapshot_bundle": paths["SSQ"],
+                "dlt_snapshot_bundle": paths["DLT"],
+            }), encoding="utf-8")
+            command = [exe, "-NoProfile", "-NonInteractive",
+                       "-ExecutionPolicy", "Bypass", "-File",
+                       str(ROOT / "invoke_closed_loop.ps1"),
+                       "-ConfigFile", str(cfg)]
+            run = subprocess.run(command, capture_output=True, text=True, timeout=70)
+            self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
+            with closing(sqlite3.connect(workspace / "ledger.sqlite3")) as con:
+                self.assertEqual(con.execute("SELECT COUNT(*) FROM game_predictions").fetchone()[0], 12)
+                self.assertEqual(con.execute("SELECT COUNT(*) FROM game_runs").fetchone()[0], 2)
+            log = (base / "bot.log").read_text(encoding="utf-8-sig")
+            self.assertIn("SSQ", log)
+            self.assertIn("DLT", log)
+            again = subprocess.run(command, capture_output=True, text=True, timeout=70)
+            self.assertEqual(again.returncode, 0, again.stdout + again.stderr)
+            with closing(sqlite3.connect(workspace / "ledger.sqlite3")) as con:
+                self.assertEqual(con.execute("SELECT COUNT(*) FROM game_predictions").fetchone()[0], 12)
+
     @unittest.skipUnless(os.name == "nt", "Windows dry run only")
     def test_windows_real_dry_run_does_not_register_task(self):
         exe = shutil.which("powershell.exe")
