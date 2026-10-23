@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import re
 import sqlite3
@@ -22,8 +23,48 @@ from .core import GateError
 RUN_ID = re.compile(r"V47-[0-9a-f]{32}\Z")
 
 
+MAX_JSON_BYTES = 32_000_000
+
+
+def _unique_object(pairs):
+    result = {}
+    for name, value in pairs:
+        if name in result:
+            raise GateError("CLOSED_LOOP_JSON_DUPLICATE_KEY:" + name)
+        result[name] = value
+    return result
+
+
+def _reject_nonfinite(value):
+    raise GateError("CLOSED_LOOP_JSON_NONFINITE:" + value)
+
+
+def _finite_float(value):
+    parsed = float(value)
+    if not math.isfinite(parsed):
+        raise GateError("CLOSED_LOOP_JSON_NONFINITE:" + value)
+    return parsed
+
+
+def _read_json(path):
+    _not_symlink(path)
+    with Path(path).open("rb") as stream:
+        raw = stream.read(MAX_JSON_BYTES + 1)
+    if len(raw) > MAX_JSON_BYTES:
+        raise GateError("CLOSED_LOOP_JSON_INPUT_TOO_LARGE")
+    try:
+        return json.loads(raw.decode("utf-8"), object_pairs_hook=_unique_object,
+                          parse_constant=_reject_nonfinite, parse_float=_finite_float)
+    except UnicodeError as exc:
+        raise GateError("CLOSED_LOOP_JSON_INVALID_UTF8") from exc
+
+
 def _not_symlink(path: Path) -> None:
-    if path.is_symlink():
+    raw = Path(path)
+    if ".." in raw.parts:
+        raise GateError("CLOSED_LOOP_PARENT_TRAVERSAL_FORBIDDEN")
+    p = raw.absolute()
+    if any(item.is_symlink() for item in (p, *p.parents)):
         raise GateError("SYMLINK_EVIDENCE_PATH_NOT_ACCEPTED")
 
 
@@ -120,7 +161,7 @@ def advance_workspace(workspace, *, snapshots=None, observed_at=None) -> dict:
                 raise GateError("MISSING_ORIGINAL_OUTCOME_FOR_RECEIPT")
             pending.append(run_id)
             continue
-        result_bundle = json.loads(outcome_files[run_id].read_text(encoding="utf-8"))
+        result_bundle = _read_json(outcome_files[run_id])
         scored = cycle.evaluate_after_draw(
             ledger, run_id, result_bundle, observed_at=observed)
         receipts_dir.mkdir(exist_ok=True)
@@ -156,7 +197,7 @@ def main(argv=None) -> int:
                         help="Both games; caller supplied, not official authentication")
     args = parser.parse_args(argv)
     try:
-        snapshots = (json.loads(Path(args.snapshot_bundle).read_text(encoding="utf-8"))
+        snapshots = (_read_json(Path(args.snapshot_bundle))
                      if args.snapshot_bundle else None)
         value = advance_workspace(args.workspace, snapshots=snapshots)
     except (GateError, ValueError, TypeError, KeyError, sqlite3.Error, OSError) as exc:
