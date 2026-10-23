@@ -50,6 +50,7 @@ ORCHESTRATION_SOURCE_FILES = (
     "../../DLT/src/glp/sources.py", "../../DLT/src/glp/constants.py",
     "../../DLT/src/glp/domain.py", "../../DLT/src/glp/util.py", "../../DLT/src/glp/net_client.py",
     "windows_shadow_tasks.ps1", "invoke_v46_shadow.ps1",
+    "windows_shadow_bot_tasks.ps1", "invoke_v47_shadow_bot.ps1",
     "windows_shadow_bot_task.ps1",
 )
 
