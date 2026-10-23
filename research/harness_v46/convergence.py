@@ -43,13 +43,14 @@ ORCHESTRATION_SOURCE_FILES = (
     "convergence.py", "schedule.py", "cli.py", "statistics.py", "source_validation.py",
     "source_fetch.py", "official_intake.py", "raw_semantic_replay.py", "audit_intake_bundle.py",
     "prospective_scorecard.py",
-    "prospective_cycle.py",
+    "prospective_cycle.py", "shadow_bot.py",
     "predraw_seal.py",
     "../../SSQ/SSQ/glp/sources.py", "../../SSQ/SSQ/glp/constants.py",
     "../../SSQ/SSQ/glp/domain.py", "../../SSQ/SSQ/glp/util.py", "../../SSQ/SSQ/glp/net_client.py",
     "../../DLT/src/glp/sources.py", "../../DLT/src/glp/constants.py",
     "../../DLT/src/glp/domain.py", "../../DLT/src/glp/util.py", "../../DLT/src/glp/net_client.py",
     "windows_shadow_tasks.ps1", "invoke_v46_shadow.ps1",
+    "windows_shadow_bot_task.ps1",
 )
 
 
