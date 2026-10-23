@@ -7,6 +7,7 @@ import sqlite3
 import tempfile
 import unittest
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import closing
 from datetime import datetime
 from pathlib import Path
 
@@ -94,14 +95,14 @@ class AlternatingGameLifecycleTests(unittest.TestCase):
         changed["draws"] = list(self.dlt_sat["draws"][:-1])
         with self.assertRaisesRegex(core.GateError, "GAME_TARGET_ALREADY_FROZEN_DIFFERENT_SNAPSHOT"):
             self.tick(changed, clock="2026-10-24T11:00:00+08:00")
-        with sqlite3.connect(self.ws / "ledger.sqlite3") as conn:
+        with closing(sqlite3.connect(self.ws / "ledger.sqlite3")) as conn:
             self.assertEqual(conn.execute("SELECT count(*) FROM game_predictions").fetchone()[0], 6)
 
     def test_too_late_new_issuance_cannot_be_backfilled(self):
         with self.assertRaisesRegex(core.GateError, "GAME_FREEZE_AFTER_CUTOFF"):
             self.tick(self.dlt_sat, clock="2026-10-24T21:00:00+08:00")
         if (self.ws / "ledger.sqlite3").exists():
-            with sqlite3.connect(self.ws / "ledger.sqlite3") as c:
+            with closing(sqlite3.connect(self.ws / "ledger.sqlite3")) as c:
                 self.assertEqual(c.execute("SELECT count(*) FROM game_predictions").fetchone()[0], 0)
 
     def test_invalid_or_early_outcome_does_not_create_receipt(self):
@@ -125,7 +126,7 @@ class AlternatingGameLifecycleTests(unittest.TestCase):
         with ThreadPoolExecutor(max_workers=2) as executor:
             results = list(executor.map(tick, range(2)))
         self.assertEqual(results[0]["run_ids"], results[1]["run_ids"])
-        with sqlite3.connect(self.ws / "ledger.sqlite3") as conn:
+        with closing(sqlite3.connect(self.ws / "ledger.sqlite3")) as conn:
             self.assertEqual(conn.execute("SELECT count(*) FROM game_predictions").fetchone()[0], 6)
 
     def test_legacy_combined_runs_are_preserved_and_not_in_new_study(self):
@@ -137,9 +138,10 @@ class AlternatingGameLifecycleTests(unittest.TestCase):
             self.ws, snapshots=legacy, observed_at=at("2026-10-20T08:00:00+00:00"))
         db = self.ws / "ledger.sqlite3"
         import hashlib
-        before_rows = sqlite3.connect(db).execute("SELECT count(*) FROM predictions").fetchone()[0]
+        with closing(sqlite3.connect(db)) as c:
+            before_rows = c.execute("SELECT count(*) FROM predictions").fetchone()[0]
         game = self.tick(self.dlt_sat)
-        with sqlite3.connect(db) as c:
+        with closing(sqlite3.connect(db)) as c:
             self.assertEqual(c.execute("SELECT count(*) FROM predictions").fetchone()[0], before_rows)
             self.assertEqual(c.execute("SELECT count(*) FROM game_predictions").fetchone()[0], 6)
         self.assertNotIn(old["run_ids"][0], game["run_ids"])
