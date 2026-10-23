@@ -5,9 +5,11 @@ No test data may be treated as an actual lottery prediction or a formal A trial.
 import hashlib
 import json
 import sqlite3
+import subprocess
+import sys
 import tempfile
 import unittest
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from research.harness_v46 import core, prospective_cycle
@@ -139,6 +141,48 @@ class ClosedLoopTests(unittest.TestCase):
         report = app.advance_workspace(self.workspace, observed_at=self.after)
         self.assertEqual(report["status"], "STUDY_SHADOW_READY")
         self.assertEqual(ledger.read_bytes(), before)
+
+    def test_real_subprocess_cli_runs_predraw_and_postdraw_paths(self):
+        # Genuine Python subprocess invocations; ONLY invented test numbers.
+        now = datetime.now(timezone.utc)
+        future = {g: dict(s) for g, s in self.snapshots.items()}
+        for snap in future.values():
+            snap["as_of"] = (now - timedelta(minutes=5)).isoformat()
+            snap["sales_cutoff"] = (now + timedelta(hours=2)).isoformat()
+            snap["target_draw_at"] = (now + timedelta(hours=3)).isoformat()
+        source = Path(self.tmp.name) / "synthetic_snapshots.json"
+        source.write_text(json.dumps(future), encoding="utf-8")
+        cmd = [sys.executable, "-m", "research.harness_v46.closed_loop",
+               "--workspace", str(self.workspace)]
+        early = subprocess.run(cmd + ["--snapshot-bundle", str(source)],
+                               capture_output=True, text=True, timeout=45)
+        self.assertEqual(early.returncode, 0, early.stderr)
+        frozen = json.loads(early.stdout)
+        self.assertEqual(frozen["status"], "WAITING_FOR_OUTCOME")
+        self.assertEqual(frozen["formal_A"], 0)
+        with sqlite3.connect(self.workspace / "ledger.sqlite3") as con:
+            self.assertEqual(con.execute("SELECT COUNT(*) FROM predictions").fetchone()[0], 12)
+
+        # Independent later CLI invocation against a historical synthetic
+        # frozen ledger. Never time-travel the runtime to create a forecast.
+        older = Path(self.tmp.name) / "older"
+        older.mkdir()
+        ledger = older / "ledger.sqlite3"
+        run_id = prospective_cycle.forecast_on_demand(
+            self.snapshots, ledger, now=self.before)["run_id"]
+        originals = ledger.read_bytes()
+        (older / "outcomes").mkdir()
+        (older / "outcomes" / (run_id + ".json")).write_text(
+            json.dumps(self.outcome()), encoding="utf-8")
+        later = subprocess.run(
+            [sys.executable, "-m", "research.harness_v46.closed_loop",
+             "--workspace", str(older)],
+            capture_output=True, text=True, timeout=45)
+        self.assertEqual(later.returncode, 0, later.stderr)
+        report = json.loads(later.stdout)
+        self.assertEqual(report["status"], "STUDY_SHADOW_READY")
+        self.assertEqual(report["study"]["draws_by_game"], {"SSQ": 1, "DLT": 1})
+        self.assertEqual(ledger.read_bytes(), originals)
 
     def test_cannot_score_target_draw_in_future(self):
         app = self.runner()
