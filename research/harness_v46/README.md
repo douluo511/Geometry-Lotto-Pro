@@ -448,8 +448,20 @@ They are **local evidence only**, modifiable by privileged actors, not
 external RFC3161 authorization. If a receipt write fails, audit the local
 ledger and partial file before retrying.
 
-To schedule, an operator must explicitly install their own Windows Task
-Scheduler task or other local service invoking this command. A GitHub-hosted
+To schedule on an operator-owned Windows host, review and **preview** the
+installer before opting in. No task is installed from this research PR:
+
+```powershell
+powershell.exe -NoProfile -File research/harness_v46/windows_shadow_bot_task.ps1 -ConfigFile config.json
+# Only after inspecting the host, Python executable, persistent volume and logs:
+powershell.exe -NoProfile -File research/harness_v46/windows_shadow_bot_task.ps1 -ConfigFile config.json -Install
+```
+
+The non-destructive installer refuses an existing task name, schedules a
+30-minute retry trigger plus startup and a 365-day renewal limit, and prints
+`SHADOW_ONLY`. Real task registration privileges, Windows reboot/recovery,
+clock accuracy, overlap behavior, persistent storage and logs remain
+**NOT_VERIFIED** until physically tested. A GitHub-hosted
 Actions runner is **ephemeral**: its default job filesystem must not be used
 as a persistent trusted pre-draw journal. No scheduled runner is installed
 by this PR, and no claims are made about cold-boot/resume success.
