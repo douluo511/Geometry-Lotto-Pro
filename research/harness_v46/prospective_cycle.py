@@ -11,7 +11,7 @@ import json
 import sqlite3
 from pathlib import Path
 
-from .core import MODELS, RULES, GateError
+from .core import MODELS, RULES, GateError, digest
 from .convergence import check_complete_batch, score_readonly
 from .schedule import scheduled_once
 
@@ -98,6 +98,7 @@ def evaluate_after_draw(database, run_id, result_bundle):
     if not isinstance(result_bundle, dict) or set(result_bundle) != set(RULES):
         raise GateError("EXACTLY_TWO_GAME_RESULTS_REQUIRED")
     scored = {}
+    scoring_inputs = {}
     for game in ("SSQ", "DLT"):
         result = result_bundle[game]
         if not isinstance(result, dict) or result.get("lottery") != game:
@@ -108,7 +109,15 @@ def evaluate_after_draw(database, run_id, result_bundle):
         if review["prediction_batch_sha256"] != frozen["games"][game]["prediction_batch_sha256"]:
             raise GateError("FROZEN_BATCH_CHANGED_BETWEEN_SHOW_AND_SCORE")
         scored[game] = review
-    return {
+        # Persist the exact *canonical caller-supplied* outcome values in the
+        # returned audit receipt. This is reproducibility, not source verification.
+        scoring_inputs[game] = {
+            "lottery": game,
+            "issue": str(result["issue"]),
+            "front": list(result["front"]),
+            "back": list(result["back"]),
+        }
+    report = {
         "schema": "V47-PROSPECTIVE-SHADOW-SCORE-1",
         "run_id": run_id,
         "frozen_forecast_reference": {
@@ -118,11 +127,21 @@ def evaluate_after_draw(database, run_id, result_bundle):
         },
         "games": scored,
         "outcome_source": "CALLER_UNVERIFIED",
+        "scoring_inputs": {
+            "result_bundle": scoring_inputs,
+            "result_bundle_sha256": digest(scoring_inputs),
+            "authenticated_official_source": False,
+            "timestamp_trust": "NONE",
+        },
         "paired_control": "SAME_DRAW_RANDOM_NULL",
         "eligibility_for_prospective_edge": "BLOCKED_UNAUTHENTICATED_EVIDENCE",
         "improvement_policy": "NEXT_VERSION_ONLY_NEVER_REWRITE_FROZEN_HISTORY",
         "formal_A": 0, "decision": "NO_EDGE",
     }
+    # Binds BOTH game results, score values, frozen batch hashes, and explicit
+    # SHADOW limitations. This SHA is self-reported, not a trusted time seal.
+    report["score_receipt_sha256"] = digest(report)
+    return report
 
 
 def main(argv=None):
