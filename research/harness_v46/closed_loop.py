@@ -17,6 +17,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from . import prospective_cycle as cycle
+from . import d2_challenger_lab as d2lab
 from .convergence import manifest
 from .core import GateError
 
@@ -94,7 +95,7 @@ def _registered_runs(ledger: Path) -> list[str]:
         conn.close()
 
 
-def advance_workspace(workspace, *, snapshots=None, observed_at=None) -> dict:
+def advance_workspace(workspace, *, snapshots=None, research_history=None, observed_at=None) -> dict:
     """Idempotent entrypoint; caller-controlled snapshots/outcomes are UNVERIFIED.
 
     Same command may be called before and after a draw. A pre-draw snapshot
@@ -185,6 +186,10 @@ def advance_workspace(workspace, *, snapshots=None, observed_at=None) -> dict:
     if not pending:
         output["study"] = cycle.summarize_prospective_receipts(
             ledger, scores, observed_at=observed)
+    if research_history is not None:
+        # Isolated descriptive retrospective work: these known historical
+        # target labels cannot become a new pre-draw arm or qualified evidence.
+        output["research_diagnostic"] = d2lab.audit_walk_forward(research_history)
     return output
 
 
@@ -195,11 +200,16 @@ def main(argv=None) -> int:
                         help="Existing SHADOW workspace or new empty folder")
     parser.add_argument("--snapshot-bundle",
                         help="Both games; caller supplied, not official authentication")
+    parser.add_argument("--research-history-bundle",
+                        help="Optional unverified historical data for exploratory D2 lab")
     args = parser.parse_args(argv)
     try:
         snapshots = (_read_json(Path(args.snapshot_bundle))
                      if args.snapshot_bundle else None)
-        value = advance_workspace(args.workspace, snapshots=snapshots)
+        research = (_read_json(Path(args.research_history_bundle))
+                    if args.research_history_bundle else None)
+        value = advance_workspace(args.workspace, snapshots=snapshots,
+                                  research_history=research)
     except (GateError, ValueError, TypeError, KeyError, sqlite3.Error, OSError) as exc:
         parser.exit(2, "BLOCKED: " + str(exc) + "\n")
     print(json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2))
