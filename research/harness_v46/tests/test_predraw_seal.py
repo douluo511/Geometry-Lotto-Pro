@@ -6,6 +6,7 @@ import sqlite3
 import subprocess
 import tempfile
 import unittest
+from unittest.mock import patch
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -121,6 +122,21 @@ class PredrawSealTests(unittest.TestCase):
                 self.db, self.run_id, self.dir / "late", trust_root_sha256=self.pin,
                 openssl=self.openssl, now=self.now + timedelta(days=1))
         self.assertFalse((self.dir / "late").exists())
+
+    def test_native_windows_crlf_decoding_keeps_real_signature_verification(self):
+        self.prepare()
+        response = self.sign()
+        seal = self.seal_module()
+        original = seal._openssl
+
+        def native_windows_output(executable, *args):
+            raw = original(executable, *args)
+            return raw.replace(b"\r\n", b"\n").replace(b"\n", b"\r\n") if "-text" in args else raw
+
+        # Only the host's text line endings are simulated; all crypto commands run.
+        with patch.object(seal, "_openssl", side_effect=native_windows_output):
+            self.assertEqual(self.verify(response)["cryptographic_verification"],
+                             "PASS_UNDER_CALLER_PIN")
 
     def test_existing_seal_is_never_overwritten(self):
         self.prepare()

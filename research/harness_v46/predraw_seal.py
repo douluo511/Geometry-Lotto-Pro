@@ -184,7 +184,8 @@ def verify_response(database, run_id, seal_dir, response_file, ca_file, *,
         _openssl(openssl, "ts", "-verify", "-queryfile", root / "request.tsq", *common)
         decoded = _openssl(openssl, "ts", "-reply", "-in", root / "response.tsr", "-text")
         query = _openssl(openssl, "ts", "-query", "-in", root / "request.tsq", "-text")
-    texts = [value.decode("ascii", errors="strict") for value in (query, decoded)]
+    texts = ["\n".join(value.decode("ascii", errors="strict").splitlines())
+             for value in (query, decoded)]
     for text in texts:
         if len(re.findall(r"^Nonce: 0x[0-9a-fA-F]+\s*$", text, re.MULTILINE)) != 1:
             raise GateError("RFC3161_NONCE_REQUIRED")
