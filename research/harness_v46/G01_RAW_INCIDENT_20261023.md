@@ -73,3 +73,26 @@ remain independent.
 `RESEARCH_VALID=NOT_YET`; `D2_EDGE_CONFIRMED=NO`;
 `formal_A=0`; `NO_EDGE`. Even a successful rerun of this ZIP verifier
 cannot resolve G01 by itself.
+
+
+## Independent online article leads — NOT admitted as raw G01 custody
+
+For incident *triage only*, separate archived articles on the
+National General Administration of Sport's official `sport.gov.cn` domain
+state that:
+
+- [16003 was drawn on 2016-01-06](https://www.sport.gov.cn/n20001280/n20745751/n20767297/c21205277/content.html).
+  The retained Jiangsu history HTML instead records 2016-01-07.
+- [16004 was drawn on 2016-01-09](https://www.sport.gov.cn/n20001280/n20745751/n20767297/c21206580/content.html),
+  with result `10 20 23 32 35 + 09 10`. The retained Jiangsu historical
+  row gives the **same numbers but date 2016-01-11**.
+- [16005 was drawn on 2016-01-11](https://www.sport.gov.cn/n20001280/n20745751/n20767297/c21206348/content.html),
+  result `06 09 12 15 20 + 08 11`; this agrees with the date and
+  balls in the retained Jiangsu HTML for this issue.
+
+These are **source-disagreement leads**, not authorized corrections:
+the online articles have not been collected as complete independently
+hashed originals with historical publication proof and source-level
+approval under G01. The incident reporter deliberately does not
+download or alter these pages, and does not change the existing source
+parser's `SOURCE_DRAW_CALENDAR_ANOMALIES` quarantine.
