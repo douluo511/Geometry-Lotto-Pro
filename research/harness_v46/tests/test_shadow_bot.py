@@ -185,6 +185,62 @@ class ShadowBotTests(unittest.TestCase):
             bot.tick(self.config, observed_at=BEFORE)
         self.assertFalse(self.ledger.exists())
 
+    @unittest.skipUnless(os.name == "posix", "symlink-ancestor probe on POSIX")
+    def test_linked_ancestor_receipts_refuses_before_freeze(self):
+        external = self.folder / "external-evidence"
+        (external / "receipts").mkdir(parents=True)
+        alias = self.folder / "evidence-alias"
+        alias.symlink_to(external, target_is_directory=True)
+        self._write_config(receipts_dir="evidence-alias/receipts")
+        with self.assertRaisesRegex(GateError, "BOT_SYMLINK_PATH_COMPONENT_FORBIDDEN"):
+            bot.tick(self.config, observed_at=BEFORE)
+        self.assertFalse(self.ledger.exists())
+        self.assertEqual(list((external / "receipts").iterdir()), [])
+
+    @unittest.skipUnless(os.name == "posix", "symlink-ancestor probe on POSIX")
+    def test_linked_ancestor_database_cannot_redirect_forecast(self):
+        external = self.folder / "external-ledger"
+        external.mkdir()
+        (self.folder / "db-alias").symlink_to(external, target_is_directory=True)
+        self._write_config(database="db-alias/prediction.sqlite3")
+        with self.assertRaisesRegex(GateError, "BOT_SYMLINK_PATH_COMPONENT_FORBIDDEN"):
+            bot.tick(self.config, observed_at=BEFORE)
+        self.assertFalse((external / "prediction.sqlite3").exists())
+
+    @unittest.skipUnless(os.name == "posix", "symlink-ancestor probe on POSIX")
+    def test_linked_ancestor_snapshot_input_cannot_redirect_forecast(self):
+        external = self.folder / "external-snapshots"
+        external.mkdir()
+        (external / "snapshots.json").write_bytes(self.snapshot_file.read_bytes())
+        (self.folder / "snapshot-alias").symlink_to(external, target_is_directory=True)
+        self._write_config(snapshot_bundle="snapshot-alias/snapshots.json")
+        with self.assertRaisesRegex(GateError, "BOT_SYMLINK_PATH_COMPONENT_FORBIDDEN"):
+            bot.tick(self.config, observed_at=BEFORE)
+        self.assertFalse(self.ledger.exists())
+
+    @unittest.skipUnless(os.name == "posix", "symlink-ancestor probe on POSIX")
+    def test_linked_config_file_cannot_hide_actual_input_location(self):
+        alias = self.folder / "bot-config-alias.json"
+        alias.symlink_to(self.config)
+        with self.assertRaisesRegex(GateError, "BOT_SYMLINK_PATH_COMPONENT_FORBIDDEN"):
+            bot.tick(alias, observed_at=BEFORE)
+        self.assertFalse(self.ledger.exists())
+
+    @unittest.skipUnless(os.name == "posix", "symlink-ancestor probe on POSIX")
+    def test_linked_ancestor_results_cannot_redirect_postdraw(self):
+        bot.tick(self.config, observed_at=BEFORE)
+        frozen = self.ledger.read_bytes()
+        self._write_results()
+        external = self.folder / "external-outcome"
+        external.mkdir()
+        (external / "result.json").write_bytes(self.outcome_file.read_bytes())
+        (self.folder / "results-alias").symlink_to(external, target_is_directory=True)
+        self._write_config(result_bundle="results-alias/result.json")
+        with self.assertRaisesRegex(GateError, "BOT_SYMLINK_PATH_COMPONENT_FORBIDDEN"):
+            bot.tick(self.config, observed_at=AFTER)
+        self.assertEqual(self.ledger.read_bytes(), frozen)
+        self.assertFalse(list(self.receipts.glob("*-score.json")))
+
     def test_bad_or_incomplete_config_rejected_without_ledger(self):
         self._write_config(formal_A=1)
         with self.assertRaisesRegex(GateError, "BOT_CONFIG_FIELDS_INVALID"):
