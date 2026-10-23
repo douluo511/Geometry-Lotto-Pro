@@ -87,6 +87,48 @@ class ClosedLoopSchedulerTests(unittest.TestCase):
             with closing(sqlite3.connect(workspace / "ledger.sqlite3")) as con:
                 self.assertEqual(con.execute("SELECT COUNT(*) FROM game_predictions").fetchone()[0], 12)
 
+    @unittest.skipUnless(os.name == "nt", "Actual Windows Bot fail-closed tick only")
+    def test_bot_source_blocked_ssq_still_processes_dlt_without_fake_ssq(self):
+        import sqlite3
+        import sys
+        from contextlib import closing
+        from datetime import datetime, timedelta, timezone
+        from research.harness_v46.tests.test_core import fixture
+        exe = shutil.which("powershell.exe")
+        if not exe:
+            self.skipTest("PowerShell unavailable")
+        with tempfile.TemporaryDirectory() as td:
+            base = Path(td)
+            now = datetime.now(timezone.utc)
+            snap = fixture("DLT")
+            snap["as_of"] = (now - timedelta(minutes=10)).isoformat()
+            snap["sales_cutoff"] = (now + timedelta(hours=3)).isoformat()
+            snap["target_draw_at"] = (now + timedelta(hours=4)).isoformat()
+            source = base / "dlt.json"
+            source.write_text(json.dumps(snap), encoding="utf-8")
+            workspace = base / "state"
+            config = base / "bot.json"
+            config.write_text(json.dumps({
+                "repository_root": str(ROOT.parents[1]),
+                "python_exe": sys.executable,
+                "workspace": str(workspace),
+                "log_path": str(base / "bot.log"),
+                "dlt_snapshot_bundle": str(source),
+                "ssq_snapshot_bundle": None
+            }), encoding="utf-8")
+            command = [exe, "-NoProfile", "-NonInteractive", "-ExecutionPolicy",
+                       "Bypass", "-File", str(ROOT / "invoke_closed_loop.ps1"),
+                       "-ConfigFile", str(config)]
+            run = subprocess.run(command, capture_output=True, text=True, timeout=70)
+            self.assertNotEqual(run.returncode, 0, "SSQ source absence MUST not claim total success")
+            with closing(sqlite3.connect(workspace / "ledger.sqlite3")) as c:
+                self.assertEqual(c.execute("SELECT count(*) FROM game_predictions").fetchone()[0], 6)
+                self.assertEqual([x[0] for x in c.execute("SELECT lottery FROM game_runs")], ["DLT"])
+            log = (base / "bot.log").read_text(encoding="utf-8-sig")
+            self.assertIn("GAME_RUN_NOT_REGISTERED", log)
+            self.assertIn("[DLT][exit_code=0]", log)
+            self.assertIn("NO_EDGE", log)
+
     @unittest.skipUnless(os.name == "nt", "Windows dry run only")
     def test_windows_real_dry_run_does_not_register_task(self):
         exe = shutil.which("powershell.exe")
