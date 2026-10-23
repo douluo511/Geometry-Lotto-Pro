@@ -11,7 +11,7 @@ import json
 import sqlite3
 from pathlib import Path
 
-from .core import MODELS, RULES, GateError, digest
+from .core import MODELS, RULES, GateError, digest, validate_run_manifest_record
 from .convergence import check_complete_batch, score_readonly
 from .schedule import scheduled_once
 from .statistics import evaluate_shadow_d2
@@ -258,6 +258,84 @@ def summarize_prospective_receipts(database, receipts):
     }
 
 
+def build_predraw_commitment(database, run_id):
+    """Export deterministic TWO-GAME SHA256 imprint; no TSA request or verification.
+
+    Caller may submit message_imprint_sha256 to an external RFC3161 TSA later.
+    Neither this output nor a self-reported timestamp can grant formal A.
+    """
+    frozen = frozen_forecast_report(database, run_id)
+    path = Path(database).resolve()
+    conn = sqlite3.connect("file:" + str(path) + "?mode=ro", uri=True)
+    try:
+        conn.execute("PRAGMA query_only=ON")
+        manifest = validate_run_manifest_record(conn, run_id)
+        manifest_record = conn.execute(
+            "SELECT manifest_sha256,evidence_class FROM run_manifests WHERE run_id=?",
+            (run_id,),
+        ).fetchone()
+        if manifest is None or manifest_record is None or manifest_record[1] != "SHADOW":
+            raise GateError("PREDRAW_COMMITMENT_REQUIRES_SHADOW_MANIFEST")
+        manifest_sha = manifest_record[0]
+    finally:
+        conn.close()
+    preimage = {
+        "schema": "V47-DUAL-PREDRAW-PREIMAGE-1",
+        "run_id": run_id,
+        "manifest_sha256": manifest_sha,
+        "harness_source_sha256": manifest["harness_source_sha256"],
+        "games": {},
+    }
+    for game in ("SSQ", "DLT"):
+        context = manifest["games"][game]
+        frozen_game = frozen["games"][game]
+        if (context["issue"] != frozen_game["target_issue"]
+                or set(x["model"] for x in frozen_game["models"]) != set(MODELS)):
+            raise GateError("PREDRAW_COMMITMENT_MODEL_OR_TARGET_CONFLICT")
+        models = {m["model"]: m for m in frozen_game["models"]}
+        preimage["games"][game] = {
+            "target_issue": frozen_game["target_issue"],
+            "snapshot_sha256": context["snapshot_sha256"],
+            "as_of": context["as_of"],
+            "sales_cutoff": context["sales_cutoff"],
+            "target_draw_at": context["target_draw_at"],
+            "prediction_batch_sha256": frozen_game["prediction_batch_sha256"],
+            "prediction_hashes": {
+                model: models[model]["prediction_sha256"] for model in MODELS
+            },
+            "local_freeze_times_untrusted": {
+                model: models[model]["frozen_at_local_untrusted"] for model in MODELS
+            },
+        }
+    return {
+        "schema": "V47-DUAL-PREDRAW-COMMITMENT-1",
+        "preimage": preimage,
+        "message_imprint_hash_algorithm": "sha256",
+        "message_imprint_sha256": digest(preimage),
+        "external_tsa": "NOT_REQUESTED",
+        "independent_timestamp_verified": False,
+        "official_source_authenticated": False,
+        "formal_A": 0,
+        "decision": "NO_EDGE",
+    }
+
+
+def verify_predraw_commitment(database, claimed):
+    """Read-only deterministic replay, NOT signature/certificate/time verification."""
+    if not isinstance(claimed, dict) or claimed.get("schema") != "V47-DUAL-PREDRAW-COMMITMENT-1":
+        raise GateError("INVALID_PREDRAW_COMMITMENT_SCHEMA")
+    preimage = claimed.get("preimage")
+    if not isinstance(preimage, dict) or claimed.get("message_imprint_sha256") != digest(preimage):
+        raise GateError("PREDRAW_COMMITMENT_DIGEST_MISMATCH")
+    run_id = preimage.get("run_id")
+    if not isinstance(run_id, str) or not run_id.startswith("V47-"):
+        raise GateError("INVALID_PREDRAW_COMMITMENT_RUN_ID")
+    expected = build_predraw_commitment(database, run_id)
+    if claimed != expected:
+        raise GateError("PREDRAW_COMMITMENT_LEDGER_MISMATCH")
+    return True
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description="V4.7 dual-game SHADOW prospective research cycle")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -274,6 +352,12 @@ def main(argv=None):
     st = sub.add_parser("study", help="Recheck frozen per-draw score receipts and summarize SHADOW D2 evidence")
     st.add_argument("--database", required=True)
     st.add_argument("--receipts-file", required=True)
+    co = sub.add_parser("commitment", help="Export deterministic dual-game SHA256 imprint; no TSA issued")
+    co.add_argument("--database", required=True)
+    co.add_argument("--run-id", required=True)
+    ve = sub.add_parser("verify-commitment", help="Replay a local commitment, not an independent timestamp")
+    ve.add_argument("--database", required=True)
+    ve.add_argument("--commitment-file", required=True)
     args = parser.parse_args(argv)
     try:
         if args.command == "forecast":
@@ -284,9 +368,15 @@ def main(argv=None):
         elif args.command == "score":
             observed = json.loads(Path(args.result_bundle).read_text(encoding="utf-8"))
             result = evaluate_after_draw(args.database, args.run_id, observed)
-        else:
+        elif args.command == "study":
             receipts = json.loads(Path(args.receipts_file).read_text(encoding="utf-8"))
             result = summarize_prospective_receipts(args.database, receipts)
+        elif args.command == "commitment":
+            result = build_predraw_commitment(args.database, args.run_id)
+        else:
+            commitment = json.loads(Path(args.commitment_file).read_text(encoding="utf-8"))
+            result = {"replay_matches_local_ledger": verify_predraw_commitment(args.database, commitment),
+                      "independent_timestamp_verified": False, "formal_A": 0, "decision": "NO_EDGE"}
         print(json.dumps(result, ensure_ascii=False, sort_keys=True, indent=2))
         return 0
     except (GateError, sqlite3.Error, OSError, ValueError, KeyError, TypeError) as exc:
