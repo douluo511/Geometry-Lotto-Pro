@@ -12,11 +12,14 @@ import ast
 import base64
 import copy
 import hashlib
+import html
 import json
 import os
+import re
 import subprocess
 import sys
 from datetime import datetime, timezone
+from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -302,6 +305,156 @@ def _source_rows(draws) -> list[dict]:
     ]
 
 
+class _JiangsuDateTables(HTMLParser):
+    """Associate literal legacy-parser rows with their own table and columns.
+
+    Structural ambiguity is rejected, rather than applying browser HTML repair
+    rules to decide which date header an otherwise parseable row belongs to.
+    """
+
+    def __init__(self, text):
+        # The legacy parser unescapes once. Do not decode a second layer of
+        # entities into header text that the response did not explicitly label.
+        super().__init__(convert_charrefs=False)
+        self.offsets = [0]
+        for line in text.splitlines(keepends=True):
+            self.offsets.append(self.offsets[-1] + len(line))
+        self.stack, self.rows_at = [], {}
+
+    def handle_starttag(self, tag, attrs):
+        if tag == "table":
+            if self.stack:
+                self.stack[-1]["invalid"] = True
+            self.stack.append({"rows": [], "row": None, "cell": None,
+                               "invalid": bool(self.stack), "closed": False})
+        elif self.stack:
+            table = self.stack[-1]
+            if tag == "tr":
+                if table["row"] is not None or table["cell"] is not None:
+                    table["invalid"] = True
+                row = {"table": table, "cells": [], "closed": False,
+                       "index": len(table["rows"])}
+                table["rows"].append(row)
+                table["row"], table["cell"] = row, None
+                line, col = self.getpos()
+                self.rows_at[self.offsets[line - 1] + col] = row
+            elif tag in {"td", "th"}:
+                if table["row"] is None or table["cell"] is not None:
+                    table["invalid"] = True
+                if table["row"] is not None:
+                    cell = {"tag": tag, "text": [], "closed": False,
+                            "inline": [], "attrs": attrs}
+                    table["row"]["cells"].append(cell)
+                    table["cell"] = cell
+            elif table["cell"] is not None:
+                if tag not in {"span", "b", "strong", "em", "i", "u", "small", "a",
+                               "font", "br", "wbr"}:
+                    table["invalid"] = True
+                if tag not in {"br", "wbr"}:
+                    table["cell"]["inline"].append(tag)
+
+    def handle_startendtag(self, tag, attrs):
+        self.handle_starttag(tag, attrs)
+        if tag not in {"br", "wbr"}:
+            self.handle_endtag(tag)
+
+    def handle_endtag(self, tag):
+        if not self.stack:
+            return
+        table = self.stack[-1]
+        if tag == "table":
+            if table["row"] is not None or table["cell"] is not None:
+                table["invalid"] = True
+            table["closed"] = True
+            self.stack.pop()
+        elif tag == "tr":
+            if table["row"] is None or table["cell"] is not None:
+                table["invalid"] = True
+            if table["row"] is not None:
+                table["row"]["closed"] = True
+            table["row"], table["cell"] = None, None
+        elif tag in {"td", "th"}:
+            cell = table["cell"]
+            if cell is None or cell["tag"] != tag or cell["inline"]:
+                table["invalid"] = True
+            if cell is not None:
+                cell["closed"] = True
+            table["cell"] = None
+        elif table["cell"] is not None:
+            inline = table["cell"]["inline"]
+            if not inline or inline.pop() != tag:
+                table["invalid"] = True
+
+    def handle_data(self, data):
+        if self.stack and self.stack[-1]["cell"] is not None:
+            self.stack[-1]["cell"]["text"].append(data)
+
+    def handle_entityref(self, name):
+        self.handle_data("&" + name + ";")
+
+    def handle_charref(self, name):
+        self.handle_data("&#" + name + ";")
+
+
+def _verify_jiangsu_draw_date_columns(text):
+    """Reject publication dates before the old parser can call them draw dates.
+
+    Match exactly the candidate shape consumed by the installed legacy parser;
+    bind each match to its structural row, table, and first three columns. A
+    header in another table, a comment, or a later row cannot authorize it.
+    """
+    text = html.unescape(text)
+    candidates = list(re.finditer(
+        r"<tr[^>]*>\s*<td[^>]*>\s*(\d{4}-\d{2}-\d{2})\s*</td>\s*"
+        r"<td[^>]*>\s*(\d{5})\s*</td>\s*"
+        r"<td[^>]*>\s*([\d\s]+?)\s*</td>", text, re.I | re.S,
+    ))
+    if not candidates:
+        return  # Empty terminal pages are not draw evidence.
+    parser = _JiangsuDateTables(text)
+    parser.feed(text)
+    parser.close()
+    unverified = "JIANGSU_DRAW_DATE_COLUMN_UNVERIFIED"
+    tables = {}
+
+    def labels(row):
+        return ["".join("".join(cell["text"]).split()) for cell in row["cells"]]
+
+    def positional(row):
+        return (row["closed"] and len(row["cells"]) >= 3
+                and all(cell["closed"] and not cell["inline"]
+                        and all(name not in {"rowspan", "colspan"} or value == "1"
+                                for name, value in cell["attrs"])
+                        for cell in row["cells"]))
+
+    for match in candidates:
+        row = parser.rows_at.get(match.start())
+        if row is None or not positional(row):
+            raise GateError(unverified)
+        table = row["table"]
+        if table["invalid"] or not table["closed"]:
+            raise GateError(unverified)
+        if labels(row)[:3] != ["".join(value.split()) for value in match.groups()]:
+            raise GateError(unverified)
+        tables.setdefault(id(table), (table, []))[1].append(row)
+    draw_headers = {"开奖日期", "开奖时间"}
+    publication_headers = {"发布日期", "发布时间", "公告日期", "公告时间"}
+    issue_headers = {"期号", "开奖期号"}
+    result_headers = {"开奖号码", "开奖结果"}
+    known = draw_headers | publication_headers | issue_headers | result_headers | {"日期", "时间"}
+    for table, rows in tables.values():
+        headers = [row for row in table["rows"]
+                   if any(value in known for value in labels(row))]
+        if any(labels(row) and labels(row)[0] in publication_headers for row in headers):
+            raise GateError("JIANGSU_PUBLICATION_DATE_IS_NOT_DRAW_DATE")
+        if (not headers or min(row["index"] for row in headers) >= min(row["index"] for row in rows)
+                or any(not positional(row) or len(labels(row)) < 3
+                       or labels(row)[0] not in draw_headers
+                       or labels(row)[1] not in issue_headers
+                       or labels(row)[2] not in result_headers for row in headers)):
+            raise GateError(unverified)
+
+
 def _reparse_raw_history(game: str, source_module, source_id: str,
                          artifacts: list[dict]) -> list[dict]:
     """Reparse each nonempty preserved response body and compare it to the parser's aggregate."""
@@ -374,8 +527,10 @@ def _reparse_raw_history(game: str, source_module, source_id: str,
                         "front": list(draw.front), "back": list(draw.back),
                     })
             elif game == "DLT" and source_id == "jiangsu":
+                text = source_module._decode_html(raw)
+                _verify_jiangsu_draw_date_columns(text)
                 parsed_rows.extend(_source_rows(
-                    source_module._parse_jiangsu_html(source_module._decode_html(raw))
+                    source_module._parse_jiangsu_html(text)
                 ))
             elif game == "DLT" and source_id == "gansu":
                 parsed_rows.extend(_source_rows(

@@ -91,6 +91,40 @@ class SchedulerTests(unittest.TestCase):
                 self.assertEqual(conn.execute("SELECT COUNT(*) FROM " + table).fetchone()[0], 0)
             conn.close()
 
+    def test_numeric_issue_alias_cannot_create_another_frozen_run(self):
+        cases = ((g, original, alias) for g in core.RULES
+                 for original, alias in (("29999", "029999"), ("029999", "29999"),
+                                         ("29999", "\uff12\uff19\uff19\uff19\uff19")))
+        for game, original, alias in cases:
+            with self.subTest(game=game, original=original, alias=alias), tempfile.TemporaryDirectory() as td:
+                path = Path(td) / "evidence.sqlite3"
+                first = {g: {**s, "target_issue": original} for g, s in self.snaps.items()}
+                altered = {g: {**s, "target_issue": alias if g == game else "30000"}
+                           for g, s in self.snaps.items()}
+                sch.scheduled_once(first, path, self.now)
+                db = sqlite3.connect(path)
+                before = list(db.iterdump())
+                db.close()
+                with self.assertRaisesRegex(core.GateError, "TARGET_ALREADY_FROZEN"):
+                    sch.scheduled_once(altered, path, self.now + timedelta(minutes=30))
+                db = sqlite3.connect(path)
+                self.assertEqual(list(db.iterdump()), before)
+                db.close()
+
+    def test_new_freeze_cannot_accept_unicode_target_that_feedback_refuses(self):
+        for game in core.RULES:
+            with self.subTest(game=game), tempfile.TemporaryDirectory() as td:
+                path = Path(td) / "evidence.sqlite3"
+                altered = {g: {**s, "target_issue": "\uff12\uff19\uff19\uff19\uff19" if g == game else "30000"}
+                           for g, s in self.snaps.items()}
+                with self.assertRaisesRegex(core.GateError, "ASCII_TARGET_REQUIRED"):
+                    sch.scheduled_once(altered, path, self.now)
+                db = sqlite3.connect(path)
+                for table in ("run_manifests", "run_snapshots", "predictions", "scheduled_target_guard",
+                              "run_context", "audit_events", "workflow_events", "shadow_trace_events", "tsa_claims"):
+                    self.assertEqual(db.execute("SELECT COUNT(*) FROM " + table).fetchone()[0], 0)
+                db.close()
+
     def test_windows_installer_is_non_destructive_and_v47_labelled(self):
         folder = Path(sch.__file__).parent
         installer = (folder / "windows_shadow_tasks.ps1").read_text(encoding="utf-8")
