@@ -31,7 +31,7 @@ class TsaClientTests(unittest.TestCase):
             db, commitment = self._context(root)
             content_before = db.read_bytes()
             query = tsa.make_query(db, commitment)
-            self.assertTrue(query.startswith(b"\\x30"), "must be binary DER")
+            self.assertTrue(query.startswith(b"\x30"), "must be binary DER")
             path = Path(root) / "test.tsq"
             path.write_bytes(query)
             output = subprocess.run(
@@ -44,19 +44,19 @@ class TsaClientTests(unittest.TestCase):
 
     def test_network_request_is_https_only_no_credentials_or_redirect(self):
         with self.assertRaisesRegex(core.GateError, "TSA_HTTPS_URL_REQUIRED"):
-            tsa.submit_query_https("http://freetsa.org/tsr", b"\\x30\\x00")
+            tsa.submit_query_https("http://freetsa.org/tsr", b"\x30\x00")
         with self.assertRaisesRegex(core.GateError, "TSA_HTTPS_URL_REQUIRED"):
-            tsa.submit_query_https("https://u:p@freetsa.org/tsr", b"\\x30\\x00")
+            tsa.submit_query_https("https://u:p@freetsa.org/tsr", b"\x30\x00")
         with self.assertRaisesRegex(core.GateError, "TSA_HTTPS_URL_REQUIRED"):
-            tsa.submit_query_https("https://localhost/tsr", b"\\x30\\x00")
+            tsa.submit_query_https("https://localhost/tsr", b"\x30\x00")
 
     def test_bad_or_missing_trust_anchor_fails_before_crypto(self):
         with tempfile.TemporaryDirectory() as root:
             db, commitment = self._context(root)
             with self.assertRaisesRegex(core.GateError, "TSA_TRUST_ANCHOR_REQUIRED"):
-                tsa.verify_response(db, commitment, b"\\x30\\x00", b"\\x30\\x00", ca_file="")
+                tsa.verify_response(db, commitment, b"\x30\x00", b"\x30\x00", ca_file="")
             with self.assertRaisesRegex(core.GateError, "TSA_TRUST_ANCHOR_REQUIRED"):
-                tsa.verify_response(db, commitment, b"\\x30\\x00", b"\\x30\\x00",
+                tsa.verify_response(db, commitment, b"\x30\x00", b"\x30\x00",
                                     ca_file=str(Path(root) / "not-there.pem"))
 
     def test_forged_commitment_is_rejected_before_crypto(self):
@@ -65,24 +65,24 @@ class TsaClientTests(unittest.TestCase):
             fake = json.loads(json.dumps(commitment))
             fake["external_tsa"] = "VERIFIED"
             cafile = Path(root) / "root.pem"
-            cafile.write_text("-----BEGIN CERTIFICATE-----\\nFAKE\\n-----END CERTIFICATE-----\\n")
+            cafile.write_text("-----BEGIN CERTIFICATE-----\nFAKE\n-----END CERTIFICATE-----\n")
             with self.assertRaisesRegex(core.GateError, "PREDRAW_COMMITMENT_LEDGER_MISMATCH"):
-                tsa.verify_response(db, fake, b"\\x30\\x00", b"\\x30\\x00", ca_file=str(cafile))
+                tsa.verify_response(db, fake, b"\x30\x00", b"\x30\x00", ca_file=str(cafile))
 
     def test_verifier_checks_both_nonce_bound_request_and_exact_commitment_imprint(self):
         with tempfile.TemporaryDirectory() as root:
             db, commitment = self._context(root)
             cafile = Path(root) / "root.pem"
-            cafile.write_text("-----BEGIN CERTIFICATE-----\\nFAKE\\n-----END CERTIFICATE-----\\n")
+            cafile.write_text("-----BEGIN CERTIFICATE-----\nFAKE\n-----END CERTIFICATE-----\n")
             commands = []
             def fake_run(args, **kwargs):
                 commands.append(args)
                 if "-reply" in args:
                     return subprocess.CompletedProcess(args, 0,
-                        stdout=b"Status info:\\nStatus: Granted.\\nTime stamp: Oct 20 08:05:00 2026 GMT\\n", stderr=b"")
-                return subprocess.CompletedProcess(args, 0, stdout=b"Verification: OK\\n", stderr=b"")
+                        stdout=b"Status info:\nStatus: Granted.\nTime stamp: Oct 20 08:05:00 2026 GMT\n", stderr=b"")
+                return subprocess.CompletedProcess(args, 0, stdout=b"Verification: OK\n", stderr=b"")
             with mock.patch.object(tsa.subprocess, "run", side_effect=fake_run):
-                result = tsa.verify_response(db, commitment, b"\\x30\\x00", b"\\x30\\x00",
+                result = tsa.verify_response(db, commitment, b"\x30\x00", b"\x30\x00",
                                              ca_file=str(cafile))
             self.assertEqual(sum("-verify" in c for c in commands), 2)
             self.assertTrue(any("-queryfile" in c for c in commands))
@@ -99,26 +99,26 @@ class TsaClientTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as root:
             db, commitment = self._context(root)
             cafile = Path(root) / "root.pem"
-            cafile.write_text("-----BEGIN CERTIFICATE-----\\nFAKE\\n-----END CERTIFICATE-----\\n")
+            cafile.write_text("-----BEGIN CERTIFICATE-----\nFAKE\n-----END CERTIFICATE-----\n")
             def fake_run(args, **kwargs):
                 if "-reply" in args:
                     return subprocess.CompletedProcess(args, 0,
-                        stdout=b"Status info:\\nTime stamp: Oct 24 08:05:00 2026 GMT\\n", stderr=b"")
-                return subprocess.CompletedProcess(args, 0, stdout=b"Verification: OK\\n", stderr=b"")
+                        stdout=b"Status info:\nTime stamp: Oct 24 08:05:00 2026 GMT\n", stderr=b"")
+                return subprocess.CompletedProcess(args, 0, stdout=b"Verification: OK\n", stderr=b"")
             with mock.patch.object(tsa.subprocess, "run", side_effect=fake_run):
                 with self.assertRaisesRegex(core.GateError, "TSA_AFTER_DECLARED_SALES_CUTOFF"):
-                    tsa.verify_response(db, commitment, b"\\x30\\x00", b"\\x30\\x00",
+                    tsa.verify_response(db, commitment, b"\x30\x00", b"\x30\x00",
                                         ca_file=str(cafile))
 
     def test_invalid_crypto_return_code_is_fail_closed(self):
         with tempfile.TemporaryDirectory() as root:
             db, commitment = self._context(root)
             cafile = Path(root) / "root.pem"
-            cafile.write_text("-----BEGIN CERTIFICATE-----\\nFAKE\\n-----END CERTIFICATE-----\\n")
+            cafile.write_text("-----BEGIN CERTIFICATE-----\nFAKE\n-----END CERTIFICATE-----\n")
             with mock.patch.object(tsa.subprocess, "run", return_value=
                     subprocess.CompletedProcess(["openssl"], 1, stdout=b"", stderr=b"bad signature")):
                 with self.assertRaisesRegex(core.GateError, "TSA_OPENSSL_VERIFICATION_FAILED"):
-                    tsa.verify_response(db, commitment, b"\\x30\\x00", b"\\x30\\x00",
+                    tsa.verify_response(db, commitment, b"\x30\x00", b"\x30\x00",
                                         ca_file=str(cafile))
 
 
