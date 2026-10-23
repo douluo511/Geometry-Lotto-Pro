@@ -8,6 +8,6 @@
   "external_tsa": "NOT_RUN",
   "decision": "NO_EDGE",
   "warning": "The workflow output is SHADOW historical-source evidence only. It cannot admit a target issue or certify sales cutoff/publication time.",
-  "attempt": 5,
-  "note": "One-shot on latest upstream commit 00e58c5 plus P0-A gate/SHADOW split, self-hashed intake orchestrator, DLT three-source requirement, strict chronology quarantine, Hebei latest-only SSQ fallback, and duplicate raw-receipt handling. Preserve raw failures; no prediction, no purchase, formal_A=0."
+  "attempt": 6,
+  "note": "PR #449 branch on 2026-10-23: read-only one-shot G01 source diagnostics. Verify actual HTTP originals, full SSQ CWL+Shanghai 120+ and DLT national+Jiangsu 120+ plus Gansu 10+; never authenticate source, schedule/cutoff, TSA or official A from a source claim. No prediction, no purchase."
 }
