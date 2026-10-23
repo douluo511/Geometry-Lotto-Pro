@@ -116,6 +116,10 @@ def advance_workspace(workspace, *, snapshots=None, research_history=None, obser
             or observed.utcoffset() is None):
         raise GateError("CYCLE_REQUIRES_AWARE_CLOCK")
 
+    # Validate the optional exploratory input BEFORE any frozen ledger write.
+    # A malformed challenger diagnostic must never leave an orphan predraw run.
+    diagnostic = (d2lab.audit_walk_forward(research_history)
+                  if research_history is not None else None)
     existing = _registered_runs(ledger)
     if snapshots is not None:
         # The same immutable identity is safe to examine even after cutoff;
@@ -186,10 +190,10 @@ def advance_workspace(workspace, *, snapshots=None, research_history=None, obser
     if not pending:
         output["study"] = cycle.summarize_prospective_receipts(
             ledger, scores, observed_at=observed)
-    if research_history is not None:
-        # Isolated descriptive retrospective work: these known historical
-        # target labels cannot become a new pre-draw arm or qualified evidence.
-        output["research_diagnostic"] = d2lab.audit_walk_forward(research_history)
+    if diagnostic is not None:
+        # This retrospective, already-known history is never prospective
+        # evidence and cannot change the six frozen model arms.
+        output["research_diagnostic"] = diagnostic
     return output
 
 
