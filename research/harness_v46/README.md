@@ -432,7 +432,11 @@ On every tick:
   `SHADOW_FROZEN_WAIT_RESULT`.
 - Given results, scores stored predictions read-only and writes
   `SHADOW_SCORE_RECORDED` including separate D1–D5 and paired D2/NULL
-  diagnostics.
+  diagnostics. It also reopens every previously saved local score receipt,
+  recomputes the result against the ORIGINAL frozen ledger rows (rather than
+  accepting saved hit counts), and creates a new run-scoped cumulative summary
+  with per-model hit counts/denominators and paired Random NULL comparisons.
+  Duplicate target issues and inconsistent/edited local receipts fail closed.
 
 For a new target issue, update the *external snapshot inputs* and run the
 same tick again; previous runs/receipts remain in the same ledger/directory.
