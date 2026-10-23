@@ -13,6 +13,7 @@ import math
 import os
 import re
 import sqlite3
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -70,18 +71,44 @@ def _not_symlink(path: Path) -> None:
 
 
 def _write_once(path: Path, value: dict) -> None:
-    """Exclusive, fsynced local SHADOW receipt; never silently rewrite evidence."""
+    """Crash-safe create-only local SHADOW receipt, not independently WORM.
+
+    Stage and fsync complete contents BEFORE making the receipt visible.
+    Link the staged file atomically: unlike os.replace(), os.link() cannot
+    overwrite a different receipt, including under concurrent Bot ticks.
+    A surviving .pending file after process death is NOT a score receipt.
+    """
     _not_symlink(path)
     data = (json.dumps(value, ensure_ascii=False, sort_keys=True,
                        separators=(",", ":")) + "\n").encode("utf-8")
+    stage = None
     try:
-        with path.open("xb") as file:
+        fd, name = tempfile.mkstemp(
+            dir=path.parent, prefix="." + path.name + ".", suffix=".pending")
+        stage = Path(name)
+        with os.fdopen(fd, "wb") as file:
             file.write(data)
             file.flush()
             os.fsync(file.fileno())
-    except FileExistsError:
-        if path.read_bytes() != data:
-            raise GateError("SCORE_RECEIPT_CONFLICT") from None
+        try:
+            # Same-directory hard link creates destination only if absent.
+            # No OS-specific replace/rename-over-existing escape hatch.
+            os.link(stage, path)
+        except FileExistsError:
+            if path.read_bytes() != data:
+                raise GateError("SCORE_RECEIPT_CONFLICT") from None
+            return
+        # On POSIX make the new directory entry durable where supported.
+        # Windows receipt/cold-boot durability still requires host validation.
+        if os.name != "nt":
+            directory_fd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+            try:
+                os.fsync(directory_fd)
+            finally:
+                os.close(directory_fd)
+    finally:
+        if stage is not None:
+            stage.unlink(missing_ok=True)
 
 
 def _registered_runs(ledger: Path) -> list[str]:
