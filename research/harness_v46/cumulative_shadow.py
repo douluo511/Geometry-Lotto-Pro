@@ -78,9 +78,11 @@ def cumulative_shadow_review(cycles):
             raise GateError("UNVERIFIED_RUN_CANNOT_ASSERT_FORMAL_EVIDENCE")
         for game in sorted(RULES):
             target = frozen["games"][game]["target_issue"]
-            if (game, target) in seen_targets:
+            # Leading zeros / Unicode decimal digits cannot add another draw.
+            target_key = (game, int(target))
+            if target_key in seen_targets:
                 raise GateError("DUPLICATE_LOTTERY_TARGET_ACROSS_RUNS")
-            seen_targets.add((game, target))
+            seen_targets.add(target_key)
             per_model = frozen["games"][game]["models"]
             if [m.get("model") for m in per_model] != list(MODELS):
                 raise GateError("FROZEN_MODEL_REGISTRY_CHANGED")

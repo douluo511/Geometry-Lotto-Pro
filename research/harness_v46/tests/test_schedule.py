@@ -73,6 +73,26 @@ class SchedulerTests(unittest.TestCase):
                                    datetime(2026, 10, 24, 7, 0, tzinfo=timezone.utc))
             self.assertFalse(path.exists())
 
+    def test_numeric_issue_alias_cannot_create_another_frozen_run(self):
+        cases = ((g, original, alias) for g in core.RULES
+                 for original, alias in (("29999", "029999"), ("029999", "29999"),
+                                         ("29999", "\uff12\uff19\uff19\uff19\uff19")))
+        for game, original, alias in cases:
+            with self.subTest(game=game, original=original, alias=alias), tempfile.TemporaryDirectory() as td:
+                path = Path(td) / "evidence.sqlite3"
+                first = {g: {**s, "target_issue": original} for g, s in self.snaps.items()}
+                altered = {g: {**s, "target_issue": alias if g == game else "30000"}
+                           for g, s in self.snaps.items()}
+                sch.scheduled_once(first, path, self.now)
+                db = sqlite3.connect(path)
+                before = list(db.iterdump())
+                db.close()
+                with self.assertRaisesRegex(core.GateError, "TARGET_ALREADY_FROZEN"):
+                    sch.scheduled_once(altered, path, self.now + timedelta(minutes=30))
+                db = sqlite3.connect(path)
+                self.assertEqual(list(db.iterdump()), before)
+                db.close()
+
     def test_sql_fault_rolls_back_both_games(self):
         with tempfile.TemporaryDirectory() as td:
             path = Path(td) / "evidence.sqlite3"

@@ -68,15 +68,19 @@ def scheduled_once(snapshots, database, now=None, *, require_delivery_window=Tru
             for game in ("SSQ", "DLT"):
                 s = snapshots[game]
                 target = str(s["target_issue"])
-                existing = conn.execute(
-                    "SELECT run_id,snapshot_sha256 FROM scheduled_target_guard "
-                    "WHERE lottery=? AND target_issue=?", (game, target)).fetchone()
+                # Keep immutable issue text, but compare the numeric identity
+                # used by snapshot chronology. Older guards may contain aliases.
+                guards = conn.execute(
+                    "SELECT target_issue,run_id,snapshot_sha256 FROM scheduled_target_guard "
+                    "WHERE lottery=?", (game,)).fetchall()
+                existing = [(old_run, old_sha) for old_target, old_run, old_sha in guards
+                            if int(old_target) == int(target)]
                 expected = (run_id, identity["games"][game]["snapshot_sha256"])
-                if existing is None:
+                if any(row != expected for row in existing):
+                    raise GateError("TARGET_ALREADY_FROZEN_WITH_DIFFERENT_RUN")
+                if not existing:
                     conn.execute("INSERT INTO scheduled_target_guard VALUES(?,?,?,?)",
                                  (game, target, *expected))
-                elif existing != expected:
-                    raise GateError("TARGET_ALREADY_FROZEN_WITH_DIFFERENT_RUN")
             for game in ("SSQ", "DLT"):
                 s = snapshots[game]
                 for model in MODELS:
