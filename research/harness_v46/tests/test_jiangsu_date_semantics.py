@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import base64
+import html
 import json
 import subprocess
 import sys
@@ -70,7 +71,13 @@ class JiangsuDateSemanticsTests(unittest.TestCase):
         result = self.replay(*pages)
         self.assertEqual(result["status"], "BLOCKED", result)
         self.assertEqual(result["exception"], "GateError", result)
-        self.assertIn(reason, result["error"])
+        if reason is None:
+            self.assertIn(result["error"], {
+                "JIANGSU_DRAW_DATE_COLUMN_UNVERIFIED",
+                "JIANGSU_PUBLICATION_DATE_IS_NOT_DRAW_DATE",
+            })
+        else:
+            self.assertIn(reason, result["error"])
 
     def assert_synthetic_120(self, *pages):
         result = self.replay(*pages)
@@ -193,6 +200,125 @@ class JiangsuDateSemanticsTests(unittest.TestCase):
     def test_no_candidate_terminal_response_does_not_invent_draws(self):
         self.assert_synthetic_120(table(synthetic_rows()),
                                   "<table>" + header("发布日期") + "</table>")
+
+    def test_raw_text_or_inert_header_container_cannot_authorize_data_rows(self):
+        for tag in ("textarea", "template", "select", "noscript", "xmp", "iframe"):
+            with self.subTest(container=tag):
+                decoy = f"<{tag}>" + header() + f"</{tag}>"
+                self.assert_blocked(["<table>" + decoy + synthetic_rows() + "</table>"])
+
+    def test_outer_raw_text_or_inert_wrapper_cannot_turn_text_into_a_table(self):
+        for tag in ("textarea", "template", "select", "noscript", "xmp", "iframe",
+                    "script", "style"):
+            with self.subTest(container=tag):
+                self.assert_blocked([f"<{tag}>" + table(synthetic_rows()) + f"</{tag}>"])
+
+    def test_hidden_or_inert_schema_cannot_authorize_visible_candidate_rows(self):
+        cases = (
+            '<table><div hidden>' + header() + '</div>' + synthetic_rows() + '</table>',
+            '<div hidden>' + table(synthetic_rows()) + '</div>',
+            '<div inert>' + table(synthetic_rows()) + '</div>',
+            table(synthetic_rows()).replace('<table>', '<table hidden>', 1),
+            table(synthetic_rows()).replace('<tr>', '<tr hidden>', 1),
+            '<table><thead hidden>' + header() + '</thead><tbody>' +
+            synthetic_rows() + '</tbody></table>',
+        )
+        for index, page in enumerate(cases):
+            with self.subTest(case=index):
+                self.assert_blocked([page])
+
+    def test_unmatched_nonstructural_tags_between_rows_are_blocked(self):
+        for markup in ('</textarea>', '</div>', '</select>', '</span>',
+                       '<div>', '<textarea>', '<template>', '<span>'):
+            with self.subTest(markup=markup):
+                self.assert_blocked(['<table>' + header() + markup +
+                                     synthetic_rows() + '</table>'])
+
+    def test_later_unknown_th_schema_cannot_reuse_an_earlier_safe_header(self):
+        for labels in (("Date", "Issue", "Numbers"),
+                       ("发布日期（北京时间）", "期次", "中奖号码")):
+            with self.subTest(labels=labels):
+                replacement = '<tr>' + ''.join(f'<th>{label}</th>' for label in labels) + '</tr>'
+                self.assert_blocked(['<table>' + header() + replacement +
+                                     synthetic_rows() + '</table>'], reason=None)
+
+    def test_later_unknown_td_schema_cannot_reuse_an_earlier_safe_header(self):
+        for labels in (("Date", "Issue", "Numbers"),
+                       ("发布日期（北京时间）", "期次", "中奖号码")):
+            with self.subTest(labels=labels):
+                replacement = '<tr>' + ''.join(f'<td>{label}</td>' for label in labels) + '</tr>'
+                self.assert_blocked(['<table>' + header() + synthetic_rows(0, 60) +
+                                     replacement + synthetic_rows(60, 60) + '</table>'], reason=None)
+
+    def test_unknown_schema_after_candidate_rows_invalidates_entire_table(self):
+        for tag in ('td', 'th'):
+            with self.subTest(cell_tag=tag):
+                replacement = '<tr>' + ''.join(f'<{tag}>{label}</{tag}>'
+                                               for label in ('Date', 'Issue', 'Numbers')) + '</tr>'
+                self.assert_blocked(['<table>' + header() + synthetic_rows() +
+                                     replacement + '</table>'])
+
+    def test_escaped_structural_header_text_is_not_an_actual_header_row(self):
+        self.assert_blocked(['<table>' + html.escape(header(), quote=False) +
+                             synthetic_rows() + '</table>'])
+
+    def test_fully_escaped_table_text_is_not_actual_structural_draw_evidence(self):
+        self.assert_blocked([html.escape(table(synthetic_rows()), quote=False)])
+
+    def test_supported_table_sections_preserve_explicit_header_association(self):
+        pages = (
+            '<table><thead>' + header() + '</thead><tbody>' + synthetic_rows() +
+            '</tbody><tfoot></tfoot></table>',
+            '<table><thead>' + header() + '</thead><tbody>' + synthetic_rows(0, 60) +
+            '</tbody><tfoot>' + synthetic_rows(60, 60) + '</tfoot></table>',
+            '<table><tbody>' + header() + synthetic_rows() + '</tbody></table>',
+            '<table><thead>' + header() + '</thead><tbody>' + synthetic_rows(0, 60) +
+            '</tbody><tbody>' + synthetic_rows(60, 60) + '</tbody><tfoot></tfoot></table>',
+        )
+        for index, page in enumerate(pages):
+            with self.subTest(case=index):
+                self.assert_synthetic_120(page)
+
+    def test_unbalanced_or_nested_table_sections_are_not_verified_structure(self):
+        pages = (
+            '<table><thead>' + header() + '</thead><tbody>' + synthetic_rows() + '</table>',
+            '<table><thead>' + header() + '</tbody><tbody>' + synthetic_rows() +
+            '</tbody></table>',
+            '<table><thead><tbody>' + header() + '</tbody></thead><tbody>' +
+            synthetic_rows() + '</tbody></table>',
+        )
+        for index, page in enumerate(pages):
+            with self.subTest(case=index):
+                self.assert_blocked([page])
+
+    def test_ancestor_close_cannot_erase_an_unclosed_unsafe_descendant(self):
+        for tag in ('textarea', 'template', 'select', 'noscript', 'xmp', 'iframe', 'plaintext'):
+            with self.subTest(unsafe_descendant=tag):
+                page = f'<div><{tag}></div>' + table(synthetic_rows()) + f'</{tag}>'
+                self.assert_blocked([page])
+
+    def test_selfclosing_descendant_does_not_make_ancestor_close_safe(self):
+        for tag in ('textarea', 'template', 'select', 'noscript', 'xmp', 'iframe', 'plaintext'):
+            with self.subTest(unsafe_descendant=tag):
+                page = (f'<div><{tag}><div/></div>' + table(synthetic_rows()) +
+                        f'</{tag}>')
+                self.assert_blocked([page])
+
+    def test_nonvoid_selfclosing_syntax_cannot_end_an_unsafe_context(self):
+        for tag in ('textarea', 'template', 'select', 'noscript', 'xmp', 'iframe', 'plaintext'):
+            with self.subTest(unsafe_context=tag):
+                self.assert_blocked([f'<{tag}/>' + table(synthetic_rows()) + f'</{tag}>'])
+        self.assert_blocked(['<div hidden/>' + table(synthetic_rows()) + '</div>'])
+
+    def test_closed_unsafe_container_does_not_taint_a_later_real_table(self):
+        # Plaintext is deliberately absent: HTML plaintext has no closing tag.
+        for tag in ('textarea', 'template', 'select', 'noscript', 'xmp', 'iframe'):
+            with self.subTest(closed_context=tag):
+                page = f'<div><{tag}></{tag}></div>' + table(synthetic_rows())
+                self.assert_synthetic_120(page)
+
+    def test_plaintext_pseudo_closing_tag_cannot_restore_structural_table_evidence(self):
+        self.assert_blocked(['<plaintext></plaintext>' + table(synthetic_rows())])
 
 
 if __name__ == "__main__":

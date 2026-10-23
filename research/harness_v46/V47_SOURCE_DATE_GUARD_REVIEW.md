@@ -76,6 +76,27 @@ Final commit, full-suite counts, independent review findings and exact-candidate
 Windows/Ubuntu run URLs must be taken from the final Draft PR and original job
 logs. Local success alone does not establish remote dual-platform CI.
 
+Independent review of the initial candidate found three important bypasses:
+ignored inert containers could forge headers, unknown replacement headers could
+inherit an earlier safe schema, and document-wide entity decoding could create
+structural tags from escaped text. All were reproduced through actual legacy
+raw replay. Eleven regression methods ran RED with 37 failing subcases and no
+errors, then GREEN (34 semantic methods total). The guard now parses original
+markup, decodes cell text once, verifies literal/legacy candidate agreement,
+rejects hidden/inert contexts and malformed table sections, and requires every
+non-candidate row in a data table to be an explicit verified header. This
+deliberately rejects unknown footer/schema rows instead of inferring meaning.
+Balanced thead/tbody/tfoot and supported inline/entity labels remain covered by
+positive controls. Original review findings remain in the evidence; a fresh
+independent re-review is required before calling this patch reviewed.
+
+Re-review exposed two further context-release paths: mismatched ancestor closes
+and non-void self-closing syntax. Four more regression methods produced 22 RED
+subcases; a separate plaintext pseudo-close regression also failed. Unsafe
+descendants can no longer be released by ancestor matching, HTML non-void '/>'
+does not terminate a container, and plaintext cannot be ended by an explicit
+closing tag. Normal explicitly closed containers remain positive controls.
+
 Model core, parameters, NULL seed, V4.5 formal slots, datasets and historical
 records are unchanged. There is no main write/merge or purchase operation.
 Official history/target/cutoff authentication, an approved independent external

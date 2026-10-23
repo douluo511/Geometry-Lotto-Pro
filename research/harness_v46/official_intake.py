@@ -313,20 +313,39 @@ class _JiangsuDateTables(HTMLParser):
     """
 
     def __init__(self, text):
-        # The legacy parser unescapes once. Do not decode a second layer of
-        # entities into header text that the response did not explicitly label.
-        super().__init__(convert_charrefs=False)
+        # Parse original markup; decode entities only as cell text. Decoding the
+        # whole response first could manufacture structural tags from text.
+        super().__init__(convert_charrefs=True)
         self.offsets = [0]
         for line in text.splitlines(keepends=True):
             self.offsets.append(self.offsets[-1] + len(line))
-        self.stack, self.rows_at = [], {}
+        self.stack, self.rows_at, self.contexts = [], {}, []
+        self.ambiguous_context = False
+
+    _INERT = {"script", "style", "textarea", "title", "template", "select",
+              "option", "noscript", "xmp", "iframe", "noembed", "noframes",
+              "plaintext"}
+    _VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input",
+             "link", "meta", "param", "source", "track", "wbr"}
+    _SECTIONS = {"thead", "tbody", "tfoot"}
 
     def handle_starttag(self, tag, attrs):
+        if tag == "plaintext":
+            # HTML plaintext has no effective closing tag.
+            self.ambiguous_context = True
+        unsafe = (tag in self._INERT or any(name in {"hidden", "inert"} for name, _ in attrs)
+                  or self.ambiguous_context
+                  or any(blocked for _, blocked in self.contexts))
+        if tag not in self._VOID:
+            self.contexts.append((tag, unsafe))
+        if self.stack and unsafe:
+            self.stack[-1]["invalid"] = True
         if tag == "table":
             if self.stack:
                 self.stack[-1]["invalid"] = True
             self.stack.append({"rows": [], "row": None, "cell": None,
-                               "invalid": bool(self.stack), "closed": False})
+                               "invalid": bool(self.stack) or unsafe,
+                               "closed": False, "section": None})
         elif self.stack:
             table = self.stack[-1]
             if tag == "tr":
@@ -346,24 +365,39 @@ class _JiangsuDateTables(HTMLParser):
                             "inline": [], "attrs": attrs}
                     table["row"]["cells"].append(cell)
                     table["cell"] = cell
+            elif tag in self._SECTIONS and table["cell"] is None:
+                if table["row"] is not None or table["section"] is not None:
+                    table["invalid"] = True
+                table["section"] = tag
             elif table["cell"] is not None:
                 if tag not in {"span", "b", "strong", "em", "i", "u", "small", "a",
                                "font", "br", "wbr"}:
                     table["invalid"] = True
                 if tag not in {"br", "wbr"}:
                     table["cell"]["inline"].append(tag)
+            else:
+                table["invalid"] = True
 
     def handle_startendtag(self, tag, attrs):
+        # In HTML, '/>' does not close a non-void container. In particular it
+        # cannot end a textarea/template/hidden ancestor before candidate rows.
         self.handle_starttag(tag, attrs)
-        if tag not in {"br", "wbr"}:
-            self.handle_endtag(tag)
 
     def handle_endtag(self, tag):
+        for index in range(len(self.contexts) - 1, -1, -1):
+            if self.contexts[index][0] == tag:
+                if any(blocked for _, blocked in self.contexts[index + 1:]):
+                    # A stray ancestor close cannot release an active unsafe
+                    # descendant; reject subsequent evidence in this response.
+                    self.ambiguous_context = True
+                del self.contexts[index:]
+                break
         if not self.stack:
             return
         table = self.stack[-1]
         if tag == "table":
-            if table["row"] is not None or table["cell"] is not None:
+            if (table["row"] is not None or table["cell"] is not None
+                    or table["section"] is not None):
                 table["invalid"] = True
             table["closed"] = True
             self.stack.pop()
@@ -380,10 +414,16 @@ class _JiangsuDateTables(HTMLParser):
             if cell is not None:
                 cell["closed"] = True
             table["cell"] = None
+        elif tag in self._SECTIONS and table["cell"] is None:
+            if table["row"] is not None or table["section"] != tag:
+                table["invalid"] = True
+            table["section"] = None
         elif table["cell"] is not None:
             inline = table["cell"]["inline"]
             if not inline or inline.pop() != tag:
                 table["invalid"] = True
+        else:
+            table["invalid"] = True
 
     def handle_data(self, data):
         if self.stack and self.stack[-1]["cell"] is not None:
@@ -403,18 +443,22 @@ def _verify_jiangsu_draw_date_columns(text):
     bind each match to its structural row, table, and first three columns. A
     header in another table, a comment, or a later row cannot authorize it.
     """
-    text = html.unescape(text)
-    candidates = list(re.finditer(
+    pattern = re.compile(
         r"<tr[^>]*>\s*<td[^>]*>\s*(\d{4}-\d{2}-\d{2})\s*</td>\s*"
         r"<td[^>]*>\s*(\d{5})\s*</td>\s*"
-        r"<td[^>]*>\s*([\d\s]+?)\s*</td>", text, re.I | re.S,
-    ))
+        r"<td[^>]*>\s*([\d\s]+?)\s*</td>", re.I | re.S,
+    )
+    candidates = list(pattern.finditer(text))
+    decoded_candidates = list(pattern.finditer(html.unescape(text)))
+    unverified = "JIANGSU_DRAW_DATE_COLUMN_UNVERIFIED"
+    if ([match.groups() for match in candidates]
+            != [match.groups() for match in decoded_candidates]):
+        raise GateError(unverified)
     if not candidates:
         return  # Empty terminal pages are not draw evidence.
     parser = _JiangsuDateTables(text)
     parser.feed(text)
     parser.close()
-    unverified = "JIANGSU_DRAW_DATE_COLUMN_UNVERIFIED"
     tables = {}
 
     def labels(row):
@@ -441,10 +485,12 @@ def _verify_jiangsu_draw_date_columns(text):
     publication_headers = {"发布日期", "发布时间", "公告日期", "公告时间"}
     issue_headers = {"期号", "开奖期号"}
     result_headers = {"开奖号码", "开奖结果"}
-    known = draw_headers | publication_headers | issue_headers | result_headers | {"日期", "时间"}
     for table, rows in tables.values():
+        candidate_ids = {id(row) for row in rows}
+        # Every other row must be a verified header. Unknown replacement schemas
+        # and footer rows cannot silently inherit an earlier header's meaning.
         headers = [row for row in table["rows"]
-                   if any(value in known for value in labels(row))]
+                   if id(row) not in candidate_ids]
         if any(labels(row) and labels(row)[0] in publication_headers for row in headers):
             raise GateError("JIANGSU_PUBLICATION_DATE_IS_NOT_DRAW_DATE")
         if (not headers or min(row["index"] for row in headers) >= min(row["index"] for row in rows)
