@@ -240,6 +240,46 @@ No customer betting/purchase is performed. This prototype has no verified
 external predraw TSA, independent official draw scoring, or future D2 edge.
 `formal_A=0`, `NO_EDGE` throughout.
 
+## Replayed score receipts and a complete local-ledger study
+
+`prospective_cycle score` now returns the complete validated caller outcome
+for both games, including `drawn_at`, its `result_bundle_sha256`, and an outer
+`score_receipt_sha256`. Existing D1-D5, batch, feedback and local observation
+time guards remain. This self-hash is content binding, never an independent
+result authentication or timestamp. Old four-field449 receipts are not
+silently supplied a missing time or converted into a new research record.
+
+```sh
+python -m research.harness_v46.prospective_cycle study \
+  --database frozen.sqlite3 --receipts-file score-receipts.json
+```
+
+The JSON file is a list of complete score reports returned by `score` under
+this pinned source. The study replays every report against its original
+frozen ledger rows and exact five-field caller outcomes. Rehashing altered
+score bits, model vectors or authority labels cannot bypass full replay.
+Changed numeric spellings such as29999/029999 denote one game target; their
+original spelling is retained, but duplicates cannot increase the denominator.
+
+Every run registered in that local ledger needs a receipt. A missing scored
+run or a pending unscored freeze blocks this complete-study command. This is
+not proof of the complete official schedule, other databases, or absence of
+privileged replacement. The existing `cumulative --runs-json` command retains
+its separate multi-database descriptive input contract.
+
+Only frozen-ledger D2 bits enter the existing twelve-slot diagnostic family
+and same-draw fixed Random NULL paired statistics. The family, original
+registration and challenger remain unverified. Even a completely regenerated
+receipt for another legal caller outcome can pass consistency replay; that
+outcome is still `CALLER_UNVERIFIED`, `official_results_authenticated=false`.
+Neither content hashes nor complete local coverage establish actual results.
+
+This change updates orchestration identity for future runs. Replaying older
+frozen runs requires their original pinned source bundle. It does not alter
+old records or authorize a real forecast before target/cutoff authentication.
+`ENGINEERING_PASS=NOT_YET`, `RESEARCH_VALID=NOT_YET`,
+`D2_EDGE_CONFIRMED=NO`, `formal_A=0`, `NO_EDGE` remain separate verdicts.
+
 ## V4.7 prospective SHADOW prediction / scoring loop
 
 The research objective is iterative: run the **actual fixed model versions**

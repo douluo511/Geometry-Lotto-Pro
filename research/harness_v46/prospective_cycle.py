@@ -11,10 +11,11 @@ import json
 import sqlite3
 from pathlib import Path
 
-from .core import MODELS, RULES, GateError
+from .core import MODELS, RULES, GateError, digest
 from .convergence import check_complete_batch, score_readonly
 from .schedule import scheduled_once
 from .prospective_scorecard import replay_shadow_feedback, summarize_shadow_feedback
+from .statistics import evaluate_shadow_d2
 
 
 def frozen_forecast_report(database, run_id):
@@ -98,7 +99,7 @@ def evaluate_after_draw(database, run_id, result_bundle, *, observed_at=None):
     frozen = frozen_forecast_report(database, run_id)
     if not isinstance(result_bundle, dict) or set(result_bundle) != set(RULES):
         raise GateError("EXACTLY_TWO_GAME_RESULTS_REQUIRED")
-    scored, feedback_receipts = {}, {}
+    scored, feedback_receipts, scoring_inputs = {}, {}, {}
     for game in ("SSQ", "DLT"):
         result = result_bundle[game]
         if not isinstance(result, dict) or result.get("lottery") != game:
@@ -122,7 +123,14 @@ def evaluate_after_draw(database, run_id, result_bundle, *, observed_at=None):
         if review["prediction_batch_sha256"] != frozen["games"][game]["prediction_batch_sha256"]:
             raise GateError("FROZEN_BATCH_CHANGED_BETWEEN_SHOW_AND_SCORE")
         scored[game] = review
-    return {
+        # Preserve the full validated caller outcome, including its untrusted
+        # draw time. A four-field projection would erase451's chronology guard.
+        scoring_inputs[game] = {
+            "lottery": game, "issue": result["issue"],
+            "front": list(result["front"]), "back": list(result["back"]),
+            "drawn_at": result["drawn_at"],
+        }
+    report = {
         "schema": "V47-PROSPECTIVE-SHADOW-SCORE-1",
         "run_id": run_id,
         "frozen_forecast_reference": {
@@ -133,11 +141,19 @@ def evaluate_after_draw(database, run_id, result_bundle, *, observed_at=None):
         "games": scored,
         "shadow_feedback_receipts": feedback_receipts,
         "outcome_source": "CALLER_UNVERIFIED",
+        "scoring_inputs": {
+            "result_bundle": scoring_inputs,
+            "result_bundle_sha256": digest(scoring_inputs),
+            "authenticated_official_source": False,
+            "timestamp_trust": "NONE",
+        },
         "paired_control": "SAME_DRAW_RANDOM_NULL",
         "eligibility_for_prospective_edge": "BLOCKED_UNAUTHENTICATED_EVIDENCE",
         "improvement_policy": "NEXT_VERSION_ONLY_NEVER_REWRITE_FROZEN_HISTORY",
         "formal_A": 0, "decision": "NO_EDGE",
     }
+    report["score_receipt_sha256"] = digest(report)
+    return report
 
 
 def summarize_from_frozen_runs(records, *, observed_at=None):
@@ -165,6 +181,102 @@ def summarize_from_frozen_runs(records, *, observed_at=None):
     }
 
 
+def summarize_prospective_receipts(database, receipts, *, observed_at=None):
+    """Recheck all local freezes, not official sampling or result authenticity.
+
+    Replaying an exact caller outcome binds the scores to the original frozen
+    ledger. It cannot authenticate that outcome, other databases, an external
+    schedule or a historical preregistration. All original time guards apply.
+    """
+    if not isinstance(receipts, list) or not receipts:
+        raise GateError("EMPTY_STUDY_RECEIPTS")
+    indexed = {}
+    for claimed in receipts:
+        if (not isinstance(claimed, dict)
+                or claimed.get("schema") != "V47-PROSPECTIVE-SHADOW-SCORE-1"):
+            raise GateError("INVALID_SCORE_RECEIPT")
+        run_id = claimed.get("run_id")
+        if not isinstance(run_id, str) or not run_id.startswith("V47-"):
+            raise GateError("INVALID_STUDY_RUN_ID")
+        if run_id in indexed:
+            raise GateError("DUPLICATE_STUDY_RUN")
+        claimed_hash = claimed.get("score_receipt_sha256")
+        if (not isinstance(claimed_hash, str)
+                or claimed_hash != digest({k: v for k, v in claimed.items()
+                                          if k != "score_receipt_sha256"})):
+            raise GateError("INVALID_SCORE_RECEIPT_HASH")
+        inputs = claimed.get("scoring_inputs")
+        bundle = inputs.get("result_bundle") if isinstance(inputs, dict) else None
+        if not isinstance(bundle, dict) or set(bundle) != set(RULES):
+            raise GateError("INCOMPLETE_STUDY_RESULTS")
+        actual = evaluate_after_draw(database, run_id, bundle, observed_at=observed_at)
+        if claimed != actual:
+            raise GateError("SCORE_RECEIPT_REPLAY_MISMATCH")
+        indexed[run_id] = actual
+
+    path = Path(database).resolve()
+    conn = sqlite3.connect(path.as_uri() + "?mode=ro", uri=True)
+    try:
+        conn.execute("PRAGMA query_only=ON")
+        ledger_run_ids = {row[0] for row in conn.execute("SELECT run_id FROM run_manifests")}
+    finally:
+        conn.close()
+    missing = ledger_run_ids - set(indexed)
+    if missing:
+        raise GateError("STUDY_COVERAGE_MISSING_FROZEN_RUNS:" + str(len(missing)))
+    if set(indexed) != ledger_run_ids:
+        raise GateError("STUDY_ROSTER_COVERAGE_MISMATCH")
+
+    rows, issue_seen = [], set()
+    for run_id in sorted(indexed):
+        verified = indexed[run_id]
+        for game in ("SSQ", "DLT"):
+            issue = verified["frozen_forecast_reference"][game]["target_issue"]
+            # Original spelling stays in the ledger/receipt; numeric aliases
+            # cannot increase the independent draw denominator (the452 guard).
+            if (not isinstance(issue, str) or not issue.isascii() or not issue.isdigit()):
+                raise GateError("INVALID_STUDY_GAME_ISSUE")
+            key = game, str(int(issue))
+            if key in issue_seen:
+                raise GateError("DUPLICATE_STUDY_GAME_ISSUE")
+            issue_seen.add(key)
+            scores = verified["games"][game]["scores"]
+            if set(scores) != set(MODELS):
+                raise GateError("INCOMPLETE_STUDY_MODEL_SCORES")
+            rows.append({"lottery": game, "issue": issue,
+                         "scores": {m: scores[m]["D2"] for m in MODELS}})
+    rows.sort(key=lambda r: (r["lottery"], int(r["issue"])))
+    family = [{"hypothesis_id": f"V47-{game}-{model}", "lottery": game, "model": model}
+              for game in ("SSQ", "DLT") for model in MODELS]
+    analysis = evaluate_shadow_d2(rows, family, expected_family_size=12)
+    identities = [{"run_id": rid, "score_receipt_sha256": indexed[rid]["score_receipt_sha256"]}
+                  for rid in sorted(indexed)]
+    return {
+        "schema": "V47-SHADOW-REPLAYED-PROSPECTIVE-STUDY-1",
+        "run_ids": sorted(indexed), "score_receipts_sha256": digest(identities),
+        "study_rows_sha256": digest(rows),
+        "draws_by_game": {game: sum(row["lottery"] == game for row in rows)
+                          for game in ("SSQ", "DLT")},
+        "forecast_outcome_integrity": "REPLAYED_FROZEN_LEDGER",
+        "coverage": "CALLER_SUBMITTED_RECEIPTS_ONLY",
+        "local_ledger_roster": {
+            "run_count": len(ledger_run_ids),
+            "run_ids_sha256": digest(sorted(ledger_run_ids)),
+            "status": "ALL_LOCAL_FROZEN_RUNS_PRESENT_NOT_OFFICIAL_SCHEDULE",
+        },
+        "official_results_authenticated": False, "preregistration_verified": False,
+        "independent_predraw_timestamp_verified": False,
+        "source_authenticity": "CALLER_UNVERIFIED", "statistical_analysis": analysis,
+        "formal_A": 0, "decision": "NO_EDGE",
+        "limitations": [
+            "Every local run must have a receipt, including pending freezes; external schedules, other databases and privileged replacement remain unverified.",
+            "Caller outcomes, including claimed drawn_at, are consistency inputs, never authenticated official results.",
+            "Local SQLite, observation clocks and self-reported hashes are not independent predraw custody or RFC3161 proof.",
+            "The fixed arithmetic family is unverified; no prospective edge or formal promotion is established.",
+        ],
+    }
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description="V4.7 dual-game SHADOW prospective research cycle")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -181,6 +293,9 @@ def main(argv=None):
     c = sub.add_parser("cumulative", help="Re-score original frozen runs, summarize D2/NULL rates")
     c.add_argument("--runs-json", required=True,
                    help="JSON list of {database,run_id,results:{SSQ:{...},DLT:{...}}}")
+    st = sub.add_parser("study", help="Replay every local frozen score receipt and summarize SHADOW D2")
+    st.add_argument("--database", required=True)
+    st.add_argument("--receipts-file", required=True)
     args = parser.parse_args(argv)
     try:
         if args.command == "forecast":
@@ -191,9 +306,12 @@ def main(argv=None):
         elif args.command == "score":
             observed = json.loads(Path(args.result_bundle).read_text(encoding="utf-8"))
             result = evaluate_after_draw(args.database, args.run_id, observed)
-        else:
+        elif args.command == "cumulative":
             records = json.loads(Path(args.runs_json).read_text(encoding="utf-8"))
             result = summarize_from_frozen_runs(records)
+        else:
+            receipts = json.loads(Path(args.receipts_file).read_text(encoding="utf-8"))
+            result = summarize_prospective_receipts(args.database, receipts)
         print(json.dumps(result, ensure_ascii=False, sort_keys=True, indent=2))
         return 0
     except (GateError, sqlite3.Error, OSError, ValueError, KeyError, TypeError) as exc:
