@@ -20,6 +20,7 @@ from .convergence import manifest
 from .core import RULES, GateError, canon, dt
 from .prospective_cycle import (
     evaluate_after_draw, forecast_on_demand, frozen_forecast_report,
+    summarize_from_frozen_runs,
 )
 
 BOT_SCHEMA = "V47-SHADOW-BOT-CONFIG-1"
@@ -72,12 +73,16 @@ def _persist_once(directory, label, report):
     """
     if not directory.is_dir():
         raise GateError("BOT_RECEIPTS_DIRECTORY_MISSING")
+    if directory.is_symlink():
+        raise GateError("BOT_RECEIPTS_DIRECTORY_SYMLINK_FORBIDDEN")
     payload = (canon(report) + "\n").encode("utf-8")
     name = hashlib.sha256(report["run_id"].encode("utf-8")).hexdigest()[:20]
     target = directory / (name + "-" + label + ".json")
     try:
         fd = os.open(str(target), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     except FileExistsError:
+        if target.is_symlink():
+            raise GateError("BOT_RECEIPT_SYMLINK_FORBIDDEN")
         if target.read_bytes() != payload:
             raise GateError("BOT_RECEIPT_ALREADY_EXISTS_DIFFERENT_CONTENT")
     else:
@@ -126,6 +131,8 @@ def tick(config_path, *, observed_at=None):
     # Do not make a prediction when the expected evidence directory is missing.
     if not config["receipts_dir"].is_dir():
         raise GateError("BOT_RECEIPTS_DIRECTORY_MISSING")
+    if config["receipts_dir"].is_symlink():
+        raise GateError("BOT_RECEIPTS_DIRECTORY_SYMLINK_FORBIDDEN")
     snapshots = _read_object(config["snapshot_bundle"])
     if set(snapshots) != set(RULES):
         raise GateError("BOT_REQUIRES_BOTH_LOTTERIES")
@@ -172,9 +179,39 @@ def tick(config_path, *, observed_at=None):
     scored = evaluate_after_draw(
         config["database"], run_id, outcomes, observed_at=now,
     )
-    score_receipt = _persist_once(config["receipts_dir"], "score", scored)
+    # Save the caller's unverified raw outcome alongside the computed receipt:
+    # future cumulative ticks must recompute from original frozen model rows,
+    # not trust anyone's stored win bits or posthoc hit-rate claims.
+    scored_receipt = {**scored, "caller_supplied_result_bundle": outcomes}
+    score_receipt = _persist_once(config["receipts_dir"], "score", scored_receipt)
+    records = []
+    for saved_path in sorted(config["receipts_dir"].glob("*-score.json")):
+        if saved_path.is_symlink():
+            raise GateError("BOT_RECEIPT_SYMLINK_FORBIDDEN")
+        saved = _read_object(saved_path)
+        if (saved.get("schema") != "V47-PROSPECTIVE-SHADOW-SCORE-1"
+                or saved.get("formal_A") != 0 or saved.get("decision") != "NO_EDGE"
+                or saved.get("outcome_source") != "CALLER_UNVERIFIED"
+                or not isinstance(saved.get("run_id"), str)
+                or not isinstance(saved.get("caller_supplied_result_bundle"), dict)):
+            raise GateError("BOT_UNTRUSTED_CUMULATIVE_SCORE_RECEIPT")
+        original = evaluate_after_draw(
+            config["database"], saved["run_id"],
+            saved["caller_supplied_result_bundle"], observed_at=now,
+        )
+        if original != {k: v for k, v in saved.items()
+                        if k != "caller_supplied_result_bundle"}:
+            raise GateError("BOT_PRIOR_SCORE_RECEIPT_INCONSISTENT")
+        records.append({
+            "database": str(config["database"]), "run_id": saved["run_id"],
+            "results": saved["caller_supplied_result_bundle"],
+        })
+    cumulative = summarize_from_frozen_runs(records, observed_at=now)
+    cumulative_receipt = _persist_once(config["receipts_dir"], "cumulative", cumulative)
     return {**common, "status": "SHADOW_SCORE_RECORDED",
             "forecast_receipt": frozen_receipt, "score_receipt": score_receipt,
+            "cumulative_receipt": cumulative_receipt,
+            "cumulative_run_count": cumulative["run_count"],
             "comparison": "EACH_D1_D5_AND_PAIRED_RANDOM_NULL",
             "research_valid": "NOT_VERIFIED"}
 
