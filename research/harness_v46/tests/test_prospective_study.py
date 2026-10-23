@@ -28,7 +28,7 @@ class ProspectiveStudyTests(unittest.TestCase):
         }
         return cycle.evaluate_after_draw(path, record["run_id"], results)
 
-    def test_two_distinct_frozen_draws_are_replayed_not_cherry_picked(self):
+    def test_two_distinct_frozen_draws_are_replayed_with_coverage_unverified(self):
         with tempfile.TemporaryDirectory() as td:
             db = Path(td) / "shadow.sqlite3"
             one = self._freeze_and_score(db, "29999")
@@ -64,9 +64,15 @@ class ProspectiveStudyTests(unittest.TestCase):
             db = Path(td) / "shadow.sqlite3"
             good = self._freeze_and_score(db, "29999")
             fake = json.loads(json.dumps(good))
+            # Force a genuine D2 change rather than relying on a coincidental
+            # arbitrary ball swap that could leave every model score unchanged.
             front = fake["scoring_inputs"]["result_bundle"]["DLT"]["front"]
-            extra = next(v for v in range(1, 36) if v not in front)
-            fake["scoring_inputs"]["result_bundle"]["DLT"]["front"] = sorted([extra] + front[1:])
+            picks = cycle.frozen_forecast_report(db, good["run_id"])["games"]["DLT"]["models"][0]["primary_d2"]
+            if set(picks).issubset(front):
+                candidate = [v for v in range(1, 36) if v != picks[0]][:5]
+            else:
+                candidate = list(picks) + [v for v in range(1, 36) if v not in picks][:3]
+            fake["scoring_inputs"]["result_bundle"]["DLT"]["front"] = sorted(candidate)
             fake["scoring_inputs"]["result_bundle_sha256"] = core.digest(
                 fake["scoring_inputs"]["result_bundle"]
             )
