@@ -100,5 +100,24 @@ class D2ChallengerLabTests(unittest.TestCase):
         self.assertEqual(result["decision"], "NO_EDGE")
 
 
+    def test_cli_emits_complete_hash_bound_research_report(self):
+        import io
+        import json
+        import tempfile
+        from contextlib import redirect_stdout
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as td:
+            p = Path(td) / "synthetic.json"
+            p.write_text(json.dumps(self.bundle), encoding="utf-8")
+            out = io.StringIO()
+            with redirect_stdout(out):
+                code = lab.main(["--snapshot-bundle", str(p)])
+            self.assertEqual(code, 0)
+            report = json.loads(out.getvalue())
+            self.assertEqual(report["draws_by_game"], {"SSQ": 25, "DLT": 25})
+            self.assertEqual(report["input_bundle_sha256"], core.digest(self.bundle))
+            self.assertEqual(report["decision"], "NO_EDGE")
+
+
 if __name__ == "__main__":
     unittest.main()
