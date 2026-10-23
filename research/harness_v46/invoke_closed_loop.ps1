@@ -55,8 +55,17 @@ foreach ($command in $commands) {
     "[$stamp][$($command.Game)] V47 SHADOW tick, local clock NOT independently trusted" |
         Out-File -LiteralPath $cfg.log_path -Encoding utf8 -Append
     $argv = $command.Arguments
-    $output = & $cfg.python_exe @argv 2>&1
-    $code = $LASTEXITCODE
+    # Windows PowerShell 5.1 converts native stderr to an ErrorRecord.
+    # The global Stop preference must not prevent the OTHER game tick.
+    # Capture both streams and inspect the actual Python exit code instead.
+    $priorErrorAction = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = 'Continue'
+        $output = & $cfg.python_exe @argv 2>&1
+        $code = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $priorErrorAction
+    }
     $output | Out-String | Out-File -LiteralPath $cfg.log_path -Encoding utf8 -Append
     "[$($command.Game)][exit_code=$code] A=0 NO_EDGE; research evidence only" |
         Out-File -LiteralPath $cfg.log_path -Encoding utf8 -Append
