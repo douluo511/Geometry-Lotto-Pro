@@ -171,6 +171,20 @@ def verify_response(database, commitment, query_der: bytes, response_der: bytes,
         r = root / "response.tsr"
         q.write_bytes(query_der)
         r.write_bytes(response_der)
+        # OpenSSL accepts a valid signed response for a request WITHOUT a
+        # nonce. Such a token cannot establish reply freshness by RFC3161's
+        # request/nonce path: reject it before signature-chain checks.
+        query_description = _run_openssl(
+            [openssl, "ts", "-query", "-in", str(q), "-text"]
+        ).decode("utf-8", errors="replace")
+        if not re.search(r"(?m)^\s*Nonce:\s*0x[0-9a-fA-F]+\s*$",
+                         query_description):
+            raise GateError("TSA_QUERY_NONCE_REQUIRED")
+        if (not re.search(r"(?mi)^\s*Hash Algorithm:\s*sha256\s*$",
+                          query_description)
+                or not re.search(r"(?mi)^\s*Certificate required:\s*yes\s*$",
+                                 query_description)):
+            raise GateError("TSA_QUERY_SHA256_AND_CERT_REQUIRED")
         base = [openssl, "ts", "-verify"]
         ca_options = ["-CAfile", str(anchor)]
         if chain is not None:
