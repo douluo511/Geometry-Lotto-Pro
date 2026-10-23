@@ -316,9 +316,9 @@ class _JiangsuDateTables(HTMLParser):
         # Parse original markup; decode entities only as cell text. Decoding the
         # whole response first could manufacture structural tags from text.
         super().__init__(convert_charrefs=True)
-        self.offsets = [0]
-        for line in text.splitlines(keepends=True):
-            self.offsets.append(self.offsets[-1] + len(line))
+        self.text = text
+        # HTMLParser's getpos() advances lines only at LF, unlike splitlines().
+        self.offsets = [0] + [match.end() for match in re.finditer("\n", text)]
         self.stack, self.rows_at, self.contexts = [], {}, []
         self.ambiguous_context = False
 
@@ -384,6 +384,17 @@ class _JiangsuDateTables(HTMLParser):
         self.handle_starttag(tag, attrs)
 
     def handle_endtag(self, tag):
+        line, col = self.getpos()
+        start = self.offsets[line - 1] + col
+        if not re.match(r"</" + re.escape(tag) + r"[ \t\r\n\f]*>",
+                        self.text[start:], re.I):
+            # HTMLParser repairs '</ textarea>' into an end-tag callback even
+            # though HTML leaves the container open. Accept only the supported
+            # literal closing grammar, without attributes or a solidus suffix.
+            self.ambiguous_context = True
+            if self.stack:
+                self.stack[-1]["invalid"] = True
+            return
         for index in range(len(self.contexts) - 1, -1, -1):
             if self.contexts[index][0] == tag:
                 if any(blocked for _, blocked in self.contexts[index + 1:]):

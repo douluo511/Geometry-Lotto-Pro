@@ -320,6 +320,48 @@ class JiangsuDateSemanticsTests(unittest.TestCase):
     def test_plaintext_pseudo_closing_tag_cannot_restore_structural_table_evidence(self):
         self.assert_blocked(['<plaintext></plaintext>' + table(synthetic_rows())])
 
+    def test_whitespace_after_endtag_opener_cannot_close_unsafe_container(self):
+        for tag in ('textarea', 'xmp', 'iframe', 'title', 'template', 'select'):
+            for gap in (' ', '\n', '\t'):
+                with self.subTest(container=tag, illegal_gap=repr(gap)):
+                    page = f'<{tag}></{gap}{tag}>' + table(synthetic_rows()) + f'</{tag}>'
+                    self.assert_blocked([page])
+
+    def test_non_html_whitespace_cannot_validate_unsafe_endtags(self):
+        for tag in ('textarea', 'title'):
+            for gap in ('\u00a0', '\u2003', '\v'):
+                with self.subTest(container=tag, non_html_space=repr(gap)):
+                    page = f'<{tag}></{tag}{gap}>' + table(synthetic_rows()) + f'</{tag}>'
+                    self.assert_blocked([page])
+
+    def test_endtag_attributes_or_solidus_do_not_prove_context_closed(self):
+        for tag in ('textarea', 'xmp', 'iframe', 'title', 'template', 'select'):
+            for suffix in (" data-synthetic='x'", '/'):
+                with self.subTest(container=tag, pseudo_closer_suffix=suffix):
+                    page = f'<{tag}></{tag}{suffix}>' + table(synthetic_rows()) + f'</{tag}>'
+                    self.assert_blocked([page])
+
+    def test_noncanonical_header_cell_endtag_cannot_authorize_date_column(self):
+        for closer in ('</ td>', '</\ntd>', '</\ttd>', '</td\u00a0>', '</td\v>', '</td extra>'):
+            with self.subTest(header_cell_closer=repr(closer)):
+                schema = header().replace('</td>', closer, 1)
+                self.assert_blocked(['<table>' + schema + synthetic_rows() + '</table>'])
+
+    def test_ascii_whitespace_after_endtag_name_remains_supported(self):
+        for tag in ('textarea', 'title'):
+            for suffix in (' ', '\t', ' \r\n\t\f'):
+                with self.subTest(closed_container=tag, html_space=repr(suffix)):
+                    self.assert_synthetic_120(f'<{tag}></{tag}{suffix}>' + table(synthetic_rows()))
+
+    def test_mixed_cr_crlf_lf_preserves_original_candidate_row_offsets(self):
+        rows = synthetic_rows().split('</tr>')[:-1]
+        endings = ('\r', '\r\n', '\n')
+        for shift in (0, 1):
+            with self.subTest(line_ending_shift=shift):
+                body = ''.join(row + '</tr>' + endings[(index + shift) % 3]
+                               for index, row in enumerate(rows))
+                self.assert_synthetic_120('<table>\r' + header() + '\r\n' + body + '</table>')
+
 
 if __name__ == "__main__":
     unittest.main()

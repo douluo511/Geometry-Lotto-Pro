@@ -97,6 +97,15 @@ descendants can no longer be released by ancestor matching, HTML non-void '/>'
 does not terminate a container, and plaintext cannot be ended by an explicit
 closing tag. Normal explicitly closed containers remain positive controls.
 
+Another re-review found that HTMLParser normalizes `</ textarea>` into an end
+callback although it is not a closing HTML token. Six more methods ran RED with
+44 failing subcases (42 unsafe accepts and two mixed-line-ending false rejects).
+The guard now verifies original `</tag[ASCII whitespace]*>` syntax before any
+context release and maps getpos() using LF boundaries. Attributes and a solidus
+suffix on end tags are conservatively unsupported; this is a restricted data
+admission grammar, not a complete HTML5 parser. HTML token semantics were checked
+against https://html.spec.whatwg.org/multipage/parsing.html#rcdata-end-tag-open-state.
+
 Model core, parameters, NULL seed, V4.5 formal slots, datasets and historical
 records are unchanged. There is no main write/merge or purchase operation.
 Official history/target/cutoff authentication, an approved independent external
