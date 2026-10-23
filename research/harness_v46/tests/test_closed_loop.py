@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from contextlib import closing
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -55,7 +56,7 @@ class ClosedLoopTests(unittest.TestCase):
         self.assertEqual(first["decision"], "NO_EDGE")
         run_id = first["run_ids"][0]
         db = self.workspace / "ledger.sqlite3"
-        with sqlite3.connect(db) as conn:
+        with closing(sqlite3.connect(db)) as conn:
             self.assertEqual(conn.execute("SELECT COUNT(*) FROM predictions").fetchone()[0], 12)
         original_db = hashlib.sha256(db.read_bytes()).hexdigest()
         self.write_outcome(run_id, self.outcome())
@@ -160,7 +161,7 @@ class ClosedLoopTests(unittest.TestCase):
         frozen = json.loads(early.stdout)
         self.assertEqual(frozen["status"], "WAITING_FOR_OUTCOME")
         self.assertEqual(frozen["formal_A"], 0)
-        with sqlite3.connect(self.workspace / "ledger.sqlite3") as con:
+        with closing(sqlite3.connect(self.workspace / "ledger.sqlite3")) as con:
             self.assertEqual(con.execute("SELECT COUNT(*) FROM predictions").fetchone()[0], 12)
 
         # Independent later CLI invocation against a historical synthetic
