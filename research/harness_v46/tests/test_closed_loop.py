@@ -80,9 +80,11 @@ class ClosedLoopTests(unittest.TestCase):
         app = self.runner()
         first = app.advance_workspace(
             self.workspace, snapshots=self.snapshots, observed_at=self.before)
-        self.write_outcome(first["run_ids"][0], self.outcome())
         other = {g: dict(s, target_issue="30000") for g, s in self.snapshots.items()}
         app.advance_workspace(self.workspace, snapshots=other, observed_at=self.before)
+        # A real later outcome must not be presented while the draw is still
+        # in the future. Add it only after the second pre-draw freeze completes.
+        self.write_outcome(first["run_ids"][0], self.outcome())
         report = app.advance_workspace(self.workspace, observed_at=self.after)
         self.assertEqual(report["status"], "WAITING_FOR_OUTCOME")
         self.assertEqual(report["pending_run_count"], 1)
