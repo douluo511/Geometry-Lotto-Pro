@@ -479,3 +479,48 @@ caller outcomes or trusted timestamp is furnished by this Bot prototype.
 Keep V4.5's eight formal slots and `main` untouched; formal `A=0`,
 `NO_EDGE`, `ENGINEERING_PASS=NOT_YET`, `RESEARCH_VALID=NOT_YET`,
 `D2_EDGE_CONFIRMED=NO`.
+
+## V4.7 Windows Bot auto-tick task (explicit opt-in, still SHADOW)
+
+The legacy `windows_shadow_tasks.ps1` continues to invoke the original
+single-purpose schedule handler; this research Bot uses **new isolated files**
+`windows_shadow_bot_tasks.ps1` and `invoke_v47_shadow_bot.ps1`.
+It is **not installed** by cloning, testing, PR opening or GitHub Actions CI.
+
+On the intended persistent Windows research host, first create and review the
+`V47-SHADOW-BOT-CONFIG-1` JSON described above, with an existing
+`snapshot_bundle` and **precreated `receipts_dir`**. Provision a local
+persistent ledger path and dedicated Python interpreter, then run preview:
+
+```powershell
+powershell.exe -NoProfile -File .\research\harness_v46\windows_shadow_bot_tasks.ps1 `
+    -ConfigFile 'C:\v47-research\bot-config.json' `
+    -PythonExe 'C:\path\to\python.exe' `
+    -RepositoryRoot 'C:\path\to\Geometry-Lotto-Pro'
+```
+
+This is a **dry run**: it never registers a task. After human review, repeat
+with explicit `-Install` to register **a separate**
+`SSQDLT-V47-SHADOW-BOT` task, using an at-startup and 30-minute repeating
+trigger, `IgnoreNew` overlapping tasks, `StartWhenAvailable` and a 10-minute
+execution limit. It refuses to overwrite an existing task; neither script
+calls `Register-ScheduledTask -Force` or changes `main`. Host-level
+permissions and Task Scheduler service behavior determine whether
+registration/boot execution actually works. Verify with native Task Scheduler,
+real logs (`v47-shadow-bot-task.log` in the config directory), a clean
+reboot, a forced missed tick and a real as-of/cutoff crossing **before**
+claiming Windows P0 acceptance.
+
+This task invokes `python -m research.harness_v46.shadow_bot --config ...`,
+which uses original immutable six-arm SHA-pinned model predictions, never
+entertainment random picks, retroactive forecasts or ticket purchases. It
+does **not** automatically fetch or authenticate real SSQ/DLT result inputs,
+provide source provenance, create an external RFC3161 timestamp token,
+refresh the next issue, or create a trusted append-only/off-host evidence
+archive. A human/independently audited intake process must keep source inputs
+current, and the Bot will fail closed for missing/expired/inconsistent data.
+
+Every actual run remains `SHADOW`, `A=0`, `NO_EDGE`. CI can verify syntax
+and a dry-run on Windows but **not** unattended operation on the user's
+machine. Do not install two overlapping research handlers on the same
+ledger without an independent concurrency lock or verified scheduling plan.
