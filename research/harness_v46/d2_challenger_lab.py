@@ -6,7 +6,9 @@ picked from known history has *no established* ability to beat fair draws.
 """
 from __future__ import annotations
 
+import argparse
 import hashlib
+import json
 from collections import Counter
 from itertools import combinations
 from pathlib import Path
@@ -152,3 +154,23 @@ def audit_walk_forward(bundle: dict) -> dict:
             "No post-hoc window selection or retroactive replacement of the registered model is allowed.",
         ],
     }
+
+
+def main(argv=None) -> int:
+    parser = argparse.ArgumentParser(
+        description="Experimental D2 walk-forward: NEVER official/prospective evidence"
+    )
+    parser.add_argument("--snapshot-bundle", required=True,
+                        help="JSON with EXACT SSQ/DLT historical snapshots")
+    args = parser.parse_args(argv)
+    try:
+        bundle = json.loads(Path(args.snapshot_bundle).read_text(encoding="utf-8"))
+        result = audit_walk_forward(bundle)
+    except (core.GateError, OSError, ValueError, TypeError, KeyError) as exc:
+        parser.exit(2, "BLOCKED: " + str(exc) + "\n")
+    print(json.dumps(result, ensure_ascii=False, sort_keys=True, indent=2))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
