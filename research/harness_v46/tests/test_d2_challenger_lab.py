@@ -90,13 +90,28 @@ class D2ChallengerLabTests(unittest.TestCase):
         pairs_c = [(r["issue"],r["pairs"]["random_null"]) for r in c["rows"] if r["lottery"] == "SSQ"]
         self.assertEqual(pairs_a, pairs_c)
 
-    def test_perfect_synthetic_hit_still_no_edge_claim(self):
-        result = lab.audit_walk_forward(self.bundle)
+    def test_even_perfect_leaky_synthetic_targets_cannot_claim_edge(self):
+        # A deliberately engineered counterexample: create each future outcome
+        # *after* seeing the research D2 chosen from earlier draws. Every
+        # candidate target will hit by construction. No promotion is allowed.
+        engineered = copy.deepcopy(self.bundle)
+        for game in ("SSQ", "DLT"):
+            draws = engineered[game]["draws"]
+            pool = core.RULES[game]["pool"]
+            size = core.RULES[game]["front"]
+            for i in range(120, len(draws)):
+                chosen = lab.pick_recency_pair(draws[:i], game)
+                fillers = [n for n in range(1, pool + 1) if n not in chosen][:size - 2]
+                draws[i]["front"] = sorted(chosen + fillers)
+        result = lab.audit_walk_forward(engineered)
         for game, stats in result["exploratory_statistics"].items():
             self.assertEqual(stats["n"], 25)
+            self.assertEqual(stats["challenger_hits"], 25)
             self.assertEqual(stats["registration"], "NOT_PREREGISTERED")
+            self.assertLess(stats["fair_p_unadjusted"], 1e-20)
             self.assertGreaterEqual(stats["paired_p_unadjusted"], 0)
             self.assertLessEqual(stats["paired_p_unadjusted"], 1)
+        self.assertFalse(result["qualified_prospective"])
         self.assertEqual(result["decision"], "NO_EDGE")
 
 
