@@ -181,6 +181,25 @@ def summarize_prospective_receipts(database, receipts):
             raise GateError("SCORE_RECEIPT_REPLAY_MISMATCH")
         indexed[run_id] = actual
 
+    # All recorded V4.7 freezes in this *local ledger* must be represented.
+    # Otherwise a caller can submit only favorable draw receipts and obtain
+    # a misleading statistical summary. This proves neither a complete
+    # official calendar nor protection against privileged DB replacement.
+    path = Path(database).resolve()
+    conn = sqlite3.connect("file:" + str(path) + "?mode=ro", uri=True)
+    try:
+        conn.execute("PRAGMA query_only=ON")
+        ledger_run_ids = {row[0] for row in conn.execute(
+            "SELECT run_id FROM run_manifests"
+        )}
+    finally:
+        conn.close()
+    missing = ledger_run_ids - set(indexed)
+    if missing:
+        raise GateError("STUDY_COVERAGE_MISSING_FROZEN_RUNS:" + str(len(missing)))
+    if set(indexed) != ledger_run_ids:
+        raise GateError("STUDY_ROSTER_COVERAGE_MISMATCH")
+
     rows = []
     issue_seen = set()
     for run_id in sorted(indexed):
@@ -218,6 +237,11 @@ def summarize_prospective_receipts(database, receipts):
                           for game in ("SSQ", "DLT")},
         "forecast_outcome_integrity": "REPLAYED_FROZEN_LEDGER",
         "coverage": "CALLER_SUBMITTED_RECEIPTS_ONLY",
+        "local_ledger_roster": {
+            "run_count": len(ledger_run_ids),
+            "run_ids_sha256": digest(sorted(ledger_run_ids)),
+            "status": "ALL_LOCAL_FROZEN_RUNS_PRESENT_NOT_OFFICIAL_SCHEDULE",
+        },
         "official_results_authenticated": False,
         "preregistration_verified": False,
         "independent_predraw_timestamp_verified": False,
@@ -226,7 +250,7 @@ def summarize_prospective_receipts(database, receipts):
         "formal_A": 0,
         "decision": "NO_EDGE",
         "limitations": [
-            "Submitted receipts may exclude unfavorable or missing draws; complete sampling is not verified.",
+            "Every run registered in this local database must have a receipt, but an external schedule, other databases and privileged replacement remain unverified.",
             "Caller-provided results are replayed for consistency, not independently authenticated as official.",
             "Local SQLite and self-reported hashes do not provide independent predraw custody or RFC3161 proof.",
             "No evidence supports prospective predictive advantage or formal promotion.",
