@@ -393,3 +393,69 @@ All results remain `external_tsa=NOT_REQUESTED`,
 A valid local digest or Git commit does not establish pre-draw existence or
 official outcome provenance. Synthetic tests cannot unblock research admission.
 
+
+## Optional RFC 3161 HTTPS issuance / OpenSSL verification sidecar (PR #461)
+
+**Prerequisite:** use the prior `prospective_cycle commitment` command
+to export a ledger-replayed two-game `predraw-commitment.json`. Only then
+can the optional sidecar issue a real RFC3161 request with a random nonce.
+
+**Operator-initiated** (not scheduled, not auto-betting):
+
+```sh
+python -m research.harness_v46.rfc3161_client request \
+  --database ./shadow_v47.sqlite3 \
+  --commitment-file predraw-commitment.json \
+  --tsa-url https://freetsa.org/tsr \
+  --query-out original-request.tsq \
+  --response-out original-response.tsr
+```
+
+`freetsa.org/tsr` is an **illustrative HTTPS TSA endpoint**, not an
+approved research trust anchor or guaranteed publicly available service.
+No TSA root is bundled or automatically trusted. The request uses SHA256 of
+the original canonical SSQ+DLT commitment preimage, includes an OpenSSL
+nonce and asks for the signer certificate. The helper refuses non-HTTPS URLs,
+non-443 ports, URL credentials, loopback/IP hosts, HTTP redirects, bad MIME
+types, oversized bodies and existing output paths. A successful network
+response is **NOT** yet trusted evidence. Save both DER files externally
+without rewriting them.
+
+Before verification independently choose and pin a TSA trust policy and
+obtain its currently valid CA certificate(s) and any required untrusted
+intermediate chain. **Do not use a random CA file from the same untrusted
+response source as proof of independent trust.**
+
+```sh
+python -m research.harness_v46.rfc3161_client verify \
+  --database ./shadow_v47.sqlite3 \
+  --commitment-file predraw-commitment.json \
+  --query-file original-request.tsq \
+  --response-file original-response.tsr \
+  --ca-file APPROVED_TSA_CA_CHAIN.pem
+```
+
+Optional `--untrusted-file intermediates.pem` supplies missing intermediate
+certificates without making them trust roots.
+
+The verifier uses the installed OpenSSL TSA client twice: first it verifies
+the **original nonce-bearing DER request** against the signed DER response,
+then it independently verifies the response against the SHA256 of the
+frozen **two-game commitment**. It rejects missing nonce, wrong algorithm,
+missing requested signer certificate, invalid signature/chain, wrong imprint,
+missing/incorrect trust file and a timestamp on/after either *locally
+declared* sales cutoff. It parses the UTC `genTime` after cryptographic
+verification.
+
+Even a cryptographic `PASS_CALLER_ANCHOR` is **NOT** a fully trusted
+official pre-sale proof: the caller selected the root, revocation and TSA
+policy are not verified, the upstream official lottery cutoffs have not
+been independently authenticated, and raw evidence is not under
+third-party custody. A malicious privileged operator can replace the
+whole local SQLite ledger. Those independent gates remain `false`, with
+`research_admission=BLOCKED`, `formal_A=0` and `NO_EDGE`.
+
+The synthetic test suite contains a locally generated ephemeral root
+and TSA signing token to exercise real OpenSSL signature/chain/nonce
+verification; it does not contact a trusted commercial TSA, prove source
+history G01, certify a real predraw time or validate any betting advantage.
