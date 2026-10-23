@@ -122,6 +122,10 @@ def tick(config_path, *, observed_at=None):
             or now.utcoffset() is None):
         raise GateError("BOT_REQUIRES_AWARE_OBSERVATION_TIME")
     config = _config(config_path)
+    # Failure to preserve an observation is a no-go for a new forecast.
+    # Do not make a prediction when the expected evidence directory is missing.
+    if not config["receipts_dir"].is_dir():
+        raise GateError("BOT_RECEIPTS_DIRECTORY_MISSING")
     snapshots = _read_object(config["snapshot_bundle"])
     if set(snapshots) != set(RULES):
         raise GateError("BOT_REQUIRES_BOTH_LOTTERIES")
