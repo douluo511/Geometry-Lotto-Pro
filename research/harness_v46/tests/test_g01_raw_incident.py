@@ -27,9 +27,11 @@ def archive_bytes(*, tamper=False, false_pass=False):
     ]
     games = {
         "SSQ": {"status": "HISTORY_CROSSCHECK_LIMITED", "sources": [],
-                "official_history_admission": "BLOCKED"},
+                "official_history_admission": "BLOCKED", "formal_A": 0,
+                "decision": "NO_EDGE"},
         "DLT": {"status": "SOURCE_FETCH_PARTIAL", "sources": [],
-                "official_history_admission": "BLOCKED"}
+                "official_history_admission": "BLOCKED", "formal_A": 0,
+                "decision": "NO_EDGE"}
     }
     files = {}
     for game, source, raw, status in contents:
