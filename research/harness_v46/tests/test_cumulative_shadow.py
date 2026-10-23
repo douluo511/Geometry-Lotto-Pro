@@ -87,6 +87,26 @@ class CumulativeShadowTests(unittest.TestCase):
         with self.assertRaisesRegex(core.GateError, "CLAIMED_OUTCOME_TARGET_MISMATCH"):
             cohort.cumulative_shadow_review([a])
 
+    def test_numeric_issue_alias_across_ledgers_cannot_inflate_denominator(self):
+        a = self.add_run()
+        for game, alias in ((g, a) for g in core.RULES
+                            for a in ("029999", "\uff12\uff19\uff19\uff19\uff19")):
+            with self.subTest(game=game, alias=alias):
+                second_db = str(Path(self.tmp.name) / (game + "-alias-" + str(ord(alias[0])) + ".sqlite"))
+                snapshots = deepcopy(self.snaps)
+                for g, snapshot in snapshots.items():
+                    snapshot["target_issue"] = alias if g == game else "30000"
+                frozen = cycle.forecast_on_demand(snapshots, second_db, now=self.clock)
+                b = deepcopy(a)
+                b["database"], b["run_id"] = second_db, frozen["run_id"]
+                for g, result in b["results"].items():
+                    result["issue"] = alias if g == game else "30000"
+                before = {db: Path(db).read_bytes() for db in (self.db, second_db)}
+                for rows in ([a, b], [b, a]):
+                    with self.assertRaisesRegex(core.GateError, "DUPLICATE_LOTTERY_TARGET"):
+                        cohort.cumulative_shadow_review(rows)
+                self.assertEqual({db: Path(db).read_bytes() for db in before}, before)
+
     def test_callers_cannot_inject_hit_bits_or_fake_official_verification(self):
         a = self.add_run()
         a["results"]["DLT"]["formal_A"] = 1
