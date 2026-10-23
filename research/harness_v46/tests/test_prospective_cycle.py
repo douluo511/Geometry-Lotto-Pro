@@ -84,6 +84,49 @@ class ProspectiveCycleTests(unittest.TestCase):
                         rows[model]["D2"] - rows["random_null"]["D2"],
                     )
 
+    def test_score_receipt_binds_caller_inputs_and_is_repeatable(self):
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "ledger.sqlite3"
+            run_id = cycle.forecast_on_demand(self.snaps, path, now=self.before)["run_id"]
+            before = hashlib.sha256(path.read_bytes()).hexdigest()
+            observed = self._results()
+            scored = cycle.evaluate_after_draw(path, run_id, observed)
+            self.assertEqual(scored["scoring_inputs"]["result_bundle"], observed)
+            self.assertEqual(
+                scored["scoring_inputs"]["result_bundle_sha256"], core.digest(observed)
+            )
+            self.assertEqual(
+                scored["score_receipt_sha256"],
+                core.digest({k: v for k, v in scored.items() if k != "score_receipt_sha256"}),
+            )
+            self.assertEqual(scored, cycle.evaluate_after_draw(path, run_id, observed))
+            changed = json.loads(json.dumps(observed))
+            front = changed["SSQ"]["front"]
+            replacement = next(n for n in range(1, 34) if n not in front)
+            changed["SSQ"]["front"] = sorted([replacement] + front[1:])
+            changed_report = cycle.evaluate_after_draw(path, run_id, changed)
+            self.assertNotEqual(
+                changed_report["scoring_inputs"]["result_bundle_sha256"],
+                scored["scoring_inputs"]["result_bundle_sha256"],
+            )
+            self.assertNotEqual(
+                changed_report["score_receipt_sha256"], scored["score_receipt_sha256"]
+            )
+            self.assertEqual(scored["outcome_source"], "CALLER_UNVERIFIED")
+            self.assertEqual(scored["formal_A"], 0)
+            self.assertEqual(before, hashlib.sha256(path.read_bytes()).hexdigest())
+
+    def test_invalid_draw_balls_cannot_produce_receipt_or_modify_ledger(self):
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "ledger.sqlite3"
+            run_id = cycle.forecast_on_demand(self.snaps, path, now=self.before)["run_id"]
+            before = hashlib.sha256(path.read_bytes()).hexdigest()
+            invalid = self._results()
+            invalid["DLT"]["front"][0] = invalid["DLT"]["front"][1]
+            with self.assertRaisesRegex(core.GateError, "invalid or noncanonical"):
+                cycle.evaluate_after_draw(path, run_id, invalid)
+            self.assertEqual(before, hashlib.sha256(path.read_bytes()).hexdigest())
+
     def test_wrong_draw_target_does_not_overwrite_original_forecasts(self):
         with tempfile.TemporaryDirectory() as td:
             path = Path(td) / "ledger.sqlite3"
