@@ -122,5 +122,84 @@ class TsaClientTests(unittest.TestCase):
                                         ca_file=str(cafile))
 
 
+    @unittest.skipUnless(shutil.which("openssl"), "OpenSSL CLI absent")
+    def test_actual_ephemeral_tsa_signature_chain_nonce_and_imprint(self):
+        """Cryptographic integration with a disposable TEST root, never official TSA."""
+        with tempfile.TemporaryDirectory() as root:
+            base = Path(root)
+            future = {
+                game: {**s,
+                       "sales_cutoff": "2028-10-23T12:00:00+08:00",
+                       "target_draw_at": "2028-10-23T21:00:00+08:00"}
+                for game, s in self.snaps.items()
+            }
+            db = base / "future.sqlite3"
+            frozen = prospective_cycle.forecast_on_demand(future, db, now=self.now)
+            commitment = prospective_cycle.build_predraw_commitment(db, frozen["run_id"])
+            def run(*args):
+                return subprocess.run(["openssl", *map(str, args)], check=True,
+                                      capture_output=True)
+            ca_conf = base / "ca.cnf"
+            ca_conf.write_text(
+                "[req]\ndistinguished_name=req_dn\nx509_extensions=ca_ext\nprompt=no\n"
+                "[req_dn]\nCN=Ephemeral test root\n[ca_ext]\n"
+                "basicConstraints=critical,CA:TRUE\n"
+                "keyUsage=critical,keyCertSign,cRLSign\n")
+            run("req", "-x509", "-newkey", "rsa:2048", "-nodes",
+                "-keyout", base / "ca.key", "-out", base / "ca.crt",
+                "-days", "1", "-config", ca_conf)
+            run("req", "-new", "-newkey", "rsa:2048", "-nodes",
+                "-keyout", base / "tsa.key", "-out", base / "tsa.csr",
+                "-subj", "/CN=Ephemeral test TSA")
+            extensions = base / "tsa.ext"
+            extensions.write_text(
+                "basicConstraints=critical,CA:FALSE\n"
+                "extendedKeyUsage=critical,timeStamping\n"
+                "keyUsage=critical,digitalSignature,nonRepudiation\n"
+                "subjectKeyIdentifier=hash\n"
+                "authorityKeyIdentifier=keyid,issuer\n")
+            run("x509", "-req", "-in", base / "tsa.csr",
+                "-CA", base / "ca.crt", "-CAkey", base / "ca.key",
+                "-CAcreateserial", "-out", base / "tsa.crt",
+                "-days", "1", "-extfile", extensions)
+            (base / "tsa.serial").write_text("01\n")
+            cfg = base / "tsa.cnf"
+            cfg.write_text(
+                "[tsa]\ndefault_tsa=tsa_config\n[tsa_config]\n"
+                f"serial={ (base / 'tsa.serial').as_posix() }\n"
+                f"signer_cert={ (base / 'tsa.crt').as_posix() }\n"
+                f"certs={ (base / 'ca.crt').as_posix() }\n"
+                f"signer_key={ (base / 'tsa.key').as_posix() }\n"
+                "signer_digest=sha256\ndefault_policy=1.2.3.4.1\n"
+                "digests=sha256\naccuracy=secs:1\nordering=yes\n"
+                "tsa_name=yes\ness_cert_id_chain=yes\n")
+            query = tsa.make_query(db, commitment)
+            (base / "request.tsq").write_bytes(query)
+            run("ts", "-reply", "-config", cfg, "-queryfile",
+                base / "request.tsq", "-out", base / "response.tsr")
+            response = (base / "response.tsr").read_bytes()
+            accepted = tsa.verify_response(
+                db, commitment, query, response, ca_file=str(base / "ca.crt")
+            )
+            self.assertEqual(accepted["cryptographic_check"], "PASS_CALLER_ANCHOR")
+            self.assertEqual(accepted["research_admission"], "BLOCKED")
+            self.assertFalse(accepted["independent_cutoff_authenticated"])
+            self.assertEqual(accepted["formal_A"], 0)
+
+            # Same signed response must fail a fresh random-nonce request.
+            different_query = tsa.make_query(db, commitment)
+            self.assertNotEqual(query, different_query)
+            with self.assertRaisesRegex(core.GateError, "TSA_OPENSSL_VERIFICATION_FAILED"):
+                tsa.verify_response(db, commitment, different_query, response,
+                                    ca_file=str(base / "ca.crt"))
+            # A different, valid but unapproved root is not an acceptable chain.
+            run("req", "-x509", "-newkey", "rsa:2048", "-nodes",
+                "-keyout", base / "wrong.key", "-out", base / "wrong.crt",
+                "-days", "1", "-config", ca_conf)
+            with self.assertRaisesRegex(core.GateError, "TSA_OPENSSL_VERIFICATION_FAILED"):
+                tsa.verify_response(db, commitment, query, response,
+                                    ca_file=str(base / "wrong.crt"))
+
+
 if __name__ == "__main__":
     unittest.main()
