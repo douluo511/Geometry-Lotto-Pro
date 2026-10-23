@@ -55,7 +55,9 @@ def _config(path):
 
     def resolve(value):
         p = Path(value)
-        return p.resolve() if p.is_absolute() else (location.parent / p).resolve()
+        # Normalize lexical location WITHOUT dereferencing symlinks: security
+        # checks must still see and reject symlinked evidence directories.
+        return Path(os.path.abspath(p if p.is_absolute() else location.parent / p))
 
     return {
         "snapshot_bundle": resolve(item["snapshot_bundle"]),
