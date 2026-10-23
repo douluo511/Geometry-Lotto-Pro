@@ -27,10 +27,27 @@ def _run_id(value):
     return value
 
 
+def _reject_symlink_components(path):
+    """Reject linked path ancestors before local ledger/receipt access.
+
+    This is a local accidental-redirection guard, not a TOCTOU-safe
+    openat/dirfd security boundary or a trusted origin witness.
+    """
+    requested = Path(path)
+    if ".." in requested.parts:
+        raise GateError("BOT_PARENT_TRAVERSAL_FORBIDDEN")
+    absolute = requested.absolute()
+    for component in (absolute, *absolute.parents):
+        if component.is_symlink():
+            raise GateError("BOT_SYMLINK_PATH_COMPONENT_FORBIDDEN")
+    return requested
+
+
 def _directory(path, *, make=False):
     p = Path(path)
     if p.is_symlink():
         raise GateError("BOT_SYMLINK_DIRECTORY_FORBIDDEN")
+    _reject_symlink_components(p.parent)
     if make:
         p.mkdir(exist_ok=True)
     if not p.is_dir() or p.is_symlink():
@@ -55,6 +72,7 @@ def _sealed_record(phase, run_id, payload):
 def _read_record(path, phase=None):
     if path.is_symlink():
         raise GateError("BOT_SYMLINK_RECEIPT_FORBIDDEN")
+    _reject_symlink_components(path.parent)
     try:
         raw = path.read_bytes()
         record = json.loads(raw)
@@ -108,6 +126,7 @@ def _put_once(folder, receipt):
 def forecast_tick(snapshot_bundle, database, evidence_dir, *, now=None):
     """External host triggers pre-cutoff. Writes SHADOW-only receipt once."""
     _directory(evidence_dir)
+    _reject_symlink_components(database)
     _directory(Path(database).parent)
     result = cycle.forecast_on_demand(snapshot_bundle, database, now=now)
     run_id = _run_id(result["run_id"])
@@ -132,6 +151,7 @@ def score_tick(evidence_dir, run_id, claimed_results, *, now=None):
     base = _directory(evidence_dir)
     prior = _read_record(_folder(base, "forecasts", make=False) / (run_id + ".json"), "forecast")
     database = prior["payload"]["database"]
+    _reject_symlink_components(database)
     frozen = cycle.frozen_forecast_report(database, run_id)
     expected = prior["payload"]["frozen_forecast"]
     if (frozen.get("games") != expected.get("games")
@@ -179,6 +199,7 @@ def cumulative_tick(evidence_dir):
         row = receipt["payload"]["input"]
         if row["run_id"] != receipt["run_id"]:
             raise GateError("BOT_SCORE_INPUT_RUN_ID_MISMATCH")
+        _reject_symlink_components(row["database"])
         rows.append(row)
     return cumulative.cumulative_shadow_review(rows)
 

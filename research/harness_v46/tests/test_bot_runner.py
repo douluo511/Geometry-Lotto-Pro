@@ -129,5 +129,47 @@ class ShadowBotTests(unittest.TestCase):
             bot.cumulative_tick(self.evidence)
 
 
+    def _symlink_directory(self, original, alias):
+        original.mkdir(parents=True, exist_ok=True)
+        try:
+            alias.symlink_to(original, target_is_directory=True)
+        except (OSError, NotImplementedError):
+            self.skipTest("Directory symlink creation unavailable")
+        return alias
+
+    def test_symlink_ancestor_blocks_new_forecast_receipt(self):
+        actual = self.root / "actual-evidence"
+        alias = self._symlink_directory(actual, self.root / "evidence-shortcut")
+        nested = alias / "nested"
+        nested.mkdir()
+        with self.assertRaisesRegex(core.GateError, "BOT_SYMLINK_PATH_COMPONENT_FORBIDDEN"):
+            bot.forecast_tick(self.snaps, self.db, nested, now=self.before)
+        self.assertFalse(Path(self.db).exists())
+
+    def test_symlink_ancestor_blocks_database_before_freeze(self):
+        actual = self.root / "actual-state"
+        (actual / "data").mkdir(parents=True)
+        alias = self._symlink_directory(actual, self.root / "state-shortcut")
+        redirected_database = str(alias / "data" / "ledger.sqlite")
+        with self.assertRaisesRegex(core.GateError, "BOT_SYMLINK_PATH_COMPONENT_FORBIDDEN"):
+            bot.forecast_tick(self.snaps, redirected_database, self.evidence, now=self.before)
+        self.assertFalse((actual / "data" / "ledger.sqlite").exists())
+
+    def test_symlink_ancestor_in_saved_database_receipt_blocks_postdraw(self):
+        rid = self._forecast()["run_id"]
+        alias = self._symlink_directory(self.root, self.root / "database-shortcut")
+        receipt_path = self.evidence / "forecasts" / (rid + ".json")
+        recorded = json.loads(receipt_path.read_text())
+        recorded["payload"]["database"] = str(alias / "ledger.sqlite")
+        recorded["local_sha256_untrusted"] = core.digest({
+            key: value for key, value in recorded.items()
+            if key != "local_sha256_untrusted"
+        })
+        receipt_path.write_text(json.dumps(recorded))
+        with self.assertRaisesRegex(core.GateError, "BOT_SYMLINK_PATH_COMPONENT_FORBIDDEN"):
+            bot.score_tick(self.evidence, rid, self._result(), now=self.after)
+        self.assertFalse((self.evidence / "scores").exists())
+
+
 if __name__ == "__main__":
     unittest.main()
