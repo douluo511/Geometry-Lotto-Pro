@@ -21,6 +21,7 @@ from . import prospective_cycle as cycle
 from . import d2_challenger_lab as d2lab
 from .convergence import manifest
 from .core import GateError
+from . import core
 
 RUN_ID = re.compile(r"V47-[0-9a-f]{32}\Z")
 
@@ -224,6 +225,253 @@ def advance_workspace(workspace, *, snapshots=None, research_history=None, obser
     return output
 
 
+
+# A separate issue identity per lottery shares this V4.7 workspace and CLI.
+# The original 12-card dual-run legacy tables remain untouched, read-only.
+GAME_SCHEMA = """
+CREATE TABLE IF NOT EXISTS game_runs (
+ lottery TEXT NOT NULL, issue TEXT NOT NULL, run_id TEXT NOT NULL UNIQUE,
+ snapshot_sha256 TEXT NOT NULL, snapshot_payload TEXT NOT NULL,
+ frozen_at_local_untrusted TEXT NOT NULL,
+ PRIMARY KEY(lottery, issue)
+);
+CREATE TABLE IF NOT EXISTS game_predictions (
+ run_id TEXT NOT NULL, model TEXT NOT NULL, payload TEXT NOT NULL,
+ prediction_sha256 TEXT NOT NULL, PRIMARY KEY(run_id, model)
+);
+CREATE TRIGGER IF NOT EXISTS protect_game_runs_update BEFORE UPDATE ON game_runs
+ BEGIN SELECT RAISE(ABORT,'game run immutable'); END;
+CREATE TRIGGER IF NOT EXISTS protect_game_runs_delete BEFORE DELETE ON game_runs
+ BEGIN SELECT RAISE(ABORT,'game run immutable'); END;
+CREATE TRIGGER IF NOT EXISTS protect_game_predictions_update BEFORE UPDATE ON game_predictions
+ BEGIN SELECT RAISE(ABORT,'game prediction immutable'); END;
+CREATE TRIGGER IF NOT EXISTS protect_game_predictions_delete BEFORE DELETE ON game_predictions
+ BEGIN SELECT RAISE(ABORT,'game prediction immutable'); END;
+"""
+
+
+def _game_issue(value) -> str:
+    if not isinstance(value, str) or not re.fullmatch(r"[0-9]+", value):
+        raise GateError("GAME_ISSUE_ASCII_DECIMAL_REQUIRED")
+    issue = str(int(value))
+    if issue != value:
+        raise GateError("GAME_ISSUE_CANONICAL_ID_REQUIRED")
+    return issue
+
+
+def _read_frozen_game(conn, game, row):
+    """Reconstruct ALL six frozen outputs, and compare with stored model code."""
+    issue, run_id, snapshot_sha, payload, frozen_at = row
+    if core.digest(json.loads(payload)) != snapshot_sha:
+        raise GateError("GAME_SNAPSHOT_SHA_MISMATCH")
+    snapshot = json.loads(payload)
+    if (core.canon(snapshot) != payload or
+            core.validate_study_snapshot(snapshot) != snapshot_sha or
+            snapshot["lottery"] != game or _game_issue(snapshot["target_issue"]) != issue):
+        raise GateError("GAME_SNAPSHOT_REPLAY_MISMATCH")
+    if not core.dt(snapshot["as_of"]) <= core.dt(frozen_at) < core.dt(snapshot["sales_cutoff"]):
+        raise GateError("GAME_FROZEN_LOCAL_TIME_INVALID")
+    expected_run = "V47G-" + core.digest({
+        "contract": "V47-INDEPENDENT-GAME-SHADOW-1",
+        "lottery": game, "issue": issue,
+        "snapshot_sha256": snapshot_sha, "models": list(core.MODELS),
+        "model_source_sha256": core.model_source_sha256(),
+    })[:32]
+    if run_id != expected_run:
+        raise GateError("GAME_RUN_IDENTITY_MISMATCH")
+    records = conn.execute(
+        "SELECT model,payload,prediction_sha256 FROM game_predictions WHERE run_id=?",
+        (run_id,),
+    ).fetchall()
+    if len(records) != len(core.MODELS) or {r[0] for r in records} != set(core.MODELS):
+        raise GateError("GAME_INCOMPLETE_SIX_ARM_FREEZE")
+    cards = []
+    for model, raw, sha in records:
+        prediction = json.loads(raw)
+        if (core.digest(prediction) != sha or core.canon(prediction) != raw
+                or prediction != core.forecast(snapshot, model)):
+            raise GateError("GAME_FROZEN_PREDICTION_REPLAY_MISMATCH")
+        cards.append(prediction)
+    return snapshot, {m: p for m, p in zip(
+        [r[0] for r in records], cards)}, run_id
+
+
+def advance_game_workspace(workspace, *, snapshot=None, game=None, observed_at=None) -> dict:
+    """Optional single-game operation of SAME existing closed_loop/ledger.
+
+    Each issue freezes six unchanged arms, independently of the other game's
+    calendar. This is UNVERIFIED SHADOW evidence, not a formal prospective run.
+    Older dual-game run tables are never migrated, erased or treated as new runs.
+    """
+    root = Path(workspace).absolute()
+    _not_symlink(root)
+    root.mkdir(parents=True, exist_ok=True)
+    ledger = root / "ledger.sqlite3"
+    _not_symlink(ledger)
+    observed = datetime.now(timezone.utc) if observed_at is None else observed_at
+    if (not isinstance(observed, datetime) or observed.tzinfo is None
+            or observed.utcoffset() is None):
+        raise GateError("GAME_OBSERVATION_REQUIRES_AWARE_CLOCK")
+    if snapshot is not None:
+        if not isinstance(snapshot, dict):
+            raise GateError("GAME_SINGLE_SNAPSHOT_REQUIRED")
+        expected_game = snapshot.get("lottery")
+        if expected_game not in core.RULES or (game is not None and game != expected_game):
+            raise GateError("GAME_SNAPSHOT_IDENTITY_MISMATCH")
+        game = expected_game
+        sha = core.validate_study_snapshot(snapshot)
+        issue = _game_issue(snapshot["target_issue"])
+        predictions = {m: core.forecast(snapshot, m) for m in core.MODELS}
+    elif game not in core.RULES:
+        raise GateError("GAME_REQUIRED_FOR_READONLY_TICK")
+    if snapshot is None and not ledger.exists():
+        raise GateError("GAME_RUN_NOT_REGISTERED")
+    conn = sqlite3.connect(str(ledger), timeout=30, isolation_level=None)
+    try:
+        conn.execute("PRAGMA recursive_triggers=ON")
+        conn.execute("PRAGMA synchronous=FULL")
+        conn.executescript(GAME_SCHEMA)
+        if snapshot is not None:
+            conn.execute("BEGIN IMMEDIATE")
+            try:
+                existing = conn.execute(
+                    "SELECT run_id,snapshot_sha256,snapshot_payload FROM game_runs "
+                    "WHERE lottery=? AND issue=?", (game, issue)
+                ).fetchone()
+                if existing is None:
+                    if not core.dt(snapshot["as_of"]) <= observed < core.dt(snapshot["sales_cutoff"]):
+                        raise GateError("GAME_FREEZE_AFTER_CUTOFF")
+                    run_id = "V47G-" + core.digest({
+                        "contract": "V47-INDEPENDENT-GAME-SHADOW-1",
+                        "lottery": game, "issue": issue,
+                        "snapshot_sha256": sha, "models": list(core.MODELS),
+                        "model_source_sha256": core.model_source_sha256(),
+                    })[:32]
+                    conn.execute(
+                        "INSERT INTO game_runs VALUES(?,?,?,?,?,?)",
+                        (game, issue, run_id, sha, core.canon(snapshot), observed.isoformat()))
+                    for m in core.MODELS:
+                        p = predictions[m]
+                        conn.execute("INSERT INTO game_predictions VALUES(?,?,?,?)",
+                                     (run_id, m, core.canon(p), core.digest(p)))
+                elif existing[1:] != (sha, core.canon(snapshot)):
+                    raise GateError("GAME_TARGET_ALREADY_FROZEN_DIFFERENT_SNAPSHOT")
+                conn.execute("COMMIT")
+            except BaseException:
+                conn.execute("ROLLBACK")
+                raise
+        roster = conn.execute(
+            "SELECT issue,run_id,snapshot_sha256,snapshot_payload,"
+            "frozen_at_local_untrusted FROM game_runs WHERE lottery=?",
+            (game,),
+        ).fetchall()
+        if not roster:
+            raise GateError("GAME_RUN_NOT_REGISTERED")
+        roster.sort(key=lambda r: int(r[0]))
+        loaded = []
+        for row in roster:
+            ss, cards, rid = _read_frozen_game(conn, game, row)
+            loaded.append((row[0], ss, cards, rid))
+    finally:
+        conn.close()
+
+    outcome_dir = root / "outcomes_by_game" / game
+    receipt_dir = root / "receipts_by_game" / game
+    for path in (outcome_dir, receipt_dir):
+        _not_symlink(path)
+        if path.exists() and not path.is_dir():
+            raise GateError("GAME_EVIDENCE_DIRECTORY_REQUIRED")
+    known_issues = {item[0] for item in loaded}
+    if outcome_dir.exists():
+        for path in outcome_dir.iterdir():
+            _not_symlink(path)
+            if path.suffix == ".json" and path.stem not in known_issues:
+                raise GateError("GAME_UNKNOWN_OUTCOME_ISSUE")
+    if receipt_dir.exists():
+        for path in receipt_dir.iterdir():
+            _not_symlink(path)
+            if path.suffix == ".json" and path.stem not in known_issues:
+                raise GateError("GAME_UNKNOWN_SCORE_RECEIPT")
+    pending, completed, scores = [], [], []
+    for issue, ss, cards, rid in loaded:
+        result_file = outcome_dir / (issue + ".json")
+        receipt_file = receipt_dir / (issue + ".json")
+        if not result_file.exists():
+            if receipt_file.exists():
+                raise GateError("GAME_RECEIPT_WITHOUT_ORIGINAL_OUTCOME")
+            pending.append(issue)
+            continue
+        result = _read_json(result_file)
+        if (not isinstance(result, dict) or set(result) !=
+                {"lottery", "issue", "front", "back", "drawn_at"}
+                or result.get("lottery") != game
+                or result.get("issue") != issue):
+            raise GateError("GAME_RESULT_ISSUE_MISMATCH")
+        if (observed <= core.dt(ss["target_draw_at"])
+                or observed <= core.dt(result["drawn_at"])
+                or core.dt(result["drawn_at"]) < core.dt(ss["target_draw_at"])):
+            raise GateError("GAME_RESULT_NOT_YET_DRAWN")
+        result_sha = core.digest(result)
+        comparison = {
+            m: core.score(p, result)
+            for m, p in cards.items()
+        }
+        claim = {
+            "schema": "V47-PER-GAME-SHADOW-SCORE-1",
+            "lottery": game, "issue": issue, "run_id": rid,
+            "result_sha256": result_sha, "result": result,
+            "frozen_prediction_sha256": {
+                m: core.digest(p) for m, p in cards.items()
+            },
+            "models": comparison, "outcome_source": "CALLER_UNVERIFIED",
+            "independent_predraw_timestamp_verified": False,
+            "formal_A": 0, "decision": "NO_EDGE",
+        }
+        claim["score_receipt_sha256"] = core.digest(claim)
+        receipt_dir.mkdir(parents=True, exist_ok=True)
+        _write_once(receipt_file, claim)
+        completed.append(issue)
+        scores.append(claim)
+    latest = loaded[-1]
+    out = {
+        "schema": "V47-SHADOW-INDEPENDENT-GAME-1",
+        "lottery": game,
+        "status": "WAITING_FOR_OUTCOME" if pending else "LOCAL_ROSTER_SHADOW_SCORED",
+        "run_ids": [x[3] for x in loaded],
+        "frozen_issues": [x[0] for x in loaded],
+        "pending_issues": pending,
+        "completed_issues": completed,
+        "frozen_cards": [latest[2][m] for m in core.MODELS],
+        "scores_by_issue": scores,
+        "local_ledger_roster_complete": not pending,
+        "official_results_authenticated": False,
+        "independent_predraw_timestamp_verified": False,
+        "research_eligible": False,
+        "coverage": "THIS_GAME_LOCAL_FROZEN_ROSTER_ONLY_NOT_OFFICIAL_CALENDAR",
+        "legacy_dual_game_runs": "UNCHANGED_SEPARATE_SHADOW_TABLES",
+        "formal_A": 0, "decision": "NO_EDGE",
+    }
+    if not pending:
+        hits = {m: sum(record["models"][m]["D2"] for record in scores)
+                for m in core.MODELS}
+        out["local_d2_diagnostic"] = {
+            "draw_count": len(scores), "model_d2_hits": hits,
+            "paired_random_null": {
+                m: {
+                    "wins": sum(r["models"][m]["D2"] == 1
+                                and r["models"]["random_null"]["D2"] == 0
+                                for r in scores),
+                    "losses": sum(r["models"][m]["D2"] == 0
+                                  and r["models"]["random_null"]["D2"] == 1
+                                  for r in scores),
+                }
+                for m in core.MODELS if m != "random_null"
+            },
+            "formal_admission": "BLOCKED_UNVERIFIED_EVIDENCE",
+        }
+    return out
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
         description="Reentrant V4.7 dual-game SHADOW forecast-score-study loop")
@@ -233,14 +481,25 @@ def main(argv=None) -> int:
                         help="Both games; caller supplied, not official authentication")
     parser.add_argument("--research-history-bundle",
                         help="Optional unverified historical data for exploratory D2 lab")
+    parser.add_argument("--game-snapshot",
+                        help="Optional SSQ OR DLT snapshot for independent per-game issue cycle")
+    parser.add_argument("--game", choices=("SSQ", "DLT"),
+                        help="Read-only independent tick of the named game's existing issues")
     args = parser.parse_args(argv)
     try:
         snapshots = (_read_json(Path(args.snapshot_bundle))
                      if args.snapshot_bundle else None)
         research = (_read_json(Path(args.research_history_bundle))
                     if args.research_history_bundle else None)
-        value = advance_workspace(args.workspace, snapshots=snapshots,
-                                  research_history=research)
+        if args.game_snapshot or args.game:
+            if args.snapshot_bundle or args.research_history_bundle:
+                raise GateError("CANNOT_MIX_DUAL_AND_INDEPENDENT_GAME_MODES")
+            single = _read_json(Path(args.game_snapshot)) if args.game_snapshot else None
+            value = advance_game_workspace(args.workspace, snapshot=single,
+                                           game=args.game)
+        else:
+            value = advance_workspace(args.workspace, snapshots=snapshots,
+                                      research_history=research)
     except (GateError, ValueError, TypeError, KeyError, sqlite3.Error, OSError) as exc:
         parser.exit(2, "BLOCKED: " + str(exc) + "\n")
     print(json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2))
