@@ -283,7 +283,16 @@ python -m research.harness_v46.prospective_cycle score \
 ```
 
 This computes D1-D5 per model and each arm's same-draw D2 difference versus
-the fixed `random_null` stream. **Until independent source, cutoff,
+the fixed `random_null` stream. Its returned `scoring_inputs.result_bundle`
+preserves the normalized caller-provided SSQ and DLT outcome numbers, and
+`scoring_inputs.result_bundle_sha256` hashes those two values together.
+`score_receipt_sha256` binds the reported scores, outcomes and original
+six-model freeze batch hashes in one replayable, read-only report. Save the
+report and original result file independently for audit. These local hashes
+**do not** verify that outcomes are official, that the score was recorded
+after the draw, or that a timestamp is externally trusted.
+
+**Until independent source, cutoff,
 postdraw-result, externally timestamped preregistration and future dataset
 acceptance exist, it is SHADOW-only, A=0 and NO_EDGE**. The user-supplied
 result file is not deemed authentic. No ticket purchase is performed, and the
