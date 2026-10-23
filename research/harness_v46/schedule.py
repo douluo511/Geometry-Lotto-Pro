@@ -34,10 +34,16 @@ def due_in_jst(now):
     return local.weekday() in DAYS and local.time().replace(tzinfo=None) >= time(16, 0)
 
 
-def scheduled_once(snapshots, database, now=None):
-    """Persist both games together; all-or-nothing and fail closed on bad time."""
+def scheduled_once(snapshots, database, now=None, *, require_delivery_window=True):
+    """Atomic SHADOW dual-game freeze. Manual calls still obey as-of/cutoff.
+
+    The scheduled Windows path retains its original JST delivery window.
+    On-demand research calls may bypass ONLY that artificial delivery window,
+    not the current local-clock cutoff check, immutable target guard, or any
+    model/state/manifest verification. None of this is a trusted TSA.
+    """
     now = now or datetime.now(timezone.utc)
-    if not due_in_jst(now):
+    if require_delivery_window and not due_in_jst(now):
         return {"status": "WAIT_NOT_DELIVERY_WINDOW", "formal_A": 0, "timestamp_trust": "LOCAL_ONLY"}
     identity = manifest(snapshots)
     run_id = identity["run_id"]

@@ -239,3 +239,116 @@ python -m research.harness_v46.raw_semantic_replay --game SSQ < worker-ssq.json
 No customer betting/purchase is performed. This prototype has no verified
 external predraw TSA, independent official draw scoring, or future D2 edge.
 `formal_A=0`, `NO_EDGE` throughout.
+
+## V4.7 prospective SHADOW prediction / scoring loop
+
+The research objective is iterative: run the **actual fixed model versions**
+before a future draw, save and show the model numbers and local evidence, then
+score exactly those frozen predictions after the draw. New experimental
+hypotheses and algorithms must be **versioned for future forecasts only**;
+old D2 numbers are never rewritten, even when scoring is unfavorable.
+Repeated future observations and paired `random_null` comparison are required
+to evaluate improvement; a successful local run alone never proves a D2 edge.
+
+New explicit on-demand command (does not change the existing Windows JST task
+window). This accepts a **two-game 120+-draw as-of snapshot** with explicit
+target issue and sales cutoff and enforces the current local clock before
+that cutoff. Its source claims are **NOT** authenticated G01 and local
+timestamp is **NOT** an external notarized pre-draw seal:
+
+```sh
+python -m research.harness_v46.prospective_cycle forecast \
+  --snapshot-bundle my_prepared_SSQ_DLT_snapshots.json \
+  --database ./shadow_v47.sqlite3
+```
+
+The output contains both lotteries, all six actual frozen model candidates,
+`primary_d2`, complete tickets, model code SHA, parameter hashes, local
+freeze times and the immutable prediction-batch hashes. Keep the `run_id`.
+Show the same stored cards any time without re-forecasting:
+
+```sh
+python -m research.harness_v46.prospective_cycle show \
+  --database ./shadow_v47.sqlite3 --run-id V47-REPLACE_WITH_REPORTED_ID
+```
+
+After the target drawing, construct `results.json` as a map with exactly
+`SSQ` and `DLT` keys; each value must have `lottery`, `issue`,
+`front`, `back` (real draw numbers). Score *read-only*:
+
+```sh
+python -m research.harness_v46.prospective_cycle score \
+  --database ./shadow_v47.sqlite3 --run-id V47-REPLACE_WITH_REPORTED_ID \
+  --result-bundle results.json
+```
+
+This computes D1-D5 per model and each arm's same-draw D2 difference versus
+the fixed `random_null` stream. Its returned `scoring_inputs.result_bundle`
+preserves the normalized caller-provided SSQ and DLT outcome numbers, and
+`scoring_inputs.result_bundle_sha256` hashes those two values together.
+`score_receipt_sha256` binds the reported scores, outcomes and original
+six-model freeze batch hashes in one replayable, read-only report. Save the
+report and original result file independently for audit. These local hashes
+**do not** verify that outcomes are official, that the score was recorded
+after the draw, or that a timestamp is externally trusted.
+
+**Until independent source, cutoff,
+postdraw-result, externally timestamped preregistration and future dataset
+acceptance exist, it is SHADOW-only, A=0 and NO_EDGE**. The user-supplied
+result file is not deemed authentic. No ticket purchase is performed, and the
+original V4.5 formal eight slots are untouched.
+
+## V4.7 multi-draw SHADOW study receipts — read-only replay, NOT research admission
+
+Collect each individual `prospective_cycle score` JSON report exactly as emitted
+after its target draw into a JSON array, `my_score_receipts.json`. Run:
+
+```sh
+python -m research.harness_v46.prospective_cycle study \\
+  --database ./shadow_v47.sqlite3 --receipts-file my_score_receipts.json
+```
+
+The study command validates each report SHA, recomputes every supplied
+result against the six-model frozen ledger, rejects altered scores, incomplete
+two-game receipts and duplicate RUN_ID/game-issue pairs, and executes the
+existing exact D2 vs fair-rate and same-draw fixed Random NULL statistical
+arithmetic across the *submitted* draws, with 12-family Holm arithmetic.
+The output binds sorted score-receipt hashes and a canonical study-row hash.
+It uses a SQLite read-only connection and does not rerun models or mutate
+older predictions.
+
+**Local ledger roster guard:** before publishing any statistical summary,
+`study` lists *every* `run_id` in the same SQLite ledger's immutable
+`run_manifests` table and rejects the entire submission with
+`STUDY_COVERAGE_MISSING_FROZEN_RUNS` when any locally frozen run lacks a
+complete paired score receipt. An unscored future target therefore blocks
+a full-ledger summary rather than silently vanishing from the denominator.
+The report states `local_ledger_roster.status=
+ALL_LOCAL_FROZEN_RUNS_PRESENT_NOT_OFFICIAL_SCHEDULE` and binds the
+sorted local run roster via SHA256.
+
+This guard is **not an officially preregistered schedule or full
+intention-to-treat record**. It cannot see predictions kept in a separate
+database, periods never frozen, or records erased by a privileged operator.
+Run a separately witnessed, immutable target-calendar registry and external
+custody checks before claiming complete prospective coverage.
+
+IMPORTANT: the command cannot establish that submitted reports include
+**all scheduled trials**, that any outcome came from an official source, that
+the data were independently notarized before sales closed, or that the
+historical 12-comparison research protocol was prospectively registered.
+Consequently `official_results_authenticated=false`,
+`preregistration_verified=false`, `coverage=CALLER_SUBMITTED_RECEIPTS_ONLY`,
+`formal_A=0`, and `NO_EDGE` are permanent output gates for this SHADOW
+aggregator. A small p-value does NOT override those blockers.
+
+The original DLT negative-control anomaly reported in PR #419
+(69/2880 vs same-draw NULL 42/2880, one-sided fair-binomial p about
+0.00284511, legacy Holm-12 adjusted p about 0.03414135) remains
+`FALSIFIED_REPRODUCED_NOT_FIXED`: a reproduced rejection is not a root-cause
+diagnosis and cannot be repaired by changing seeds or retroactively removing
+runs. PR #419's complete historical 2880-draw replay is not part of this
+new synthetic CI. Replaying the fixed original seed, auditing the exact
+issue/seed stream and trying separate generator/label-permutation ablations
+remain independent research gates.
+
