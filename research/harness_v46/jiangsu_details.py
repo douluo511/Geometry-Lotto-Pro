@@ -82,7 +82,13 @@ def _hidden(node):
     if 'hidden' in attrs or 'inert' in attrs or attrs.get('aria-hidden', '').strip().lower() == 'true':
         return True
     # Inline visibility only. No external CSS or computed visibility claim.
-    for declaration in attrs.get('style', '').lower().split(';'):
+    # This intentionally supports only literal declarations. CSS comments and
+    # escapes can disguise property names or hiding values; treat that element
+    # as unsafe for evidence instead of approximating a CSS tokenizer.
+    style = attrs.get('style', '')
+    if '\\' in style or '/*' in style or '*/' in style:
+        return True
+    for declaration in style.lower().split(';'):
         key, sep, value = declaration.partition(':')
         value = value.split('!')[0].strip()
         if sep and ((key.strip() == 'display' and value == 'none') or

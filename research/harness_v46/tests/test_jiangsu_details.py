@@ -239,6 +239,28 @@ class JiangsuDetailsTests(unittest.TestCase):
         parsed = jd.parse_detail(raw(detail(BODY.replace('<td>', '<!--formatting--><td>'))), EXPECTED)
         self.assertEqual(parsed['draw']['back'], [6, 7])
 
+    def test_inline_css_comments_and_escapes_cannot_hide_required_results(self):
+        # These ordinary CSS forms concealed a required table while the raw
+        # string visibility guard still admitted its winning numbers.
+        styles = ('display: /* required hidden result */ none',
+                  r'display: n\6f ne',
+                  'visibility: /* hidden */ hidden')
+        for style in styles:
+            text = detail(BODY.replace('<table>', '<table style="' + style + '">', 1))
+            with self.subTest(style=style), self.assertRaises(GateError):
+                jd.parse_detail(raw(text), EXPECTED)
+
+    def test_unsupported_css_escape_on_evidence_property_is_also_blocked(self):
+        for style in (r'dis\70 lay:none', r'visibility:h\69 dden',
+                      'display: /**/none!important'):
+            text = detail(BODY.replace('<td>04 12 17 22 26', '<td style="' + style + '">04 12 17 22 26'))
+            with self.subTest(style=style), self.assertRaises(GateError):
+                jd.parse_detail(raw(text), EXPECTED)
+
+    def test_simple_visible_inline_styles_preserve_results(self):
+        text = detail(BODY.replace('<table>', '<table style="display:table; visibility:visible; border:1px solid rgb(0, 0, 0)">', 1))
+        self.assertEqual(jd.parse_detail(raw(text), EXPECTED)['draw']['front'], [4, 12, 17, 22, 26])
+
 
 if __name__ == '__main__':
     unittest.main()
