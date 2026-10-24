@@ -285,7 +285,7 @@ class RecencyAblationTests(TestCase):
     def test_date_only_schema_rejects_invalid_or_ambiguous_observations(self):
         prepare = self.api("prepare_ablation_study")
         for kind in ("alias", "unicode", "duplicate_date", "bad_date", "missing_front",
-                     "missing_back", "missing_issue", "missing_date", "short_front", "bool_ball",
+                     "missing_back", "missing_issue", "missing_draw_date", "short_front", "bool_ball",
                      "out_of_order", "short", "one_game", "timestamp_invented"):
             bad = invented_bundle(125)
             row = bad["SSQ"][3]

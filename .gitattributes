@@ -1,2 +1,6 @@
 # Exact historical model identities include their original newline bytes.
 research/harness_v46/model_versions/*.source -text
+# Research manifests bind exact installed bytes on Ubuntu and Windows.
+research/harness_v46/core.py text eol=lf
+research/harness_v46/statistics.py text eol=lf
+research/harness_v46/d2_challenger_lab.py text eol=lf
