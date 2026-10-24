@@ -730,6 +730,12 @@ def operational_tick(workspace, *, snapshot_paths=None, intake_timeout_seconds=6
         except Exception as exc:
             state["artifact_error"] = type(exc).__name__ + ": " + str(exc)
         state["source_status"] = collected.get("status", "BLOCKED")
+        # Source failures must survive even if writing the raw intake bundle
+        # fails: retain bounded diagnostics in the immutable attempt journal.
+        state["source_errors"] = {
+            str(k): str(v)[:4096]
+            for k, v in (collected.get("errors") or {}).items()
+        }
         # Nothing in the fetched history grants target/cutoff approval.
         # Only explicit caller-supplied SHADOW snapshots can be frozen.
         if game in snapshot_paths:
@@ -769,6 +775,7 @@ def operational_tick(workspace, *, snapshot_paths=None, intake_timeout_seconds=6
             "artifact_error": state.get("artifact_error"),
             "scoring_status": state["scoring"]["status"],
             "source_status": state["source_status"],
+            "source_errors": state["source_errors"],
         })
     current_roster = _local_game_roster(ledger)
     completed = sum(len(v["scoring"].get("completed_issues", []))
