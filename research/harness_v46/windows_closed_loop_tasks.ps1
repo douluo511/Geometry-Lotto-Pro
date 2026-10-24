@@ -15,7 +15,12 @@ $repo = (Resolve-Path -LiteralPath $cfg.repository_root).Path
 $handler = Join-Path $PSScriptRoot 'invoke_closed_loop.ps1'
 if (-not (Test-Path -LiteralPath $handler)) { throw 'CLOSED_LOOP_HANDLER_MISSING' }
 Write-Output 'PREVIEW: run SHADOW closed_loop every 30 minutes and at startup'
-Write-Output 'BLOCKED IF: no snapshots; caller-unverified outcomes; invalid time or evidence'
+if ($cfg.operational_tick -eq $true) {
+    Write-Output 'MODE: bounded SSQ/DLT source attempts + local frozen-roster replay'
+    Write-Output 'NO AUTOMATIC OFFICIAL FORECAST: missing/late target snapshots BLOCK new freeze'
+} else {
+    Write-Output 'BLOCKED IF: no snapshots; caller-unverified outcomes; invalid time or evidence'
+}
 Write-Output 'NOT A PRODUCTION FORECAST: no official source/cutoff/TSA approval or persistent-host proof'
 if (-not $Install) {
     Write-Output 'NOT_INSTALLED: explicit -Install required on a reviewed durable Windows host'
