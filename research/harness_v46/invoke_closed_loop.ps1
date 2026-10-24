@@ -19,11 +19,31 @@ Set-Location -LiteralPath $repo
 # The SAME closed_loop runner supports either legacy combined SHADOW or
 # independent per-game issue ticks. Never share a single required draw result.
 $hasSingleGame = [bool]($cfg.ssq_snapshot_bundle -or $cfg.dlt_snapshot_bundle)
+$operationalMode = ($cfg.operational_tick -eq $true)
+if ($operationalMode -and ($hasSingleGame -or $cfg.snapshot_bundle -or $cfg.research_history_bundle)) {
+    throw 'CLOSED_LOOP_OPERATIONAL_MODE_INPUTS_CONFLICT'
+}
 if ($hasSingleGame -and ($cfg.snapshot_bundle -or $cfg.research_history_bundle)) {
     throw 'CLOSED_LOOP_MIXED_LEGACY_AND_PER_GAME_CONFIG_FORBIDDEN'
 }
 $commands = @()
-if ($hasSingleGame) {
+if ($operationalMode) {
+    # This is source/replay SHADOW, not a self-approved official forecast.
+    # Both worker timeouts together must fit the Task Scheduler 10-min limit.
+    $seconds = [double]45
+    if ($null -ne $cfg.intake_timeout_seconds) {
+        $seconds = [double]$cfg.intake_timeout_seconds
+    }
+    if ([double]::IsNaN($seconds) -or [double]::IsInfinity($seconds) -or
+            $seconds -le 0 -or $seconds -gt 240) {
+        throw 'CLOSED_LOOP_OPERATIONAL_TIMEOUT_INVALID'
+    }
+    $timeoutText = $seconds.ToString([System.Globalization.CultureInfo]::InvariantCulture)
+    $argv = @('-m', 'research.harness_v46.closed_loop', '--workspace',
+              [string]$cfg.workspace, '--operational-tick',
+              '--intake-timeout-seconds', $timeoutText)
+    $commands += ,@{ Game = 'SSQ-DLT-OPERATIONAL'; Arguments = $argv }
+} elseif ($hasSingleGame) {
     foreach ($game in @('SSQ', 'DLT')) {
         $field = $game.ToLowerInvariant() + '_snapshot_bundle'
         $argv = @('-m', 'research.harness_v46.closed_loop',
