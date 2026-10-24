@@ -339,7 +339,12 @@ def advance_game_workspace(workspace, *, snapshot=None, game=None, observed_at=N
                     "WHERE lottery=? AND issue=?", (game, issue)
                 ).fetchone()
                 if existing is None:
-                    if not core.dt(snapshot["as_of"]) <= observed < core.dt(snapshot["sales_cutoff"]):
+                    # Recheck after the SQLite write lock; model generation and
+                    # lock acquisition can consume the entire presale window.
+                    # Caller-supplied observed_at is for synthetic SHADOW tests,
+                    # not independently authenticated time.
+                    locked_at = datetime.now(timezone.utc) if observed_at is None else observed
+                    if not core.dt(snapshot["as_of"]) <= locked_at < core.dt(snapshot["sales_cutoff"]):
                         raise GateError("GAME_FREEZE_AFTER_CUTOFF")
                     run_id = "V47G-" + core.digest({
                         "contract": "V47-INDEPENDENT-GAME-SHADOW-1",
@@ -347,13 +352,20 @@ def advance_game_workspace(workspace, *, snapshot=None, game=None, observed_at=N
                         "snapshot_sha256": sha, "models": list(core.MODELS),
                         "model_source_sha256": core.model_source_sha256(),
                     })[:32]
-                    conn.execute(
-                        "INSERT INTO game_runs VALUES(?,?,?,?,?,?)",
-                        (game, issue, run_id, sha, core.canon(snapshot), observed.isoformat()))
                     for m in core.MODELS:
                         p = predictions[m]
                         conn.execute("INSERT INTO game_predictions VALUES(?,?,?,?)",
                                      (run_id, m, core.canon(p), core.digest(p)))
+                    # The final check and frozen timestamp belong to the same
+                    # transaction; rejection rolls back all six inserted cards.
+                    frozen_at = datetime.now(timezone.utc) if observed_at is None else observed
+                    if frozen_at < locked_at:
+                        raise GateError("GAME_FREEZE_CLOCK_MOVED_BACKWARD")
+                    if not core.dt(snapshot["as_of"]) <= frozen_at < core.dt(snapshot["sales_cutoff"]):
+                        raise GateError("GAME_FREEZE_AFTER_CUTOFF")
+                    conn.execute(
+                        "INSERT INTO game_runs VALUES(?,?,?,?,?,?)",
+                        (game, issue, run_id, sha, core.canon(snapshot), frozen_at.isoformat()))
                 elif existing[1:] != (sha, core.canon(snapshot)):
                     raise GateError("GAME_TARGET_ALREADY_FROZEN_DIFFERENT_SNAPSHOT")
                 conn.execute("COMMIT")
