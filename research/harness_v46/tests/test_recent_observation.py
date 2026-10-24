@@ -42,7 +42,9 @@ def markup(game, records, malformed=False):
             front = "".join(f"{n:02d}" for n in row["front"])
             issue = "BAD_ISSUE" if malformed and index == 0 else row["issue"]
             tags.append(f'<tr><td>{issue}</td><td>{row["draw_date"]}</td><td>{front}</td><td>07</td></tr>')
-    return ('<html><table><thead><tr><th>synthetic fixture</th></tr></thead><tbody>'
+    schema = ('<tr><th>开奖日期</th><th>期号</th><th>开奖号码</th></tr>'
+              if game == "DLT" else '<tr><th>synthetic fixture</th></tr>')
+    return ('<html><table><thead>' + schema + '</thead><tbody>'
             + "".join(tags) + '</tbody></table></html>').encode()
 
 
@@ -114,7 +116,8 @@ class RecentObservationTests(unittest.TestCase):
             self.output = Path(self.temp.name) / game
             fixture = rows(game)
             get, seen = self.transport(game, [markup(game, fixture[100:], malformed=True)])
-            with patch("requests.get", side_effect=get), self.assertRaisesRegex(Exception, "COVERAGE|PARSE|ROW"):
+            with patch("requests.get", side_effect=get), self.assertRaisesRegex(
+                    Exception, "COVERAGE|PARSE|ROW|JIANGSU_DRAW_DATE_COLUMN_UNVERIFIED"):
                 self.ro.capture(game, self.output)
             self.assertEqual(len(seen), 1)
             self.assertFalse((self.output / "manifest.json").exists())
@@ -124,7 +127,8 @@ class RecentObservationTests(unittest.TestCase):
         extra = b"<tr><th>2024-12-30</th><th>24150</th><th>BAD_ROW</th></tr>"
         first = markup("DLT", fixture[100:]).replace(b"</tbody>", extra + b"</tbody>")
         get, _ = self.transport("DLT", [first, markup("DLT", fixture[:100])])
-        with patch("requests.get", side_effect=get), self.assertRaisesRegex(Exception, "COVERAGE|ROW|HEADER"):
+        with patch("requests.get", side_effect=get), self.assertRaisesRegex(
+                Exception, "COVERAGE|ROW|HEADER|JIANGSU_DRAW_DATE_COLUMN_UNVERIFIED"):
             self.ro.capture("DLT", self.output)
         self.assertFalse((self.output / "manifest.json").exists())
 
