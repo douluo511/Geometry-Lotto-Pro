@@ -51,6 +51,7 @@ class ClosedLoopSchedulerTests(unittest.TestCase):
     def test_real_windows_optin_operational_mode_persists_two_attempts(self):
         import sys
         import sqlite3
+        from contextlib import closing
         exe = shutil.which("powershell.exe")
         if not exe:
             self.skipTest("Windows PowerShell unavailable")
@@ -72,7 +73,7 @@ class ClosedLoopSchedulerTests(unittest.TestCase):
             for count in (1, 2):
                 run = subprocess.run(cmd, capture_output=True, text=True, timeout=45)
                 self.assertEqual(run.returncode, 0, run.stderr + run.stdout)
-                with sqlite3.connect(workspace / "ledger.sqlite3") as conn:
+                with closing(sqlite3.connect(workspace / "ledger.sqlite3")) as conn:
                     events = conn.execute(
                         "SELECT tick_id,event_type FROM operational_events ORDER BY event_id"
                     ).fetchall()
