@@ -1,0 +1,2 @@
+# Exact historical model identities include their original newline bytes.
+research/harness_v46/model_versions/*.source -text

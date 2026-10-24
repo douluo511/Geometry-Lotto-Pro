@@ -16,6 +16,8 @@ Skipping the source check would accept substituted predictions. Re-running the
 current selectors would replace the frozen hypothesis. Use an explicit trusted
 source registry: exact, checked-in original LF and CRLF core artifacts, each
 selected by its full SHA256, and the pinned date-observed validator dependency.
+The original LF/CRLF scorecard report builders are also preserved, so an existing
+legacy receipt retains the source identity of the code actually building it.
 The artifacts use `-text` so Git cannot silently translate their bytes.
 No source path or executable bytes may come from a ledger, outcome or workspace.
 Verify every artifact before executing its exact checked-in bytes in an isolated
@@ -37,6 +39,22 @@ did not bind a complete environment/dependency manifest. Do not retroactively
 claim such provenance. Retain current snapshot/time/outcome security guards.
 Arbitrary future orchestration/scoring-receipt changes and unknown historical
 versions remain outside this scoped compatibility promise and must fail closed.
+The original scorecard's FAIR_D2 dependency is a facade derived from its pinned
+core rules; a changed current statistical baseline is rejected before replay.
+This does not certify arbitrary future statistical arithmetic. Exact original
+snapshot configuration retries match the persisted input, without deriving a
+new run from today's manifest or invoking today's model for an existing game.
+
+## Recorded implementation rulings
+- Preserve coherent original LF/CRLF scorer installations; unknown or mixed
+  historical scorer identities can still conflict and are not silently remapped.
+- Reproduce legacy report bytes with the original builder, while the current
+  convergence facade enforces full archived-model validation; no claim that all
+  past orchestration dependencies were independently sealed is made.
+- Original per-game ticks without snapshots now open SQLite in actual read-only
+  mode, so missing triggers cannot be recreated while inspecting invalid data.
+- New manifests bind the replay runtime and all five source artifacts. Old
+  manifests are validated as originally frozen; no identity is retroactively edited.
 
 ## Acceptance
 Native isolated subprocesses freeze A, score A, change installed core bytes to B

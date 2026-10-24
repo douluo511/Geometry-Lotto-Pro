@@ -26,13 +26,13 @@ modify `closed_loop.py`, `convergence.py`, `.gitattributes`.
 **Interfaces:** `resolve_core(source_sha256) -> module`,
 `validate_prediction(prediction, snapshot)`, `score_prediction(prediction, result)`.
 
-- [ ] Write native subprocess A→B replay and failure-boundary tests first.
-- [ ] Run targeted unittest; preserve expected RED and test-only GitHub commit.
-- [ ] Archive exact baseline core LF/CRLF and observed validator; verify fixed full hashes before isolated loading.
-- [ ] Resolve frozen six-arm source before checking old run identity; retain full deterministic card comparison.
-- [ ] Route legacy validation and both scorers through pinned core; do not modify core.py.
-- [ ] Run targeted GREEN and complete `python -m unittest discover -s research/harness_v46/tests -v`.
-- [ ] Independently review implementation and adversarial limits; address concrete findings with RED→GREEN.
+- [x] Write native subprocess A→B replay and failure-boundary tests first.
+- [x] Run targeted unittest; preserve expected RED and test-only GitHub commit.
+- [x] Archive exact baseline core LF/CRLF and observed validator; verify fixed full hashes before isolated loading.
+- [x] Resolve frozen six-arm source before checking old run identity; retain full deterministic card comparison.
+- [x] Route legacy validation and both scorers through pinned core; do not modify core.py.
+- [x] Run targeted GREEN and complete `python -m unittest discover -s research/harness_v46/tests -v`.
+- [x] Independently review implementation and adversarial limits; address concrete findings with RED→GREEN.
 - [ ] Fast-forward only the existing PR branch using an expected-SHA lease; inspect Windows/Ubuntu exact-HEAD logs.
 
 ### Task 2: Evidence and acceptance record

@@ -22,6 +22,7 @@ from . import d2_challenger_lab as d2lab
 from .convergence import manifest
 from .core import GateError
 from . import core
+from . import frozen_replay
 
 RUN_ID = re.compile(r"V47-[0-9a-f]{32}\Z")
 
@@ -123,6 +124,32 @@ def _registered_runs(ledger: Path) -> list[str]:
         conn.close()
 
 
+def _matching_frozen_snapshot_run(ledger, existing, snapshots):
+    """Match exact old input bytes before deriving any current-version identity."""
+    if not isinstance(snapshots, dict) or set(snapshots) != set(core.RULES):
+        raise GateError("BOTH_GAME_SNAPSHOTS_REQUIRED")
+    if not existing:
+        return None
+    matches = []
+    conn = sqlite3.connect(ledger.as_uri() + "?mode=ro", uri=True)
+    try:
+        conn.execute("PRAGMA query_only=ON")
+        for run_id in existing:
+            # Validate every existing roster before a new irreversible freeze.
+            # A corrupted/missing historical artifact is not permission to mint
+            # another run from the same target under today's source version.
+            cycle.frozen_forecast_report(ledger, run_id)
+            original = {g: frozen_replay.load_snapshot(conn, run_id, g)
+                        for g in core.RULES}
+            if core.canon(original) == core.canon(snapshots):
+                matches.append(run_id)
+    finally:
+        conn.close()
+    if len(matches) > 1:
+        raise GateError("AMBIGUOUS_FROZEN_SNAPSHOT_RUNS")
+    return matches[0] if matches else None
+
+
 def advance_workspace(workspace, *, snapshots=None, research_history=None, observed_at=None) -> dict:
     """Idempotent entrypoint; caller-controlled snapshots/outcomes are UNVERIFIED.
 
@@ -152,7 +179,8 @@ def advance_workspace(workspace, *, snapshots=None, research_history=None, obser
     if snapshots is not None:
         # The same immutable identity is safe to examine even after cutoff;
         # no attempt to create an absent run is allowed after its cutoff.
-        desired = manifest(snapshots)["run_id"]
+        desired = (_matching_frozen_snapshot_run(ledger, existing, snapshots)
+                   or manifest(snapshots)["run_id"])
         if desired in existing:
             cycle.frozen_forecast_report(ledger, desired)
         else:
@@ -265,8 +293,26 @@ def _read_frozen_game(conn, game, row):
     if core.digest(json.loads(payload)) != snapshot_sha:
         raise GateError("GAME_SNAPSHOT_SHA_MISMATCH")
     snapshot = json.loads(payload)
+    records = conn.execute(
+        "SELECT model,payload,prediction_sha256 FROM game_predictions WHERE run_id=?",
+        (run_id,),
+    ).fetchall()
+    if len(records) != len(core.MODELS) or {r[0] for r in records} != set(core.MODELS):
+        raise GateError("GAME_INCOMPLETE_SIX_ARM_FREEZE")
+    cards = {}
+    for model, raw, sha in records:
+        prediction = json.loads(raw)
+        if (core.digest(prediction) != sha or core.canon(prediction) != raw
+                or prediction.get("model") != model):
+            raise GateError("GAME_FROZEN_PREDICTION_REPLAY_MISMATCH")
+        cards[model] = prediction
+    sources = {p.get("model_source_sha256") for p in cards.values()}
+    if len(sources) != 1:
+        raise GateError("REPLAY_MIXED_MODEL_SOURCES")
+    source_sha = sources.pop()
+    replay = frozen_replay.resolve_core(source_sha)
     if (core.canon(snapshot) != payload or
-            core.validate_study_snapshot(snapshot) != snapshot_sha or
+            replay.validate_study_snapshot(snapshot) != snapshot_sha or
             snapshot["lottery"] != game or _game_issue(snapshot["target_issue"]) != issue):
         raise GateError("GAME_SNAPSHOT_REPLAY_MISMATCH")
     if not core.dt(snapshot["as_of"]) <= core.dt(frozen_at) < core.dt(snapshot["sales_cutoff"]):
@@ -275,25 +321,14 @@ def _read_frozen_game(conn, game, row):
         "contract": "V47-INDEPENDENT-GAME-SHADOW-1",
         "lottery": game, "issue": issue,
         "snapshot_sha256": snapshot_sha, "models": list(core.MODELS),
-        "model_source_sha256": core.model_source_sha256(),
+        "model_source_sha256": source_sha,
     })[:32]
     if run_id != expected_run:
         raise GateError("GAME_RUN_IDENTITY_MISMATCH")
-    records = conn.execute(
-        "SELECT model,payload,prediction_sha256 FROM game_predictions WHERE run_id=?",
-        (run_id,),
-    ).fetchall()
-    if len(records) != len(core.MODELS) or {r[0] for r in records} != set(core.MODELS):
-        raise GateError("GAME_INCOMPLETE_SIX_ARM_FREEZE")
-    cards = []
-    for model, raw, sha in records:
-        prediction = json.loads(raw)
-        if (core.digest(prediction) != sha or core.canon(prediction) != raw
-                or prediction != core.forecast(snapshot, model)):
+    for model, prediction in cards.items():
+        if prediction != replay.forecast(snapshot, model):
             raise GateError("GAME_FROZEN_PREDICTION_REPLAY_MISMATCH")
-        cards.append(prediction)
-    return snapshot, {m: p for m, p in zip(
-        [r[0] for r in records], cards)}, run_id
+    return snapshot, cards, run_id
 
 
 def advance_game_workspace(workspace, *, snapshot=None, game=None, observed_at=None) -> dict:
@@ -319,18 +354,22 @@ def advance_game_workspace(workspace, *, snapshot=None, game=None, observed_at=N
         if expected_game not in core.RULES or (game is not None and game != expected_game):
             raise GateError("GAME_SNAPSHOT_IDENTITY_MISMATCH")
         game = expected_game
-        sha = core.validate_study_snapshot(snapshot)
+        sha = core.digest(snapshot)
         issue = _game_issue(snapshot["target_issue"])
-        predictions = {m: core.forecast(snapshot, m) for m in core.MODELS}
     elif game not in core.RULES:
         raise GateError("GAME_REQUIRED_FOR_READONLY_TICK")
     if snapshot is None and not ledger.exists():
         raise GateError("GAME_RUN_NOT_REGISTERED")
-    conn = sqlite3.connect(str(ledger), timeout=30, isolation_level=None)
+    conn = (sqlite3.connect(ledger.as_uri() + "?mode=ro", uri=True, timeout=30,
+                            isolation_level=None) if snapshot is None else
+            sqlite3.connect(str(ledger), timeout=30, isolation_level=None))
     try:
-        conn.execute("PRAGMA recursive_triggers=ON")
-        conn.execute("PRAGMA synchronous=FULL")
-        conn.executescript(GAME_SCHEMA)
+        if snapshot is None:
+            conn.execute("PRAGMA query_only=ON")
+        else:
+            conn.execute("PRAGMA recursive_triggers=ON")
+            conn.execute("PRAGMA synchronous=FULL")
+            conn.executescript(GAME_SCHEMA)
         if snapshot is not None:
             conn.execute("BEGIN IMMEDIATE")
             try:
@@ -361,6 +400,11 @@ def advance_game_workspace(workspace, *, snapshot=None, game=None, observed_at=N
                     "WHERE lottery=? AND issue=?", (game, issue)
                 ).fetchone()
                 if existing is None:
+                    # New forecasts use today's core. An exact existing input
+                    # is replayed under its original source instead, even if
+                    # today's selectors or validation behavior have changed.
+                    core.validate_study_snapshot(snapshot)
+                    predictions = {m: core.forecast(snapshot, m) for m in core.MODELS}
                     # Recheck after the SQLite write lock; model generation and
                     # lock acquisition can consume the entire presale window.
                     # Caller-supplied observed_at is for synthetic SHADOW tests,
@@ -447,7 +491,7 @@ def advance_game_workspace(workspace, *, snapshot=None, game=None, observed_at=N
             raise GateError("GAME_RESULT_NOT_YET_DRAWN")
         result_sha = core.digest(result)
         comparison = {
-            m: core.score(p, result)
+            m: frozen_replay.score_prediction(p, result)
             for m, p in cards.items()
         }
         claim = {
