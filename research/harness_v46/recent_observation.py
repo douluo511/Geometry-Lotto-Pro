@@ -285,6 +285,7 @@ def _worker(payload: dict) -> dict:
             text = source._html_markup(raw)
         else:
             text = source._decode_html(raw)
+            oi._verify_jiangsu_draw_date_columns(text)
             draws = source._parse_jiangsu_html(text)
         parsed = oi._source_rows(draws)
         _complete_row_coverage(game, text, parsed)
