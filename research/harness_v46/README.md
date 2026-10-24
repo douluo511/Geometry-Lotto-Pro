@@ -433,7 +433,7 @@ identifiers are refused.
 
 ## Date-only raw observations and external TSA transport
 
-Official history pages commonly expose only a draw date, without its exact
+Some history pages expose an explicitly labeled draw date, without its exact
 publication time. The explicit `V47-DATE-OBSERVED-SHADOW-1` snapshot contract
 therefore accepts source-extracted `issue`, `draw_date`, `front`, `back` rows
 and a bound observation receipt. It never manufactures `drawn_at` or
@@ -463,6 +463,27 @@ Successful malformed response bodies are preserved before parsing. HTTP error
 bodies and oversized prefixes are not retained by this observation utility;
 those failures cannot be cited as complete HTTP custody. No seven-day
 freshness or official publication-time admission is inferred from this window.
+
+Jiangsu date semantics are checked before legacy parsing in both the original
+intake replay and the recent-observation worker. Each literal candidate must
+belong to its own table with preceding, positional draw-date, issue and result
+headers. Publication dates fail with
+`JIANGSU_PUBLICATION_DATE_IS_NOT_DRAW_DATE`; unknown, missing, shifted, decoy,
+hidden, escaped or structurally ambiguous schemas fail closed. An explicit
+draw-date label establishes the column's interpretation, not source authority.
+A bad second page blocks the entire capture while retaining both received raw
+bodies; no success manifest or selected-history fallback is produced.
+
+The retained 2026-10-23 DLT observation has `发布日期` headers. Its 200 parsed
+rows and 120-row selection are quarantined as
+`BLOCKED_PUBLICATION_DATE_NOT_DRAW_DATE`, not admitted draw-date history.
+The original manifest SHA256 is
+`4a6ea7f04f392fc8101d0107ce97f4ef336a8e0b26f89ffbabae574bcefb0405`.
+Original bodies, manifest, source-only TSA response and older archives remain
+unchanged; hashes and a timestamp cannot certify the date column's meaning.
+The corrected worker rejects the original raw pages for this semantic reason
+independently of old-pin mismatch. New observations require fresh source pins
+and a new directory; earlier records cannot be retroactively upgraded.
 
 ```sh
 python -m research.harness_v46.recent_observation capture SSQ new-ssq-observation
