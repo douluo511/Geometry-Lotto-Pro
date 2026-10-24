@@ -334,6 +334,28 @@ def advance_game_workspace(workspace, *, snapshot=None, game=None, observed_at=N
         if snapshot is not None:
             conn.execute("BEGIN IMMEDIATE")
             try:
+                # Before adding irreversible frozen cards, reject evidence that
+                # would otherwise fail this tick only AFTER the SQLite commit.
+                # Read the registered issues under the same writer transaction.
+                registered = {
+                    row[0] for row in conn.execute(
+                        "SELECT issue FROM game_runs WHERE lottery=?", (game,)
+                    )
+                }
+                for dirname, unknown_issue in (
+                    ("outcomes_by_game", "GAME_UNKNOWN_OUTCOME_ISSUE"),
+                    ("receipts_by_game", "GAME_UNKNOWN_SCORE_RECEIPT"),
+                ):
+                    evidence_dir = root / dirname / game
+                    _not_symlink(evidence_dir)
+                    if evidence_dir.exists():
+                        if not evidence_dir.is_dir():
+                            raise GateError("GAME_EVIDENCE_DIRECTORY_REQUIRED")
+                        for evidence_file in evidence_dir.iterdir():
+                            _not_symlink(evidence_file)
+                            if (evidence_file.suffix == ".json"
+                                    and evidence_file.stem not in registered):
+                                raise GateError(unknown_issue)
                 existing = conn.execute(
                     "SELECT run_id,snapshot_sha256,snapshot_payload FROM game_runs "
                     "WHERE lottery=? AND issue=?", (game, issue)
