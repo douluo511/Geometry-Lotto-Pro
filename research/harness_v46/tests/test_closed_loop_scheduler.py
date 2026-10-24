@@ -39,6 +39,60 @@ class ClosedLoopSchedulerTests(unittest.TestCase):
         self.assertIn("SSQ", script)
         self.assertIn("DLT", script)
 
+
+    def test_bot_operational_mode_is_opt_in_and_uses_bounded_worker_cli(self):
+        script = (ROOT / "invoke_closed_loop.ps1").read_text(encoding="utf-8")
+        self.assertIn("operational_tick", script)
+        self.assertIn("--operational-tick", script)
+        self.assertIn("--intake-timeout-seconds", script)
+        self.assertIn("CLOSED_LOOP_OPERATIONAL_MODE_INPUTS_CONFLICT", script)
+
+    @unittest.skipUnless(os.name == "nt", "Actual opt-in operational invocation requires Windows")
+    def test_real_windows_optin_operational_mode_persists_two_attempts(self):
+        import sys
+        import sqlite3
+        exe = shutil.which("powershell.exe")
+        if not exe:
+            self.skipTest("Windows PowerShell unavailable")
+        with tempfile.TemporaryDirectory() as td:
+            base = Path(td)
+            workspace = base / "persist"
+            config = base / "config.json"
+            config.write_text(json.dumps({
+                "repository_root": str(ROOT.parents[1]),
+                "python_exe": sys.executable,
+                "workspace": str(workspace),
+                "log_path": str(base / "bot.log"),
+                "operational_tick": True,
+                "intake_timeout_seconds": 0.01,
+            }), encoding="utf-8")
+            cmd = [exe, "-NoProfile", "-NonInteractive", "-ExecutionPolicy",
+                   "Bypass", "-File", str(ROOT / "invoke_closed_loop.ps1"),
+                   "-ConfigFile", str(config)]
+            for count in (1, 2):
+                run = subprocess.run(cmd, capture_output=True, text=True, timeout=45)
+                self.assertEqual(run.returncode, 0, run.stderr + run.stdout)
+                with sqlite3.connect(workspace / "ledger.sqlite3") as conn:
+                    events = conn.execute(
+                        "SELECT tick_id,event_type FROM operational_events ORDER BY event_id"
+                    ).fetchall()
+                    self.assertEqual(len(events), count * 4)
+                    self.assertEqual(len({e[0] for e in events}), count)
+                    self.assertFalse(conn.execute(
+                        "SELECT name FROM sqlite_master WHERE type='table' "
+                        "AND name='game_predictions'").fetchone())
+            log = (base / "bot.log").read_text(encoding="utf-8-sig")
+            self.assertIn("SSQ-DLT-OPERATIONAL", log)
+            self.assertIn("NO_EDGE", log)
+            manifests = list((workspace / "operational_intake").glob("*/*/intake.json"))
+            self.assertEqual(len(manifests), 4)
+            for path in manifests:
+                body = json.loads(path.read_text(encoding="utf-8"))
+                game = path.parent.name
+                self.assertEqual(
+                    body["games"][game]["status"], "WORKER_OUTPUT_QUARANTINED")
+
+
     @unittest.skipUnless(os.name == "nt", "Actual PowerShell Bot tick Windows only")
     def test_bot_actual_powershell_tick_freezes_two_game_issues_without_shared_run(self):
         from datetime import datetime, timedelta, timezone
