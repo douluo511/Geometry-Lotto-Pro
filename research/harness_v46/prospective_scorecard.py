@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from . import convergence as cv
+from . import frozen_replay
 from .core import MODELS, RULES, GateError, canon, digest, dt, load_registered_snapshot
 from .statistics import FAIR_D2
 
@@ -40,6 +41,14 @@ def replay_shadow_feedback(db_path, run_id, outcome, *, observed_at=None):
     """
     if not isinstance(run_id, str) or not run_id.startswith("V47-"):
         raise GateError("V47_REGISTERED_RUN_REQUIRED")
+    conn = _readonly_connection(db_path)
+    try:
+        original = frozen_replay.resolve_scorecard(conn, run_id)
+    finally:
+        conn.close()
+    if original is not None:
+        return original.replay_shadow_feedback(
+            db_path, run_id, outcome, observed_at=observed_at)
     if not isinstance(outcome, dict) or set(outcome) != {
         "lottery", "issue", "front", "back", "drawn_at"
     }:
@@ -62,7 +71,7 @@ def replay_shadow_feedback(db_path, run_id, outcome, *, observed_at=None):
     conn = _readonly_connection(db_path)
     try:
         batch_sha256 = cv.check_complete_batch(conn, run_id, game)
-        snapshot = load_registered_snapshot(conn, run_id, game)
+        snapshot = frozen_replay.load_snapshot(conn, run_id, game)
         if observed < dt(snapshot["target_draw_at"]):
             raise GateError("SCORE_BEFORE_LOCKED_TARGET_DRAW_TIME")
         if claimed_draw_time > observed:
