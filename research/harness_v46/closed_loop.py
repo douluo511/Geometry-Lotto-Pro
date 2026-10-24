@@ -738,6 +738,11 @@ def operational_tick(workspace, *, snapshot_paths=None, intake_timeout_seconds=6
                 if (not isinstance(snapshot, dict)
                         or snapshot.get("lottery") != game):
                     raise GateError("GAME_SNAPSHOT_IDENTITY_MISMATCH")
+                # Operational intake never re-presents an expired snapshot as
+                # a fresh predraw attempt. Original historical cards still
+                # flow through the separate read-only fallback below.
+                if datetime.now(timezone.utc) >= core.dt(snapshot["sales_cutoff"]):
+                    raise GateError("OPERATIONAL_SNAPSHOT_AFTER_CUTOFF")
                 scoring = advance_game_workspace(root, snapshot=snapshot, game=game)
                 state["target_gate"] = "SHADOW_EXPLICIT_SNAPSHOT_ONLY"
                 state["scoring"] = scoring
