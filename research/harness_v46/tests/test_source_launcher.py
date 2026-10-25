@@ -25,10 +25,12 @@ class SourceLauncherTests(unittest.TestCase):
             result_file = Path(evidence_result)
             result_file.parent.mkdir(parents=True, exist_ok=True)
             temp_parent = result_file.parent
+            subprocess_temp_root = result_file.parent.parent
         else:
             result_owner = tempfile.TemporaryDirectory(prefix="ssq launcher result ")
             result_file = Path(result_owner.name) / "acceptance.json"
             temp_parent = None
+            subprocess_temp_root = None
 
         try:
             with tempfile.TemporaryDirectory(
@@ -37,13 +39,16 @@ class SourceLauncherTests(unittest.TestCase):
                 env = os.environ.copy()
                 env.pop("PYTHONPATH", None)
                 # The CLI uses TemporaryDirectory for its synthetic store.
-                # Keep that scratch space in the isolated unrelated cwd.
-                env["TEMP"] = cwd
-                env["TMP"] = cwd
-                env["TMPDIR"] = cwd
+                # Keep it in the temp root, avoiding a long nested path when
+                # this test is run with an evidence result path on Windows.
+                scratch_root = str(subprocess_temp_root or cwd)
+                env["TEMP"] = scratch_root
+                env["TMP"] = scratch_root
+                env["TMPDIR"] = scratch_root
                 completed = subprocess.run(
                     [
                         sys.executable,
+                        "-B",
                         "-I",
                         str(LAUNCHER),
                         "--check",
