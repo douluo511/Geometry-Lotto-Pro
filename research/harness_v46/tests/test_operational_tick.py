@@ -22,9 +22,17 @@ from research.harness_v46.tests.test_core import fixture
 
 class OperationalTickTests(unittest.TestCase):
     def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
+        # Keep Windows cleanup in the extended namespace even if the current
+        # permissions make tempfile fall back to this long workspace path.
+        self.tmp = tempfile.TemporaryDirectory(
+            dir=official_intake._physical_root(tempfile.gettempdir()))
         self.addCleanup(self.tmp.cleanup)
-        self.base = Path(self.tmp.name)
+        name = str(self.tmp.name)
+        if name.startswith("\\\\?\\UNC\\"):
+            name = "\\\\" + name[8:]
+        elif name.startswith("\\\\?\\"):
+            name = name[4:]
+        self.base = Path(name)
         self.ws = self.base / "persist"
         self.calls = []
 
@@ -441,6 +449,68 @@ class OperationalTickTests(unittest.TestCase):
                       event.get("outcome_candidate_error", ""))
         self.assertEqual(result["local_scored_issue_count"], 0)
         self.assertFalse((self.ws / "outcomes_by_game" / "SSQ").exists())
+
+
+    def test_durable_events_retain_each_original_game_state_and_whole_attempt(self):
+        snapshot = self.old_freeze(outcome=False)
+        with patch.object(official_intake, "collect_live_history", self.collect):
+            first = self.tick()
+        first_rows = self.events()
+        for game in ("SSQ", "DLT"):
+            event = json.loads(next(r[3] for r in first_rows
+                                    if r[0] == first["tick_id"] and r[1:3] == ("GAME_RESULT", game)))
+            self.assertEqual(event.get("state"), first["games"][game])
+        finished = json.loads(first_rows[-1][3])
+        self.assertEqual(finished.get("result"), first)
+        self.assertEqual(finished["result"]["games"]["SSQ"]["scoring"]["pending_issues"], ["29999"])
+        folder = self.ws / "outcomes_by_game" / "SSQ"
+        folder.mkdir(parents=True, exist_ok=True)
+        draw = snapshot["draws"][-2]
+        (folder / "29999.json").write_text(json.dumps({
+            "lottery": "SSQ", "issue": "29999", "front": draw["front"],
+            "back": draw["back"], "drawn_at": snapshot["target_draw_at"]}), encoding="utf-8")
+        with patch.object(official_intake, "collect_live_history", self.collect):
+            second = self.tick()
+        self.assertEqual(second["games"]["SSQ"]["scoring"]["completed_issues"], ["29999"])
+        self.assertEqual(self.events()[:len(first_rows)], first_rows)
+        self.assertEqual(json.loads(self.events()[-1][3]).get("result"), second)
+
+    def test_unusable_intake_parent_does_not_stop_either_game_or_old_score(self):
+        self.old_freeze()
+        (self.ws / "operational_intake").write_bytes(b"ordinary file blocks artifact directory")
+        with patch.object(official_intake, "collect_live_history", self.collect):
+            result = self.tick()
+        self.assertEqual([game for game, _ in self.calls], ["SSQ", "DLT"])
+        self.assertEqual(result["games"]["SSQ"]["scoring"]["completed_issues"], ["29999"])
+        for game in ("SSQ", "DLT"):
+            self.assertTrue(result["games"][game]["artifact_error"])
+        self.assertEqual([r[1] for r in self.events()],
+                         ["STARTED", "GAME_RESULT", "GAME_RESULT", "FINISHED"])
+
+    def test_real_operational_cli_can_consume_explicit_future_game_snapshot(self):
+        _, snapshot_path = self.snapshot_file("SSQ", future=True)
+        command = [sys.executable, "-B", "-m", "research.harness_v46.closed_loop",
+                   "--workspace", str(self.ws), "--operational-tick",
+                   "--ssq-snapshot-path", str(snapshot_path), "--intake-timeout-seconds", "0.01"]
+        run = subprocess.run(command, capture_output=True, text=True, timeout=30)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        result = json.loads(run.stdout)
+        self.assertEqual(result["new_frozen_issue_count"], 1)
+        self.assertEqual(result["games"]["SSQ"]["scoring"]["pending_issues"], ["29999"])
+        self.assertEqual(result["games"]["DLT"]["target_gate"], "BLOCKED_NO_EXPLICIT_SNAPSHOT")
+        with closing(sqlite3.connect(self.ws / "ledger.sqlite3")) as conn:
+            self.assertEqual(conn.execute("SELECT COUNT(*) FROM game_predictions").fetchone()[0], 6)
+        self.assertEqual(result["formal_A"], 0)
+
+    def test_cli_snapshot_paths_require_operational_mode_before_ledger_creation(self):
+        for flag in ("--ssq-snapshot-path", "--dlt-snapshot-path"):
+            with self.subTest(flag=flag):
+                run = subprocess.run([sys.executable, "-B", "-m", "research.harness_v46.closed_loop",
+                                      "--workspace", str(self.ws), flag, "missing.json"],
+                                     capture_output=True, text=True, timeout=15)
+                self.assertEqual(run.returncode, 2)
+                self.assertIn("OPERATIONAL_SNAPSHOT_PATHS_REQUIRE_OPERATIONAL_TICK", run.stderr)
+                self.assertFalse((self.ws / "ledger.sqlite3").exists())
 
 
 if __name__ == "__main__":
