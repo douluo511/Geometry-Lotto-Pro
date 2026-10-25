@@ -8,10 +8,14 @@ on:
       - "research/ssq-dlt-v47-p0a-r5-20261022"
     paths:
       - "research/harness_v46/**"
+      - "SSQ/**"
+      - "DLT/**"
       - ".github/workflows/v46-harness-fixtures.yml"
   pull_request:
     paths:
       - "research/harness_v46/**"
+      - "SSQ/**"
+      - "DLT/**"
       - ".github/workflows/v46-harness-fixtures.yml"
   workflow_dispatch:
 
@@ -53,3 +57,15 @@ jobs:
           PY
       - name: Test deterministic contracts with invented fixtures only
         run: python -m unittest discover -s research/harness_v46/tests -v
+      - name: Test offline SSQ source-app contracts
+        env:
+          PYTHONPATH: ${{ github.workspace }}/SSQ/SSQ
+          GLP_DISABLE_BACKGROUND: "1"
+          GLP_DATA_DIR: ${{ runner.temp }}/v47-ssq-offline-tests
+        run: python -B -m unittest discover -s SSQ/tests -p "test*.py" -v
+      - name: Test offline DLT source-app contracts
+        env:
+          PYTHONPATH: ${{ github.workspace }}/DLT/src
+          GLP_DISABLE_BACKGROUND: "1"
+          GLP_DATA_DIR: ${{ runner.temp }}/v47-dlt-offline-tests
+        run: python -B -m unittest discover -s DLT/tests -p "test*.py" -v

@@ -255,6 +255,7 @@ class NetClientUnitTests(unittest.TestCase):
 
 class SourceFailoverTests(unittest.TestCase):
     def test_primary_failure_full_shanghai_can_reverify_unverified_baseline(self):
+        from datetime import datetime, timezone
         draws = [
             Draw("2013001", "2013-01-01", (1, 2, 3, 4, 5, 6), (1,)),
             Draw("2026113", "2026-09-29", (3, 4, 20, 24, 29, 30), (11,)),
@@ -272,7 +273,11 @@ class SourceFailoverTests(unittest.TestCase):
             patch.object(sources, "fetch_shanghai_full_history",
                          return_value=(draws, sh_receipt, sh_manifest)),
             patch.object(sources, "fetch_hebei_latest", return_value=(latest, hb_receipt, hb_raw)),
+            patch.object(sources, "datetime", wraps=sources.datetime) as source_clock,
         ):
+            # This fixture was captured on this date; do not turn a failover
+            # contract into a wall-clock stale-data test as real time advances.
+            source_clock.now.return_value = datetime(2026, 9, 30, tzinfo=timezone.utc)
             dataset, evidence = build_canonical(baseline_draws=draws)
         self.assertEqual(dataset.draws, draws)
         self.assertEqual(evidence["verification"], "SHANGHAI_FULL_L1_PLUS_HEBEI_CURRENT")

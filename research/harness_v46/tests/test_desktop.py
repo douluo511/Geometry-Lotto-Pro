@@ -3,6 +3,7 @@
 Each test names the production regression it catches. Feature discovery is an
 assertion inside each test, so the tests-only RED has no collection import error.
 """
+from contextlib import closing
 import hashlib
 import importlib
 import importlib.util
@@ -73,7 +74,7 @@ class DesktopTests(unittest.TestCase):
     def journal(self, *, unfinished=False):
         """Legal fixtures independently canonicalized and hashed, no collector."""
         ledger = self.workspace / "ledger.sqlite3"
-        with sqlite3.connect(ledger) as conn:
+        with closing(sqlite3.connect(ledger)) as conn, conn:
             conn.executescript(closed_loop.OPERATIONAL_SCHEMA)
             for serial in (1, 2):
                 tick = "V47T-" + str(serial) * 32
@@ -164,7 +165,7 @@ class DesktopTests(unittest.TestCase):
     def test_tampered_journal_is_blocked_instead_of_presented_as_latest_success(self):
         self.load()
         ledger = self.journal()
-        with sqlite3.connect(ledger) as conn:
+        with closing(sqlite3.connect(ledger)) as conn, conn:
             conn.execute("DROP TRIGGER protect_operational_events_update")
             conn.execute("UPDATE operational_events SET event_payload='{}' WHERE event_id=1")
         before = self.tree()
@@ -182,6 +183,37 @@ class DesktopTests(unittest.TestCase):
         self.assertEqual(result["status"], "BLOCKED")
         self.assertTrue(result["error"])
         self.assertEqual(self.tree(), before)
+
+    def test_refresh_refuses_clean_wal_database_without_creating_sidecars(self):
+        self.load()
+        ledger = self.journal()
+        with closing(sqlite3.connect(ledger)) as conn:
+            self.assertEqual(conn.execute("PRAGMA journal_mode=WAL").fetchone()[0], "wal")
+        self.assertEqual(ledger.read_bytes()[18:20], b"\x02\x02")
+        self.assertEqual(sorted(p.name for p in self.workspace.iterdir()), ["ledger.sqlite3"])
+        before = self.tree()
+        result = self.controller().read_status()
+        self.assertEqual(self.tree(), before, "read-only refresh created WAL sidecars")
+        self.assertEqual(result["status"], "BLOCKED")
+        self.assertIn("WAL", result["error"])
+        self.assertIsNone(result["latest_complete_tick"])
+        self.assertEqual(result["operational_attempt_count"], 0)
+
+    def test_refresh_refuses_live_wal_without_reporting_a_stale_complete_tick(self):
+        self.load()
+        ledger = self.journal()
+        with closing(sqlite3.connect(ledger)) as writer:
+            writer.execute("PRAGMA journal_mode=WAL")
+            writer.execute("CREATE TABLE pending_writer_data(value)")
+            writer.commit()
+            self.assertTrue(Path(str(ledger) + "-wal").exists())
+            before = self.tree()
+            result = self.controller().read_status()
+            self.assertEqual(result["status"], "BLOCKED")
+            self.assertIn("WAL", result["error"])
+            self.assertIsNone(result["latest_complete_tick"])
+            self.assertEqual(result["operational_attempt_count"], 0)
+            self.assertEqual(self.tree(), before)
 
     def test_only_exact_boolean_operational_mode_is_accepted(self):
         self.load()
@@ -357,6 +389,17 @@ class DesktopTests(unittest.TestCase):
         self.assertEqual(len(calls), 1)
         self.assertTrue(self.assert_receipt(result, b"started\n", b"waiting\n")["timed_out"])
 
+    def test_receipt_binds_process_attempt_to_actual_controller_and_runner_sources(self):
+        desktop = self.load()
+        calls = []
+        with patch("subprocess.run", self.boundary(calls)):
+            result = self.controller().run_tick()
+        saved = self.assert_receipt(result, CLI_STDOUT, b"")
+        self.assertEqual(saved.get("controller_source_sha256"),
+                         hashlib.sha256(Path(desktop.__file__).read_bytes()).hexdigest())
+        self.assertEqual(saved.get("runner_source_sha256"),
+                         hashlib.sha256(Path(closed_loop.__file__).read_bytes()).hexdigest())
+
     def test_malformed_success_output_and_second_attempt_keep_distinct_receipts(self):
         self.load()
         calls = []
@@ -476,9 +519,162 @@ assert sys.modules['glp'] is sentinel
 assert 'glp.gui' not in sys.modules
 assert not any(k.endswith('.gui') and 'desktop' in k for k in sys.modules)
 """
-        result = subprocess.run([sys.executable, "-c", code], cwd=ROOT,
+        result = subprocess.run([sys.executable, "-B", "-c", code], cwd=ROOT,
                                 capture_output=True, timeout=30)
         self.assertEqual(result.returncode, 0, result.stderr.decode(errors="replace"))
+
+    @unittest.skipUnless(os.name == "nt", "native Win32 widget smoke")
+    def test_real_native_close_waits_for_explicit_acknowledgement_after_fsync_failure(self):
+        desktop = self.load()
+        started, release = threading.Event(), threading.Event()
+        receipt = self.base / "receipt.json"
+        class InertController:
+            def read_status(inner, progress=None):
+                return {"status": "MISSING", "formal_A": 0, "decision": "NO_EDGE"}
+            def run_tick(inner, progress=None):
+                started.set()
+                release.wait(3)
+                desktop._write_json(receipt, {"status": "COMPLETED"})
+                return {"status": "COMPLETED", "formal_A": 0, "decision": "NO_EDGE"}
+            install_task = research_status = read_status
+        app = desktop.build_window(InertController())
+        try:
+            with patch.object(desktop.os, "fsync", side_effect=OSError("injected receipt fsync failure")):
+                app._start(1001)
+                self.assertTrue(started.wait(1))
+                app._wndproc(app.hwnd, app.WM_CLOSE, 0, 0)
+                release.set()
+                deadline = time.monotonic() + 3
+                while app.busy and time.monotonic() < deadline:
+                    app._drain()
+                    time.sleep(.01)
+            self.assertFalse(app.busy)
+            self.assertTrue(app.user32.IsWindow(app.hwnd),
+                            "close hid the persistence failure before acknowledgement")
+            size = app.user32.GetWindowTextLengthW(app.controls["output"]) + 1
+            text = app.ctypes.create_unicode_buffer(size)
+            app.user32.GetWindowTextW(app.controls["output"], text, size)
+            self.assertIn("injected receipt fsync failure", text.value)
+            self.assertFalse(app.close_requested)
+            app._wndproc(app.hwnd, app.WM_CLOSE, 0, 0)
+            self.assertFalse(app.user32.IsWindow(app.hwnd))
+        finally:
+            release.set()
+            if app.worker:
+                app.worker.join(3)
+            if app.user32.IsWindow(app.hwnd):
+                app.user32.DestroyWindow(app.hwnd)
+
+    def pythonw_startup(self, missing=None, receipt=None, extra=()):
+        import ctypes
+        from ctypes import wintypes
+        pythonw = Path(sys.executable).with_name("pythonw.exe")
+        self.assertTrue(pythonw.is_file())
+        command = [str(pythonw), "-B", "-m", "research.harness_v46.desktop"]
+        if missing is not None:
+            command += ["--config", str(missing)]
+        if receipt is not None:
+            command += ["--result-file", str(receipt)]
+        command += list(extra)
+        process = subprocess.Popen(command,
+                                   cwd=ROOT, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        user32 = ctypes.WinDLL("user32", use_last_error=True)
+        callback_type = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+        user32.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
+        user32.GetWindowTextLengthW.argtypes = [wintypes.HWND]
+        user32.GetWindowTextW.argtypes = [wintypes.HWND, wintypes.LPWSTR, ctypes.c_int]
+        user32.PostMessageW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
+        user32.EnumWindows.argtypes = [callback_type, wintypes.LPARAM]
+        user32.EnumChildWindows.argtypes = [wintypes.HWND, callback_type, wintypes.LPARAM]
+        windows, texts = [], []
+        def read_text(hwnd):
+            size = user32.GetWindowTextLengthW(hwnd) + 1
+            value = ctypes.create_unicode_buffer(size)
+            user32.GetWindowTextW(hwnd, value, size)
+            return value.value
+        @callback_type
+        def child(hwnd, unused):
+            texts.append(read_text(hwnd))
+            return True
+        @callback_type
+        def top(hwnd, unused):
+            pid = wintypes.DWORD()
+            user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+            if pid.value == process.pid:
+                windows.append(hwnd)
+                texts.append(read_text(hwnd))
+                user32.EnumChildWindows(hwnd, child, 0)
+            return True
+        try:
+            deadline = time.monotonic() + 5
+            while process.poll() is None and time.monotonic() < deadline:
+                windows.clear()
+                texts.clear()
+                user32.EnumWindows(top, 0)
+                if windows and any("BLOCKED:" in item for item in texts):
+                    break
+                time.sleep(.02)
+            for hwnd in windows:
+                user32.PostMessageW(hwnd, 0x0010, 0, 0)
+            return process.wait(timeout=3), windows, "\n".join(texts)
+        finally:
+            if process.poll() is None:
+                process.terminate()
+                process.wait(timeout=3)
+
+    @unittest.skipUnless(os.name == "nt", "pythonw native startup diagnostic")
+    def test_pythonw_missing_config_retains_receipt_and_shows_native_error(self):
+        missing = self.base / "missing config.json"
+        receipt = self.base / "startup.json"
+        code, windows, text = self.pythonw_startup(missing, receipt)
+        self.assertTrue(receipt.exists(), "pythonw startup error did not retain a receipt")
+        saved = json.loads(receipt.read_text(encoding="utf-8"))
+        self.assertEqual(saved["status"], "BLOCKED")
+        self.assertIn("FileNotFoundError", saved["error"])
+        self.assertIn(missing.name, saved["error"])
+        self.assertEqual(saved["config_file"], str(missing))
+        self.assertEqual((saved["formal_A"], saved["decision"]), (0, "NO_EDGE"))
+        self.assertTrue(windows, "pythonw startup error remained invisible")
+        self.assertIn(str(missing), text)
+        self.assertIn(str(receipt), text)
+        self.assertEqual(code, 2)
+        self.assertFalse((self.workspace / "operator_receipts").exists())
+
+    @unittest.skipUnless(os.name == "nt", "pythonw native startup diagnostic")
+    def test_pythonw_startup_diagnostic_does_not_overwrite_and_keeps_original_error_visible(self):
+        missing = self.base / "missing config.json"
+        receipt = self.base / "existing.json"
+        receipt.write_bytes(b"original diagnostic bytes")
+        code, windows, text = self.pythonw_startup(missing, receipt)
+        self.assertTrue(windows, "failed diagnostic persistence left pythonw invisible")
+        self.assertIn("FileNotFoundError", text)
+        self.assertIn(str(missing), text)
+        self.assertIn("FileExistsError", text)
+        self.assertEqual(receipt.read_bytes(), b"original diagnostic bytes")
+        self.assertEqual(code, 2)
+
+    @unittest.skipUnless(os.name == "nt", "pythonw native startup diagnostic")
+    def test_pythonw_startup_without_result_path_uses_exclusive_config_parent_receipt(self):
+        missing = self.base / "missing config.json"
+        code, windows, text = self.pythonw_startup(missing)
+        receipts = list((self.base / "desktop_startup_receipts").glob("startup-*.json"))
+        self.assertEqual(len(receipts), 1, "startup error was not retained below config parent")
+        self.assertTrue(windows)
+        self.assertIn(str(receipts[0]), text)
+        self.assertEqual(json.loads(receipts[0].read_text(encoding="utf-8"))["config_file"], str(missing))
+        self.assertLess(len(receipts[0].name), 64)
+        self.assertEqual(code, 2)
+
+    @unittest.skipUnless(os.name == "nt", "pythonw native startup diagnostic")
+    def test_pythonw_missing_config_flag_and_bad_arguments_are_visible(self):
+        for extra, expected in (((), "config"), (("--not-a-real-flag",), "unrecognized")):
+            with self.subTest(extra=extra):
+                receipt = self.base / ("arguments-" + str(len(extra)) + ".json")
+                code, windows, text = self.pythonw_startup(receipt=receipt, extra=extra)
+                self.assertTrue(windows, "pythonw parser error remained invisible")
+                self.assertIn(expected, text)
+                self.assertTrue(receipt.exists())
+                self.assertEqual(code, 2)
 
     @unittest.skipUnless(os.name == "nt", "native Win32 widget smoke")
     def test_real_native_buttons_use_inert_callbacks_and_close_waits_for_receipt(self):
