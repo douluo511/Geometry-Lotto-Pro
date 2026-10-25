@@ -20,6 +20,12 @@ Set-Location -LiteralPath $repo
 # independent per-game issue ticks. Never share a single required draw result.
 $hasSingleGame = [bool]($cfg.ssq_snapshot_bundle -or $cfg.dlt_snapshot_bundle)
 $operationalMode = ($cfg.operational_tick -eq $true)
+$hasOperationalSnapshots = [bool](
+    $cfg.PSObject.Properties['ssq_snapshot_path'] -or
+    $cfg.PSObject.Properties['dlt_snapshot_path'])
+if ($hasOperationalSnapshots -and -not $operationalMode) {
+    throw 'CLOSED_LOOP_SNAPSHOT_PATH_REQUIRES_OPERATIONAL_MODE'
+}
 if ($operationalMode -and ($hasSingleGame -or $cfg.snapshot_bundle -or $cfg.research_history_bundle)) {
     throw 'CLOSED_LOOP_OPERATIONAL_MODE_INPUTS_CONFLICT'
 }
@@ -29,19 +35,27 @@ if ($hasSingleGame -and ($cfg.snapshot_bundle -or $cfg.research_history_bundle))
 $commands = @()
 if ($operationalMode) {
     # This is source/replay SHADOW, not a self-approved official forecast.
-    # Both worker timeouts together must fit the Task Scheduler 10-min limit.
+    # Each of two games may collect AND replay with separate worker budgets.
+    # Four <=120s budgets leave headroom under the existing 10-min task limit;
+    # this is not a guarantee of whole-tick completion or host availability.
     $seconds = [double]45
     if ($null -ne $cfg.intake_timeout_seconds) {
         $seconds = [double]$cfg.intake_timeout_seconds
     }
     if ([double]::IsNaN($seconds) -or [double]::IsInfinity($seconds) -or
-            $seconds -le 0 -or $seconds -gt 240) {
+            $seconds -le 0 -or $seconds -gt 120) {
         throw 'CLOSED_LOOP_OPERATIONAL_TIMEOUT_INVALID'
     }
     $timeoutText = $seconds.ToString([System.Globalization.CultureInfo]::InvariantCulture)
     $argv = @('-m', 'research.harness_v46.closed_loop', '--workspace',
               [string]$cfg.workspace, '--operational-tick',
               '--intake-timeout-seconds', $timeoutText)
+    if ($cfg.ssq_snapshot_path) {
+        $argv += @('--ssq-snapshot-path', [string]$cfg.ssq_snapshot_path)
+    }
+    if ($cfg.dlt_snapshot_path) {
+        $argv += @('--dlt-snapshot-path', [string]$cfg.dlt_snapshot_path)
+    }
     $commands += ,@{ Game = 'SSQ-DLT-OPERATIONAL'; Arguments = $argv }
 } elseif ($hasSingleGame) {
     foreach ($game in @('SSQ', 'DLT')) {

@@ -549,6 +549,19 @@ create a local JSON config with exactly these operator-filled path keys:
 
 Then, on the real machine, **preview first**:
 
+For the SAME caller's optional source/score operational mode, use
+`"operational_tick": true`, `"intake_timeout_seconds": 120` and optional
+`"ssq_snapshot_path"` / `"dlt_snapshot_path"` (absolute paths to explicit
+single-game snapshots). Omit the legacy `snapshot_bundle`,
+`research_history_bundle` and `*_snapshot_bundle` fields in this mode.
+The new path fields require operational mode and are forwarded to the
+existing strict Python loader; omission or invalidity blocks that game's
+new freeze while retaining independent source/old-roster processing.
+They never authenticate target/cutoff, a source, or trusted presale time.
+The Windows worker limit is120 seconds: each game can use separate
+collection and replay budgets, not one overall timeout. Task completion
+within10 minutes still requires actual host evidence.
+
 ```powershell
 powershell.exe -NoProfile -File research/harness_v46/windows_closed_loop_tasks.ps1 -ConfigFile C:/reviewed/bot-config.json
 # Registration requires deliberate opt-in, reviewed durable storage, proper permissions
@@ -558,8 +571,9 @@ powershell.exe -NoProfile -File research/harness_v46/windows_closed_loop_tasks.p
 
 Preview does not register or start any job. The opt-in task retries every
 30 minutes and on startup, passing nonzero failures to the host log; it
-does not automatically refresh official source data or promote official
-status, cannot provide independent RFC3161 evidence, and must never be
+only the opt-in operational mode attempts fresh source histories; neither
+mode promotes official status or provides independent RFC3161 evidence.
+The task must never be
 installed on disposable GitHub Actions runners. All schedule and real
 deployment claims remain NOT_VERIFIED until separately observed. A current
 authoritative future target, sale cutoff, complete corroborated historical
