@@ -34,6 +34,27 @@ def _draws(game, n=130):
     return rows
 
 
+class CanonicalSourceDrawBoundaryTests(unittest.TestCase):
+    """Malformed source dates and issue identities cannot be silently normalized."""
+
+    def test_source_date_prefix_with_suffix_is_rejected(self):
+        for game in ("SSQ", "DLT"):
+            with self.subTest(game=game):
+                rows = _draws(game, 1)
+                rows[0]["draw_date"] += "T23:59:59+08:00"
+                with self.assertRaisesRegex(GateError, "INVALID_SOURCE_DRAW_DATE"):
+                    oi._canonical_draws(game, rows, minimum=1)
+
+    def test_nonascii_or_nonstring_source_issue_is_rejected(self):
+        for game in ("SSQ", "DLT"):
+            for value in ("２０２６００１", 2026001):
+                with self.subTest(game=game, value=repr(value)):
+                    rows = _draws(game, 1)
+                    rows[0]["issue"] = value
+                    with self.assertRaisesRegex(GateError, "INVALID_SOURCE_ISSUE"):
+                        oi._canonical_draws(game, rows, minimum=1)
+
+
 def _source_urls(game):
     if game == "SSQ":
         return [
