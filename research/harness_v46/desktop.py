@@ -361,69 +361,69 @@ def build_window(controller):
             self.worker = None
             super().__init__(service=_InertAdapter(), updater=_InertAdapter())
             self.renderers = {
-                1001: ("�������бջ�", controller.run_tick, self._render),
-                1002: ("ˢ��ֻ���˱�", controller.read_status, self._render),
-                1003: ("��װԭ��ʱ���񲢱����ִ", controller.install_task, self._render),
-                1004: ("�鿴�����о�֤��", controller.research_status, self._render)}
+                1001: ("运行现有闭环", controller.run_tick, self._render),
+                1002: ("刷新只读账本", controller.read_status, self._render),
+                1003: ("安装原定时任务并保存回执", controller.install_task, self._render),
+                1004: ("查看已有研究证据", controller.research_status, self._render)}
             try:
                 self._set("output", self._render(controller.read_status()))
-                self._set("status", "ֻ���˱������룻A=0 / NO_EDGE��δ�ɼ���װ����")
+                self._set("status", "只读账本已载入；A=0 / NO_EDGE；未采集或安装任务")
             except Exception as exc:
                 self._show_failure(f"{type(exc).__name__}: {exc}")
 
         @staticmethod
         def _render(value):
-            labels = {"MISSING": "���������˱�", "READY": "ֻ���˱��Ѷ�ȡ",
-                      "COMPLETED": "������ɣ���鿴��Դ��Ŀ���Ž�", "FAILED": "����ʧ�ܣ��ѱ�����ִ",
-                      "TIMEOUT": "������ʱ���ѱ����������", "REFUSED": "�����Ѿܾ�",
-                      "BLOCKED": "������ϣ���鿴����", "READ_ONLY": "ֻ��֤����ͼ"}
+            labels = {"MISSING": "尚无运行账本", "READY": "只读账本已读取",
+                      "COMPLETED": "操作完成，请查看来源与目标门禁", "FAILED": "操作失败，已保留回执",
+                      "TIMEOUT": "操作超时，已保留部分输出", "REFUSED": "操作已拒绝",
+                      "BLOCKED": "存在阻断，请查看详情", "READ_ONLY": "只读证据视图"}
             current = value.get("result") or value.get("latest_complete_tick") or {}
             attempts = value.get("operational_attempt_count", current.get("operational_attempt_count"))
-            rows = ["SSQ + DLT V4.7������A=0 / NO_EDGE",
-                    labels.get(value.get("status"), str(value.get("status", "״̬����ʵ"))),
-                    "��ʽ D2 �����ʣ�NOT_VERIFIED��������ʽ K/N ֤�ݣ�",
-                    "��ʽ K / N / �������� / ���飺NOT_VERIFIED",
-                    "���س��Դ�����" + (str(attempts) if attempts is not None else "����ʵ") +
-                    "�����Դ��������ڿ�����������ʽԤ���ĸ��"]
+            rows = ["SSQ + DLT V4.7　｜　A=0 / NO_EDGE",
+                    labels.get(value.get("status"), str(value.get("status", "状态待核实"))),
+                    "正式 D2 命中率：NOT_VERIFIED（尚无正式 K/N 证据）",
+                    "正式 K / N / 置信区间 / 检验：NOT_VERIFIED",
+                    "本地尝试次数：" + (str(attempts) if attempts is not None else "待核实") +
+                    "；尝试次数不等于开奖期数或正式预测分母。"]
             games = current.get("games", {})
             if not games:
-                rows.append("��������˫��Ϸ���н���������ƶ�δ���ںš���ֹʱ�����ա�")
+                rows.append("尚无完整双游戏运行结果；不会推断未来期号、截止时间或快照。")
             for game in ("SSQ", "DLT"):
                 state = games.get(game)
                 if state:
                     scoring = state.get("scoring", {})
-                    rows += ["", ("˫ɫ�� SSQ" if game == "SSQ" else "����͸ DLT"),
-                             "��Դ��" + str(state.get("source_status", "����ʵ")),
-                             "Ŀ�꣺" + str(state.get("target_gate", "����ʵ")),
-                             "���֣�" + str(scoring.get("status", "����ʵ")) +
+                    rows += ["", ("双色球 SSQ" if game == "SSQ" else "大乐透 DLT"),
+                             "来源：" + str(state.get("source_status", "待核实")),
+                             "目标：" + str(state.get("target_gate", "待核实")),
+                             "评分：" + str(scoring.get("status", "待核实")) +
                              (" / " + str(scoring["reason"]) if scoring.get("reason") else "")]
                     if state.get("source_errors"):
-                        rows.append("��Դ��ϣ�" + json.dumps(state["source_errors"], ensure_ascii=False))
+                        rows.append("来源阻断：" + json.dumps(state["source_errors"], ensure_ascii=False))
             if value.get("unfinished_tick_ids"):
-                rows.append("δ��ɳ��ԣ�" + ", ".join(value["unfinished_tick_ids"]))
+                rows.append("未完成尝试：" + ", ".join(value["unfinished_tick_ids"]))
             if value.get("receipt_dir"):
-                rows.append("��ִĿ¼��" + value["receipt_dir"])
+                rows.append("回执目录：" + value["receipt_dir"])
             if value.get("error"):
-                rows.append("ԭ��" + value["error"])
-            rows += ["", "��Դ��ʵ����־��������գ�NOT_VERIFIED�����ݸ�ʽ��鲻������Դ��֤��"]
+                rows.append("原因：" + value["error"])
+            rows += ["", "来源真实性与持久主机验收：NOT_VERIFIED；数据格式检查不代表来源认证。"]
             for report in value.get("reports", []):
-                rows += ["", "�о�֤�ݣ�" + report["path"]]
+                rows += ["", "研究证据：" + report["path"]]
                 if "text" in report:
                     rows.append(report["text"])
                 elif "evidence" in report:
                     rows.append(json.dumps(report["evidence"], ensure_ascii=False, indent=2))
                 else:
-                    rows.append(report.get("error", "�޷���ȡ"))
-            rows += ["", "���� ԭʼ����ֶ����ִ���� ����",
+                    rows.append(report.get("error", "无法读取"))
+            rows += ["", "—— 原始诊断字段与回执详情 ——",
                      json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2)]
             return "\n".join(rows)
 
         def _build_controls(self):
-            self.user32.SetWindowTextW(self.hwnd, "SSQ + DLT V4.7 �� Local SHADOW")
+            self.user32.SetWindowTextW(self.hwnd, "SSQ + DLT V4.7 — Local SHADOW")
             title = self._ctl("STATIC", "SSQ + DLT V4.7", 0, 28, 20, 680, 44)
             self.user32.SendMessageW(title, self.WM_SETFONT, self._font(26, 700), True)
             self.controls["badge"] = self._ctl("STATIC", "A=0 / NO_EDGE", 0, 850, 30, 220, 30)
-            labels = ("�������бջ�", "ˢ���˱���ֻ����", "��װԭ��ʱ����", "�鿴�����о�֤��")
+            labels = ("运行现有闭环", "刷新账本（只读）", "安装原定时任务", "查看已有研究证据")
             for index, label in enumerate(labels):
                 button = self._ctl("BUTTON", label, self.BS_PUSHBUTTON,
                                    28 + index % 2 * 264, 84 + index // 2 * 62,
@@ -431,12 +431,12 @@ def build_window(controller):
                 self.buttons.append(button)
                 self.user32.SendMessageW(button, self.WM_SETFONT, self._font(16, 600), True)
             for name, text, x, y, width, height in (
-                ("heading", "���� V4.7 ���� / ���ֱջ�", 560, 84, 500, 34),
-                ("summary", "ȱ����ʽδ��Ŀ�����ʱ���������¶��ᡣ\n"
-                 "��ʽ D2 ������ / K / N��NOT_VERIFIED", 560, 122, 510, 62),
-                ("status", "����ֻ����ȡ�����˱���", 28, 640, 1040, 26),
-                ("disclaimer", "SHADOW / ̽�����о������Դ�����������ʽԤ���ĸ��"
-                 "�־��������գ�NOT_VERIFIED��", 28, 678, 1040, 24)):
+                ("heading", "现有 V4.7 冻结 / 评分闭环", 560, 84, 500, 34),
+                ("summary", "缺少显式未来目标快照时，不生成新冻结。\n"
+                 "正式 D2 命中率 / K / N：NOT_VERIFIED", 560, 122, 510, 62),
+                ("status", "正在只读读取已有账本…", 28, 640, 1040, 26),
+                ("disclaimer", "SHADOW / 探索性研究。尝试次数不等于正式预测分母。"
+                 "持久主机验收：NOT_VERIFIED。", 28, 678, 1040, 24)):
                 self.controls[name] = self._ctl("STATIC", text, 0, x, y, width, height)
             self.controls["output"] = self._ctl("EDIT", "", self.WS_VSCROLL |
                 self.ES_MULTILINE | self.ES_AUTOVSCROLL | self.ES_READONLY, 28, 220, 1040, 405)
@@ -454,7 +454,7 @@ def build_window(controller):
             self.busy, self.active_cid = True, cid
             self._enable(False)
             self._set("heading", title)
-            self._set("status", "����ִ�У��ȱ���ԭʼ������ִ���ٽ��ͽ����")
+            self._set("status", "正在执行；先保存原始输出与回执，再解释结果。")
 
             def work():
                 try:
@@ -478,8 +478,8 @@ def build_window(controller):
                         if kind == "done":
                             result, renderer = payload
                             self._set("output", renderer(result))
-                            self._set("status", str(result.get("status", "�Ѽ�¼")) +
-                                      " �� A=0 / NO_EDGE����鿴�ѱ������Ž����顣")
+                            self._set("status", str(result.get("status", "已记录")) +
+                                      " — A=0 / NO_EDGE；请查看已保留的门禁详情。")
                         else:
                             # A worker exception may mean receipt persistence
                             # failed. A previously queued close cannot acknowledge
@@ -498,7 +498,7 @@ def build_window(controller):
         def _wndproc(self, hwnd, message, wparam, lparam):
             if message == getattr(self, "WM_CLOSE", 0x0010) and self.busy:
                 self.close_requested = True
-                self._set("status", "���ڵȴ���ǰ�������ִ������ɣ����رա�")
+                self._set("status", "正在等待当前操作与回执保存完成，随后关闭…")
                 return 0
             return super()._wndproc(hwnd, message, wparam, lparam)
 
@@ -610,7 +610,7 @@ def _report_startup_failure(exc, args):
             user32 = ctypes.WinDLL("user32", use_last_error=True)
             user32.MessageBoxW.argtypes = [ctypes.c_void_p, ctypes.c_wchar_p,
                                           ctypes.c_wchar_p, ctypes.c_uint]
-            user32.MessageBoxW(None, detail, "SSQ + DLT V4.7 �� Startup blocked", 0x10)
+            user32.MessageBoxW(None, detail, "SSQ + DLT V4.7 — Startup blocked", 0x10)
         except Exception:
             # Retain the original error/receipt; diagnostic display is best effort.
             pass
