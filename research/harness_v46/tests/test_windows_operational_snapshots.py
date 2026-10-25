@@ -76,24 +76,34 @@ class WindowsOperationalSnapshotTests(unittest.TestCase):
             self.assertIn("game_predictions", tables,
                           "Explicit synthetic snapshots never reached the freeze entrypoint")
             predictions = dict(con.execute(
-                "SELECT lottery,count(*) FROM game_predictions GROUP BY lottery"))
-        return events, predictions
+                "SELECT r.lottery,count(*) FROM game_predictions p "
+                "JOIN game_runs r ON r.run_id=p.run_id GROUP BY r.lottery"))
+            frozen = (
+                con.execute("SELECT * FROM game_runs ORDER BY run_id").fetchall(),
+                con.execute("SELECT * FROM game_predictions "
+                            "ORDER BY run_id,model").fetchall(),
+            )
+        return events, predictions, frozen
 
     def test_explicit_paths_freeze_both_synthetic_games_and_retry_reuses_cards(self):
         self.config.update(ssq_snapshot_path=self.snapshot("SSQ"),
                            dlt_snapshot_path=self.snapshot("DLT"))
         before = None
+        original_frozen = None
         for count in (1, 2):
             run = self.invoke()
             self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
-            events, predictions = self.state()
+            events, predictions, frozen = self.state()
             self.assertEqual(predictions, {"SSQ": 6, "DLT": 6})
             self.assertEqual(len(events), count * 4)
             if before is not None:
                 self.assertEqual(events[:len(before)], before)
+                self.assertEqual(frozen, original_frozen)
             before = events
+            original_frozen = frozen
             end = json.loads(events[-1][2])["result"]
             self.assertEqual(end["local_frozen_issue_count"], 2)
+            self.assertEqual(end["new_frozen_issue_count"], 2 if count == 1 else 0)
             self.assertEqual(end["formal_A"], 0)
             self.assertEqual(end["formal_future_denominator"], "NOT_VERIFIED")
             self.assertEqual(end["decision"], "NO_EDGE")
@@ -105,7 +115,7 @@ class WindowsOperationalSnapshotTests(unittest.TestCase):
                            dlt_snapshot_path=self.snapshot("DLT"))
         run = self.invoke()
         self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
-        events, predictions = self.state()
+        events, predictions, _ = self.state()
         self.assertEqual(predictions, {"DLT": 6})
         self.assertEqual([r[0] for r in events],
                          ["STARTED", "GAME_RESULT", "GAME_RESULT", "FINISHED"])
@@ -118,19 +128,26 @@ class WindowsOperationalSnapshotTests(unittest.TestCase):
 
     def test_new_paths_reject_wrong_mode_and_preserve_legacy_conflict(self):
         self.config["ssq_snapshot_path"] = self.snapshot("SSQ")
-        for fields, message in (
+        for index, (fields, message) in enumerate((
             ({"operational_tick": False},
+             "CLOSED_LOOP_SNAPSHOT_PATH_REQUIRES_OPERATIONAL_MODE"),
+            ({"operational_tick": False, "ssq_snapshot_path": ""},
+             "CLOSED_LOOP_SNAPSHOT_PATH_REQUIRES_OPERATIONAL_MODE"),
+            ({"operational_tick": False, "ssq_snapshot_path": None},
              "CLOSED_LOOP_SNAPSHOT_PATH_REQUIRES_OPERATIONAL_MODE"),
             ({"operational_tick": True, "dlt_snapshot_bundle": "old.json"},
              "CLOSED_LOOP_OPERATIONAL_MODE_INPUTS_CONFLICT"),
-        ):
+        )):
             with self.subTest(fields=fields):
+                workspace = self.base / ("mode-" + str(index))
+                log = self.base / ("mode-" + str(index) + ".log")
+                self.config.update(workspace=str(workspace), log_path=str(log))
                 self.config.update(fields)
                 run = self.invoke()
                 self.assertNotEqual(run.returncode, 0)
                 self.assertIn(message, run.stdout + run.stderr)
-                self.assertFalse(self.workspace.exists())
-                self.assertFalse((self.base / "bot.log").exists())
+                self.assertFalse(workspace.exists())
+                self.assertFalse(log.exists())
 
     def test_timeout_above_host_budget_rejects_before_python_or_log_start(self):
         # If validation regresses, Python exits immediately on the file workspace;
