@@ -683,6 +683,89 @@ def _local_game_roster(ledger):
         conn.close()
 
 
+
+def _stage_outcome_candidates(root, game, collected, prior_roster, intake_sha256):
+    """Retain post-draw *candidates*; NEVER create a scoreable official outcome.
+
+    A same-parser official-site overlap, even with original raw byte hashes,
+    does not authenticate publication custody, actual draw time or outcome.
+    This path is intentionally separate from outcomes_by_game and cannot
+    bypass review to turn a historical observation into an official receipt.
+    """
+    blocked = {"status": "NO_REVIEWED_SOURCE_OVERLAP", "new_count": 0,
+               "retained_count": 0, "candidate_issues": [],
+               "admission": "QUARANTINED_NOT_OFFICIAL"}
+    if (not isinstance(collected, dict)
+            or collected.get("status") != "HISTORY_CROSSCHECK_PASS"):
+        return blocked
+    if (collected.get("raw_byte_sha_validation") != "PASS"
+            or collected.get("parser_to_raw_binding")
+            != "SECOND_PROCESS_SAME_PARSER_REPLAY_MATCHED"
+            or not isinstance(collected.get("second_process_raw_replay"), dict)
+            or collected["second_process_raw_replay"].get("status")
+            != "SECOND_PROCESS_SAME_PARSER_REPLAY_MATCHED"
+            or collected.get("official_target_admission") != "BLOCKED"
+            or type(collected.get("formal_A")) is not int
+            or collected["formal_A"] != 0):
+        raise GateError("OUTCOME_CANDIDATE_SOURCE_EVIDENCE_INCOMPLETE")
+    if (not isinstance(intake_sha256, str)
+            or re.fullmatch(r"[0-9a-f]{64}", intake_sha256) is None):
+        raise GateError("OUTCOME_CANDIDATE_INTAKE_HASH_MISSING")
+    draws = collected.get("consensus_draws")
+    if not isinstance(draws, list) or not draws:
+        return blocked
+    # Validate the whole source-supplied overlap, not just a convenient row.
+    draws = official_intake._canonical_draws(game, draws, minimum=1)
+    target_issues = {issue for lottery, issue in prior_roster if lottery == game}
+    selected = [row for row in draws if row["issue"] in target_issues]
+    if not selected:
+        return blocked
+    dest = root / "outcome_candidates_by_game" / game
+    _not_symlink(dest)
+    dest.mkdir(parents=True, exist_ok=True)
+    created = retained = 0
+    for row in selected:
+        target = dest / (row["issue"] + ".json")
+        _not_symlink(target)
+        proposal = {
+            "schema": "V47-QUARANTINED-OUTCOME-CANDIDATE-1",
+            "lottery": game, "issue": row["issue"], "draw": row,
+            "first_intake_manifest_sha256": intake_sha256,
+            "source_evidence": "OFFICIAL_SITE_OVERLAP_RAW_REPLAY_NOT_INDEPENDENT_CUSTODY",
+            "status": "QUARANTINED_NOT_OFFICIAL",
+            "authoritative_draw_time": "NOT_VERIFIED",
+            "official_outcome_authenticated": False,
+            "may_enter_outcomes_by_game_automatically": False,
+            "formal_A": 0, "decision": "NO_EDGE",
+        }
+        # An unchanged subsequent observation retains the *first* original
+        # source reference; later ticks cannot rewrite or relabel evidence.
+        if not target.exists():
+            try:
+                _write_once(target, proposal)
+            except GateError as exc:
+                if str(exc) != "SCORE_RECEIPT_CONFLICT":
+                    raise
+                # Concurrent author may have won. Check semantic identity below.
+            else:
+                created += 1
+                continue
+        saved = _read_json(target)
+        if (not isinstance(saved, dict)
+                or set(saved) != set(proposal)
+                or any(saved[key] != value for key, value in proposal.items()
+                       if key != "first_intake_manifest_sha256")
+                or not isinstance(saved["first_intake_manifest_sha256"], str)
+                or re.fullmatch(r"[0-9a-f]{64}",
+                                saved["first_intake_manifest_sha256"]) is None):
+            raise GateError("OUTCOME_CANDIDATE_CONFLICT:" + game + ":" + row["issue"])
+        retained += 1
+    return {"status": "QUARANTINED_REVIEW_REQUIRED", "new_count": created,
+            "retained_count": retained, "candidate_issues": [row["issue"] for row in selected],
+            "admission": "QUARANTINED_NOT_OFFICIAL"}
+
+
+
 def operational_tick(workspace, *, snapshot_paths=None, intake_timeout_seconds=600):
     """One bounded two-game *attempt*, not a certified official forecast cycle.
 
@@ -764,6 +847,18 @@ def operational_tick(workspace, *, snapshot_paths=None, intake_timeout_seconds=6
                 saved.read_bytes()).hexdigest()
         except Exception as exc:
             state["artifact_error"] = type(exc).__name__ + ": " + str(exc)
+        # Candidate intake is evidence storage only. It deliberately cannot
+        # write a scoreable outcomes_by_game file or invent a draw timestamp.
+        try:
+            state["outcome_candidates"] = _stage_outcome_candidates(
+                root, game, collected, original_roster,
+                state.get("intake_manifest_sha256"))
+        except (GateError, OSError, ValueError, TypeError) as exc:
+            state["outcome_candidate_error"] = type(exc).__name__ + ": " + str(exc)
+            state["outcome_candidates"] = {
+                "status": "BLOCKED", "new_count": 0, "retained_count": 0,
+                "candidate_issues": [], "admission": "QUARANTINED_NOT_OFFICIAL",
+            }
         state["source_status"] = collected.get("status", "BLOCKED")
         # Source failures must survive even if writing the raw intake bundle
         # fails: retain bounded diagnostics in the immutable attempt journal.
@@ -812,6 +907,9 @@ def operational_tick(workspace, *, snapshot_paths=None, intake_timeout_seconds=6
             "scoring_reason": state["scoring"].get("reason"),
             "source_status": state["source_status"],
             "source_errors": state["source_errors"],
+            "outcome_candidate_status": state["outcome_candidates"]["status"],
+            "outcome_candidate_issues": state["outcome_candidates"]["candidate_issues"],
+            "outcome_candidate_error": state.get("outcome_candidate_error"),
         })
     current_roster = _local_game_roster(ledger)
     observed_roster = {(game, issue) for game, state in games.items()
