@@ -153,20 +153,27 @@ def _canonical_draws(game: str, rows: list[dict], *, minimum: int = 120) -> list
     for row in rows:
         if not isinstance(row, dict) or set(row) != {"issue", "draw_date", "front", "back"}:
             raise GateError("INVALID_SOURCE_DRAW_SCHEMA")
-        issue = str(row["issue"])
+        issue = row["issue"]
         day = row["draw_date"]
-        if not issue.isdigit() or int(issue) <= last_issue:
+        # The raw parser must supply a canonical ASCII issue string.  Converting
+        # integers or Unicode digits to text would silently change its identity
+        # before the original source agreement and freeze checks.
+        if type(issue) is not str or not issue.isascii() or not issue.isdecimal():
+            raise GateError("INVALID_SOURCE_ISSUE")
+        if int(issue) <= last_issue:
             raise GateError("DUPLICATE_OR_OUT_OF_ORDER_SOURCE_ISSUE")
-        if not isinstance(day, str):
+        # A date prefix is not evidence of an actual draw date.  For example
+        # 2026-10-24T... was previously accepted by slicing away its suffix.
+        if type(day) is not str or re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", day) is None:
             raise GateError("INVALID_SOURCE_DRAW_DATE")
         try:
-            parsed_day = datetime.strptime(day[:10], "%Y-%m-%d").date()
+            parsed_day = datetime.strptime(day, "%Y-%m-%d").date()
         except ValueError as exc:
             raise GateError("INVALID_SOURCE_DRAW_DATE") from exc
         # Duplicate dates cannot be silently accepted: historical corrections require
         # an explicit independently verified exception in a new source contract.
-        if parsed_day.isoformat() != day[:10] or (last_date is not None and parsed_day <= last_date):
-            raise GateError("NONMONOTONIC_SOURCE_DRAW_DATE:" + issue + ":" + day[:10])
+        if parsed_day.isoformat() != day or (last_date is not None and parsed_day <= last_date):
+            raise GateError("NONMONOTONIC_SOURCE_DRAW_DATE:" + issue + ":" + day)
         front, back = row["front"], row["back"]
         if (not isinstance(front, list) or len(front) != front_count
                 or any(type(n) is not int or not 1 <= n <= front_max for n in front)
