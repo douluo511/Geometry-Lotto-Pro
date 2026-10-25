@@ -381,5 +381,67 @@ class OperationalTickTests(unittest.TestCase):
             self.assertEqual(conn.execute("SELECT * FROM operational_events").fetchall(), before)
 
 
+    def test_trusted_history_overlap_stages_unverified_outcome_candidate_only(self):
+        self.old_freeze("SSQ", outcome=False)
+        original = {"issue": "29999", "draw_date": "2026-10-23",
+                    "front": [1, 2, 3, 4, 5, 6], "back": [1]}
+        def intake(game, *, timeout_seconds):
+            result = self.collect(game, timeout_seconds=timeout_seconds)
+            if game == "SSQ":
+                result.update(status="HISTORY_CROSSCHECK_PASS",
+                    raw_byte_sha_validation="PASS",
+                    parser_to_raw_binding="SECOND_PROCESS_SAME_PARSER_REPLAY_MATCHED",
+                    second_process_raw_replay={
+                        "status": "SECOND_PROCESS_SAME_PARSER_REPLAY_MATCHED"},
+                    consensus_draws=[original])
+            return result
+        with patch.object(official_intake, "collect_live_history", intake):
+            first = self.tick()
+            candidate = (self.ws / "outcome_candidates_by_game" / "SSQ" / "29999.json")
+            self.assertTrue(candidate.is_file())
+            saved = candidate.read_bytes()
+            record = json.loads(saved)
+            self.assertEqual(record["draw"], original)
+            self.assertEqual(record["status"], "QUARANTINED_NOT_OFFICIAL")
+            self.assertNotIn("drawn_at", record)
+            self.assertFalse((self.ws / "outcomes_by_game" / "SSQ").exists())
+            self.assertEqual(first["local_scored_issue_count"], 0)
+            self.assertEqual(first["games"]["SSQ"]["outcome_candidates"]["new_count"], 1)
+            second = self.tick()
+            self.assertEqual(candidate.read_bytes(), saved)
+            self.assertEqual(second["games"]["SSQ"]["outcome_candidates"]["new_count"], 0)
+            self.assertEqual(second["local_scored_issue_count"], 0)
+
+    def test_conflicting_candidate_preserves_original_and_persists_warning(self):
+        self.old_freeze("SSQ", outcome=False)
+        alternate = [1, 2, 3, 4, 5, 6]
+        def intake(game, *, timeout_seconds):
+            result = self.collect(game, timeout_seconds=timeout_seconds)
+            if game == "SSQ":
+                result.update(status="HISTORY_CROSSCHECK_PASS",
+                    raw_byte_sha_validation="PASS",
+                    parser_to_raw_binding="SECOND_PROCESS_SAME_PARSER_REPLAY_MATCHED",
+                    second_process_raw_replay={
+                        "status": "SECOND_PROCESS_SAME_PARSER_REPLAY_MATCHED"},
+                    consensus_draws=[{"issue": "29999", "draw_date": "2026-10-23",
+                                      "front": list(alternate), "back": [1]}])
+            return result
+        with patch.object(official_intake, "collect_live_history", intake):
+            self.tick()
+            candidate = self.ws / "outcome_candidates_by_game" / "SSQ" / "29999.json"
+            before = candidate.read_bytes()
+            alternate[:] = [2, 3, 4, 5, 6, 7]
+            result = self.tick()
+        self.assertEqual(candidate.read_bytes(), before)
+        self.assertIn("OUTCOME_CANDIDATE_CONFLICT",
+                      result["games"]["SSQ"].get("outcome_candidate_error", ""))
+        event = [json.loads(row[3]) for row in self.events()
+                 if row[1] == "GAME_RESULT" and row[2] == "SSQ"][-1]
+        self.assertIn("OUTCOME_CANDIDATE_CONFLICT",
+                      event.get("outcome_candidate_error", ""))
+        self.assertEqual(result["local_scored_issue_count"], 0)
+        self.assertFalse((self.ws / "outcomes_by_game" / "SSQ").exists())
+
+
 if __name__ == "__main__":
     unittest.main()
