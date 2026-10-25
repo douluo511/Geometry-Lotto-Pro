@@ -274,5 +274,109 @@ class OperationalTickTests(unittest.TestCase):
                          ["STARTED", "GAME_RESULT", "GAME_RESULT", "FINISHED"])
 
 
+    def test_new_connection_cannot_replace_and_rehash_an_old_event(self):
+        with patch.object(official_intake, "collect_live_history", self.collect):
+            self.tick()
+        before = self.events()
+        with closing(sqlite3.connect(self.ws / "ledger.sqlite3")) as conn:
+            row = list(conn.execute("SELECT * FROM operational_events WHERE event_id=1").fetchone())
+            changed = json.loads(row[4])
+            changed["trust"] = "TAMPERED"
+            row[4], row[5] = core.canon(changed), core.digest(changed)
+            with self.assertRaises(sqlite3.IntegrityError):
+                conn.execute("INSERT OR REPLACE INTO operational_events VALUES(?,?,?,?,?,?)", row)
+        self.assertEqual(self.events(), before)
+
+    def test_concurrent_new_issue_after_game_score_marks_roster_observation_partial(self):
+        self.old_freeze(outcome=False)
+        future, _ = self.snapshot_file("SSQ", future=True)
+        future["target_issue"] = "30000"
+        def concurrent_writer(game, *, timeout_seconds):
+            if game == "DLT":
+                closed_loop.advance_game_workspace(self.ws, snapshot=future, game="SSQ")
+            return self.collect(game, timeout_seconds=timeout_seconds)
+        with patch.object(official_intake, "collect_live_history", concurrent_writer):
+            result = self.tick()
+        self.assertEqual(result["local_frozen_issue_count"], 2)
+        self.assertEqual(result["local_pending_issue_count"], 1)
+        self.assertEqual(result.get("local_scoring_roster_observation"), "PARTIAL_CHANGED_ROSTER")
+        self.assertEqual(result.get("local_unobserved_issue_count"), 1)
+        self.assertEqual(result["games"]["SSQ"]["scoring"]["frozen_issues"], ["29999"])
+
+    def test_saved_operational_bundle_passes_existing_byte_auditor(self):
+        from research.harness_v46.audit_intake_bundle import audit_bundle
+        def valid_collection(game, *, timeout_seconds):
+            return official_intake._quarantine_worker_output(
+                game, "synthetic worker failure", b"preserved stdout", b"preserved stderr",
+                returncode=2, capture_complete=True)
+        for fail_collection in (False, True):
+            with self.subTest(fail_collection=fail_collection):
+                collector = (OSError("synthetic transport failure") if fail_collection else None)
+                with patch.object(official_intake, "collect_live_history",
+                                  side_effect=collector if collector else valid_collection):
+                    result = self.tick()
+                for game in ("SSQ", "DLT"):
+                    directory = Path(result["games"][game]["intake_manifest_path"]).parent
+                    audit = audit_bundle(directory)
+                    self.assertEqual(audit["errors"],
+                                     ["NO_RAW_ARTIFACT_RECORDS_FOUND"] if fail_collection else [])
+                    self.assertEqual(audit["status"], "FAIL" if fail_collection else "PASS")
+                    self.assertEqual(audit["purpose"], "BYTE_INTEGRITY_ONLY_NOT_SOURCE_AUTHENTICITY")
+
+    def test_scoring_failure_reason_survives_in_persisted_game_event(self):
+        with patch.object(official_intake, "collect_live_history", self.collect), patch.object(
+                closed_loop, "advance_game_workspace", side_effect=core.GateError("SYNTHETIC_SCORE_BLOCKED")):
+            self.tick()
+        game_events = [json.loads(r[3]) for r in self.events() if r[1] == "GAME_RESULT"]
+        self.assertEqual(len(game_events), 2)
+        for event in game_events:
+            self.assertIn("SYNTHETIC_SCORE_BLOCKED", event.get("scoring_reason", ""))
+
+    def test_rehashed_invalid_journal_identity_and_order_are_rejected(self):
+        tick = "V47T-" + "a" * 32
+        cases = [
+            [(tick, "STARTED", None, {"tick_id": "V47T-" + "b" * 32})],
+            [(tick, "STARTED", None, {"tick_id": tick}),
+             (tick, "GAME_RESULT", "SSQ", {"tick_id": tick, "game": "DLT"})],
+            [(tick, "STARTED", None, {"tick_id": tick}),
+             (tick, "FINISHED", None, {"tick_id": tick})],
+            [(tick, "STARTED", None, {"tick_id": tick}),
+             (tick, "STARTED", None, {"tick_id": tick})],
+            [(tick, "UNKNOWN", None, {"tick_id": tick})],
+        ]
+        for rows in cases:
+            with self.subTest(rows=rows), closing(sqlite3.connect(":memory:")) as conn:
+                conn.executescript(closed_loop.OPERATIONAL_SCHEMA)
+                for tid, kind, game, payload in rows:
+                    conn.execute("INSERT INTO operational_events "
+                                 "(tick_id,event_type,lottery,event_payload,event_sha256) VALUES(?,?,?,?,?)",
+                                 (tid, kind, game, core.canon(payload), core.digest(payload)))
+                with self.assertRaisesRegex(core.GateError, "OPERATIONAL_EVENT"):
+                    closed_loop._operational_check_journal(conn)
+
+    def test_both_retained_event_formats_are_read_without_rewriting(self):
+        with closing(sqlite3.connect(":memory:")) as conn:
+            conn.executescript(closed_loop.OPERATIONAL_SCHEMA)
+            for detailed in (True, False):
+                tick = "V47T-" + ("a" if detailed else "b") * 32
+                for kind, game in (("STARTED", None), ("GAME_RESULT", "SSQ"),
+                                   ("GAME_RESULT", "DLT"), ("FINISHED", None)):
+                    if detailed:
+                        payload = {"schema": "V47-LOCAL-OPERATIONAL-EVENT-1", "tick_id": tick,
+                                   "event_type": kind, "lottery": game, "details": {},
+                                   "observed_at_local_untrusted": "2026-10-24T17:35:31+00:00",
+                                   "runner_source_sha256": "c" * 64}
+                    else:
+                        payload = {"tick_id": tick}
+                        if game:
+                            payload["game"] = game
+                    conn.execute("INSERT INTO operational_events "
+                                 "(tick_id,event_type,lottery,event_payload,event_sha256) VALUES(?,?,?,?,?)",
+                                 (tick, kind, game, core.canon(payload), core.digest(payload)))
+            before = conn.execute("SELECT * FROM operational_events").fetchall()
+            self.assertEqual(closed_loop._operational_check_journal(conn), ([], 2))
+            self.assertEqual(conn.execute("SELECT * FROM operational_events").fetchall(), before)
+
+
 if __name__ == "__main__":
     unittest.main()
