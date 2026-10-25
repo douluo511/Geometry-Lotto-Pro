@@ -1,0 +1,38 @@
+# Local SSQ + DLT V4.7 control surface
+
+The user renewed authorization to take over local deployment, pre/post-draw review and algorithm work. Implement the existing approved closed_loop architecture. Sole Issue468 / DraftPR467, no main merge, new Harness, alternate forecaster, seed/family change or purchase. Platform/UI decisions below are the implementer's choices under that delegation, not new formal acceptance criteria.
+
+## Observed problems and choices
+
+Exact base HEAD5c9f351b7380340be35fd0416a2eb660cd7a13ca,519 verified blobs. SSQ/launcher.py directly fails ModuleNotFoundError:glp because its package is SSQ/SSQ/glp. Existing DLT GUI starts an independent detached legacy worker and both old GUIs do not invoke V4.7. Their launch alone cannot deliver the requested V4.7 loop. Owner install/capture error root cause remains UNKNOWN: no raw receipt exists.
+
+Choose a thin native Windows control surface in SAME research/harness_v46. It delegates all actual forecasts/freeze/scoring to existing closed_loop operational CLI and the original Windows installer. Reuse existing DLT Win32 window widgets with inert adapters and overridden callbacks/rendering; NEVER invoke its legacy predictor, updater or background worker. Tk is not chosen: existing Python has tkinter but Tcl init.tcl initialization fails. A separate predictor/UI backend or another timer would duplicate custody and is excluded.
+
+Repair SSQ's source launcher by resolving its own nested package directory before package imports in source mode; frozen EXE paths retain normal PyInstaller lookup. No global PYTHONPATH change. Retain acceptance flags and original output semantics.
+
+## Desktop contract
+
+New desktop.py exposes DesktopController(config_file, reports=(), owner_sid=None), read_status(progress=None), run_tick(progress=None), install_task(progress=None), research_status(progress=None); build_window(controller); main(argv=None).
+
+Configuration is the existing strict bot JSON, read with closed_loop._read_json, exact operational_tick:true only. Resolve and validate required repository_root/python_exe/workspace/log_path; repository must equal current source root and log_path parent must already exist, matching the original handler. Reject mixed old bundle fields and invalid optional per-game path declarations, preserving original caller gates. No target/cutoff/issue inference. Optional paths are forwarded only as explicit values to the existing CLI. No implicit source fetch or write on opening/refreshing the window.
+
+read_status uses SQLite mode=ro, validates the original event journal, reports the most recent COMPLETE tick and any unfinished attempts. It does not create missing databases or mix games from different ticks. It preserves source/target/scoring blockers and original scoring details. Attempt count is not a prediction denominator. Formal K/N/CI/tests stay NOT_VERIFIED unless existing admitted evidence supplies them; maintain formal_A0/NO_EDGE and separate synthetic/SHADOW/retrospective evidence.
+
+run_tick invokes cfg.python_exe with the SAME module CLI in repository_root, forwarding cfg.intake_timeout_seconds (finite numeric (0,120], original default45) and explicit per-game snapshots. Retain original stdout/stderr and actual command/time/exit in a unique operator receipt directory before parsing. On timeout/malformed/nonzero output preserve failure; no auto retry. It may take up to580s and runs off the UI thread. No extra recurring worker; native ssq-dlt monitor remains the scheduler. Override WM_CLOSE while busy so the GUI remains alive until operation completion and durable receipt; the inherited100ms presentation queue-drain timer is permitted, never a forecasting schedule.
+
+install_task is an EXPLICIT button action. It obtains actual whoami /user token SID and compares with explicitly supplied durable owner_sid; missing/malformed/mismatched SID or a temporary CodexSandbox account is refused before calling the installer, calls ORIGINAL windows_closed_loop_tasks.ps1 with -Install and normal PowerShell policy (no Bypass/Force/security edit), and preserves raw output/error and read-only TaskXML/TaskInfo queries. Capture failures as well as success. Registration exit0 is not host acceptance; do not infer task absence from query failure. Refused tool-account diagnostics stay under operator receipts and must not impersonate owner capture-* receipts. Matched-owner captures are retained beneath config_file.parent/capture-<actualtime>-<uuid> so existing monitor discovery can find them. UI self-test never actually installs anything.
+
+Four controls: run existing loop; refresh read-only ledger; install original task/save receipt; view existing research evidence. Correct SSQ+DLT V4.7 title, NO_EDGE badge, clear missing-target and formal denominator text. No old DLT version/name/prediction callbacks or legacy acceptance files. Opening the window shows actual read-only status, not canned PASS. Errors are visible and retained; original blocked game state is ordinary informative output rather than a fake success.
+
+CLI supports --config, optional --owner-sid, repeated --report, --status-json and bounded --gui-self-test/--result-file. GUI self-test uses explicit inert/synthetic callback probes and reports TEST_ONLY_SYNTHETIC native-window scope, never physical acceptance, task installation or prediction advantage. Windows-only widget code is lazily imported under a unique package namespace so Linux controller tests and SSQ module state are unaffected.
+
+## Research increment and deployment
+
+Independently reuse frozen manifest5620b85c521b03f67ac9066858a7f739b3e1e4eb82a2beda17fed91f838ce9b1 and old data hashes. SSQ2026122 and DLT26121 are each one new captured historical row with unchanged old prefix. Reconstruct only fixed selected EWMA/HOT60 and fixed NULL through existing ablation_rank; report D1-D5/top5 and same-row D2 wins/losses as POST_RESULT_RECONSTRUCTION_EXPLORATORY. No assertion of presale freeze time; no prospective ledger writes, old4777 rerun, parameter/seed/family change or formal Holm claim.
+
+After RED/GREEN, regression, exact-HEAD two-OS CI and independent review, deploy a full hash-verified source snapshot and generated local one-click CMD referencing existing Python and a deployment-specific COPY of the original bot config, replacing only repository_root with the final verified snapshot. Desktop and ORIGINAL installer consume that SAME copy; preserve workspace/interpreter/timeout/snapshots/log and retain original config. Keep original development/runtime/freeze artifacts. Owner task registration/boot/outage acceptance and G00/G01 remain NOT_VERIFIED until real evidence. Do not claim complete deployment merely from GUI smoke.
+
+## Validation
+
+Actual source-launch subprocess without PYTHONPATH from a spaced unrelated cwd; strict/read-only journal absence, tamper/unfinished states; per-game explicit forwarding and old-mode/null rejection; raw process failure preservation; sandbox identity refusal and original installer/no policy override; real Windows widget creation/callback probes with inert backends; no writes/collector/registration on open. Full V4.7 suite and SSQ/DLT relevant suites. Existing local five PowerShell File-policy failures must be named, not suppressed; exact Windows/Ubuntu CI remains required.
+
