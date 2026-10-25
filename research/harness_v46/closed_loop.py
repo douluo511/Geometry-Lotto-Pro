@@ -812,7 +812,6 @@ def operational_tick(workspace, *, snapshot_paths=None, intake_timeout_seconds=6
     games = {}
     intake_root = root / "operational_intake" / tick_id
     _not_symlink(intake_root)
-    intake_root.mkdir(parents=True, exist_ok=False)
     for game in ("SSQ", "DLT"):
         state = {
             "target_gate": "BLOCKED_NO_EXPLICIT_SNAPSHOT",
@@ -910,6 +909,7 @@ def operational_tick(workspace, *, snapshot_paths=None, intake_timeout_seconds=6
             "outcome_candidate_status": state["outcome_candidates"]["status"],
             "outcome_candidate_issues": state["outcome_candidates"]["candidate_issues"],
             "outcome_candidate_error": state.get("outcome_candidate_error"),
+            "state": state,
         })
     current_roster = _local_game_roster(ledger)
     observed_roster = {(game, issue) for game, state in games.items()
@@ -949,6 +949,7 @@ def operational_tick(workspace, *, snapshot_paths=None, intake_timeout_seconds=6
         "local_unobserved_issues_by_game": result["local_unobserved_issues_by_game"],
         "local_scoring_roster_observation": result["local_scoring_roster_observation"],
         "decision": "NO_EDGE",
+        "result": result,
     })
     return result
 
@@ -968,6 +969,10 @@ def main(argv=None) -> int:
                         help="Read-only independent tick of the named game's existing issues")
     parser.add_argument("--operational-tick", action="store_true",
                         help="run two independent SHADOW source/scoring attempts")
+    parser.add_argument("--ssq-snapshot-path",
+                        help="Explicit future SSQ snapshot; operational mode only")
+    parser.add_argument("--dlt-snapshot-path",
+                        help="Explicit future DLT snapshot; operational mode only")
     parser.add_argument("--intake-timeout-seconds", type=float, default=600)
     args = parser.parse_args(argv)
     try:
@@ -976,9 +981,14 @@ def main(argv=None) -> int:
                     or args.game_snapshot or args.game):
                 raise GateError("OPERATIONAL_MODE_CANNOT_MIX_INPUT_MODES")
             value = operational_tick(args.workspace,
+                                     snapshot_paths={game: path for game, path in (
+                                         ("SSQ", args.ssq_snapshot_path),
+                                         ("DLT", args.dlt_snapshot_path)) if path is not None},
                                      intake_timeout_seconds=args.intake_timeout_seconds)
             print(json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2))
             return 0
+        if args.ssq_snapshot_path is not None or args.dlt_snapshot_path is not None:
+            raise GateError("OPERATIONAL_SNAPSHOT_PATHS_REQUIRE_OPERATIONAL_TICK")
         snapshots = (_read_json(Path(args.snapshot_bundle))
                      if args.snapshot_bundle else None)
         research = (_read_json(Path(args.research_history_bundle))
