@@ -49,7 +49,12 @@ class DesktopTests(unittest.TestCase):
         self.logdir = self.base / "logs"
         self.logdir.mkdir()
         self.config = self.base / "bot config.json"
-        self.cfg = {"repository_root": str(ROOT), "python_exe": sys.executable,
+        # setup-python may expose the interpreter through a symlink. The valid
+        # config fixture supplies its real file; symlink rejection stays separate.
+        self.python = Path(sys.executable).resolve(strict=True)
+        self.assertTrue(self.python.is_file())
+        self.assertFalse(self.python.is_symlink())
+        self.cfg = {"repository_root": str(ROOT), "python_exe": str(self.python),
                     "workspace": str(self.workspace),
                     "log_path": str(self.logdir / "bot.log"),
                     "operational_tick": True, "intake_timeout_seconds": 37.5}
@@ -363,7 +368,7 @@ class DesktopTests(unittest.TestCase):
         calls = []
         with patch("subprocess.run", self.boundary(calls)):
             self.controller().run_tick()
-        self.assertEqual(calls[0][0], [sys.executable, "-m",
+        self.assertEqual(calls[0][0], [str(self.python), "-m",
             "research.harness_v46.closed_loop", "--workspace", str(self.workspace),
             "--operational-tick", "--intake-timeout-seconds", "45"])
 
