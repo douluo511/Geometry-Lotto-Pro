@@ -571,6 +571,10 @@ BEGIN SELECT RAISE(ABORT, 'operational event immutable'); END;
 CREATE TRIGGER IF NOT EXISTS protect_operational_events_delete
 BEFORE DELETE ON operational_events
 BEGIN SELECT RAISE(ABORT, 'operational event immutable'); END;
+CREATE TRIGGER IF NOT EXISTS protect_operational_events_replace
+BEFORE INSERT ON operational_events
+WHEN EXISTS(SELECT 1 FROM operational_events WHERE event_id=NEW.event_id)
+BEGIN SELECT RAISE(ABORT, 'operational event immutable'); END;
 """
 
 
@@ -602,30 +606,58 @@ def _operational_check_journal(conn):
         "SELECT tick_id,event_type,lottery,event_payload,event_sha256 "
         "FROM operational_events ORDER BY event_id"
     ).fetchall()
-    starts, finishes = set(), set()
+    states = {}
     for tick_id, event_type, lottery, raw, checksum in rows:
         try:
             parsed = json.loads(raw, object_pairs_hook=_unique_object,
-                                parse_constant=_reject_nonfinite)
+                                parse_constant=_reject_nonfinite, parse_float=_finite_float)
             valid = (isinstance(parsed, dict) and core.canon(parsed) == raw
-                     and core.digest(parsed) == checksum)
+                     and core.digest(parsed) == checksum
+                     and parsed.get("tick_id") == tick_id)
         except (TypeError, ValueError, GateError, OverflowError):
             valid = False
         if (not valid or not isinstance(tick_id, str)
+                or not re.fullmatch(r"V47T-[0-9a-f]{32}", tick_id)
                 or not isinstance(event_type, str)):
             raise GateError("OPERATIONAL_EVENT_HASH_OR_SCHEMA_MISMATCH")
+        if any(key in parsed and parsed[key] != expected for key, expected in (
+                ("event_type", event_type), ("lottery", lottery), ("game", lottery))):
+            raise GateError("OPERATIONAL_EVENT_IDENTITY_MISMATCH")
+        # Preserve both existing formats without rewriting old event bytes.
+        if "schema" in parsed:
+            if (parsed["schema"] != "V47-LOCAL-OPERATIONAL-EVENT-1"
+                    or parsed.get("event_type") != event_type
+                    or parsed.get("lottery") != lottery):
+                raise GateError("OPERATIONAL_EVENT_IDENTITY_MISMATCH")
+        elif event_type == "GAME_RESULT" and parsed.get("game") != lottery:
+            raise GateError("OPERATIONAL_EVENT_IDENTITY_MISMATCH")
         if event_type == "STARTED":
-            starts.add(tick_id)
-        elif event_type == "FINISHED":
-            finishes.add(tick_id)
-    return sorted(starts - finishes), len(starts)
+            if tick_id in states or lottery is not None:
+                raise GateError("OPERATIONAL_EVENT_INVALID_START")
+            states[tick_id] = {"games": set(), "finished": False}
+            continue
+        state = states.get(tick_id)
+        if state is None or state["finished"]:
+            raise GateError("OPERATIONAL_EVENT_INVALID_ORDER")
+        if event_type == "GAME_RESULT" and lottery in core.RULES:
+            if lottery in state["games"]:
+                raise GateError("OPERATIONAL_EVENT_DUPLICATE_GAME")
+            state["games"].add(lottery)
+        elif (event_type == "FINISHED" and lottery is None
+              and state["games"] == set(core.RULES)):
+            state["finished"] = True
+        else:
+            raise GateError("OPERATIONAL_EVENT_INVALID_KIND_OR_ROSTER")
+    return sorted(t for t, state in states.items() if not state["finished"]), len(states)
 
 
 def _operational_record(ledger, tick_id, kind, game, payload):
     conn = _operational_open(ledger)
     try:
         conn.execute("BEGIN IMMEDIATE")
+        _operational_check_journal(conn)
         _operational_append(conn, tick_id, kind, game, payload)
+        _operational_check_journal(conn)
         conn.execute("COMMIT")
     except BaseException:
         if conn.in_transaction:
@@ -715,14 +747,17 @@ def operational_tick(workspace, *, snapshot_paths=None, intake_timeout_seconds=6
                 "errors": {"collector_exception": type(exc).__name__ + ": " + str(exc)},
                 "official_history_admission": "BLOCKED",
                 "official_target_admission": "BLOCKED",
+                "external_tsa": "NOT_RUN",
                 "formal_A": 0, "decision": "NO_EDGE",
             }
         # Exact original bytes/worker diagnostics belong in a distinct,
         # create-only directory for EVERY attempt, even when a source fails.
         try:
             saved = official_intake.write_bundle(
-                {"schema": "V47-OPERATIONAL-INTAKE-SHADOW-1",
-                 "games": {game: collected}},
+                {"schema": "V47-OFFICIAL-INTAKE-BUNDLE-1",
+                 "games": {game: collected},
+                 "official_target_admission": "BLOCKED", "external_tsa": "NOT_RUN",
+                 "formal_A": 0, "decision": "NO_EDGE"},
                 intake_root / game)
             state["intake_manifest_path"] = str(saved)
             state["intake_manifest_sha256"] = hashlib.sha256(
@@ -774,10 +809,14 @@ def operational_tick(workspace, *, snapshot_paths=None, intake_timeout_seconds=6
             "target_error": state.get("target_error"),
             "artifact_error": state.get("artifact_error"),
             "scoring_status": state["scoring"]["status"],
+            "scoring_reason": state["scoring"].get("reason"),
             "source_status": state["source_status"],
             "source_errors": state["source_errors"],
         })
     current_roster = _local_game_roster(ledger)
+    observed_roster = {(game, issue) for game, state in games.items()
+                       for issue in state["scoring"].get("frozen_issues", [])}
+    unobserved_roster = current_roster - observed_roster
     completed = sum(len(v["scoring"].get("completed_issues", []))
                     for v in games.values())
     pending = sum(len(v["scoring"].get("pending_issues", []))
@@ -789,6 +828,14 @@ def operational_tick(workspace, *, snapshot_paths=None, intake_timeout_seconds=6
         "local_frozen_issue_count": len(current_roster),
         "local_scored_issue_count": completed,
         "local_pending_issue_count": pending,
+        "local_unobserved_issue_count": len(unobserved_roster),
+        "local_unobserved_issues_by_game": {
+            game: sorted(issue for g, issue in unobserved_roster if g == game)
+            for game in core.RULES},
+        "local_scoring_roster_observation": (
+            "PARTIAL_CHANGED_ROSTER" if unobserved_roster else "COMPLETE_LOCAL_ROSTER"),
+        "local_roster_observation_time_local_untrusted": datetime.now(timezone.utc).isoformat(),
+        "new_frozen_issue_count_basis": "LOCAL_ROSTER_DELTA_MAY_INCLUDE_CONCURRENT_WRITERS",
         "operational_attempt_count": prior_count + 1,
         "unfinished_prior_tick_ids": unfinished,
         "formal_future_denominator": "NOT_VERIFIED",
@@ -800,6 +847,9 @@ def operational_tick(workspace, *, snapshot_paths=None, intake_timeout_seconds=6
     _operational_record(ledger, tick_id, "FINISHED", None, {
         "tick_id": tick_id, "new_frozen_issue_count": result["new_frozen_issue_count"],
         "local_scored_issue_count": completed, "formal_A": 0,
+        "local_unobserved_issue_count": result["local_unobserved_issue_count"],
+        "local_unobserved_issues_by_game": result["local_unobserved_issues_by_game"],
+        "local_scoring_roster_observation": result["local_scoring_roster_observation"],
         "decision": "NO_EDGE",
     })
     return result

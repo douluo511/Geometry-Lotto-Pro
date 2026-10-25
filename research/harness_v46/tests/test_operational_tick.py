@@ -336,6 +336,9 @@ class OperationalTickTests(unittest.TestCase):
         tick = "V47T-" + "a" * 32
         cases = [
             [(tick, "STARTED", None, {"tick_id": "V47T-" + "b" * 32})],
+            [(tick, "STARTED", None, {"tick_id": tick, "event_type": "FINISHED"})],
+            [(tick, "STARTED", None, {"tick_id": tick, "lottery": "SSQ"})],
+            [(tick, "STARTED", None, {"tick_id": tick, "game": "SSQ"})],
             [(tick, "STARTED", None, {"tick_id": tick}),
              (tick, "GAME_RESULT", "SSQ", {"tick_id": tick, "game": "DLT"})],
             [(tick, "STARTED", None, {"tick_id": tick}),
