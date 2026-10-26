@@ -122,6 +122,9 @@ def _registered_runs(ledger: Path) -> list[str]:
     conn = sqlite3.connect(ledger.as_uri() + "?mode=ro", uri=True)
     try:
         conn.execute("PRAGMA query_only=ON")
+        if not conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' "
+                            "AND name='run_manifests'").fetchone():
+            return []
         return sorted(row[0] for row in conn.execute("SELECT run_id FROM run_manifests"))
     finally:
         conn.close()
@@ -153,6 +156,20 @@ def _matching_frozen_snapshot_run(ledger, existing, snapshots):
     return matches[0] if matches else None
 
 
+def _dual_evidence_files(directory, registered, directory_error, unknown_error):
+    _not_symlink(directory)
+    if directory.exists() and not directory.is_dir():
+        raise GateError(directory_error)
+    files = {} if not directory.exists() else {
+        file.stem: file for file in directory.iterdir() if file.suffix == ".json"
+    }
+    if set(files) - set(registered):
+        raise GateError(unknown_error)
+    for file in files.values():
+        _not_symlink(file)
+    return files
+
+
 def advance_workspace(workspace, *, snapshots=None, research_history=None, observed_at=None) -> dict:
     """Idempotent entrypoint; caller-controlled snapshots/outcomes are UNVERIFIED.
 
@@ -180,6 +197,15 @@ def advance_workspace(workspace, *, snapshots=None, research_history=None, obser
                   if research_history is not None else None)
     existing = _registered_runs(ledger)
     if snapshots is not None:
+        # Reject existing bad evidence before consuming any new immutable
+        # target. Reuse the original replay/scorer (and its create-only old
+        # receipts), not a weaker parallel validator.
+        _dual_evidence_files(outcomes, existing, "OUTCOMES_DIRECTORY_REQUIRED",
+                             "UNKNOWN_OUTCOME_RUN")
+        _dual_evidence_files(receipts_dir, existing, "RECEIPTS_DIRECTORY_REQUIRED",
+                             "UNKNOWN_STORED_RECEIPT")
+        if existing:
+            advance_workspace(root, observed_at=observed)
         # The same immutable identity is safe to examine even after cutoff;
         # no attempt to create an absent run is allowed after its cutoff.
         desired = (_matching_frozen_snapshot_run(ledger, existing, snapshots)
@@ -187,34 +213,17 @@ def advance_workspace(workspace, *, snapshots=None, research_history=None, obser
         if desired in existing:
             cycle.frozen_forecast_report(ledger, desired)
         else:
-            cycle.forecast_on_demand(snapshots, ledger, now=observed)
+            cycle.forecast_on_demand(snapshots, ledger, now=observed_at)
         existing = _registered_runs(ledger)
     if not existing:
         raise GateError("NO_REGISTERED_RUN_OR_SNAPSHOT")
     if any(not isinstance(r, str) or not RUN_ID.fullmatch(r) for r in existing):
         raise GateError("UNEXPECTED_FROZEN_RUN_IDENTITY")
 
-    outcome_files = {} if not outcomes.exists() else {
-        file.stem: file for file in outcomes.iterdir()
-        if file.suffix == ".json"
-    }
-    if outcomes.exists() and not outcomes.is_dir():
-        raise GateError("OUTCOMES_DIRECTORY_REQUIRED")
-    if set(outcome_files) - set(existing):
-        raise GateError("UNKNOWN_OUTCOME_RUN")
-    for file in outcome_files.values():
-        _not_symlink(file)
-
-    stored_files = {} if not receipts_dir.exists() else {
-        file.stem: file for file in receipts_dir.iterdir()
-        if file.suffix == ".json"
-    }
-    if receipts_dir.exists() and not receipts_dir.is_dir():
-        raise GateError("RECEIPTS_DIRECTORY_REQUIRED")
-    if set(stored_files) - set(existing):
-        raise GateError("UNKNOWN_STORED_RECEIPT")
-    for file in stored_files.values():
-        _not_symlink(file)
+    outcome_files = _dual_evidence_files(
+        outcomes, existing, "OUTCOMES_DIRECTORY_REQUIRED", "UNKNOWN_OUTCOME_RUN")
+    stored_files = _dual_evidence_files(
+        receipts_dir, existing, "RECEIPTS_DIRECTORY_REQUIRED", "UNKNOWN_STORED_RECEIPT")
 
     pending, scores = [], []
     for run_id in existing:
@@ -398,11 +407,31 @@ def advance_game_workspace(workspace, *, snapshot=None, game=None, observed_at=N
                             if (evidence_file.suffix == ".json"
                                     and evidence_file.stem not in registered):
                                 raise GateError(unknown_issue)
+                if registered:
+                    # A known issue name is not proof that its old card,
+                    # outcome or receipt is valid. Validate the whole original
+                    # per-game roster before writing a new six-card batch.
+                    advance_game_workspace(root, game=game, observed_at=observed)
+                # The child scorer needs a read connection during preflight.
+                # Release this SQL read transaction, then move any SHARED
+                # reader wait before new-card time checks. No SQL writes have
+                # occurred; valid old create-only receipts may already exist.
+                conn.execute("ROLLBACK")
+                conn.execute("BEGIN EXCLUSIVE")
+                locked_roster = {row[0] for row in conn.execute(
+                        "SELECT issue FROM game_runs WHERE lottery=?", (game,))}
+                # An identical same-target race is handled by the exact input
+                # comparison below; any other roster change requires retry.
+                if registered - locked_roster or locked_roster - registered - {issue}:
+                    raise GateError("GAME_FROZEN_ROSTER_CHANGED_RETRY")
                 existing = conn.execute(
                     "SELECT run_id,snapshot_sha256,snapshot_payload FROM game_runs "
                     "WHERE lottery=? AND issue=?", (game, issue)
                 ).fetchone()
                 if existing is None:
+                    lock_observed = datetime.now(timezone.utc) if observed_at is None else observed
+                    if not core.dt(snapshot["as_of"]) <= lock_observed < core.dt(snapshot["sales_cutoff"]):
+                        raise GateError("GAME_FREEZE_AFTER_CUTOFF")
                     # New forecasts use today's core. An exact existing input
                     # is replayed under its original source instead, even if
                     # today's selectors or validation behavior have changed.
@@ -413,6 +442,8 @@ def advance_game_workspace(workspace, *, snapshot=None, game=None, observed_at=N
                     # Caller-supplied observed_at is for synthetic SHADOW tests,
                     # not independently authenticated time.
                     locked_at = datetime.now(timezone.utc) if observed_at is None else observed
+                    if locked_at < lock_observed:
+                        raise GateError("GAME_FREEZE_CLOCK_MOVED_BACKWARD")
                     if not core.dt(snapshot["as_of"]) <= locked_at < core.dt(snapshot["sales_cutoff"]):
                         raise GateError("GAME_FREEZE_AFTER_CUTOFF")
                     run_id = "V47G-" + core.digest({
@@ -439,7 +470,8 @@ def advance_game_workspace(workspace, *, snapshot=None, game=None, observed_at=N
                     raise GateError("GAME_TARGET_ALREADY_FROZEN_DIFFERENT_SNAPSHOT")
                 conn.execute("COMMIT")
             except BaseException:
-                conn.execute("ROLLBACK")
+                if conn.in_transaction:
+                    conn.execute("ROLLBACK")
                 raise
         roster = conn.execute(
             "SELECT issue,run_id,snapshot_sha256,snapshot_payload,"
