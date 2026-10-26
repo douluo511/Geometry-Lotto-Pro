@@ -639,7 +639,7 @@ def main(argv=None):
             result = controller.read_status()
         if args.result_file:
             _write_json(_path(args.result_file), result)
-        print(json.dumps(result, ensure_ascii=False, sort_keys=True, indent=2))
+        print(json.dumps(result, ensure_ascii=True, sort_keys=True, indent=2))
         return 1 if result["status"] in ("FAILED", "BLOCKED") else 0
     except (OSError, GateError, ValueError, RuntimeError, sqlite3.Error) as exc:
         _report_startup_failure(exc, args)

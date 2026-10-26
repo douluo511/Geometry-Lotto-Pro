@@ -985,7 +985,7 @@ def main(argv=None) -> int:
                                          ("SSQ", args.ssq_snapshot_path),
                                          ("DLT", args.dlt_snapshot_path)) if path is not None},
                                      intake_timeout_seconds=args.intake_timeout_seconds)
-            print(json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2))
+            print(json.dumps(value, ensure_ascii=True, sort_keys=True, indent=2))
             return 0
         if args.ssq_snapshot_path is not None or args.dlt_snapshot_path is not None:
             raise GateError("OPERATIONAL_SNAPSHOT_PATHS_REQUIRE_OPERATIONAL_TICK")
@@ -1004,7 +1004,7 @@ def main(argv=None) -> int:
                                       research_history=research)
     except (GateError, ValueError, TypeError, KeyError, sqlite3.Error, OSError) as exc:
         parser.exit(2, "BLOCKED: " + str(exc) + "\n")
-    print(json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2))
+    print(json.dumps(value, ensure_ascii=True, sort_keys=True, indent=2))
     return 0
 
 
