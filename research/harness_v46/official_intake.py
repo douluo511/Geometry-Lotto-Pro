@@ -624,7 +624,7 @@ def _rows_sha256(rows: list[dict]) -> str:
 
 
 def _install_dlt_redirect_guard(game: str, failure_recorder=None) -> None:
-    """Bound redirects and preserve non-200 response bodies as untrusted diagnostics."""
+    """Capture every returned response before parser failure; bound redirects."""
     import requests
     from urllib.parse import urljoin
 
@@ -641,7 +641,7 @@ def _install_dlt_redirect_guard(game: str, failure_recorder=None) -> None:
                 allow_redirects=False, **kwargs,
             )
             status = int(response.status_code)
-            if status != 200 and failure_recorder is not None:
+            if failure_recorder is not None:
                 final_url = str(response.url or current_url)
                 _, response_root = _root_for_url(game, final_url)
                 source_id = {
@@ -815,9 +815,23 @@ def _worker(game: str) -> dict:
                     "bytes": entry.get("bytes"),
                     "parser_version": entry.get("parser_version"),
                 }
-                raw_artifacts.append(_normalize_worker_artifact(
+                manifest_artifact = _normalize_worker_artifact(
                     game, source_id, meta, raw, parser_version
-                ))
+                )
+                # The network guard already retained each actual response,
+                # including identical retries. A parser success manifest must
+                # bind to those observations, never manufacture another one.
+                # Capture/parser clocks differ; requested_url can be an earlier
+                # redirect hop. Final URL (including its query) must match.
+                keys = ("_source_id", "url", "raw_sha256", "size_bytes",
+                        "http_status", "parser_version", "raw_base64")
+                if not any(
+                    all(observed[key] == manifest_artifact[key] for key in keys)
+                    and observed["content_type"].lower()
+                    == manifest_artifact["content_type"].lower()
+                    for observed in raw_artifacts
+                ):
+                    raise GateError("DLT_MANIFEST_NOT_BOUND_TO_CAPTURED_RESPONSE")
             sources.append({
                 "source_id": source_id, "source_name": source_name,
                 "source_root": root, "url": url, "draws": _source_rows(draws),

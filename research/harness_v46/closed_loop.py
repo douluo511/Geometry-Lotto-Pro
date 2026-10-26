@@ -550,6 +550,40 @@ def advance_game_workspace(workspace, *, snapshot=None, game=None, observed_at=N
             },
             "formal_admission": "BLOCKED_UNVERIFIED_EVIDENCE",
         }
+        # Use only this game's complete replayed roster. Keep the original
+        # twelve named hypotheses; the other game's p=1 rows are conservative
+        # report placeholders, never claims about its actual sample size.
+        from .statistics import evaluate_shadow_d2
+        rows = [{"lottery": game, "issue": record["issue"],
+                 "scores": {m: record["models"][m]["D2"] for m in core.MODELS}}
+                for record in scores]
+        family = [{"hypothesis_id": f"V47-{g}-{m}", "lottery": g, "model": m}
+                  for g in ("SSQ", "DLT") for m in core.MODELS]
+        # The returned object is also persisted in the original JSON journal;
+        # preserve identical in-memory and decoded representations (CI tuples
+        # become JSON lists) before hashing/storing the operational result.
+        analysis = json.loads(core.canon(
+            evaluate_shadow_d2(rows, family, expected_family_size=12)))
+        for result in analysis["results"]:
+            result["report_placeholder_only"] = result["lottery"] != game
+            result["paired_rate_difference_vs_null"] = (
+                (result["paired_wins_vs_null"] - result["paired_losses_vs_null"])
+                / result["draws"] if result["lottery"] == game else None)
+        out["local_d2_statistics"] = {
+            "scope": "THIS_GAME_ONLY", "lottery": game,
+            "frozen_issues_at_read": [item[0] for item in loaded],
+            "frozen_run_ids_sha256": core.digest([item[3] for item in loaded]),
+            "study_rows_sha256": core.digest(rows),
+            "coverage": "COMPLETE_THIS_GAME_ROSTER_AT_READ_NOT_OFFICIAL_SCHEDULE",
+            "other_game_scope": {g: "NOT_INCLUDED_REAL_DENOMINATOR_NOT_VERIFIED"
+                                 for g in ("SSQ", "DLT") if g != game},
+            "statistical_analysis": analysis,
+            "interval_scope": "POINTWISE_NOT_MULTIPLICITY_OR_REPEATED_LOOK_ADJUSTED",
+            "stopping_rule_verified": False,
+            "official_results_authenticated": False,
+            "independent_predraw_timestamp_verified": False,
+            "formal_A": 0, "decision": "NO_EDGE",
+        }
     return out
 
 
