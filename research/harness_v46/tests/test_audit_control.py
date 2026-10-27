@@ -21,6 +21,21 @@ class AuditControlTests(unittest.TestCase):
                      'executor':'/root/exec','reviewer':'/root/review'}
     def plan(self,key='owned-audit'):
         return self.a.create_session(self.ws,key=key,actors=self.actors,source_root=self.src)
+    def test_interpreter_entry_link_pins_physical_binary_without_relaxing_workspace_paths(self):
+        physical=self.base/'python-real';physical.write_bytes(b'physical-interpreter-fixture')
+        entry=self.base/'python-entry';entry.write_bytes(b'entry-link-fixture')
+        resolve=Path.resolve;reparse=self.a._is_reparse
+        def resolve_entry(path,*args,**kwargs):
+            return physical if path==entry else resolve(path,*args,**kwargs)
+        with patch.object(self.a.sys,'executable',str(entry)),patch.object(Path,'resolve',resolve_entry),patch.object(self.a,'_is_reparse',side_effect=lambda path:path==entry or reparse(path)):
+            try:pin=self.a._controller_pin()
+            except core.GateError as exc:self.fail('trusted process interpreter entry must pin its physical binary: '+str(exc))
+            self.assertEqual(pin['interpreter_invocation'],str(entry))
+            self.assertEqual(pin['files']['interpreter']['path'],str(physical))
+            self.assertEqual(pin['files']['interpreter']['sha256'],hashlib.sha256(physical.read_bytes()).hexdigest())
+            with self.assertRaises(core.GateError):self.a._path(entry)
+            physical.write_bytes(b'drifted-interpreter-fixture')
+            self.assertNotEqual(pin,self.a._controller_pin())
     def execute_session(self,s):
         with patch.object(self.a.shutil,'which',return_value=None):
             return self.a.run_session(self.ws,s['session_id'],actor=self.actors['executor'])

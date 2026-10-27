@@ -263,9 +263,13 @@ def _controller_pin():
     budget = _Budget()
     paths = {"controller": Path(__file__), "core": Path(core.__file__),
              "intake_auditor": Path(audit_intake_bundle.__file__),
-             "executed_journal_checker": Path(closed_loop.__file__), "interpreter": Path(sys.executable)}
+             "executed_journal_checker": Path(closed_loop.__file__),
+             # The running process owns this entry, which is commonly a Linux
+             # toolchain symlink. Pin the physical binary and original invocation;
+             # caller-provided workspace/source/evidence paths remain strict.
+             "interpreter": Path(sys.executable).resolve(strict=True)}
     return {"files": {name: {"path": str(_path(path)), "sha256": hashlib.sha256(budget.read(path)).hexdigest()}
-                      for name, path in paths.items()}, "python_version": sys.version,
+                      for name, path in paths.items()}, "interpreter_invocation": sys.executable, "python_version": sys.version,
             "implementation": sys.implementation.name}
 
 
