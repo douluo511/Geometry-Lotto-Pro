@@ -1039,9 +1039,19 @@ def main(argv=None) -> int:
                         help="Explicit future SSQ snapshot; operational mode only")
     parser.add_argument("--dlt-snapshot-path",
                         help="Explicit future DLT snapshot; operational mode only")
+    parser.add_argument("--audit-request", help="Bounded local audit control JSON; exclusive with prediction/tick modes")
     parser.add_argument("--intake-timeout-seconds", type=float, default=600)
     args = parser.parse_args(argv)
     try:
+        if args.audit_request is not None:
+            if (args.operational_tick or args.snapshot_bundle or args.research_history_bundle
+                    or args.game_snapshot or args.game or args.ssq_snapshot_path is not None
+                    or args.dlt_snapshot_path is not None):
+                raise GateError("AUDIT_MODE_CANNOT_MIX_INPUT_MODES")
+            from . import audit_control
+            value = audit_control.dispatch(args.workspace, audit_control.load_request(args.audit_request))
+            print(json.dumps(value, ensure_ascii=True, sort_keys=True, indent=2))
+            return 0
         if args.operational_tick:
             if (args.snapshot_bundle or args.research_history_bundle
                     or args.game_snapshot or args.game):

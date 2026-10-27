@@ -50,12 +50,16 @@ def _has_unsafe_path_component(root: Path, relative: str) -> bool:
                for i in range(1, len(parts) + 1))
 
 
-def _evidence_tree_entries(directory: Path):
+def _evidence_tree_entries(directory: Path, *, check=None, depth=0):
     """List untrusted evidence trees without traversing links or junctions."""
+    if check is not None and depth > 32:
+        raise GateError("AUDIT_DELEGATED_TREE_DEPTH_LIMIT")
     for child in directory.iterdir():
+        if check is not None:
+            check()
         yield child
         if not _is_link_or_reparse_point(child) and child.is_dir():
-            yield from _evidence_tree_entries(child)
+            yield from _evidence_tree_entries(child, check=check, depth=depth + 1)
 
 
 def _iter_artifacts(bundle: dict):
@@ -89,7 +93,7 @@ def _iter_artifacts(bundle: dict):
                         ), artifact
 
 
-def _audit_worker_captures(bundle: dict, root: Path, errors: list[str]) -> dict:
+def _audit_worker_captures(bundle: dict, root: Path, errors: list[str], *, read_bytes=None, check=None) -> dict:
     """Check process-output bytes independently; never count them as HTTP records."""
     records = verified = unavailable = 0
     paths: set[str] = set()
@@ -99,6 +103,8 @@ def _audit_worker_captures(bundle: dict, root: Path, errors: list[str]) -> dict:
         return {"records": 0, "verified": 0, "unavailable": 0, "paths": paths,
                 "incomplete_games": []}
     for game, result in games.items():
+        if check is not None:
+            check()
         if not isinstance(result, dict):
             continue
         if "worker_output_capture" not in result and result.get("status") != "WORKER_OUTPUT_QUARANTINED":
@@ -148,6 +154,8 @@ def _audit_worker_captures(bundle: dict, root: Path, errors: list[str]) -> dict:
             errors.append(f"WORKER_OUTPUT_STREAM_SET_INVALID:{game}")
             continue
         for stream in streams:
+            if check is not None:
+                check()
             records += 1
             name = stream["stream"]
             if stream.get("capture_status") == "NOT_CAPTURED":
@@ -187,7 +195,7 @@ def _audit_worker_captures(bundle: dict, root: Path, errors: list[str]) -> dict:
                 errors.append(f"WORKER_OUTPUT_FILE_UNSAFE_OR_MISSING:{game}:{name}")
                 continue
             try:
-                raw = candidate.read_bytes()
+                raw = candidate.read_bytes() if read_bytes is None else read_bytes(candidate)
             except OSError:
                 errors.append(f"WORKER_OUTPUT_FILE_UNREADABLE:{game}:{name}")
                 continue
@@ -200,9 +208,11 @@ def _audit_worker_captures(bundle: dict, root: Path, errors: list[str]) -> dict:
             "paths": paths, "incomplete_games": incomplete_games}
 
 
-def audit_bundle(bundle_dir: str | Path) -> dict:
+def audit_bundle(bundle_dir: str | Path, *, read_bytes=None, check=None) -> dict:
     """Return an audit receipt; never modify the intake manifest or raw source bytes."""
     root = _physical_root(bundle_dir)
+    if check is not None:
+        check()
     manifest_path = root / "intake.json"
     errors: list[str] = []
     bundle = None
@@ -210,7 +220,7 @@ def audit_bundle(bundle_dir: str | Path) -> dict:
     if not manifest_path.is_file():
         errors.append("INTAKE_MANIFEST_MISSING")
     else:
-        raw_manifest = manifest_path.read_bytes()
+        raw_manifest = manifest_path.read_bytes() if read_bytes is None else read_bytes(manifest_path)
         manifest_sha256 = hashlib.sha256(raw_manifest).hexdigest()
         try:
             bundle = json.loads(raw_manifest.decode("utf-8"))
@@ -255,6 +265,8 @@ def audit_bundle(bundle_dir: str | Path) -> dict:
     unpreserved_oversized_records = 0
     if isinstance(bundle, dict):
         for game, source_id, artifact in _iter_artifacts(bundle):
+            if check is not None:
+                check()
             artifact_records += 1
             if game not in SOURCE_IDS_BY_GAME or source_id not in SOURCE_IDS_BY_GAME[game]:
                 errors.append(f"RAW_ARTIFACT_SOURCE_ID_INVALID:{game}:{source_id}")
@@ -308,7 +320,7 @@ def audit_bundle(bundle_dir: str | Path) -> dict:
             if type(size) is not int or size < 0:
                 errors.append(f"RAW_ARTIFACT_SIZE_INVALID:{game}:{source_id}:{rel}")
                 continue
-            raw = candidate.read_bytes()
+            raw = candidate.read_bytes() if read_bytes is None else read_bytes(candidate)
             if len(raw) != size:
                 errors.append(f"RAW_ARTIFACT_SIZE_MISMATCH:{game}:{source_id}:{rel}")
                 continue
@@ -322,7 +334,7 @@ def audit_bundle(bundle_dir: str | Path) -> dict:
             unique_paths.add(rel)
             verified_records += 1
 
-    diagnostic = _audit_worker_captures(bundle, root, errors) if isinstance(bundle, dict) else {
+    diagnostic = _audit_worker_captures(bundle, root, errors, read_bytes=read_bytes, check=check) if isinstance(bundle, dict) else {
         "records": 0, "verified": 0, "unavailable": 0, "paths": set(), "incomplete_games": []
     }
     if artifact_records == 0 and diagnostic["verified"] == 0:
@@ -335,7 +347,7 @@ def audit_bundle(bundle_dir: str | Path) -> dict:
         if _is_link_or_reparse_point(raw_dir):
             errors.append("LINK_OR_REPARSE_POINT_IN_RAW_EVIDENCE_TREE:raw")
         else:
-            for raw_file in _evidence_tree_entries(raw_dir):
+            for raw_file in _evidence_tree_entries(raw_dir, check=check):
                 rel = raw_file.relative_to(root).as_posix()
                 if _is_link_or_reparse_point(raw_file):
                     errors.append(f"LINK_OR_REPARSE_POINT_IN_RAW_EVIDENCE_TREE:{rel}")
@@ -347,7 +359,7 @@ def audit_bundle(bundle_dir: str | Path) -> dict:
         if _is_link_or_reparse_point(diagnostic_dir):
             errors.append("LINK_OR_REPARSE_POINT_IN_WORKER_OUTPUT_TREE:diagnostics")
         else:
-            for saved in _evidence_tree_entries(diagnostic_dir):
+            for saved in _evidence_tree_entries(diagnostic_dir, check=check):
                 rel = saved.relative_to(root).as_posix()
                 if _is_link_or_reparse_point(saved):
                     errors.append(f"LINK_OR_REPARSE_POINT_IN_WORKER_OUTPUT_TREE:{rel}")
@@ -356,7 +368,7 @@ def audit_bundle(bundle_dir: str | Path) -> dict:
 
     return {
         "schema": AUDIT_SCHEMA,
-        "auditor_source_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+        "auditor_source_sha256": hashlib.sha256(Path(__file__).read_bytes() if read_bytes is None else read_bytes(Path(__file__))).hexdigest(),
         "status": "PASS" if not errors else "FAIL",
         "purpose": "BYTE_INTEGRITY_ONLY_NOT_SOURCE_AUTHENTICITY",
         "bundle_manifest_sha256": manifest_sha256,
