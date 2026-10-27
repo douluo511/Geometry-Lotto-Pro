@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import html
+import json
 import re
 from datetime import date, datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -18,6 +19,7 @@ from .util import canonical_json, sha256_bytes, sha256_json, utc_now
 JIANGSU_DATA_PAGE = "https://api.js-lottery.com/wfzq/dlt/data"
 JIANGSU_LIST_URL = "https://api.js-lottery.com/Lottery/_ListData"
 GANSU_HISTORY_URL = "https://www.gstc.org.cn/wanfa/dlt_history"
+GANSU_JSON_URL = "https://www.gstc.org.cn/workapi/prize_history_list"
 
 # Sporttery's WAF has periodically rejected otherwise-valid desktop requests.
 # Keep two explicit official-site profiles and fail closed if both fail.
@@ -51,6 +53,125 @@ GANSU_HEADERS = {
 
 class SourceError(RuntimeError):
     pass
+
+
+class GansuApiUnavailable(SourceError):
+    """Only the first POST transport/non-200 permits the original HTML fallback."""
+
+
+def _gansu_adjacent(newer: Draw, older: Draw) -> bool:
+    """Require literal descending draw identities, including annual rollover."""
+    if newer.draw_date <= older.draw_date:
+        return False
+    if newer.issue[:2] == older.issue[:2]:
+        return int(newer.issue) == int(older.issue) + 1
+    return int(newer.issue[:2]) == int(older.issue[:2]) + 1 and newer.issue[2:] == "001"
+
+
+def _unique_json_object(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise SourceError("甘肃 JSON 对象包含重复键: " + key)
+        result[key] = value
+    return result
+
+
+def parse_gansu_json_page(raw: bytes) -> tuple[list[Draw], dict]:
+    """Parse literal draw fields in the observed official history contract."""
+    if not isinstance(raw, bytes) or not raw or len(raw) > MAX_PAYLOAD_BYTES:
+        raise SourceError("甘肃 JSON 响应字节无效")
+    try:
+        payload = json.loads(raw.decode("utf-8"), object_pairs_hook=_unique_json_object)
+        if not isinstance(payload, dict) or payload.get("code") != "000000":
+            raise ValueError("response code")
+        data = payload.get("data")
+        if not isinstance(data, dict):
+            raise ValueError("data object")
+        counts = [data.get("total_page_count"), data.get("total_record_count")]
+        if any(not isinstance(value, str) or not re.fullmatch(r"[1-9][0-9]*", value)
+               for value in counts):
+            raise ValueError("pagination types")
+        pages, total = map(int, counts)
+        if pages != (total + 19) // 20:
+            raise ValueError("conflicting totals")
+        rows = data.get("prize_history_list")
+        if not isinstance(rows, list) or not 1 <= len(rows) <= 20 or len(rows) > total:
+            raise ValueError("row list")
+        draws = []
+        for row in rows:
+            if not isinstance(row, dict):
+                raise ValueError("row object")
+            day, issue, balls = (row.get(key) for key in ("prize_time", "issue_num", "prize_num"))
+            if not isinstance(day, str) or not re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", day):
+                raise ValueError("literal ISO draw date")
+            date.fromisoformat(day)
+            if not isinstance(issue, str) or not re.fullmatch(r"[0-9]{5}", issue):
+                raise ValueError("literal issue")
+            if not isinstance(balls, list) or len(balls) != 7 or any(
+                    not isinstance(ball, str) or not re.fullmatch(r"[0-9]{2}", ball) for ball in balls):
+                raise ValueError("literal balls")
+            nums = tuple(map(int, balls))
+            draw = Draw(issue=issue, draw_date=day, front=nums[:5], back=nums[5:])
+            draw.validate()
+            if draws and not _gansu_adjacent(draws[-1], draw):
+                raise ValueError("duplicate or shifted row order")
+            draws.append(draw)
+        return draws, {"pages": pages, "total": total}
+    except SourceError:
+        raise
+    except (ValueError, TypeError, KeyError, UnicodeError) as exc:
+        raise SourceError("甘肃 JSON 历史结构或开奖字段非法: " + str(exc)) from exc
+
+
+def fetch_gansu_history_json(limit: int = 140):
+    """Fetch exactly seven pages, once each; retain the unchanged HTML interface."""
+    if type(limit) is not int or limit != 140:
+        raise SourceError("甘肃 JSON 历史仅支持完整 140 期/7 页")
+    all_draws, manifest = [], []
+    totals = None
+    for page in range(1, 8):
+        body = json.dumps({"type_id": "001", "page_no": page, "page_size": 20},
+                          separators=(",", ":")).encode("utf-8")
+        try:
+            response = requests.post(
+                GANSU_JSON_URL, data=body,
+                headers={**GANSU_HEADERS, "Content-Type": "application/json", "Accept": "application/json"},
+                timeout=(10, 30), allow_redirects=False,
+            )
+        except (requests.ConnectionError, requests.Timeout) as exc:
+            error = GansuApiUnavailable if page == 1 else SourceError
+            raise error(f"甘肃 JSON 第 {page} 页传输失败") from exc
+        if int(response.status_code) != 200:
+            # Redirects are never a fallback: the intake guard records and refuses
+            # them, and standalone calls also never forward their request body.
+            error = GansuApiUnavailable if page == 1 and not 300 <= int(response.status_code) < 400 else SourceError
+            raise error(f"甘肃 JSON 第 {page} 页 HTTP {response.status_code}")
+        raw = bytes(response.content)
+        meta = _validate_response(response, raw, expected="json")
+        request = getattr(response, "request", None)
+        if request is not None and (request.method != "POST" or request.url != GANSU_JSON_URL or request.body != body):
+            raise SourceError("甘肃 JSON 实际请求与固定请求不一致")
+        if meta["final_url"] != GANSU_JSON_URL:
+            raise SourceError("甘肃 JSON 响应地址改变")
+        draws, pagination = parse_gansu_json_page(raw)
+        if len(draws) != 20 or pagination["total"] < 140 or (totals is not None and totals != pagination):
+            raise SourceError("甘肃 JSON 分页数量或总数改变")
+        if all_draws and not _gansu_adjacent(all_draws[-1], draws[0]):
+            raise SourceError("甘肃 JSON 重复或移动分页")
+        totals = pagination
+        all_draws.extend(draws)
+        meta.update({"source_identity": "official_gansu_sporttery", "requested_url": GANSU_JSON_URL,
+                     "page": page, **pagination, "request_method": "POST",
+                     "request_body_base64": base64.b64encode(body).decode("ascii"),
+                     "request_body_sha256": sha256_bytes(body)})
+        manifest.append(meta)
+    ordered = list(reversed(all_draws))
+    receipt = SourceReceipt(source="gansu", fetched_at=utc_now(), http_status=200,
+                            raw_sha256=sha256_bytes("".join(item["sha256"] for item in manifest).encode()),
+                            draw_count=140, latest_issue=ordered[-1].issue, status="PASS",
+                            detail="甘肃官方 JSON 历史 7 页/140 期；同一来源 corroborator")
+    return ordered, receipt, manifest
 
 
 def _attempts(response) -> list[dict]:

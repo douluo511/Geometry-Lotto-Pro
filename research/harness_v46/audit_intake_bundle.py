@@ -6,6 +6,7 @@ source's official origin, publication time, draw schedule, target issue, or pred
 from __future__ import annotations
 
 import argparse
+import base64
 import hashlib
 import json
 import os
@@ -21,6 +22,45 @@ SOURCE_IDS_BY_GAME = {
     "SSQ": frozenset({"national", "shanghai", "hebei"}),
     "DLT": frozenset({"national", "jiangsu", "gansu"}),
 }
+
+
+def _audit_request_bytes(game: str, source_id: str, artifact: dict, raw: bytes) -> None:
+    """Independently bind fixed-route request bytes, including failed sources."""
+    fields = {"request_method", "request_body_base64", "request_body_sha256"}
+    endpoint = "https://www.gstc.org.cn/workapi/prize_history_list"
+    present = fields.intersection(artifact)
+    api = artifact.get("url") == endpoint or artifact.get("requested_url") == endpoint
+    media_type = str(artifact.get("content_type") or "").split(";", 1)[0].strip().lower()
+    json_response = game == "DLT" and source_id == "gansu" and (
+        raw.lstrip()[:1] in (b"{", b"[") or media_type.rpartition("/")[2] == "json"
+        or media_type.endswith("+json")
+    )
+    if "response_location" in artifact and not present:
+        raise ValueError("orphan response location")
+    if not present and not api and not json_response:
+        return
+    if (game != "DLT" or source_id != "gansu" or present != fields
+            or artifact.get("url") != endpoint or artifact.get("requested_url") != endpoint
+            or artifact.get("request_method") != "POST"):
+        raise ValueError("request identity")
+    body = base64.b64decode(artifact["request_body_base64"], validate=True)
+    if hashlib.sha256(body).hexdigest() != artifact["request_body_sha256"]:
+        raise ValueError("request SHA")
+    def unique(pairs):
+        obj = {}
+        for key, value in pairs:
+            if key in obj:
+                raise ValueError("duplicate request key")
+            obj[key] = value
+        return obj
+    value = json.loads(body.decode("utf-8"), object_pairs_hook=unique)
+    if (not isinstance(value, dict) or set(value) != {"type_id", "page_no", "page_size"}
+            or value["type_id"] != "001" or type(value["page_no"]) is not int
+            or not 1 <= value["page_no"] <= 7 or type(value["page_size"]) is not int
+            or value["page_size"] != 20):
+        raise ValueError("request schema")
+    if "response_location" in artifact and not isinstance(artifact["response_location"], str):
+        raise ValueError("response location")
 
 
 def _physical_root(path: str | Path) -> Path:
@@ -327,6 +367,11 @@ def audit_bundle(bundle_dir: str | Path, *, read_bytes=None, check=None) -> dict
             actual_sha = hashlib.sha256(raw).hexdigest()
             if actual_sha != expected_sha:
                 errors.append(f"RAW_ARTIFACT_SHA256_MISMATCH:{game}:{source_id}:{rel}")
+                continue
+            try:
+                _audit_request_bytes(game, source_id, artifact, raw)
+            except (ValueError, TypeError, UnicodeError):
+                errors.append(f"RAW_ARTIFACT_POST_REQUEST_INVALID:{game}:{source_id}:{rel}")
                 continue
             if body_preserved is False:
                 errors.append(f"RAW_ARTIFACT_PRESERVATION_FLAG_CONFLICT:{game}:{source_id}:{rel}")

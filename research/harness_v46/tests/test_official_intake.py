@@ -75,7 +75,9 @@ def _artifact(url, parser_version, raw):
         "requested_url": url,
         "raw_sha256": sha,
         "size_bytes": len(raw),
-        "content_type": "application/json",
+        # The legacy Gansu endpoint is GET/HTML. Declared JSON diagnostics now
+        # require request evidence even when their body is empty or not JSON.
+        "content_type": "text/html" if url == "https://www.gstc.org.cn/wanfa/dlt_history" else "application/json",
         "http_status": 200,
         "fetched_at": "2026-10-22T08:00:00+00:00",
         "parser_version": parser_version,

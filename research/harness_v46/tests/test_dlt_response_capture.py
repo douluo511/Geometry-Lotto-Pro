@@ -46,7 +46,7 @@ def getter(url,*args,params=None,**kwargs):
                                     'pages':2,'total':120}}
     return response(url,params,200,'Application/JSON;charset=utf-8',
                     json.dumps(payload,separators=(',',':')).encode())
-with patch('requests.get',side_effect=getter):
+with patch('requests.get',side_effect=getter),patch('requests.post',side_effect=requests.ConnectionError('synthetic unavailable Gansu JSON')):
     # Remove backoff waits, never the real retry logic or validation.
     sys.path.insert(0,str(oi.REPO_ROOT/'DLT/src'))
     import glp.sources as src

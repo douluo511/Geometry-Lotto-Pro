@@ -157,7 +157,9 @@ publication, credible time sealing, or eligibility for gambling purchases.
 
 Exact-head synthetic CI for code HEAD `d1f2ab42f9e170fcae0c5d98101e4321e18ea804`: https://github.com/douluo511/Geometry-Lotto-Pro/actions/runs/39747892642 — Ubuntu and Windows Server 2022 both succeeded with 54 tests; Ubuntu skipped the Windows-only PowerShell parser test, and Windows ran it.
 
-Still BLOCKED/NOT_RUN: live official-source fetch and parser, two-source 120+ issue semantic comparison, official next-target/sales-cutoff admission, external RFC3161/independent witness validation, real Windows task installation/cold boot/offline recovery, verified official-result replay, actual preregistration identity mapping, DLT 69/2880 negative-control root cause, and any prospective D2 advantage.
+Historical status at the d1f2ab42 checkpoint above: live fetch/parser and two-source semantic comparison were not yet implemented. Subsequent `official_intake.py` and raw-replay/byte-audit modules implement those local operations; current persistent source attempts and exact code identities are indexed outside the source export by `work/current_runtime.json` and `work/latest_operation.json`. That implementation does not authenticate official upstream independence, publication time or a future issue/cutoff.
+
+Still BLOCKED/NOT_VERIFIED: official next-target/sales-cutoff admission, approved independently authenticated RFC3161 trust/witness policy, real Windows task installation/cold boot/offline recovery, authenticated official-result replay, original formal preregistration identity/inclusion/stopping correspondence, the DLT 69/2880 negative-control cause, and prospective D2 advantage. `predraw_seal.py` implements local V47 and V47G payload/token checks; caller-pinned verification is distinct from approved formal admission. See the later sections and current per-attempt receipts rather than treating this historical checkpoint as current system absence.
 
 
 ## V4.7 source-history comparison contract

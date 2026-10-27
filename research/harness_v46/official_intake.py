@@ -76,6 +76,45 @@ EXPECTED_SOURCE_NAMES = {
     },
 }
 REDIRECT_CODES = {301, 302, 303, 307, 308}
+GANSU_JSON_URL = "https://www.gstc.org.cn/workapi/prize_history_list"
+REQUEST_FIELDS = {"request_method", "request_body_base64", "request_body_sha256"}
+
+
+def _request_evidence(game: str, source_id: str, artifact: dict, raw: bytes) -> dict:
+    """Validate exact POST bytes and prevent JSON from downgrading to legacy HTML."""
+    present = REQUEST_FIELDS.intersection(artifact)
+    api = artifact.get("url") == GANSU_JSON_URL or artifact.get("requested_url") == GANSU_JSON_URL
+    media_type = str(artifact.get("content_type") or "").split(";", 1)[0].strip().lower()
+    json_response = game == "DLT" and source_id == "gansu" and (
+        raw.lstrip()[:1] in (b"{", b"[") or media_type.rpartition("/")[2] == "json"
+        or media_type.endswith("+json")
+    )
+    if not present and not api and not json_response:
+        return {}
+    if (game != "DLT" or source_id != "gansu" or present != REQUEST_FIELDS
+            or artifact.get("url") != GANSU_JSON_URL or artifact.get("requested_url") != GANSU_JSON_URL
+            or artifact.get("request_method") != "POST"):
+        raise GateError("RAW_POST_REQUEST_IDENTITY_INVALID")
+    try:
+        body = base64.b64decode(artifact["request_body_base64"], validate=True)
+        if _sha(body) != artifact["request_body_sha256"]:
+            raise ValueError("request SHA")
+        def unique(pairs):
+            obj = {}
+            for key, value in pairs:
+                if key in obj:
+                    raise ValueError("duplicate request key")
+                obj[key] = value
+            return obj
+        value = json.loads(body.decode("utf-8"), object_pairs_hook=unique)
+        if (not isinstance(value, dict) or set(value) != {"type_id", "page_no", "page_size"}
+                or value["type_id"] != "001" or type(value["page_no"]) is not int
+                or not 1 <= value["page_no"] <= 7 or type(value["page_size"]) is not int
+                or value["page_size"] != 20):
+            raise ValueError("request schema")
+    except (ValueError, TypeError, UnicodeError) as exc:
+        raise GateError("RAW_POST_REQUEST_BYTES_INVALID") from exc
+    return {key: artifact[key] for key in REQUEST_FIELDS}
 
 
 def _sha(raw: bytes) -> str:
@@ -232,7 +271,8 @@ def _validate_artifacts(game: str, source: dict, parser_version: str) -> list[di
             "url", "requested_url", "raw_sha256", "size_bytes", "content_type",
             "http_status", "fetched_at", "parser_version", "raw_base64",
         }
-        if set(artifact) != required:
+        optional = REQUEST_FIELDS | {"response_location"}
+        if not required.issubset(artifact) or set(artifact) - required - optional:
             raise GateError("INVALID_RAW_ARTIFACT_SCHEMA")
         host, root = _root_for_url(game, artifact["url"])
         _, requested_root = _root_for_url(game, artifact["requested_url"])
@@ -251,6 +291,9 @@ def _validate_artifacts(game: str, source: dict, parser_version: str) -> list[di
             raise GateError("RAW_ARTIFACT_BASE64_INVALID") from exc
         if len(raw) != artifact["size_bytes"] or _sha(raw) != artifact["raw_sha256"]:
             raise GateError("RAW_ARTIFACT_BYTES_SHA_MISMATCH")
+        request_meta = _request_evidence(game, source_id, artifact, raw)
+        if "response_location" in artifact and (not request_meta or not isinstance(artifact["response_location"], str)):
+            raise GateError("RAW_POST_RESPONSE_LOCATION_INVALID")
         try:
             fetched_stamp = datetime.fromisoformat(artifact["fetched_at"].replace("Z", "+00:00"))
             if fetched_stamp.tzinfo is None:
@@ -264,6 +307,8 @@ def _validate_artifacts(game: str, source: dict, parser_version: str) -> list[di
             "size_bytes": len(raw), "content_type": artifact["content_type"],
             "http_status": artifact["http_status"], "fetched_at_local_untrusted": artifact["fetched_at"],
             "parser_version": parser_version, "raw_base64": artifact["raw_base64"],
+            **request_meta,
+            **({"response_location": artifact["response_location"]} if "response_location" in artifact else {}),
         })
     return validated
 
@@ -301,6 +346,7 @@ def _normalize_worker_artifact(game: str, source_id: str, meta: dict, raw: bytes
         "parser_version": parser_version,
         "raw_base64": base64.b64encode(raw).decode("ascii"),
         "_source_id": source_id, "_source_root": root, "_host": host,
+        **{key: meta[key] for key in REQUEST_FIELDS | {"response_location"} if key in meta},
     }
 
 
@@ -522,6 +568,35 @@ def _verify_jiangsu_draw_date_columns(text):
 def _reparse_raw_history(game: str, source_module, source_id: str,
                          artifacts: list[dict]) -> list[dict]:
     """Reparse each nonempty preserved response body and compare it to the parser's aggregate."""
+    if game == "DLT" and source_id == "gansu":
+        api = []
+        for item in artifacts:
+            raw = base64.b64decode(item["raw_base64"], validate=True)
+            if _request_evidence(game, source_id, item, raw):
+                api.append(item)
+        if any(item.get("http_status") == 200 for item in api):
+            if len(api) != 7 or len(artifacts) != 7:
+                raise GateError("GANSU_POST_EXACT_SEVEN_PAGES_REQUIRED")
+            parsed, totals = [], None
+            for page, item in enumerate(api, 1):
+                body = json.loads(base64.b64decode(item["request_body_base64"]))
+                if item["http_status"] != 200 or body["page_no"] != page:
+                    raise GateError("GANSU_POST_PAGE_ORDER_INVALID")
+                try:
+                    draws, count = source_module.parse_gansu_json_page(base64.b64decode(item["raw_base64"]))
+                except Exception as exc:
+                    raise GateError("GANSU_POST_RAW_PARSE_FAILED") from exc
+                if len(draws) != 20 or count["total"] < 140 or (totals is not None and totals != count):
+                    raise GateError("GANSU_POST_PAGE_TOTALS_INVALID")
+                if parsed and not source_module._gansu_adjacent(parsed[-1], draws[0]):
+                    raise GateError("GANSU_POST_PAGES_DUPLICATED_OR_SHIFTED")
+                totals = count
+                parsed.extend(draws)
+            return _canonical_draws(game, _source_rows(list(reversed(parsed))), minimum=140)
+        if api:
+            # Only the one first unavailable response may precede HTML fallback.
+            if len(api) != 1 or json.loads(base64.b64decode(api[0]["request_body_base64"]))["page_no"] != 1 or api[0]["http_status"] in REDIRECT_CODES:
+                raise GateError("GANSU_POST_FALLBACK_EVIDENCE_INVALID")
     if game == "SSQ" and source_id == "hebei":
         home, announcement = [], []
         for artifact in artifacts:
@@ -629,6 +704,7 @@ def _install_dlt_redirect_guard(game: str, failure_recorder=None) -> None:
     from urllib.parse import urljoin
 
     original_get = requests.get
+    original_post = getattr(requests, "post", None)
 
     def safe_get(url, *args, **kwargs):
         params = kwargs.pop("params", None)
@@ -672,6 +748,37 @@ def _install_dlt_redirect_guard(game: str, failure_recorder=None) -> None:
         raise GateError("SOURCE_REDIRECT_LIMIT_EXCEEDED")
 
     requests.get = safe_get
+
+    def safe_post(url, *args, **kwargs):
+        if str(url) != GANSU_JSON_URL or args or "json" in kwargs or not isinstance(kwargs.get("data"), bytes):
+            raise GateError("SOURCE_POST_FIXED_REQUEST_REQUIRED")
+        kwargs["allow_redirects"] = False
+        response = original_post(url, **kwargs)
+        raw = bytes(response.content)
+        request = getattr(response, "request", None)
+        method = getattr(request, "method", "POST")
+        body = getattr(request, "body", kwargs["data"])
+        if isinstance(body, str):
+            body = body.encode("utf-8")
+        if not isinstance(body, bytes):
+            raise GateError("SOURCE_POST_ACTUAL_BODY_UNAVAILABLE")
+        meta = {"url": str(response.url or url), "requested_url": str(url),
+                "http_status": int(response.status_code),
+                "content_type": str(response.headers.get("Content-Type", "")),
+                "fetched_at": datetime.now(timezone.utc).isoformat(),
+                "sha256": _sha(raw), "bytes": len(raw), "parser_version": _expected_parser_version(game),
+                "request_method": method, "request_body_base64": base64.b64encode(body).decode("ascii"),
+                "request_body_sha256": _sha(body)}
+        if "Location" in response.headers:
+            meta["response_location"] = str(response.headers["Location"])
+        if failure_recorder is not None:
+            failure_recorder("gansu", meta, raw)
+        if int(response.status_code) in REDIRECT_CODES:
+            raise GateError("SOURCE_POST_REDIRECT_REFUSED_AFTER_CAPTURE")
+        return response
+
+    if callable(original_post):
+        requests.post = safe_post
 
 
 def _worker(game: str) -> dict:
@@ -774,7 +881,12 @@ def _worker(game: str) -> dict:
         # Gansu is a third, recent-history corroborator, never a replacement for
         # either of the two >=120-draw primary sources.
         try:
-            gansu_data = source_module.fetch_gansu_recent(20)
+            try:
+                gansu_data = source_module.fetch_gansu_history_json(140)
+            except source_module.GansuApiUnavailable as exc:
+                # Preserve narrow first-page failure even if HTML succeeds.
+                gansu_fallback_error = f"{type(exc).__name__}: {exc}"
+                gansu_data = source_module.fetch_gansu_recent(20)
         except Exception as exc:
             errors["gansu"] = f"{type(exc).__name__}: {exc}"
 
@@ -814,6 +926,7 @@ def _worker(game: str) -> dict:
                     "sha256": entry.get("sha256"),
                     "bytes": entry.get("bytes"),
                     "parser_version": entry.get("parser_version"),
+                    **{key: entry[key] for key in REQUEST_FIELDS if key in entry},
                 }
                 manifest_artifact = _normalize_worker_artifact(
                     game, source_id, meta, raw, parser_version
@@ -827,6 +940,7 @@ def _worker(game: str) -> dict:
                         "http_status", "parser_version", "raw_base64")
                 if not any(
                     all(observed[key] == manifest_artifact[key] for key in keys)
+                    and all(observed.get(key) == manifest_artifact.get(key) for key in REQUEST_FIELDS)
                     and observed["content_type"].lower()
                     == manifest_artifact["content_type"].lower()
                     for observed in raw_artifacts
@@ -840,17 +954,21 @@ def _worker(game: str) -> dict:
                     "latest_issue": receipt.latest_issue, "raw_sha256": receipt.raw_sha256,
                     "fetched_at": receipt.fetched_at,
                 },
+                **({"api_fallback_error": gansu_fallback_error}
+                   if source_id == "gansu" and "gansu_fallback_error" in locals() else {}),
             })
     else:
         raise GateError("UNKNOWN_LOTTERY_FOR_SOURCE_INTAKE")
 
     for source in sources:
         source_id = source["source_id"]
+        if source_id == "gansu" and "gansu_fallback_error" in locals():
+            source["api_fallback_error"] = gansu_fallback_error
         internal_artifacts = [item for item in raw_artifacts if item["_source_id"] == source_id]
         source["raw_artifacts"] = [
             {k: v for k, v in item.items()
              if k in {"url", "requested_url", "raw_sha256", "size_bytes", "content_type",
-                      "http_status", "fetched_at", "parser_version", "raw_base64"}}
+                      "http_status", "fetched_at", "parser_version", "raw_base64"} | REQUEST_FIELDS | {"response_location"}}
             for item in internal_artifacts
         ]
         if not source["raw_artifacts"]:
@@ -964,6 +1082,7 @@ def _validate_partial_worker_payload(payload: dict, game: str, parser_version: s
             "draws": valid_draws, "draw_count": len(valid_draws),
             "raw_artifacts": artifacts, "receipt": source.get("receipt"),
             "error": source.get("error"),
+            **({"api_fallback_error": source["api_fallback_error"]} if "api_fallback_error" in source else {}),
             "calendar_anomalies": source.get("calendar_anomalies", []),
             "raw_reparse_status": source.get("raw_reparse_status", "NOT_RUN"),
         })
@@ -1072,6 +1191,7 @@ def validate_worker_payload(payload: dict, *, expected_game: str | None = None) 
             "url": url, "host": host, "source_root": root,
             "draws": rows, "draw_count": len(rows), "raw_artifacts": artifacts,
             "receipt": source.get("receipt"), "error": source.get("error"),
+            **({"api_fallback_error": source["api_fallback_error"]} if "api_fallback_error" in source else {}),
             "raw_reparse_status": source.get("raw_reparse_status", "NOT_RUN"),
         })
 
