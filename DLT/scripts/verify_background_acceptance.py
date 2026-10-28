@@ -130,6 +130,11 @@ def validate(report: Any, request: Any, *, sha: str, run_id: str, run_attempt: s
         final_offset = observer.get('final_status_observed_offset_seconds')
         gap_limit = observer.get('max_sample_gap_seconds')
         check(_number(elapsed) and elapsed >= MINIMUM_SECONDS, 'observer elapsed below 1800 seconds')
+        # The observer's stopwatch starts before the detached worker starts.
+        # Clock origins differ, but both are elapsed durations: the worker's
+        # completed duration cannot outlast the final external status observation.
+        check(_number(previous_end) and _number(final_offset) and previous_end <= final_offset,
+              'worker completion follows external final status observation')
         check(_number(exit_offset) and _number(final_offset) and _number(elapsed) and exit_offset <= final_offset <= elapsed,
               'observer exit/final ordering')
         check(observer.get('launcher_exit_code') == 0, 'launcher exit code')

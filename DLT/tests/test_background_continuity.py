@@ -92,7 +92,7 @@ def fixture():
                   freeze_hash='f' * 64, target_issue='26114', research_dan_front=[1, 2], research_dan_back=[1],
                   production_edge_state='NO_EDGE', production_dan_state='NULL_DAN', source_receipts=[])
     cycles = []
-    for sequence, start, end in [(1, 0.5, 5.0), (2, 1805.0, 1810.0)]:
+    for sequence, start, end in [(1, 0.5, 1.0), (2, 1801.0, 1803.0)]:
         cycles.append(dict(sequence=sequence, launch_session='session-new', acceptance_nonce='nonce-new',
                            started_offset_seconds=start, finished_offset_seconds=end, status='PASS',
                            result=result.copy(), error=None, result_sha256=digest(result)))
@@ -165,7 +165,7 @@ class AcceptanceVerifierCLITests(unittest.TestCase):
         cases = [
             ('historical 38-second v1', lambda q, r: r.update(schema='dlt-background-acceptance-v1')),
             ('boolean-only pass', lambda q, r: r.clear() or r.update(status='PASS', checks={'all': True})),
-            ('1799.999 wait', lambda q, r: r['worker_status']['cycles'][1].update(started_offset_seconds=1804.999)),
+            ('1799.999 wait', lambda q, r: r['worker_status']['cycles'][1].update(started_offset_seconds=1800.999)),
             ('short external span', lambda q, r: r['observer']['samples'].__setitem__(-1, dict(offset_seconds=1801.999, processes=r['observer']['samples'][-1]['processes']))),
             ('first failed then success', lambda q, r: r['worker_status']['cycles'][0].update(status='FAIL', error={'message': 'network failed'})),
             ('nonfinite worker time', lambda q, r: r['worker_status']['cycles'][0].update(finished_offset_seconds=float('nan'))),
@@ -186,6 +186,7 @@ class AcceptanceVerifierCLITests(unittest.TestCase):
             ('wrong digest', lambda q, r: r['worker_status']['cycles'][0].update(result_sha256='0' * 64)),
             ('nonfinite observer', lambda q, r: r['observer'].update(elapsed_seconds=float('inf'))),
             ('worker finishes after observer run ended', lambda q, r: r['worker_status']['cycles'][1].update(finished_offset_seconds=10000.0)),
+            ('worker finishes after final status observation', lambda q, r: r['worker_status']['cycles'][1].update(finished_offset_seconds=1803.5)),
         ]
         for label, mutate in cases:
             with self.subTest(label=label):
