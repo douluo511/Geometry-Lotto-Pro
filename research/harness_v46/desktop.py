@@ -78,6 +78,50 @@ def _bytes(value):
     return value.encode("utf-8") if isinstance(value, str) else value or b""
 
 
+def _child_identity(process):
+    """Query this owned child's handle; a PID or local clock is not identity."""
+    value = {"pid": process.pid, "identity_status": "NOT_VERIFIED",
+             "creation_filetime_100ns": None}
+    if os.name != "nt":
+        value["identity_error"] = "Windows owned-handle identity unavailable on this platform"
+        return value
+    try:
+        import ctypes
+        from ctypes import wintypes
+        get_times = ctypes.WinDLL("kernel32", use_last_error=True).GetProcessTimes
+        get_times.argtypes = [wintypes.HANDLE] + [ctypes.POINTER(wintypes.FILETIME)] * 4
+        get_times.restype = wintypes.BOOL
+        created, exited, kernel, user = (wintypes.FILETIME() for _ in range(4))
+        if not get_times(int(process._handle), ctypes.byref(created), ctypes.byref(exited),
+                         ctypes.byref(kernel), ctypes.byref(user)):
+            raise ctypes.WinError(ctypes.get_last_error())
+        value.update(identity_status="VERIFIED_LOCAL_OS_HANDLE",
+                     creation_filetime_100ns=(created.dwHighDateTime << 32) | created.dwLowDateTime)
+    except (OSError, AttributeError, TypeError, ValueError) as exc:
+        value["identity_error"] = f"{type(exc).__name__}: {exc}"
+    return value
+
+
+def _stop_owned_child(process, record):
+    """Bound cleanup separately and report only a directly observed exit."""
+    deadline = time.monotonic() + 5
+    errors = []
+    try:
+        if process.poll() is None:
+            process.kill()
+    except OSError as exc:
+        errors.append(f"{type(exc).__name__}: {exc}")
+    try:
+        code = process.wait(timeout=max(0, deadline - time.monotonic()))
+        record.update(exit_observed=True, observed_child_returncode=code,
+                      process_state="EXIT_OBSERVED")
+    except (OSError, subprocess.SubprocessError) as exc:
+        errors.append(f"{type(exc).__name__}: {exc}")
+        record["process_state"] = "UNKNOWN_RUNNING"
+    if errors:
+        record["cleanup_errors"] = errors
+
+
 def _validate_tick(value, expected_tick=None):
     if not isinstance(value, dict):
         raise GateError("DESKTOP_TICK_RESULT_NOT_OBJECT")
@@ -206,27 +250,64 @@ class DesktopController:
     def _execute(self, command, folder, *, timeout):
         closed_loop._not_symlink(folder)
         folder.mkdir(parents=True, exist_ok=True)
+        # Refuse old evidence before launch; exclusive opens also guard a race.
+        for name in ("launch-intent.json", "child-identity.json", "stdout.bin", "stderr.bin", "receipt.json"):
+            path = folder / name
+            closed_loop._not_symlink(path)
+            if path.exists():
+                raise FileExistsError("DESKTOP_EVIDENCE_ALREADY_EXISTS: " + str(path))
         record = {"command": command, "cwd": str(self.repository),
                   "started_at": _now(), "returncode": None, "timed_out": False,
-                  "receipt_dir": str(folder), **_gates()}
-        stdout, stderr = b"", b""
-        try:
-            options = {"cwd": str(self.repository), "capture_output": True, "timeout": timeout}
-            if os.name == "nt":
-                options["creationflags"] = subprocess.CREATE_NO_WINDOW
-            process = subprocess.run(command, **options)
-            stdout, stderr = _bytes(process.stdout), _bytes(process.stderr)
-            record.update(returncode=process.returncode,
-                          status="COMPLETED" if process.returncode == 0 else "FAILED")
-        except subprocess.TimeoutExpired as exc:
-            stdout, stderr = _bytes(exc.stdout), _bytes(exc.stderr)
-            record.update(status="TIMEOUT", timed_out=True, error=str(exc))
-        except OSError as exc:
-            record.update(status="FAILED", error=f"{type(exc).__name__}: {exc}")
+                  "receipt_dir": str(folder), "process_started": False,
+                  "exit_observed": False, "observed_child_returncode": None,
+                  "process_state": "NOT_STARTED", "time_evidence": "LOCAL_UNTRUSTED",
+                  "host_acceptance": "NOT_VERIFIED", **_gates()}
+        _write_json(folder / "launch-intent.json",
+                    {**record, "schema": "V47-CONTROLLER-LAUNCH-INTENT-1"})
+        process = None
+        # Child writes directly to exclusive unbuffered files, not controller RAM.
+        # Avoid Popen's context manager: it can implicitly wait without a bound.
+        with (folder / "stdout.bin").open("xb", buffering=0) as stdout, \
+                (folder / "stderr.bin").open("xb", buffering=0) as stderr:
+            try:
+                options = {"cwd": str(self.repository), "stdout": stdout, "stderr": stderr}
+                if os.name == "nt":
+                    options["creationflags"] = subprocess.CREATE_NO_WINDOW
+                # Intent/output setup can race another writer before spawn.
+                for name in ("child-identity.json", "receipt.json"):
+                    path = folder / name
+                    closed_loop._not_symlink(path)
+                    if path.exists():
+                        raise FileExistsError("DESKTOP_EVIDENCE_ALREADY_EXISTS: " + str(path))
+                process = subprocess.Popen(command, **options)
+                record.update(process_started=True, process_state="UNKNOWN_RUNNING", child_pid=process.pid)
+                identity = {**_gates(), "schema": "V47-CONTROLLER-CHILD-IDENTITY-1",
+                            "time_evidence": "LOCAL_UNTRUSTED", "host_acceptance": "NOT_VERIFIED",
+                            **_child_identity(process)}
+                _write_json(folder / "child-identity.json", identity)
+                code = process.wait(timeout=timeout)
+                record.update(returncode=code, exit_observed=True, observed_child_returncode=code,
+                              process_state="EXIT_OBSERVED", status="COMPLETED" if code == 0 else "FAILED")
+            except subprocess.TimeoutExpired as exc:
+                record.update(status="TIMEOUT", timed_out=True, error=str(exc))
+                if process is not None:
+                    _stop_owned_child(process, record)
+            except Exception as exc:
+                record.update(status="FAILED", error=f"{type(exc).__name__}: {exc}")
+                if process is not None:
+                    _stop_owned_child(process, record)
+            finally:
+                for stream in (stdout, stderr):
+                    try:
+                        stream.flush()
+                        os.fsync(stream.fileno())
+                    except OSError as exc:
+                        error = f"{type(exc).__name__}: {exc}"
+                        record.setdefault("evidence_errors", []).append(error)
+                        if record.get("status") == "COMPLETED":
+                            record.update(status="FAILED", error=error)
         record["finished_at"] = _now()
-        # Retain original bytes and actual exit before any decoding or parsing.
-        _write_bytes(folder / "stdout.bin", stdout)
-        _write_bytes(folder / "stderr.bin", stderr)
+        # This is an attempt receipt, including spawn failure and unknown cleanup.
         _write_json(folder / "receipt.json", record)
         return record
 

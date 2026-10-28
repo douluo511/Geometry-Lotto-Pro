@@ -123,19 +123,39 @@ class DesktopTests(unittest.TestCase):
         self.assertEqual(saved["returncode"], result["returncode"])
         return saved
 
+    def process_double(self, command, options, stdout, stderr, code=0, timeout=False):
+        # The slow/external child is replaced; real files and controller logic run.
+        options["stdout"].write(stdout)
+        options["stderr"].write(stderr)
+        options["wait_timeouts"] = []
+        class Child:
+            pid = 123456
+            _handle = None
+            returncode = None
+            killed = False
+            def wait(self, timeout=None):
+                options["wait_timeouts"].append(timeout)
+                if timeout_mode and not self.killed:
+                    raise subprocess.TimeoutExpired(command, timeout)
+                self.returncode = -1 if self.killed else code
+                return self.returncode
+            def poll(self):
+                return self.returncode
+            def kill(self):
+                self.killed = True
+        timeout_mode = timeout
+        return Child()
+
     def boundary(self, calls, *, stdout=CLI_STDOUT, stderr=b"", code=0, timeout=False):
-        def run(command, **kwargs):
+        def spawn(command, **kwargs):
             calls.append((command, kwargs))
-            if timeout:
-                raise subprocess.TimeoutExpired(command, kwargs["timeout"],
-                                                output=stdout, stderr=stderr)
-            return subprocess.CompletedProcess(command, code, stdout, stderr)
-        return run
+            return self.process_double(command, kwargs, stdout, stderr, code, timeout)
+        return spawn
 
     def test_refresh_missing_ledger_creates_no_database_or_receipt(self):
         controller = self.controller()
         before = self.tree()
-        with patch("subprocess.run", side_effect=AssertionError("refresh launched process")):
+        with patch("subprocess.Popen", side_effect=AssertionError("refresh launched process")):
             result = controller.read_status()
         self.assertEqual(result["status"], "MISSING")
         self.assertIsNone(result["latest_complete_tick"])
@@ -303,7 +323,7 @@ class DesktopTests(unittest.TestCase):
                     self.cfg[field] = str(raw)
                     self.save_config()
                 before = self.tree()
-                with patch("subprocess.run", side_effect=AssertionError("invalid path launched process")):
+                with patch("subprocess.Popen", side_effect=AssertionError("invalid path launched process")):
                     with self.assertRaises(core.GateError):
                         desktop.DesktopController(raw if field == "config_file" else self.config)
                 self.assertEqual(self.tree(), before)
@@ -330,7 +350,7 @@ class DesktopTests(unittest.TestCase):
                     self.cfg[field] = str(raw)
                     self.save_config()
                 before = self.tree()
-                with patch("subprocess.run", side_effect=AssertionError("symlink launched process")):
+                with patch("subprocess.Popen", side_effect=AssertionError("symlink launched process")):
                     with self.assertRaises(core.GateError):
                         desktop.DesktopController(raw if field == "config_file" else self.config)
                 self.assertEqual(self.tree(), before)
@@ -348,14 +368,14 @@ class DesktopTests(unittest.TestCase):
         self.cfg["ssq_snapshot_path"] = str(snapshot)
         self.save_config()
         calls = []
-        with patch("subprocess.run", self.boundary(calls)):
+        with patch("subprocess.Popen", self.boundary(calls)):
             result = self.controller().run_tick()
         command, options = calls[0]
         self.assertEqual(command, [str(python), "-m", "research.harness_v46.closed_loop",
             "--workspace", str(self.workspace), "--operational-tick",
             "--intake-timeout-seconds", "37.5", "--ssq-snapshot-path", str(snapshot)])
         self.assertEqual(Path(options["cwd"]), ROOT)
-        self.assertEqual(options["timeout"], 580)
+        self.assertEqual(options["wait_timeouts"][0], 580)
         self.assertEqual(len(calls), 1)
         self.assertEqual(result["status"], "COMPLETED")
         self.assertEqual(result["result"], CLI_RESULT)
@@ -366,7 +386,7 @@ class DesktopTests(unittest.TestCase):
         del self.cfg["intake_timeout_seconds"]
         self.save_config()
         calls = []
-        with patch("subprocess.run", self.boundary(calls)):
+        with patch("subprocess.Popen", self.boundary(calls)):
             self.controller().run_tick()
         self.assertEqual(calls[0][0], [str(self.python), "-m",
             "research.harness_v46.closed_loop", "--workspace", str(self.workspace),
@@ -375,7 +395,7 @@ class DesktopTests(unittest.TestCase):
     def test_nonzero_exit_preserves_raw_stdout_stderr_and_never_retries(self):
         self.load()
         calls = []
-        with patch("subprocess.run", self.boundary(calls, stdout=b"partial\xff\n",
+        with patch("subprocess.Popen", self.boundary(calls, stdout=b"partial\xff\n",
                                                     stderr=b"BLOCKED\xfe\n", code=2)):
             result = self.controller().run_tick()
         self.assertEqual(result["status"], "FAILED")
@@ -386,7 +406,7 @@ class DesktopTests(unittest.TestCase):
     def test_timeout_retains_partial_bytes_and_never_retries(self):
         self.load()
         calls = []
-        with patch("subprocess.run", self.boundary(calls, stdout=b"started\n",
+        with patch("subprocess.Popen", self.boundary(calls, stdout=b"started\n",
                                                     stderr=b"waiting\n", timeout=True)):
             result = self.controller().run_tick()
         self.assertEqual(result["status"], "TIMEOUT")
@@ -397,7 +417,7 @@ class DesktopTests(unittest.TestCase):
     def test_receipt_binds_process_attempt_to_actual_controller_and_runner_sources(self):
         desktop = self.load()
         calls = []
-        with patch("subprocess.run", self.boundary(calls)):
+        with patch("subprocess.Popen", self.boundary(calls)):
             result = self.controller().run_tick()
         saved = self.assert_receipt(result, CLI_STDOUT, b"")
         self.assertEqual(saved.get("controller_source_sha256"),
@@ -408,7 +428,7 @@ class DesktopTests(unittest.TestCase):
     def test_malformed_success_output_and_second_attempt_keep_distinct_receipts(self):
         self.load()
         calls = []
-        with patch("subprocess.run", self.boundary(calls, stdout=b"not json\n")):
+        with patch("subprocess.Popen", self.boundary(calls, stdout=b"not json\n")):
             first = self.controller().run_tick()
             second = self.controller().run_tick()
         self.assertEqual(first["status"], "FAILED")
@@ -428,7 +448,7 @@ class DesktopTests(unittest.TestCase):
             with self.subTest(payload=payload):
                 raw = (json.dumps(payload, sort_keys=True) + "\n").encode("utf-8")
                 calls = []
-                with patch("subprocess.run", self.boundary(calls, stdout=raw)):
+                with patch("subprocess.Popen", self.boundary(calls, stdout=raw)):
                     result = self.controller().run_tick()
                 self.assertEqual(result["status"], "FAILED")
                 self.assertEqual(result["returncode"], 0)
@@ -436,23 +456,23 @@ class DesktopTests(unittest.TestCase):
                 self.assert_receipt(result, raw, b"")
 
     def identity_boundary(self, calls, name, sid, *, query_error=False):
-        def run(command, **kwargs):
+        def spawn(command, **kwargs):
             calls.append((command, kwargs))
             if Path(command[0]).stem.lower() == "whoami":
                 raw = ('"User Name","SID"\r\n"' + name + '","' + sid + '"\r\n').encode()
-                return subprocess.CompletedProcess(command, 0, raw, b"")
+                return self.process_double(command, kwargs, raw, b"")
             if "-Install" in command:
-                return subprocess.CompletedProcess(command, 0, b"REGISTERED\r\n", b"")
-            return subprocess.CompletedProcess(command, 1 if query_error else 0,
-                    b"", b"QUERY_ACCESS_DENIED\r\n" if query_error else b"")
-        return run
+                return self.process_double(command, kwargs, b"REGISTERED\r\n", b"")
+            return self.process_double(command, kwargs, b"",
+                    b"QUERY_ACCESS_DENIED\r\n" if query_error else b"", 1 if query_error else 0)
+        return spawn
 
     def test_actual_sandbox_identity_refused_even_when_config_claims_owner(self):
         self.load()
         self.cfg["username"] = "15928"
         self.save_config()
         calls = []
-        with patch("subprocess.run", self.identity_boundary(calls, "host\\CodexSandbox", OWNER_SID)):
+        with patch("subprocess.Popen", self.identity_boundary(calls, "host\\CodexSandbox", OWNER_SID)):
             result = self.controller(owner_sid=OWNER_SID).install_task()
         self.assertEqual(result["status"], "REFUSED")
         self.assertTrue(calls)
@@ -465,7 +485,7 @@ class DesktopTests(unittest.TestCase):
         for expected in (None, "", "not-a-sid", OTHER_SID):
             with self.subTest(expected=expected):
                 calls = []
-                with patch("subprocess.run", self.identity_boundary(calls, "host\\15928", OWNER_SID)):
+                with patch("subprocess.Popen", self.identity_boundary(calls, "host\\15928", OWNER_SID)):
                     result = self.controller(owner_sid=expected).install_task()
                 self.assertEqual(result["status"], "REFUSED")
                 self.assertTrue(all(Path(command[0]).stem.lower() == "whoami"
@@ -474,7 +494,7 @@ class DesktopTests(unittest.TestCase):
     def test_matching_owner_invokes_original_installer_with_normal_file_policy(self):
         self.load()
         calls = []
-        with patch("subprocess.run", self.identity_boundary(calls, "host\\15928", OWNER_SID)):
+        with patch("subprocess.Popen", self.identity_boundary(calls, "host\\15928", OWNER_SID)):
             result = self.controller(owner_sid=OWNER_SID).install_task()
         installs = [command for command, _ in calls if "-Install" in command]
         self.assertEqual(installs, [["powershell.exe", "-NoProfile", "-NonInteractive",
@@ -492,7 +512,7 @@ class DesktopTests(unittest.TestCase):
     def test_readonly_task_query_failures_are_retained_without_claiming_absence(self):
         self.load()
         calls = []
-        with patch("subprocess.run", self.identity_boundary(calls, "host\\15928", OWNER_SID,
+        with patch("subprocess.Popen", self.identity_boundary(calls, "host\\15928", OWNER_SID,
                                                             query_error=True)):
             result = self.controller(owner_sid=OWNER_SID).install_task()
         self.assertEqual(result["host_acceptance"], "NOT_VERIFIED")
@@ -706,7 +726,7 @@ assert not any(k.endswith('.gui') and 'desktop' in k for k in sys.modules)
         acceptance = self.base / "legacy-acceptance"
         before = self.tree()
         with patch.dict(os.environ, {"GLP_GUI_ACCEPTANCE_DIR": str(acceptance)}), \
-                patch("subprocess.run", side_effect=AssertionError("native smoke launched external process")):
+                patch("subprocess.Popen", side_effect=AssertionError("native smoke launched external process")):
             app = desktop.build_window(InertController())
             try:
                 self.assertTrue(app.user32.IsWindow(app.hwnd))
