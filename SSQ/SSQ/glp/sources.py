@@ -653,6 +653,9 @@ def parse_hebei_latest(home_raw: bytes | str, announce_raw: bytes | str | None =
     """
     if announce_raw is None:
         raise SourceError("河北福彩 v8.3 需要首页+开奖公告双页面共识")
+    if home_raw == announce_raw:
+        # Different endpoints returning the same bytes cannot establish two-page consensus.
+        raise SourceError("HEBEI_ENDPOINT_BODY_ALIAS")
     home = _hebei_home_snapshot(home_raw)
     ann = _hebei_announce_snapshot(announce_raw)
     if home["front"] != ann["front"] or home["back"] != ann["back"]:
