@@ -161,6 +161,12 @@ class DomainContractTests(unittest.TestCase):
         with self.assertRaises(SourceError):
             parse_shanghai_history(b"<html><body>truncated</body></html>")
 
+    def test_hebei_identical_official_endpoint_bodies_fail_closed(self):
+        # Two official URL paths returned the same bytes in native CI #40668838185.
+        with self.assertRaisesRegex(SourceError, "HEBEI_ENDPOINT_BODY_ALIAS"):
+            sources.parse_hebei_latest(b"<html>same server body</html>",
+                                      b"<html>same server body</html>")
+
 
 class NetClientUnitTests(unittest.TestCase):
     def test_retry_cap_and_ledger(self):
