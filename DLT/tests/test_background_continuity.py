@@ -185,6 +185,7 @@ class AcceptanceVerifierCLITests(unittest.TestCase):
             ('stale creation', lambda q, r: r['observer']['samples'][0]['processes'][0].update(creation_time='2026-10-26T00:00:00Z')),
             ('wrong digest', lambda q, r: r['worker_status']['cycles'][0].update(result_sha256='0' * 64)),
             ('nonfinite observer', lambda q, r: r['observer'].update(elapsed_seconds=float('inf'))),
+            ('worker finishes after observer run ended', lambda q, r: r['worker_status']['cycles'][1].update(finished_offset_seconds=10000.0)),
         ]
         for label, mutate in cases:
             with self.subTest(label=label):
