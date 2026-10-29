@@ -9,7 +9,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-from glp.sources import SourceError, _parse_jiangsu_html
+from glp.sources import PARSER_VERSION, SourceError, _parse_jiangsu_html
 
 
 def page(date_label="开奖日期", date_text="2026-10-28"):
@@ -23,6 +23,9 @@ def page(date_label="开奖日期", date_text="2026-10-28"):
 
 
 class JiangsuApplicationDateSemanticsTests(unittest.TestCase):
+    def test_behavior_change_requires_new_parser_evidence_version(self):
+        self.assertEqual(PARSER_VERSION, "dlt-source-parser-v3-draw-date-guard")
+
     def test_publication_date_must_not_be_admitted_as_draw_date(self):
         with self.assertRaisesRegex(SourceError, "JIANGSU_PUBLICATION_DATE_IS_NOT_DRAW_DATE"):
             _parse_jiangsu_html(page("发布日期", "2026-10-29"))
