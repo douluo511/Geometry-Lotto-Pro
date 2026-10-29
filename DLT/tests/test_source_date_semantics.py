@@ -9,7 +9,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-from glp.sources import PARSER_VERSION, SourceError, _parse_jiangsu_html
+from glp.sources import PARSER_VERSION, SourceError, _parse_gansu_history, _parse_jiangsu_html
 
 
 def page(date_label="开奖日期", date_text="2026-10-28"):
@@ -23,6 +23,17 @@ def page(date_label="开奖日期", date_text="2026-10-28"):
 
 
 class JiangsuApplicationDateSemanticsTests(unittest.TestCase):
+    def test_gansu_distinct_issues_must_not_share_draw_date(self):
+        # Synthetic reproduction of the live Gansu 26123/26122 date conflict.
+        # This is not a validated correction of either official date.
+        body = ("<table>"
+                "<tr><td>2026-10-26</td><td>26123</td>"
+                "<td>13 18 19 20 28 09 11</td></tr>"
+                "<tr><td>2026-10-26</td><td>26122</td>"
+                "<td>02 14 21 22 24 02 12</td></tr></table>")
+        with self.assertRaisesRegex(SourceError, "GANSU_DUPLICATE_DRAW_DATE"):
+            _parse_gansu_history(body)
+
     def test_behavior_change_requires_new_parser_evidence_version(self):
         self.assertEqual(PARSER_VERSION, "dlt-source-parser-v3-draw-date-guard")
 
