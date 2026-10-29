@@ -51,6 +51,21 @@ def main() -> int:
             "error_type": type(exc).__name__,
             "error": str(exc),
         }
+    # This script checks live historical HTTP/data cross-checks only. Even a
+    # network PASS cannot authenticate publication as-of, a future target,
+    # a trusted predraw freeze, or independent post-draw outcomes.
+    report.update({
+        "gate_scope": "LIVE_HISTORY_NETWORK_CROSSCHECK_ONLY",
+        "evidence_class": "SHADOW",
+        "history_asof_authenticity": "NOT_VERIFIED",
+        "source_origin_authenticity": "NOT_CRYPTOGRAPHICALLY_VERIFIED",
+        "official_target_admission": "BLOCKED",
+        "external_predraw_tsa": "NOT_VERIFIED",
+        "official_outcome_authenticity": "NOT_VERIFIED",
+        "prospective_verified": False,
+        "formal_A": 0,
+        "decision": "NO_EDGE",
+    })
     out.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps(report, ensure_ascii=True))
     return 0 if report["status"] == "PASS" else 2
