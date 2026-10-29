@@ -418,6 +418,39 @@ class OfficialIntakeTests(unittest.TestCase):
         with self.assertRaisesRegex(GateError, "GANSU_DRAW_CONFLICT"):
             oi.validate_worker_payload(payload, expected_game="DLT")
 
+    def test_dlt_source_date_disagreement_blocks_even_when_issue_and_balls_match(self):
+        # Independent negative control: a Gansu date offset on the same issue
+        # cannot be accepted merely because the balls and issue IDs agree.
+        # Synthetic daily rows; NOT a historical observation or official raw byte.
+        payload = _payload("DLT")
+        gansu = payload["sources"][2]
+        for row in gansu["draws"]:
+            row["draw_date"] = (date.fromisoformat(row["draw_date"]) +
+                                timedelta(days=1)).isoformat()
+        gansu["raw_reparse_sha256"] = oi._rows_sha256(gansu["draws"])
+        with self.assertRaisesRegex(GateError, "GANSU_DRAW_CONFLICT"):
+            oi.validate_worker_payload(payload, expected_game="DLT")
+
+    def test_matching_three_source_date_claims_never_grant_asof_authority(self):
+        # Even matching dates are only claims until separately authenticated
+        # with independently retained source bytes and availability times.
+        payload = _payload("DLT")
+        for source in payload["sources"]:
+            for row in source["draws"]:
+                row["draw_date"] = (date.fromisoformat(row["draw_date"]) +
+                                    timedelta(days=1)).isoformat()
+            source["raw_reparse_sha256"] = oi._rows_sha256(source["draws"])
+        report = oi.validate_worker_payload(payload, expected_game="DLT")
+        self.assertEqual(report["status"], "HISTORY_CROSSCHECK_PASS")
+        self.assertEqual(report["official_history_admission"], "SHADOW_HISTORY_ONLY")
+        self.assertEqual(report["publication_time_authenticity"], "NOT_VERIFIED")
+        self.assertEqual(report["source_origin_authenticity"],
+                         "NOT_CRYPTOGRAPHICALLY_VERIFIED")
+        self.assertEqual(report["official_target_admission"], "BLOCKED")
+        self.assertEqual(report["external_tsa"], "NOT_RUN")
+        self.assertEqual(report["formal_A"], 0)
+        self.assertEqual(report["decision"], "NO_EDGE")
+
     def test_gansu_history_under_ten_draws_is_rejected(self):
         payload = _payload("DLT")
         gansu = payload["sources"][2]
