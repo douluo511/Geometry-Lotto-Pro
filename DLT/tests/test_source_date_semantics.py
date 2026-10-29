@@ -35,7 +35,7 @@ class JiangsuApplicationDateSemanticsTests(unittest.TestCase):
             _parse_gansu_history(body)
 
     def test_behavior_change_requires_new_parser_evidence_version(self):
-        self.assertEqual(PARSER_VERSION, "dlt-source-parser-v3-draw-date-guard")
+        self.assertEqual(PARSER_VERSION, "dlt-source-parser-v4-gansu-date-uniqueness")
 
     def test_publication_date_must_not_be_admitted_as_draw_date(self):
         with self.assertRaisesRegex(SourceError, "JIANGSU_PUBLICATION_DATE_IS_NOT_DRAW_DATE"):
