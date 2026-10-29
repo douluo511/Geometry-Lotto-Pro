@@ -653,6 +653,7 @@ def _parse_gansu_history(text: str) -> list[Draw]:
     )
     draws: list[Draw] = []
     seen: dict[str, Draw] = {}
+    seen_dates: dict[str, str] = {}
     for row_index, (day, issue, compact) in enumerate(pattern.findall(plain)):
         nums = re.findall(r"\d{2}", compact)
         if len(nums) != 7:
@@ -666,6 +667,13 @@ def _parse_gansu_history(text: str) -> list[Draw]:
             if previous.to_dict() != draw.to_dict():
                 raise SourceError(f"甘肃体彩同一期数据冲突: {draw.issue}")
             raise SourceError(f"甘肃体彩重复期号: {draw.issue}")
+        earlier_issue = seen_dates.get(draw.draw_date)
+        if earlier_issue is not None and earlier_issue != draw.issue:
+            raise SourceError(
+                f"GANSU_DUPLICATE_DRAW_DATE: date={draw.draw_date} "
+                f"issues={earlier_issue},{draw.issue}"
+            )
+        seen_dates[draw.draw_date] = draw.issue
         seen[draw.issue] = draw
         draws.append(draw)
     return sorted(draws, key=lambda d: (d.draw_date, d.issue))
