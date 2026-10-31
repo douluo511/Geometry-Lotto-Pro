@@ -70,7 +70,7 @@ class LiveFailureByteArtifactTests(unittest.TestCase):
             self.assertEqual(response["requested_url"], sources.JIANGSU_LIST_URL)
             self.assertEqual(response["url"], sources.JIANGSU_LIST_URL)
             self.assertEqual(response["parser_version"], sources.PARSER_VERSION)
-            self.assertRegex(response["fetched_at_local_untrusted"], r"\\d{4}-\\d{2}-\\d{2}T")
+            self.assertRegex(response["fetched_at_local_untrusted"], r"\d{4}-\d{2}-\d{2}T")
             self.assertEqual(response["sha256"], hashlib.sha256(raw).hexdigest())
             self.assertEqual(response["bytes"], len(raw))
             body_path = manifest_path.parent / response["artifact"]
