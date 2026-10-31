@@ -1,0 +1,92 @@
+{
+  "trust": "TEST_ONLY_HISTORICAL_RESPONSE_BYTES_NOT_SOURCE_AUTHENTICATION",
+  "request_body_representation": "TEST_ONLY_RECONSTRUCTED_NOT_HISTORICAL_TRANSMITTED_BYTES",
+  "original_audit_sha256": "86947a827770678f40a5de60fa9f5b0fd366189a533136c625ef9b26cb3fd5fa",
+  "rows_sha256": "8c51ec11c72a988458013d0e2cf73c289d7ae97bfc61fb2731adbd1bc2611e38",
+  "pages": [
+    {
+      "page": 1,
+      "file": "page_1.bin",
+      "sha256": "046faaf2ef56ff76ba1deb26e24c437b3e578fff370406ee400c1ebe0ace8380",
+      "size_bytes": 2926,
+      "request_json": {
+        "type_id": "001",
+        "page_no": 1,
+        "page_size": 20
+      },
+      "original_response_capture_completed_at_local_untrusted_utc": "2026-10-24T10:56:45.462979+00:00"
+    },
+    {
+      "page": 2,
+      "file": "page_2.bin",
+      "sha256": "01d78bb8ab11410c4fda95ffc5ce647fb1614cc47cd37fc1e4f732e992ae5204",
+      "size_bytes": 2926,
+      "request_json": {
+        "type_id": "001",
+        "page_no": 2,
+        "page_size": 20
+      },
+      "original_response_capture_completed_at_local_untrusted_utc": "2026-10-24T10:56:45.489331+00:00"
+    },
+    {
+      "page": 3,
+      "file": "page_3.bin",
+      "sha256": "8531da6733a41a7fe09e7d935f3c13b0770262617051ef148ddcd4dee1c5646c",
+      "size_bytes": 2926,
+      "request_json": {
+        "type_id": "001",
+        "page_no": 3,
+        "page_size": 20
+      },
+      "original_response_capture_completed_at_local_untrusted_utc": "2026-10-24T10:56:45.507346+00:00"
+    },
+    {
+      "page": 4,
+      "file": "page_4.bin",
+      "sha256": "bf9d6f6a1a33db505ad917e7df5fd53b5dbaefeaaa606803108232f49d6e232a",
+      "size_bytes": 2926,
+      "request_json": {
+        "type_id": "001",
+        "page_no": 4,
+        "page_size": 20
+      },
+      "original_response_capture_completed_at_local_untrusted_utc": "2026-10-24T10:56:45.478591+00:00"
+    },
+    {
+      "page": 5,
+      "file": "page_5.bin",
+      "sha256": "3bec767717a172a6c90f7ff23dc2d6299661d8469e48b01feee399459839e33c",
+      "size_bytes": 2926,
+      "request_json": {
+        "type_id": "001",
+        "page_no": 5,
+        "page_size": 20
+      },
+      "original_response_capture_completed_at_local_untrusted_utc": "2026-10-24T10:56:46.193292+00:00"
+    },
+    {
+      "page": 6,
+      "file": "page_6.bin",
+      "sha256": "b882379d0d03b921063ac7b5148f93709a9f3748b691808979d0f326bf49f75c",
+      "size_bytes": 2926,
+      "request_json": {
+        "type_id": "001",
+        "page_no": 6,
+        "page_size": 20
+      },
+      "original_response_capture_completed_at_local_untrusted_utc": "2026-10-24T10:56:46.201103+00:00"
+    },
+    {
+      "page": 7,
+      "file": "page_7.bin",
+      "sha256": "cae791ffd02537c50f90a37460b21bb82040163f46f12167caf680e8396b430f",
+      "size_bytes": 2926,
+      "request_json": {
+        "type_id": "001",
+        "page_no": 7,
+        "page_size": 20
+      },
+      "original_response_capture_completed_at_local_untrusted_utc": "2026-10-24T10:56:46.205923+00:00"
+    }
+  ]
+}

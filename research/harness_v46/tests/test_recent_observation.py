@@ -42,7 +42,9 @@ def markup(game, records, malformed=False):
             front = "".join(f"{n:02d}" for n in row["front"])
             issue = "BAD_ISSUE" if malformed and index == 0 else row["issue"]
             tags.append(f'<tr><td>{issue}</td><td>{row["draw_date"]}</td><td>{front}</td><td>07</td></tr>')
-    return ('<html><table><thead><tr><th>synthetic fixture</th></tr></thead><tbody>'
+    schema = ('<tr><th>开奖日期</th><th>期号</th><th>开奖号码</th></tr>'
+              if game == "DLT" else '<tr><th>synthetic fixture</th></tr>')
+    return ('<html><table><thead>' + schema + '</thead><tbody>'
             + "".join(tags) + '</tbody></table></html>').encode()
 
 
@@ -114,7 +116,8 @@ class RecentObservationTests(unittest.TestCase):
             self.output = Path(self.temp.name) / game
             fixture = rows(game)
             get, seen = self.transport(game, [markup(game, fixture[100:], malformed=True)])
-            with patch("requests.get", side_effect=get), self.assertRaisesRegex(Exception, "COVERAGE|PARSE|ROW"):
+            with patch("requests.get", side_effect=get), self.assertRaisesRegex(
+                    Exception, "COVERAGE|PARSE|ROW|JIANGSU_DRAW_DATE_COLUMN_UNVERIFIED"):
                 self.ro.capture(game, self.output)
             self.assertEqual(len(seen), 1)
             self.assertFalse((self.output / "manifest.json").exists())
@@ -124,7 +127,8 @@ class RecentObservationTests(unittest.TestCase):
         extra = b"<tr><th>2024-12-30</th><th>24150</th><th>BAD_ROW</th></tr>"
         first = markup("DLT", fixture[100:]).replace(b"</tbody>", extra + b"</tbody>")
         get, _ = self.transport("DLT", [first, markup("DLT", fixture[:100])])
-        with patch("requests.get", side_effect=get), self.assertRaisesRegex(Exception, "COVERAGE|ROW|HEADER"):
+        with patch("requests.get", side_effect=get), self.assertRaisesRegex(
+                Exception, "COVERAGE|ROW|HEADER|JIANGSU_DRAW_DATE_COLUMN_UNVERIFIED"):
             self.ro.capture("DLT", self.output)
         self.assertFalse((self.output / "manifest.json").exists())
 
@@ -167,6 +171,79 @@ class RecentObservationTests(unittest.TestCase):
                         Exception, "OBSERVATION.*DATE|OBSERVATION.*FUTURE"):
                 self.ro.capture("DLT", self.output)
             self.assertFalse((self.output / "manifest.json").exists())
+
+    def test_failed_second_page_keeps_hash_bound_raw_failure_receipt(self):
+        # Two real parser subprocesses, HTTP mocked only. Neither publication
+        # headers nor overlapping SSQ issues can be promoted to an as-of history.
+        for game in ("DLT", "SSQ"):
+            with self.subTest(game=game):
+                self.output = Path(self.temp.name) / (game + "-failed-second")
+                fixture = rows(game)
+                first = markup(game, fixture[100:])
+                if game == "DLT":
+                    second = markup(game, fixture[:100]).replace(
+                        "开奖日期".encode("utf-8"), "发布日期".encode("utf-8"))
+                else:
+                    older = [dict(row) for row in fixture[:100]]
+                    older[-1] = dict(fixture[100])
+                    second = markup(game, older)
+                get, seen = self.transport(game, [first, second])
+                with patch("requests.get", side_effect=get), self.assertRaises(Exception):
+                    self.ro.capture(game, self.output)
+                self.assertEqual(len(seen), 2)
+                failure = json.loads((self.output / "failure.json").read_bytes())
+                self.assertEqual(failure["schema"], "V47-RAW-OBSERVATION-FAILURE-1")
+                self.assertEqual(failure["status"], "BLOCKED")
+                self.assertEqual(failure["lottery"], game)
+                self.assertEqual(failure["official_G01"], "BLOCKED")
+                self.assertEqual(failure["official_target_admission"], "BLOCKED")
+                self.assertEqual(failure["formal_A"], 0)
+                self.assertEqual(failure["decision"], "NO_EDGE")
+                self.assertEqual(len(failure["pages"]), 2)
+                for saved, raw in zip(failure["pages"], (first, second)):
+                    self.assertEqual(saved["http_status"], 200)
+                    self.assertEqual(saved["raw_sha256"], hashlib.sha256(raw).hexdigest())
+                    self.assertEqual(saved["size_bytes"], len(raw))
+                    self.assertEqual((self.output / saved["raw_file"]).read_bytes(), raw)
+                    self.assertIn("requested_url", saved)
+                    self.assertIn("fetch_completed_at_local_untrusted", saved)
+                self.assertFalse((self.output / "manifest.json").exists())
+                with self.assertRaises(FileNotFoundError):
+                    self.ro.make_observation_metadata(self.output)
+
+    def test_http_403_keeps_original_response_bytes_but_never_admits(self):
+        # Main SSQ's official 403 cannot be fixed by pretending a forbidden
+        # response is a valid draw page; this is a bounded HTTP failure probe.
+        for game in ("DLT", "SSQ"):
+            with self.subTest(game=game):
+                self.output = Path(self.temp.name) / (game + "-http403")
+                denied = ("synthetic 403 " + game).encode("ascii")
+                seen = []
+                def get(url, **kwargs):
+                    seen.append(url)
+                    self.assertIs(kwargs.get("allow_redirects"), False)
+                    self.assertIs(kwargs.get("stream"), True)
+                    return SimpleNamespace(
+                        status_code=403, url=url,
+                        iter_content=lambda chunk_size: iter([denied]),
+                        close=lambda: None,
+                        headers={"Content-Type": "text/plain; charset=utf-8"})
+                with patch("requests.get", side_effect=get), self.assertRaisesRegex(
+                        Exception, "OBSERVATION_HTTP_STATUS:403"):
+                    self.ro.capture(game, self.output)
+                self.assertEqual(len(seen), 1)
+                failure = json.loads((self.output / "failure.json").read_bytes())
+                self.assertEqual(failure["status"], "BLOCKED")
+                self.assertEqual(failure["error"], "OBSERVATION_HTTP_STATUS:403")
+                self.assertEqual(failure["source_origin_authenticity"], "NOT_VERIFIED")
+                self.assertEqual(failure["publication_time_authenticity"], "NOT_VERIFIED")
+                self.assertEqual(failure["external_tsa"], "NOT_RUN")
+                self.assertEqual(len(failure["pages"]), 1)
+                saved = failure["pages"][0]
+                self.assertEqual(saved["http_status"], 403)
+                self.assertEqual(saved["raw_sha256"], hashlib.sha256(denied).hexdigest())
+                self.assertEqual((self.output / saved["raw_file"]).read_bytes(), denied)
+                self.assertFalse((self.output / "manifest.json").exists())
 
     def test_raw_tampering_blocks_offline_verification(self):
         manifest, _ = self.capture("DLT")

@@ -49,6 +49,10 @@ def verify_sources(payload: dict, source_module) -> dict:
                 source.get("source_name") != oi.EXPECTED_SOURCE_NAMES[game][source_id]):
             raise GateError("RAW_REPLAY_SOURCE_IDENTITY_MISMATCH")
         status = source.get("raw_reparse_status")
+        # Failed bodies are diagnostic-only, but their method/request bytes still
+        # must be bound before they can accompany a replay receipt.
+        raw_list = source.get("raw_artifacts")
+        artifacts = oi._validate_artifacts(game, source, parser_version) if raw_list else []
         if status != "PASS":
             continue
         if not source.get("draws"):
@@ -56,7 +60,6 @@ def verify_sources(payload: dict, source_module) -> dict:
         raw_list = source.get("raw_artifacts")
         if not isinstance(raw_list, list) or not raw_list:
             raise GateError("RAW_REPLAY_REQUIRES_RAW_BYTES")
-        artifacts = oi._validate_artifacts(game, source, parser_version)
         if not any(a["http_status"] == 200 and a["size_bytes"] > 0
                    for a in artifacts):
             raise GateError("RAW_REPLAY_REQUIRES_NONEMPTY_HTTP_200")

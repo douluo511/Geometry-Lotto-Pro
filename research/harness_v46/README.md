@@ -157,7 +157,9 @@ publication, credible time sealing, or eligibility for gambling purchases.
 
 Exact-head synthetic CI for code HEAD `d1f2ab42f9e170fcae0c5d98101e4321e18ea804`: https://github.com/douluo511/Geometry-Lotto-Pro/actions/runs/39747892642 — Ubuntu and Windows Server 2022 both succeeded with 54 tests; Ubuntu skipped the Windows-only PowerShell parser test, and Windows ran it.
 
-Still BLOCKED/NOT_RUN: live official-source fetch and parser, two-source 120+ issue semantic comparison, official next-target/sales-cutoff admission, external RFC3161/independent witness validation, real Windows task installation/cold boot/offline recovery, verified official-result replay, actual preregistration identity mapping, DLT 69/2880 negative-control root cause, and any prospective D2 advantage.
+Historical status at the d1f2ab42 checkpoint above: live fetch/parser and two-source semantic comparison were not yet implemented. Subsequent `official_intake.py` and raw-replay/byte-audit modules implement those local operations; current persistent source attempts and exact code identities are indexed outside the source export by `work/current_runtime.json` and `work/latest_operation.json`. That implementation does not authenticate official upstream independence, publication time or a future issue/cutoff.
+
+Still BLOCKED/NOT_VERIFIED: official next-target/sales-cutoff admission, approved independently authenticated RFC3161 trust/witness policy, real Windows task installation/cold boot/offline recovery, authenticated official-result replay, original formal preregistration identity/inclusion/stopping correspondence, the DLT 69/2880 negative-control cause, and prospective D2 advantage. `predraw_seal.py` implements local V47 and V47G payload/token checks; caller-pinned verification is distinct from approved formal admission. See the later sections and current per-attempt receipts rather than treating this historical checkpoint as current system absence.
 
 
 ## V4.7 source-history comparison contract
@@ -495,3 +497,94 @@ UTC upper bound required by `predraw_seal`; unspecified accuracy is never
 treated as zero. The strict verifier continues to reject such a token.
 All integration fixtures are synthetic and remain outside real research.
 `formal_A=0`, `NO_EDGE` throughout.
+
+
+## Single V4.7 SHADOW closed loop / opt-in Bot (Issue #468; Draft PR #467)
+
+This is an **integration of existing V4.7 components**, not a fourth Harness.
+The same Python entrypoint is called before cutoff and after draw (independently
+provided outcomes); it never self-authenticates a real official schedule, TSA
+or improved winning probability:
+
+```sh
+python -m research.harness_v46.closed_loop \
+  --workspace /persistent/v47-shadow \
+  --snapshot-bundle /reviewed/SSQ_DLT_current.json
+# After the real draw and independent verification, place the original
+# caller/authority-UNVERIFIED result under:
+# /persistent/v47-shadow/outcomes/<FROZEN_RUN_ID>.json
+python -m research.harness_v46.closed_loop --workspace /persistent/v47-shadow
+```
+
+A run with no outcome returns `WAITING_FOR_OUTCOME`; no complete study
+will be produced until every registered frozen local run has a valid score.
+Score receipts are created once; changed caller outcomes fail closed.
+All forecasts and statistics remain SHADOW and **must not be misreported
+as official predraw evidence or true model edge**.
+
+Optional exploration (port of #462) stays outside the six incumbent producer
+arms and outside preregistered prospective statistics:
+
+```sh
+python -m research.harness_v46.closed_loop \
+  --workspace /persistent/v47-shadow \
+  --research-history-bundle /reviewed/SSQ_DLT_past_121plus.json
+```
+
+This emits `research_diagnostic` with a fixed historical
+`RECENCY_PAIR_H45_120_V1` walk-forward, not a new frozen prediction and
+never a promotion. No posthoc parameter tuning or renaming the random NULL.
+
+Opt-in host automation for an **already provisioned, persistent Windows host**:
+create a local JSON config with exactly these operator-filled path keys:
+
+```json
+{
+  "repository_root": "C:/path/to/Geometry-Lotto-Pro",
+  "python_exe": "C:/path/to/python.exe",
+  "workspace": "C:/persistent/v47-shadow",
+  "log_path": "C:/persistent/logs/v47-bot.log",
+  "snapshot_bundle": "C:/reviewed/current-two-games.json",
+  "research_history_bundle": null
+}
+```
+
+Then, on the real machine, **preview first**:
+
+For the SAME caller's optional source/score operational mode, use
+`"operational_tick": true`, `"intake_timeout_seconds": 120` and optional
+`"ssq_snapshot_path"` / `"dlt_snapshot_path"` (absolute paths to explicit
+single-game snapshots). Omit the legacy `snapshot_bundle`,
+`research_history_bundle` and `*_snapshot_bundle` fields in this mode.
+The new path fields require operational mode and are forwarded to the
+existing strict Python loader; omission or invalidity blocks that game's
+new freeze while retaining independent source/old-roster processing.
+They never authenticate target/cutoff, a source, or trusted presale time.
+The Windows worker limit is120 seconds: each game can use separate
+collection and replay budgets, not one overall timeout. Task completion
+within10 minutes still requires actual host evidence.
+
+```powershell
+powershell.exe -NoProfile -File research/harness_v46/windows_closed_loop_tasks.ps1 -ConfigFile C:/reviewed/bot-config.json
+# Registration requires deliberate opt-in, reviewed durable storage, proper permissions
+# and separate physical cold-start/recovery verification:
+# powershell.exe -NoProfile -File research/harness_v46/windows_closed_loop_tasks.ps1 -ConfigFile C:/reviewed/bot-config.json -Install
+```
+
+Preview does not register or start any job. The opt-in task retries every
+30 minutes and on startup, passing nonzero failures to the host log; it
+only the opt-in operational mode attempts fresh source histories; neither
+mode promotes official status or provides independent RFC3161 evidence.
+The task must never be
+installed on disposable GitHub Actions runners. All schedule and real
+deployment claims remain NOT_VERIFIED until separately observed. A current
+authoritative future target, sale cutoff, complete corroborated historical
+draws and approved external witness are **still missing**. The DLT
+publication-vs-draw-date conflict and 69/2880 negative control are unresolved.
+
+Superpowers executable design and test ledger:
+`docs/superpowers/specs/2026-10-24-v47-unified-shadow-bot-design.md`,
+`docs/superpowers/plans/2026-10-24-v47-unified-shadow-bot-execution.md`.
+A reviewer/agent must be independently assigned; a spec cannot autonomously
+supervise code. Current verdict is `A=0`, `NO_EDGE`,
+`RESEARCH_VALID=NOT_YET`, `D2_EDGE_CONFIRMED=NO`.

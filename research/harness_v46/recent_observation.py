@@ -108,7 +108,7 @@ def _check_url(game: str, url: str, expected_params: dict) -> None:
         raise GateError("OBSERVATION_URL_OR_REDIRECT_NOT_ALLOWLISTED")
 
 
-def _fetch_page(game: str, params: dict, headers: dict) -> tuple[bytes, dict]:
+def _fetch_page(game: str, params: dict, headers: dict, *, on_rejected_response=None) -> tuple[bytes, dict]:
     requested = ENDPOINTS[game] + "?" + urlencode(params)
     current = requested
     for _ in range(6):
@@ -127,10 +127,9 @@ def _fetch_page(game: str, params: dict, headers: dict) -> tuple[bytes, dict]:
                 _check_url(game, current, params)
                 continue
             content_type = str(response.headers.get("Content-Type", "")).lower()
-            if status != 200:
-                raise GateError("OBSERVATION_HTTP_STATUS:" + str(status))
-            if not any(value in content_type for value in ("text/html", "application/xhtml+xml")):
-                raise GateError("OBSERVATION_CONTENT_TYPE_INVALID")
+            # Read bounded original bytes even when a server returns HTTP 403
+            # or an unexpected content type. Error bodies are forensic only,
+            # never candidates for source rows or official as-of admission.
             body = bytearray()
             for chunk in response.iter_content(chunk_size=65536):
                 if chunk:
@@ -138,15 +137,23 @@ def _fetch_page(game: str, params: dict, headers: dict) -> tuple[bytes, dict]:
                     if len(body) > MAX_BYTES:
                         raise GateError("OBSERVATION_RAW_BYTES_EXCEED_LIMIT")
             raw = bytes(body)
-            # This clock samples completion of the entire bounded body. It is
-            # never a publication/draw/cutoff time or a trusted timestamp.
+            # This local clock is not a publication, draw or trusted cutoff time.
             fetched = _now()
-            if not raw:
+            meta = {"requested_url": requested, "url": final,
+                    "http_status": status, "content_type": content_type,
+                    "fetch_completed_at_local_untrusted": fetched,
+                    "size_bytes": len(raw), "raw_sha256": _sha(raw)}
+            if (status != 200
+                    or not any(value in content_type for value in ("text/html", "application/xhtml+xml"))
+                    or not raw):
+                if on_rejected_response is not None:
+                    on_rejected_response(raw, meta)
+                if status != 200:
+                    raise GateError("OBSERVATION_HTTP_STATUS:" + str(status))
+                if not any(value in content_type for value in ("text/html", "application/xhtml+xml")):
+                    raise GateError("OBSERVATION_CONTENT_TYPE_INVALID")
                 raise GateError("OBSERVATION_RAW_BYTES_EMPTY")
-            return raw, {"requested_url": requested, "url": final,
-                         "http_status": status, "content_type": content_type,
-                         "fetch_completed_at_local_untrusted": fetched,
-                         "size_bytes": len(raw), "raw_sha256": _sha(raw)}
+            return raw, meta
         finally:
             response.close()
     raise GateError("OBSERVATION_REDIRECT_LIMIT")
@@ -285,6 +292,7 @@ def _worker(payload: dict) -> dict:
             text = source._html_markup(raw)
         else:
             text = source._decode_html(raw)
+            oi._verify_jiangsu_draw_date_columns(text)
             draws = source._parse_jiangsu_html(text)
         parsed = oi._source_rows(draws)
         _complete_row_coverage(game, text, parsed)
@@ -335,45 +343,79 @@ def capture(game: str, output_dir: str | Path) -> Path:
     output.mkdir(parents=True, exist_ok=False)
     (output / "raw").mkdir()
     started = _now()
-    config = _parser_call(game, pins)
     pages, first_rows = [], None
-    for sequence in (1, 2):
-        raw, page = _fetch_page(game, _params(game, sequence, first_rows), config["headers"])
-        page.update({"sequence": sequence, "raw_file": f"raw/{page['raw_sha256']}.bin",
-                     "parser_version": config["parser_version"]})
-        # Preserve complete bytes before semantic parsing; failures never receive
-        # a successful observation manifest or a silently shortened history.
-        with (output / page["raw_file"]).open("xb") as handle:
+
+    def retain_raw(raw: bytes, page: dict) -> None:
+        # Exclusive creation: neither a failed retry nor another page may
+        # overwrite evidence. Source URLs and local fetch clocks remain claims.
+        saved = {**page, "sequence": len(pages) + 1,
+                 "raw_file": f"raw/{page['raw_sha256']}.bin",
+                 "parser_version": config["parser_version"]}
+        with (output / saved["raw_file"]).open("xb") as handle:
             handle.write(raw)
-        pages.append({**page, "raw_base64": base64.b64encode(raw).decode("ascii")})
-        parsed = _parser_call(game, pins, pages=pages)
-        if sequence == 1:
-            first_rows = parsed["all_rows"]
-    all_rows = parsed["all_rows"]
-    selected = all_rows[-120:]
-    observed = _now()
-    manifest = {
-        "schema": SCHEMA, "lottery": game,
-        "source_id": "shanghai" if game == "SSQ" else "jiangsu",
-        "history_policy": POLICY, "all_rows": all_rows, "selected_rows": selected,
-        "selected_rows_sha256": _digest(selected),
-        "parser_source_files_sha256": pins, "parser_source_sha256": _digest(pins),
-        "parser_version": config["parser_version"],
-        "pages": [{k: v for k, v in page.items() if k != "raw_base64"} for page in pages],
-        "capture_started_at_local_untrusted": started,
-        "observed_at_local_untrusted": observed,
-        "timestamp_trust": "LOCAL_CLOCK_UNTRUSTED",
-        "parser_to_raw_binding": "SECOND_PROCESS_SAME_PARSER_REPLAY_MATCHED",
-        "source_origin_authenticity": "NOT_VERIFIED",
-        "publication_time_authenticity": "NOT_VERIFIED",
-        "official_G01": "BLOCKED", "official_target_admission": "BLOCKED",
-        "formal_A": 0, "decision": "NO_EDGE",
-    }
-    path = output / "manifest.json"
-    with path.open("xb") as handle:
-        handle.write(_canonical(manifest) + b"\n")
-    verify_observation(output)
-    return path
+        pages.append({**saved, "raw_base64": base64.b64encode(raw).decode("ascii")})
+
+    try:
+        config = _parser_call(game, pins)
+        for sequence in (1, 2):
+            raw, page = _fetch_page(
+                game, _params(game, sequence, first_rows), config["headers"],
+                on_rejected_response=retain_raw,
+            )
+            # Preserve before semantic parsing, including a later conflicting
+            # page; even a failed source must remain independently inspectable.
+            retain_raw(raw, page)
+            parsed = _parser_call(game, pins, pages=pages)
+            if sequence == 1:
+                first_rows = parsed["all_rows"]
+        all_rows = parsed["all_rows"]
+        selected = all_rows[-120:]
+        observed = _now()
+        manifest = {
+            "schema": SCHEMA, "lottery": game,
+            "source_id": "shanghai" if game == "SSQ" else "jiangsu",
+            "history_policy": POLICY, "all_rows": all_rows, "selected_rows": selected,
+            "selected_rows_sha256": _digest(selected),
+            "parser_source_files_sha256": pins, "parser_source_sha256": _digest(pins),
+            "parser_version": config["parser_version"],
+            "pages": [{k: v for k, v in page.items() if k != "raw_base64"} for page in pages],
+            "capture_started_at_local_untrusted": started,
+            "observed_at_local_untrusted": observed,
+            "timestamp_trust": "LOCAL_CLOCK_UNTRUSTED",
+            "parser_to_raw_binding": "SECOND_PROCESS_SAME_PARSER_REPLAY_MATCHED",
+            "source_origin_authenticity": "NOT_VERIFIED",
+            "publication_time_authenticity": "NOT_VERIFIED",
+            "official_G01": "BLOCKED", "official_target_admission": "BLOCKED",
+            "formal_A": 0, "decision": "NO_EDGE",
+        }
+        path = output / "manifest.json"
+        with path.open("xb") as handle:
+            handle.write(_canonical(manifest) + b"\n")
+        verify_observation(output)
+        return path
+    except Exception as exc:
+        # A failed attempt is not an as-of snapshot. Preserve only claims and
+        # original retained bytes; there is no success or promotion path.
+        failed = {
+            "schema": "V47-RAW-OBSERVATION-FAILURE-1",
+            "status": "BLOCKED", "lottery": game,
+            "source_id": "shanghai" if game == "SSQ" else "jiangsu",
+            "error_type": type(exc).__name__, "error": str(exc)[:1024],
+            "capture_started_at_local_untrusted": started,
+            "failed_at_local_untrusted": _now(),
+            "parser_source_files_sha256": pins,
+            "pages": [{k: v for k, v in page.items() if k != "raw_base64"}
+                      for page in pages],
+            "timestamp_trust": "LOCAL_CLOCK_UNTRUSTED",
+            "source_origin_authenticity": "NOT_VERIFIED",
+            "publication_time_authenticity": "NOT_VERIFIED",
+            "official_G01": "BLOCKED", "official_target_admission": "BLOCKED",
+            "external_tsa": "NOT_RUN",
+            "formal_A": 0, "decision": "NO_EDGE",
+        }
+        with (output / "failure.json").open("xb") as handle:
+            handle.write(_canonical(failed) + b"\n")
+        raise
 
 
 def verify_observation(observation_dir: str | Path) -> dict:

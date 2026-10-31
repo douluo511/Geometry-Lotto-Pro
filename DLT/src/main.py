@@ -167,6 +167,8 @@ def main() -> int:
     parser.add_argument("--background-interval-seconds", type=int, default=1800)
     parser.add_argument("--background-max-cycles", type=int, default=0)
     parser.add_argument("--background-wait-parent-pid", type=int, default=0)
+    parser.add_argument("--background-launch-session", default="")
+    parser.add_argument("--background-acceptance-nonce", default="")
     parser.add_argument("--result-file")
     args = parser.parse_args()
 
@@ -187,12 +189,16 @@ def main() -> int:
             interval_seconds=args.background_interval_seconds,
             max_cycles=args.background_max_cycles,
             wait_parent_pid=args.background_wait_parent_pid,
+            launch_session=args.background_launch_session,
+            acceptance_nonce=args.background_acceptance_nonce,
         )
     if args.background_launch:
         value = launch_background_worker(
             interval_seconds=args.background_interval_seconds,
             max_cycles=args.background_max_cycles,
             wait_parent_exit=True,
+            launch_session=args.background_launch_session,
+            acceptance_nonce=args.background_acceptance_nonce,
         )
         _write_json(args.result_file, value)
         print(json.dumps(value, ensure_ascii=False, indent=2))

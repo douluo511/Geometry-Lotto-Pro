@@ -12,11 +12,14 @@ import ast
 import base64
 import copy
 import hashlib
+import html
 import json
 import os
+import re
 import subprocess
 import sys
 from datetime import datetime, timezone
+from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -73,6 +76,45 @@ EXPECTED_SOURCE_NAMES = {
     },
 }
 REDIRECT_CODES = {301, 302, 303, 307, 308}
+GANSU_JSON_URL = "https://www.gstc.org.cn/workapi/prize_history_list"
+REQUEST_FIELDS = {"request_method", "request_body_base64", "request_body_sha256"}
+
+
+def _request_evidence(game: str, source_id: str, artifact: dict, raw: bytes) -> dict:
+    """Validate exact POST bytes and prevent JSON from downgrading to legacy HTML."""
+    present = REQUEST_FIELDS.intersection(artifact)
+    api = artifact.get("url") == GANSU_JSON_URL or artifact.get("requested_url") == GANSU_JSON_URL
+    media_type = str(artifact.get("content_type") or "").split(";", 1)[0].strip().lower()
+    json_response = game == "DLT" and source_id == "gansu" and (
+        raw.lstrip()[:1] in (b"{", b"[") or media_type.rpartition("/")[2] == "json"
+        or media_type.endswith("+json")
+    )
+    if not present and not api and not json_response:
+        return {}
+    if (game != "DLT" or source_id != "gansu" or present != REQUEST_FIELDS
+            or artifact.get("url") != GANSU_JSON_URL or artifact.get("requested_url") != GANSU_JSON_URL
+            or artifact.get("request_method") != "POST"):
+        raise GateError("RAW_POST_REQUEST_IDENTITY_INVALID")
+    try:
+        body = base64.b64decode(artifact["request_body_base64"], validate=True)
+        if _sha(body) != artifact["request_body_sha256"]:
+            raise ValueError("request SHA")
+        def unique(pairs):
+            obj = {}
+            for key, value in pairs:
+                if key in obj:
+                    raise ValueError("duplicate request key")
+                obj[key] = value
+            return obj
+        value = json.loads(body.decode("utf-8"), object_pairs_hook=unique)
+        if (not isinstance(value, dict) or set(value) != {"type_id", "page_no", "page_size"}
+                or value["type_id"] != "001" or type(value["page_no"]) is not int
+                or not 1 <= value["page_no"] <= 7 or type(value["page_size"]) is not int
+                or value["page_size"] != 20):
+            raise ValueError("request schema")
+    except (ValueError, TypeError, UnicodeError) as exc:
+        raise GateError("RAW_POST_REQUEST_BYTES_INVALID") from exc
+    return {key: artifact[key] for key in REQUEST_FIELDS}
 
 
 def _sha(raw: bytes) -> str:
@@ -150,20 +192,27 @@ def _canonical_draws(game: str, rows: list[dict], *, minimum: int = 120) -> list
     for row in rows:
         if not isinstance(row, dict) or set(row) != {"issue", "draw_date", "front", "back"}:
             raise GateError("INVALID_SOURCE_DRAW_SCHEMA")
-        issue = str(row["issue"])
+        issue = row["issue"]
         day = row["draw_date"]
-        if not issue.isdigit() or int(issue) <= last_issue:
+        # The raw parser must supply a canonical ASCII issue string.  Converting
+        # integers or Unicode digits to text would silently change its identity
+        # before the original source agreement and freeze checks.
+        if type(issue) is not str or not issue.isascii() or not issue.isdecimal():
+            raise GateError("INVALID_SOURCE_ISSUE")
+        if int(issue) <= last_issue:
             raise GateError("DUPLICATE_OR_OUT_OF_ORDER_SOURCE_ISSUE")
-        if not isinstance(day, str):
+        # A date prefix is not evidence of an actual draw date.  For example
+        # 2026-10-24T... was previously accepted by slicing away its suffix.
+        if type(day) is not str or re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", day) is None:
             raise GateError("INVALID_SOURCE_DRAW_DATE")
         try:
-            parsed_day = datetime.strptime(day[:10], "%Y-%m-%d").date()
+            parsed_day = datetime.strptime(day, "%Y-%m-%d").date()
         except ValueError as exc:
             raise GateError("INVALID_SOURCE_DRAW_DATE") from exc
         # Duplicate dates cannot be silently accepted: historical corrections require
         # an explicit independently verified exception in a new source contract.
-        if parsed_day.isoformat() != day[:10] or (last_date is not None and parsed_day <= last_date):
-            raise GateError("NONMONOTONIC_SOURCE_DRAW_DATE:" + issue + ":" + day[:10])
+        if parsed_day.isoformat() != day or (last_date is not None and parsed_day <= last_date):
+            raise GateError("NONMONOTONIC_SOURCE_DRAW_DATE:" + issue + ":" + day)
         front, back = row["front"], row["back"]
         if (not isinstance(front, list) or len(front) != front_count
                 or any(type(n) is not int or not 1 <= n <= front_max for n in front)
@@ -222,7 +271,8 @@ def _validate_artifacts(game: str, source: dict, parser_version: str) -> list[di
             "url", "requested_url", "raw_sha256", "size_bytes", "content_type",
             "http_status", "fetched_at", "parser_version", "raw_base64",
         }
-        if set(artifact) != required:
+        optional = REQUEST_FIELDS | {"response_location"}
+        if not required.issubset(artifact) or set(artifact) - required - optional:
             raise GateError("INVALID_RAW_ARTIFACT_SCHEMA")
         host, root = _root_for_url(game, artifact["url"])
         _, requested_root = _root_for_url(game, artifact["requested_url"])
@@ -241,6 +291,9 @@ def _validate_artifacts(game: str, source: dict, parser_version: str) -> list[di
             raise GateError("RAW_ARTIFACT_BASE64_INVALID") from exc
         if len(raw) != artifact["size_bytes"] or _sha(raw) != artifact["raw_sha256"]:
             raise GateError("RAW_ARTIFACT_BYTES_SHA_MISMATCH")
+        request_meta = _request_evidence(game, source_id, artifact, raw)
+        if "response_location" in artifact and (not request_meta or not isinstance(artifact["response_location"], str)):
+            raise GateError("RAW_POST_RESPONSE_LOCATION_INVALID")
         try:
             fetched_stamp = datetime.fromisoformat(artifact["fetched_at"].replace("Z", "+00:00"))
             if fetched_stamp.tzinfo is None:
@@ -254,6 +307,8 @@ def _validate_artifacts(game: str, source: dict, parser_version: str) -> list[di
             "size_bytes": len(raw), "content_type": artifact["content_type"],
             "http_status": artifact["http_status"], "fetched_at_local_untrusted": artifact["fetched_at"],
             "parser_version": parser_version, "raw_base64": artifact["raw_base64"],
+            **request_meta,
+            **({"response_location": artifact["response_location"]} if "response_location" in artifact else {}),
         })
     return validated
 
@@ -291,6 +346,7 @@ def _normalize_worker_artifact(game: str, source_id: str, meta: dict, raw: bytes
         "parser_version": parser_version,
         "raw_base64": base64.b64encode(raw).decode("ascii"),
         "_source_id": source_id, "_source_root": root, "_host": host,
+        **{key: meta[key] for key in REQUEST_FIELDS | {"response_location"} if key in meta},
     }
 
 
@@ -302,9 +358,245 @@ def _source_rows(draws) -> list[dict]:
     ]
 
 
+class _JiangsuDateTables(HTMLParser):
+    """Associate literal legacy-parser rows with their own table and columns.
+
+    Structural ambiguity is rejected, rather than applying browser HTML repair
+    rules to decide which date header an otherwise parseable row belongs to.
+    """
+
+    def __init__(self, text):
+        # Parse original markup; decode entities only as cell text. Decoding the
+        # whole response first could manufacture structural tags from text.
+        super().__init__(convert_charrefs=True)
+        self.text = text
+        # HTMLParser's getpos() advances lines only at LF, unlike splitlines().
+        self.offsets = [0] + [match.end() for match in re.finditer("\n", text)]
+        self.stack, self.rows_at, self.contexts = [], {}, []
+        self.ambiguous_context = False
+
+    _INERT = {"script", "style", "textarea", "title", "template", "select",
+              "option", "noscript", "xmp", "iframe", "noembed", "noframes",
+              "plaintext"}
+    _VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input",
+             "link", "meta", "param", "source", "track", "wbr"}
+    _SECTIONS = {"thead", "tbody", "tfoot"}
+
+    def handle_starttag(self, tag, attrs):
+        if tag == "plaintext":
+            # HTML plaintext has no effective closing tag.
+            self.ambiguous_context = True
+        unsafe = (tag in self._INERT or any(name in {"hidden", "inert"} for name, _ in attrs)
+                  or self.ambiguous_context
+                  or any(blocked for _, blocked in self.contexts))
+        if tag not in self._VOID:
+            self.contexts.append((tag, unsafe))
+        if self.stack and unsafe:
+            self.stack[-1]["invalid"] = True
+        if tag == "table":
+            if self.stack:
+                self.stack[-1]["invalid"] = True
+            self.stack.append({"rows": [], "row": None, "cell": None,
+                               "invalid": bool(self.stack) or unsafe,
+                               "closed": False, "section": None})
+        elif self.stack:
+            table = self.stack[-1]
+            if tag == "tr":
+                if table["row"] is not None or table["cell"] is not None:
+                    table["invalid"] = True
+                row = {"table": table, "cells": [], "closed": False,
+                       "index": len(table["rows"])}
+                table["rows"].append(row)
+                table["row"], table["cell"] = row, None
+                line, col = self.getpos()
+                self.rows_at[self.offsets[line - 1] + col] = row
+            elif tag in {"td", "th"}:
+                if table["row"] is None or table["cell"] is not None:
+                    table["invalid"] = True
+                if table["row"] is not None:
+                    cell = {"tag": tag, "text": [], "closed": False,
+                            "inline": [], "attrs": attrs}
+                    table["row"]["cells"].append(cell)
+                    table["cell"] = cell
+            elif tag in self._SECTIONS and table["cell"] is None:
+                if table["row"] is not None or table["section"] is not None:
+                    table["invalid"] = True
+                table["section"] = tag
+            elif table["cell"] is not None:
+                if tag not in {"span", "b", "strong", "em", "i", "u", "small", "a",
+                               "font", "br", "wbr"}:
+                    table["invalid"] = True
+                if tag not in {"br", "wbr"}:
+                    table["cell"]["inline"].append(tag)
+            else:
+                table["invalid"] = True
+
+    def handle_startendtag(self, tag, attrs):
+        # In HTML, '/>' does not close a non-void container. In particular it
+        # cannot end a textarea/template/hidden ancestor before candidate rows.
+        self.handle_starttag(tag, attrs)
+
+    def handle_endtag(self, tag):
+        line, col = self.getpos()
+        start = self.offsets[line - 1] + col
+        if not re.match(r"</" + re.escape(tag) + r"[ \t\r\n\f]*>",
+                        self.text[start:], re.I):
+            # HTMLParser repairs '</ textarea>' into an end-tag callback even
+            # though HTML leaves the container open. Accept only the supported
+            # literal closing grammar, without attributes or a solidus suffix.
+            self.ambiguous_context = True
+            if self.stack:
+                self.stack[-1]["invalid"] = True
+            return
+        for index in range(len(self.contexts) - 1, -1, -1):
+            if self.contexts[index][0] == tag:
+                if any(blocked for _, blocked in self.contexts[index + 1:]):
+                    # A stray ancestor close cannot release an active unsafe
+                    # descendant; reject subsequent evidence in this response.
+                    self.ambiguous_context = True
+                del self.contexts[index:]
+                break
+        if not self.stack:
+            return
+        table = self.stack[-1]
+        if tag == "table":
+            if (table["row"] is not None or table["cell"] is not None
+                    or table["section"] is not None):
+                table["invalid"] = True
+            table["closed"] = True
+            self.stack.pop()
+        elif tag == "tr":
+            if table["row"] is None or table["cell"] is not None:
+                table["invalid"] = True
+            if table["row"] is not None:
+                table["row"]["closed"] = True
+            table["row"], table["cell"] = None, None
+        elif tag in {"td", "th"}:
+            cell = table["cell"]
+            if cell is None or cell["tag"] != tag or cell["inline"]:
+                table["invalid"] = True
+            if cell is not None:
+                cell["closed"] = True
+            table["cell"] = None
+        elif tag in self._SECTIONS and table["cell"] is None:
+            if table["row"] is not None or table["section"] != tag:
+                table["invalid"] = True
+            table["section"] = None
+        elif table["cell"] is not None:
+            inline = table["cell"]["inline"]
+            if not inline or inline.pop() != tag:
+                table["invalid"] = True
+        else:
+            table["invalid"] = True
+
+    def handle_data(self, data):
+        if self.stack and self.stack[-1]["cell"] is not None:
+            self.stack[-1]["cell"]["text"].append(data)
+
+    def handle_entityref(self, name):
+        self.handle_data("&" + name + ";")
+
+    def handle_charref(self, name):
+        self.handle_data("&#" + name + ";")
+
+
+def _verify_jiangsu_draw_date_columns(text):
+    """Reject publication dates before the old parser can call them draw dates.
+
+    Match exactly the candidate shape consumed by the installed legacy parser;
+    bind each match to its structural row, table, and first three columns. A
+    header in another table, a comment, or a later row cannot authorize it.
+    """
+    pattern = re.compile(
+        r"<tr[^>]*>\s*<td[^>]*>\s*(\d{4}-\d{2}-\d{2})\s*</td>\s*"
+        r"<td[^>]*>\s*(\d{5})\s*</td>\s*"
+        r"<td[^>]*>\s*([\d\s]+?)\s*</td>", re.I | re.S,
+    )
+    candidates = list(pattern.finditer(text))
+    decoded_candidates = list(pattern.finditer(html.unescape(text)))
+    unverified = "JIANGSU_DRAW_DATE_COLUMN_UNVERIFIED"
+    if ([match.groups() for match in candidates]
+            != [match.groups() for match in decoded_candidates]):
+        raise GateError(unverified)
+    if not candidates:
+        return  # Empty terminal pages are not draw evidence.
+    parser = _JiangsuDateTables(text)
+    parser.feed(text)
+    parser.close()
+    tables = {}
+
+    def labels(row):
+        return ["".join("".join(cell["text"]).split()) for cell in row["cells"]]
+
+    def positional(row):
+        return (row["closed"] and len(row["cells"]) >= 3
+                and all(cell["closed"] and not cell["inline"]
+                        and all(name not in {"rowspan", "colspan"} or value == "1"
+                                for name, value in cell["attrs"])
+                        for cell in row["cells"]))
+
+    for match in candidates:
+        row = parser.rows_at.get(match.start())
+        if row is None or not positional(row):
+            raise GateError(unverified)
+        table = row["table"]
+        if table["invalid"] or not table["closed"]:
+            raise GateError(unverified)
+        if labels(row)[:3] != ["".join(value.split()) for value in match.groups()]:
+            raise GateError(unverified)
+        tables.setdefault(id(table), (table, []))[1].append(row)
+    draw_headers = {"开奖日期", "开奖时间"}
+    publication_headers = {"发布日期", "发布时间", "公告日期", "公告时间"}
+    issue_headers = {"期号", "开奖期号"}
+    result_headers = {"开奖号码", "开奖结果"}
+    for table, rows in tables.values():
+        candidate_ids = {id(row) for row in rows}
+        # Every other row must be a verified header. Unknown replacement schemas
+        # and footer rows cannot silently inherit an earlier header's meaning.
+        headers = [row for row in table["rows"]
+                   if id(row) not in candidate_ids]
+        if any(labels(row) and labels(row)[0] in publication_headers for row in headers):
+            raise GateError("JIANGSU_PUBLICATION_DATE_IS_NOT_DRAW_DATE")
+        if (not headers or min(row["index"] for row in headers) >= min(row["index"] for row in rows)
+                or any(not positional(row) or len(labels(row)) < 3
+                       or labels(row)[0] not in draw_headers
+                       or labels(row)[1] not in issue_headers
+                       or labels(row)[2] not in result_headers for row in headers)):
+            raise GateError(unverified)
+
+
 def _reparse_raw_history(game: str, source_module, source_id: str,
                          artifacts: list[dict]) -> list[dict]:
     """Reparse each nonempty preserved response body and compare it to the parser's aggregate."""
+    if game == "DLT" and source_id == "gansu":
+        api = []
+        for item in artifacts:
+            raw = base64.b64decode(item["raw_base64"], validate=True)
+            if _request_evidence(game, source_id, item, raw):
+                api.append(item)
+        if any(item.get("http_status") == 200 for item in api):
+            if len(api) != 7 or len(artifacts) != 7:
+                raise GateError("GANSU_POST_EXACT_SEVEN_PAGES_REQUIRED")
+            parsed, totals = [], None
+            for page, item in enumerate(api, 1):
+                body = json.loads(base64.b64decode(item["request_body_base64"]))
+                if item["http_status"] != 200 or body["page_no"] != page:
+                    raise GateError("GANSU_POST_PAGE_ORDER_INVALID")
+                try:
+                    draws, count = source_module.parse_gansu_json_page(base64.b64decode(item["raw_base64"]))
+                except Exception as exc:
+                    raise GateError("GANSU_POST_RAW_PARSE_FAILED") from exc
+                if len(draws) != 20 or count["total"] < 140 or (totals is not None and totals != count):
+                    raise GateError("GANSU_POST_PAGE_TOTALS_INVALID")
+                if parsed and not source_module._gansu_adjacent(parsed[-1], draws[0]):
+                    raise GateError("GANSU_POST_PAGES_DUPLICATED_OR_SHIFTED")
+                totals = count
+                parsed.extend(draws)
+            return _canonical_draws(game, _source_rows(list(reversed(parsed))), minimum=140)
+        if api:
+            # Only the one first unavailable response may precede HTML fallback.
+            if len(api) != 1 or json.loads(base64.b64decode(api[0]["request_body_base64"]))["page_no"] != 1 or api[0]["http_status"] in REDIRECT_CODES:
+                raise GateError("GANSU_POST_FALLBACK_EVIDENCE_INVALID")
     if game == "SSQ" and source_id == "hebei":
         home, announcement = [], []
         for artifact in artifacts:
@@ -374,9 +666,9 @@ def _reparse_raw_history(game: str, source_module, source_id: str,
                         "front": list(draw.front), "back": list(draw.back),
                     })
             elif game == "DLT" and source_id == "jiangsu":
-                parsed_rows.extend(_source_rows(
-                    source_module._parse_jiangsu_html(source_module._decode_html(raw))
-                ))
+                text = source_module._decode_html(raw)
+                _verify_jiangsu_draw_date_columns(text)
+                parsed_rows.extend(_source_rows(source_module._parse_jiangsu_html(text)))
             elif game == "DLT" and source_id == "gansu":
                 parsed_rows.extend(_source_rows(
                     source_module._parse_gansu_history(source_module._decode_html(raw))
@@ -407,11 +699,12 @@ def _rows_sha256(rows: list[dict]) -> str:
 
 
 def _install_dlt_redirect_guard(game: str, failure_recorder=None) -> None:
-    """Bound redirects and preserve non-200 response bodies as untrusted diagnostics."""
+    """Capture every returned response before parser failure; bound redirects."""
     import requests
     from urllib.parse import urljoin
 
     original_get = requests.get
+    original_post = getattr(requests, "post", None)
 
     def safe_get(url, *args, **kwargs):
         params = kwargs.pop("params", None)
@@ -424,7 +717,7 @@ def _install_dlt_redirect_guard(game: str, failure_recorder=None) -> None:
                 allow_redirects=False, **kwargs,
             )
             status = int(response.status_code)
-            if status != 200 and failure_recorder is not None:
+            if failure_recorder is not None:
                 final_url = str(response.url or current_url)
                 _, response_root = _root_for_url(game, final_url)
                 source_id = {
@@ -455,6 +748,37 @@ def _install_dlt_redirect_guard(game: str, failure_recorder=None) -> None:
         raise GateError("SOURCE_REDIRECT_LIMIT_EXCEEDED")
 
     requests.get = safe_get
+
+    def safe_post(url, *args, **kwargs):
+        if str(url) != GANSU_JSON_URL or args or "json" in kwargs or not isinstance(kwargs.get("data"), bytes):
+            raise GateError("SOURCE_POST_FIXED_REQUEST_REQUIRED")
+        kwargs["allow_redirects"] = False
+        response = original_post(url, **kwargs)
+        raw = bytes(response.content)
+        request = getattr(response, "request", None)
+        method = getattr(request, "method", "POST")
+        body = getattr(request, "body", kwargs["data"])
+        if isinstance(body, str):
+            body = body.encode("utf-8")
+        if not isinstance(body, bytes):
+            raise GateError("SOURCE_POST_ACTUAL_BODY_UNAVAILABLE")
+        meta = {"url": str(response.url or url), "requested_url": str(url),
+                "http_status": int(response.status_code),
+                "content_type": str(response.headers.get("Content-Type", "")),
+                "fetched_at": datetime.now(timezone.utc).isoformat(),
+                "sha256": _sha(raw), "bytes": len(raw), "parser_version": _expected_parser_version(game),
+                "request_method": method, "request_body_base64": base64.b64encode(body).decode("ascii"),
+                "request_body_sha256": _sha(body)}
+        if "Location" in response.headers:
+            meta["response_location"] = str(response.headers["Location"])
+        if failure_recorder is not None:
+            failure_recorder("gansu", meta, raw)
+        if int(response.status_code) in REDIRECT_CODES:
+            raise GateError("SOURCE_POST_REDIRECT_REFUSED_AFTER_CAPTURE")
+        return response
+
+    if callable(original_post):
+        requests.post = safe_post
 
 
 def _worker(game: str) -> dict:
@@ -557,7 +881,12 @@ def _worker(game: str) -> dict:
         # Gansu is a third, recent-history corroborator, never a replacement for
         # either of the two >=120-draw primary sources.
         try:
-            gansu_data = source_module.fetch_gansu_recent(20)
+            try:
+                gansu_data = source_module.fetch_gansu_history_json(140)
+            except source_module.GansuApiUnavailable as exc:
+                # Preserve narrow first-page failure even if HTML succeeds.
+                gansu_fallback_error = f"{type(exc).__name__}: {exc}"
+                gansu_data = source_module.fetch_gansu_recent(20)
         except Exception as exc:
             errors["gansu"] = f"{type(exc).__name__}: {exc}"
 
@@ -597,10 +926,26 @@ def _worker(game: str) -> dict:
                     "sha256": entry.get("sha256"),
                     "bytes": entry.get("bytes"),
                     "parser_version": entry.get("parser_version"),
+                    **{key: entry[key] for key in REQUEST_FIELDS if key in entry},
                 }
-                raw_artifacts.append(_normalize_worker_artifact(
+                manifest_artifact = _normalize_worker_artifact(
                     game, source_id, meta, raw, parser_version
-                ))
+                )
+                # The network guard already retained each actual response,
+                # including identical retries. A parser success manifest must
+                # bind to those observations, never manufacture another one.
+                # Capture/parser clocks differ; requested_url can be an earlier
+                # redirect hop. Final URL (including its query) must match.
+                keys = ("_source_id", "url", "raw_sha256", "size_bytes",
+                        "http_status", "parser_version", "raw_base64")
+                if not any(
+                    all(observed[key] == manifest_artifact[key] for key in keys)
+                    and all(observed.get(key) == manifest_artifact.get(key) for key in REQUEST_FIELDS)
+                    and observed["content_type"].lower()
+                    == manifest_artifact["content_type"].lower()
+                    for observed in raw_artifacts
+                ):
+                    raise GateError("DLT_MANIFEST_NOT_BOUND_TO_CAPTURED_RESPONSE")
             sources.append({
                 "source_id": source_id, "source_name": source_name,
                 "source_root": root, "url": url, "draws": _source_rows(draws),
@@ -609,17 +954,21 @@ def _worker(game: str) -> dict:
                     "latest_issue": receipt.latest_issue, "raw_sha256": receipt.raw_sha256,
                     "fetched_at": receipt.fetched_at,
                 },
+                **({"api_fallback_error": gansu_fallback_error}
+                   if source_id == "gansu" and "gansu_fallback_error" in locals() else {}),
             })
     else:
         raise GateError("UNKNOWN_LOTTERY_FOR_SOURCE_INTAKE")
 
     for source in sources:
         source_id = source["source_id"]
+        if source_id == "gansu" and "gansu_fallback_error" in locals():
+            source["api_fallback_error"] = gansu_fallback_error
         internal_artifacts = [item for item in raw_artifacts if item["_source_id"] == source_id]
         source["raw_artifacts"] = [
             {k: v for k, v in item.items()
              if k in {"url", "requested_url", "raw_sha256", "size_bytes", "content_type",
-                      "http_status", "fetched_at", "parser_version", "raw_base64"}}
+                      "http_status", "fetched_at", "parser_version", "raw_base64"} | REQUEST_FIELDS | {"response_location"}}
             for item in internal_artifacts
         ]
         if not source["raw_artifacts"]:
@@ -733,6 +1082,7 @@ def _validate_partial_worker_payload(payload: dict, game: str, parser_version: s
             "draws": valid_draws, "draw_count": len(valid_draws),
             "raw_artifacts": artifacts, "receipt": source.get("receipt"),
             "error": source.get("error"),
+            **({"api_fallback_error": source["api_fallback_error"]} if "api_fallback_error" in source else {}),
             "calendar_anomalies": source.get("calendar_anomalies", []),
             "raw_reparse_status": source.get("raw_reparse_status", "NOT_RUN"),
         })
@@ -841,6 +1191,7 @@ def validate_worker_payload(payload: dict, *, expected_game: str | None = None) 
             "url": url, "host": host, "source_root": root,
             "draws": rows, "draw_count": len(rows), "raw_artifacts": artifacts,
             "receipt": source.get("receipt"), "error": source.get("error"),
+            **({"api_fallback_error": source["api_fallback_error"]} if "api_fallback_error" in source else {}),
             "raw_reparse_status": source.get("raw_reparse_status", "NOT_RUN"),
         })
 

@@ -17,6 +17,11 @@ import traceback
 from datetime import datetime, timezone
 from pathlib import Path
 
+if not getattr(sys, 'frozen', False):
+    _source_package_root = Path(__file__).resolve().parent / 'SSQ'
+    if str(_source_package_root) not in sys.path:
+        sys.path.insert(0, str(_source_package_root))
+
 
 def _sha256_file(path: Path) -> str:
     h = hashlib.sha256()
