@@ -211,6 +211,127 @@ class RecentObservationTests(unittest.TestCase):
                 with self.assertRaises(FileNotFoundError):
                     self.ro.make_observation_metadata(self.output)
 
+    def test_final_replay_failure_never_publishes_manifest(self):
+        get, seen = self.transport("DLT")
+        parser_call = self.ro._parser_call
+        two_page_runs = []
+
+        def replay(game, pins, *, pages=None):
+            parsed = parser_call(game, pins, pages=pages)
+            if pages is not None and len(pages) == 2:
+                two_page_runs.append((self.output / "manifest.json").exists())
+                if len(two_page_runs) == 2:
+                    parsed["all_rows"][0]["front"] = [2, 3, 4, 5, 6]
+            return parsed
+
+        with patch("requests.get", side_effect=get), patch.object(
+                self.ro, "_parser_call", side_effect=replay), self.assertRaisesRegex(
+                    self.ro.GateError, "OBSERVATION_REPLAY_ROWS_DIFFER_FROM_MANIFEST"):
+            self.ro.capture("DLT", self.output)
+
+        self.assertEqual(len(seen), 2)
+        failure = json.loads((self.output / "failure.json").read_bytes())
+        self.assertEqual(failure["status"], "BLOCKED")
+        self.assertEqual(len(failure["pages"]), 2)
+        self.assertFalse((self.output / "manifest.json").exists())
+        self.assertEqual(two_page_runs, [False, False])
+
+    def test_verify_and_metadata_refuse_mixed_terminal_artifacts(self):
+        self.capture("DLT")
+        receipt = self.output / "failure.json"
+        receipt.write_bytes(b'{"schema":"V47-RAW-OBSERVATION-FAILURE-1","status":"BLOCKED"}\n')
+        for read in (self.ro.verify_observation, self.ro.make_observation_metadata):
+            with self.subTest(entry_point=read.__name__), self.assertRaises(self.ro.GateError):
+                read(self.output)
+
+    def test_manifest_close_failure_never_publishes_success(self):
+        get, _ = self.transport("DLT")
+        physical = self.ro.oi._physical_root(self.output)
+        real_open = Path.open
+        published_at_close = []
+
+        class FailingClose:
+            def __init__(self, handle):
+                self.handle = handle
+
+            def __enter__(self):
+                return self.handle
+
+            def __exit__(self, *_):
+                self.handle.close()
+                published_at_close.append((physical / "manifest.json").exists())
+                raise OSError("injected manifest close failure")
+
+        def open_with_close_failure(path, mode="r", *args, **kwargs):
+            handle = real_open(path, mode, *args, **kwargs)
+            if mode == "xb" and path.parent == physical and path.name != "failure.json":
+                return FailingClose(handle)
+            return handle
+
+        with patch("requests.get", side_effect=get), patch.object(
+                Path, "open", open_with_close_failure), self.assertRaisesRegex(
+                    OSError, "injected manifest close failure"):
+            self.ro.capture("DLT", self.output)
+
+        self.assertEqual(published_at_close, [False])
+        self.assertEqual({entry.name for entry in self.output.iterdir()}, {"raw", "failure.json"})
+        failure = json.loads((self.output / "failure.json").read_bytes())
+        self.assertEqual(failure["status"], "BLOCKED")
+        self.assertEqual(len(failure["pages"]), 2)
+
+    def test_metadata_refuses_failure_receipt_created_during_replay(self):
+        self.capture("DLT")
+        verify_manifest = self.ro._verify_manifest
+
+        def replay(output, manifest):
+            verified = verify_manifest(output, manifest)
+            (output / "failure.json").write_bytes(b'{"status":"BLOCKED"}\n')
+            return verified
+
+        with patch.object(self.ro, "_verify_manifest", side_effect=replay), self.assertRaises(
+                self.ro.GateError):
+            self.ro.make_observation_metadata(self.output)
+
+    def test_repeated_raw_body_keeps_each_exchange_in_failure_receipt(self):
+        raw = markup("DLT", rows("DLT")[100:])
+        digest = hashlib.sha256(raw).hexdigest()
+        for second_status in (200, 403):
+            with self.subTest(second_status=second_status):
+                self.output = Path(self.temp.name) / f"repeat-{second_status}"
+                get, seen = self.transport("DLT", [raw, raw])
+
+                def respond(url, **kwargs):
+                    response = get(url, **kwargs)
+                    if len(seen) == 2:
+                        response.status_code = second_status
+                    return response
+
+                with patch("requests.get", side_effect=respond), self.assertRaises(Exception) as error:
+                    self.ro.capture("DLT", self.output)
+
+                self.assertEqual(len(seen), 2)
+                self.assertNotEqual(seen[0], seen[1])
+                failure = json.loads((self.output / "failure.json").read_bytes())
+                self.assertEqual(failure["status"], "BLOCKED")
+                self.assertEqual(len(failure["pages"]), 2)
+                self.assertIsInstance(error.exception, self.ro.GateError)
+                reason = "DUPLICATE" if second_status == 200 else "OBSERVATION_HTTP_STATUS:403"
+                self.assertIn(reason, failure["error"])
+                for index, saved in enumerate(failure["pages"]):
+                    self.assertEqual(saved["sequence"], index + 1)
+                    self.assertEqual(saved["requested_url"], seen[index])
+                    self.assertEqual(saved["url"], seen[index])
+                    self.assertEqual(saved["http_status"], 200 if index == 0 else second_status)
+                    self.assertEqual(saved["content_type"], "text/html; charset=utf-8")
+                    self.assertIn("fetch_completed_at_local_untrusted", saved)
+                    self.assertEqual(saved["raw_sha256"], digest)
+                    self.assertEqual(saved["size_bytes"], len(raw))
+                    self.assertEqual(saved["raw_file"], f"raw/{digest}.bin")
+                self.assertEqual(list((self.output / "raw").iterdir()),
+                                 [self.output / "raw" / f"{digest}.bin"])
+                self.assertEqual((self.output / "raw" / f"{digest}.bin").read_bytes(), raw)
+                self.assertFalse((self.output / "manifest.json").exists())
+
     def test_http_403_keeps_original_response_bytes_but_never_admits(self):
         # Main SSQ's official 403 cannot be fixed by pretending a forbidden
         # response is a valid draw page; this is a bounded HTTP failure probe.

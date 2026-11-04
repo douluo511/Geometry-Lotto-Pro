@@ -12,6 +12,7 @@ import base64
 import hashlib
 import importlib
 import json
+import os
 import re
 import subprocess
 import sys
@@ -345,15 +346,22 @@ def capture(game: str, output_dir: str | Path) -> Path:
     started = _now()
     pages, first_rows = [], None
 
-    def retain_raw(raw: bytes, page: dict) -> None:
-        # Exclusive creation: neither a failed retry nor another page may
-        # overwrite evidence. Source URLs and local fetch clocks remain claims.
+    def retain_raw(raw: bytes, page: dict) -> bool:
+        # Each exchange gets its own metadata. Only an already retained,
+        # byte-identical body may share the exclusively created blob.
         saved = {**page, "sequence": len(pages) + 1,
                  "raw_file": f"raw/{page['raw_sha256']}.bin",
                  "parser_version": config["parser_version"]}
-        with (output / saved["raw_file"]).open("xb") as handle:
-            handle.write(raw)
+        path = output / saved["raw_file"]
+        repeated = any(previous["raw_file"] == saved["raw_file"] for previous in pages)
+        if repeated:
+            if path.is_symlink() or path.read_bytes() != raw:
+                raise GateError("OBSERVATION_RAW_BYTES_SHA_MISMATCH")
+        else:
+            with path.open("xb") as handle:
+                handle.write(raw)
         pages.append({**saved, "raw_base64": base64.b64encode(raw).decode("ascii")})
+        return repeated
 
     try:
         config = _parser_call(game, pins)
@@ -364,7 +372,8 @@ def capture(game: str, output_dir: str | Path) -> Path:
             )
             # Preserve before semantic parsing, including a later conflicting
             # page; even a failed source must remain independently inspectable.
-            retain_raw(raw, page)
+            if retain_raw(raw, page):
+                raise GateError("OBSERVATION_RAW_SHA_INVALID_OR_DUPLICATE")
             parsed = _parser_call(game, pins, pages=pages)
             if sequence == 1:
                 first_rows = parsed["all_rows"]
@@ -388,11 +397,8 @@ def capture(game: str, output_dir: str | Path) -> Path:
             "official_G01": "BLOCKED", "official_target_admission": "BLOCKED",
             "formal_A": 0, "decision": "NO_EDGE",
         }
-        path = output / "manifest.json"
-        with path.open("xb") as handle:
-            handle.write(_canonical(manifest) + b"\n")
-        verify_observation(output)
-        return path
+        _verify_manifest(output, manifest)
+        return _publish_manifest(output, _canonical(manifest) + b"\n")
     except Exception as exc:
         # A failed attempt is not an as-of snapshot. Preserve only claims and
         # original retained bytes; there is no success or promotion path.
@@ -418,10 +424,45 @@ def capture(game: str, output_dir: str | Path) -> Path:
         raise
 
 
+def _publish_manifest(output: Path, raw: bytes) -> Path:
+    path = output / "manifest.json"
+    candidate = output / ".manifest.pending"
+    handle = candidate.open("xb")
+    try:
+        with handle:
+            handle.write(raw)
+        # Link only after close succeeds. The destination is created
+        # atomically and an existing manifest is never replaced.
+        os.link(candidate, path)
+    finally:
+        try:
+            candidate.unlink()
+        except OSError:
+            # Cleanup cannot turn an already published success into a failure.
+            pass
+    return path
+
+
 def verify_observation(observation_dir: str | Path) -> dict:
     """Read-only replay of original raw files; never trusts manifest row claims."""
     output = oi._physical_root(observation_dir).resolve(strict=True)
-    manifest = json.loads((output / "manifest.json").read_bytes())
+    path = output / "manifest.json"
+    path.lstat()
+    _reject_terminal_failure(output)
+    manifest = _verify_manifest(output, json.loads(path.read_bytes()))
+    _reject_terminal_failure(output)
+    return manifest
+
+
+def _reject_terminal_failure(output: Path) -> None:
+    try:
+        (output / "failure.json").lstat()
+    except FileNotFoundError:
+        return
+    raise GateError("OBSERVATION_TERMINAL_FAILURE_RECEIPT_PRESENT")
+
+
+def _verify_manifest(output: Path, manifest: dict) -> dict:
     if not isinstance(manifest, dict) or set(manifest) != MANIFEST_KEYS:
         raise GateError("OBSERVATION_MANIFEST_SCHEMA_CONTRACT_INVALID")
     game = manifest.get("lottery")
