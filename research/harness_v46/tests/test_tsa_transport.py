@@ -131,7 +131,12 @@ class TSATransportTests(unittest.TestCase):
         _physical_root(parent).mkdir(parents=True)
         if not _physical_root(parent).is_relative_to(_physical_root(self.root)):
             raise AssertionError('unsafe temporary cleanup path')
-        self.addCleanup(shutil.rmtree,_physical_root(parent))
+        # Remove the whole owned long-path subtree before TemporaryDirectory's
+        # ordinary cleanup; removing only the deepest level leaves long parents.
+        cleanup_root=_physical_root(self.root/('a'*90))
+        if not cleanup_root.is_relative_to(_physical_root(self.root)):
+            raise AssertionError('unsafe temporary cleanup path')
+        self.addCleanup(shutil.rmtree,cleanup_root)
         destination=parent/'attempt'
         with patch('requests.post',return_value=self.response()):
             receipt=self.module().submit_request(self.query,destination,tsa_url='https://freetsa.org/tsr')

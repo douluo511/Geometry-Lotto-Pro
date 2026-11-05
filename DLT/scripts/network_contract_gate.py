@@ -129,6 +129,7 @@ def main() -> int:
 
     bad_jiangsu = """
     <table>
+      <tr><td>开奖日期</td><td>期号</td><td>开奖号码</td></tr>
       <tr><td>2026-09-01</td><td>26100</td><td>01 02 03 04 05 01</td></tr>
     </table>
     """
@@ -136,10 +137,11 @@ def main() -> int:
         sources._parse_jiangsu_html(bad_jiangsu)
         record("jiangsu_malformed_row_fail_closed", False, "bad Jiangsu row was skipped")
     except SourceError as exc:
-        record("jiangsu_malformed_row_fail_closed", True, str(exc))
+        record("jiangsu_malformed_row_fail_closed", "开奖号码不是 7 个" in str(exc), str(exc))
 
     duplicate_jiangsu = """
     <table>
+      <tr><td>开奖日期</td><td>期号</td><td>开奖号码</td></tr>
       <tr><td>2026-09-01</td><td>26100</td><td>01 02 03 04 05 01 02</td></tr>
       <tr><td>2026-09-01</td><td>26100</td><td>01 02 03 04 05 01 02</td></tr>
     </table>
@@ -148,7 +150,7 @@ def main() -> int:
         sources._parse_jiangsu_html(duplicate_jiangsu)
         record("jiangsu_duplicate_issue_fail_closed", False, "duplicate Jiangsu issue accepted")
     except SourceError as exc:
-        record("jiangsu_duplicate_issue_fail_closed", True, str(exc))
+        record("jiangsu_duplicate_issue_fail_closed", "重复期号" in str(exc), str(exc))
 
     gs_html = """
     <html><body>

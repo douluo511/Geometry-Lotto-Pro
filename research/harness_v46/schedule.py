@@ -42,7 +42,8 @@ def scheduled_once(snapshots, database, now=None, *, require_delivery_window=Tru
     not the current local-clock cutoff check, immutable target guard, or any
     model/state/manifest verification. None of this is a trusted TSA.
     """
-    now = now or datetime.now(timezone.utc)
+    fixed_clock = now is not None
+    now = datetime.now(timezone.utc) if now is None else now
     if require_delivery_window and not due_in_jst(now):
         return {"status": "WAIT_NOT_DELIVERY_WINDOW", "formal_A": 0, "timestamp_trust": "LOCAL_ONLY"}
     identity = manifest(snapshots)
@@ -50,6 +51,20 @@ def scheduled_once(snapshots, database, now=None, *, require_delivery_window=Tru
     for game, s in snapshots.items():
         if not dt(s["as_of"]) <= now < dt(s["sales_cutoff"]):
             raise GateError("ASOF_OR_CUTOFF_FAIL_NO_RETROACTIVE_FORECAST")
+    last_clock = now
+
+    def freeze_clock():
+        # Explicit clocks are synthetic/caller-unverified. Normal callers must
+        # observe time again after lock waits, model work and staged evidence.
+        nonlocal last_clock
+        current = now if fixed_clock else datetime.now(timezone.utc)
+        if current < last_clock:
+            raise GateError("SCHEDULER_CLOCK_MOVED_BACKWARD")
+        for snapshot in snapshots.values():
+            if not dt(snapshot["as_of"]) <= current < dt(snapshot["sales_cutoff"]):
+                raise GateError("ASOF_OR_CUTOFF_FAIL_NO_RETROACTIVE_FORECAST")
+        last_clock = current
+        return current
     path = Path(database)
     if not path.parent.exists():
         raise GateError("SCHEDULER_DATABASE_PARENT_MISSING")
@@ -61,6 +76,11 @@ def scheduled_once(snapshots, database, now=None, *, require_delivery_window=Tru
         conn.executescript(GUARD_SCHEMA)
         receipts = {}
         with conn:
+            # In rollback-journal mode readers can delay an IMMEDIATE commit.
+            # Wait for them before checking time, rather than after the final
+            # check. This is local-clock safety, never trusted time proof.
+            conn.execute("BEGIN EXCLUSIVE")
+            freeze_clock()
             manifest_sha = register_manifest(conn, identity)
             # Persist both exact snapshot preimages before any model can freeze.
             for game in ("SSQ", "DLT"):
@@ -81,7 +101,7 @@ def scheduled_once(snapshots, database, now=None, *, require_delivery_window=Tru
                 s = snapshots[game]
                 for model in MODELS:
                     prediction = forecast(s, model)
-                    freeze_shadow(conn, run_id, s, prediction, now.isoformat())
+                    freeze_shadow(conn, run_id, s, prediction, freeze_clock().isoformat())
                 batch = check_complete_batch(conn, run_id, game)
                 # Official target/source and authorization are not independently verified.
                 # Keep a blocked SYNC gate receipt; research execution is a separate trace.
@@ -98,6 +118,7 @@ def scheduled_once(snapshots, database, now=None, *, require_delivery_window=Tru
                 tsa_request(conn, run_id, game)
                 receipts[game] = {"target_issue": str(s["target_issue"]),
                                   "batch_sha256": batch, "model_count": len(MODELS)}
+            freeze_clock()
         return {"status": "SHADOW_ONLY", "run_id": run_id,
                 "manifest_sha256": manifest_sha, "games": receipts,
                 "official_source_authenticity": "NOT_VERIFIED",

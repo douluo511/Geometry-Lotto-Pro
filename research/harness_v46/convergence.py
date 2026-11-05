@@ -9,6 +9,7 @@ import hashlib
 import json
 import sqlite3
 from pathlib import Path
+from . import frozen_replay
 
 from .core import (MODELS, RULES, VERSION, GateError, canon, digest, dt, score,
                    model_source_sha256, parameter_contract, validate_snapshot,
@@ -51,6 +52,10 @@ ORCHESTRATION_SOURCE_FILES = (
     "../../DLT/src/glp/sources.py", "../../DLT/src/glp/constants.py",
     "../../DLT/src/glp/domain.py", "../../DLT/src/glp/util.py", "../../DLT/src/glp/net_client.py",
     "windows_shadow_tasks.ps1", "invoke_v46_shadow.ps1",
+    "closed_loop.py", "frozen_replay.py",
+    "model_versions/core_lf.source", "model_versions/core_crlf.source",
+    "model_versions/observed_snapshot.source",
+    "model_versions/scorecard_lf.source", "model_versions/scorecard_crlf.source",
 )
 
 
@@ -268,7 +273,7 @@ def check_complete_batch(conn, run_id, lottery):
     if (expected_game is None or expected_game.get("snapshot_sha256") != context[0]
             or expected_game.get("issue") != context[1]):
         raise GateError("RUN_MANIFEST_CONTEXT_MISMATCH")
-    snapshot = load_registered_snapshot(conn, run_id, lottery)
+    snapshot = frozen_replay.load_snapshot(conn, run_id, lottery)
     if (snapshot.get("target_issue") != context[1]
             or snapshot.get("as_of") != expected_game.get("as_of")
             or snapshot.get("sales_cutoff") != expected_game.get("sales_cutoff")):
@@ -297,7 +302,7 @@ def check_complete_batch(conn, run_id, lottery):
             raise GateError("FROZEN_PREDICTION_INTEGRITY_FAIL")
         p = json.loads(payload)
         # Independently replay against the persisted snapshot, not just payload hashes.
-        validate_forecast(p, snapshot)
+        frozen_replay.validate_prediction(p, snapshot)
         model_identity = registered["models"].get(model)
         if (p.get("model") != model or p.get("target_issue") != context[1]
                 or p.get("primary_d2") != p.get("candidates_1_to_5", [])[:2]
@@ -423,7 +428,7 @@ def score_readonly(db_path, run_id, official_result):
             (run_id, lottery)).fetchall()
     finally:
         connection.close()
-    results = {model: score(json.loads(payload), official_result)
+    results = {model: frozen_replay.score_prediction(json.loads(payload), official_result)
                for model, payload in items}
     control = results["random_null"]["D2"]
     return {"run_id": run_id, "lottery": lottery,

@@ -12,6 +12,8 @@ from .core import MODELS, GateError, canon, forecast, freeze_shadow, init_ledger
 def run_forecast(args):
     snapshot = json.loads(Path(args.snapshot).read_text(encoding="utf-8"))
     validate_study_snapshot(snapshot)
+    if str(args.run_id).startswith("V47G-"):
+        raise GateError("V47_RUN_ID_REQUIRES_INDEPENDENT_GAME_FREEZE_USE_CLOSED_LOOP")
     if str(args.run_id).startswith("V47-"):
         raise GateError(
             "V47_RUN_ID_REQUIRES_DUAL_GAME_MANIFEST_USE_SCHEDULE"
@@ -53,6 +55,8 @@ def run_forecast(args):
 
 
 def run_score(args):
+    if str(args.run_id).startswith(("V47-", "V47G-")):
+        raise GateError("V47_RUN_ID_REQUIRES_CANONICAL_REPLAY_USE_PROSPECTIVE_CYCLE_OR_CLOSED_LOOP")
     result = json.loads(Path(args.official_result).read_text(encoding="utf-8"))
     db = sqlite3.connect("file:" + str(Path(args.database).resolve()) + "?mode=ro", uri=True)
     try:

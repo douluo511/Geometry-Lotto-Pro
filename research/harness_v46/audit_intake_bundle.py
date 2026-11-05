@@ -6,6 +6,7 @@ source's official origin, publication time, draw schedule, target issue, or pred
 from __future__ import annotations
 
 import argparse
+import base64
 import hashlib
 import json
 import os
@@ -21,6 +22,45 @@ SOURCE_IDS_BY_GAME = {
     "SSQ": frozenset({"national", "shanghai", "hebei"}),
     "DLT": frozenset({"national", "jiangsu", "gansu"}),
 }
+
+
+def _audit_request_bytes(game: str, source_id: str, artifact: dict, raw: bytes) -> None:
+    """Independently bind fixed-route request bytes, including failed sources."""
+    fields = {"request_method", "request_body_base64", "request_body_sha256"}
+    endpoint = "https://www.gstc.org.cn/workapi/prize_history_list"
+    present = fields.intersection(artifact)
+    api = artifact.get("url") == endpoint or artifact.get("requested_url") == endpoint
+    media_type = str(artifact.get("content_type") or "").split(";", 1)[0].strip().lower()
+    json_response = game == "DLT" and source_id == "gansu" and (
+        raw.lstrip()[:1] in (b"{", b"[") or media_type.rpartition("/")[2] == "json"
+        or media_type.endswith("+json")
+    )
+    if "response_location" in artifact and not present:
+        raise ValueError("orphan response location")
+    if not present and not api and not json_response:
+        return
+    if (game != "DLT" or source_id != "gansu" or present != fields
+            or artifact.get("url") != endpoint or artifact.get("requested_url") != endpoint
+            or artifact.get("request_method") != "POST"):
+        raise ValueError("request identity")
+    body = base64.b64decode(artifact["request_body_base64"], validate=True)
+    if hashlib.sha256(body).hexdigest() != artifact["request_body_sha256"]:
+        raise ValueError("request SHA")
+    def unique(pairs):
+        obj = {}
+        for key, value in pairs:
+            if key in obj:
+                raise ValueError("duplicate request key")
+            obj[key] = value
+        return obj
+    value = json.loads(body.decode("utf-8"), object_pairs_hook=unique)
+    if (not isinstance(value, dict) or set(value) != {"type_id", "page_no", "page_size"}
+            or value["type_id"] != "001" or type(value["page_no"]) is not int
+            or not 1 <= value["page_no"] <= 7 or type(value["page_size"]) is not int
+            or value["page_size"] != 20):
+        raise ValueError("request schema")
+    if "response_location" in artifact and not isinstance(artifact["response_location"], str):
+        raise ValueError("response location")
 
 
 def _physical_root(path: str | Path) -> Path:
@@ -50,12 +90,16 @@ def _has_unsafe_path_component(root: Path, relative: str) -> bool:
                for i in range(1, len(parts) + 1))
 
 
-def _evidence_tree_entries(directory: Path):
+def _evidence_tree_entries(directory: Path, *, check=None, depth=0):
     """List untrusted evidence trees without traversing links or junctions."""
+    if check is not None and depth > 32:
+        raise GateError("AUDIT_DELEGATED_TREE_DEPTH_LIMIT")
     for child in directory.iterdir():
+        if check is not None:
+            check()
         yield child
         if not _is_link_or_reparse_point(child) and child.is_dir():
-            yield from _evidence_tree_entries(child)
+            yield from _evidence_tree_entries(child, check=check, depth=depth + 1)
 
 
 def _iter_artifacts(bundle: dict):
@@ -89,7 +133,7 @@ def _iter_artifacts(bundle: dict):
                         ), artifact
 
 
-def _audit_worker_captures(bundle: dict, root: Path, errors: list[str]) -> dict:
+def _audit_worker_captures(bundle: dict, root: Path, errors: list[str], *, read_bytes=None, check=None) -> dict:
     """Check process-output bytes independently; never count them as HTTP records."""
     records = verified = unavailable = 0
     paths: set[str] = set()
@@ -99,6 +143,8 @@ def _audit_worker_captures(bundle: dict, root: Path, errors: list[str]) -> dict:
         return {"records": 0, "verified": 0, "unavailable": 0, "paths": paths,
                 "incomplete_games": []}
     for game, result in games.items():
+        if check is not None:
+            check()
         if not isinstance(result, dict):
             continue
         if "worker_output_capture" not in result and result.get("status") != "WORKER_OUTPUT_QUARANTINED":
@@ -148,6 +194,8 @@ def _audit_worker_captures(bundle: dict, root: Path, errors: list[str]) -> dict:
             errors.append(f"WORKER_OUTPUT_STREAM_SET_INVALID:{game}")
             continue
         for stream in streams:
+            if check is not None:
+                check()
             records += 1
             name = stream["stream"]
             if stream.get("capture_status") == "NOT_CAPTURED":
@@ -187,7 +235,7 @@ def _audit_worker_captures(bundle: dict, root: Path, errors: list[str]) -> dict:
                 errors.append(f"WORKER_OUTPUT_FILE_UNSAFE_OR_MISSING:{game}:{name}")
                 continue
             try:
-                raw = candidate.read_bytes()
+                raw = candidate.read_bytes() if read_bytes is None else read_bytes(candidate)
             except OSError:
                 errors.append(f"WORKER_OUTPUT_FILE_UNREADABLE:{game}:{name}")
                 continue
@@ -200,9 +248,11 @@ def _audit_worker_captures(bundle: dict, root: Path, errors: list[str]) -> dict:
             "paths": paths, "incomplete_games": incomplete_games}
 
 
-def audit_bundle(bundle_dir: str | Path) -> dict:
+def audit_bundle(bundle_dir: str | Path, *, read_bytes=None, check=None) -> dict:
     """Return an audit receipt; never modify the intake manifest or raw source bytes."""
     root = _physical_root(bundle_dir)
+    if check is not None:
+        check()
     manifest_path = root / "intake.json"
     errors: list[str] = []
     bundle = None
@@ -210,7 +260,7 @@ def audit_bundle(bundle_dir: str | Path) -> dict:
     if not manifest_path.is_file():
         errors.append("INTAKE_MANIFEST_MISSING")
     else:
-        raw_manifest = manifest_path.read_bytes()
+        raw_manifest = manifest_path.read_bytes() if read_bytes is None else read_bytes(manifest_path)
         manifest_sha256 = hashlib.sha256(raw_manifest).hexdigest()
         try:
             bundle = json.loads(raw_manifest.decode("utf-8"))
@@ -255,6 +305,8 @@ def audit_bundle(bundle_dir: str | Path) -> dict:
     unpreserved_oversized_records = 0
     if isinstance(bundle, dict):
         for game, source_id, artifact in _iter_artifacts(bundle):
+            if check is not None:
+                check()
             artifact_records += 1
             if game not in SOURCE_IDS_BY_GAME or source_id not in SOURCE_IDS_BY_GAME[game]:
                 errors.append(f"RAW_ARTIFACT_SOURCE_ID_INVALID:{game}:{source_id}")
@@ -308,7 +360,7 @@ def audit_bundle(bundle_dir: str | Path) -> dict:
             if type(size) is not int or size < 0:
                 errors.append(f"RAW_ARTIFACT_SIZE_INVALID:{game}:{source_id}:{rel}")
                 continue
-            raw = candidate.read_bytes()
+            raw = candidate.read_bytes() if read_bytes is None else read_bytes(candidate)
             if len(raw) != size:
                 errors.append(f"RAW_ARTIFACT_SIZE_MISMATCH:{game}:{source_id}:{rel}")
                 continue
@@ -316,13 +368,18 @@ def audit_bundle(bundle_dir: str | Path) -> dict:
             if actual_sha != expected_sha:
                 errors.append(f"RAW_ARTIFACT_SHA256_MISMATCH:{game}:{source_id}:{rel}")
                 continue
+            try:
+                _audit_request_bytes(game, source_id, artifact, raw)
+            except (ValueError, TypeError, UnicodeError):
+                errors.append(f"RAW_ARTIFACT_POST_REQUEST_INVALID:{game}:{source_id}:{rel}")
+                continue
             if body_preserved is False:
                 errors.append(f"RAW_ARTIFACT_PRESERVATION_FLAG_CONFLICT:{game}:{source_id}:{rel}")
                 continue
             unique_paths.add(rel)
             verified_records += 1
 
-    diagnostic = _audit_worker_captures(bundle, root, errors) if isinstance(bundle, dict) else {
+    diagnostic = _audit_worker_captures(bundle, root, errors, read_bytes=read_bytes, check=check) if isinstance(bundle, dict) else {
         "records": 0, "verified": 0, "unavailable": 0, "paths": set(), "incomplete_games": []
     }
     if artifact_records == 0 and diagnostic["verified"] == 0:
@@ -335,7 +392,7 @@ def audit_bundle(bundle_dir: str | Path) -> dict:
         if _is_link_or_reparse_point(raw_dir):
             errors.append("LINK_OR_REPARSE_POINT_IN_RAW_EVIDENCE_TREE:raw")
         else:
-            for raw_file in _evidence_tree_entries(raw_dir):
+            for raw_file in _evidence_tree_entries(raw_dir, check=check):
                 rel = raw_file.relative_to(root).as_posix()
                 if _is_link_or_reparse_point(raw_file):
                     errors.append(f"LINK_OR_REPARSE_POINT_IN_RAW_EVIDENCE_TREE:{rel}")
@@ -347,7 +404,7 @@ def audit_bundle(bundle_dir: str | Path) -> dict:
         if _is_link_or_reparse_point(diagnostic_dir):
             errors.append("LINK_OR_REPARSE_POINT_IN_WORKER_OUTPUT_TREE:diagnostics")
         else:
-            for saved in _evidence_tree_entries(diagnostic_dir):
+            for saved in _evidence_tree_entries(diagnostic_dir, check=check):
                 rel = saved.relative_to(root).as_posix()
                 if _is_link_or_reparse_point(saved):
                     errors.append(f"LINK_OR_REPARSE_POINT_IN_WORKER_OUTPUT_TREE:{rel}")
@@ -356,7 +413,7 @@ def audit_bundle(bundle_dir: str | Path) -> dict:
 
     return {
         "schema": AUDIT_SCHEMA,
-        "auditor_source_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+        "auditor_source_sha256": hashlib.sha256(Path(__file__).read_bytes() if read_bytes is None else read_bytes(Path(__file__))).hexdigest(),
         "status": "PASS" if not errors else "FAIL",
         "purpose": "BYTE_INTEGRITY_ONLY_NOT_SOURCE_AUTHENTICITY",
         "bundle_manifest_sha256": manifest_sha256,

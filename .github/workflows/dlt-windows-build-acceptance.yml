@@ -62,6 +62,13 @@ jobs:
           $env:PYTHONPATH = "$PWD\src"
           python -m unittest discover -s tests -p "test_background_103_compat.py" -v
 
+      - name: Background continuity worker and verifier regression
+        shell: pwsh
+        run: |
+          $env:PYTHONPATH = "$PWD\src"
+          python -m unittest discover -s tests -p "test_background_continuity.py" -v
+          if($LASTEXITCODE -ne 0){ throw 'background synthetic regression failed' }
+
       - name: External Final Gate authority regression
         shell: pwsh
         run: |
@@ -168,13 +175,16 @@ jobs:
           Get-Content $out
           if ($r.status -ne "PASS") { throw "Exact EXE GUI construction gate failed" }
 
+      # The real 30-minute sleep plus native update/build/GUI budgets can exhaust
+      # the existing 120-minute job cap in a worst-case run; no timing proof is relaxed.
       - name: Exact EXE detached 1800-second background continuity
+        timeout-minutes: 65
         shell: pwsh
         run: |
           .\scripts\background_acceptance.ps1 `
             -MainExe ".\dist\Geometry_Lotto_Pro_DLT.exe" `
             -EvidencePath ".\artifacts\background_acceptance.json" `
-            -TimeoutSeconds 1800
+            -TimeoutSeconds 3600
 
       - name: Physical GUI Click Smoke
         shell: pwsh
@@ -250,30 +260,17 @@ jobs:
             }
           }
 
-          $backgroundChecks = $background.checks
-          $backgroundBound = (
-            $background.schema -eq 'dlt-background-acceptance-v1' -and
-            $background.status -eq 'PASS' -and
-            $background.github_sha -eq $env:GITHUB_SHA -and
-            $background.github_run_id -eq $env:GITHUB_RUN_ID -and
-            $background.exe_sha256 -eq $hash -and
-            [int]$background.production_poll_seconds -eq 1800 -and
-            $background.startup_mode -eq 'manual_app_launch_required_after_login' -and
-            $background.autostart_registered -eq $false -and
-            $backgroundChecks.launch_status -eq $true -and
-            $backgroundChecks.launch_shell_false -eq $true -and
-            $backgroundChecks.child_is_separate -eq $true -and
-            $backgroundChecks.exact_exe_hash_bound -eq $true -and
-            $backgroundChecks.parent_exit_observed -eq $true -and
-            $backgroundChecks.production_poll_1800 -eq $true -and
-            $backgroundChecks.startup_requires_manual_open -eq $true -and
-            $backgroundChecks.worker_completed_cycle -eq $true -and
-            $backgroundChecks.live_network_pass -eq $true -and
-            $backgroundChecks.next_prediction_frozen -eq $true -and
-            $backgroundChecks.default_two_front_dan -eq $true -and
-            $backgroundChecks.default_one_back_dan -eq $true -and
-            $backgroundChecks.production_not_promoted -eq $true
-          )
+          # The create-only request was generated before launch. Neither identity
+          # is taken from the report under test; external workflow/executable inputs
+          # independently bind the expected request and measured report.
+          $backgroundVerification = python scripts/verify_background_acceptance.py `
+            --report artifacts/background_acceptance.json `
+            --request artifacts/background_acceptance.json.request.json `
+            --sha $env:GITHUB_SHA --run-id $env:GITHUB_RUN_ID `
+            --run-attempt $env:GITHUB_RUN_ATTEMPT --exe-sha256 $hash --exe-path $exe.Path
+          $backgroundVerificationCode=$LASTEXITCODE
+          $backgroundVerdict=($backgroundVerification -join "`n") | ConvertFrom-Json
+          $backgroundBound=($backgroundVerificationCode -eq 0 -and $backgroundVerdict.status -eq 'PASS')
 
           $ok = (
             $repositoryIndependence -eq 'PASS' -and

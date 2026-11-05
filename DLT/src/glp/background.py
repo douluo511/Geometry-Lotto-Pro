@@ -20,7 +20,7 @@ from .service import LottoService
 from .util import atomic_json, next_issue, sha256_bytes, sha256_json, utc_now
 
 
-BACKGROUND_SCHEMA = "dlt-background-worker-v1"
+BACKGROUND_SCHEMA = "dlt-background-worker-v2"
 
 
 def _exe_sha256() -> str:
@@ -132,6 +132,7 @@ def background_cycle(service: LottoService | None = None) -> dict[str, Any]:
         "canonical_hash": canonical_hash,
         "network_gate": update.get("network_gate"),
         "crosscheck_status": update.get("crosscheck_status"),
+        "source_receipts": update.get("source_receipts", []),
         "production_edge_state": prediction.get("edge_state"),
         "production_dan_state": prediction.get("dan_state"),
     }
@@ -180,6 +181,8 @@ def run_background_worker(
     interval_seconds: int = BACKGROUND_POLL_SECONDS,
     max_cycles: int = 0,
     wait_parent_pid: int = 0,
+    launch_session: str = "",
+    acceptance_nonce: str = "",
 ) -> int:
     if interval_seconds <= 0:
         raise ValueError("background interval must be positive")
@@ -194,7 +197,11 @@ def run_background_worker(
             return 0
 
         parent_exit_observed = _wait_parent_exit(wait_parent_pid) if wait_parent_pid else None
+        origin = time.monotonic()
         started = {
+            "launch_session": launch_session,
+            "acceptance_nonce": acceptance_nonce,
+            "clock_origin": "worker_monotonic_start",
             "schema": BACKGROUND_SCHEMA,
             "status": "RUNNING",
             "pid": os.getpid(),
@@ -214,37 +221,50 @@ def run_background_worker(
         atomic_json(status_path, started)
 
         cycle_count = 0
+        failed_cycle_count = 0
+        first_error = None
+        cycles: list[dict[str, Any]] = []
         while True:
             cycle_count += 1
+            cycle_started = time.monotonic() - origin
+            cycle = None
+            error = None
             try:
                 cycle = background_cycle(service)
-                state = {
-                    **started,
-                    "status": "PASS",
-                    "updated_at": utc_now(),
-                    "cycle_count": cycle_count,
-                    "last_cycle": cycle,
-                    "last_error": None,
-                }
             except Exception as exc:
-                state = {
-                    **started,
-                    "status": "FAIL",
-                    "updated_at": utc_now(),
-                    "cycle_count": cycle_count,
-                    "last_cycle": None,
-                    "last_error": {
-                        "type": type(exc).__name__,
-                        "message": str(exc),
-                    },
-                }
+                failed_cycle_count += 1
+                error = {"type": type(exc).__name__, "message": str(exc)}
+                first_error = first_error or error
+            cycle_finished = time.monotonic() - origin
+            record = {
+                "sequence": cycle_count,
+                "launch_session": launch_session,
+                "acceptance_nonce": acceptance_nonce,
+                "started_offset_seconds": cycle_started,
+                "finished_offset_seconds": cycle_finished,
+                "status": "FAIL" if error else "PASS",
+                "result": cycle,
+                "error": error,
+                "result_sha256": sha256_json(cycle if error is None else error),
+            }
+            # Bounded history keeps both acceptance cycles; the aggregate failure
+            # count and first error cannot be lost when an older cycle rolls off.
+            cycles = (cycles + [record])[-2:]
+            state = {
+                **started,
+                "status": "FAIL" if failed_cycle_count else "PASS",
+                "updated_at": utc_now(),
+                "cycle_count": cycle_count,
+                "cycles": cycles,
+                "failed_cycle_count": failed_cycle_count,
+                "first_error": first_error,
+                "last_cycle": cycle,
+                "last_error": error,
+            }
+            if error:
                 try:
                     service.store.append_experiment(
-                        "background_cycle",
-                        "FAIL",
-                        sha256_json(state["last_error"]),
-                        APP_VERSION,
-                        state,
+                        "background_cycle", "FAIL", sha256_json(error), APP_VERSION, state,
                     )
                 except Exception:
                     pass
@@ -254,9 +274,16 @@ def run_background_worker(
                 state["worker_exit"] = "MAX_CYCLES_REACHED"
                 state["updated_at"] = utc_now()
                 atomic_json(status_path, state)
-                return 0
+                return 2 if failed_cycle_count else 0
 
-            time.sleep(interval_seconds)
+            # Completion-to-next-start scheduling: a short/early sleep must never
+            # shorten the production interval. This clock belongs to this worker.
+            deadline = origin + cycle_finished + interval_seconds
+            while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    break
+                time.sleep(remaining)
 
 
 def launch_background_worker(
@@ -264,6 +291,8 @@ def launch_background_worker(
     interval_seconds: int = BACKGROUND_POLL_SECONDS,
     max_cycles: int = 0,
     wait_parent_exit: bool = False,
+    launch_session: str = "",
+    acceptance_nonce: str = "",
 ) -> dict[str, Any]:
     if os.name != "nt":
         raise RuntimeError("background worker launch requires Windows")
@@ -279,6 +308,11 @@ def launch_background_worker(
         cmd += ["--background-max-cycles", str(int(max_cycles))]
     if wait_parent_exit:
         cmd += ["--background-wait-parent-pid", str(os.getpid())]
+
+    if launch_session:
+        cmd += ["--background-launch-session", launch_session]
+    if acceptance_nonce:
+        cmd += ["--background-acceptance-nonce", acceptance_nonce]
 
     flags = 0
     for name in ("DETACHED_PROCESS", "CREATE_NEW_PROCESS_GROUP", "CREATE_NO_WINDOW"):
@@ -300,7 +334,9 @@ def launch_background_worker(
         env=child_env,
     )
     return {
-        "schema": "dlt-background-launch-v1",
+        "schema": "dlt-background-launch-v2",
+        "launch_session": launch_session,
+        "acceptance_nonce": acceptance_nonce,
         "status": "PASS",
         "launched_at": utc_now(),
         "child_pid": int(proc.pid),

@@ -34,6 +34,27 @@ def _draws(game, n=130):
     return rows
 
 
+class CanonicalSourceDrawBoundaryTests(unittest.TestCase):
+    """Malformed source dates and issue identities cannot be silently normalized."""
+
+    def test_source_date_prefix_with_suffix_is_rejected(self):
+        for game in ("SSQ", "DLT"):
+            with self.subTest(game=game):
+                rows = _draws(game, 1)
+                rows[0]["draw_date"] += "T23:59:59+08:00"
+                with self.assertRaisesRegex(GateError, "INVALID_SOURCE_DRAW_DATE"):
+                    oi._canonical_draws(game, rows, minimum=1)
+
+    def test_nonascii_or_nonstring_source_issue_is_rejected(self):
+        for game in ("SSQ", "DLT"):
+            for value in ("２０２６００１", 2026001):
+                with self.subTest(game=game, value=repr(value)):
+                    rows = _draws(game, 1)
+                    rows[0]["issue"] = value
+                    with self.assertRaisesRegex(GateError, "INVALID_SOURCE_ISSUE"):
+                        oi._canonical_draws(game, rows, minimum=1)
+
+
 def _source_urls(game):
     if game == "SSQ":
         return [
@@ -54,7 +75,9 @@ def _artifact(url, parser_version, raw):
         "requested_url": url,
         "raw_sha256": sha,
         "size_bytes": len(raw),
-        "content_type": "application/json",
+        # The legacy Gansu endpoint is GET/HTML. Declared JSON diagnostics now
+        # require request evidence even when their body is empty or not JSON.
+        "content_type": "text/html" if url == "https://www.gstc.org.cn/wanfa/dlt_history" else "application/json",
         "http_status": 200,
         "fetched_at": "2026-10-22T08:00:00+00:00",
         "parser_version": parser_version,
@@ -394,6 +417,39 @@ class OfficialIntakeTests(unittest.TestCase):
         gansu["receipt"]["latest_issue"] = gansu["draws"][-1]["issue"]
         with self.assertRaisesRegex(GateError, "GANSU_DRAW_CONFLICT"):
             oi.validate_worker_payload(payload, expected_game="DLT")
+
+    def test_dlt_source_date_disagreement_blocks_even_when_issue_and_balls_match(self):
+        # Independent negative control: a Gansu date offset on the same issue
+        # cannot be accepted merely because the balls and issue IDs agree.
+        # Synthetic daily rows; NOT a historical observation or official raw byte.
+        payload = _payload("DLT")
+        gansu = payload["sources"][2]
+        for row in gansu["draws"]:
+            row["draw_date"] = (date.fromisoformat(row["draw_date"]) +
+                                timedelta(days=1)).isoformat()
+        gansu["raw_reparse_sha256"] = oi._rows_sha256(gansu["draws"])
+        with self.assertRaisesRegex(GateError, "GANSU_DRAW_CONFLICT"):
+            oi.validate_worker_payload(payload, expected_game="DLT")
+
+    def test_matching_three_source_date_claims_never_grant_asof_authority(self):
+        # Even matching dates are only claims until separately authenticated
+        # with independently retained source bytes and availability times.
+        payload = _payload("DLT")
+        for source in payload["sources"]:
+            for row in source["draws"]:
+                row["draw_date"] = (date.fromisoformat(row["draw_date"]) +
+                                    timedelta(days=1)).isoformat()
+            source["raw_reparse_sha256"] = oi._rows_sha256(source["draws"])
+        report = oi.validate_worker_payload(payload, expected_game="DLT")
+        self.assertEqual(report["status"], "HISTORY_CROSSCHECK_PASS")
+        self.assertEqual(report["official_history_admission"], "SHADOW_HISTORY_ONLY")
+        self.assertEqual(report["publication_time_authenticity"], "NOT_VERIFIED")
+        self.assertEqual(report["source_origin_authenticity"],
+                         "NOT_CRYPTOGRAPHICALLY_VERIFIED")
+        self.assertEqual(report["official_target_admission"], "BLOCKED")
+        self.assertEqual(report["external_tsa"], "NOT_RUN")
+        self.assertEqual(report["formal_A"], 0)
+        self.assertEqual(report["decision"], "NO_EDGE")
 
     def test_gansu_history_under_ten_draws_is_rejected(self):
         payload = _payload("DLT")

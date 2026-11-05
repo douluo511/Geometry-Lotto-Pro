@@ -17,7 +17,7 @@ import tempfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from .core import (RULES, GateError, canon, dt, load_registered_snapshot,
+from .core import (RULES, GateError, canon, digest, dt, load_registered_snapshot,
                    validate_run_manifest_record)
 from .convergence import check_complete_batch
 
@@ -54,16 +54,77 @@ def _openssl(executable, *args):
     return result.stdout
 
 
+def _independent_game_payload(conn, run_id, trust_root_sha256):
+    """Derive a singleton export from one original registration, never a manifest."""
+    from .closed_loop import _read_frozen_game
+
+    rows = conn.execute(
+        "SELECT lottery,issue,run_id,snapshot_sha256,snapshot_payload,"
+        "frozen_at_local_untrusted FROM game_runs WHERE run_id=?", (run_id,),
+    ).fetchmany(2)
+    if not rows:
+        raise GateError("GAME_RUN_NOT_REGISTERED")
+    if len(rows) != 1:
+        raise GateError("GAME_RUN_ID_AMBIGUOUS")
+    game, issue, registered_run, snapshot_sha, raw, frozen_at = rows[0]
+    if game not in RULES:
+        raise GateError("GAME_RUN_INVALID_LOTTERY")
+    snapshot, cards, _ = _read_frozen_game(
+        conn, game, (issue, registered_run, snapshot_sha, raw, frozen_at))
+    hashes = conn.execute(
+        "SELECT model,prediction_sha256 FROM game_predictions "
+        "WHERE run_id=? ORDER BY model", (run_id,),
+    ).fetchall()
+    return {
+        "schema": "V47G-FROZEN-SEAL-PAYLOAD-1", "run_id": run_id,
+        "registration": {
+            "schema": "V47G-DERIVED-GAME-REGISTRATION-1",
+            "evidence_class": "DERIVED", "lottery": game, "issue": issue,
+            "run_id": registered_run, "snapshot_sha256": snapshot_sha,
+            "frozen_at_local_untrusted": frozen_at,
+        },
+        "snapshots": {game: snapshot},
+        "games": {game: {
+            "prediction_batch_sha256": digest(dict(hashes)),
+            "predictions": [{"model": model, "payload": cards[model],
+                             "prediction_sha256": sha,
+                             "frozen_at_local_untrusted": frozen_at,
+                             "evidence_class": cards[model]["evidence_class"]}
+                            for model, sha in hashes],
+        }},
+        "trust_root_sha256": trust_root_sha256,
+        "trust_policy": "CALLER_SUPPLIED_UNVERIFIED",
+        "official_source_authenticity": "CALLER_UNVERIFIED",
+        "official_target_admission": "BLOCKED",
+        "formal_A": 0, "decision": "NO_EDGE",
+    }
+
+
 def frozen_seal_payload(database, run_id, trust_root_sha256):
-    """Recheck both original batches and export complete preimages, read-only."""
+    """Recheck original dual or independent batches and export read-only preimages."""
     _pin(trust_root_sha256)
-    if not isinstance(run_id, str) or not run_id.startswith("V47-"):
+    independent = isinstance(run_id, str) and run_id.startswith("V47G-")
+    if independent:
+        if not re.fullmatch(r"V47G-[0-9a-f]{32}", run_id):
+            raise GateError("INDEPENDENT_GAME_V47G_RUN_ID_REQUIRED")
+        # A read-only SQLite WAL connection may still create/update sidecars.
+        # Refuse before opening rather than ignoring concurrent WAL contents.
+        ledger = Path(database).resolve()
+        with ledger.open("rb") as stream:
+            header = stream.read(20)
+        if (header[18:20] == b"\x02\x02"
+                or Path(str(ledger) + "-wal").exists()
+                or Path(str(ledger) + "-shm").exists()):
+            raise GateError("V47G_READ_ONLY_WAL_UNSUPPORTED")
+    elif not isinstance(run_id, str) or not run_id.startswith("V47-"):
         raise GateError("DUAL_GAME_V47_RUN_ID_REQUIRED")
     uri = Path(database).resolve().as_uri() + "?mode=ro"
     conn = sqlite3.connect(uri, uri=True)
     try:
         conn.execute("PRAGMA query_only=ON")
         conn.execute("BEGIN")
+        if independent:
+            return _independent_game_payload(conn, run_id, trust_root_sha256)
         registered = validate_run_manifest_record(conn, run_id)
         snapshots, games = {}, {}
         for game in RULES:
@@ -207,7 +268,9 @@ def verify_response(database, run_id, seal_dir, response_file, ca_file, *,
             "trust_root_sha256": trust_root_sha256,
             "signed_at": stamp.isoformat(), "latest_possible_signed_at": upper.isoformat(),
             "cryptographic_verification": "PASS_UNDER_CALLER_PIN",
-            "predraw_time_bound": "BEFORE_BOTH_CLAIMED_CUTOFFS",
+            "predraw_time_bound": ("BEFORE_CLAIMED_GAME_CUTOFF"
+                                   if expected["schema"] == "V47G-FROZEN-SEAL-PAYLOAD-1"
+                                   else "BEFORE_BOTH_CLAIMED_CUTOFFS"),
             "trust_policy": "CALLER_SUPPLIED_UNVERIFIED",
             "official_source_authenticity": "CALLER_UNVERIFIED",
             "official_target_admission": "BLOCKED", "external_tsa_formal_admission": "BLOCKED",
