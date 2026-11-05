@@ -21,6 +21,7 @@ import sys
 from datetime import datetime, timezone
 from html.parser import HTMLParser
 from pathlib import Path
+from threading import Lock
 from urllib.parse import urlsplit
 
 from .core import GateError, SOURCE_HOSTS_BY_GAME
@@ -78,6 +79,7 @@ EXPECTED_SOURCE_NAMES = {
 REDIRECT_CODES = {301, 302, 303, 307, 308}
 GANSU_JSON_URL = "https://www.gstc.org.cn/workapi/prize_history_list"
 REQUEST_FIELDS = {"request_method", "request_body_base64", "request_body_sha256"}
+WORKER_HTTP_JOURNAL_LIMIT = 28_000_000
 
 
 def _request_evidence(game: str, source_id: str, artifact: dict, raw: bytes) -> dict:
@@ -781,19 +783,53 @@ def _install_dlt_redirect_guard(game: str, failure_recorder=None) -> None:
         requests.post = safe_post
 
 
-def _worker(game: str) -> dict:
+def _worker_http_journal(stream, *, limit=WORKER_HTTP_JOURNAL_LIMIT):
+    """Emit a bounded, untrusted stderr journal before the worker can be killed.
+
+    Each complete frame is a prefixed JSON line followed by exactly size_bytes
+    binary bytes. A killed write can leave a torn last frame.
+    """
+    truncated = b"V47_HTTP_JOURNAL_LIMIT\n"
+    remaining = limit
+    lock = Lock()
+
+    def record(artifact, raw):
+        nonlocal remaining
+        with lock:
+            if remaining == 0:
+                return
+            metadata = {key: value for key, value in artifact.items() if key != "raw_base64"}
+            header = b"V47_HTTP_RESPONSE\t" + json.dumps(
+                metadata, ensure_ascii=True, sort_keys=True, separators=(",", ":")
+            ).encode("ascii") + b"\n"
+            frame_size = len(header) + len(raw)
+            if frame_size + len(truncated) > remaining:
+                stream.write(truncated)
+                remaining = 0
+            else:
+                stream.write(header + raw)
+                remaining -= frame_size
+            stream.flush()
+
+    return record
+
+
+def _worker(game: str, journal=None) -> dict:
     started = datetime.now(timezone.utc).isoformat()
     source_hashes_before = source_file_hashes(game)
     source_dir = REPO_ROOT / ("SSQ/SSQ" if game == "SSQ" else "DLT/src")
     sys.path.insert(0, str(source_dir))
     raw_artifacts: list[dict] = []
     parser_version = _expected_parser_version(game)
+    def remember(source_id, meta, raw):
+        body = bytes(raw)
+        artifact = _normalize_worker_artifact(game, source_id, meta, body, parser_version)
+        raw_artifacts.append(artifact)
+        if journal is not None:
+            journal(artifact, body)
+
     if game == "DLT":
-        def record_dlt_failure(source_id, meta, raw):
-            raw_artifacts.append(_normalize_worker_artifact(
-                game, source_id, meta, bytes(raw), parser_version
-            ))
-        _install_dlt_redirect_guard(game, record_dlt_failure)
+        _install_dlt_redirect_guard(game, remember)
     import glp.sources as source_module
     if str(source_module.PARSER_VERSION) != parser_version:
         raise GateError("PARSER_VERSION_CHANGED_DURING_IMPORT")
@@ -806,9 +842,7 @@ def _worker(game: str) -> dict:
             source_id = SOURCE_IDS[game].get(source_name)
             if source_id is None:
                 raise GateError("UNEXPECTED_SSQ_SOURCE_ID:" + source_name)
-            raw_artifacts.append(_normalize_worker_artifact(
-                game, source_id, meta, bytes(raw), parser_version
-            ))
+            remember(source_id, meta, raw)
 
         source_specs = (
             ("national", "official_cwl_L0",
@@ -1383,7 +1417,8 @@ def _quarantine_worker_output(game: str, reason: str, stdout=None, stderr=None, 
         "limitations": [
             "Captured worker output is untrusted diagnostic evidence, never admitted HTTP or model input.",
             "Embedded raw_base64 bodies remain recoverable in captured stdout; no source identity, HTTP status, row or timestamp claim is validated.",
-            "HTTP bytes never emitted before worker timeout or termination are NOT_CAPTURED; no streaming journal exists.",
+            "The diagnostic stderr journal can contain completed response frames, a capacity marker, or a torn tail.",
+            "HTTP bytes never emitted before worker timeout or termination remain NOT_CAPTURED.",
         ],
     }
 
@@ -1396,7 +1431,8 @@ def collect_live_history(game: str, *, timeout_seconds: int = 600) -> dict:
         # Capture exact pipe bytes: text mode would decode and normalize CRLF
         # before a failed worker's diagnostic evidence could be preserved.
         completed = subprocess.run(
-            [sys.executable, "-m", "research.harness_v46.official_intake", "--worker", game],
+            [sys.executable, "-m", "research.harness_v46.official_intake",
+             "--worker", game, "--worker-http-journal"],
             cwd=str(REPO_ROOT), capture_output=True, timeout=timeout_seconds,
             check=False,
             env={**os.environ, "PYTHONHASHSEED": "0", "PYTHONIOENCODING": "utf-8"},
@@ -1602,10 +1638,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--game", choices=("SSQ", "DLT", "ALL"), default="ALL")
     parser.add_argument("--output-dir", help="new directory; existing paths are never overwritten")
     parser.add_argument("--worker", choices=("SSQ", "DLT"), help=argparse.SUPPRESS)
+    parser.add_argument("--worker-http-journal", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
+    if args.worker_http_journal and not args.worker:
+        parser.error("--worker-http-journal requires --worker")
     if args.worker:
         try:
-            payload = _worker(args.worker)
+            journal = _worker_http_journal(sys.stderr.buffer) if args.worker_http_journal else None
+            payload = _worker(args.worker, journal=journal)
             sys.stdout.write(json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")))
             return 0
         except Exception as exc:
