@@ -129,7 +129,7 @@ def test_bad_generated_formula_and_reviews_are_rejected():
     wrong["front"]["code"] = "__import__('os').system('echo dangerous')"
     with pytest.raises(ValueError, match="invalid structured formula"):
         parse_proposal(json.dumps(wrong), SSQ)
-    with pytest.raises(ValueError, match="cannot"):
+    with pytest.raises(ValueError, match="review must"):
         parse_review(json.dumps({
             "concerns": "test", "recommendation": "test",
             "cannot_certify_edge": False,
