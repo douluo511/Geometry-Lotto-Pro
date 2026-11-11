@@ -29,7 +29,17 @@ ROLES = ("mathematician", "formula_discovery", "ensemble_researcher",
 MAX_AGENTS = 6
 MODEL_TEXT_LIMIT = 12000
 MAX_RESPONSE_BYTES = 100000
-MAX_TOKENS = 1100
+MAX_TOKENS = 2400
+
+
+class ProviderText(str):
+    """Text plus provider's public response ID, never the API key."""
+    def __new__(cls, value: str, response_id: object):
+        obj = str.__new__(cls, value)
+        obj.provider_response_id = (
+            response_id if isinstance(response_id, str) else None
+        )
+        return obj
 
 
 @dataclass(frozen=True)
@@ -137,7 +147,7 @@ def provider_call(agent: Agent, system: str, user: str) -> str:
     result = "\n".join(parts).strip()
     if not result or len(result) > MODEL_TEXT_LIMIT:
         raise RuntimeError("missing/oversized model text output")
-    return result
+    return ProviderText(result, response.get("id") or response.get("responseId"))
 
 
 def parse_json(text: str) -> dict:
@@ -347,6 +357,7 @@ def run_council(prefix: list[Draw], game: Game, agents: tuple[Agent, ...],
                 "front": formula["front"], "back": formula["back"]})[:24],
             "model_response_sha256": hashlib.sha256(
                 answer.encode("utf-8")).hexdigest(),
+            "provider_response_id": getattr(answer, "provider_response_id", None),
         })
     # Phase 2 is launched only after all proposals have been received and
     # validated. Each independently called model sees other proposals.
@@ -357,6 +368,8 @@ def run_council(prefix: list[Draw], game: Game, agents: tuple[Agent, ...],
         "review": parse_review(review_text[a.role]),
         "model_response_sha256": hashlib.sha256(
             review_text[a.role].encode("utf-8")).hexdigest(),
+        "provider_response_id": getattr(review_text[a.role],
+                                         "provider_response_id", None),
     } for a in agents]
     distinct = {}
     for proposal in proposals:
