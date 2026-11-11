@@ -247,11 +247,38 @@ def walk_forward_bank(draws: list[Draw], game: Game, *,
     }
 
 
+def archive_all_observed_formulas(draws: list[Draw], game: Game) -> list[dict]:
+    """Export every formula learned AFTER its anchor draw for future inspection.
+
+    The research ensemble uses a bounded recency window, but the archive
+    retains older answer-fitted formulas without overwriting their identity.
+    """
+    archived = []
+    for anchor in range(2, len(draws)):
+        for method in METHODS:
+            formula = reverse_fit(draws, game, anchor, method)
+            archived.append({
+                "formula_id": _formula_id(formula, draws[anchor].issue),
+                "anchor_issue": draws[anchor].issue,
+                "created_after_issue_known": draws[anchor].issue,
+                "family": method,
+                "formula_parameters": asdict(formula),
+                "original_reconstruction": {
+                    "front": draws[anchor].front, "back": draws[anchor].back
+                },
+                "meaning": "posthoc_identity_not_forecast",
+            })
+    return archived
+
+
 def report(path: Path, game: Game, **config: int) -> dict:
     draws, source_sha = load_history(path, game)
+    archive = archive_all_observed_formulas(draws, game)
     return {
         "source_sha256": source_sha,
         "history_issues": [draws[0].issue, draws[-1].issue],
+        "formula_archive_count": len(archive),
+        "formula_archive": archive,
         "walk_forward": walk_forward_bank(draws, game, **config),
         "next_research_candidate": predict_with_bank(draws, game),
         "official_v47_modified": False,
