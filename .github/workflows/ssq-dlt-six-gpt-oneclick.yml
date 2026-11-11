@@ -5,6 +5,9 @@ name: SSQ + DLT | Six-GPT one-click research meeting
 # NEVER merges or writes into main's formal V4.7 models / random NULL / ledger.
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/ssq-dlt-six-gpt-oneclick.yml'
 
 permissions:
   contents: read
@@ -15,7 +18,41 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  no-charge-official-source-smoke:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 9f56585afde6b441b77f3d8dd2ea108c54a90149
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Verify live official-site HTML parsing without model calls
+        env:
+          PYTHONPATH: .
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from tempfile import TemporaryDirectory
+          from research.inverse_formula.fresh_history import sync_fixture
+          from research.inverse_formula.probe import SSQ, DLT
+          root = Path("research/inverse_formula")
+          with TemporaryDirectory() as tmp:
+              for game, name in ((SSQ, "ssq"), (DLT, "dlt")):
+                  audit = sync_fixture(root / (name + "_2026.txt"),
+                                       game, Path(tmp) / (name + ".txt"))
+                  print(json.dumps(audit, ensure_ascii=False))
+                  assert audit["target_issue"] == audit["asof_issue"] + 1
+          PY
+
   one-click-six-gpt-council:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
