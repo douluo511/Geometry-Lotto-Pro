@@ -77,6 +77,7 @@ class Agent:
     role: str
     provider: str
     model: str
+    reasoning_effort: str = "medium"
 
 
 def sha(value: object) -> str:
@@ -90,9 +91,15 @@ def parse_agents(value: object) -> tuple[Agent, ...]:
         raise ValueError("3..6 model configurations are required")
     result = []
     for entry in value:
-        if not isinstance(entry, dict) or set(entry) != {"role", "provider", "model"}:
-            raise ValueError("agent requires role/provider/model only")
+        if (not isinstance(entry, dict)
+                or not {"role", "provider", "model"}.issubset(entry)
+                or not set(entry).issubset(
+                    {"role", "provider", "model", "reasoning_effort"})):
+            raise ValueError(
+                "agent requires role/provider/model and optional reasoning_effort")
         a = Agent(**entry)
+        if a.reasoning_effort not in {"low", "medium", "high"}:
+            raise ValueError("reasoning_effort must be low, medium or high")
         if a.role not in ROLES or a.provider not in KEYS:
             raise ValueError("unknown role or provider")
         if not isinstance(a.model, str) or not re.fullmatch(
@@ -126,6 +133,8 @@ def verify_six_gpt6_agents(agents: tuple[Agent, ...]) -> None:
         raise ValueError("only approved general-purpose GPT-6+ API models allowed")
     if len({a.model for a in agents}) != 5:
         raise ValueError("expected five approved model variants across six roles")
+    if any(a.reasoning_effort != "medium" for a in agents):
+        raise ValueError("six-role research meeting requires medium reasoning effort")
 
 
 def require_keys(agents: tuple[Agent, ...]) -> None:
@@ -167,6 +176,7 @@ def provider_call(agent: Agent, system: str, user: str) -> str:
         response = post_json("https://api.openai.com/v1/responses",
             {"Authorization": "Bearer " + key},
             {"model": agent.model, "instructions": system, "input": user,
+             "reasoning": {"effort": agent.reasoning_effort},
              "max_output_tokens": MAX_TOKENS, "store": False})
         parts = [block.get("text", "")
                  for message in response.get("output", [])
@@ -473,6 +483,7 @@ def run_council(prefix: list[Draw], game: Game, agents: tuple[Agent, ...],
         formula = parse_proposal(answer, game)
         proposals.append({
             "role": a.role, "provider": a.provider, "model": a.model,
+            "reasoning_effort_requested": a.reasoning_effort,
             "formula": formula, "formula_id": sha({
                 "front": formula["front"], "back": formula["back"]})[:24],
             "model_response_sha256": hashlib.sha256(
@@ -485,6 +496,7 @@ def run_council(prefix: list[Draw], game: Game, agents: tuple[Agent, ...],
         agents, lambda a: review_prompt(a, prefix, proposals), transport)
     reviews = [{
         "role": a.role, "provider": a.provider, "model": a.model,
+        "reasoning_effort_requested": a.reasoning_effort,
         "review": parse_review(review_text[a.role]),
         "model_response_sha256": hashlib.sha256(
             review_text[a.role].encode("utf-8")).hexdigest(),
@@ -511,6 +523,7 @@ def run_council(prefix: list[Draw], game: Game, agents: tuple[Agent, ...],
         "history_shown": min(len(prefix), 30),
         "role_assignments": [
             {"role": a.role, "provider": a.provider, "model": a.model,
+             "reasoning_effort_requested": a.reasoning_effort,
              "specialist_task": ROLE_TASKS[a.role]}
             for a in agents
         ],
