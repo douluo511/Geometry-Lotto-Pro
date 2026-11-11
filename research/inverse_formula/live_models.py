@@ -100,8 +100,8 @@ def parse_agents(value: object) -> tuple[Agent, ...]:
         raise ValueError("duplicate role")
     if len({(a.provider, a.model) for a in result}) != len(result):
         raise ValueError("duplicate model identity")
-    if len({a.provider for a in result}) < 2:
-        raise ValueError("at least two distinct providers required")
+    # One-provider councils are valid when distinct model IDs are used.
+    # This supports six independently executed GPT specialists under one key.
     return tuple(result)
 
 
