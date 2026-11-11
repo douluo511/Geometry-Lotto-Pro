@@ -1,0 +1,111 @@
+name: SSQDLT P1 official-source raw custody (research only)
+
+# An isolated G00/G01 evidence probe. Never performs a forecast, freeze,
+# paid model call, purchase, or write to main's official V4.7/Random NULL.
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/ssqdlt-p1-source-evidence.yml'
+      - 'research/p1_source_gate.py'
+      - 'tests/test_p1_source_gate.py'
+  workflow_dispatch:
+  # This cron only becomes active if the reviewed workflow enters main.
+  # Pull-request runs are NOT unattended schedule evidence.
+  schedule:
+    - cron: '29 15 * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ssqdlt-p1-readonly-source-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  zero-network-acceptance:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Reject false source approval, malformed receipts or unpinned V4.7 code
+        env:
+          PYTHONPATH: .
+        run: python -m unittest discover -s tests -p 'test_p1_source_gate.py' -v
+
+  actual-official-http-custody:
+    needs: zero-network-acceptance
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout P1 orchestrator from this isolated research change
+        uses: actions/checkout@v4
+        with:
+          path: p1-orchestrator
+          persist-credentials: false
+      - name: Checkout and pin existing V4.7 official-intake implementation
+        uses: actions/checkout@v4
+        with:
+          repository: douluo511/Geometry-Lotto-Pro
+          ref: 27c519ec0ad251a9d86ebc3452277b158930299e
+          path: v47-pinned
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install the already tested official parser HTTP dependency
+        run: python -m pip install --disable-pip-version-check requests==2.34.2
+      - name: Real two-game source intake, separate audit, fail-closed gating
+        id: probe
+        env:
+          PYTHONUNBUFFERED: '1'
+        shell: bash
+        run: |
+          set +e
+          python p1-orchestrator/research/p1_source_gate.py \
+            --v47-root v47-pinned \
+            --timeout-seconds 720 \
+            --output-dir "$RUNNER_TEMP/p1-evidence" \
+            > "$RUNNER_TEMP/p1-probe-output.log" 2>&1
+          code=$?
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "### P1 current live official-source evidence (NOT a prediction)" >> "$GITHUB_STEP_SUMMARY"
+          if test -f "$RUNNER_TEMP/p1-evidence/p1-execution.json"; then
+            cat "$RUNNER_TEMP/p1-evidence/p1-execution.json"
+            echo '\`\`\`json' >> "$GITHUB_STEP_SUMMARY"
+            cat "$RUNNER_TEMP/p1-evidence/p1-execution.json" >> "$GITHUB_STEP_SUMMARY"
+            echo '\`\`\`' >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::error::No P1 machine receipt; direct inspection required"
+          fi
+          echo "p1_probe_exit=$code" >> "$GITHUB_STEP_SUMMARY"
+          exit 0
+      - name: Archive ORIGINAL HTTP bodies, failed HTTP diagnostics and independent byte audit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: p1-official-source-original-byte-custody-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/p1-evidence/
+            ${{ runner.temp }}/p1-probe-output.log
+          if-no-files-found: error
+          retention-days: 30
+      - name: Fail on incomplete byte preservation or an untrusted admission claim
+        if: always()
+        env:
+          P1_PROBE_CODE: ${{ steps.probe.outputs.code }}
+        shell: bash
+        run: |
+          test "$P1_PROBE_CODE" = "0" || {
+            echo "::error::Live source custody is blocked/failed; NO formal forecast"
+            exit 1
+          }
+          echo "Source byte custody passed; forecast/target authorization remains BLOCKED"
