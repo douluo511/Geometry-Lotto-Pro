@@ -129,13 +129,13 @@ def test_budget_fails_before_first_billed_call():
 def test_budget_stops_before_astra_and_preserves_usage():
     # Five cheaper model calls can pass, but expensive Astra is vetoed
     # by the cumulative remaining budget (no Astra transport call occurs).
-    guard = BudgetGuard(max_usd="0.04")
+    guard = BudgetGuard(max_usd="0.35")
     fake = FakeProvider()
     rows, _ = load_history(ROOT / "ssq_2026.txt", SSQ)
     with pytest.raises(RuntimeError, match="USD_BUDGET_STOP"):
         run_tiered_council(rows[:40], SSQ, AGENTS, guard, transport=fake)
     assert all(model != "gpt-6-astra" for _, model in fake.calls)
-    assert guard.summary()["attempted_requests"] <= 5
+    assert guard.summary()["attempted_requests"] == 5
 
 
 def test_unknown_usage_keeps_reserved_charge_and_aborts():
@@ -198,9 +198,13 @@ def test_fake_live_response_ids_are_not_validated_as_genuine():
     receipt["execution"] = "LIVE_PROVIDER_CALLS"
     receipt["sha256"] = sha({
         k: v for k, v in receipt.items() if k != "sha256"})
-    # Fake test ID does not prove OpenAI origin even if it has resp_ prefix.
-    # This test checks identity integrity only, not API authenticity.
-    assert distill_tiered_decision(receipt, rows[:40], SSQ)["claim"] if False else True
+    # A claim of live execution without valid per-call IDs is rejected.
+    # This still cannot authenticate a well-formed ID against OpenAI.
+    receipt["independent_proposals"][0]["provider_response_id"] = None
+    receipt["sha256"] = sha({
+        k: v for k, v in receipt.items() if k != "sha256"})
+    with pytest.raises(ValueError, match="six unique live response IDs"):
+        distill_tiered_decision(receipt, rows[:40], SSQ)
 
 
 def test_no_authorization_does_not_read_secret_or_call_paid_api(monkeypatch, tmp_path):
