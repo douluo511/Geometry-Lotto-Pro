@@ -51,7 +51,26 @@ def test_mismatched_independent_issuer_never_promotes_a_forecast():
 def test_missing_lottery_issue_rejected():
     info = LATEST_DRAW["SSQ"]
     html = fake_second(info["issue"] - 1, info["date"], info["front"], info["back"])
-    with pytest.raises(ValueError, match="ISSUE_NOT_FOUND"):
+    with pytest.raises(ValueError, match="SSQ_ANNOUNCEMENT_MISSING"):
+        roll.verify_independent_latest(SSQ, info, html)
+
+
+def test_sichuan_second_issuer_without_numeric_issue_still_requires_date_and_balls():
+    info = LATEST_DRAW["SSQ"]
+    balls = " ".join(f"{n:02d}" for n in info["front"] + info["back"])
+    html = ("<html><body><h3>双色球开奖公告</h3>"
+            "<p>开奖结果 开奖时间：" + info["date"] + "</p>"
+            "<p>" + balls + "</p><p>本期中奖情况</p></body></html>")
+    roll.verify_independent_latest(SSQ, info, html)
+    with pytest.raises(ValueError, match="BALLS"):
+        roll.verify_independent_latest(SSQ, info, html.replace("03 09", "01 09"))
+
+
+def test_sichuan_second_issuer_wrong_latest_date_rejected():
+    info = LATEST_DRAW["SSQ"]
+    balls = " ".join(f"{n:02d}" for n in info["front"] + info["back"])
+    html = ("双色球开奖公告 开奖结果 开奖时间：2026-11-08 " + balls)
+    with pytest.raises(ValueError, match="SSQ_DATE_NOT_FOUND"):
         roll.verify_independent_latest(SSQ, info, html)
 
 
