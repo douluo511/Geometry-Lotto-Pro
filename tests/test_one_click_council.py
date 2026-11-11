@@ -208,7 +208,7 @@ def test_official_source_transient_timeout_recovers_without_model_calls(monkeypa
             raise TimeoutError("synthetic offline timeout")
         return Page(request.full_url)
     monkeypatch.setattr(fresh_history.urllib.request, "urlopen", flaky)
-    monkeypatch.setattr(fresh_history.time, "sleep", lambda _: None)
+    monkeypatch.setattr(fresh_history.retry_clock, "sleep", lambda _: None)
     page, hash_value = fresh_history.fetch_official_html(SSQ)
     assert page == "<html>public test page</html>"
     assert len(hash_value) == 64
@@ -222,7 +222,7 @@ def test_official_source_three_failures_abort_before_any_models(monkeypatch):
         attempts.append(timeout)
         raise TimeoutError("synthetic offline issuer failure")
     monkeypatch.setattr(fresh_history.urllib.request, "urlopen", dead)
-    monkeypatch.setattr(fresh_history.time, "sleep", lambda _: None)
+    monkeypatch.setattr(fresh_history.retry_clock, "sleep", lambda _: None)
     with pytest.raises(RuntimeError, match="unreachable after 3 free HTTP"):
         fresh_history.fetch_official_html(DLT)
     assert attempts == [18, 18, 18]
