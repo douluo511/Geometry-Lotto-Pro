@@ -28,7 +28,7 @@ def main()->int:
                 except Exception: proc.kill()
     windows=os.name=="nt" and os.environ.get("RUNNER_OS","").lower()=="windows"
     status="PASS" if exists and windows and st["status"]=="PASS" and gui["status"]=="PASS" else "FAIL"
-    report={"schema":"guoxue-exact-candidate-v1","status":status,"github_sha":os.environ.get("GITHUB_SHA"),"runner_os":os.environ.get("RUNNER_OS"),"exe_sha256":digest,"windows_build":"PASS" if exists and windows else "FAIL","exact_exe":"PASS" if exists and windows and st["status"]=="PASS" else "FAIL","self_test":st,"gui_smoke":gui}
+    report={"schema":"guoxue-exact-candidate-v1","status":status,"github_sha":(os.environ.get("GUOXUE_SOURCE_SHA") or os.environ.get("GITHUB_SHA")),"runner_os":os.environ.get("RUNNER_OS"),"exe_sha256":digest,"windows_build":"PASS" if exists and windows else "FAIL","exact_exe":"PASS" if exists and windows and st["status"]=="PASS" else "FAIL","self_test":st,"gui_smoke":gui}
     Path(a.output).write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding="utf-8"); print(json.dumps(report,ensure_ascii=False))
     return 0 if status=="PASS" else 2
 if __name__=="__main__": raise SystemExit(main())

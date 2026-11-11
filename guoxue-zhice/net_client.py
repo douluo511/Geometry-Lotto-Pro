@@ -36,6 +36,7 @@ class NetClient:
         max_attempts: int = 3,
         backoff_base: float = 0.35,
         max_retry_after: float = 5.0,
+        max_payload_bytes: int = 8 * 1024 * 1024,
         session: requests.Session | None = None,
         sleeper: Callable[[float], None] = time.sleep,
         rng: random.Random | None = None,
@@ -49,6 +50,9 @@ class NetClient:
         if self.backoff_base < 0:
             raise ValueError("backoff_base must be non-negative")
         self.max_retry_after = max(0.0, float(max_retry_after))
+        self.max_payload_bytes = int(max_payload_bytes)
+        if self.max_payload_bytes <= 0 or self.max_payload_bytes > 512 * 1024 * 1024:
+            raise ValueError("max_payload_bytes must be between 1 and 512 MiB")
         self.session = session
         self.sleeper = sleeper
         self.rng = rng or random.Random()
@@ -102,9 +106,9 @@ class NetClient:
                     ledger.append({"attempt":attempt,"outcome":"FINAL_HTTP","status_code":status,"error_type":"HTTPError","retry_delay":0.0,"url":url})
                     raise self._attach(requests.HTTPError(f"HTTP {status}", response=response), ledger)
                 raw = bytes(response.content)
-                if not raw or len(raw) > 8 * 1024 * 1024:
+                if not raw or len(raw) > self.max_payload_bytes:
                     ledger.append({"attempt":attempt,"outcome":"FINAL_SIZE","status_code":status,"error_type":"ValueError","retry_delay":0.0,"url":url})
-                    raise self._attach(ValueError("invalid response size"), ledger)
+                    raise self._attach(ValueError(f"invalid response size: {len(raw)} > {self.max_payload_bytes}"), ledger)
                 ctype = str(getattr(response, "headers", {}).get("Content-Type", "")).lower()
                 if not any(x in ctype for x in ("json","text/plain","octet-stream")):
                     ledger.append({"attempt":attempt,"outcome":"FINAL_CONTENT_TYPE","status_code":status,"error_type":"ValueError","retry_delay":0.0,"url":url})

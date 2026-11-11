@@ -17,8 +17,10 @@ Knowledge corpus -> scenario classification -> method candidates -> factual ques
 ## Architecture
 UI -> Service -> Goal/Review/Maintenance engines -> Store / NetClient -> Evidence / trusted distribution.
 
+Software replacement is a separate release path: UI -> GuoxueService.one_click_update -> software_update handoff -> independent Guoxue_Zhice_Updater process -> trusted HTTPS release manifest/artifact -> backup -> atomic replacement -> new-EXE self-test -> commit/rollback/restart recovery. Knowledge refresh remains a separate Advanced Analysis action and must never be presented as software update.
+
 ## Function Contract / Interface Contract
-UI calls only GuoxueService. Service owns goal analysis, review, update and repair. NetClient is the sole production network transport.
+UI calls only GuoxueService. The frozen top-level entries are 目标推演 | 一键更新 | 一键修复 | 高级分析. Service owns goal analysis, review, software-update handoff, knowledge refresh and repair. NetClient is the sole production network transport. Repair covers missing/corrupt knowledge and state, configuration, cache, index, network policy, version mismatch and post-repair data integrity; corrupt user/config bytes are preserved under recovery before replacement.
 
 ## Data Source
 Trusted HTTPS manifest distribution paths select a hash-bound knowledge package. Raw responses, attempts, selected source, hashes and parser version are preserved.
@@ -39,7 +41,7 @@ Network evidence is machine-readable and hash-bound; Service is the sole UI boun
 Compile -> Unit -> Contract -> Fault Injection -> Integration -> Real Network -> Business/Counterexample/Reversal -> Windows Build -> Exact EXE -> Physical GUI -> Same Hash -> Final Gate.
 
 ## Final Gate
-Only current-version explicit PASS counts. Missing, warning, pending, skipped, unavailable, unknown or cancelled evidence is FAIL.
+Only current-version explicit PASS counts. Missing, warning, pending, skipped, unavailable, unknown or cancelled evidence is FAIL. Independent Updater process, Updater Exact EXE, atomic rollback/restart recovery, real production Release N→N+1, Updater Same Hash and repository independence are mandatory and cannot be inferred from an in-process knowledge refresh.
 
 ## Unique Product
 One exact EXE, one SHA256 and one final artifact after all hard gates pass.

@@ -20,7 +20,7 @@ def main()->int:
       "business_update_integrity":"commit_network_update" in core and "knowledge_sha256" in core,
     }
     status="PASS" if all(checks.values()) else "FAIL"
-    report={"schema":"guoxue-business-gate-v1","status":status,"github_sha":os.environ.get("GITHUB_SHA"),"version":kb.get("version"),"classics":len(classics),"checks":checks}
+    report={"schema":"guoxue-business-gate-v1","status":status,"github_sha":(os.environ.get("GUOXUE_SOURCE_SHA") or os.environ.get("GITHUB_SHA")),"version":kb.get("version"),"classics":len(classics),"checks":checks}
     (ROOT/"business_gate.json").write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding="utf-8")
     print(json.dumps(report,ensure_ascii=False))
     return 0 if status=="PASS" else 2
