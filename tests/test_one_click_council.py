@@ -186,3 +186,43 @@ def test_both_game_prechecks_before_any_provider_call(tmp_path, monkeypatch):
     assert all((tmp_path / f"{g}-preflight.json").exists()
                for g in ("ssq", "dlt"))
     assert all(x["preflight"]["model_requests"] == 0 for x in prepared.values())
+
+
+
+def test_official_source_transient_timeout_recovers_without_model_calls(monkeypatch):
+    from research.inverse_formula import fresh_history
+    attempts = []
+    class Page:
+        def __init__(self, url):
+            self.url = url
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            return False
+        def read(self, limit):
+            assert limit == 2_000_001
+            return b"<html>public test page</html>"
+    def flaky(request, timeout):
+        attempts.append(timeout)
+        if len(attempts) <= 2:
+            raise TimeoutError("synthetic offline timeout")
+        return Page(request.full_url)
+    monkeypatch.setattr(fresh_history.urllib.request, "urlopen", flaky)
+    monkeypatch.setattr(fresh_history.time, "sleep", lambda _: None)
+    page, hash_value = fresh_history.fetch_official_html(SSQ)
+    assert page == "<html>public test page</html>"
+    assert len(hash_value) == 64
+    assert attempts == [18, 18, 18]
+
+
+def test_official_source_three_failures_abort_before_any_models(monkeypatch):
+    from research.inverse_formula import fresh_history
+    attempts = []
+    def dead(request, timeout):
+        attempts.append(timeout)
+        raise TimeoutError("synthetic offline issuer failure")
+    monkeypatch.setattr(fresh_history.urllib.request, "urlopen", dead)
+    monkeypatch.setattr(fresh_history.time, "sleep", lambda _: None)
+    with pytest.raises(RuntimeError, match="unreachable after 3 free HTTP"):
+        fresh_history.fetch_official_html(DLT)
+    assert attempts == [18, 18, 18]
