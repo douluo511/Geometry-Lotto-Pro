@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import argparse
 import base64
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, date, time
 import hashlib
 from html.parser import HTMLParser
 import json
@@ -172,6 +172,21 @@ def fetch_confirm_text(game: Game, output: Path) -> tuple[str, str]:
     return raw.decode("utf-8"), hashlib.sha256(raw).hexdigest()
 
 
+def conservative_research_issue_window(game: Game, last_draw_date: str,
+                                       now: datetime) -> str:
+    """Calendar-only upper bound, NEVER a formal official sales cutoff."""
+    latest_day = date.fromisoformat(last_draw_date)
+    allowed = ({1, 3, 6} if game.name == "SSQ" else {0, 2, 5})
+    next_day = next(latest_day + timedelta(days=n) for n in range(1, 15)
+                    if (latest_day + timedelta(days=n)).weekday() in allowed)
+    # 19:00 China is a deliberately conservative research-only guard,
+    # not an official ticket-sales deadline or exception calendar.
+    last_safe = datetime.combine(next_day, time(19, 0), tzinfo=CHINA)
+    if now.astimezone(CHINA) >= last_safe:
+        raise ValueError("ESTIMATED_NEXT_DRAW_WINDOW_ALREADY_PASSED_NO_NEW_FORECAST")
+    return next_day.isoformat()
+
+
 def process_one(game: Game, ledger: Path, output: Path,
                 *, first_html: str | None = None,
                 independent_html: str | None = None,
@@ -255,6 +270,8 @@ def process_one(game: Game, ledger: Path, output: Path,
         if (game.name, next_issue) in candidates:
             outcome = "NO_NEW_ISSUE_ALREADY_RECORDED"
         else:
+            next_date = conservative_research_issue_window(
+                game, last["date"], now)
             rank = predict_with_bank(rows, game)
             if rank["target_issue"] != next_issue:
                 raise ValueError("FUTURE_PREDICTION_BOUNDARY_MISMATCH")
@@ -264,6 +281,8 @@ def process_one(game: Game, ledger: Path, output: Path,
                 "game": game.name, "target_issue": next_issue,
                 "source_last_issue": last["issue"],
                 "source_last_date_as_reported": last["date"],
+                "estimated_next_draw_date_not_verified": next_date,
+                "earliest_conservative_research_issue_stop_local": next_date + "T19:00:00+08:00",
                 "prediction": {
                     "front": list(rank["prediction"]["front"]),
                     "back": list(rank["prediction"]["back"]),
