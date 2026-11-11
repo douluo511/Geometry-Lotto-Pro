@@ -10,8 +10,23 @@
     "model": "claude-sonnet-5-5"
   },
   {
-    "role": "skeptical_reviewer",
+    "role": "ensemble_researcher",
     "provider": "gemini",
-    "model": "gemini-2.5-flash"
+    "model": "gemini-3.8-flash"
+  },
+  {
+    "role": "statistician",
+    "provider": "openai",
+    "model": "gpt-6.1-sol"
+  },
+  {
+    "role": "skeptical_reviewer",
+    "provider": "anthropic",
+    "model": "claude-opus-5-5"
+  },
+  {
+    "role": "engineer",
+    "provider": "gemini",
+    "model": "gemini-3.7-flash"
   }
 ]
