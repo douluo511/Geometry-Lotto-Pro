@@ -1,8 +1,8 @@
 # Independent Multi-Model Council V1 (research-only)
 
-This module actually makes **six API requests** for a three-model council:
-three independent, parallel proposal calls followed by three separate,
-parallel cross-review calls. It supports OpenAI Responses, Anthropic Messages,
+This module supports **12 API requests** for the default six-model council:
+six independent, parallel proposal calls followed by six separate,
+parallel cross-review calls. This incurs API costs with the three providers. It supports OpenAI Responses, Anthropic Messages,
 and Google Gemini generateContent with HTTPS requests. The code **does not**
 claim to have contacted these models until an authenticated live run succeeds.
 
@@ -46,10 +46,16 @@ tests. This cannot be used to certify that actual provider keys are installed.
 
 ## Two-round meeting contract
 
-1. The model specification file lists 3..6 *distinct* model IDs from at
-   least two providers, with distinct role names.
-2. Every agent sees the same preceding 30 draws for its independent proposal.
-   It cannot see the unknown target outcome or another agent's proposal.
+1. The default six-model configuration assigns one independent model to each
+   of the six roles, across OpenAI, Anthropic and Gemini. The API CLI requires
+   **all six distinct expert roles**; library functions also allow 3..6 for
+   controlled integration tests. Model availability and spend limits depend
+   on the connected provider accounts.
+2. Every agent sees the same preceding 30 draws plus **role-specific, past-only
+   context**: mathematical constraints, existing formula-bank candidates,
+   ensemble weight selection, exploratory D2/null statistics, skeptical
+   failure checks, or engineering/receipt requirements. It cannot see the
+   unknown target outcome or another agent's proposal in round one.
 3. A bounded schema validator rejects malformed model outputs or free-form
    executable code. Providers are not allowed to write local files.
 4. Validated proposals are shown to the *other* agents for independent
@@ -81,3 +87,29 @@ Official API references:
 OpenAI: https://developers.openai.com/api/reference/resources/responses/methods/create
 Anthropic: https://platform.claude.com/docs/en/api/messages/create
 Gemini: https://ai.google.dev/api/generate-content
+
+## Six expert job contracts
+
+- mathematician (GPT-6 Astra): propose a falsifiable mathematical family and explain the assumptions.
+- formula_discovery (Claude Sonnet 5.5): inspect only previously archived formulas and distinguish original anchor fit from later validation.
+- ensemble_researcher (Gemini 3.8 Flash): inspect capped ensemble weights and propose a diverse candidate without hindsight.
+- statistician (GPT-6.1 Sol): compare D2 estimates to the theoretical fair-draw baseline and a separate research NULL; flag multiplicity.
+- skeptical_reviewer (Claude Opus 5.5): challenge leaks, cherry-picking, data provenance, and spurious statistical significance.
+- engineer (Gemini 3.7 Flash): check bounded DSL, legal tickets, cutoff, audit IDs and integrity hashes.
+
+All six propose one declarative candidate in round one **within their specialty**,
+then independently critique the other five in round two. The reviewer text
+is an audit record, not a vote that can silently override a hard statistical
+rejection. Actual model expertise and reliability must be measured; a role
+label does not guarantee competent reasoning.
+
+The default six-model committee is configured in
+`multi_provider_agents.example.json`. Confirm service access and cost
+estimates before calling any live API. Do not assume the ChatGPT subscription
+pays for these external API calls.
+
+**Note on GitHub Actions:** a newly authored workflow or dispatch entry may
+not be visible in the GitHub Actions UI until the workflow exists on the
+repository's default branch. The Draft PR is deliberately not merged for
+this purpose. The local Windows CLI is the executable launch route before
+a separate approved workflow registration.
