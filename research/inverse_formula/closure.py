@@ -150,7 +150,7 @@ def _extract_candidate(source: dict, game: Game) -> tuple[dict, str]:
                  "asof_issue": inner["asof_issue"],
                  "target_issue": inner["target_issue"],
                  "reference": reference, "execution": execution}
-    if inner.get("revision") == "REVIEWED_DAN_SHA_V2":
+    if inner.get("revision") in ("REVIEWED_DAN_SHA_V2", "TIERED_REVIEWED_DAN_SHA_V3"):
         selections = inner.get("research_dan_sha")
         if not isinstance(selections, dict):
             raise ValueError("reviewed council missing dan/sha selections")
