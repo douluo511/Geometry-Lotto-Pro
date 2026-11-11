@@ -94,6 +94,9 @@ def test_first_step_reuses_only_existing_original_issue(tmp_path):
     assert record["official_sales_cutoff_verified"] is False
     assert record["external_predraw_tsa"] == "NOT_RUN"
     assert len(record["prediction"]["front"]) == 6
+    verified = roll.verify_saved_research_ledger(ledger)
+    assert verified["source_raw_envelopes"] == 2
+    assert verified["scored_issues"] == 0
     assert record["research_null"]["not_formal_v47_null"] is True
 
 
@@ -146,6 +149,14 @@ def test_real_previous_snapshot_score_and_no_reissue(tmp_path):
     assert score["scoring"]["research_d2_hit"] == 1
     assert score["formal_A"] == 0
     assert (root / "research" / "forecasts" / "SSQ-2026131.json").is_file()
+    audit = roll.verify_saved_research_ledger(root)
+    assert audit["forecast_issues"] == 2
+    assert audit["scored_issues"] == 1
+    tampered = json.loads(score_path.read_text())
+    tampered["scoring"]["research_full_hit"] = 0
+    score_path.write_text(json.dumps(tampered))
+    with pytest.raises(ValueError, match="SCORE_CHANGED"):
+        roll.verify_saved_research_ledger(root)
 
 
 def test_duplicate_issue_is_not_silently_counted(tmp_path):
