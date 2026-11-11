@@ -132,8 +132,13 @@ def _forecast_item(item: dict, *, legacy: bool) -> tuple[str, int]:
     game, issue = item.get("game"), item.get("target_issue")
     if game not in GAME or type(issue) is not int or issue <= 0:
         deny("INVALID_FORECAST_IDENTITY")
-    if (type(item.get("formal_A")) is not int or item["formal_A"] != 0
-            or not _sha256(item.get("content_sha256"))):
+    if (not _sha256(item.get("content_sha256"))
+            or (legacy and "formal_A" in item and
+                (type(item["formal_A"]) is not int or item["formal_A"] != 0))
+            or (not legacy and (type(item.get("formal_A")) is not int
+                                or item["formal_A"] != 0))):
+        # The immutable 2026 dual-game envelope holds formal_A at its root,
+        # unlike later create-only per-game forecasts. Never rewrite it.
         deny("FORMAL_PROMOTION_OR_BAD_FORECAST_HASH")
     _ticket(item.get("prediction"), game)
     _ticket(item.get("research_null"), game)
