@@ -80,7 +80,7 @@ def assess(bundle: dict, audit: dict, code_sha: str) -> dict:
     statuses = check_guard(bundle)
     if code_sha != PINNED_V47_COMMIT:
         raise ValueError("UNREVIEWED_V47_CODE")
-    if (audit.get("schema") != "V47-INTAKE-AUDIT-1"
+    if (audit.get("schema") != "V47-INTAKE-BUNDLE-AUDIT-1"
             or audit.get("status") != "PASS"
             or audit.get("purpose") != "BYTE_INTEGRITY_ONLY_NOT_SOURCE_AUTHENTICITY"):
         raise ValueError("BUNDLE_BYTES_NOT_INDEPENDENTLY_VERIFIED")
