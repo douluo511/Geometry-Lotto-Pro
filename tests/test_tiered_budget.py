@@ -142,7 +142,7 @@ def test_unknown_usage_keeps_reserved_charge_and_aborts():
     guard = BudgetGuard(max_usd="3.00")
     fake = FakeProvider(bad_usage=True)
     with pytest.raises(RuntimeError, match="exceeds reservation"):
-        guard.call(AGENTS[0], "prompt", transport=fake)
+        guard.call(AGENTS[0], '{"task":"independently propose one falsifiable integer formula"}', transport=fake)
     report = guard.summary()
     assert report["unknown_usage_requests"] == 1
     assert Decimal(report["estimated_used_or_reserved_usd"]) > 0
