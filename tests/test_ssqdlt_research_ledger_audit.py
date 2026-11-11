@@ -4,6 +4,8 @@ from __future__ import annotations
 import base64
 from copy import deepcopy
 import hashlib
+import os
+import shutil
 import json
 from pathlib import Path
 import subprocess
@@ -152,6 +154,17 @@ class LedgerAuditTests(unittest.TestCase):
             target.write_text(raw)
             with self.subTest(raw=raw), self.assertRaises(GateError):
                 load_json(target)
+
+    def test_research_parent_symlink_cannot_escape_ledger_root(self):
+        with tempfile.TemporaryDirectory() as other:
+            escaped = Path(other) / "escape"
+            shutil.move(str(self.root / "research"), str(escaped))
+            try:
+                os.symlink(escaped, self.root / "research", target_is_directory=True)
+            except (OSError, NotImplementedError):
+                self.skipTest("host does not permit creating directory symlinks")
+            with self.assertRaisesRegex(GateError, "SYMLINK_RESEARCH_ROOT"):
+                scan_ledger(self.root)
 
     def test_prediction_contents_cannot_be_rehashed_silently(self):
         target = self.root / "research/forecasts/SSQ-2026130.json"
