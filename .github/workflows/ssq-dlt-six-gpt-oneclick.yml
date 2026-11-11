@@ -27,7 +27,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: aed82b84717edf9726a9117812cc96cc42b1b6e8
+          ref: 9f25ceddbb53b936c0eac447002daedfda6ce716
           persist-credentials: false
       - uses: actions/setup-python@v5
         with:
@@ -69,7 +69,7 @@ jobs:
       - name: Checkout the CI-verified research implementation, not main V4.7
         uses: actions/checkout@v4
         with:
-          ref: aed82b84717edf9726a9117812cc96cc42b1b6e8
+          ref: 9f25ceddbb53b936c0eac447002daedfda6ce716
           persist-credentials: false
 
       - uses: actions/setup-python@v5
@@ -89,11 +89,13 @@ jobs:
             exit 1
           fi
 
-      - name: Fetch and validate BOTH official latest datasets, then run BOTH paid GPT councils
+      - name: Fetch both latest draws and run tiered 5 cheap + 1 Astra per game with budget cap
         shell: bash
         env:
           PYTHONPATH: .
           SSQDLT_PAID_APPROVED: ${{ vars.SSQDLT_PAID_APPROVED }}
+          SSQDLT_MAX_USD: ${{ vars.SSQDLT_MAX_USD }}
+          SSQDLT_MAX_REQUESTS: ${{ vars.SSQDLT_MAX_REQUESTS }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           PYTHONIOENCODING: utf-8
         run: |
