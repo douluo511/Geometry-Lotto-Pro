@@ -61,6 +61,26 @@ class NetworkContractTests(unittest.TestCase):
         self.assertTrue(attempts)
         self.assertEqual(attempts[-1]["outcome"],"FINAL_INSECURE_REDIRECT")
 
+    def test_payload_limit_is_bounded_and_configurable(self):
+        client=NetClient(
+            max_payload_bytes=2,
+            session=FakeSession([FakeResponse(200,b"abc",content_type="application/octet-stream")]),
+            sleeper=lambda _:None,
+        )
+        with self.assertRaises(ValueError):
+            client.get_bytes("https://example.invalid/data",source_id="x")
+
+        client=NetClient(
+            max_payload_bytes=3,
+            session=FakeSession([FakeResponse(200,b"abc",content_type="application/octet-stream")]),
+            sleeper=lambda _:None,
+        )
+        raw,_=client.get_bytes("https://example.invalid/data",source_id="x")
+        self.assertEqual(raw,b"abc")
+
+        with self.assertRaises(ValueError):
+            NetClient(max_payload_bytes=512*1024*1024+1)
+
 class PersistenceFaultTests(unittest.TestCase):
     def test_evidence_stage_failure_leaves_knowledge_and_state_unchanged(self):
         with tempfile.TemporaryDirectory() as td:

@@ -5,6 +5,7 @@ from typing import Any
 
 from core import APP_NAME, APP_VERSION, GoalEngine, MaintenanceEngine, ReviewEngine, Store, self_test
 from net_client import NetClient
+from software_update import launch_independent_updater, software_update_environment_status
 
 class GuoxueService:
     def __init__(self, store: Store, net: NetClient | None = None):
@@ -25,8 +26,22 @@ class GuoxueService:
     def stats(self) -> dict[str, Any]:
         return self.goal.stats()
 
-    def one_click_update(self) -> dict[str, Any]:
+    def refresh_knowledge(self) -> dict[str, Any]:
+        """Refresh the knowledge corpus only; this is not a software update."""
         return self.maintenance.one_click_update()
+
+    def one_click_update(self) -> dict[str, Any]:
+        """Frozen UI contract: hand off software replacement to the independent Updater."""
+        return launch_independent_updater(
+            data_root=self.store.root,
+            current_version=APP_VERSION,
+        )
+
+    def software_update_status(self, *, main_exe: Path) -> dict[str, Any]:
+        return software_update_environment_status(
+            main_exe=main_exe,
+            current_version=APP_VERSION,
+        )
 
     def one_click_repair(self) -> dict[str, Any]:
         return self.maintenance.one_click_repair()
