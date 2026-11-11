@@ -342,3 +342,27 @@ def test_only_a_single_gpt6_model_repeat_is_allowed():
     wrong[3]["model"] = "gpt-5.6-sol"  # 5 unique including GPT-5.6
     with pytest.raises(ValueError, match="duplicate model identity"):
         parse_agents(wrong)
+
+
+
+def test_live_six_gpt6_model_allowlist_rejects_older_or_unverified_ids():
+    from research.inverse_formula.live_models import (
+        verify_six_gpt6_agents, GPT6_APPROVED_IDS,
+    )
+    original = json.loads(
+        (DATA / "multi_provider_agents.example.json").read_text(encoding="utf-8")
+    )
+    council = parse_agents(original)
+    verify_six_gpt6_agents(council)
+    assert {agent.model for agent in council} == GPT6_APPROVED_IDS
+
+    older = json.loads(json.dumps(original))
+    older[4]["model"] = "gpt-5.6-sol"
+    with pytest.raises(ValueError, match="GPT-6"):
+        verify_six_gpt6_agents(parse_agents(older))
+    unknown = json.loads(json.dumps(original))
+    unknown[4]["model"] = "gpt-6.999-fictional"
+    with pytest.raises(ValueError, match="GPT-6"):
+        verify_six_gpt6_agents(parse_agents(unknown))
+    with pytest.raises(ValueError, match="six distinct"):
+        verify_six_gpt6_agents(parse_agents(original[:5]))
