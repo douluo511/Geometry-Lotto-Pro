@@ -1,23 +1,50 @@
 name: SSQDLT P0 unattended schedule evidence (research only)
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ssqdlt-p0-scheduler.yml'
+      - 'research/p0_scheduler/**'
+      - 'tests/test_p0_scheduler.py'
   schedule:
     # P0 bootstrap: two independent UTC windows/day. No lottery or paid API calls.
     - cron: '17 16,17 * * *'
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: ssqdlt-p0-research-ledger
   cancel-in-progress: false
 
 jobs:
+  offline-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout isolated P0 infrastructure
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Verify idempotence, tamper evidence and restart tests
+        env:
+          PYTHONPATH: .
+        run: python -m unittest discover -s tests -p 'test_p0_scheduler.py' -v
+
   record-unattended-heartbeat:
-    if: github.repository == 'douluo511/Geometry-Lotto-Pro' && github.ref == 'refs/heads/main'
+    needs: offline-contract
+    if: >-
+      github.repository == 'douluo511/Geometry-Lotto-Pro' &&
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: write
     steps:
       - name: Checkout isolated P0 infrastructure from main
         uses: actions/checkout@v4
@@ -27,10 +54,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Verify P0 idempotence, tamper evidence and restart tests
-        env:
-          PYTHONPATH: .
-        run: python -m unittest discover -s tests -p 'test_p0_scheduler.py' -v
       - name: Append remote ledger receipt, push, and independently re-read
         env:
           PYTHONPATH: .
