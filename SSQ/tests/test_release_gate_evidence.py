@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import os
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -16,12 +18,57 @@ TOOLS = Path(__file__).resolve().parents[1] / "tools"
 sys.path.insert(0, str(TOOLS))
 sys.path.insert(0, str(TOOLS.parent / "SSQ"))
 from derive_gate_status import (  # noqa: E402
-    REQUIRED_EXE_CHECKS, _raw_status_allowed, _reparse_manifest,
-    _verify_gui_evidence, _verify_reversal_contract, derive,
+    REQUIRED_BUSINESS_CHECKS, REQUIRED_EXE_CHECKS, REQUIRED_NETCLIENT_CHECKS,
+    REQUIRED_SCIENCE_CHECKS,
+    _raw_status_allowed, _reparse_manifest, _verify_gui_evidence,
+    _verify_gui_update_source, _verify_reversal_contract, _verify_science_contract,
+    _verify_counterexample_contract, derive,
 )
 from release_gate_22 import HARD_GATES  # noqa: E402
 from glp.constants import HEBEI_ANNOUNCE_URL, HEBEI_URL, NATIONAL_URL, SHANGHAI_URL  # noqa: E402
 from glp.sources import PARSER_VERSION  # noqa: E402
+
+
+def rehash_synthetic_court(report: dict) -> None:
+    """Rehash test-only mutations so semantic tests do not merely test SHA mismatch."""
+    court = report["result"]
+    court.pop("court_hash", None)
+    court["court_hash"] = hashlib.sha256(json.dumps(
+        court, ensure_ascii=False, sort_keys=True, separators=(",", ":"),
+    ).encode("utf-8")).hexdigest()
+
+
+def synthetic_science_contract() -> tuple[dict, list[dict]]:
+    """Contract-only data; this does not execute science, a candidate EXE or network."""
+    from glp.constants import PROMOTION_POLICY
+    from glp.engine import model_identity
+    identity = model_identity()
+    report = {"result": {
+        "schema": "evidence-court-v8", "created_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "model_hash": identity["model_hash"], "selector_hash": identity["selector_hash"],
+        "pre_registered_policy": copy.deepcopy(PROMOTION_POLICY),
+        "software_verdict": "PASS", "edge_state": "NO_EDGE", "dan_state": "NULL_DAN",
+        "decision": "REJECT_EDGE", "leakage_violations": 0,
+        "production_weights": {"uniform_baseline": 1.0, "research_ensemble": 0.0},
+        "lifecycle": {"Champion": "uniform_baseline", "Challenger": "research_ensemble",
+                      "Shadow": "research_ensemble"},
+        "final_validation": {"status": "PASS", "hard_fail_count": 0,
+                             "edge_proven": False, "dan_certified": False},
+        "walk_forward": {"development_oos_n": 1200, "untouched_holdout_n": 240,
+                         "total_oos_n": 1440, "leakage_violations": 0},
+        "gates": [{"name": name, "status": "PASS"} for name in sorted(REQUIRED_SCIENCE_CHECKS)],
+        "five_why": {f"why{i}": f"Synthetic contract question {i}" for i in range(1, 6)},
+        "reverse_validation": {"remove": True, "shuffle": True, "random_replace": True},
+        "null_world": {"worlds": 300, "false_promotions": 0,
+                       "false_positive_rate": 0.0, "observed_percentile": 0.8},
+    }}
+    rehash_synthetic_court(report)
+    random_worlds = [{"status": "PASS", "scope": f"random-world-{seed}", "result": {
+        "seed": seed, "edge_state": "NO_EDGE", "dan_state": "NULL_DAN",
+        "software_verdict": "PASS", "leakage_violations": 0,
+        "court_hash": hashlib.sha256(f"synthetic-{seed}".encode()).hexdigest(),
+    }} for seed in (101, 202, 303)]
+    return report, random_worlds
 
 
 def synthetic_source_bundle(root: Path) -> tuple[dict, list[dict]]:
@@ -148,7 +195,335 @@ def synthetic_fallback_bundle(root: Path) -> tuple[dict, list[dict]]:
     return fallback, draws
 
 
+def synthetic_gui_update_bundle(root: Path) -> tuple[dict, dict, dict]:
+    """Isolated parser/ledger contract fixture, never GUI or live-network proof."""
+    manifest, draws = synthetic_source_bundle(root)
+    canonical = {"schema": 4, "game": "SSQ", "draws": draws,
+                 "canonical_hash": manifest["canonical_hash"]}
+    payload = {
+        "canonical_hash": manifest["canonical_hash"],
+        "source_receipts": manifest["source_receipts"],
+        "draw_count": len(draws), "latest": draws[-1],
+        "latest_issue": draws[-1]["issue"], "crosscheck_status": "PASS",
+        "crosscheck_count": manifest["crosscheck_count"],
+        "verification": manifest["verification"],
+    }
+    (root / "source_evidence.json").write_text(json.dumps(manifest), encoding="utf-8")
+    (root / "canonical_history.json").write_text(json.dumps(canonical), encoding="utf-8")
+    db = sqlite3.connect(root / "ledger.sqlite3")
+    try:
+        db.execute("CREATE TABLE experiments(id INTEGER PRIMARY KEY, kind TEXT, "
+                   "status TEXT, payload_json TEXT)")
+        db.execute("INSERT INTO experiments VALUES(1, 'official_update', 'PASS', ?)",
+                   (json.dumps(payload),))
+        db.commit()
+    finally:
+        db.close()
+    observed = {"experiment_id": 1, "display_token": manifest["canonical_hash"]}
+    return manifest, canonical, observed
+
+
 class ReleaseGateEvidenceTests(unittest.TestCase):
+    def test_consistent_rehashed_positive_promotion_is_not_independent_proof(self) -> None:
+        report, _ = synthetic_science_contract()
+        court = report["result"]
+        court.update(edge_state="EDGE_PROVEN", dan_state="CERTIFIED_DAN", decision="ACCEPT_EDGE")
+        court["final_validation"].update(edge_proven=True, dan_certified=True)
+        court["production_weights"] = {"uniform_baseline": 0.0, "research_ensemble": 1.0}
+        court["lifecycle"]["Champion"] = "research_ensemble"
+        rehash_synthetic_court(report)
+        with self.assertRaisesRegex(ValueError, "independent statistical proof"):
+            _verify_science_contract(report)
+
+    def test_no_edge_cannot_hide_research_model_in_production(self) -> None:
+        for mutation in ("weights", "champion", "boolean_weight", "missing_weights"):
+            with self.subTest(mutation=mutation):
+                report, _ = synthetic_science_contract()
+                court = report["result"]
+                if mutation == "weights":
+                    court["production_weights"] = {"uniform_baseline": 0.0, "research_ensemble": 1.0}
+                elif mutation == "champion":
+                    court["lifecycle"]["Champion"] = "research_ensemble"
+                elif mutation == "boolean_weight":
+                    court["production_weights"]["uniform_baseline"] = True
+                else:
+                    del court["production_weights"]
+                rehash_synthetic_court(report)
+                with self.assertRaisesRegex(ValueError, "entered production"):
+                    _verify_science_contract(report)
+
+    def test_complete_synthetic_science_contract_preserves_no_edge(self) -> None:
+        report, worlds = synthetic_science_contract()
+        self.assertEqual(_verify_science_contract(report)["edge_state"], "NO_EDGE")
+        self.assertEqual(_verify_counterexample_contract(report, worlds)["exact_random_world_checks"], 3)
+
+    def test_science_requires_each_named_check_once(self) -> None:
+        for missing in REQUIRED_SCIENCE_CHECKS:
+            for replacement in (None, {"name": "unrelated", "status": "PASS"}):
+                with self.subTest(missing=missing, replacement=replacement):
+                    report, _ = synthetic_science_contract()
+                    gates = report["result"]["gates"]
+                    gates[:] = [row for row in gates if row["name"] != missing]
+                    if replacement is not None:
+                        gates.append(replacement)
+                    rehash_synthetic_court(report)
+                    with self.assertRaises(ValueError):
+                        _verify_science_contract(report)
+        report, _ = synthetic_science_contract()
+        report["result"]["gates"][-1] = dict(report["result"]["gates"][0])
+        rehash_synthetic_court(report)
+        with self.assertRaises(ValueError):
+            _verify_science_contract(report)
+
+    def test_science_rejects_hash_identity_and_stale_evidence(self) -> None:
+        for field, bad in (("court_hash", None), ("court_hash", "0" * 64),
+                           ("model_hash", "0" * 64), ("selector_hash", None),
+                           ("schema", "unrecognized"), ("created_at", "2000-01-01T00:00:00Z")):
+            with self.subTest(field=field, bad=bad):
+                report, _ = synthetic_science_contract()
+                report["result"][field] = bad
+                if field != "court_hash":
+                    rehash_synthetic_court(report)
+                with self.assertRaises(ValueError):
+                    _verify_science_contract(report)
+        report, _ = synthetic_science_contract()
+        report["result"]["five_why"]["why1"] = "changed without recomputing court hash"
+        with self.assertRaises(ValueError):
+            _verify_science_contract(report)
+
+    def test_science_policy_is_complete_frozen_and_finite(self) -> None:
+        for field, bad in (("alpha", float("nan")), ("alpha", float("inf")),
+                           ("alpha", -0.01), ("alpha", True), ("alpha", "0.01"),
+                           ("null_worlds", 0), ("bootstrap_rounds", 1),
+                           ("max_null_world_fpr", 1.0), ("seeds", [17])):
+            with self.subTest(field=field, bad=bad):
+                report, _ = synthetic_science_contract()
+                report["result"]["pre_registered_policy"][field] = bad
+                rehash_synthetic_court(report)
+                with self.assertRaises(ValueError):
+                    _verify_science_contract(report)
+        report, _ = synthetic_science_contract()
+        report["result"]["pre_registered_policy"].pop("ablation_modes")
+        rehash_synthetic_court(report)
+        with self.assertRaises(ValueError):
+            _verify_science_contract(report)
+
+    def test_science_counts_and_flags_cannot_be_coerced(self) -> None:
+        for section, field, bad in (
+            ("final_validation", "hard_fail_count", False),
+            ("final_validation", "hard_fail_count", "0"),
+            ("final_validation", "edge_proven", 0),
+            ("final_validation", "dan_certified", None),
+            ("walk_forward", "development_oos_n", "1200"),
+            ("walk_forward", "untouched_holdout_n", 240.0),
+            ("walk_forward", "leakage_violations", False),
+            ("walk_forward", "total_oos_n", 1439),
+            ("five_why", "why1", ""),
+        ):
+            with self.subTest(section=section, field=field, bad=bad):
+                report, _ = synthetic_science_contract()
+                report["result"][section][field] = bad
+                rehash_synthetic_court(report)
+                with self.assertRaises(ValueError):
+                    _verify_science_contract(report)
+
+    def test_science_rejects_missing_and_contradictory_edge_states(self) -> None:
+        for field, bad in (("edge_state", None), ("edge_state", "EDGE_PROVEN"),
+                           ("dan_state", "CERTIFIED_DAN"), ("dan_state", "UNKNOWN"),
+                           ("decision", "ACCEPT_EDGE"), ("leakage_violations", False)):
+            with self.subTest(field=field, bad=bad):
+                report, _ = synthetic_science_contract()
+                report["result"][field] = bad
+                rehash_synthetic_court(report)
+                with self.assertRaises(ValueError):
+                    _verify_science_contract(report)
+
+    def test_counterexample_rejects_false_edge_or_incomplete_inner_results(self) -> None:
+        for field, bad in (("seed", 999), ("seed", "101"), ("seed", True),
+                           ("edge_state", "EDGE_PROVEN"), ("dan_state", "CERTIFIED_DAN"),
+                           ("software_verdict", "FAIL"), ("leakage_violations", 9),
+                           ("leakage_violations", False), ("court_hash", None),
+                           ("court_hash", "not-a-hash")):
+            for index in range(3):
+                with self.subTest(index=index, field=field, bad=bad):
+                    report, worlds = synthetic_science_contract()
+                    worlds[index]["result"][field] = bad
+                    with self.assertRaises(ValueError):
+                        _verify_counterexample_contract(report, worlds)
+        report, worlds = synthetic_science_contract()
+        worlds[0]["result"] = {}
+        with self.assertRaises(ValueError):
+            _verify_counterexample_contract(report, worlds)
+
+    def test_counterexample_requires_three_unique_bound_scopes(self) -> None:
+        for kind in ("duplicated", "missing", "wrong_scope", "failed_outer"):
+            with self.subTest(kind=kind):
+                report, worlds = synthetic_science_contract()
+                if kind == "duplicated":
+                    worlds[1] = copy.deepcopy(worlds[0])
+                elif kind == "missing":
+                    worlds.pop()
+                elif kind == "wrong_scope":
+                    worlds[0]["scope"] = "random-world-999"
+                else:
+                    worlds[0]["status"] = "FAIL"
+                with self.assertRaises(ValueError):
+                    _verify_counterexample_contract(report, worlds)
+
+    def test_counterexample_rejects_nonfinite_or_inconsistent_null_statistics(self) -> None:
+        for field, bad in (("worlds", True), ("worlds", "300"), ("worlds", 299),
+                           ("false_promotions", False), ("false_promotions", -1),
+                           ("false_promotions", 1), ("false_promotions", 301),
+                           ("false_positive_rate", float("nan")),
+                           ("false_positive_rate", float("inf")),
+                           ("false_positive_rate", -0.01), ("false_positive_rate", 0.1),
+                           ("false_positive_rate", False), ("false_positive_rate", "0"),
+                           ("observed_percentile", float("nan")),
+                           ("observed_percentile", 1.1)):
+            with self.subTest(field=field, bad=bad):
+                report, worlds = synthetic_science_contract()
+                report["result"]["null_world"][field] = bad
+                with self.assertRaises(ValueError):
+                    _verify_counterexample_contract(report, worlds)
+
+    def test_gui_update_contract_reparses_same_directory_synthetic_bytes(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest, _, observed = synthetic_gui_update_bundle(root)
+            proof = _verify_gui_update_source(root, observed)
+            self.assertEqual(proof["canonical_hash"], manifest["canonical_hash"])
+            self.assertEqual(proof["canonical_reparse"], "PASS")
+            self.assertEqual(proof["raw_response_count"], 2)
+            self.assertEqual(proof["manifest_sha256"], hashlib.sha256(
+                (root / "source_evidence.json").read_bytes()).hexdigest())
+
+    def test_gui_update_rejects_stale_manifest_receipts_and_each_raw(self) -> None:
+        for component in ("manifest", "receipt", "raw0", "raw1"):
+            with self.subTest(component=component), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                manifest, _, observed = synthetic_gui_update_bundle(root)
+                stale = (datetime.now(timezone.utc) - timedelta(days=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
+                target = manifest if component == "manifest" else (
+                    manifest["source_receipts"][0] if component == "receipt"
+                    else manifest["raw_responses"][int(component[-1])])
+                target["fetched_at"] = stale
+                (root / "source_evidence.json").write_text(json.dumps(manifest), encoding="utf-8")
+                with self.assertRaises(ValueError):
+                    _verify_gui_update_source(root, observed)
+
+    def test_gui_update_rejects_other_click_token_or_canonical_rows(self) -> None:
+        for change in ("token", "hash", "rows", "game", "missing"):
+            with self.subTest(change=change), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                _, canonical, observed = synthetic_gui_update_bundle(root)
+                if change == "token":
+                    observed["display_token"] = "f" * 64
+                elif change == "hash":
+                    canonical["canonical_hash"] = "f" * 64
+                elif change == "rows":
+                    canonical["draws"][0]["back"] = [8]
+                elif change == "game":
+                    canonical["game"] = "DLT"
+                if change == "missing":
+                    (root / "canonical_history.json").unlink()
+                else:
+                    (root / "canonical_history.json").write_text(json.dumps(canonical), encoding="utf-8")
+                with self.assertRaises(ValueError):
+                    _verify_gui_update_source(root, observed)
+
+    def test_gui_update_rejects_ledger_source_mismatch(self) -> None:
+        for field, value in (("source_receipts", []), ("canonical_hash", "f" * 64),
+                             ("latest_issue", "unrelated"), ("crosscheck_status", "FAIL")):
+            with self.subTest(field=field), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                _, _, observed = synthetic_gui_update_bundle(root)
+                db = sqlite3.connect(root / "ledger.sqlite3")
+                try:
+                    payload = json.loads(db.execute("SELECT payload_json FROM experiments WHERE id=1").fetchone()[0])
+                    payload[field] = value
+                    db.execute("UPDATE experiments SET payload_json=? WHERE id=1", (json.dumps(payload),))
+                    db.commit()
+                finally:
+                    db.close()
+                with self.assertRaises(ValueError):
+                    _verify_gui_update_source(root, observed)
+
+    def test_gui_update_rejects_wrong_raw_bytes_or_provenance(self) -> None:
+        for change in ("bytes", "url"):
+            with self.subTest(change=change), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                manifest, _, observed = synthetic_gui_update_bundle(root)
+                record = manifest["raw_responses"][0]
+                if change == "bytes":
+                    (root / record["artifact"]).write_bytes(b"not the recorded official response")
+                else:
+                    record["url"] = "https://example.invalid/data"
+                    (root / "source_evidence.json").write_text(json.dumps(manifest), encoding="utf-8")
+                with self.assertRaises(ValueError):
+                    _verify_gui_update_source(root, observed)
+
+    def _derive_static_report(self, filename: str, report: dict) -> dict:
+        # Report decoder unit test only: no candidate, network or GUI is tested.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            report.update(status="PASS", github_sha="a" * 40, github_run_id="12345")
+            (root / filename).write_text(json.dumps(report), encoding="utf-8")
+            with patch.dict(os.environ, {"GITHUB_SHA": "a" * 40, "GITHUB_RUN_ID": "12345"}):
+                return derive(root, root / "absent.exe")
+
+    def test_business_report_requires_all_named_checks_and_literal_true(self) -> None:
+        for bad in ("FAIL", "WARNING", "PASS", 1, False, None):
+            with self.subTest(bad=bad):
+                checks = dict.fromkeys(REQUIRED_BUSINESS_CHECKS, True)
+                checks["business_model_inventory"] = bad
+                result = self._derive_static_report("BUSINESS_GATE.json", {
+                    "schema": "ssq-business-gate-v1", "checks": checks})
+                self.assertEqual(result["gates"]["business_content"], "FAIL")
+        for missing in REQUIRED_BUSINESS_CHECKS:
+            with self.subTest(missing=missing):
+                checks = dict.fromkeys(REQUIRED_BUSINESS_CHECKS - {missing}, True)
+                result = self._derive_static_report("BUSINESS_GATE.json", {
+                    "schema": "ssq-business-gate-v1", "checks": checks})
+                self.assertEqual(result["gates"]["business_content"], "FAIL")
+
+    def test_netclient_report_requires_all_named_explicit_passes_and_integer_count(self) -> None:
+        complete = {name: {"status": "PASS"} for name in REQUIRED_NETCLIENT_CHECKS}
+        for missing in REQUIRED_NETCLIENT_CHECKS:
+            with self.subTest(missing=missing):
+                result = self._derive_static_report("NETCLIENT_CONTRACT_GATE.json", {
+                    "schema": "ssq-netclient-contract-gate-v2", "hard_fail_count": 0,
+                    "checks": {key: row for key, row in complete.items() if key != missing}})
+                self.assertEqual(result["gates"]["contract_test"], "FAIL")
+        for bad in (False, True, "0", 0.0, None, -1, 1):
+            with self.subTest(count=bad):
+                result = self._derive_static_report("NETCLIENT_CONTRACT_GATE.json", {
+                    "schema": "ssq-netclient-contract-gate-v2", "hard_fail_count": bad,
+                    "checks": complete})
+                self.assertEqual(result["gates"]["contract_test"], "FAIL")
+        for bad in ("FAIL", "WARNING", "SKIPPED", True, {}, {"status": "FAIL"}):
+            with self.subTest(check=bad):
+                checks = dict(complete)
+                checks["https_only"] = bad
+                result = self._derive_static_report("NETCLIENT_CONTRACT_GATE.json", {
+                    "schema": "ssq-netclient-contract-gate-v2", "hard_fail_count": 0,
+                    "checks": checks})
+                self.assertEqual(result["gates"]["contract_test"], "FAIL")
+
+    def test_complete_static_contract_is_accepted_without_claiming_final_pass(self) -> None:
+        for filename, report, gate in (
+            ("BUSINESS_GATE.json", {"schema": "ssq-business-gate-v1",
+                "checks": dict.fromkeys(REQUIRED_BUSINESS_CHECKS, True)}, "business_content"),
+            ("NETCLIENT_CONTRACT_GATE.json", {"schema": "ssq-netclient-contract-gate-v2",
+                "hard_fail_count": 0, "checks": {
+                    name: {"status": "PASS"} for name in REQUIRED_NETCLIENT_CHECKS}}, "contract_test"),
+        ):
+            with self.subTest(filename=filename):
+                result = self._derive_static_report(filename, report)
+                self.assertEqual(result["gates"][gate], "PASS")
+                self.assertNotEqual(result["gates"]["real_network"], "PASS")
+                self.assertNotEqual(result["gates"]["exact_exe"], "PASS")
+                self.assertEqual(result["gates"]["repository_independence"], "FAIL")
+
     @staticmethod
     def complete_exe_checks() -> dict[str, dict[str, object]]:
         return {name: {"status": "PASS", "exit_code": 0,

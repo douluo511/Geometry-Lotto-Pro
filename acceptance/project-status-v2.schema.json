@@ -1,0 +1,255 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:project-status-v2",
+  "title": "Windows EXE 项目双完成度状态 V2",
+  "description": "只校验报告结构与部分发布逻辑；证据真伪、哈希相等、项目范围完整性和真实执行结果仍须独立核验。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "project_id", "name", "baseline", "candidate", "scores", "gates", "entry_points", "checks", "evidence", "network_attempts", "largest_risk", "next_action", "updated_at_utc"],
+  "properties": {
+    "schema_version": { "const": "2.1" },
+    "project_id": { "type": "string", "minLength": 1 },
+    "name": { "type": "string", "minLength": 1 },
+    "baseline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "uri", "frozen_at_utc", "engineering_total_weight", "business_total_weight"],
+      "properties": {
+        "id": { "type": ["string", "null"] },
+        "uri": { "type": ["string", "null"] },
+        "frozen_at_utc": { "$ref": "#/$defs/nullableUtc" },
+        "engineering_total_weight": { "$ref": "#/$defs/nullableWeight" },
+        "business_total_weight": { "$ref": "#/$defs/nullableWeight" }
+      }
+    },
+    "candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "commit_sha", "tree_sha", "config_sha256", "dependencies_sha256", "data_sha256", "model_sha256", "build_run_url", "windows_environment", "tested_exe_sha256", "release_exe_sha256", "release_artifact_uri", "release_manifest_sha256", "same_hash_verified"],
+      "properties": {
+        "id": { "type": ["string", "null"] },
+        "commit_sha": { "$ref": "#/$defs/nullableSha" },
+        "tree_sha": { "$ref": "#/$defs/nullableSha" },
+        "config_sha256": { "$ref": "#/$defs/nullableSha256" },
+        "dependencies_sha256": { "$ref": "#/$defs/nullableSha256" },
+        "data_sha256": { "$ref": "#/$defs/nullableSha256" },
+        "model_sha256": { "$ref": "#/$defs/nullableSha256" },
+        "build_run_url": { "type": ["string", "null"] },
+        "windows_environment": { "type": ["string", "null"] },
+        "tested_exe_sha256": { "$ref": "#/$defs/nullableSha256" },
+        "release_exe_sha256": { "$ref": "#/$defs/nullableSha256" },
+        "release_artifact_uri": { "type": ["string", "null"] },
+        "release_manifest_sha256": { "$ref": "#/$defs/nullableSha256" },
+        "same_hash_verified": { "type": "boolean" }
+      }
+    },
+    "scores": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["engineering_accepted_weight", "engineering_pct", "business_accepted_weight", "business_pct", "overall_pct"],
+      "properties": {
+        "engineering_accepted_weight": { "$ref": "#/$defs/nullableWeight" },
+        "engineering_pct": { "$ref": "#/$defs/nullableWeight" },
+        "business_accepted_weight": { "$ref": "#/$defs/nullableWeight" },
+        "business_pct": { "$ref": "#/$defs/nullableWeight" },
+        "overall_pct": { "$ref": "#/$defs/nullableWeight" }
+      }
+    },
+    "gates": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["no_shell", "engineering", "business", "project_final", "release"],
+      "properties": {
+        "no_shell": { "$ref": "#/$defs/gateStatus" },
+        "engineering": { "$ref": "#/$defs/gateStatus" },
+        "business": { "$ref": "#/$defs/gateStatus" },
+        "project_final": { "$ref": "#/$defs/gateStatus" },
+        "release": { "enum": ["YES", "NO"] }
+      }
+    },
+    "entry_points": {
+      "type": "array",
+      "description": "须与冻结功能清单逐项对账；JSON Schema 本身不能证明清单没有漏项。",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["entry_id", "kind", "requirement_id", "candidate_id", "implementation_ref", "production_call_path", "real_input_or_data_ref", "test_evidence_ids", "effect_evidence_ids", "status"],
+        "properties": {
+          "entry_id": { "type": "string", "minLength": 1 },
+          "kind": { "enum": ["button", "module", "model", "updater", "network", "analysis", "other"] },
+          "requirement_id": { "type": "string", "minLength": 1 },
+          "candidate_id": { "type": ["string", "null"] },
+          "implementation_ref": { "type": ["string", "null"] },
+          "production_call_path": { "type": ["string", "null"] },
+          "real_input_or_data_ref": { "type": ["string", "null"] },
+          "test_evidence_ids": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+          "effect_evidence_ids": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+          "status": { "$ref": "#/$defs/checkStatus" }
+        }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["check_id", "stream", "criterion_id", "mandatory", "status", "candidate_id", "evidence_ids", "valid_until_utc"],
+        "properties": {
+          "check_id": { "type": "string", "minLength": 1 },
+          "stream": { "enum": ["engineering", "business"] },
+          "criterion_id": { "type": "string", "minLength": 1 },
+          "mandatory": { "type": "boolean" },
+          "status": { "$ref": "#/$defs/checkStatus" },
+          "candidate_id": { "type": ["string", "null"] },
+          "evidence_ids": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+          "valid_until_utc": { "$ref": "#/$defs/nullableUtc" }
+        }
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["evidence_id", "candidate_id", "kind", "collected_at_utc", "environment", "source_uri", "artifact_uri", "artifact_sha256", "assertions", "status"],
+        "properties": {
+          "evidence_id": { "type": "string", "minLength": 1 },
+          "candidate_id": { "type": "string", "minLength": 1 },
+          "kind": { "type": "string", "minLength": 1 },
+          "collected_at_utc": { "$ref": "#/$defs/utc" },
+          "environment": { "type": "string", "minLength": 1 },
+          "source_uri": { "type": "string", "minLength": 1 },
+          "artifact_uri": { "type": "string", "minLength": 1 },
+          "artifact_sha256": { "$ref": "#/$defs/sha256" },
+          "assertions": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+          "status": { "$ref": "#/$defs/checkStatus" }
+        }
+      }
+    },
+    "network_attempts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["attempt_id", "candidate_id", "source_id", "source_role", "observed_at_utc", "status", "raw_response_uri", "raw_response_sha256", "schema_status", "content_status", "freshness_status", "conflict_status", "failure_detail"],
+        "properties": {
+          "attempt_id": { "type": "string", "minLength": 1 },
+          "candidate_id": { "type": "string", "minLength": 1 },
+          "source_id": { "type": "string", "minLength": 1 },
+          "source_role": { "enum": ["primary", "fallback"] },
+          "observed_at_utc": { "$ref": "#/$defs/utc" },
+          "status": { "$ref": "#/$defs/checkStatus" },
+          "raw_response_uri": { "type": ["string", "null"] },
+          "raw_response_sha256": { "$ref": "#/$defs/nullableSha256" },
+          "schema_status": { "$ref": "#/$defs/checkStatus" },
+          "content_status": { "$ref": "#/$defs/checkStatus" },
+          "freshness_status": { "$ref": "#/$defs/checkStatus" },
+          "conflict_status": { "$ref": "#/$defs/checkStatus" },
+          "failure_detail": { "type": ["string", "null"] }
+        },
+        "allOf": [{
+          "if": { "properties": { "status": { "const": "PASS" } }, "required": ["status"] },
+          "then": {
+            "properties": {
+              "raw_response_uri": { "type": "string", "minLength": 1 },
+              "raw_response_sha256": { "$ref": "#/$defs/sha256" },
+              "schema_status": { "const": "PASS" },
+              "content_status": { "const": "PASS" },
+              "freshness_status": { "const": "PASS" },
+              "conflict_status": { "const": "PASS" }
+            }
+          }
+        }]
+      }
+    },
+    "largest_risk": { "type": "string", "minLength": 1 },
+    "next_action": { "type": "string", "minLength": 1 },
+    "updated_at_utc": { "$ref": "#/$defs/nullableUtc" }
+  },
+  "$defs": {
+    "utc": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$" },
+    "nullableUtc": { "anyOf": [{ "$ref": "#/$defs/utc" }, { "type": "null" }] },
+    "sha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+    "nullableSha256": { "anyOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }] },
+    "nullableSha": { "anyOf": [{ "type": "string", "pattern": "^[0-9a-fA-F]{40,64}$" }, { "type": "null" }] },
+    "nullableWeight": { "anyOf": [{ "type": "number", "minimum": 0, "maximum": 100 }, { "type": "null" }] },
+    "checkStatus": { "enum": ["PASS", "FAIL", "PENDING", "BLOCKED", "WARNING", "UNAVAILABLE", "SKIPPED", "UNKNOWN"] },
+    "gateStatus": { "enum": ["PASS", "FAIL", "BLOCKED"] }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "gates": { "properties": { "release": { "const": "YES" } } } } },
+      "then": {
+        "properties": {
+          "baseline": {
+            "properties": {
+              "id": { "type": "string", "minLength": 1 },
+              "uri": { "type": "string", "minLength": 1 },
+              "engineering_total_weight": { "const": 100 },
+              "business_total_weight": { "const": 100 }
+            }
+          },
+          "candidate": {
+            "properties": {
+              "id": { "type": "string", "minLength": 1 },
+              "commit_sha": { "type": "string" },
+              "tree_sha": { "type": "string" },
+              "build_run_url": { "type": "string", "minLength": 1 },
+              "windows_environment": { "type": "string", "minLength": 1 },
+              "tested_exe_sha256": { "$ref": "#/$defs/sha256" },
+              "release_exe_sha256": { "$ref": "#/$defs/sha256" },
+              "release_artifact_uri": { "type": "string", "minLength": 1 },
+              "release_manifest_sha256": { "$ref": "#/$defs/sha256" },
+              "same_hash_verified": { "const": true }
+            }
+          },
+          "scores": {
+            "properties": {
+              "engineering_accepted_weight": { "const": 100 },
+              "engineering_pct": { "const": 100 },
+              "business_accepted_weight": { "const": 100 },
+              "business_pct": { "const": 100 },
+              "overall_pct": { "const": 100 }
+            }
+          },
+          "gates": {
+            "properties": {
+              "no_shell": { "const": "PASS" },
+              "engineering": { "const": "PASS" },
+              "business": { "const": "PASS" },
+              "project_final": { "const": "PASS" }
+            }
+          },
+          "entry_points": {
+            "minItems": 1,
+            "items": {
+              "properties": {
+                "candidate_id": { "type": "string", "minLength": 1 },
+                "implementation_ref": { "type": "string", "minLength": 1 },
+                "production_call_path": { "type": "string", "minLength": 1 },
+                "real_input_or_data_ref": { "type": "string", "minLength": 1 },
+                "test_evidence_ids": { "minItems": 1 },
+                "effect_evidence_ids": { "minItems": 1 },
+                "status": { "const": "PASS" }
+              }
+            }
+          },
+          "checks": {
+            "minItems": 1,
+            "items": {
+              "properties": {
+                "status": { "const": "PASS" },
+                "candidate_id": { "type": "string", "minLength": 1 },
+                "evidence_ids": { "minItems": 1 },
+                "valid_until_utc": { "$ref": "#/$defs/utc" }
+              }
+            }
+          },
+          "evidence": { "minItems": 1 },
+          "network_attempts": { "minItems": 1 },
+          "updated_at_utc": { "$ref": "#/$defs/utc" }
+        }
+      }
+    }
+  ]
+}
