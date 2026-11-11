@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 
 HARD_GATES = [
@@ -44,7 +45,9 @@ HARD_GATES = [
 
 def evaluate(report: dict) -> dict:
     statuses = report.get("gates", {})
-    normalized = {k: str(statuses.get(k, "UNKNOWN")).upper() for k in HARD_GATES}
+    allowed = {"PASS", "FAIL", "NOT VERIFIED", "BLOCKED"}
+    normalized = {k: str(statuses.get(k, "NOT VERIFIED")).upper() for k in HARD_GATES}
+    normalized = {k: (v if v in allowed else "FAIL") for k, v in normalized.items()}
     bad = {k: v for k, v in normalized.items() if v != "PASS"}
     return {
         "final_gate": "PASS" if not bad else "FAIL",
@@ -52,7 +55,7 @@ def evaluate(report: dict) -> dict:
         "gates": normalized,
         "failures": bad,
         "exe_sha256": report.get("exe_sha256"),
-        "github_sha": report.get("github_sha"),
+        "github_run_id": os.environ.get("GITHUB_RUN_ID"), "github_run_attempt": os.environ.get("GITHUB_RUN_ATTEMPT"), "github_sha": report.get("github_sha"),
     }
 
 

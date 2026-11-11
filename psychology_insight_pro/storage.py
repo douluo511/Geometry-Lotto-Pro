@@ -30,12 +30,10 @@ class KnowledgeStorage:
 
     def ensure(self) -> Dict:
         self.local_path.parent.mkdir(parents=True, exist_ok=True)
-        if not self.local_path.exists():
-            shutil.copy2(self.bundled_path, self.local_path)
         try:
             return self._load(self.local_path)
         except Exception:
-            shutil.copy2(self.bundled_path, self.local_path)
+            self.repair_knowledge()
             return self._load(self.local_path)
 
     def load_knowledge(self) -> Dict:
@@ -139,11 +137,40 @@ class KnowledgeStorage:
             if staged_evidence is not None:
                 staged_evidence.unlink(missing_ok=True)
 
-    def repair_knowledge(self) -> Dict[str, str]:
+    def repair_knowledge(self) -> Dict:
+        self.local_path.parent.mkdir(parents=True, exist_ok=True)
         try:
             self._load(self.local_path)
-            return {"knowledge": "PASS"}
+            return {"knowledge": "PASS", "repair_action": "NO_REPAIR_NEEDED"}
         except Exception:
-            shutil.copy2(self.bundled_path, self.local_path)
-            self._load(self.local_path)
-            return {"knowledge": "REPAIRED"}
+            # Validate the known-good bundle before preserving or changing local
+            # state. Keep exact corrupt bytes and provenance for user recovery.
+            bundled = self._load(self.bundled_path)
+            old = self.local_path.read_bytes() if self.local_path.exists() else None
+            old_evidence = self.evidence_path.read_bytes() if self.evidence_path.exists() else None
+            backups = {}
+            for path, raw in ((self.local_path, old), (self.evidence_path, old_evidence)):
+                if raw is not None:
+                    digest = hashlib.sha256(raw).hexdigest()
+                    backup = self.local_path.parent / "repair_backups" / (path.name + "." + digest + ".bak")
+                    staged = self._stage(backup, raw)
+                    try:
+                        self._commit_replace(staged, backup)
+                    finally:
+                        staged.unlink(missing_ok=True)
+                    backups[path.name] = str(backup)
+            staged = self._stage(self.local_path, self._json_bytes(bundled))
+            try:
+                self._load(staged)
+                self._commit_replace(staged, self.local_path)
+                self._load(self.local_path)
+                # A bundle restoration is local repair, not a network receipt.
+                self.evidence_path.unlink(missing_ok=True)
+            except Exception:
+                self._restore(self.local_path, old)
+                self._restore(self.evidence_path, old_evidence)
+                raise
+            finally:
+                staged.unlink(missing_ok=True)
+            return {"knowledge": "PASS", "repair_action": "RESTORED_VALIDATED_BUNDLE", "backups": backups,
+                    "source_evidence": "NOT VERIFIED", "user_data_preserved": True}
