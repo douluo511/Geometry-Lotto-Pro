@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
     inputs:
       live_models:
-        description: "Explicitly opt in to paid external model calls"
+        description: "Explicitly opt in to 12 paid OpenAI GPT model calls"
         required: true
         type: boolean
         default: false
@@ -93,21 +93,15 @@ jobs:
         shell: bash
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
-          for name in OPENAI_API_KEY ANTHROPIC_API_KEY GEMINI_API_KEY; do
-            if [[ -z "${!name}" ]]; then
-              echo "::error::Missing required Actions secret: $name"
-              exit 1
-            fi
-          done
+          if [[ -z "$OPENAI_API_KEY" ]]; then
+            echo "::error::Missing required Actions secret: OPENAI_API_KEY"
+            exit 1
+          fi
       - name: Execute independently billed model calls (research only)
         env:
           PYTHONPATH: .
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           SELECTED_GAME: ${{ inputs.game }}
         run: >
           python -m research.inverse_formula.live_models
