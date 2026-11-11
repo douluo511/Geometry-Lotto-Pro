@@ -54,7 +54,7 @@ tests. This cannot be used to certify that actual provider keys are installed.
    executable code. Providers are not allowed to write local files.
 4. Validated proposals are shown to the *other* agents for independent
    critique in the second round. All agent requests and outputs are logged
-   with provider/model identity and SHA256 digests; secret values are omitted.
+   with provider/model identity, provider response IDs when supplied, and SHA256 digests; secret values are omitted.
 5. Every **unique** formula receives one vote; duplicated proposals are
    deduplicated. The resulting research candidate includes a separate D2 pair.
 6. A receipt records the model configurations, two rounds, challenges,
