@@ -17,7 +17,57 @@ from research.inverse_formula.tiered_council import (
     PROPOSER_ROLES, REVIEW_ROLE, complexity, reduce_review, shortlist,
     verify_tiered_agents,
 )
-from research.inverse_formula.probe import Draw, Game
+from research.inverse_formula.probe import Draw, Game, compare
+from research.inverse_formula.formula_bank import walk_forward_bank
+
+
+
+def independent_bank_and_descriptive_formula_diagnostic(
+        prefix: list[Draw], game: Game, proposals: list[dict],
+        window: int = 10) -> dict:
+    """No-cost Python replay with explicit selection-time boundary.
+
+    Fixed deterministic bank: each prediction at issue i used only earlier
+    draws (past-only). Newly GPT-proposed formulas: fixed formulas are applied
+    using earlier inputs but were selected AFTER seeing ALL these outcomes.
+    Their retrospective success is post-selection diagnostics, NOT independent
+    held-out evidence or a predictive superiority claim.
+    """
+    start = max(30, len(prefix) - window)
+    bank = walk_forward_bank(prefix, game, start=start)
+    reference = {key: bank[key] for key in (
+        "game", "replay_start_issue", "replay_end_issue",
+        "evaluated_issues", "exact_hits", "d2_hits",
+        "research_null_d2_hits", "theoretical_d2_rate",
+    )}
+    diagnostics = []
+    seen = set()
+    for row in proposals:
+        if row["formula_id"] in seen:
+            continue
+        seen.add(row["formula_id"])
+        exact = d2 = 0
+        for i in range(start, len(prefix)):
+            ticket = formula_ticket(prefix[:i], game, row["formula"])
+            comparison = compare(
+                (tuple(ticket["front"]), tuple(ticket["back"])), prefix[i])
+            exact += comparison["full"]
+            d2 += int(set(ticket["front"][:2]).issubset(prefix[i].front))
+        diagnostics.append({
+            "formula_id": row["formula_id"],
+            "observed_earlier_issues": len(prefix) - start,
+            "retrospective_exact": exact,
+            "retrospective_d2": d2,
+            "interpretation": "POST_SELECTION_DESCRIPTIVE_NOT_INDEPENDENT",
+            "prospective_issues_scored": 0,
+            "used_for_current_formula_selection": False,
+        })
+    return {
+        "independent_past_only_deterministic_bank": reference,
+        "gpt_formula_retrospective_descriptive_only": diagnostics,
+        "model_formula_independent_validation": "NOT_PERFORMED",
+        "fixed_random_null_formal_v47_used": False,
+    }
 
 
 def distill_tiered_decision(receipt: dict, prefix: list[Draw],
@@ -154,6 +204,8 @@ def distill_tiered_decision(receipt: dict, prefix: list[Draw],
             "called independent. Officially sourced future draws are needed."
         ),
         "python_deterministic_calculation": True,
+        "python_historical_audit": independent_bank_and_descriptive_formula_diagnostic(
+            prefix, game, validated),
         "raw_private_model_reasoning_included": False,
         "formal_v47_modified": False,
         "trusted_predraw_timestamp": False,
