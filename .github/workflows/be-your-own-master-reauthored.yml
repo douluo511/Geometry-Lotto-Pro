@@ -1,0 +1,124 @@
+name: Be Your Own Master reauthored Windows candidate
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'BeYourOwnMaster/**'
+      - '.github/workflows/be-your-own-master-reauthored.yml'
+
+concurrency:
+  group: be-your-own-master-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  strict-candidate:
+    runs-on: windows-2022
+    timeout-minutes: 45
+    env:
+      PYTHONUTF8: '1'
+      PYTHONIOENCODING: 'utf-8'
+      SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    defaults:
+      run:
+        working-directory: BeYourOwnMaster
+    steps:
+      - name: Checkout exact candidate head
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          fetch-depth: 0
+      - name: Verify exact checkout
+        shell: pwsh
+        run: |
+          $actual=(git rev-parse HEAD).Trim()
+          if($actual -ne $env:SOURCE_SHA){throw "stale checkout"}
+      - name: Setup pinned Windows Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.11.9'
+          architecture: 'x64'
+      - name: Install frozen dependencies
+        run: python -m pip install --disable-pip-version-check -r requirements.txt
+      - name: Static compile
+        run: python -m compileall -q app tests main.py updater_main.py
+      - name: Governance gate
+        run: python -m tests.governance_gate
+      - name: Domain and method contracts
+        run: python -m tests.contract_gate
+      - name: Fault injection and repair
+        run: python -m tests.fault_injection_gate
+      - name: Independent updater contract
+        run: python -m tests.updater_contract_gate
+      - name: Real authoritative network availability
+        run: python -m tests.real_network_gate
+      - name: Business qualification boundary
+        run: python -m tests.business_gate
+      - name: Native Windows build
+        shell: pwsh
+        run: ./build_windows.ps1
+      - name: Exact EXE self-test and pre-GUI same hash
+        shell: pwsh
+        run: |
+          $exe=Resolve-Path ./dist/BeYourOwnMaster.exe
+          $before=(Get-FileHash -Algorithm SHA256 $exe).Hash.ToLowerInvariant()
+          $root=Join-Path $env:RUNNER_TEMP "byom-selftest"
+          $health=Join-Path $env:RUNNER_TEMP "byom-health.json"
+          $nonce=[guid]::NewGuid().ToString('N')
+          $proc=Start-Process -FilePath $exe -ArgumentList @('--root',"$root",'--self-test','--health-report',"$health",'--health-nonce',$nonce) -Wait -PassThru
+          if($proc.ExitCode -ne 0){throw "Exact EXE self-test failed"}
+          $obj=Get-Content -Raw $health|ConvertFrom-Json
+          if($obj.status -ne 'PASS' -or $obj.product -ne 'BeYourOwnMaster' -or $obj.source_sha -ne $env:SOURCE_SHA -or $obj.exe_sha256 -ne $before -or $obj.nonce -ne $nonce){throw "Exact EXE identity failed"}
+          $after=(Get-FileHash -Algorithm SHA256 $exe).Hash.ToLowerInvariant()
+          if($before -ne $after){throw "EXE changed after self-test"}
+          [ordered]@{status='PASS';source_sha=$env:SOURCE_SHA;exe_sha256_before=$before;exe_sha256_after=$after;same_hash_pre_gui='PASS';health=$obj}|ConvertTo-Json -Depth 5|Set-Content -Encoding utf8 exact_exe_evidence.json
+      - name: Exact independent updater fail-closed boundary
+        shell: pwsh
+        run: |
+          $up=Resolve-Path ./dist/BeYourOwnMasterUpdater.exe
+          $root=Join-Path $env:RUNNER_TEMP "byom-updater"
+          New-Item -ItemType Directory -Force $root|Out-Null
+          $proc=Start-Process -FilePath $up -ArgumentList @('--root',"$root") -Wait -PassThru -NoNewWindow
+          if($proc.ExitCode -ne 3){throw "expected BLOCKED updater rc=3"}
+          $obj=Get-Content -Raw (Join-Path $root 'updater_result.json')|ConvertFrom-Json
+          if($obj.status -ne 'BLOCKED'){throw "production context must block"}
+          [ordered]@{status='PASS';exact_updater='PASS';updater_sha256=(Get-FileHash -Algorithm SHA256 $up).Hash.ToLowerInvariant();production_context='BLOCKED';reason=$obj.reason}|ConvertTo-Json|Set-Content -Encoding utf8 exact_updater_evidence.json
+      - name: Physical GUI clicks on exact EXE
+        shell: pwsh
+        run: |
+          $exe=Resolve-Path ./dist/BeYourOwnMaster.exe
+          $root=Join-Path $env:RUNNER_TEMP "byom-gui"
+          python -m tests.gui_physical_click_gate --exe $exe --root $root --evidence gui_click_evidence.json
+      - name: Freeze candidate evidence
+        if: always()
+        run: python -m tests.collect_candidate_evidence
+      - name: Upload current exact-head evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: Be-Your-Own-Master-reauthored-${{ env.SOURCE_SHA }}
+          path: |
+            BeYourOwnMaster/dist/BeYourOwnMaster.exe
+            BeYourOwnMaster/dist/BeYourOwnMasterUpdater.exe
+            BeYourOwnMaster/*_evidence.json
+            BeYourOwnMaster/business_evidence.json
+            BeYourOwnMaster/candidate_manifest.json
+            BeYourOwnMaster/gui_click_evidence.png
+          if-no-files-found: warn
+      - name: Explicit Final boundary
+        if: success()
+        shell: pwsh
+        run: |
+          $m=Get-Content -Raw ./candidate_manifest.json|ConvertFrom-Json
+          Write-Host "NEW_REAUTHORED_LINEAGE=TRUE"
+          Write-Host "HISTORICAL_ACCEPTANCE_INHERITED=FALSE"
+          Write-Host "ENGINEERING_COMPLETION_PERCENT=$($m.engineering_completion.percent)"
+          Write-Host "BUSINESS_COMPLETION_PERCENT=$($m.business_completion.percent)"
+          Write-Host "REPOSITORY_INDEPENDENCE=BLOCKED"
+          Write-Host "REAL_RELEASE_N_TO_N_PLUS_1=BLOCKED"
+          Write-Host "30_DAY_EFFECTIVENESS=NOT VERIFIED"
+          Write-Host "90_DAY_EFFECTIVENESS=NOT VERIFIED"
+          Write-Host "FINAL_GATE=$($m.final_gate)"
