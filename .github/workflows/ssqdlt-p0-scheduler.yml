@@ -1,0 +1,72 @@
+name: SSQDLT P0 unattended schedule evidence (research only)
+
+on:
+  schedule:
+    # P0 bootstrap: two independent UTC windows/day. No lottery or paid API calls.
+    - cron: '17 16,17 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ssqdlt-p0-research-ledger
+  cancel-in-progress: false
+
+jobs:
+  record-unattended-heartbeat:
+    if: github.repository == 'douluo511/Geometry-Lotto-Pro' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout isolated P0 infrastructure from main
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Verify P0 idempotence, tamper evidence and restart tests
+        env:
+          PYTHONPATH: .
+        run: python -m unittest discover -s tests -p 'test_p0_scheduler.py' -v
+      - name: Append remote ledger receipt, push, and independently re-read
+        env:
+          PYTHONPATH: .
+        shell: bash
+        run: |
+          set -euo pipefail
+          branch="ssqdlt-p0-ledger-v1"
+          ledger="$RUNNER_TEMP/ssqdlt-p0-ledger"
+          restore="$RUNNER_TEMP/ssqdlt-p0-restored"
+          tracking="refs/remotes/origin/$branch"
+
+          # Always start from committed remote state; never trust Actions caches.
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null; then
+            git fetch --no-tags origin "refs/heads/$branch:$tracking"
+            git worktree add --detach "$ledger" "$tracking"
+          else
+            # First run: separate branch fork; no commits to main.
+            git worktree add --detach "$ledger" "$GITHUB_SHA"
+          fi
+
+          python research/p0_scheduler/runner.py record --ledger "$ledger"
+
+          git -C "$ledger" config user.name "github-actions[bot]"
+          git -C "$ledger" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C "$ledger" add research/p0_ledger
+          if ! git -C "$ledger" diff --cached --quiet; then
+            git -C "$ledger" commit -m "p0: append $GITHUB_EVENT_NAME run $GITHUB_RUN_ID"
+            git -C "$ledger" push origin "HEAD:refs/heads/$branch"
+          fi
+
+          # Fresh checkout of the pushed remote commit proves persistence.
+          git fetch --no-tags origin "refs/heads/$branch:$tracking"
+          git worktree add --detach "$restore" "$tracking"
+          echo "### P0 remote persistence and recovery check" >> "$GITHUB_STEP_SUMMARY"
+          python research/p0_scheduler/runner.py verify --ledger "$restore" \
+            --expected-run-id "$GITHUB_RUN_ID" | tee -a "$GITHUB_STEP_SUMMARY"
+
+          # This is infrastructure evidence, not a lottery forecast or a
+          # completed prospective draw/score cycle.
