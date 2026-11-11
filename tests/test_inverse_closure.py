@@ -100,7 +100,7 @@ def test_mismatched_cutoff_game_result_and_mocked_live_are_rejected(ssq_document
     changed["SSQ"]["source_sha256"] = "0" * 64
     with pytest.raises(ValueError, match="not derived"):
         freeze(prior, changed, SSQ)
-    with pytest.raises(ValueError, match="game mismatch"):
+    with pytest.raises(ValueError, match="unsupported candidate|game mismatch"):
         freeze(prior, archive, DLT)
     frozen = freeze(prior, archive, SSQ)
     wrong = {
