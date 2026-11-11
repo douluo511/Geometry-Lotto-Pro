@@ -101,12 +101,12 @@ def test_invalid_agent_configs_or_missing_credentials_fail_closed(monkeypatch):
             {"role": "formula_discovery", "provider": "openai", "model": "same"},
             {"role": "engineer", "provider": "gemini", "model": "diff"},
         ])
-    with pytest.raises(ValueError, match="distinct providers"):
-        parse_agents([
-            {"role": "mathematician", "provider": "openai", "model": "a"},
-            {"role": "formula_discovery", "provider": "openai", "model": "b"},
-            {"role": "engineer", "provider": "openai", "model": "c"},
-        ])
+    # Six different GPT model IDs are valid even with only one provider.
+    assert len(parse_agents([
+        {"role": "mathematician", "provider": "openai", "model": "a"},
+        {"role": "formula_discovery", "provider": "openai", "model": "b"},
+        {"role": "engineer", "provider": "openai", "model": "c"},
+    ])) == 3
     for field in ("OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GEMINI_API_KEY"):
         monkeypatch.delenv(field, raising=False)
     with pytest.raises(RuntimeError, match="missing required API"):
@@ -197,7 +197,9 @@ def test_six_role_real_model_configuration_and_specialist_evidence():
     assert len(agents) == 6
     assert {a.role for a in agents} == set(ROLES) == set(ROLE_TASKS)
     assert len({(a.provider, a.model) for a in agents}) == 6
-    assert {a.provider for a in agents} == {"openai", "anthropic", "gemini"}
+    assert {a.provider for a in agents} == {"openai"}
+    assert all(a.model.startswith("gpt-") for a in agents)
+    assert len({a.model for a in agents}) == 6
     draws, _ = load_history(DATA / "ssq_2026.txt", SSQ)
     for agent in agents:
         body = json.loads(proposal_prompt(agent, draws[:35], SSQ))
@@ -258,3 +260,51 @@ def test_six_real_role_protocol_uses_twelve_separate_mocked_requests():
     assert len(receipt["candidate_tickets"]) == 6
     assert receipt["guards"]["unknown_target_used"] is False
     assert receipt["guards"]["formal_v47_modified"] is False
+
+
+def test_openai_only_six_role_council_has_twelve_independent_requests_and_only_one_key(monkeypatch):
+    from research.inverse_formula.live_models import (
+        require_keys, ROLES, parse_agents,
+    )
+    agents = parse_agents(json.loads(
+        (DATA / "multi_provider_agents.example.json").read_text(encoding="utf-8")
+    ))
+    assert len(agents) == len(ROLES) == 6
+    for key in ("OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GEMINI_API_KEY"):
+        monkeypatch.delenv(key, raising=False)
+    with pytest.raises(RuntimeError, match="OPENAI_API_KEY"):
+        require_keys(agents)
+    monkeypatch.setenv("OPENAI_API_KEY", "test-only-value")
+    require_keys(agents)  # Other providers' credentials are unnecessary.
+
+    draws, _ = load_history(DATA / "ssq_2026.txt", SSQ)
+    calls = []
+    role_indexes = {agent.role: i for i, agent in enumerate(agents)}
+    def mock(agent, system, raw):
+        prompt = json.loads(raw)
+        calls.append((agent.role, agent.model, prompt["task"]))
+        if prompt["task"].startswith("independently"):
+            num = role_indexes[agent.role]
+            return json.dumps({
+                "hypothesis": "bounded modular recurrence for research",
+                "front": {"lags": [1], "coefficients": [1],
+                          "bias": num, "issue_coefficient": 0},
+                "back": {"lags": [1], "coefficients": [-1],
+                         "bias": num, "issue_coefficient": 0},
+                "limitation": "No verified edge."
+            })
+        assert len(prompt["untrusted_peer_data"]) == 5
+        return json.dumps({
+            "concerns": "Insufficient independent prospective evidence",
+            "recommendation": "needs_evidence",
+            "cannot_certify_edge": True,
+        })
+    receipt = run_council(draws[:35], SSQ, agents, transport=mock)
+    assert len(calls) == 12
+    assert len(receipt["independent_proposals"]) == 6
+    assert len(receipt["cross_reviews"]) == 6
+    assert receipt["complete_six_role_committee"] is True
+    assert {x["provider"] for x in receipt["independent_proposals"]} == {"openai"}
+    assert len({x["model"] for x in receipt["independent_proposals"]}) == 6
+    assert receipt["execution"] == "INJECTED_MOCK_TRANSPORT_TEST_ONLY"
+    assert receipt["decision"] == "NO_EDGE_REQUIRES_PROSPECTIVE_VALIDATION"
