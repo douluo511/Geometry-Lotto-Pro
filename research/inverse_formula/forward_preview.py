@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import subprocess
 from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -127,7 +128,14 @@ def forecast_research(game: Game, recorded: dict, *,
     raw_code_hashes = {}
     code_base = Path(__file__).resolve().parents[2]
     for rel in MODEL_PATHS:
-        raw_code_hashes[rel] = hashlib.sha256((code_base / rel).read_bytes()).hexdigest()
+        # Git blobs are canonical: Windows CRLF checkout transformation must not
+        # produce different research evidence or falsely imply model changes.
+        # This intentionally uses HEAD's committed bytes, NOT local working-tree
+        # source; exact-head Actions testing separately pins that commit.
+        committed = subprocess.check_output(
+            ["git", "show", "HEAD:" + rel], cwd=code_base, timeout=15
+        )
+        raw_code_hashes[rel] = hashlib.sha256(committed).hexdigest()
     data = {
         "schema": "SSQDLT_RESEARCH_FORWARD_V1",
         "lottery": game.name, "target_issue": recorded["target_issue"],
@@ -151,6 +159,7 @@ def forecast_research(game: Game, recorded: dict, *,
         "paid_model_calls": 0,
         "formula_identity": "research.inverse_formula.formula_bank.predict_with_bank",
         "formula_source_sha256": raw_code_hashes,
+        "formula_source_identity": "GIT_HEAD_CANONICAL_BLOB_SHA256_NOT_CHECKOUT_EOL",
         "formula_decision_sha256": decision["decision_sha256"],
         "selected_formula_ids": [x["formula_id"] for x in decision["selected_formulas"]],
         "candidate_count": decision["candidate_count"],
