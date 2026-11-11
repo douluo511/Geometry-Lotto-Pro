@@ -339,6 +339,6 @@ def test_only_a_single_gpt6_model_repeat_is_allowed():
         parse_agents(wrong)
 
     wrong = json.loads(json.dumps(config))
-    wrong[0]["model"] = "gpt-5.6-sol"  # 5 unique including GPT-5.6
+    wrong[3]["model"] = "gpt-5.6-sol"  # 5 unique including GPT-5.6
     with pytest.raises(ValueError, match="duplicate model identity"):
         parse_agents(wrong)
