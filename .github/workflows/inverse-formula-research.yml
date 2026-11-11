@@ -7,6 +7,7 @@ on:
       - 'tests/test_inverse_probe.py'
       - 'tests/test_inverse_committee.py'
       - 'tests/test_inverse_experts.py'
+      - 'tests/test_inverse_edge_gate.py'
       - 'tests/test_inverse_live_models.py'
       - 'tests/test_inverse_closure.py'
       - 'tests/test_one_click_council.py'
@@ -50,7 +51,7 @@ jobs:
       - name: Verify inverse search, past-only selection, isolation and corruption guards
         env:
           PYTHONPATH: .
-        run: python -m pytest -q tests/test_inverse_probe.py tests/test_inverse_committee.py tests/test_inverse_experts.py tests/test_inverse_live_models.py tests/test_inverse_closure.py tests/test_one_click_council.py tests/test_neural_audit.py tests/test_tiered_budget.py
+        run: python -m pytest -q tests/test_inverse_probe.py tests/test_inverse_committee.py tests/test_inverse_experts.py tests/test_inverse_edge_gate.py tests/test_inverse_live_models.py tests/test_inverse_closure.py tests/test_one_click_council.py tests/test_neural_audit.py tests/test_tiered_budget.py
       - name: Emit research report (never formal V4.7 forecast)
         env:
           PYTHONPATH: .
@@ -71,6 +72,18 @@ jobs:
         with:
           name: reverse-formula-bank-${{ matrix.os }}
           path: reverse-formula-audit.json
+          if-no-files-found: error
+
+      - name: Independently audit complete wins and D2 against research NULL
+        env:
+          PYTHONPATH: .
+        run: python -m research.inverse_formula.edge_gate --out exploratory-edge-audit.json
+
+      - name: Preserve complete-ticket and D2 falsification evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: exploratory-edge-audit-${{ matrix.os }}
+          path: exploratory-edge-audit.json
           if-no-files-found: error
 
       - name: Convene research-only six-role committee and output receipt
@@ -165,6 +178,38 @@ jobs:
               assert summary["formal_promotion_allowed"] is False
               assert summary["records"][-1]["payload"]["paid_model_calls"] == 0
               print(f"PASS {game} six-expert cross-OS receipt sha256={summary['receipt_sha256']}")
+          PY
+
+      - name: Download independent game edge audits
+        uses: actions/download-artifact@v4
+        with:
+          pattern: exploratory-edge-audit-*
+          path: edge-audits
+          merge-multiple: false
+      - name: Verify full-ticket and D2 edge audit is cross-OS identical
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          parent = Path("edge-audits")
+          audits = [
+            json.loads((parent / f"exploratory-edge-audit-{os}" /
+                        "exploratory-edge-audit.json").read_text())
+            for os in ("ubuntu-latest", "windows-latest")
+          ]
+          if audits[0] != audits[1]:
+              raise SystemExit("FAIL: exploratory complete/D2 audit differs across OS")
+          for game, doc in audits[0].items():
+              r = doc["audit"]
+              assert r["status"] == "NO_EDGE"
+              assert r["independent_prospective_draws"] == 0
+              assert r["formal_promotion_allowed"] is False
+              assert r["research_null"]["research_null_only_not_fixed_v47"] is True
+              print(f"PASS {game}: full={r['full_ticket']['hits']}/{r['evaluated_issues']} "
+                    f"D2={r['d2']['hits']}/{r['evaluated_issues']} "
+                    f"researchNULL={r['research_null']['d2_hits']}/{r['evaluated_issues']} "
+                    f"audit_sha256={r['report_sha256']}")
           PY
 
       - name: Compare all canonical offline receipts across OS
