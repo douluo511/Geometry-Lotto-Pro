@@ -126,7 +126,7 @@ def provider_call(agent: Agent, system: str, user: str) -> str:
                  if block.get("type") == "output_text"]
     elif agent.provider == "anthropic":
         response = post_json("https://api.anthropic.com/v1/messages",
-            {"x-api-key": key, "anthropic-version": "2023-06-01"},
+            {"x-api-key": key, "anthropic-version": "2026-10-21"},
             {"model": agent.model, "system": system,
              "messages": [{"role": "user", "content": user}],
              "max_tokens": MAX_TOKENS})
