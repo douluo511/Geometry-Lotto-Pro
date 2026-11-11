@@ -30,6 +30,32 @@ MAX_AGENTS = 6
 MODEL_TEXT_LIMIT = 12000
 MAX_RESPONSE_BYTES = 100000
 MAX_TOKENS = 2400
+ROLE_TASKS = {
+    "mathematician": (
+        "Formulate a mathematically valid and falsifiable low-complexity "
+        "recurrence; explain its assumptions and why interpolation alone is insufficient."
+    ),
+    "formula_discovery": (
+        "Consult the past-only historical formula archive; propose a distinct "
+        "candidate and distinguish anchor fitting from post-anchor validation."
+    ),
+    "ensemble_researcher": (
+        "Analyze existing capped weights, duplicate hypotheses and vote "
+        "concentration; propose a formula that increases genuine diversity."
+    ),
+    "statistician": (
+        "Compare strictly past-only D2 performance with the theoretical "
+        "random baseline and research NULL; warn about multiple testing."
+    ),
+    "skeptical_reviewer": (
+        "Act adversarially: search for target leakage, survivorship bias, "
+        "overfitting, arbitrary parameter choices and unsupported edge claims."
+    ),
+    "engineer": (
+        "Check the bounded formula DSL, ball legality, deterministic "
+        "reproduction, cutoff enforcement and receipt integrity."
+    ),
+}
 
 
 class ProviderText(str):
@@ -253,10 +279,80 @@ def history_view(prefix: list[Draw]) -> dict:
     }
 
 
+def specialist_context(agent: Agent, prefix: list[Draw],
+                       game: Game) -> dict:
+    """Read-only role evidence, strictly from the supplied known prefix."""
+    if agent.role == "mathematician":
+        return {
+            "permitted_families": ["lagged modular recurrence", "linear differences",
+                                   "bounded issue-index recurrence"],
+            "complexity_limit": "at most 3 lag terms, bounded integer coefficients",
+        }
+    if agent.role == "formula_discovery":
+        from research.inverse_formula.formula_bank import catalog
+        bank = sorted(catalog(prefix, game),
+                      key=lambda r: (-r["vote_weight"], r["formula_id"]))
+        return {
+            "bank_size": len(bank),
+            "top_prior_formulas": [
+                {"formula_id": r["formula_id"], "family": r["family"],
+                 "anchor_issue": r["anchor_issue"],
+                 "validated_issues": r["validated_issues"],
+                 "validation_full_hits": r["validation_full_hits"],
+                 "vote_weight": r["vote_weight"]}
+                for r in bank[:8]
+            ],
+            "warning": "anchor reconstruction is not predictive success",
+        }
+    if agent.role == "ensemble_researcher":
+        from research.inverse_formula.formula_bank import predict_with_bank
+        prior = predict_with_bank(prefix, game)
+        return {
+            "existing_ensemble_rule": prior["selection_rule"],
+            "selected_formula_ids": [
+                r["formula_id"] for r in prior["selected_formulas"]
+            ],
+            "existing_candidate_is_unverified": True,
+        }
+    if agent.role == "statistician":
+        from research.inverse_formula.committee import audit_recent_past
+        baseline = (game.front_pick * (game.front_pick - 1)
+                    / (game.front_max * (game.front_max - 1)))
+        history = {"theoretical_d2": baseline,
+                   "sample_is_exploratory": True,
+                   "multiple_comparisons_need_control": True}
+        if len(prefix) >= 31:
+            replay = audit_recent_past(prefix, game, window=5)
+            history["recent_past_only_replay"] = {
+                "periods": replay["periods"],
+                "d2_by_method": {
+                    k: v["d2"] for k, v in replay["totals"].items()
+                },
+            }
+        return history
+    if agent.role == "skeptical_reviewer":
+        return {
+            "reject_if": ["target outcome influenced formula search",
+                          "oracle fits counted as predictions",
+                          "review data reused as independent holdout",
+                          "chance wins claimed as edge"],
+            "statistical_evidence": "not independently prospectively verified",
+        }
+    return {
+        "legal_front_range": [1, game.front_max],
+        "legal_back_range": [1, game.back_max],
+        "required_audit": ["asof_issue", "target_issue", "formula_id",
+                           "provider_response_id", "receipt_sha256"],
+        "never_modify": "V4.7 frozen ledger and official Random NULL",
+    }
+
+
 def proposal_prompt(agent: Agent, prefix: list[Draw], game: Game) -> str:
     return json.dumps({
         "task": "independently propose one falsifiable integer formula",
         "role": agent.role,
+        "specialist_task": ROLE_TASKS[agent.role],
+        "specialist_evidence": specialist_context(agent, prefix, game),
         "game": {"front_max": game.front_max, "front_pick": game.front_pick,
                  "back_max": game.back_max, "back_pick": game.back_pick},
         "past_only": history_view(prefix),
@@ -282,6 +378,7 @@ def review_prompt(agent: Agent, prefix: list[Draw],
     return json.dumps({
         "task": "independent skeptical review of other models' proposals",
         "role": agent.role, "target_issue": prefix[-1].issue + 1,
+        "specialist_review_task": ROLE_TASKS[agent.role],
         "untrusted_peer_data": [
             {"role": r["role"], "formula_id": r["formula_id"],
              "formula": {"front": r["formula"]["front"],
@@ -389,6 +486,14 @@ def run_council(prefix: list[Draw], game: Game, agents: tuple[Agent, ...],
         "asof_issue": prefix[-1].issue,
         "target_issue": prefix[-1].issue + 1,
         "history_shown": min(len(prefix), 30),
+        "role_assignments": [
+            {"role": a.role, "provider": a.provider, "model": a.model,
+             "specialist_task": ROLE_TASKS[a.role]}
+            for a in agents
+        ],
+        "complete_six_role_committee": (
+            set(a.role for a in agents) == set(ROLES)
+        ),
         "independent_proposals": proposals,
         "cross_reviews": reviews,
         "candidate_tickets": candidates,
@@ -418,6 +523,8 @@ def main() -> None:
     if not opts.live:
         parser.error("no fake fallback: --live explicitly authorizes real API charges")
     agents = parse_agents(json.loads(opts.agents.read_text(encoding="utf-8")))
+    if {a.role for a in agents} != set(ROLES):
+        parser.error("live committee requires all six distinct expert roles")
     game = SSQ if opts.game == "ssq" else DLT
     path = opts.history or Path(__file__).with_name(
         "ssq_2026.txt" if opts.game == "ssq" else "dlt_2026.txt")
