@@ -180,11 +180,16 @@ def predict_with_bank(prefix: list[Draw], game: Game, *,
     return audit
 
 
-def _research_null(draw: Draw, game: Game) -> tuple[
+def _research_null(issue: int, game: Game) -> tuple[
         tuple[tuple[int, ...], tuple[int, ...]], tuple[int, ...]]:
-    """Independent illustrative null; NEVER the frozen V4.7 Random NULL."""
+    """Issue-only control: no outcome object can enter the random selector.
+
+    This research NULL remains separate from the frozen V4.7 Random NULL.
+    """
+    if type(issue) is not int or issue < 1:
+        raise ValueError("research NULL requires a positive target issue")
     rng = random.Random(20261111 + 100000 * (1 if game.name == "SSQ" else 2)
-                        + draw.issue)
+                        + issue)
     pair = tuple(sorted(rng.sample(range(1, game.front_max + 1), 2)))
     remaining = [v for v in range(1, game.front_max + 1) if v not in pair]
     rest = rng.sample(remaining, game.front_pick - 2)
@@ -202,13 +207,14 @@ def walk_forward_bank(draws: list[Draw], game: Game, *,
     for index in range(start, len(draws)):
         # Every forecast includes at most draws[:index].
         decision = predict_with_bank(draws[:index], game, **config)
+        # Both experiment and research control are FIXED before target is read.
+        null_ticket, null_pair = _research_null(decision["target_issue"], game)
         actual = draws[index]
         p = decision["prediction"]
         ticket = (tuple(p["front"]), tuple(p["back"]))
         pair = tuple(p["d2_pair"])
         metric = compare(ticket, actual)
         d2 = int(set(pair).issubset(actual.front))
-        null_ticket, null_pair = _research_null(actual, game)
         null_metric = compare(null_ticket, actual)
         null_d2 = int(set(null_pair).issubset(actual.front))
         replay.append({
