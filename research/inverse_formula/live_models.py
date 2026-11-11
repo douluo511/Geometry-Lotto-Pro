@@ -30,6 +30,10 @@ MAX_AGENTS = 6
 MODEL_TEXT_LIMIT = 12000
 MAX_RESPONSE_BYTES = 100000
 MAX_TOKENS = 2400
+GPT6_APPROVED_IDS = frozenset({
+    "gpt-6-astra", "gpt-6.1-sol", "gpt-6.1-terra",
+    "gpt-6-sol", "gpt-6-luna",
+})
 ROLE_TASKS = {
     "mathematician": (
         "Formulate a mathematically valid and falsifiable low-complexity "
@@ -111,6 +115,17 @@ def parse_agents(value: object) -> tuple[Agent, ...]:
             raise ValueError("duplicate model identity")
     # One provider is allowed; separation is per API request and role, not vendor.
     return tuple(result)
+
+
+def verify_six_gpt6_agents(agents: tuple[Agent, ...]) -> None:
+    """Fail closed unless six role-isolated calls use verified GPT-6+ IDs."""
+    if len(agents) != 6 or {a.role for a in agents} != set(ROLES):
+        raise ValueError("exactly six distinct specialist roles required")
+    if any(a.provider != "openai" or a.model not in GPT6_APPROVED_IDS
+           for a in agents):
+        raise ValueError("only approved general-purpose GPT-6+ API models allowed")
+    if len({a.model for a in agents}) != 5:
+        raise ValueError("expected five approved model variants across six roles")
 
 
 def require_keys(agents: tuple[Agent, ...]) -> None:
@@ -531,8 +546,10 @@ def main() -> None:
     if not opts.live:
         parser.error("no fake fallback: --live explicitly authorizes real API charges")
     agents = parse_agents(json.loads(opts.agents.read_text(encoding="utf-8")))
-    if {a.role for a in agents} != set(ROLES):
-        parser.error("live committee requires all six distinct expert roles")
+    try:
+        verify_six_gpt6_agents(agents)
+    except ValueError as error:
+        parser.error(str(error))
     game = SSQ if opts.game == "ssq" else DLT
     path = opts.history or Path(__file__).with_name(
         "ssq_2026.txt" if opts.game == "ssq" else "dlt_2026.txt")
