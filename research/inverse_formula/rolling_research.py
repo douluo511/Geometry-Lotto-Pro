@@ -329,11 +329,108 @@ def process_one(game: Game, ledger: Path, output: Path,
         }
 
 
+def verify_saved_research_ledger(ledger: Path) -> dict:
+    """Independent offline replay of saved raw source bytes and all score rows.
+
+    This validates local data-consistency, NOT independent predraw existence,
+    official upstream custody, bookmaker ticket issuance, or predictive edge.
+    """
+    snapshots = _replay_snapshot_targets(ledger)
+    raw_root = ledger / "research" / "raw"
+    raw_count = 0
+    for path in sorted(raw_root.glob("*/*/*.json")):
+        if not path.is_file() or path.is_symlink():
+            raise ValueError("UNSAFE_ARCHIVED_SOURCE_PATH")
+        envelope = json.loads(path.read_text(encoding="utf-8"))
+        if (envelope.get("schema") != "SSQDLT_SOURCE_RAW_BYTES_V1"
+                or envelope.get("game") != path.parts[-3]
+                or envelope.get("source_id") != path.parts[-2]
+                or envelope.get("raw_sha256") != path.stem
+                or envelope.get("origin_authenticity") != "NOT_INDEPENDENTLY_PROVEN"):
+            raise ValueError("RAW_SOURCE_ENVELOPE_CHANGED")
+        try:
+            raw = base64.b64decode(envelope["raw_base64"], validate=True)
+        except (ValueError, TypeError) as exc:
+            raise ValueError("RAW_SOURCE_BASE64_CORRUPTED") from exc
+        if (len(raw) > MAX_CONFIRM_BYTES
+                or len(raw) != envelope.get("size_bytes")
+                or hashlib.sha256(raw).hexdigest() != path.stem):
+            raise ValueError("RAW_SOURCE_BYTES_SHA_MISMATCH")
+        expected_url = (
+            SOURCES[envelope["game"]]
+            if envelope["source_id"] == "issuer-primary"
+            else CONFIRM_URLS[envelope["game"]]
+        )
+        if envelope.get("claimed_url") != expected_url:
+            raise ValueError("RAW_SOURCE_CLAIMED_URL_CHANGED")
+        raw_count += 1
+
+    score_count = 0
+    for path in sorted((ledger / "research" / "scores").glob("*.json")):
+        if not path.is_file() or path.is_symlink():
+            raise ValueError("UNSAFE_SCORE_PATH")
+        score = json.loads(path.read_text(encoding="utf-8"))
+        game_name, issue = score.get("game"), score.get("issue")
+        if (game_name not in ("SSQ", "DLT") or type(issue) is not int
+                or path.name != f"{game_name}-{issue}.json"
+                or score.get("schema") != "SSQDLT_RESEARCH_SCORE_V1"
+                or score.get("formal_A") != 0 or score.get("edge") != "NO_EDGE"):
+            raise ValueError("INVALID_STORED_SCORE_IDENTITY")
+        old = snapshots.get((game_name, issue))
+        if (old is None or old["content_sha256"]
+                != score.get("original_prediction_ledger_record")):
+            raise ValueError("UNKNOWN_OR_CHANGED_PREDRAW_FORECAST")
+        game = SSQ if game_name == "SSQ" else DLT
+        def load_original(side: str, sha: str, url: str) -> str:
+            location = (raw_root / game_name / side / (sha + ".json"))
+            data = json.loads(location.read_text(encoding="utf-8"))
+            if (data.get("raw_sha256") != sha
+                    or data.get("claimed_url") != url):
+                raise ValueError("SAVED_SOURCE_PROVENANCE_CONFLICT")
+            raw = base64.b64decode(data["raw_base64"], validate=True)
+            if hashlib.sha256(raw).hexdigest() != sha:
+                raise ValueError("SAVED_SOURCE_BYTES_INVALID")
+            return raw.decode("utf-8")
+        first = load_original("issuer-primary",
+                              score["issuer_primary_html_sha256"],
+                              SOURCES[game_name])
+        second = load_original("issuer-secondary",
+                               score["issuer_second_html_sha256"],
+                               CONFIRM_URLS[game_name])
+        matching = [x for x in parse_official_rows(first, game)
+                    if x["issue"] == issue]
+        if len(matching) != 1:
+            raise ValueError("SCORED_ISSUE_MISSING_FROM_ORIGINAL_SOURCE")
+        verify_independent_latest(game, matching[0], second)
+        reconstructed = score_if_future_publication_confirmed(
+            {**old, "lottery": game_name},
+            {"issue": issue, "front": matching[0]["front"],
+             "back": matching[0]["back"]},
+        )
+        if reconstructed != score.get("scoring"):
+            raise ValueError("POSTDRAW_SCORE_CHANGED_AFTER_ISSUANCE")
+        score_count += 1
+    return {
+        "status": "PASS_RESEARCH_REPLAY_NOT_FORMAL",
+        "forecast_issues": len(snapshots), "scored_issues": score_count,
+        "source_raw_envelopes": raw_count,
+        "formal_A": 0, "edge": "NO_EDGE",
+        "trusted_predraw_timestamp_verified": False,
+    }
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--ledger", type=Path, required=True)
-    parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument("--output-dir", type=Path)
+    parser.add_argument("--verify-ledger-only", action="store_true")
     args = parser.parse_args()
+    if args.verify_ledger_only:
+        print(json.dumps(verify_saved_research_ledger(args.ledger),
+                         ensure_ascii=False, sort_keys=True))
+        return
+    if args.output_dir is None:
+        parser.error("--output-dir is required for a source tick")
     if args.output_dir.exists():
         raise FileExistsError("output evidence attempt must be new")
     args.output_dir.mkdir(parents=True)
