@@ -224,3 +224,72 @@ def test_offline_preflight_supports_tiered_5_cheap_plus_astra():
     item = preflight(ROOT / "ssq_2026.txt", CONFIG, SSQ)
     assert item["checks"]["six_gpt6_high_config"] == "PASS"
     assert item["network_requests"] == item["model_requests"] == 0
+
+
+def test_responses_usage_including_hidden_reasoning_is_counted_once(monkeypatch):
+    from research.inverse_formula import api_budget
+
+    def mocked_post(url, headers, payload):
+        assert url == "https://api.openai.com/v1/responses"
+        assert payload["reasoning"]["effort"] == "high"
+        assert payload["max_output_tokens"] == 8192
+        assert payload["store"] is False
+        assert headers["Authorization"].startswith("Bearer ")
+        return {
+            "id": "resp_test_offline_usage_001",
+            "status": "completed",
+            "output": [{
+                "type": "message",
+                "content": [{"type": "output_text",
+                             "text": '{"ok":true}'}],
+            }],
+            "usage": {
+                "input_tokens": 150,
+                "input_tokens_details": {"cached_tokens": 20},
+                "output_tokens": 210,
+                "output_tokens_details": {"reasoning_tokens": 180},
+                "total_tokens": 360,
+            },
+        }
+
+    monkeypatch.setenv("OPENAI_API_KEY", "SYNTHETIC_TEST_NOT_A_REAL_KEY")
+    monkeypatch.setattr(api_budget, "post_json", mocked_post)
+    ledger = BudgetGuard()
+    response = ledger.call(
+        AGENTS[0], '{"task":"synthetic test"}',
+        transport=api_budget.real_response,
+    )
+    assert response.text == '{"ok":true}'
+    summary = ledger.summary()
+    assert summary["input_tokens_reported"] == 150
+    assert summary["output_tokens_including_reasoning_reported"] == 210
+    assert summary["reasoning_output_tokens_reported"] == 180
+    assert summary["cached_input_tokens_reported"] == 20
+    # 210 output already includes 180 hidden reasoning tokens.
+    expected = BudgetGuard.dollars(AGENTS[0].model, 150, 210)
+    assert Decimal(summary["estimated_used_or_reserved_usd"]) == expected
+    assert "SYNTHETIC_TEST_NOT_A_REAL_KEY" not in json.dumps(summary)
+
+
+@pytest.mark.parametrize("provider_payload,expected", [
+    ({"id": "resp_test_001", "status": "completed",
+      "output": [], "usage": None}, "missing real usage"),
+    ({"id": "resp_test_002", "status": "incomplete",
+      "output": [], "usage": {
+          "input_tokens": 300, "output_tokens": 8192}}, "not completed"),
+])
+def test_real_response_fail_closed_and_keep_spend_reservation(
+        monkeypatch, provider_payload, expected):
+    from research.inverse_formula import api_budget
+    monkeypatch.setenv("OPENAI_API_KEY", "SYNTHETIC_TEST_NOT_A_REAL_KEY")
+    monkeypatch.setattr(api_budget, "post_json",
+                        lambda *args, **kwargs: provider_payload)
+    guard = BudgetGuard()
+    with pytest.raises(RuntimeError, match=expected):
+        guard.call(
+            AGENTS[0], '{"task":"synthetic test"}',
+            transport=api_budget.real_response,
+        )
+    assert guard.summary()["unknown_usage_requests"] == 1
+    assert guard.summary()["attempted_requests"] == 1
+    assert "SYNTHETIC_TEST_NOT_A_REAL_KEY" not in json.dumps(guard.summary())
