@@ -95,6 +95,10 @@ def _canonical(value) -> str:
 
 
 def _paths(root: Path):
+    # Reject an entire research/ symlink before walking children. Checking
+    # only research/forecasts would miss the ancestor symlink escape.
+    if (root.is_symlink() or (root / "research").is_symlink()):
+        deny("SYMLINK_RESEARCH_ROOT")
     for folder in RECEIPT_FOLDERS:
         directory = root / "research" / folder
         if directory.is_symlink():
