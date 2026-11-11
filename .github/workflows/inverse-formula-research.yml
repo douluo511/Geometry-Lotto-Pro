@@ -138,6 +138,35 @@ jobs:
         with:
           name: research-offline-closure-windows-latest
           path: closure-windows
+      - name: Download Ubuntu independent expert receipt
+        uses: actions/download-artifact@v4
+        with:
+          name: independent-experts-ubuntu-latest
+          path: experts-ubuntu
+      - name: Download Windows independent expert receipt
+        uses: actions/download-artifact@v4
+        with:
+          name: independent-experts-windows-latest
+          path: experts-windows
+      - name: Check independent expert evidence matches across operating systems
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          ubuntu = json.loads((Path("experts-ubuntu") / "independent-experts-receipt.json").read_text())
+          windows = json.loads((Path("experts-windows") / "independent-experts-receipt.json").read_text())
+          if ubuntu != windows:
+              raise SystemExit("FAIL: cross-OS independent expert evidence mismatch")
+          for game in ("SSQ", "DLT"):
+              summary = ubuntu[game]["simulation"]
+              assert len(summary["records"]) == 6
+              assert summary["research_status"] == "NO_EDGE"
+              assert summary["formal_promotion_allowed"] is False
+              assert summary["records"][-1]["payload"]["paid_model_calls"] == 0
+              print(f"PASS {game} six-expert cross-OS receipt sha256={summary['receipt_sha256']}")
+          PY
+
       - name: Compare all canonical offline receipts across OS
         shell: bash
         run: |
