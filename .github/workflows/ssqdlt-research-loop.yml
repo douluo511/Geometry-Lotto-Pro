@@ -27,7 +27,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 1de3dd5486e1a26383ef1152aa001741c368a7f6
+          ref: 199cc2a2797f11b8179aaa6649f0649613c72010
           path: formula-code
           persist-credentials: false
       - uses: actions/setup-python@v5
@@ -59,7 +59,7 @@ jobs:
       - name: Load pinned reviewed research code (not official six V4.7 producers)
         uses: actions/checkout@v4
         with:
-          ref: 1de3dd5486e1a26383ef1152aa001741c368a7f6
+          ref: 199cc2a2797f11b8179aaa6649f0649613c72010
           path: formula-code
           persist-credentials: false
       - name: Restore independent research evidence branch
@@ -111,7 +111,7 @@ jobs:
               "github_run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
               "trigger": os.environ["GITHUB_EVENT_NAME"],
               "workflow_source_commit": os.environ["GITHUB_SHA"],
-              "pinned_formula_commit": "1de3dd5486e1a26383ef1152aa001741c368a7f6",
+              "pinned_formula_commit": "199cc2a2797f11b8179aaa6649f0649613c72010",
               "report": tick,
           }
           with out.open("x", encoding="utf-8") as f:
