@@ -1,0 +1,169 @@
+name: SSQDLT unattended shadow research loop (not formal V4.7)
+
+# Official V4.7/fixed Random NULL remains frozen. Only a separate research
+# ledger branch is written; stale/conflicting source pages FAIL CLOSED.
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ssqdlt-research-loop.yml'
+  schedule:
+    # Each China day 09:07 and 22:57. The actual trigger may be delayed.
+    - cron: '07 01 * * *'
+    - cron: '57 14 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ssqdlt-shadow-research-ledger-v1
+  cancel-in-progress: false
+
+jobs:
+  offline-research-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 1de3dd5486e1a26383ef1152aa001741c368a7f6
+          path: formula-code
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install no-cost test runner
+        run: python -m pip install --disable-pip-version-check pytest
+      - name: Verify source failure, immutable receipts and no future-scoring fraud
+        env:
+          PYTHONPATH: ${{ github.workspace }}/formula-code
+        run: >-
+          python -m pytest -q
+          formula-code/tests/test_rolling_research.py
+          formula-code/tests/test_forward_preview.py
+
+  append-unattended-shadow-record:
+    needs: offline-research-contract
+    if: >-
+      github.repository == 'douluo511/Geometry-Lotto-Pro' &&
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 13
+    permissions:
+      contents: write
+    steps:
+      - name: Load pinned reviewed research code (not official six V4.7 producers)
+        uses: actions/checkout@v4
+        with:
+          ref: 1de3dd5486e1a26383ef1152aa001741c368a7f6
+          path: formula-code
+          persist-credentials: false
+      - name: Restore independent research evidence branch
+        uses: actions/checkout@v4
+        with:
+          ref: ssqdlt-research-ledger-v1
+          path: ledger
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Verify remote prefix before any new evidence
+        env:
+          PYTHONPATH: ${{ github.workspace }}/formula-code
+        run: >-
+          python -m research.inverse_formula.rolling_research
+          --ledger ledger --verify-ledger-only
+      - name: Probe two issuers per lottery, score only prior stored tickets, issue future research candidates
+        env:
+          PYTHONPATH: ${{ github.workspace }}/formula-code
+          PYTHONUNBUFFERED: '1'
+        shell: bash
+        run: |
+          set -euo pipefail
+          attempt="$RUNNER_TEMP/ssqdlt-research-$GITHUB_RUN_ID"
+          python -m research.inverse_formula.rolling_research \
+            --ledger "$GITHUB_WORKSPACE/ledger" --output-dir "$attempt"
+          echo "### Research-only original outcome and forecast decision" >> "$GITHUB_STEP_SUMMARY"
+          cat "$attempt/tick.json" >> "$GITHUB_STEP_SUMMARY"
+          echo "All candidate forecasts are SHADOW, not authorized V4.7." >> "$GITHUB_STEP_SUMMARY"
+
+          export RECEIPT_DIR="$attempt"
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          tick = json.loads((Path(os.environ["RECEIPT_DIR"]) / "tick.json").read_text())
+          assert tick["formal_A"] == 0 and tick["edge"] == "NO_EDGE"
+          assert tick["paid_model_calls"] == 0
+          for item in tick["results"]:
+              assert item["formal_A"] == 0
+              if item["status"] == "BLOCKED":
+                  print("SOURCE_BLOCKED", item["game"], item.get("error"))
+          out = (Path(os.environ["GITHUB_WORKSPACE"]) / "ledger" /
+                 "research" / "ticks" / (os.environ["GITHUB_RUN_ID"] + ".json"))
+          out.parent.mkdir(parents=True, exist_ok=True)
+          wrapper = {
+              "schema": "SSQDLT_ACTIONS_RESEARCH_TICK_V1",
+              "github_run_id": os.environ["GITHUB_RUN_ID"],
+              "github_run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
+              "trigger": os.environ["GITHUB_EVENT_NAME"],
+              "workflow_source_commit": os.environ["GITHUB_SHA"],
+              "pinned_formula_commit": "1de3dd5486e1a26383ef1152aa001741c368a7f6",
+              "report": tick,
+          }
+          with out.open("x", encoding="utf-8") as f:
+              json.dump(wrapper, f, ensure_ascii=False, sort_keys=True, indent=2)
+              f.write("\n")
+          PY
+
+      - name: Upload the independent source bytes and blocked-attempt evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ssqdlt-research-raw-${{ github.run_id }}
+          path: ${{ runner.temp }}/ssqdlt-research-${{ github.run_id }}/
+          if-no-files-found: warn
+
+      - name: Append ONLY new raw receipts, scores and research forecasts to remote Git ledger
+        shell: bash
+        run: |
+          set -euo pipefail
+          git -C ledger add -A -- research
+          python - <<'PY'
+          import subprocess
+          from pathlib import Path
+          root = Path("ledger")
+          raw = subprocess.check_output(
+              ["git", "-C", str(root), "diff", "--cached", "--name-status", "-z"]
+          )
+          items = [x for x in raw.decode("utf-8").split("\0") if x]
+          assert items and len(items) % 2 == 0, "missing or invalid staged paths"
+          for state, path in zip(items[::2], items[1::2]):
+              if state != "A" or not path.startswith((
+                      "research/forecasts/", "research/scores/",
+                      "research/raw/", "research/ticks/")):
+                  raise SystemExit(f"FAIL: append-only record would change {state} {path}")
+          print("new persisted research records:", len(items) // 2)
+          PY
+          git -C ledger config user.name "github-actions[bot]"
+          git -C ledger config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C ledger commit -m "shadow-research: $GITHUB_EVENT_NAME run $GITHUB_RUN_ID"
+          git -C ledger push origin HEAD:refs/heads/ssqdlt-research-ledger-v1
+
+          # GitHub hosted runner state is ephemeral. Always re-fetch the pushed
+          # remote ref, then audit the entire stored cohort independently.
+          git -C ledger fetch --no-tags origin refs/heads/ssqdlt-research-ledger-v1
+          local_sha=$(git -C ledger rev-parse HEAD)
+          remote_sha=$(git -C ledger rev-parse FETCH_HEAD)
+          test "$local_sha" = "$remote_sha" || {
+            echo "::error::Remote persistence verification failed"
+            exit 1
+          }
+          echo "remote_ledger_sha=$remote_sha" >> "$GITHUB_STEP_SUMMARY"
+      - name: Re-audit complete remotely persisted research ledger
+        env:
+          PYTHONPATH: ${{ github.workspace }}/formula-code
+        run: >-
+          python -m research.inverse_formula.rolling_research
+          --ledger ledger --verify-ledger-only
