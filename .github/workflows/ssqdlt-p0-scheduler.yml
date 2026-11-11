@@ -96,7 +96,7 @@ jobs:
 
           # Cross-check every sampled receipt against independent GitHub
           # Actions event metadata; in-progress runs remain UNVERIFIED.
-          python research/p0_scheduler/acceptance.py --ledger "$restore" \\
+          python research/p0_scheduler/acceptance.py --ledger "$restore" \
             --out "$RUNNER_TEMP/p0-acceptance.json" | tee -a "$GITHUB_STEP_SUMMARY"
 
           # Infrastructure acceptance is separate from any lottery forecast.
