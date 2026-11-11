@@ -8,6 +8,7 @@ on:
       - 'tests/test_inverse_committee.py'
       - 'tests/test_inverse_experts.py'
       - 'tests/test_inverse_edge_gate.py'
+      - 'tests/test_forward_preview.py'
       - 'tests/test_inverse_live_models.py'
       - 'tests/test_inverse_closure.py'
       - 'tests/test_one_click_council.py'
@@ -51,7 +52,7 @@ jobs:
       - name: Verify inverse search, past-only selection, isolation and corruption guards
         env:
           PYTHONPATH: .
-        run: python -m pytest -q tests/test_inverse_probe.py tests/test_inverse_committee.py tests/test_inverse_experts.py tests/test_inverse_edge_gate.py tests/test_inverse_live_models.py tests/test_inverse_closure.py tests/test_one_click_council.py tests/test_neural_audit.py tests/test_tiered_budget.py
+        run: python -m pytest -q tests/test_inverse_probe.py tests/test_inverse_committee.py tests/test_inverse_experts.py tests/test_inverse_edge_gate.py tests/test_forward_preview.py tests/test_inverse_live_models.py tests/test_inverse_closure.py tests/test_one_click_council.py tests/test_neural_audit.py tests/test_tiered_budget.py
       - name: Emit research report (never formal V4.7 forecast)
         env:
           PYTHONPATH: .
@@ -84,6 +85,18 @@ jobs:
         with:
           name: exploratory-edge-audit-${{ matrix.os }}
           path: exploratory-edge-audit.json
+          if-no-files-found: error
+
+      - name: Write provisional SSQ 2026130 and DLT 26130 research preview
+        env:
+          PYTHONPATH: .
+        run: python -m research.inverse_formula.forward_preview --out research-forward-preview.json
+
+      - name: Archive time-observed research preview (not official V4.7 sealed forecast)
+        uses: actions/upload-artifact@v4
+        with:
+          name: forward-preview-${{ matrix.os }}
+          path: research-forward-preview.json
           if-no-files-found: error
 
       - name: Convene research-only six-role committee and output receipt
@@ -210,6 +223,35 @@ jobs:
                     f"D2={r['d2']['hits']}/{r['evaluated_issues']} "
                     f"researchNULL={r['research_null']['d2_hits']}/{r['evaluated_issues']} "
                     f"audit_sha256={r['report_sha256']}")
+          PY
+
+      - name: Download future-issue research previews
+        uses: actions/download-artifact@v4
+        with:
+          pattern: forward-preview-*
+          path: forward-preview
+          merge-multiple: false
+      - name: Assert forecast numbers and reproducible content hashes are identical
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          sources = [json.loads((
+              Path("forward-preview") / f"forward-preview-{os}" /
+              "research-forward-preview.json").read_text())
+              for os in ("ubuntu-latest", "windows-latest")]
+          a, b = sources
+          assert a["target_issue_pair"] == b["target_issue_pair"] == {
+              "SSQ": 2026130, "DLT": 26130
+          }
+          for game in ("SSQ", "DLT"):
+              x, y = (source["forecasts"][game] for source in sources)
+              assert x == y, "cross-OS forecast differs: " + game
+              assert x["formal_a"] == 0 and x["research_status"] == "NO_EDGE"
+              assert x["issuer_page_raw_bytes_authenticated"] is False
+              print("PROVISIONAL", game, x["target_issue"], x["prediction"],
+                    "content_sha256=" + x["content_sha256"])
           PY
 
       - name: Compare all canonical offline receipts across OS
