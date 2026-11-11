@@ -12,7 +12,7 @@ import json
 import re
 import urllib.request
 import urllib.error
-import time
+import time as retry_clock
 from datetime import datetime, timedelta, time, timezone
 from html.parser import HTMLParser
 from pathlib import Path
@@ -137,7 +137,7 @@ def fetch_official_html(game: Game) -> tuple[str, str]:
             if attempt == 2:
                 raise RuntimeError(
                     "official source unreachable after 3 free HTTP attempts") from None
-            time.sleep(1 + attempt)
+            retry_clock.sleep(1 + attempt)
     raise AssertionError("unreachable official-source fetch state")
 
 
