@@ -7,6 +7,7 @@ on:
       - 'tests/test_inverse_probe.py'
       - 'tests/test_inverse_committee.py'
       - 'tests/test_inverse_live_models.py'
+      - 'tests/test_inverse_closure.py'
       - 'docs/superpowers/**/2026-11-11-inverse-formula-probe.md'
       - '.github/workflows/inverse-formula-research.yml'
   workflow_dispatch:
@@ -45,7 +46,7 @@ jobs:
       - name: Verify inverse search, past-only selection, isolation and corruption guards
         env:
           PYTHONPATH: .
-        run: python -m pytest -q tests/test_inverse_probe.py tests/test_inverse_committee.py tests/test_inverse_live_models.py
+        run: python -m pytest -q tests/test_inverse_probe.py tests/test_inverse_committee.py tests/test_inverse_live_models.py tests/test_inverse_closure.py
       - name: Emit research report (never formal V4.7 forecast)
         env:
           PYTHONPATH: .
@@ -72,6 +73,33 @@ jobs:
         env:
           PYTHONPATH: .
         run: python -m research.inverse_formula.committee --out inverse-committee-receipt.json
+
+      - name: Research-only offline preflight and seal (zero API calls)
+        env:
+          PYTHONPATH: .
+        shell: bash
+        run: |
+          set -euo pipefail
+          for game in ssq dlt; do
+            python -m research.inverse_formula.closure preflight \
+              --game "$game" \
+              --history "research/inverse_formula/${game}_2026.txt" \
+              --out "research-preflight-${game}.json"
+            python -m research.inverse_formula.closure freeze \
+              --game "$game" \
+              --preflight "research-preflight-${game}.json" \
+              --candidate inverse-committee-receipt.json \
+              --out "research-content-seal-${game}.json"
+          done
+
+      - name: Archive offline preflight and research content seal
+        uses: actions/upload-artifact@v4
+        with:
+          name: research-offline-closure-${{ matrix.os }}
+          path: |
+            research-preflight-*.json
+            research-content-seal-*.json
+          if-no-files-found: error
 
       - name: Archive committee receipts
         uses: actions/upload-artifact@v4
