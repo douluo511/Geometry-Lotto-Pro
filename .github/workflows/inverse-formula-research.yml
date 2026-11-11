@@ -9,6 +9,7 @@ on:
       - 'tests/test_inverse_experts.py'
       - 'tests/test_inverse_edge_gate.py'
       - 'tests/test_forward_preview.py'
+      - 'tests/test_rolling_research.py'
       - 'tests/test_inverse_live_models.py'
       - 'tests/test_inverse_closure.py'
       - 'tests/test_one_click_council.py'
@@ -52,7 +53,7 @@ jobs:
       - name: Verify inverse search, past-only selection, isolation and corruption guards
         env:
           PYTHONPATH: .
-        run: python -m pytest -q tests/test_inverse_probe.py tests/test_inverse_committee.py tests/test_inverse_experts.py tests/test_inverse_edge_gate.py tests/test_forward_preview.py tests/test_inverse_live_models.py tests/test_inverse_closure.py tests/test_one_click_council.py tests/test_neural_audit.py tests/test_tiered_budget.py
+        run: python -m pytest -q tests/test_inverse_probe.py tests/test_inverse_committee.py tests/test_inverse_experts.py tests/test_inverse_edge_gate.py tests/test_forward_preview.py tests/test_rolling_research.py tests/test_inverse_live_models.py tests/test_inverse_closure.py tests/test_one_click_council.py tests/test_neural_audit.py tests/test_tiered_budget.py
       - name: Emit research report (never formal V4.7 forecast)
         env:
           PYTHONPATH: .
@@ -269,6 +270,40 @@ jobs:
                       raise SystemExit(f"FAIL cross-OS content mismatch: {filename}")
                   print(f"PASS cross-OS content: {filename} sha256={ubuntu['sha256']}")
           PY
+
+  rolling-research-live-diagnostic:
+    needs: local-reproduction-only
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: douluo511/Geometry-Lotto-Pro
+          ref: ssqdlt-research-ledger-v1
+          path: research-ledger-readonly
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Inspect live two-issuer availability without writing remote predictions
+        env:
+          PYTHONPATH: .
+        run: >-
+          python -m research.inverse_formula.rolling_research
+          --ledger research-ledger-readonly
+          --output-dir ${{ runner.temp }}/rolling-research-diagnostic
+      - name: Archive both source bytes and fail-closed run receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rolling-research-live-diagnostic
+          path: ${{ runner.temp }}/rolling-research-diagnostic
+          if-no-files-found: error
 
   real-model-council:
     if: github.event_name == 'workflow_dispatch' && inputs.live_models == true
