@@ -1,0 +1,90 @@
+name: SSQ + DLT | Six-GPT one-click research meeting
+
+# This workflow alone lives on main for the GitHub "Run workflow" button.
+# Checked-out research implementation remains pinned to reviewed PR #470 code;
+# NEVER merges or writes into main's formal V4.7 models / random NULL / ledger.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: ssqdlt-paid-council-oneclick
+  cancel-in-progress: false
+
+jobs:
+  one-click-six-gpt-council:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Require standing repository approval for paid API calls
+        shell: bash
+        env:
+          APPROVED: ${{ vars.SSQDLT_PAID_APPROVED }}
+        run: |
+          if [[ "$APPROVED" != "true" ]]; then
+            echo "::error::Paid API calls are disabled. First explicitly set Actions repository variable SSQDLT_PAID_APPROVED=true after reviewing costs."
+            exit 1
+          fi
+
+      - name: Checkout the CI-verified research implementation, not main V4.7
+        uses: actions/checkout@v4
+        with:
+          ref: 9f56585afde6b441b77f3d8dd2ea108c54a90149
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Verify pinned research source compilation
+        run: python -m compileall -q research/inverse_formula
+
+      - name: Verify key presence without displaying or exporting key
+        shell: bash
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          if [[ -z "$OPENAI_API_KEY" ]]; then
+            echo "::error::Missing Actions secret OPENAI_API_KEY. Configure it securely in repository settings. The key value is not printed."
+            exit 1
+          fi
+
+      - name: Fetch and validate BOTH official latest datasets, then run BOTH paid GPT councils
+        shell: bash
+        env:
+          PYTHONPATH: .
+          SSQDLT_PAID_APPROVED: ${{ vars.SSQDLT_PAID_APPROVED }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          PYTHONIOENCODING: utf-8
+        run: |
+          python -m research.inverse_formula.one_click --live --out research-one-click-output
+
+      - name: Display one-click joint report in GitHub run summary
+        shell: bash
+        run: |
+          cat research-one-click-output/ssq-dlt-next-report.md >> "$GITHUB_STEP_SUMMARY"
+          printf '\n[Full JSON audit artifacts](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})\n' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Preserve partial or completed research receipts (not official V4.7)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: six-gpt-research-meeting-${{ github.run_id }}
+          path: research-one-click-output/
+          retention-days: 90
+          if-no-files-found: warn
+
+      - name: Optional persistent GitHub Issue publication (public in public repos)
+        if: success() && vars.SSQDLT_PUBLISH_ISSUE == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ssq=$(python -c "import json;print(json.load(open('research-one-click-output/manifest.json'))['games']['ssq']['target_issue'])")
+          dlt=$(python -c "import json;print(json.load(open('research-one-click-output/manifest.json'))['games']['dlt']['target_issue'])")
+          gh issue create \
+            --title "[Research / NO_EDGE] Six-GPT SSQ $ssq DLT $dlt / run ${{ github.run_id }}" \
+            --body-file research-one-click-output/ssq-dlt-next-report.md
