@@ -18,6 +18,7 @@ from research.inverse_formula.live_models import (
     parse_agents, verify_six_gpt6_agents, require_keys, sha
 )
 from research.inverse_formula.live_council_v2 import run_reviewed_council
+from research.inverse_formula.neural_audit import distill_decision
 from research.inverse_formula.probe import DLT, SSQ, load_history
 
 ROOT = Path(__file__).parent
@@ -82,7 +83,16 @@ def render_meetings(meetings: dict) -> str:
             ])
         else:
             lines.append("- 本次专家否决过多：不发布虚构的胆码、杀码或完整候选。")
+        trace = block["neural_trace"]
         lines.extend([
+            f"- 可审计的专家证据图：独立提案 {trace['edges']['independent_proposal_edges']}，"
+            f"跨角色审查 {trace['edges']['cross_review_edges']}，"
+            f"否决公式 {trace['edges']['vetoed_formulas']}。",
+            "- 思维链蒸馏：只公开可检验的公式、提案摘要、"
+            "逐条反对理由与筛选依据，不包含模型私有推理。",
+            "- 历史边界：确定性公式库的 past-only 结果与本次新提出的"
+            "模型公式分开；本次新公式还没有独立前瞻命中证据。",
+            f"- 专家证据图 SHA256：{trace['sha256']}",
             f"- 会议回执 SHA256：{receipt['sha256']}",
             f"- 数据 SHA256：{sync['merged_history_sha256']}",
             "",
@@ -122,11 +132,17 @@ def main() -> None:
         game = data["game"]
         rows, source_sha = load_history(data["history"], game)
         council = run_reviewed_council(rows, game, agents, live_authorized=True)
+        neural_trace = distill_decision(council, rows, game)
+        neural_trace["input_source_sha256"] = source_sha
+        neural_trace["sha256"] = sha({k: v for k, v in neural_trace.items()
+                                      if k != "sha256"})
+        _write_once(args.out / f"{name}-six-expert-evidence-graph.json", neural_trace)
         council["source_sha256"] = source_sha
         council["source_audit_sha256"] = sha(data["source_audit"])
         council["sha256"] = sha({k: v for k, v in council.items() if k != "sha256"})
         _write_once(args.out / f"{name}-six-gpt-meeting.json", council)
-        meetings[name] = {"receipt": council, "source_audit": data["source_audit"]}
+        meetings[name] = {"receipt": council, "source_audit": data["source_audit"],
+                          "neural_trace": neural_trace}
         if council["meeting_status"] == "RESEARCH_CANDIDATE_ONLY":
             sealed = freeze(data["preflight"], council, game)
             _write_once(args.out / f"{name}-research-content-seal.json", sealed)
@@ -145,6 +161,7 @@ def main() -> None:
             "asof_issue": val["source_audit"]["asof_issue"],
             "target_issue": val["source_audit"]["target_issue"],
             "six_model_receipt_sha256": val["receipt"]["sha256"],
+            "six_expert_evidence_graph_sha256": val["neural_trace"]["sha256"],
             "content_seal_sha256": val["seal"]["sha256"],
             "candidate": val["receipt"]["proposed_ticket"],
             "dan_sha": val["receipt"]["research_dan_sha"],
