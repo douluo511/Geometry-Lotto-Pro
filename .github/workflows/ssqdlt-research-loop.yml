@@ -44,11 +44,13 @@ jobs:
           formula-code/tests/test_forward_preview.py
 
   append-unattended-shadow-record:
+    # A workflow-file push runs an immediate deployment smoke. The persisted
+    # trigger remains 'push' and MUST NOT count as an unattended schedule.
     needs: offline-research-contract
     if: >-
       github.repository == 'douluo511/Geometry-Lotto-Pro' &&
       github.ref == 'refs/heads/main' &&
-      (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+      (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || github.event_name == 'push')
     runs-on: ubuntu-latest
     timeout-minutes: 13
     permissions:
