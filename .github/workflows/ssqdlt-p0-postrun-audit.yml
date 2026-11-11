@@ -1,0 +1,75 @@
+name: SSQDLT P0 completed-schedule audit (read-only)
+
+# Only a *completed* genuine scheduled heartbeat can advance P0 acceptance.
+# A push or manual dispatch cannot satisfy this gate.
+on:
+  workflow_run:
+    workflows:
+      - SSQDLT P0 unattended schedule evidence (research only)
+    types:
+      - completed
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: ssqdlt-p0-postrun-readonly-audit
+  cancel-in-progress: false
+
+jobs:
+  certify-completed-schedule:
+    if: >-
+      github.repository == 'douluo511/Geometry-Lotto-Pro' &&
+      github.event.workflow_run.workflow_id == 414851175 &&
+      github.event.workflow_run.event == 'schedule' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Fetch the separate persisted ledger and verify GitHub run events
+        env:
+          PYTHONPATH: .
+          GITHUB_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          branch="ssqdlt-p0-ledger-v1"
+          tracking="refs/remotes/origin/$branch"
+          audit_root="$RUNNER_TEMP/p0-readonly-ledger"
+
+          if ! git ls-remote --exit-code --heads origin "$branch" >/dev/null; then
+            echo "::error::No independently persisted P0 remote branch"
+            exit 1
+          fi
+          git fetch --no-tags origin "refs/heads/$branch:$tracking"
+          git worktree add --detach "$audit_root" "$tracking"
+          python research/p0_scheduler/acceptance.py --ledger "$audit_root" \
+            --out "$RUNNER_TEMP/p0-postrun-acceptance.json"
+          cat "$RUNNER_TEMP/p0-postrun-acceptance.json" >> "$GITHUB_STEP_SUMMARY"
+
+          # UNVERIFIED is a valid incomplete P0 state. FAIL is a hard gate.
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          report = json.loads((Path(os.environ["RUNNER_TEMP"]) /
+                               "p0-postrun-acceptance.json").read_text())
+          if report["status"] == "FAIL":
+              raise SystemExit("P0 negative evidence: failed scheduled run")
+          print("P0 gate:", report["status"],
+                "completed schedules:", report["confirmed_scheduled_completed"])
+          PY
+      - name: Preserve completed-run acceptance evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: p0-postrun-acceptance-${{ github.event.workflow_run.id }}
+          path: ${{ runner.temp }}/p0-postrun-acceptance.json
+          if-no-files-found: error
