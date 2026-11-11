@@ -1,0 +1,17 @@
+[
+  {
+    "role": "mathematician",
+    "provider": "openai",
+    "model": "gpt-6-astra"
+  },
+  {
+    "role": "formula_discovery",
+    "provider": "anthropic",
+    "model": "claude-sonnet-5-5"
+  },
+  {
+    "role": "skeptical_reviewer",
+    "provider": "gemini",
+    "model": "gemini-2.5-flash"
+  }
+]
