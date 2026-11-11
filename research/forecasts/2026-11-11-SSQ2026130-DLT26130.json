@@ -1,0 +1,144 @@
+{
+  "schema": "SSQDLT_RESEARCH_SNAPSHOT_2026_11_11_V1",
+  "evidence_class": "SHADOW_RESEARCH_NOT_FORMAL_V47",
+  "created_utc_observation_source": "GitHub Actions #43065767554; recorded before future draw on a GitHub run (NOT independent RFC3161 TSA)",
+  "pinned_research_commit": "2018a4ce2b91ddcc6d85cd25314475954e42bd75",
+  "evidence_run_url": "https://github.com/douluo511/Geometry-Lotto-Pro/actions/runs/43065767554",
+  "cross_os_consistency": "PASS",
+  "tests": {
+    "ubuntu": 103,
+    "windows": 103
+  },
+  "official_v47_changed": false,
+  "formal_A": 0,
+  "predictive_edge_proven": false,
+  "fixed_v47_random_null_used": false,
+  "admission": "NOT_AUTHENTICATED_FOR_FORMAL_FORECAST",
+  "issued": [
+    {
+      "game": "SSQ",
+      "asof_issue": 2026129,
+      "asof_date": "2026-11-10",
+      "asof_result": {
+        "front": [
+          3,
+          9,
+          16,
+          20,
+          25,
+          30
+        ],
+        "back": [
+          5
+        ]
+      },
+      "target_issue": 2026130,
+      "target_draw_date_estimated": "2026-11-12",
+      "prediction": {
+        "front": [
+          7,
+          8,
+          17,
+          20,
+          21,
+          28
+        ],
+        "back": [
+          13
+        ],
+        "d2_pair": [
+          17,
+          28
+        ]
+      },
+      "research_null": {
+        "front": [
+          5,
+          10,
+          19,
+          25,
+          30,
+          31
+        ],
+        "back": [
+          10
+        ],
+        "d2_pair": [
+          19,
+          25
+        ]
+      },
+      "content_sha256": "fae2e4d672b7459b69f68eb7b40938ae76d68332deb73c528b8137ac6f77f47b",
+      "recorded_source_refs": [
+        "https://www.swlc.net.cn/lottery/ssq.html?limit=50&view=previous",
+        "https://www.qhflcp.cn/report/SSQ_WinMessage.aspx"
+      ]
+    },
+    {
+      "game": "DLT",
+      "asof_issue": 26129,
+      "asof_date": "2026-11-11",
+      "asof_result": {
+        "front": [
+          2,
+          12,
+          14,
+          17,
+          33
+        ],
+        "back": [
+          7,
+          8
+        ]
+      },
+      "target_issue": 26130,
+      "target_draw_date_estimated": "2026-11-14",
+      "prediction": {
+        "front": [
+          1,
+          13,
+          25,
+          27,
+          35
+        ],
+        "back": [
+          2,
+          7
+        ],
+        "d2_pair": [
+          1,
+          35
+        ]
+      },
+      "research_null": {
+        "front": [
+          3,
+          12,
+          28,
+          32,
+          34
+        ],
+        "back": [
+          11,
+          12
+        ],
+        "d2_pair": [
+          32,
+          34
+        ]
+      },
+      "content_sha256": "f93b57a72a1dd8587ae02445eb60dd2c493d977583d49de707952543729a0d03",
+      "recorded_source_refs": [
+        "https://www.js-lottery.com/cms/post-148233.html",
+        "https://www.gstc.org.cn/wanfa/dlt"
+      ]
+    }
+  ],
+  "review_policy": {
+    "any_score_requires": "independent confirmed official result, original issue match, no future draw in training; read-only per-snapshot score",
+    "complete_roster": "never omit losing trials",
+    "planned_rerun": "append a new record, NEVER retroactively rewrite this snapshot",
+    "timestamp_warning": "GitHub time and SHA do NOT establish formal predraw sealing or official cutoff; issue/calendar not independent sales cutoff"
+  },
+  "paid_model_calls": 0
+}
