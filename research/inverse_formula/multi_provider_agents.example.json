@@ -22,7 +22,7 @@
   {
     "role": "skeptical_reviewer",
     "provider": "openai",
-    "model": "gpt-5.6-sol"
+    "model": "gpt-6-astra"
   },
   {
     "role": "engineer",
