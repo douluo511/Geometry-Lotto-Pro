@@ -28,7 +28,7 @@ from research.inverse_formula.independent_experts import digest
 from research.inverse_formula.probe import SSQ, DLT, Draw, Game, load_history
 
 CONFIRM_URLS = {
-    "SSQ": "https://www.qhflcp.cn/report/SSQ_WinMessage.aspx",
+    "SSQ": "https://www.scflcp.com.cn/ssq",
     "DLT": "https://www.gstc.org.cn/wanfa/dlt",
 }
 MAX_CONFIRM_BYTES = 2_000_000
@@ -93,9 +93,24 @@ def verify_independent_latest(
     text = re.sub(r"\s+", " ", " ".join(parser.parts))
     issue = str(latest["issue"])
     match = re.search(r"(?<![0-9])" + re.escape(issue) + r"(?![0-9])", text)
-    if match is None:
+    if match is None and game.name == "SSQ":
+        # Sichuan publishes recent SSQ draw dates/balls without a visible
+        # numeric issue identifier in its public HTML. Require the latest
+        # date+ball combination in the leading SSQ announcement, but record
+        # that the issue ID itself was not corroborated by this source.
+        anchor = text.find("双色球开奖公告")
+        if anchor < 0:
+            raise ValueError("SECOND_ISSUER_SSQ_ANNOUNCEMENT_MISSING")
+        header = text[anchor:anchor + 950]
+        day = latest["date"]
+        i = header.find(day)
+        if i < 0:
+            raise ValueError("SECOND_ISSUER_SSQ_DATE_NOT_FOUND")
+        after = header[i:i + 190]
+    elif match is None:
         raise ValueError("INDEPENDENT_ISSUER_ISSUE_NOT_FOUND")
-    after = text[match.end():match.end() + 1800]
+    else:
+        after = text[match.end():match.end() + 1800]
     expected = latest["front"] + latest["back"]
     formatted = r"\s+".join(f"{v:02d}" for v in expected)
     if not re.search(formatted + r"(?![0-9])", after):
@@ -191,7 +206,8 @@ def process_one(game: Game, ledger: Path, output: Path,
                 "issuer_second_url": CONFIRM_URLS[game.name],
                 "issuer_second_html_sha256": independent_sha,
                 "scoring": scored,
-                "source_trust": "PROVINCIAL_PAGES_AGREED_LATEST_ONLY",
+                "source_trust": ("TWO_ISSUERS_DATE_AND_BALLS_AGREED_ONLY_ISSUE_UNVERIFIED"
+                                 if game.name == "SSQ" else "PROVINCIAL_PAGES_AGREED_LATEST_ONLY"),
                 "formal_A": 0, "edge": "NO_EDGE",
             }
             planned_scores.append((score_path, score))
