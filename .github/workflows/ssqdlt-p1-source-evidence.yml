@@ -9,6 +9,10 @@ on:
       - 'research/p1_source_gate.py'
       - 'tests/test_p1_source_gate.py'
   workflow_dispatch:
+  # This cron only becomes active if the reviewed workflow enters main.
+  # Pull-request runs are NOT unattended schedule evidence.
+  schedule:
+    - cron: '29 15 * * *'
 
 permissions:
   contents: read
