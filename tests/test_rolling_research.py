@@ -1,5 +1,7 @@
 """Real-issue research bot synthetic contracts. No network, no formal forecasts."""
 from copy import deepcopy
+import base64
+import hashlib
 from datetime import datetime
 import json
 from pathlib import Path
@@ -159,6 +161,30 @@ def test_duplicate_issue_is_not_silently_counted(tmp_path):
         (directory / f).write_text(json.dumps(entry))
     with pytest.raises(ValueError, match="DUPLICATE_RESEARCH_FORECAST"):
         roll._replay_snapshot_targets(root)
+
+
+def test_raw_source_custody_roundtrips_exact_bytes(tmp_path):
+    ledger = tmp_path / "ledger"
+    ledger.mkdir()
+    game = DLT
+    data = b"\x00\\r\\nUnchanged <html>\x01"
+    sha = roll.preserve_raw_http_once(
+        ledger, game, "issuer-primary", roll.SOURCES["DLT"], data
+    )
+    assert sha == hashlib.sha256(data).hexdigest()
+    p = ledger / "research" / "raw" / "DLT" / "issuer-primary" / (sha + ".json")
+    saved = json.loads(p.read_text())
+    assert base64.b64decode(saved["raw_base64"]) == data
+    assert saved["size_bytes"] == len(data)
+    assert roll.preserve_raw_http_once(
+        ledger, game, "issuer-primary", roll.SOURCES["DLT"], data
+    ) == sha
+    saved["raw_base64"] = base64.b64encode(b"altered").decode("ascii")
+    p.write_text(json.dumps(saved))
+    with pytest.raises(ValueError, match="RAW_SOURCE_CHANGED"):
+        roll.preserve_raw_http_once(
+            ledger, game, "issuer-primary", roll.SOURCES["DLT"], data
+        )
 
 
 def test_create_only_write_cannot_modify_existing_receipt(tmp_path):
