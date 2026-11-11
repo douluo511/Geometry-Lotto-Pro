@@ -8,6 +8,7 @@ on:
       - 'tests/test_inverse_committee.py'
       - 'tests/test_inverse_live_models.py'
       - 'tests/test_inverse_closure.py'
+      - 'tests/test_one_click_council.py'
       - 'docs/superpowers/**/2026-11-11-inverse-formula-probe.md'
       - '.github/workflows/inverse-formula-research.yml'
   workflow_dispatch:
@@ -46,7 +47,7 @@ jobs:
       - name: Verify inverse search, past-only selection, isolation and corruption guards
         env:
           PYTHONPATH: .
-        run: python -m pytest -q tests/test_inverse_probe.py tests/test_inverse_committee.py tests/test_inverse_live_models.py tests/test_inverse_closure.py
+        run: python -m pytest -q tests/test_inverse_probe.py tests/test_inverse_committee.py tests/test_inverse_live_models.py tests/test_inverse_closure.py tests/test_one_click_council.py
       - name: Emit research report (never formal V4.7 forecast)
         env:
           PYTHONPATH: .
