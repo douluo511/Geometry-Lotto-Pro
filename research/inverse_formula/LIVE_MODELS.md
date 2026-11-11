@@ -1,7 +1,6 @@
 # Six GPT Expert Research Council (research-only, V2)
 
-The default research council now uses **six separately invoked GPT model IDs**
-over **one OpenAI API account/key**. Two rounds run six proposals and six
+The default research council uses **six separately invoked GPT-6+ agents (five distinct model IDs)** over **one OpenAI API account/key**. Two rounds run six proposals and six
 cross-reviews (12 externally billed API calls). Do NOT describe these as six
 different companies or independent providers. The model calls are isolated
 but can share biases or training data. **No claim of improved lottery
@@ -15,16 +14,22 @@ predictability has been established.**
 | Formula discovery | gpt-6.1-sol | Existing historical formula-bank exploration |
 | Ensemble researcher | gpt-6-luna | Heuristic combination and diversity |
 | Statistician | gpt-6-sol | D2/random NULL comparisons and multiplicity warnings |
-| Skeptical reviewer | gpt-5.6-sol | Challenge leakage, chance results and overfitting |
+| Skeptical reviewer | gpt-6-astra (second independent call) | Challenge leakage, chance results and overfitting |
 | Engineer | gpt-6.1-terra | Input/legal-number validation and audit integrity |
 
-The model IDs are documented in the OpenAI API catalog:
-https://developers.openai.com/api/docs/models
+The five general-purpose GPT-6+ model IDs are verified against
+the OpenAI API catalog and Responses reference. There are only five suitable
+different general-purpose IDs at this point, so the skeptical reviewer gets
+its **own second GPT-6 Astra request**. Role prompts and response IDs are
+separate; independence of calls does not eliminate shared model biases.
+
+Official source: https://developers.openai.com/api/docs/models
+Responses reference: https://developers.openai.com/api/reference/resources/responses/methods/create
 
 Review any changes in the actual configuration file:
 \`research/inverse_formula/multi_provider_agents.example.json\`
 
-All six models need to be enabled for the OpenAI API project. The models
+All five different model IDs need to be enabled for the OpenAI API project; GPT-6 Astra is called twice as two independent role-specific requests. The models
 have different pricing and strengths; role labels do not guarantee expertise.
 ChatGPT subscription access does not automatically grant API credits.
 
