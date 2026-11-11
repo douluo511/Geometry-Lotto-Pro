@@ -18,6 +18,10 @@ import sys
 
 PINNED_V47_COMMIT = "27c519ec0ad251a9d86ebc3452277b158930299e"
 VALID_GAMES = ("SSQ", "DLT")
+REQUIRED_SOURCES = {
+    "SSQ": frozenset({"national", "shanghai", "hebei"}),
+    "DLT": frozenset({"national", "jiangsu", "gansu"}),
+}
 MAX_JSON = 32_000_000
 
 
@@ -76,8 +80,50 @@ def check_guard(bundle: dict) -> dict:
     return statuses
 
 
+def source_diagnostics(bundle: dict) -> dict:
+    """Machine-readable source blockers: no reinterpretation or date repair."""
+    result = {}
+    for game in VALID_GAMES:
+        sources = bundle["games"][game].get("sources")
+        if not isinstance(sources, list) or len(sources) != 3:
+            raise ValueError("THREE_ORIGINAL_SOURCES_REQUIRED:" + game)
+        diagnostics = {}
+        for source in sources:
+            if not isinstance(source, dict):
+                raise ValueError("INVALID_SOURCE_RECEIPT")
+            source_id = source.get("source_id")
+            if source_id not in REQUIRED_SOURCES[game] or source_id in diagnostics:
+                raise ValueError("DUPLICATE_OR_UNKNOWN_SOURCE")
+            count = source.get("draw_count")
+            raw = source.get("raw_artifacts")
+            if type(count) is not int or count < 0 or not isinstance(raw, list):
+                raise ValueError("INVALID_SOURCE_COUNTS")
+            http_statuses = []
+            for artifact in raw:
+                if not isinstance(artifact, dict):
+                    raise ValueError("INVALID_SOURCE_HTTP_ARTIFACT")
+                status = artifact.get("http_status")
+                if type(status) is not int or not 100 <= status <= 599:
+                    raise ValueError("INVALID_SOURCE_HTTP_STATUS")
+                http_statuses.append(status)
+            error = source.get("error")
+            if error is not None and not isinstance(error, str):
+                raise ValueError("INVALID_SOURCE_ERROR")
+            diagnostics[source_id] = {
+                "parsed_draws": count,
+                "original_http_responses": len(http_statuses),
+                "http_statuses": sorted(set(http_statuses)),
+                "blocker": error[:500] if error else None,
+            }
+        if set(diagnostics) != REQUIRED_SOURCES[game]:
+            raise ValueError("MISSING_REQUIRED_INDEPENDENT_SOURCE:" + game)
+        result[game] = diagnostics
+    return result
+
+
 def assess(bundle: dict, audit: dict, code_sha: str) -> dict:
     statuses = check_guard(bundle)
+    diagnostics = source_diagnostics(bundle)
     if code_sha != PINNED_V47_COMMIT:
         raise ValueError("UNREVIEWED_V47_CODE")
     if (audit.get("schema") != "V47-INTAKE-BUNDLE-AUDIT-1"
@@ -96,6 +142,7 @@ def assess(bundle: dict, audit: dict, code_sha: str) -> dict:
         "schema": "SSQDLT_P1_LIVE_SOURCE_PROBE_V1",
         "status": "RAW_CUSTODY_PASS_TARGET_BLOCKED",
         "official_history_status_by_game": statuses,
+        "source_diagnostics_by_game": diagnostics,
         "official_source_authenticity": "NOT_VERIFIED",
         "official_target_and_cutoff": "BLOCKED",
         "trusted_predraw_seal": "NOT_RUN",
