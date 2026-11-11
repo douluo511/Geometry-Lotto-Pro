@@ -97,6 +97,11 @@ def test_first_step_reuses_only_existing_original_issue(tmp_path):
     verified = roll.verify_saved_research_ledger(ledger)
     assert verified["source_raw_envelopes"] == 2
     assert verified["scored_issues"] == 0
+    assert verified["per_game_reconstructed_scoreboard"]["SSQ"]["n"] == 0
+    assert verified["per_game_reconstructed_scoreboard"]["SSQ"]["full_rate"] is None
+    assert verified["per_game_reconstructed_scoreboard"]["DLT"]["d2_rate"] is None
+    assert verified["unscored_research_targets"]["SSQ"] == 1
+    assert verified["complete_research_roster_has_missing_scores"] is True
     assert record["research_null"]["not_formal_v47_null"] is True
 
 
@@ -152,6 +157,17 @@ def test_real_previous_snapshot_score_and_no_reissue(tmp_path):
     audit = roll.verify_saved_research_ledger(root)
     assert audit["forecast_issues"] == 2
     assert audit["scored_issues"] == 1
+    ssq_score = audit["per_game_reconstructed_scoreboard"]["SSQ"]
+    assert ssq_score["n"] == 1
+    assert ssq_score["full_hits"] == 1
+    assert ssq_score["d2_hits"] == 1
+    assert ssq_score["full_rate"] == 1.0
+    assert ssq_score["d2_rate"] == 1.0
+    assert ssq_score["fair_d2_probability"] == 15 / 528
+    assert ssq_score["comparison_control"] == "RESEARCH_NULL_NOT_FROZEN_V47"
+    assert audit["per_game_reconstructed_scoreboard"]["DLT"]["n"] == 0
+    assert audit["unscored_research_targets"]["SSQ"] == 1
+    assert audit["complete_research_roster_has_missing_scores"] is True
     tampered = json.loads(score_path.read_text())
     tampered["scoring"]["research_full_hit"] = 0
     score_path.write_text(json.dumps(tampered))
