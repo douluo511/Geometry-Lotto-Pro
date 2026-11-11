@@ -1,0 +1,53 @@
+{
+  "schema": "ai-music-recovery-state-v1",
+  "generated_date": "2026-10-04",
+  "project": "AI Music Production System",
+  "parent_issue": 20,
+  "candidate_identity": {
+    "status": "VERIFIED",
+    "filename": "AI_Music_Pro.exe",
+    "size_bytes": 1711616,
+    "sha256": "03ee21fd0bbc51ce998d3b8d9756a6ab6bf7892265888892eec8af7ecb4dfe3c",
+    "pe": true,
+    "machine": "0x8664",
+    "subsystem": 2,
+    "technology": "Go Windows amd64"
+  },
+  "recovered_evidence": {
+    "binary_identity_baseline": "VERIFIED",
+    "library_exact_binary_present": "VERIFIED",
+    "go_string_audit": "SUPPORTED",
+    "note": "Recovered audit data identifies the exact PE bytes and Go technology. The string audit does not prove a reconstructable source tree or current runtime acceptance."
+  },
+  "source_build_lineage": {
+    "exact_source_tree": "NOT VERIFIED",
+    "build_manifest": "NOT VERIFIED",
+    "compiler_dependency_lock": "NOT VERIFIED",
+    "reproducible_rebuild": "NOT VERIFIED",
+    "source_to_binary_binding": "NOT VERIFIED"
+  },
+  "frozen_acceptance": {
+    "real_audio_output": "NOT VERIFIED",
+    "model_provider_identity": "NOT VERIFIED",
+    "model_asset_license": "NOT VERIFIED",
+    "request_response_provenance": "NOT VERIFIED",
+    "netclient": "NOT VERIFIED",
+    "storage": "NOT VERIFIED",
+    "engine": "NOT VERIFIED",
+    "validation": "NOT VERIFIED",
+    "evidence": "NOT VERIFIED",
+    "service": "NOT VERIFIED",
+    "ui": "NOT VERIFIED",
+    "updater": "NOT VERIFIED",
+    "real_network": "NOT VERIFIED",
+    "windows_build_current_source": "NOT VERIFIED",
+    "exact_exe_current_source": "NOT VERIFIED",
+    "physical_gui": "NOT VERIFIED",
+    "same_hash_current_source": "NOT VERIFIED",
+    "repository_independence": "BLOCKED",
+    "real_release_n_to_n_plus_1": "BLOCKED",
+    "final_gate": "FAIL"
+  },
+  "delivery_allowed": false,
+  "rule": "Recovered candidate identity is not source provenance or acceptance. No historical or binary-only evidence may be promoted to Final PASS."
+}
