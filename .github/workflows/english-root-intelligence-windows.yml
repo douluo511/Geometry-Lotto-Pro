@@ -27,11 +27,14 @@ jobs:
       PYTHONUTF8: '1'
       PYTHONIOENCODING: 'utf-8'
       GLP_UPDATE_REF: ${{ github.event.pull_request.head.sha || github.sha }}
+      ENGLISH_ROOT_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         name: Checkout exact commit
+        with:
+          ref: ${{ env.ENGLISH_ROOT_SOURCE_SHA }}
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         name: Setup Python x64
         with:
           python-version: '3.11.9'
@@ -40,8 +43,14 @@ jobs:
       - name: Install pinned dependencies
         run: python -m pip install --disable-pip-version-check -r requirements-build.txt
 
-      - name: Compile gate
-        run: python -m compileall -q .
+      - name: Static and compile gate with exact checkout
+        shell: pwsh
+        run: |
+          if ((git rev-parse HEAD).Trim() -ne $env:ENGLISH_ROOT_SOURCE_SHA) { throw 'Pinned source checkout mismatch' }
+          python -m compileall -q .
+          $code=$LASTEXITCODE
+          @{schema='english-root-static-compile-v1';status=$(if($code -eq 0){'PASS'}else{'FAIL'});github_sha=$env:ENGLISH_ROOT_SOURCE_SHA;github_run_id=$env:GITHUB_RUN_ID;github_run_attempt=$env:GITHUB_RUN_ATTEMPT;exit_code=$code} | ConvertTo-Json | Set-Content static_compile_gate.json -Encoding utf8
+          if ($code -ne 0) { throw 'Compile failed' }
 
       - name: Architecture mother gate
         run: python architecture_gate.py
@@ -61,45 +70,88 @@ jobs:
       - name: Integration Gate
         run: python validation_gate.py --suite integration --output integration_gate.json
 
+      - name: Independent updater atomic rollback gate
+        run: python updater_gate.py --output updater_gate.json
+
       - name: Business Counterexample Reversal Gate
         run: python business_validation_gate.py
 
-      - name: Real Network through production update path
+      - name: Real Network through audited corpus refresh
         run: python real_network_check.py
+
+      - name: Independent repository inventory
+        run: python repository_independence_gate.py --repository "${{ github.repository }}" --repo-root .. --output repository_independence.json
 
       - name: Native Windows Build
         shell: pwsh
         run: |
-          pyinstaller --noconfirm --clean --onefile --windowed --name English_Root_Intelligence --add-data "data;data" app.py
+          python build_preflight.py
+          if ($LASTEXITCODE -ne 0) { throw 'Tcl resources unusable; no valid GUI build can be accepted' }
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name English_Root_Intelligence --add-data 'data;data' app.py
+          if ($LASTEXITCODE -ne 0) { throw 'Main build failed' }
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name English_Root_Intelligence_Updater updater_entry.py
+          if ($LASTEXITCODE -ne 0) { throw 'Updater build failed' }
           if (-not (Test-Path "dist\English_Root_Intelligence.exe")) { throw "EXE missing" }
+          if (-not (Test-Path 'dist\English_Root_Intelligence_Updater.exe')) { throw 'Updater EXE missing' }
 
       - name: Exact Candidate Gate
+        env:
+          ENGLISH_ROOT_DATA_ROOT: ${{ runner.temp }}\english-root-gui-profile
         run: python exact_candidate_gate.py --exe ".\dist\English_Root_Intelligence.exe" --output exact_candidate_gate.json
+
+      - name: Exact independent updater process and self-test
+        shell: pwsh
+        run: |
+          $exe=(Resolve-Path 'dist\English_Root_Intelligence_Updater.exe').Path
+          $output=Join-Path (Get-Location).Path 'updater_self_test.json'
+          if (Test-Path -LiteralPath $output) { Remove-Item -LiteralPath $output -Force }
+          $before=(Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash.ToLower()
+          $process=Start-Process -FilePath $exe -ArgumentList @('--self-test','--evidence-file',('"'+$output+'"')) -PassThru -Wait -WindowStyle Hidden
+          $exitCode=$process.ExitCode
+          if (-not (Test-Path -LiteralPath $output)) { throw 'Updater produced no self-test JSON' }
+          $health=Get-Content -LiteralPath $output -Raw | ConvertFrom-Json
+          $after=(Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash.ToLower()
+          $passed=($exitCode -eq 0 -and $health.schema -eq 'english-root-updater-self-test-v1' -and $health.status -eq 'PASS' -and $before -eq $after)
+          @{schema='english-root-updater-windows-v1';status=$(if($passed){'PASS'}else{'FAIL'});github_sha=$env:ENGLISH_ROOT_SOURCE_SHA;github_run_id=$env:GITHUB_RUN_ID;github_run_attempt=$env:GITHUB_RUN_ATTEMPT;runner_os=$env:RUNNER_OS;pid=$process.Id;exit_code=$exitCode;updater_exe_sha256=$after;same_hash=($before -eq $after);self_test=$health} | ConvertTo-Json -Depth 12 | Set-Content updater_windows_gate.json -Encoding utf8
+          if (-not $passed) { throw 'Exact updater failed' }
 
       - name: Physical GUI Click Smoke
         shell: pwsh
+        env:
+          ENGLISH_ROOT_DATA_ROOT: ${{ runner.temp }}\english-root-physical-profile
         run: |
-          python ..\.github\scripts\tk_button_points.py --project-path . --module app --entry main --labels "今日学习;一键更新;一键修复;高级分析" --out ".\gui_points.txt"
+          $env:ENGLISH_ROOT_GUI_ACTIONS_PATH=Join-Path (Get-Location).Path 'gui_service_actions.jsonl'
+          if (Test-Path -LiteralPath $env:ENGLISH_ROOT_GUI_ACTIONS_PATH) { Remove-Item -LiteralPath $env:ENGLISH_ROOT_GUI_ACTIONS_PATH -Force }
+          python scripts\tk_button_points.py --project-path . --module app --entry main --labels "今日学习;一键更新;一键修复;高级分析" --out ".\gui_points.txt"
+          if ($LASTEXITCODE -ne 0) { throw 'Button geometry unavailable' }
           $points=(Get-Content ".\gui_points.txt" -Raw).Trim()
-          ..\.github\scripts\physical_gui_click_smoke.ps1 -ExePath ".\dist\English_Root_Intelligence.exe" -Points $points -SettleMs 1200 -EvidencePath ".\physical_gui_click.json"
-          python bind_physical_gui.py --exe ".\dist\English_Root_Intelligence.exe" --evidence ".\physical_gui_click.json"
+          .\scripts\physical_gui_click.ps1 -ExePath ".\dist\English_Root_Intelligence.exe" -Points $points -SettleMs 2000 -EvidencePath ".\physical_gui_click.json"
+          python bind_physical_gui.py --exe ".\dist\English_Root_Intelligence.exe" --evidence ".\physical_gui_click.json" --service-actions gui_service_actions.jsonl
+          if ($LASTEXITCODE -ne 0) { throw 'Physical click did not bind to completed Service actions' }
+
+      - name: Real independent release N to N plus 1 gate
+        run: python software_release_gate.py --input release_transition_evidence.json --repository "${{ github.repository }}" --source-sha "$env:ENGLISH_ROOT_SOURCE_SHA" --output software_release_validation.json
 
       - name: Freeze final bytes
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force dist\final | Out-Null
           Copy-Item dist\English_Root_Intelligence.exe dist\final\English_Root_Intelligence.exe -Force
+          Copy-Item dist\English_Root_Intelligence_Updater.exe dist\final\English_Root_Intelligence_Updater.exe -Force
+
+      - name: Cross-bind final artifacts to accepted independent release
+        run: python final_artifact_gate.py --main-exe dist/English_Root_Intelligence.exe --final-main-exe dist/final/English_Root_Intelligence.exe --updater-exe dist/English_Root_Intelligence_Updater.exe --final-updater-exe dist/final/English_Root_Intelligence_Updater.exe --exact-evidence exact_candidate_gate.json --physical-gui physical_gui_click.json --updater-windows updater_windows_gate.json --repository-evidence repository_independence.json --software-release-evidence software_release_validation.json --output final_artifact_gate.json
 
       - name: Evidence-derived Final Gate and Same Hash
         shell: pwsh
         run: |
-          python collect_final_gates.py --exe ".\dist\English_Root_Intelligence.exe" --final-exe ".\dist\final\English_Root_Intelligence.exe" --physical-gui ".\physical_gui_click.json" --repository-independent FAIL --output ".\mother_gates.json"
+          python collect_final_gates.py --exe dist/English_Root_Intelligence.exe --final-exe dist/final/English_Root_Intelligence.exe --updater-exe dist/English_Root_Intelligence_Updater.exe --final-updater-exe dist/final/English_Root_Intelligence_Updater.exe --physical-gui physical_gui_click.json --repository-evidence repository_independence.json --updater-windows updater_windows_gate.json --software-release-evidence software_release_validation.json --final-artifact-evidence final_artifact_gate.json --output mother_gates.json
           $collectorExit=$LASTEXITCODE
           python release_gate.py --input ".\mother_gates.json" --output ".\final_gate.json"
           $releaseExit=$LASTEXITCODE
           $mother=Get-Content ".\mother_gates.json" -Raw | ConvertFrom-Json
           $final=Get-Content ".\final_gate.json" -Raw | ConvertFrom-Json
-          if ($collectorExit -ne 0 -or $releaseExit -ne 0 -or $mother.status -ne 'PASS' -or $final.final_gate -ne 'PASS' -or [int]$final.hard_fail_count -ne 0) {
+          if ($collectorExit -ne 0 -or $releaseExit -ne 0 -or $mother.status -ne 'PASS' -or $final.final_gate -ne 'PASS' -or [int]$final.hard_fail_count -ne 0 -or $mother.engineering_completion -ne 100 -or $mother.business_completion -ne 100) {
             throw "Final Gate blocked: independent repository is mandatory"
           }
           Write-Host "ENGLISH_ROOT_FINAL_SHA256=$($mother.exe_sha256)"
@@ -114,23 +166,37 @@ jobs:
             version='0.4.0'
             artifact='English_Root_Intelligence.exe'
             sha256=$mother.exe_sha256
-            source_commit=$env:GITHUB_SHA
+            source_commit=$env:ENGLISH_ROOT_SOURCE_SHA
+            github_run_id=$env:GITHUB_RUN_ID
+            github_run_attempt=$env:GITHUB_RUN_ATTEMPT
+            engineering_completion=$mother.engineering_completion
+            business_completion=$mother.business_completion
+            updater_sha256=$mother.updater_exe_sha256
             final_gate='PASS'
             hard_fail_count=$mother.hard_fail_count
           } | ConvertTo-Json | Set-Content FINAL_ACCEPTANCE.json -Encoding utf8
 
       - name: Upload Unique Final Product
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: English_Root_Intelligence_FINAL_v0.4.0
           path: english-root-intelligence/dist/final/English_Root_Intelligence.exe
-          if-no-files-found: warn
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+      - name: Upload accepted independent updater component
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: English_Root_Intelligence_Updater_v0.4.0
+          path: english-root-intelligence/dist/final/English_Root_Intelligence_Updater.exe
+          if-no-files-found: error
           retention-days: 30
           compression-level: 0
 
       - name: Upload Audit Evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: English_Root_Intelligence_AUDIT_v0.4.0
           path: |
@@ -144,6 +210,16 @@ jobs:
             english-root-intelligence/real_network_evidence.json
             english-root-intelligence/exact_candidate_gate.json
             english-root-intelligence/physical_gui_click.json
+            english-root-intelligence/physical_gui_click.json.*.png
+            english-root-intelligence/gui_service_actions.jsonl
+            english-root-intelligence/updater_gate.json
+            english-root-intelligence/updater_windows_gate.json
+            english-root-intelligence/updater_self_test.json
+            english-root-intelligence/repository_independence.json
+            english-root-intelligence/software_release_validation.json
+            english-root-intelligence/final_artifact_gate.json
+            english-root-intelligence/static_compile_gate.json
+            english-root-intelligence/build_preflight.json
             english-root-intelligence/mother_gates.json
             english-root-intelligence/final_gate.json
             english-root-intelligence/FINAL_ACCEPTANCE.json

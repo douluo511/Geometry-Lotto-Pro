@@ -1,4 +1,5 @@
 from __future__ import annotations
+from gate_common import run_identity
 import json
 import os
 from pathlib import Path
@@ -8,6 +9,7 @@ REQ = [
     "ENGINEERING_SPEC.md","BUSINESS_SPEC.md","domain.py","contracts.py","net_client.py",
     "storage.py","engine.py","evidence.py","service.py","app.py","release_gate.py",
     "real_network_check.py","collect_final_gates.py","exact_candidate_gate.py",
+    "software_update.py", "updater.py", "updater_entry.py", "updater_gate.py",
 ]
 def main() -> int:
     checks = {f"exists:{x}": (ROOT/x).exists() for x in REQ}
@@ -38,13 +40,14 @@ def main() -> int:
             "from service import" in app
             and all(x not in app for x in ["from core import","from net_client import","from storage import","from engine import"])
         ) else "FAIL",
+        "updater": "PASS" if "launch_independent_updater" in svc and "def refresh_knowledge" in svc else "FAIL",
     }
     checks["legacy_network_bypass_disabled"] = "urllib.request" not in core
     status = "PASS" if all(checks.values()) and all(v == "PASS" for v in gates.values()) else "FAIL"
     report = {
         "schema": "english-root-architecture-gate-v2",
         "status": status,
-        "github_sha": os.environ.get("GITHUB_SHA"),
+        **run_identity(), "github_sha": (os.environ.get("ENGLISH_ROOT_SOURCE_SHA") or os.environ.get("GITHUB_SHA")),
         "gates": gates,
         "checks": checks,
     }

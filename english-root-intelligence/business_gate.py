@@ -1,4 +1,5 @@
 from __future__ import annotations
+from gate_common import run_identity
 import json
 import os
 from pathlib import Path
@@ -29,7 +30,7 @@ def main()->int:
       ),
     }
     status="PASS" if all(checks.values()) else "FAIL"
-    report={"schema":"english-root-business-gate-v2","github_sha":os.environ.get("GITHUB_SHA"),"version":roots.get("version"),"status":status,"active_families":len(active),"catalog_entries":len(entries),"checks":checks}
+    report={"schema":"english-root-business-gate-v2",**run_identity(), "github_sha":(os.environ.get("ENGLISH_ROOT_SOURCE_SHA") or os.environ.get("GITHUB_SHA")),"version":roots.get("version"),"status":status,"active_families":len(active),"catalog_entries":len(entries),"checks":checks}
     (ROOT/"business_gate.json").write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding="utf-8")
     print(json.dumps(report,ensure_ascii=True))
     return 0 if status=="PASS" else 2

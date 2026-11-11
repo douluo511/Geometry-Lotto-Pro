@@ -8,8 +8,9 @@ import threading
 import tkinter as tk
 from tkinter import messagebox
 from tkinter import ttk
+from pathlib import Path
 
-from service import APP_NAME, APP_VERSION, create_service, self_test
+from service import APP_NAME, APP_VERSION, create_service, self_test, ReleaseConfigurationUnavailable
 
 
 BG = "#f5f7fb"
@@ -142,7 +143,8 @@ class App(tk.Tk):
         self.clear()
         tk.Label(self.content, text="今日学习", bg=BG, fg=TEXT,
                  font=("Microsoft YaHei UI", 20, "bold")).pack(anchor="w", pady=(4, 12))
-        for r in self.service.today_roots(3):
+        roots = self.service.today_roots(3)
+        for r in roots:
             c = self.card()
             c.pack(fill="x", pady=6)
             top = tk.Frame(c, bg=CARD)
@@ -165,6 +167,7 @@ class App(tk.Tk):
                       relief="flat", bg="#e9efff", fg=BLUE).pack(side="right", padx=4)
             tk.Button(actions, text="完成一次", command=lambda x=r["morpheme"]: self.practice(x),
                       relief="flat", bg=BLUE, fg="white").pack(side="right", padx=4)
+        self.service.record_ui_action("今日学习", {"status": "PASS", "root_count": len(roots), "morphemes": [r["morpheme"] for r in roots]})
 
     def practice(self, morpheme):
         self.service.mark_practiced(morpheme)
@@ -184,25 +187,29 @@ class App(tk.Tk):
 
     def run_update(self):
         self.title(f"{APP_NAME} v{APP_VERSION} · 一键更新已触发")
-        self.status_var.set("正在联网检查并验证词根数据库更新…")
+        self.status_var.set("正在检查可信软件发布并启动独立更新程序…")
         self.update_idletasks()
         threading.Thread(target=self._update_worker, daemon=True).start()
 
     def _update_worker(self):
         try:
             r = self.service.one_click_update()
-            self.after(0, lambda: messagebox.showinfo(
-                "一键更新 PASS",
-                f'版本：{r["version"]}\n词根数：{r["roots"]}\nSHA256：{r["sha256"][:16]}…'
-            ))
-            self.after(0, lambda: self.status_var.set("一键更新 PASS · SHA256 与结构校验均通过"))
+            if r.get("status") != "PASS" or r.get("action") != "UPDATER_HANDOFF":
+                raise RuntimeError("软件更新交接未通过验证")
+            self.service.record_ui_action("一键更新", r)
+            self.after(0, lambda: self.status_var.set("已启动独立更新程序 · 主程序即将关闭"))
+            self.after(700, self.destroy)
         except Exception as exc:
-            self.after(0, lambda: messagebox.showerror("一键更新失败", str(exc)))
-            self.after(0, lambda: self.status_var.set("一键更新 FAIL · 保留旧数据库"))
+            status = "BLOCKED" if isinstance(exc, ReleaseConfigurationUnavailable) else "FAIL"
+            detail = str(exc)
+            self.service.record_ui_action("一键更新", {"status": status, "error": detail})
+            self.after(0, lambda d=detail: messagebox.showerror("一键更新未完成", d))
+            self.after(0, lambda s=status: self.status_var.set(f"一键更新 {s} · 保留原软件和学习数据"))
 
     def run_repair(self):
         try:
             r = self.service.one_click_repair()
+            self.service.record_ui_action("一键修复", r)
             text = "\n".join(f"{name}: {status} · {detail}" for name, status, detail in r["checks"])
             if r["status"] == "PASS":
                 messagebox.showinfo("一键修复 PASS", text)
@@ -210,6 +217,7 @@ class App(tk.Tk):
                 messagebox.showerror("一键修复 FAIL", text)
             self.status_var.set(f'一键修复 {r["status"]}')
         except Exception as exc:
+            self.service.record_ui_action("一键修复", {"status": "FAIL", "error": str(exc)})
             messagebox.showerror("修复失败", str(exc))
 
     def show_analysis(self):
@@ -244,11 +252,15 @@ class App(tk.Tk):
         advice = "当前版本将“看见认识”和“主动表达”分开记录。后续将继续增加听力识别、Shadowing、主动回忆和假掌握检测。"
         tk.Label(c, text=advice, wraplength=820, justify="left", bg=CARD, fg=MUTED,
                  font=("Microsoft YaHei UI", 10)).pack(anchor="w", padx=20, pady=(0, 16))
+        self.service.record_ui_action("高级分析", {"status": "PASS", "stats": s})
 
 
 def main() -> int:
     if "--self-test" in sys.argv:
         r = self_test()
+        if "--result-file" in sys.argv:
+            destination = Path(sys.argv[sys.argv.index("--result-file") + 1])
+            destination.write_text(json.dumps(r, ensure_ascii=False), encoding="utf-8")
         print(json.dumps(r, ensure_ascii=False))
         return 0 if r["status"] == "PASS" else 2
     app = App()

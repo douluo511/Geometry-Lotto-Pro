@@ -1,4 +1,5 @@
 from __future__ import annotations
+from gate_common import run_identity
 
 import argparse
 import hashlib
@@ -6,6 +7,7 @@ import json
 import os
 import subprocess
 import time
+import tempfile
 from pathlib import Path
 
 def sha256(path: Path) -> str:
@@ -17,8 +19,11 @@ def sha256(path: Path) -> str:
 
 def self_test(exe: Path) -> dict:
     try:
-        p = subprocess.run([str(exe), "--self-test"], timeout=120)
-        return {"status": "PASS" if p.returncode == 0 else "FAIL", "exit_code": p.returncode}
+        with tempfile.TemporaryDirectory(prefix="english-root-exact-") as directory:
+            output = Path(directory) / "health.json"
+            p = subprocess.run([str(exe), "--self-test", "--result-file", str(output)], timeout=120)
+            health = json.loads(output.read_text(encoding="utf-8-sig")) if output.is_file() else {}
+            return {"status": "PASS" if p.returncode == 0 and health.get("status") == "PASS" else "FAIL", "exit_code": p.returncode, "health": health}
     except Exception as exc:
         return {"status": "FAIL", "error": f"{type(exc).__name__}: {exc}"}
 
@@ -34,7 +39,11 @@ def gui_smoke(exe: Path) -> dict:
         return {"status": "FAIL", "error": f"{type(exc).__name__}: {exc}"}
     finally:
         if proc is not None and proc.poll() is None:
-            proc.terminate()
+            if os.name == "nt":
+                subprocess.run(["taskkill.exe", "/PID", str(proc.pid), "/T", "/F"],
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+            else:
+                proc.terminate()
             try:
                 proc.wait(timeout=10)
             except Exception:
@@ -54,7 +63,7 @@ def main() -> int:
     report = {
         "schema": "english-root-exact-candidate-v1",
         "status": "PASS" if exists and windows and st["status"] == "PASS" and gui["status"] == "PASS" else "FAIL",
-        "github_sha": os.environ.get("GITHUB_SHA"),
+        **run_identity(), "github_sha": (os.environ.get("ENGLISH_ROOT_SOURCE_SHA") or os.environ.get("GITHUB_SHA")),
         "runner_os": os.environ.get("RUNNER_OS"),
         "exe": exe.name,
         "exe_sha256": digest,
