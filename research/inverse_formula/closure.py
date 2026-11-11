@@ -146,9 +146,34 @@ def _extract_candidate(source: dict, game: Game) -> tuple[dict, str]:
             or type(inner.get("target_issue")) is not int
             or inner["target_issue"] != inner["asof_issue"] + 1):
         raise ValueError("candidate cutoff mismatch")
-    return {"ticket": validate_ticket(prediction, game), "asof_issue": inner["asof_issue"],
-            "target_issue": inner["target_issue"], "reference": reference,
-            "execution": execution}, history_hash
+    candidate = {"ticket": validate_ticket(prediction, game),
+                 "asof_issue": inner["asof_issue"],
+                 "target_issue": inner["target_issue"],
+                 "reference": reference, "execution": execution}
+    if inner.get("revision") == "REVIEWED_DAN_SHA_V2":
+        selections = inner.get("research_dan_sha")
+        if not isinstance(selections, dict):
+            raise ValueError("reviewed council missing dan/sha selections")
+        for side, max_value, full_size, dan_size, sha_size in (
+            ("front", game.front_max, game.front_pick, 2, 8),
+            ("back", game.back_max, game.back_pick, 1,
+             3 if game.name == "SSQ" else 2),
+        ):
+            dan, sha_list = selections.get(side+"_dan"), selections.get(side+"_sha")
+            if any(not isinstance(x, list) for x in (dan, sha_list)):
+                raise ValueError("dan/sha must be lists")
+            if len(dan) != dan_size or len(sha_list) != sha_size:
+                raise ValueError("unexpected dan/sha capacity")
+            if (any(type(n) is not int or not 1 <= n <= max_value
+                    for n in dan+sha_list)
+                    or dan != sorted(set(dan))
+                    or sha_list != sorted(set(sha_list))
+                    or set(dan) & set(sha_list)
+                    or not set(dan).issubset(candidate["ticket"][side])
+                    or set(sha_list) & set(candidate["ticket"][side])):
+                raise ValueError("dan/sha conflict with selected ticket")
+        candidate["research_dan_sha"] = selections
+    return candidate, history_hash
 
 
 def freeze(preflight_report: dict, candidate_archive: dict, game: Game) -> dict:
@@ -180,6 +205,8 @@ def freeze(preflight_report: dict, candidate_archive: dict, game: Game) -> dict:
         "trusted_predraw_timestamp": False,
         "official_v47_modified": False,
     }
+    if "research_dan_sha" in candidate:
+        sealed["research_dan_sha"] = candidate["research_dan_sha"]
     sealed["sha256"] = digest(sealed)
     return sealed
 
