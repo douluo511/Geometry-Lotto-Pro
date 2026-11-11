@@ -366,6 +366,16 @@ def verify_saved_research_ledger(ledger: Path) -> dict:
         raw_count += 1
 
     score_count = 0
+    # Independent cumulative counters, rebuilt from saved originals every run.
+    # These are research-only counters; a tiny sample is not evidence of edge.
+    by_game = {
+        name: {
+            "n": 0, "full_hits": 0, "d2_hits": 0,
+            "research_null_full_hits": 0, "research_null_d2_hits": 0,
+            "d2_paired_wins": 0, "d2_paired_losses": 0,
+        }
+        for name in ("SSQ", "DLT")
+    }
     for path in sorted((ledger / "research" / "scores").glob("*.json")):
         if not path.is_file() or path.is_symlink():
             raise ValueError("UNSAFE_SCORE_PATH")
@@ -409,11 +419,47 @@ def verify_saved_research_ledger(ledger: Path) -> dict:
         )
         if reconstructed != score.get("scoring"):
             raise ValueError("POSTDRAW_SCORE_CHANGED_AFTER_ISSUANCE")
+        stats = by_game[game_name]
+        stats["n"] += 1
+        stats["full_hits"] += reconstructed["research_full_hit"]
+        stats["d2_hits"] += reconstructed["research_d2_hit"]
+        stats["research_null_full_hits"] += reconstructed["research_null_full_hit"]
+        stats["research_null_d2_hits"] += reconstructed["research_null_d2_hit"]
+        stats["d2_paired_wins"] += int(
+            reconstructed["research_d2_hit"] == 1
+            and reconstructed["research_null_d2_hit"] == 0
+        )
+        stats["d2_paired_losses"] += int(
+            reconstructed["research_d2_hit"] == 0
+            and reconstructed["research_null_d2_hit"] == 1
+        )
         score_count += 1
+    rates = {}
+    for name, stats in by_game.items():
+        n = stats["n"]
+        rates[name] = {
+            **stats,
+            "full_rate": stats["full_hits"] / n if n else None,
+            "d2_rate": stats["d2_hits"] / n if n else None,
+            "research_null_full_rate": stats["research_null_full_hits"] / n if n else None,
+            "research_null_d2_rate": stats["research_null_d2_hits"] / n if n else None,
+            "fair_d2_probability": 15 / 528 if name == "SSQ" else 10 / 595,
+            "comparison_control": "RESEARCH_NULL_NOT_FROZEN_V47",
+            "signed_paired_comparison_unverified": True,
+            "eligible_formal_predraw_samples": 0,
+        }
     return {
         "status": "PASS_RESEARCH_REPLAY_NOT_FORMAL",
         "forecast_issues": len(snapshots), "scored_issues": score_count,
         "source_raw_envelopes": raw_count,
+        "per_game_reconstructed_scoreboard": rates,
+        "complete_research_roster_has_missing_scores": (
+            score_count != len(snapshots)
+        ),
+        "unscored_research_targets": {
+            game: sum(g == game for g, _ in snapshots) - rates[game]["n"]
+            for game in ("SSQ", "DLT")
+        },
         "formal_A": 0, "edge": "NO_EDGE",
         "trusted_predraw_timestamp_verified": False,
     }
