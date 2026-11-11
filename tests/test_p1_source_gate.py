@@ -20,6 +20,17 @@ def bundle():
                 "formal_A": 0,
                 "official_target_admission": "BLOCKED",
                 "decision": "NO_EDGE",
+                "sources": [
+                    {
+                        "source_id": source_id,
+                        "draw_count": 2 if source_id == "shanghai" else 0,
+                        "raw_artifacts": [{"http_status": 200}] if source_id == "shanghai" else
+                                         [{"http_status": 567}],
+                        "error": None if source_id == "shanghai" else "HTTP denied",
+                    }
+                    for source_id in (("national", "shanghai", "hebei") if game == "SSQ"
+                                      else ("national", "jiangsu", "gansu"))
+                ],
             }
             for game in ("SSQ", "DLT")
         },
@@ -54,6 +65,12 @@ class P1EvidenceTests(unittest.TestCase):
         self.assertEqual(receipt["p1_forecast_gate"], "UNVERIFIED")
         self.assertEqual(receipt["paid_model_calls"], 0)
         self.assertEqual(receipt["raw_body_records_verified"], 7)
+        self.assertEqual(
+            receipt["source_diagnostics_by_game"]["DLT"]["national"]["http_statuses"],
+            [567])
+        self.assertEqual(
+            receipt["source_diagnostics_by_game"]["SSQ"]["shanghai"]["parsed_draws"],
+            2)
 
     def test_single_game_source_is_never_complete_cohort(self):
         data = bundle()
@@ -110,6 +127,22 @@ class P1EvidenceTests(unittest.TestCase):
                 p.write_text(raw, encoding="utf-8")
                 with self.subTest(raw=raw), self.assertRaisesRegex(ValueError, message):
                     strict_json(p)
+
+    def test_missing_original_source_and_illegal_http_fail_closed(self):
+        data = bundle()
+        data["games"]["DLT"]["sources"].pop()
+        with self.assertRaisesRegex(ValueError, "THREE_ORIGINAL_SOURCES_REQUIRED"):
+            assess(data, audit(), PINNED_V47_COMMIT)
+        data = bundle()
+        data["games"]["SSQ"]["sources"][0]["raw_artifacts"][0]["http_status"] = True
+        with self.assertRaisesRegex(ValueError, "INVALID_SOURCE_HTTP_STATUS"):
+            assess(data, audit(), PINNED_V47_COMMIT)
+
+    def test_duplicate_source_identity_cannot_masquerade_as_consensus(self):
+        data = bundle()
+        data["games"]["SSQ"]["sources"][0]["source_id"] = "shanghai"
+        with self.assertRaisesRegex(ValueError, "DUPLICATE_OR_UNKNOWN_SOURCE"):
+            assess(data, audit(), PINNED_V47_COMMIT)
 
     def test_json_roundtrip_for_two_game_receipt(self):
         with tempfile.TemporaryDirectory() as tmp:
