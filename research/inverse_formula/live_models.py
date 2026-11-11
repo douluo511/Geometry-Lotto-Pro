@@ -29,7 +29,7 @@ ROLES = ("mathematician", "formula_discovery", "ensemble_researcher",
 MAX_AGENTS = 6
 MODEL_TEXT_LIMIT = 12000
 MAX_RESPONSE_BYTES = 100000
-MAX_TOKENS = 2400
+MAX_TOKENS = 8192
 GPT6_APPROVED_IDS = frozenset({
     "gpt-6-astra", "gpt-6.1-sol", "gpt-6.1-terra",
     "gpt-6-sol", "gpt-6-luna",
@@ -133,8 +133,8 @@ def verify_six_gpt6_agents(agents: tuple[Agent, ...]) -> None:
         raise ValueError("only approved general-purpose GPT-6+ API models allowed")
     if len({a.model for a in agents}) != 5:
         raise ValueError("expected five approved model variants across six roles")
-    if any(a.reasoning_effort != "medium" for a in agents):
-        raise ValueError("six-role research meeting requires medium reasoning effort")
+    if any(a.reasoning_effort != "high" for a in agents):
+        raise ValueError("six-role research meeting requires high reasoning effort")
 
 
 def require_keys(agents: tuple[Agent, ...]) -> None:
