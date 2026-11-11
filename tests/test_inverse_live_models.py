@@ -196,10 +196,13 @@ def test_six_role_real_model_configuration_and_specialist_evidence():
     agents = parse_agents(json.loads(source.read_text(encoding="utf-8")))
     assert len(agents) == 6
     assert {a.role for a in agents} == set(ROLES) == set(ROLE_TASKS)
-    assert len({(a.provider, a.model) for a in agents}) == 6
+    assert len({(a.provider, a.model) for a in agents}) == 5
+    assert len({a.role for a in agents}) == 6
+    assert all(a.model.startswith("gpt-6") for a in agents)
     assert {a.provider for a in agents} == {"openai"}
     assert all(a.model.startswith("gpt-") for a in agents)
-    assert len({a.model for a in agents}) == 6
+    assert len({a.model for a in agents}) == 5
+    assert sum(a.model == "gpt-6-astra" for a in agents) == 2
     draws, _ = load_history(DATA / "ssq_2026.txt", SSQ)
     for agent in agents:
         body = json.loads(proposal_prompt(agent, draws[:35], SSQ))
@@ -305,6 +308,37 @@ def test_openai_only_six_role_council_has_twelve_independent_requests_and_only_o
     assert len(receipt["cross_reviews"]) == 6
     assert receipt["complete_six_role_committee"] is True
     assert {x["provider"] for x in receipt["independent_proposals"]} == {"openai"}
-    assert len({x["model"] for x in receipt["independent_proposals"]}) == 6
+    assert len({x["model"] for x in receipt["independent_proposals"]}) == 5
+    assert sum(x["model"] == "gpt-6-astra"
+               for x in receipt["independent_proposals"]) == 2
     assert receipt["execution"] == "INJECTED_MOCK_TRANSPORT_TEST_ONLY"
     assert receipt["decision"] == "NO_EDGE_REQUIRES_PROSPECTIVE_VALIDATION"
+
+
+
+def test_only_a_single_gpt6_model_repeat_is_allowed():
+    # Independently executed roles are not necessarily six unique model names.
+    config = json.loads((DATA / "multi_provider_agents.example.json")
+                        .read_text(encoding="utf-8"))
+    agents = parse_agents(config)
+    assert len(agents) == 6
+    assert len({a.model for a in agents}) == 5
+    assert {a.role for a in agents} == {
+        "mathematician", "formula_discovery", "ensemble_researcher",
+        "statistician", "skeptical_reviewer", "engineer",
+    }
+    wrong = json.loads(json.dumps(config))
+    wrong[4]["model"] = "gpt-5.6-sol"
+    # Six unique mixed-generation IDs could be used in general library
+    # tests, but that does not qualify for the explicit GPT-6+ plan.
+    assert not all(x["model"].startswith("gpt-6") for x in wrong)
+
+    wrong = json.loads(json.dumps(config))
+    wrong[5]["model"] = "gpt-6-astra"  # only four distinct model IDs
+    with pytest.raises(ValueError, match="duplicate model identity"):
+        parse_agents(wrong)
+
+    wrong = json.loads(json.dumps(config))
+    wrong[0]["model"] = "gpt-5.6-sol"  # 5 unique including GPT-5.6
+    with pytest.raises(ValueError, match="duplicate model identity"):
+        parse_agents(wrong)
