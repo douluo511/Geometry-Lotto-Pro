@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "content_version": "1.1-reauthored-20260929",
+  "reconstruction_policy": "Re-authored from recovered TalkCraft prototype plus prior user-owned training-system documents; not represented as byte-identical recovery of missing legacy JSON.",
+  "provenance": [
+    "TalkCraft Pro · 脱口秀表达训练原型 (recovered HTML prototype)",
+    "把人聊到爽_完整版封版_实战执行系统.docx",
+    "把人聊到爽_真正最终完整版_训练执行版.pdf"
+  ],
+  "scoring_dimensions": [
+    "observation",
+    "pov",
+    "concise",
+    "humor",
+    "story",
+    "rhythm",
+    "interaction"
+  ],
+  "mechanisms": [
+    {
+      "id": "contrast",
+      "name": "反差 / 预期打破",
+      "instruction": "先建立一个听众自然会相信的预期，再用真实细节或视角打破预期。",
+      "failure": "没有预期铺垫就直接反转，笑点会失去落差。"
+    },
+    {
+      "id": "analogy",
+      "name": "类比",
+      "instruction": "把抽象感受换成一个具体、可视化、同结构的事物。",
+      "failure": "只追求奇怪比喻，不保留原事件的结构相似性。"
+    },
+    {
+      "id": "exaggeration",
+      "name": "夸张",
+      "instruction": "只放大一个变量，让荒诞仍然能看出真实来源。",
+      "failure": "所有变量一起放大，失去可信锚点。"
+    },
+    {
+      "id": "self",
+      "name": "自嘲",
+      "instruction": "把矛头优先指向自己的习惯、误判或处境，不攻击他人身份。",
+      "failure": "把自嘲变成自我贬低或把责任转嫁给别人。"
+    },
+    {
+      "id": "callback",
+      "name": "回扣",
+      "instruction": "复用前文已经出现的词、细节或规则，让结尾形成回声。",
+      "failure": "引入新信息冒充回扣，听众没有记忆锚点。"
+    },
+    {
+      "id": "story",
+      "name": "故事升级",
+      "instruction": "按背景→欲望→障碍→升级→结果推进，每一步只增加一个新压力。",
+      "failure": "只有事件罗列，没有欲望、障碍或变化。"
+    }
+  ],
+  "guardrails": [
+    "train user capability rather than ghostwrite every line",
+    "humor should reduce tension rather than humiliate",
+    "avoid trauma, disease, body shame, identity discrimination and vulnerability exploitation",
+    "one-variable-at-a-time practice before adding more techniques",
+    "rule scores are coaching signals, not personality or psychological diagnosis",
+    "real improvement requires repeated practice, feedback, 5 Why and reversal validation"
+  ]
+}
