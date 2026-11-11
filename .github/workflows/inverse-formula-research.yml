@@ -10,6 +10,20 @@ on:
       - 'docs/superpowers/**/2026-11-11-inverse-formula-probe.md'
       - '.github/workflows/inverse-formula-research.yml'
   workflow_dispatch:
+    inputs:
+      live_models:
+        description: "Explicitly opt in to paid external model calls"
+        required: true
+        type: boolean
+        default: false
+      game:
+        description: "Research game (historical fixture only)"
+        required: true
+        type: choice
+        default: ssq
+        options:
+          - ssq
+          - dlt
 
 permissions:
   contents: read
@@ -64,4 +78,47 @@ jobs:
         with:
           name: inverse-committee-${{ matrix.os }}
           path: inverse-committee-receipt.json
+          if-no-files-found: error
+
+  real-model-council:
+    if: github.event_name == 'workflow_dispatch' && inputs.live_models == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Check keys without printing their values
+        shell: bash
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          for name in OPENAI_API_KEY ANTHROPIC_API_KEY GEMINI_API_KEY; do
+            if [[ -z "${!name}" ]]; then
+              echo "::error::Missing required Actions secret: $name"
+              exit 1
+            fi
+          done
+      - name: Execute independently billed model calls (research only)
+        env:
+          PYTHONPATH: .
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          SELECTED_GAME: ${{ inputs.game }}
+        run: >
+          python -m research.inverse_formula.live_models
+          --live
+          --game "$SELECTED_GAME"
+          --agents research/inverse_formula/multi_provider_agents.example.json
+          --out multi-model-live-receipt.json
+      - name: Upload authenticated multi-model research receipt
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: actual-multi-model-research-receipt
+          path: multi-model-live-receipt.json
           if-no-files-found: error
