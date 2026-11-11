@@ -105,7 +105,7 @@ def parse_agents(value: object) -> tuple[Agent, ...]:
         # with one model ID reused; this is NOT six distinct model variants.
         gpt6_only = (len(result) == 6 and len(unique_models) == 5
                      and all(a.provider == "openai" and
-                             re.fullmatch(r"gpt-6(?:\\.1)?-[a-z0-9-]+",
+                             re.fullmatch(r"gpt-6(?:\.1)?-[a-z0-9-]+",
                                           a.model) for a in result))
         if not gpt6_only:
             raise ValueError("duplicate model identity")
