@@ -366,3 +366,63 @@ def test_live_six_gpt6_model_allowlist_rejects_older_or_unverified_ids():
         verify_six_gpt6_agents(parse_agents(unknown))
     with pytest.raises(ValueError, match="six distinct"):
         verify_six_gpt6_agents(parse_agents(original[:4] + original[5:]))
+
+
+
+def test_high_effort_is_enforced_for_all_six_gpt6_roles():
+    from research.inverse_formula.live_models import (
+        verify_six_gpt6_agents, MAX_TOKENS,
+    )
+    raw = json.loads(
+        (DATA / "multi_provider_agents.example.json").read_text(encoding="utf-8")
+    )
+    agents = parse_agents(raw)
+    assert len(agents) == 6
+    assert {a.reasoning_effort for a in agents} == {"high"}
+    verify_six_gpt6_agents(agents)
+    assert MAX_TOKENS >= 8192
+
+    for role in range(6):
+        wrong = json.loads(json.dumps(raw))
+        wrong[role]["reasoning_effort"] = "medium"
+        with pytest.raises(ValueError, match="requires high reasoning"):
+            verify_six_gpt6_agents(parse_agents(wrong))
+    wrong = json.loads(json.dumps(raw))
+    wrong[0]["reasoning_effort"] = "ultra"
+    with pytest.raises(ValueError, match="reasoning_effort"):
+        parse_agents(wrong)
+
+
+def test_high_effort_is_in_real_openai_responses_payload(monkeypatch):
+    from research.inverse_formula.live_models import (
+        MAX_TOKENS, provider_call, parse_agents,
+    )
+    config = json.loads(
+        (DATA / "multi_provider_agents.example.json").read_text(encoding="utf-8")
+    )
+    agents = parse_agents(config)
+    recorded = []
+
+    def fake_post(url, headers, body):
+        recorded.append((url, headers, body))
+        return {
+            "id": "resp-test-high",
+            "output": [{"type": "message", "content": [
+                {"type": "output_text", "text": '{"ok":true}'}
+            ]}],
+            "reasoning": {"effort": "high"},
+        }
+    monkeypatch.setattr(
+        "research.inverse_formula.live_models.post_json", fake_post
+    )
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key-not-real")
+    for agent in agents:
+        text = provider_call(agent, "system", "user")
+        assert text.provider_response_id == "resp-test-high"
+    assert len(recorded) == 6
+    for url, headers, body in recorded:
+        assert url == "https://api.openai.com/v1/responses"
+        assert body["reasoning"] == {"effort": "high"}
+        assert body["max_output_tokens"] == MAX_TOKENS
+        assert body["store"] is False
+        assert "test-key-not-real" not in json.dumps(body)
