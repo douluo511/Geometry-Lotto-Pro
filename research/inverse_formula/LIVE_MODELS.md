@@ -33,6 +33,26 @@ All five different model IDs need to be enabled for the OpenAI API project; GPT-
 have different pricing and strengths; role labels do not guarantee expertise.
 ChatGPT subscription access does not automatically grant API credits.
 
+## Reasoning intensity: high (six roles)
+
+All six configured GPT-6+ agents explicitly set
+`reasoning_effort: high`. The OpenAI Responses request includes
+`"reasoning": {"effort": "high"}` for every independent proposal
+and every cross-review request. The live CLI refuses to launch the six-agent
+meeting if even one specialist uses medium/low or an unapproved model.
+
+The response budget is currently `max_output_tokens=8192`, raised
+from 2400 so that high reasoning can complete while preserving room for a
+structured, machine-validated formula. This budget includes hidden reasoning
+tokens and visible JSON text; it is an upper bound, not a guaranteed number of
+tokens. The higher setting may increase runtime and provider API charges.
+
+The official API supports `high` for the five configured GPT-6+
+model variants. A stronger setting is **not evidence of better lottery
+predictive accuracy**. Test benefits with fixed pre-registered holdouts before
+changing official strategies. Details:
+https://developers.openai.com/api/docs/guides/reasoning
+
 ## Windows PowerShell launch
 
 Open the repository root. Configure OPENAI_API_KEY locally (for example
