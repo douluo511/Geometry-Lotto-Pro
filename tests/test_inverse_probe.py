@@ -105,3 +105,53 @@ def test_inverse_walk_forward_scores_only_after_forecasts():
         assert row["asof_issue"] < row["issue"]
         assert row["formula_anchor_issue"] <= row["asof_issue"]
         assert row["score"]["full"] in (0, 1)
+
+
+from research.inverse_formula.formula_bank import (
+    catalog, predict_with_bank, walk_forward_bank,
+)
+
+
+def test_formula_bank_is_deterministic_callable_and_auditable():
+    draws, _ = load_history(BASE / "ssq_2026.txt", SSQ)
+    pre_draw = draws[:40]
+    audit = predict_with_bank(pre_draw, SSQ)
+    assert audit == predict_with_bank(pre_draw, SSQ)
+    assert audit["target_issue"] == pre_draw[-1].issue + 1
+    assert audit["candidate_count"] == 6 * 24
+    assert 1 <= len(audit["selected_formulas"]) <= 12
+    assert audit["decision_sha256"]
+    ticket = audit["prediction"]
+    assert len(ticket["front"]) == 6 and len(ticket["back"]) == 1
+    assert len(set(ticket["front"])) == 6
+    assert set(ticket["d2_pair"]).issubset(set(ticket["front"]))
+    assert all(r["anchor_issue"] <= r["validation_first_issue"]
+               <= r["validation_last_issue"] == audit["asof_issue"]
+               for r in audit["selected_formulas"])
+    assert all(r["vote_weight"] <= 2 for r in audit["selected_formulas"])
+
+
+def test_formula_bank_cannot_use_future_outcome_for_prediction_or_ranking():
+    draws, _ = load_history(BASE / "dlt_2026.txt", DLT)
+    pre_draw = draws[:40]
+    future_changed = list(draws)
+    future_changed[40] = draws[41]
+    assert predict_with_bank(pre_draw, DLT) == predict_with_bank(
+        future_changed[:40], DLT)
+    assert len(catalog(pre_draw, DLT)) == 6 * 24
+    assert predict_with_bank(pre_draw, DLT)["prediction"]["d2_pair"] != ()
+    with pytest.raises(ValueError, match="insufficient"):
+        predict_with_bank(draws[:5], DLT)
+
+
+def test_formula_bank_rolling_replay_has_independent_research_null():
+    draws, _ = load_history(BASE / "ssq_2026.txt", SSQ)
+    result = walk_forward_bank(draws[:35], SSQ, start=30)
+    assert result["evaluated_issues"] == 5
+    assert 0 <= result["d2_hits"] <= 5
+    assert 0 <= result["research_null_d2_hits"] <= 5
+    for row in result["per_issue_audit"]:
+        assert row["asof_issue"] < row["issue"]
+        assert len(row["selected_formula_ids"]) > 0
+        assert set(row["prediction"]["d2_pair"]).issubset(
+            set(row["prediction"]["front"]))
