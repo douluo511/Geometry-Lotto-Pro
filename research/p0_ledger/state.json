@@ -1,0 +1,13 @@
+{
+  "count": 1,
+  "events": [
+    {
+      "path": "events/000001-43113684935.json",
+      "run_id": "43113684935",
+      "sha256": "5ba513c2f112b09da10cd1f928ca5cf78c6da28734aa5d5bd0fbfd1b9fc8bdb2"
+    }
+  ],
+  "latest_receipt_sha256": "5ba513c2f112b09da10cd1f928ca5cf78c6da28734aa5d5bd0fbfd1b9fc8bdb2",
+  "protocol": "SSQDLT_P0_SCHEDULE_V1",
+  "sha256": "1174cdcd850b657539dc59ac3bd5b67f755d98f474dac472450f785ef2eb2b28"
+}
