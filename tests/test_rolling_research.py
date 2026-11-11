@@ -213,8 +213,13 @@ def test_late_attempt_never_writes_new_forecast(tmp_path):
     ledger = tmp_path / "ledger"
     ledger.mkdir()
     info = LATEST_DRAW["DLT"]
-    primary = fake_primary(DLT, info["issue"], info["date"],
-                           info["front"], info["back"])
+    existing, _ = load_history(Path(__file__).parents[1] /
+                               "research/inverse_formula/dlt_2026.txt", DLT)
+    previous = existing[-1]
+    primary = (fake_primary(DLT, previous.issue, "2026-11-09",
+                            list(previous.front), list(previous.back))
+               + fake_primary(DLT, info["issue"], info["date"],
+                              info["front"], info["back"]))
     secondary = fake_second(info["issue"], info["date"],
                             info["front"], info["back"])
     result = roll.process_one(
