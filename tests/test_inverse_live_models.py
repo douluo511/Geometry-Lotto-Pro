@@ -186,3 +186,75 @@ def test_consensus_and_formula_are_safe_limited_math():
     assert len(ticket["back"]) == 1
     out = consensus([ticket], SSQ)
     assert set(out["d2_pair"]).issubset(out["front"])
+
+
+def test_six_role_real_model_configuration_and_specialist_evidence():
+    from research.inverse_formula.live_models import (
+        ROLES, proposal_prompt, review_prompt, ROLE_TASKS,
+    )
+    source = DATA / "multi_provider_agents.example.json"
+    agents = parse_agents(json.loads(source.read_text(encoding="utf-8")))
+    assert len(agents) == 6
+    assert {a.role for a in agents} == set(ROLES) == set(ROLE_TASKS)
+    assert len({(a.provider, a.model) for a in agents}) == 6
+    assert {a.provider for a in agents} == {"openai", "anthropic", "gemini"}
+    draws, _ = load_history(DATA / "ssq_2026.txt", SSQ)
+    for agent in agents:
+        body = json.loads(proposal_prompt(agent, draws[:35], SSQ))
+        assert body["specialist_task"] == ROLE_TASKS[agent.role]
+        assert body["specialist_evidence"]
+        assert body["past_only"]["asof_issue"] == draws[34].issue
+        assert body["past_only"]["target_issue"] == draws[34].issue + 1
+        assert all(r["issue"] <= draws[34].issue
+                   for r in body["past_only"]["draws"])
+        critique = json.loads(review_prompt(agent, draws[:35], []))
+        assert critique["specialist_review_task"] == ROLE_TASKS[agent.role]
+        if agent.role == "formula_discovery":
+            assert body["specialist_evidence"]["bank_size"] > 0
+            assert body["specialist_evidence"]["top_prior_formulas"]
+        if agent.role == "ensemble_researcher":
+            assert body["specialist_evidence"]["selected_formula_ids"]
+        if agent.role == "statistician":
+            assert "recent_past_only_replay" in body["specialist_evidence"]
+            assert "theoretical_d2" in body["specialist_evidence"]
+        if agent.role == "skeptical_reviewer":
+            assert "reject_if" in body["specialist_evidence"]
+
+
+def test_six_real_role_protocol_uses_twelve_separate_mocked_requests():
+    from research.inverse_formula.live_models import ROLES
+    agents = parse_agents(json.loads(
+        (DATA / "multi_provider_agents.example.json").read_text(encoding="utf-8")))
+    draws, _ = load_history(DATA / "dlt_2026.txt", DLT)
+    calls = []
+    def mock(agent, system, raw):
+        body = json.loads(raw)
+        calls.append((agent.role, body["task"]))
+        if body["task"].startswith("independently"):
+            k = ROLES.index(agent.role)
+            return json.dumps({
+                "hypothesis": "Bounded modular recurrence with role-specific parameters",
+                "front": {"lags": [1], "coefficients": [1],
+                          "bias": k, "issue_coefficient": 0},
+                "back": {"lags": [2], "coefficients": [-1],
+                         "bias": k, "issue_coefficient": 0},
+                "limitation": "Historical optimization does not prove a future edge",
+            })
+        assert len(body["untrusted_peer_data"]) == 5
+        assert all(row["role"] != agent.role for row in body["untrusted_peer_data"])
+        return json.dumps({
+            "concerns": "No frozen independent prospective evaluation",
+            "recommendation": "needs_evidence",
+            "cannot_certify_edge": True,
+        })
+    receipt = run_council(draws[:35], DLT, agents, transport=mock)
+    assert len(calls) == 12
+    assert len(receipt["independent_proposals"]) == 6
+    assert len(receipt["cross_reviews"]) == 6
+    assert receipt["unique_formulas"] == 6
+    assert receipt["complete_six_role_committee"] is True
+    assert set(row["role"] for row in receipt["role_assignments"]) == set(ROLES)
+    assert receipt["decision"] == "NO_EDGE_REQUIRES_PROSPECTIVE_VALIDATION"
+    assert len(receipt["candidate_tickets"]) == 6
+    assert receipt["guards"]["unknown_target_used"] is False
+    assert receipt["guards"]["formal_v47_modified"] is False
