@@ -108,6 +108,36 @@ jobs:
           path: inverse-committee-receipt.json
           if-no-files-found: error
 
+  cross-os-seal-integrity:
+    needs: local-reproduction-only
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Ubuntu research closure
+        uses: actions/download-artifact@v4
+        with:
+          name: research-offline-closure-ubuntu-latest
+          path: closure-ubuntu
+      - name: Download Windows research closure
+        uses: actions/download-artifact@v4
+        with:
+          name: research-offline-closure-windows-latest
+          path: closure-windows
+      - name: Compare all canonical offline receipts across OS
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          for game in ("ssq", "dlt"):
+              for prefix in ("research-preflight", "research-content-seal"):
+                  filename = f"{prefix}-{game}.json"
+                  ubuntu = json.loads((Path("closure-ubuntu") / filename).read_text())
+                  windows = json.loads((Path("closure-windows") / filename).read_text())
+                  if ubuntu != windows:
+                      raise SystemExit(f"FAIL cross-OS content mismatch: {filename}")
+                  print(f"PASS cross-OS content: {filename} sha256={ubuntu['sha256']}")
+          PY
+
   real-model-council:
     if: github.event_name == 'workflow_dispatch' && inputs.live_models == true
     runs-on: ubuntu-latest
