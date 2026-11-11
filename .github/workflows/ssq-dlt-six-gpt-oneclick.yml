@@ -27,7 +27,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 9cba2feb9e4e6232355765e97e72bcb9894f186e
+          ref: 1aa7a3585ef999deb7670d881e94f92495c3af30
           persist-credentials: false
       - uses: actions/setup-python@v5
         with:
@@ -69,7 +69,7 @@ jobs:
       - name: Checkout the CI-verified research implementation, not main V4.7
         uses: actions/checkout@v4
         with:
-          ref: 9cba2feb9e4e6232355765e97e72bcb9894f186e
+          ref: 1aa7a3585ef999deb7670d881e94f92495c3af30
           persist-credentials: false
 
       - uses: actions/setup-python@v5
