@@ -121,7 +121,7 @@ def test_budget_fails_before_first_billed_call():
     guard = BudgetGuard(max_usd="0.00001")
     fake = FakeProvider()
     with pytest.raises(RuntimeError, match="USD_BUDGET_STOP"):
-        guard.call(AGENTS[0], "prompt", transport=fake)
+        guard.call(AGENTS[0], '{"task":"independently propose one falsifiable integer formula"}', transport=fake)
     assert fake.calls == []
     assert guard.summary()["attempted_requests"] == 0
 
