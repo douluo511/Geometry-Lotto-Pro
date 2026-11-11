@@ -6,6 +6,7 @@ on:
       - 'research/inverse_formula/**'
       - 'tests/test_inverse_probe.py'
       - 'tests/test_inverse_committee.py'
+      - 'tests/test_inverse_experts.py'
       - 'tests/test_inverse_live_models.py'
       - 'tests/test_inverse_closure.py'
       - 'tests/test_one_click_council.py'
@@ -49,7 +50,7 @@ jobs:
       - name: Verify inverse search, past-only selection, isolation and corruption guards
         env:
           PYTHONPATH: .
-        run: python -m pytest -q tests/test_inverse_probe.py tests/test_inverse_committee.py tests/test_inverse_live_models.py tests/test_inverse_closure.py tests/test_one_click_council.py tests/test_neural_audit.py tests/test_tiered_budget.py
+        run: python -m pytest -q tests/test_inverse_probe.py tests/test_inverse_committee.py tests/test_inverse_experts.py tests/test_inverse_live_models.py tests/test_inverse_closure.py tests/test_one_click_council.py tests/test_neural_audit.py tests/test_tiered_budget.py
       - name: Emit research report (never formal V4.7 forecast)
         env:
           PYTHONPATH: .
@@ -76,6 +77,18 @@ jobs:
         env:
           PYTHONPATH: .
         run: python -m research.inverse_formula.committee --out inverse-committee-receipt.json
+
+      - name: Independently invoke six pure expert functions and seal linked evidence
+        env:
+          PYTHONPATH: .
+        run: python -m research.inverse_formula.independent_experts --limit 34 --out independent-experts-receipt.json
+
+      - name: Archive offline independent expert receipt
+        uses: actions/upload-artifact@v4
+        with:
+          name: independent-experts-${{ matrix.os }}
+          path: independent-experts-receipt.json
+          if-no-files-found: error
 
       - name: Research-only offline preflight and seal (zero API calls)
         env:
