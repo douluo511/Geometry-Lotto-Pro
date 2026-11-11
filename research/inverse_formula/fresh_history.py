@@ -11,6 +11,8 @@ import hashlib
 import json
 import re
 import urllib.request
+import urllib.error
+import time
 from datetime import datetime, timedelta, time, timezone
 from html.parser import HTMLParser
 from pathlib import Path
@@ -119,13 +121,24 @@ def fetch_official_html(game: Game) -> tuple[str, str]:
         "User-Agent": "SSQDLT-Research-Auditor/1.0 (readonly)",
         "Accept": "text/html",
     })
-    with urllib.request.urlopen(req, timeout=20) as response:
-        if response.url.split("/")[2].lower() != url.split("/")[2].lower():
-            raise RuntimeError("official source redirected to another domain")
-        raw = response.read(2_000_001)
-    if len(raw) > 2_000_000:
-        raise RuntimeError("official page exceeds size cap")
-    return raw.decode("utf-8"), hashlib.sha256(raw).hexdigest()
+    # Network-only retries; never retry a paid model call. A transient
+    # official issuer outage must not lead to silent use of stale fixtures.
+    for attempt in range(3):
+        try:
+            with urllib.request.urlopen(req, timeout=18) as response:
+                if response.url.split("/")[2].lower() != url.split("/")[2].lower():
+                    raise RuntimeError(
+                        "official source redirected to another domain")
+                raw = response.read(2_000_001)
+            if len(raw) > 2_000_000:
+                raise RuntimeError("official page exceeds size cap")
+            return raw.decode("utf-8"), hashlib.sha256(raw).hexdigest()
+        except (TimeoutError, urllib.error.URLError):
+            if attempt == 2:
+                raise RuntimeError(
+                    "official source unreachable after 3 free HTTP attempts") from None
+            time.sleep(1 + attempt)
+    raise AssertionError("unreachable official-source fetch state")
 
 
 def _line(row: Draw) -> str:
