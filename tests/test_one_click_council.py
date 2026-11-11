@@ -2,9 +2,8 @@
 import copy
 import json
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -21,7 +20,7 @@ from research.inverse_formula.one_click import main, prepare_all
 
 ROOT = Path(__file__).parents[1] / "research" / "inverse_formula"
 AGENTS = parse_agents(json.loads((ROOT / "multi_provider_agents.example.json").read_text()))
-CHINA = ZoneInfo("Asia/Shanghai")
+CHINA = timezone(timedelta(hours=8))
 SSQ_HTML = """
 <table><tr><th>期号</th></tr>
 <tr><td>2026129</td><td>2026-11-10(二)</td><td>030916202530</td><td>05</td></tr>
