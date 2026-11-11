@@ -11,10 +11,9 @@ import hashlib
 import json
 import re
 import urllib.request
-from datetime import datetime, timedelta, time
+from datetime import datetime, timedelta, time, timezone
 from html.parser import HTMLParser
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
 from research.inverse_formula.probe import Draw, Game, SSQ, DLT, load_history
 
@@ -22,7 +21,7 @@ SOURCES = {
     "SSQ": "https://www.swlc.net.cn/lottery/ssq.html?limit=50&view=previous",
     "DLT": "https://api.js-lottery.com/wfzq/dlt/data",
 }
-CHINA = ZoneInfo("Asia/Shanghai")
+CHINA = timezone(timedelta(hours=8))
 
 
 class _TableRows(HTMLParser):
@@ -182,7 +181,7 @@ def sync_fixture(history: Path, game: Game, destination: Path, *,
         "new_issues": len(new), "asof_issue": merged[-1].issue,
         "target_issue": merged[-1].issue + 1,
         "latest_published_date": last["date"],
-        "official_page_fetched_utc": now.astimezone(ZoneInfo("UTC")).isoformat(),
+        "official_page_fetched_utc": now.astimezone(timezone.utc).isoformat(),
         "source_authentication": "PUBLIC_PROVINCIAL_ISSUER_PAGE_NOT_INDEPENDENT_ATTESTATION",
         "no_edge": True,
     }
