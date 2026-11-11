@@ -1,115 +1,109 @@
-# Independent Multi-Model Council V1 (research-only)
+# Six GPT Expert Research Council (research-only, V2)
 
-This module supports **12 API requests** for the default six-model council:
-six independent, parallel proposal calls followed by six separate,
-parallel cross-review calls. This incurs API costs with the three providers. It supports OpenAI Responses, Anthropic Messages,
-and Google Gemini generateContent with HTTPS requests. The code **does not**
-claim to have contacted these models until an authenticated live run succeeds.
+The default research council now uses **six separately invoked GPT model IDs**
+over **one OpenAI API account/key**. Two rounds run six proposals and six
+cross-reviews (12 externally billed API calls). Do NOT describe these as six
+different companies or independent providers. The model calls are isolated
+but can share biases or training data. **No claim of improved lottery
+predictability has been established.**
 
-No generated source code is executed. Each candidate is a constrained,
-human-readable integer formula using one to three lags, bounded integer
-coefficients, modulo the legal ball range, and a deterministic unique-ball
-normalizer. Cross-review outputs are untrusted evidence, not commands.
+## Default expert assignment
 
-## Windows configuration (PowerShell from repository root)
+| Research role | OpenAI API model ID | Responsibility |
+|---|---|---|
+| Mathematician | gpt-6-astra | Mathematical formula families, assumptions and falsifiability |
+| Formula discovery | gpt-6.1-sol | Existing historical formula-bank exploration |
+| Ensemble researcher | gpt-6-luna | Heuristic combination and diversity |
+| Statistician | gpt-6-sol | D2/random NULL comparisons and multiplicity warnings |
+| Skeptical reviewer | gpt-5.6-sol | Challenge leakage, chance results and overfitting |
+| Engineer | gpt-6.1-terra | Input/legal-number validation and audit integrity |
 
-1. Review and optionally edit:
-   research/inverse_formula/multi_provider_agents.example.json
-   (model IDs must be enabled on the corresponding API accounts).
-2. Create API credentials with the respective provider. Store them in Windows
-   environment variables OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY,
-   or configure GitHub Actions secrets with those exact names. **Never commit
-   secrets, paste them into chat, or embed them in an audit report.**
-3. Run live for exactly one chosen game with explicit --live:
+The model IDs are documented in the OpenAI API catalog:
+https://developers.openai.com/api/docs/models
 
-    python -m research.inverse_formula.live_models --live --game ssq --agents research/inverse_formula/multi_provider_agents.example.json --out ssq-live-council.json
+Review any changes in the actual configuration file:
+\`research/inverse_formula/multi_provider_agents.example.json\`
 
-   For DLT replace --game ssq with --game dlt and change the output path.
+All six models need to be enabled for the OpenAI API project. The models
+have different pricing and strengths; role labels do not guarantee expertise.
+ChatGPT subscription access does not automatically grant API credits.
 
-4. Optional offline, no-charge adapter/committee tests:
+## Windows PowerShell launch
 
-    python -m pytest -q tests/test_inverse_live_models.py
+Open the repository root. Configure OPENAI_API_KEY locally (for example
+using a secure environment variable loaded outside the repository). **Do not
+paste API keys into the chat, code, GitHub commits, test fixtures or logs.**
 
-Without --live, or when any required API key is missing, the command fails
-closed and does not silently substitute a scripted response. A key can be
-valid but lack access to the configured model; that also causes an error.
-Make sure the user understands the model API billing is separate from ChatGPT
-subscription access. Start small; no unattended schedule is configured.
+Run an explicitly authorized, paid six-GPT council:
 
-## On GitHub Actions
+\`\`\`powershell
+python -m research.inverse_formula.live_models --live --game ssq --agents research/inverse_formula/multi_provider_agents.example.json --out ssq-gpt-council.json
+\`\`\`
 
-The scoped research workflow has an optional workflow_dispatch input
-live_models = true (false by default). The live-only job is not run for PRs,
-requires GitHub Actions secrets, and uploads the resulting JSON receipt.
-The ordinary Windows and Linux CI runs only the no-network mocked contract
-tests. This cannot be used to certify that actual provider keys are installed.
+For DLT:
 
-## Two-round meeting contract
+\`\`\`powershell
+python -m research.inverse_formula.live_models --live --game dlt --agents research/inverse_formula/multi_provider_agents.example.json --out dlt-gpt-council.json
+\`\`\`
 
-1. The default six-model configuration assigns one independent model to each
-   of the six roles, across OpenAI, Anthropic and Gemini. The API CLI requires
-   **all six distinct expert roles**; library functions also allow 3..6 for
-   controlled integration tests. Model availability and spend limits depend
-   on the connected provider accounts.
-2. Every agent sees the same preceding 30 draws plus **role-specific, past-only
-   context**: mathematical constraints, existing formula-bank candidates,
-   ensemble weight selection, exploratory D2/null statistics, skeptical
-   failure checks, or engineering/receipt requirements. It cannot see the
-   unknown target outcome or another agent's proposal in round one.
-3. A bounded schema validator rejects malformed model outputs or free-form
-   executable code. Providers are not allowed to write local files.
-4. Validated proposals are shown to the *other* agents for independent
-   critique in the second round. All agent requests and outputs are logged
-   with provider/model identity, provider response IDs when supplied, and SHA256 digests; secret values are omitted.
-5. Every **unique** formula receives one vote; duplicated proposals are
-   deduplicated. The resulting research candidate includes a separate D2 pair.
-6. A receipt records the model configurations, two rounds, challenges,
-   candidate tickets, exact as-of issue, status and SHA256.
+Each invocation runs two rounds of six OpenAI calls and may incur costs.
+Without --live, or without OPENAI_API_KEY, the CLI refuses to run. If the
+project lacks access to one of the six models, it fails rather than silently
+substituting a simulated response.
 
-A hash proves file-content integrity only; it does **not** prove that a
-prediction was sealed before the draw. For an operational forecast, persist
-a signed or externally timestamped record before the lottery deadline.
+The supplied SSQ and DLT fixtures are **historical research samples** and may
+not include the latest draws. Validate authoritative source data and the
+as-of cutoff before claiming a candidate for the actual next issue.
 
-## Hard research boundaries
+## Test without any live API calls
 
-- A model seeing the last 30 draws can adapt to those observations. A
-  backtest on those same data is **not** an independent holdout.
-- Multiple formulas/reviewers can increase selection bias, not necessarily
-  the chance of hitting a fair randomized lottery. There is no established
-  advantage beyond random baselines.
-- The current research fixtures are finite and some DLT sourcing is
-  third-party; validate and update official draw history before relying on
-  any 'next issue' field.
-- All outputs remain NO_EDGE / research only, with no automatic V4.7
-  promotion or changes to the frozen Random NULL, seeds or ledger.
+\`\`\`powershell
+python -m pytest -q tests/test_inverse_live_models.py
+\`\`\`
 
-Official API references:
-OpenAI: https://developers.openai.com/api/reference/resources/responses/methods/create
-Anthropic: https://platform.claude.com/docs/en/api/messages/create
-Gemini: https://ai.google.dev/api/generate-content
+GitHub Actions PR checks run on Windows and Ubuntu without network
+requests to paid model endpoints. They test only injected/mock model
+responses, prompt separation, schema restrictions and committee receipts.
 
-## Six expert job contracts
+## GitHub Actions live option
 
-- mathematician (GPT-6 Astra): propose a falsifiable mathematical family and explain the assumptions.
-- formula_discovery (Claude Sonnet 5.5): inspect only previously archived formulas and distinguish original anchor fit from later validation.
-- ensemble_researcher (Gemini 3.8 Flash): inspect capped ensemble weights and propose a diverse candidate without hindsight.
-- statistician (GPT-6.1 Sol): compare D2 estimates to the theoretical fair-draw baseline and a separate research NULL; flag multiplicity.
-- skeptical_reviewer (Claude Opus 5.5): challenge leaks, cherry-picking, data provenance, and spurious statistical significance.
-- engineer (Gemini 3.7 Flash): check bounded DSL, legal tickets, cutoff, audit IDs and integrity hashes.
+The research workflow defines \`workflow_dispatch\` with
+\`live_models=true\`. That job is disabled for ordinary pull requests and
+must find a repository Actions secret named \`OPENAI_API_KEY\`. It only passes
+this secret to the live job, and generates an audit artifact on success.
+New manual workflow buttons may be unavailable until the workflow definition
+exists on the repository's default branch. Do not merge the draft PR solely
+to enable the button; use the Windows CLI or a separately approved deployment.
 
-All six propose one declarative candidate in round one **within their specialty**,
-then independently critique the other five in round two. The reviewer text
-is an audit record, not a vote that can silently override a hard statistical
-rejection. Actual model expertise and reliability must be measured; a role
-label does not guarantee competent reasoning.
+## Meeting protocol
 
-The default six-model committee is configured in
-`multi_provider_agents.example.json`. Confirm service access and cost
-estimates before calling any live API. Do not assume the ChatGPT subscription
-pays for these external API calls.
+1. Each configured GPT model receives a different specialty and the same
+   already-known 30 historical draws. Role-specific evidence comes only from
+   the past-only formula library and historical research replay.
+2. Round one sends six requests concurrently. Each agent produces a bounded,
+   declarative integer formula proposal without reading any other agent.
+3. Strict schema checks reject malformed proposals, unexpected fields and
+   model-generated executable code. Only verified integer recurrences are
+   interpreted in Python.
+4. Round two sends six independently executed review requests with the other
+   five validated proposals. Review comments remain untrusted data.
+5. The deterministic coordinator deduplicates identical formulas and
+   calculates equal vote totals, one vote per unique formula. It outputs a
+   valid research ticket and explicit D2 pair.
+6. Audit JSON retains role/model identity, proposal IDs, reviews, provider
+   response IDs if available, result hashes and overall SHA256.
 
-**Note on GitHub Actions:** a newly authored workflow or dispatch entry may
-not be visible in the GitHub Actions UI until the workflow exists on the
-repository's default branch. The Draft PR is deliberately not merged for
-this purpose. The local Windows CLI is the executable launch route before
-a separate approved workflow registration.
+A SHA256 audit receipt proves content consistency, but does **not** prove
+external pre-draw timestamping. Independent prospective prediction requires
+separate authenticated freezing and after-draw scoring.
+
+## Statistical and engineering boundaries
+
+- Historical reverse-fitting after knowing winning numbers is not evidence
+  that the same formulas predict future fair lottery draws.
+- More models/formulas may add selection bias. Unseen future samples and
+  paired fair-random baselines are essential; no automatic model promotion.
+- No OpenAI API key has been verified here and no real paid multi-GPT
+  meeting has been completed in this branch's CI.
+- V4.7 official models, fixed Random NULL, seeds and frozen scoring ledger
+  remain unchanged.
