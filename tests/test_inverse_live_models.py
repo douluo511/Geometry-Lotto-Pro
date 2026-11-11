@@ -159,13 +159,16 @@ def test_real_adapter_formats_three_official_provider_requests(
     def fake_post(url, headers, body):
         captured.append((url, headers, body))
         return payload
+    payload["responseId" if provider == "gemini" else "id"] = "test-response-123"
     monkeypatch.setattr(
         "research.inverse_formula.live_models.post_json", fake_post)
     env = {"openai": "OPENAI_API_KEY", "anthropic": "ANTHROPIC_API_KEY",
            "gemini": "GEMINI_API_KEY"}[provider]
     monkeypatch.setenv(env, "not-a-real-key")
     a = Agent("mathematician", provider, "configured-model")
-    assert provider_call(a, "system", "user") == '{"ok":true}'
+    result = provider_call(a, "system", "user")
+    assert result == '{"ok":true}'
+    assert result.provider_response_id == "test-response-123"
     assert len(captured) == 1
     url, headers, body = captured[0]
     assert url.startswith("https://")
