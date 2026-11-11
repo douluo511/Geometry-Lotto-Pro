@@ -1,0 +1,245 @@
+name: Independent Repository Bootstrap Contract
+
+on:
+  pull_request:
+    paths:
+      - 'tools/bootstrap_independent_repo.ps1'
+      - 'tools/prepare_ssq_release_manifest.py'
+      - 'tools/publish_ssq_release_pair.ps1'
+      - '.github/workflows/independent-repo-bootstrap-contract.yml'
+  workflow_dispatch:
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: PowerShell syntax gate
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path 'tools/bootstrap_independent_repo.ps1'),
+            [ref]$tokens,
+            [ref]$errors
+          ) | Out-Null
+          if ($errors.Count -ne 0) {
+            $errors | Format-List | Out-String | Write-Host
+            throw "PowerShell parser reported syntax errors"
+          }
+
+      - name: Release publisher PowerShell syntax gate
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path 'tools/publish_ssq_release_pair.ps1'),
+            [ref]$tokens,
+            [ref]$errors
+          ) | Out-Null
+          if ($errors.Count -ne 0) {
+            $errors | Format-List | Out-String | Write-Host
+            throw "release publisher PowerShell parser reported syntax errors"
+          }
+
+      - name: Python syntax gate
+        run: python -m py_compile tools/prepare_ssq_release_manifest.py
+
+      - name: Build verified synthetic export fixture
+        shell: pwsh
+        run: |
+          $root = Join-Path $PWD 'bootstrap-fixture'
+          New-Item -ItemType Directory -Force -Path $root | Out-Null
+          'contract-payload' | Set-Content -Path (Join-Path $root 'payload.txt') -NoNewline -Encoding utf8
+          $payload = Join-Path $root 'payload.txt'
+          $sha = (Get-FileHash -Algorithm SHA256 $payload).Hash.ToLowerInvariant()
+          $bytes = (Get-Item $payload).Length
+          $source = '1111111111111111111111111111111111111111'
+          $manifest = [ordered]@{
+            schema = 'ssq-independent-repo-export-v1'
+            source_repository = 'douluo511/Geometry-Lotto-Pro'
+            target_repository = 'douluo511/Geometry-Lotto-Pro-SSQ'
+            source_commit = $source
+            files = @(
+              [ordered]@{
+                path = 'payload.txt'
+                sha256 = $sha
+                bytes = $bytes
+              }
+            )
+          }
+          ($manifest | ConvertTo-Json -Depth 8) + [Environment]::NewLine |
+            Set-Content -Path (Join-Path $root 'MIGRATION_MANIFEST.json') -Encoding utf8
+          "$sha  payload.txt" |
+            Set-Content -Path (Join-Path $root 'MIGRATION_SHA256SUMS.txt') -Encoding utf8
+
+      - name: Plan-only verified export passes
+        shell: pwsh
+        run: |
+          & pwsh -NoProfile -File ./tools/bootstrap_independent_repo.ps1 -ExportDir ./bootstrap-fixture -TargetRepo douluo511/Geometry-Lotto-Pro-SSQ -Visibility public -ExpectedSourceCommit 1111111111111111111111111111111111111111 -PlanOnly -EvidencePath ./bootstrap-pass.json
+          if ($LASTEXITCODE -ne 0) { throw "verified fixture should PASS" }
+          $r = Get-Content ./bootstrap-pass.json -Raw | ConvertFrom-Json
+          if ($r.status -ne 'PASS') { throw "plan-only status is not PASS" }
+          if ($r.remote_verification -ne 'NOT_RUN_PLAN_ONLY') { throw "plan-only must not claim remote verification" }
+          if ($r.source.file_count -ne 1) { throw "unexpected manifest file count" }
+
+      - name: Mutated file fails closed
+        shell: pwsh
+        run: |
+          Copy-Item ./bootstrap-fixture ./bootstrap-mutated -Recurse
+          Add-Content -Path ./bootstrap-mutated/payload.txt -Value 'tamper'
+          $p = Start-Process pwsh -ArgumentList @('-NoProfile','-File','./tools/bootstrap_independent_repo.ps1','-ExportDir','./bootstrap-mutated','-TargetRepo','douluo511/Geometry-Lotto-Pro-SSQ','-Visibility','public','-ExpectedSourceCommit','1111111111111111111111111111111111111111','-PlanOnly','-EvidencePath','./bootstrap-mutated.json') -Wait -PassThru
+          if ($p.ExitCode -eq 0) { throw "mutated export must fail" }
+          $r = Get-Content ./bootstrap-mutated.json -Raw | ConvertFrom-Json
+          if ($r.status -ne 'FAIL') { throw "mutated export evidence must be FAIL" }
+
+      - name: Unmanifested file fails closed
+        shell: pwsh
+        run: |
+          Copy-Item ./bootstrap-fixture ./bootstrap-extra -Recurse
+          'rogue' | Set-Content -Path ./bootstrap-extra/rogue.txt -Encoding utf8
+          $p = Start-Process pwsh -ArgumentList @('-NoProfile','-File','./tools/bootstrap_independent_repo.ps1','-ExportDir','./bootstrap-extra','-TargetRepo','douluo511/Geometry-Lotto-Pro-SSQ','-Visibility','public','-ExpectedSourceCommit','1111111111111111111111111111111111111111','-PlanOnly','-EvidencePath','./bootstrap-extra.json') -Wait -PassThru
+          if ($p.ExitCode -eq 0) { throw "unmanifested file must fail" }
+          $r = Get-Content ./bootstrap-extra.json -Raw | ConvertFrom-Json
+          if ($r.status -ne 'FAIL') { throw "unmanifested file evidence must be FAIL" }
+
+      - name: Wrong target repository fails closed
+        shell: pwsh
+        run: |
+          $p = Start-Process pwsh -ArgumentList @('-NoProfile','-File','./tools/bootstrap_independent_repo.ps1','-ExportDir','./bootstrap-fixture','-TargetRepo','douluo511/Wrong-Repository','-Visibility','public','-ExpectedSourceCommit','1111111111111111111111111111111111111111','-PlanOnly','-EvidencePath','./bootstrap-wrong-target.json') -Wait -PassThru
+          if ($p.ExitCode -eq 0) { throw "wrong target repository must fail" }
+          $r = Get-Content ./bootstrap-wrong-target.json -Raw | ConvertFrom-Json
+          if ($r.status -ne 'FAIL') { throw "wrong-target evidence must be FAIL" }
+
+      - name: Verified baseline release manifest passes
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path ./baseline-fixture | Out-Null
+          $exe = './baseline-fixture/Geometry_Lotto_Pro_SSQ_Windows_Verified.exe'
+          'verified-base-bytes' | Set-Content -Path $exe -NoNewline -Encoding utf8
+          $sha = (Get-FileHash -Algorithm SHA256 $exe).Hash.ToLowerInvariant()
+          $self = [ordered]@{
+            status = 'PASS'
+            game = 'SSQ'
+            version = '8.5.0'
+            exe_sha256 = $sha
+          }
+          ($self | ConvertTo-Json) | Set-Content ./baseline-fixture/self.json -Encoding utf8
+          python tools/prepare_ssq_release_manifest.py --exe $exe --version 8.5.0 --baseline --tag v8.5.0 --self-test ./baseline-fixture/self.json --output ./baseline-fixture/manifest.json --evidence ./baseline-fixture/evidence.json
+          if ($LASTEXITCODE -ne 0) { throw "verified baseline manifest should PASS" }
+          $e = Get-Content ./baseline-fixture/evidence.json -Raw | ConvertFrom-Json
+          if ($e.status -ne 'PASS' -or $e.mode -ne 'BASELINE') { throw "baseline evidence identity mismatch" }
+
+      - name: Release manifest binds exact bytes and forward version
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path ./release-fixture | Out-Null
+          $exe = './release-fixture/Geometry_Lotto_Pro_SSQ_Windows_Verified.exe'
+          'exact-candidate-bytes' | Set-Content -Path $exe -NoNewline -Encoding utf8
+          $sha = (Get-FileHash -Algorithm SHA256 $exe).Hash.ToLowerInvariant()
+          $self = [ordered]@{
+            status = 'PASS'
+            game = 'SSQ'
+            version = '8.5.1'
+            exe_sha256 = $sha
+          }
+          ($self | ConvertTo-Json) | Set-Content ./release-fixture/self.json -Encoding utf8
+          python tools/prepare_ssq_release_manifest.py --exe $exe --version 8.5.1 --base-version 8.5.0 --tag v8.5.1 --self-test ./release-fixture/self.json --output ./release-fixture/manifest.json --evidence ./release-fixture/evidence.json
+          if ($LASTEXITCODE -ne 0) { throw "valid release manifest should PASS" }
+          $m = Get-Content ./release-fixture/manifest.json -Raw | ConvertFrom-Json
+          if ($m.schema -ne 'ssq-software-update-manifest-v1') { throw "manifest schema mismatch" }
+          if ($m.version -ne '8.5.1') { throw "manifest version mismatch" }
+          if ($m.artifact_sha256 -ne $sha) { throw "manifest hash mismatch" }
+          if ($m.artifact_url -ne 'https://github.com/douluo511/Geometry-Lotto-Pro-SSQ/releases/download/v8.5.1/Geometry_Lotto_Pro_SSQ_Windows_Verified.exe') {
+            throw "manifest trusted release URL mismatch"
+          }
+
+      - name: Equal release version fails closed
+        shell: pwsh
+        run: |
+          $p = Start-Process python -ArgumentList @('tools/prepare_ssq_release_manifest.py','--exe','./release-fixture/Geometry_Lotto_Pro_SSQ_Windows_Verified.exe','--version','8.5.0','--base-version','8.5.0','--tag','v8.5.0','--self-test','./release-fixture/self.json','--output','./release-fixture/equal.json','--evidence','./release-fixture/equal-evidence.json') -Wait -PassThru
+          if ($p.ExitCode -eq 0) { throw "equal version must fail" }
+          $r = Get-Content ./release-fixture/equal-evidence.json -Raw | ConvertFrom-Json
+          if ($r.status -ne 'FAIL') { throw "equal-version evidence must be FAIL" }
+
+      - name: Prerelease forward candidate fails closed
+        shell: pwsh
+        run: |
+          $self = [ordered]@{
+            status = 'PASS'
+            game = 'SSQ'
+            version = '8.5.1-rc.1'
+            exe_sha256 = (Get-FileHash -Algorithm SHA256 './release-fixture/Geometry_Lotto_Pro_SSQ_Windows_Verified.exe').Hash.ToLowerInvariant()
+          }
+          ($self | ConvertTo-Json) | Set-Content ./release-fixture/prerelease-self.json -Encoding utf8
+          $p = Start-Process python -ArgumentList @('tools/prepare_ssq_release_manifest.py','--exe','./release-fixture/Geometry_Lotto_Pro_SSQ_Windows_Verified.exe','--version','8.5.1-rc.1','--base-version','8.5.0','--tag','v8.5.1-rc.1','--self-test','./release-fixture/prerelease-self.json','--output','./release-fixture/prerelease.json','--evidence','./release-fixture/prerelease-evidence.json') -Wait -PassThru
+          if ($p.ExitCode -eq 0) { throw "prerelease forward candidate must fail" }
+          $r = Get-Content ./release-fixture/prerelease-evidence.json -Raw | ConvertFrom-Json
+          if ($r.status -ne 'FAIL') { throw "prerelease candidate evidence must be FAIL" }
+
+      - name: Self-test hash tamper fails closed
+        shell: pwsh
+        run: |
+          $self = [ordered]@{
+            status = 'PASS'
+            game = 'SSQ'
+            version = '8.5.1'
+            exe_sha256 = ('0' * 64)
+          }
+          ($self | ConvertTo-Json) | Set-Content ./release-fixture/tampered-self.json -Encoding utf8
+          $p = Start-Process python -ArgumentList @('tools/prepare_ssq_release_manifest.py','--exe','./release-fixture/Geometry_Lotto_Pro_SSQ_Windows_Verified.exe','--version','8.5.1','--base-version','8.5.0','--tag','v8.5.1','--self-test','./release-fixture/tampered-self.json','--output','./release-fixture/tampered.json','--evidence','./release-fixture/tampered-evidence.json') -Wait -PassThru
+          if ($p.ExitCode -eq 0) { throw "tampered self-test hash must fail" }
+          $r = Get-Content ./release-fixture/tampered-evidence.json -Raw | ConvertFrom-Json
+          if ($r.status -ne 'FAIL') { throw "tampered-hash evidence must be FAIL" }
+
+
+      - name: Release pair publisher plan-only passes
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path ./pair-base,./pair-candidate | Out-Null
+          $baseExe = './pair-base/Geometry_Lotto_Pro_SSQ_Windows_Verified.exe'
+          $candidateExe = './pair-candidate/Geometry_Lotto_Pro_SSQ_Windows_Verified.exe'
+          'base-pair-bytes' | Set-Content -Path $baseExe -NoNewline -Encoding utf8
+          'candidate-pair-bytes' | Set-Content -Path $candidateExe -NoNewline -Encoding utf8
+          $baseSha = (Get-FileHash -Algorithm SHA256 $baseExe).Hash.ToLowerInvariant()
+          $candidateSha = (Get-FileHash -Algorithm SHA256 $candidateExe).Hash.ToLowerInvariant()
+          ([ordered]@{status='PASS';game='SSQ';version='8.5.0-verification';exe_sha256=$baseSha} | ConvertTo-Json) |
+            Set-Content ./pair-base/self.json -Encoding utf8
+          ([ordered]@{status='PASS';game='SSQ';version='8.5.0';exe_sha256=$candidateSha} | ConvertTo-Json) |
+            Set-Content ./pair-candidate/self.json -Encoding utf8
+
+          & pwsh -NoProfile -File ./tools/publish_ssq_release_pair.ps1             -BaseExe $baseExe             -CandidateExe $candidateExe             -BaseVersion 8.5.0-verification             -CandidateVersion 8.5.0             -BaseSelfTest ./pair-base/self.json             -CandidateSelfTest ./pair-candidate/self.json             -PlanOnly             -EvidencePath ./pair-evidence.json
+          if ($LASTEXITCODE -ne 0) { throw "release pair plan-only should PASS" }
+          $r = Get-Content ./pair-evidence.json -Raw | ConvertFrom-Json
+          if ($r.status -ne 'PASS') { throw "release pair evidence status mismatch" }
+          if ($r.remote_verification -ne 'NOT_RUN_PLAN_ONLY') { throw "plan-only must not claim remote release verification" }
+          if ($r.base.version -ne '8.5.0-verification' -or $r.candidate.version -ne '8.5.0') {
+            throw "release pair version binding mismatch"
+          }
+          if ($r.base.exe_sha256 -ne $baseSha -or $r.candidate.exe_sha256 -ne $candidateSha) {
+            throw "release pair hash binding mismatch"
+          }
+
+      - name: Release pair publisher wrong repository fails closed
+        shell: pwsh
+        run: |
+          $p = Start-Process pwsh -ArgumentList @(
+            '-NoProfile','-File','./tools/publish_ssq_release_pair.ps1',
+            '-BaseExe','./pair-base/Geometry_Lotto_Pro_SSQ_Windows_Verified.exe',
+            '-CandidateExe','./pair-candidate/Geometry_Lotto_Pro_SSQ_Windows_Verified.exe',
+            '-BaseVersion','8.5.0-verification',
+            '-CandidateVersion','8.5.0',
+            '-BaseSelfTest','./pair-base/self.json',
+            '-CandidateSelfTest','./pair-candidate/self.json',
+            '-TargetRepo','douluo511/Wrong-Repository',
+            '-PlanOnly',
+            '-EvidencePath','./pair-wrong-repo.json'
+          ) -Wait -PassThru
+          if ($p.ExitCode -eq 0) { throw "wrong release repository must fail" }
+          $r = Get-Content ./pair-wrong-repo.json -Raw | ConvertFrom-Json
+          if ($r.status -ne 'FAIL') { throw "wrong release repository evidence must be FAIL" }
