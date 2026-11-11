@@ -8,6 +8,7 @@ GitHub caller must manage append-only branch push + independent remote reload.
 from __future__ import annotations
 
 import argparse
+import base64
 from datetime import datetime, timedelta, timezone
 import hashlib
 from html.parser import HTMLParser
@@ -81,6 +82,33 @@ def _save_once(path: Path, value: dict):
         json.dump(value, handle, ensure_ascii=False, indent=2,
                   sort_keys=True, allow_nan=False)
         handle.write("\n")
+
+
+def preserve_raw_http_once(ledger: Path, game: Game, source_id: str,
+                           origin: str, data: bytes) -> str:
+    """Persist exact successful HTTP bytes as self-checking base64 JSON.
+
+    GitHub's line-ending normalization must never silently rewrite raw HTML.
+    This remains research custody, NOT authenticated official provenance.
+    """
+    if source_id not in ("issuer-primary", "issuer-secondary"):
+        raise ValueError("UNKNOWN_PROVENANCE_CHANNEL")
+    sha = hashlib.sha256(data).hexdigest()
+    path = (ledger / "research" / "raw" / game.name / source_id /
+            (sha + ".json"))
+    payload = {
+        "schema": "SSQDLT_SOURCE_RAW_BYTES_V1",
+        "game": game.name, "source_id": source_id, "claimed_url": origin,
+        "raw_sha256": sha, "size_bytes": len(data),
+        "raw_base64": base64.b64encode(data).decode("ascii"),
+        "origin_authenticity": "NOT_INDEPENDENTLY_PROVEN",
+    }
+    if path.exists():
+        if json.loads(path.read_text(encoding="utf-8")) != payload:
+            raise ValueError("ORIGINAL_RAW_SOURCE_CHANGED")
+    else:
+        _save_once(path, payload)
+    return sha
 
 
 def verify_independent_latest(
@@ -178,6 +206,14 @@ def process_one(game: Game, ledger: Path, output: Path,
             (work / "issuer-second.html").write_bytes(
                 independent_html.encode("utf-8"))
         verify_independent_latest(game, last, independent_html)
+        if preserve_raw_http_once(
+                ledger, game, "issuer-primary", source_url,
+                first_html.encode("utf-8")) != source_sha:
+            raise ValueError("PRIMARY_HTTP_RAW_DIGEST_MISMATCH")
+        if preserve_raw_http_once(
+                ledger, game, "issuer-secondary", CONFIRM_URLS[game.name],
+                independent_html.encode("utf-8")) != independent_sha:
+            raise ValueError("SECONDARY_HTTP_RAW_DIGEST_MISMATCH")
 
         # Reject target reforecasts if any previous issue is still unscored.
         outcomes = {d.issue: d for d in load_history(temp_history, game)[0]}
