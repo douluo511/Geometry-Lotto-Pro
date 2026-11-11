@@ -187,6 +187,34 @@ def test_raw_source_custody_roundtrips_exact_bytes(tmp_path):
         )
 
 
+def test_forecast_must_be_issued_before_conservative_next_draw_window():
+    # This is a research-only time bound, NOT an official sales cutoff.
+    with pytest.raises(ValueError, match="WINDOW_ALREADY_PASSED"):
+        roll.conservative_research_issue_window(
+            DLT, "2026-11-11",
+            datetime(2026, 11, 14, 20, 0, tzinfo=CHINA))
+    assert roll.conservative_research_issue_window(
+        SSQ, "2026-11-10",
+        datetime(2026, 11, 11, 8, 0, tzinfo=CHINA)) == "2026-11-12"
+
+
+def test_late_attempt_never_writes_new_forecast(tmp_path):
+    ledger = tmp_path / "ledger"
+    ledger.mkdir()
+    info = LATEST_DRAW["DLT"]
+    primary = fake_primary(DLT, info["issue"], info["date"],
+                           info["front"], info["back"])
+    secondary = fake_second(info["issue"], info["date"],
+                            info["front"], info["back"])
+    result = roll.process_one(
+        DLT, ledger, tmp_path / "out",
+        first_html=primary, independent_html=secondary,
+        now=datetime(2026, 11, 14, 20, 0, tzinfo=CHINA))
+    assert result["status"] == "BLOCKED"
+    assert "WINDOW_ALREADY_PASSED" in result["error"]
+    assert not (ledger / "research" / "forecasts").exists()
+
+
 def test_create_only_write_cannot_modify_existing_receipt(tmp_path):
     p = tmp_path / "forecast.json"
     roll._save_once(p, {"first": 1})
