@@ -234,9 +234,12 @@ def test_responses_usage_including_hidden_reasoning_is_counted_once(monkeypatch)
         assert payload["reasoning"]["effort"] == "high"
         assert payload["max_output_tokens"] == 8192
         assert payload["store"] is False
+        assert payload["service_tier"] == "default"
         assert headers["Authorization"].startswith("Bearer ")
         return {
             "id": "resp_test_offline_usage_001",
+            "model": AGENTS[0].model,
+            "service_tier": "default",
             "status": "completed",
             "output": [{
                 "type": "message",
@@ -261,6 +264,7 @@ def test_responses_usage_including_hidden_reasoning_is_counted_once(monkeypatch)
     )
     assert response.text == '{"ok":true}'
     summary = ledger.summary()
+    assert summary["pricing_service_tier"] == "default"
     assert summary["input_tokens_reported"] == 150
     assert summary["output_tokens_including_reasoning_reported"] == 210
     assert summary["reasoning_output_tokens_reported"] == 180
@@ -293,3 +297,36 @@ def test_real_response_fail_closed_and_keep_spend_reservation(
     assert guard.summary()["unknown_usage_requests"] == 1
     assert guard.summary()["attempted_requests"] == 1
     assert "SYNTHETIC_TEST_NOT_A_REAL_KEY" not in json.dumps(guard.summary())
+
+
+@pytest.mark.parametrize("response_model,response_tier,expected", [
+    ("gpt-6-astra", "default", "unexpected model"),
+    (None, "default", "unexpected model"),
+    (AGENTS[0].model, "priority", "unexpected service tier"),
+    (AGENTS[0].model, None, "unexpected service tier"),
+])
+def test_unpriced_model_or_tier_retains_reservation(
+        monkeypatch, response_model, response_tier, expected):
+    from research.inverse_formula import api_budget
+    payload = {
+        "id": "resp_offline_pricing_contract",
+        "model": response_model,
+        "service_tier": response_tier,
+        "status": "completed",
+        "output": [{"type": "message", "content": [
+            {"type": "output_text", "text": '{"ok":true}'}]}],
+        "usage": {"input_tokens": 150, "output_tokens": 210},
+    }
+    monkeypatch.setenv("OPENAI_API_KEY", "SYNTHETIC_TEST_NOT_A_REAL_KEY")
+    monkeypatch.setattr(api_budget, "post_json", lambda *args: payload)
+    guard = BudgetGuard()
+    with pytest.raises(RuntimeError, match=expected):
+        guard.call(AGENTS[0], "synthetic pricing contract")
+    summary = guard.summary()
+    assert summary["attempted_requests"] == 1
+    assert summary["successful_reported_requests"] == 0
+    assert summary["unknown_usage_requests"] == 1
+    reserved = summary["records"][0]["reserved_or_used_usd"]
+    assert Decimal(summary["estimated_used_or_reserved_usd"]) == Decimal(reserved)
+    # Sol standard estimate: (150 * $2 + 210 * $10) / 1,000,000.
+    assert Decimal(reserved) > Decimal("0.0024")

@@ -31,6 +31,7 @@ RATES = {
 MILLION = Decimal("1000000")
 DEFAULT_MAX_USD = "3.00"
 DEFAULT_MAX_REQUESTS = 12
+PRICING_SERVICE_TIER = "default"
 MAX_OUTPUT_TOKENS = 8192
 INPUT_OVERHEAD_TOKENS = 2048
 SYSTEM = (
@@ -69,6 +70,7 @@ def real_response(agent: Agent, system: str, prompt: str,
                           "input": prompt,
                           "reasoning": {"effort": agent.reasoning_effort},
                           "max_output_tokens": max_output_tokens,
+                          "service_tier": PRICING_SERVICE_TIER,
                           "store": False})
     usage = response.get("usage")
     if not isinstance(usage, dict):
@@ -84,6 +86,12 @@ def real_response(agent: Agent, system: str, prompt: str,
         raise RuntimeError("invalid reported provider token breakdown")
     if response.get("status") != "completed":
         raise RuntimeError("provider response not completed; budget remains reserved")
+    # An omitted tier defaults to the API project's settings, which can use
+    # prices outside RATES. Never settle an unpriced response as standard.
+    if response.get("model") != agent.model:
+        raise RuntimeError("provider returned unexpected model; budget remains reserved")
+    if response.get("service_tier") != PRICING_SERVICE_TIER:
+        raise RuntimeError("provider returned unexpected service tier; budget remains reserved")
     output = "\n".join(
         str(c.get("text", "")) for m in response.get("output", [])
         if isinstance(m, dict) and m.get("type") == "message"
@@ -216,6 +224,7 @@ class BudgetGuard:
             "protocol": "TIERED_RESEARCH_SPEND_GUARD_V1",
             "price_source": PRICE_SOURCE,
             "price_checked_utc": PRICE_CHECKED_UTC,
+            "pricing_service_tier": PRICING_SERVICE_TIER,
             "cap_usd": str(self.cap),
             "max_requests": self.max_requests,
             "attempted_requests": len(self.records),

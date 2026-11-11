@@ -41,6 +41,14 @@ winning/losing numbers.
 - Configured limit: SSQDLT_MAX_USD, default USD 3.00 per click.
 - Request cap: SSQDLT_MAX_REQUESTS, default 12 and cannot exceed 12.
 - Each request uses max_output_tokens=8192, including hidden reasoning.
+- Each guarded request explicitly uses service_tier=default. The returned
+  model ID must exactly match the configured priced model and the returned
+  tier must be default. Missing or changed identities abort the run with
+  the reservation retained; they are never settled using the standard
+  price table. Versioned model IDs need a separately reviewed price mapping.
+  The budget audit records pricing_service_tier. This prevents an omitted
+  tier from silently inheriting a more expensive API project setting.
+  Contract: https://developers.openai.com/api/reference/resources/responses/methods/create .
 - No parallel paid requests, implicit retry, background model fanout or
   unmetered fallback. Request admission reserves the conservative maximum
   estimated cost before contacting the provider. It uses a UTF-8 prompt-byte
