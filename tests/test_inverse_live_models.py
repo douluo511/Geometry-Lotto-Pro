@@ -365,4 +365,4 @@ def test_live_six_gpt6_model_allowlist_rejects_older_or_unverified_ids():
     with pytest.raises(ValueError, match="GPT-6"):
         verify_six_gpt6_agents(parse_agents(unknown))
     with pytest.raises(ValueError, match="six distinct"):
-        verify_six_gpt6_agents(parse_agents(original[:5]))
+        verify_six_gpt6_agents(parse_agents(original[:4] + original[5:]))
