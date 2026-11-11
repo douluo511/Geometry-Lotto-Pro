@@ -54,3 +54,55 @@ def test_legal_unique_normalization_and_d2():
     assert normalize([0, 0, 0, 36, 36], 35) == (1, 2, 3, 4, 35)
     assert compare(((1, 2, 3, 4, 5), (1, 2)), type("D", (), {"front": (1, 2, 3, 4, 5), "back": (1, 2)})()) == {
         "full": 1, "d2": 1, "front_hits": 5, "back_hits": 2}
+
+
+# Multi-family inverse formula mining: do not confuse post-hoc reconstruction
+# with a genuinely past-only prediction.
+from research.inverse_formula.reverse_search import (
+    METHODS, apply_formula, oracle_reconstruction, reverse_fit,
+    select_from_past, walk_forward,
+)
+
+
+def test_inverse_families_reconstruct_all_observed_targets_posthoc():
+    for game, file in [(SSQ, "ssq_2026.txt"), (DLT, "dlt_2026.txt")]:
+        draws, _ = load_history(BASE / file, game)
+        oracle = oracle_reconstruction(draws, game)
+        assert oracle["retrospective_fit_trials"] == (len(draws) - 2) * len(METHODS)
+        assert oracle["retrospective_exact_matches"] == oracle["retrospective_fit_trials"]
+        assert oracle["retrospective_exact_rate"] == 1.0
+        for method in METHODS:
+            formula = reverse_fit(draws, game, 32, method)
+            assert apply_formula(formula, draws[:32], game) == (
+                draws[32].front, draws[32].back
+            )
+
+
+def test_inverse_selection_uses_only_past_draws_and_legal_tickets():
+    draws, _ = load_history(BASE / "ssq_2026.txt", SSQ)
+    cutoff = 60
+    chosen, evidence = select_from_past(draws[:cutoff], SSQ)
+    prediction = apply_formula(chosen, draws[:cutoff], SSQ)
+    assert chosen.anchor_index < cutoff - 5
+    assert evidence["post_anchor_known_evaluations"] >= 5
+    assert len(prediction[0]) == 6 and len(set(prediction[0])) == 6
+    assert len(prediction[1]) == 1 and len(set(prediction[1])) == 1
+    # Changing or replacing a future target cannot alter a past-only call.
+    tampered = list(draws)
+    tampered[cutoff] = draws[cutoff + 1]
+    chosen_again, evidence_again = select_from_past(tampered[:cutoff], SSQ)
+    assert (chosen_again, evidence_again) == (chosen, evidence)
+    assert apply_formula(chosen_again, tampered[:cutoff], SSQ) == prediction
+    with pytest.raises(ValueError, match="past-only"):
+        apply_formula(chosen, draws[:cutoff - 1], SSQ)
+
+
+def test_inverse_walk_forward_scores_only_after_forecasts():
+    draws, _ = load_history(BASE / "dlt_2026.txt", DLT)
+    report = walk_forward(draws[:40], DLT, min_history=30)
+    assert report["evaluated_issues"] == 10
+    assert report["status"] == "RESEARCH_ONLY_NO_ESTABLISHED_EDGE"
+    for row in report["per_issue_audit"]:
+        assert row["asof_issue"] < row["issue"]
+        assert row["formula_anchor_issue"] <= row["asof_issue"]
+        assert row["score"]["full"] in (0, 1)
