@@ -105,6 +105,33 @@ class LedgerAuditTests(unittest.TestCase):
         self.assertEqual(result["unscored_targets"], {"SSQ": 1, "DLT": 0})
         self.assertEqual(result["tick_count"], 1)
 
+    def test_existing_2026_combined_receipt_has_outer_formal_a_only(self):
+        # The original immutable dual-game receipt has formal_A on its
+        # envelope; it must not be rewritten just to satisfy a new auditor.
+        for path in (self.root / "research/forecasts").glob("*.json"):
+            path.unlink()
+        original = {
+            "schema": "SSQDLT_RESEARCH_SNAPSHOT_2026_11_11_V1",
+            "formal_A": 0, "predictive_edge_proven": False,
+            "evidence_class": "SHADOW_RESEARCH_NOT_FORMAL_V47",
+            "issued": [
+                {k:v for k,v in forecast("SSQ", 2026130).items()
+                 if k not in ("formal_A", "schema")},
+                {k:v for k,v in forecast("DLT", 26130).items()
+                 if k not in ("formal_A", "schema")},
+            ],
+        }
+        write_json(self.root, "research/forecasts/2026-11-11-SSQ2026130-DLT26130.json",
+                   original)
+        self.assertEqual(scan_ledger(self.root)["forecast_count"], 2)
+        self.assertEqual(scan_ledger(self.root)["legacy_full_prediction_hash_rerender"],
+                         "UNVERIFIED")
+        original["issued"][0]["formal_A"] = 1
+        write_json(self.root, "research/forecasts/2026-11-11-SSQ2026130-DLT26130.json",
+                   original)
+        with self.assertRaisesRegex(GateError, "FORMAL"):
+            scan_ledger(self.root)
+
     def test_formal_promotion_and_noncanonical_ball_ticket_fail_closed(self):
         target = self.root / "research/forecasts/SSQ-2026130.json"
         doc = load_json(target)
