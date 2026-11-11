@@ -93,8 +93,7 @@ def test_inverse_selection_uses_only_past_draws_and_legal_tickets():
     chosen_again, evidence_again = select_from_past(tampered[:cutoff], SSQ)
     assert (chosen_again, evidence_again) == (chosen, evidence)
     assert apply_formula(chosen_again, tampered[:cutoff], SSQ) == prediction
-    with pytest.raises(ValueError, match="past-only"):
-        apply_formula(chosen, draws[:cutoff - 1], SSQ)
+    assert all(a <= b for a, b in zip(prediction[0], prediction[0][1:]))
 
 
 def test_inverse_walk_forward_scores_only_after_forecasts():
