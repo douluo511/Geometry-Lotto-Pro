@@ -17,8 +17,9 @@ It does not edit V4.7, the formal frozen ledger, or the fixed Random NULL.
 
 ## Persistent state
 
-The first successful workflow creates branch ssqdlt-p0-ledger-v1.
-Later runs fetch this branch into a clean Git worktree, verify the entire
+The dedicated branch ssqdlt-p0-ledger-v1 was created in advance on
+2026-11-11; branch creation is **not** evidence of a scheduled run.
+Every scheduled job fetches this branch into a clean Git worktree, verifies the entire
 SHA256-linked JSON event chain, and append exactly one event for each unique
 GitHub run ID. All event receipts are individually immutable by program policy;
 state.json is the mutable index/checkpoint. Both change together in one commit
@@ -41,10 +42,31 @@ can rewrite branches and GitHub log retention is finite.
 
 From repository root:
 
-    python -m unittest discover -s tests -p 'test_p0_scheduler.py' -v
+    python -m unittest discover -s tests -p 'test_p0_*.py' -v
 
 These tests check idempotence, run-type isolation, hash tampering, orphaned
-events, and crash-before-push restart. Tests alone do not prove P0 deployment.
+events, crash-before-push restart, and mocked GitHub API/ledger agreement.
+Mocked REST responses are explicitly **not real scheduled runs**. Tests alone
+do not prove P0 deployment.
+
+## Independent read-only verification
+
+- `research/p0_scheduler/acceptance.py` reads verified hash-chained remote
+  receipts, then fetches actual GitHub Actions run IDs via the read-only REST
+  API. It checks event == schedule vs workflow_dispatch, exact workflow ID and
+  path, default main branch, code SHA, and completed success status.
+- The heartbeat workflow records acceptance evidence after its remote push,
+  but the currently executing run remains pending until it really finishes.
+- `.github/workflows/ssqdlt-p0-postrun-audit.yml` is a separate **read-only**
+  `workflow_run: completed` listener. It only evaluates successful genuine
+  scheduled P0 runs, from a new runner and a freshly fetched remote ledger.
+- Both workflows archive JSON acceptance receipts; PASS requires two distinct
+  externally confirmed **completed** schedule runs and a recovered nonempty
+  remote prefix. Failed runs are not counted as successful; incomplete runs
+  remain UNVERIFIED.
+- The verifier makes no official lottery-source request and zero paid model
+  calls. Even P0 PASS would not establish physical Windows reboot, G00/G01,
+  trusted pre-draw TSA, prediction, or an actual outcome-scoring cycle.
 
 ## Acceptance criteria
 
