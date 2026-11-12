@@ -54,7 +54,9 @@ def plain(raw):
 
 class RawStore:
     def __init__(self, out):
-        self.out = Path(out)
+        self.out = Path(out).resolve()
+        if self.out.is_relative_to(ROOT.resolve()):
+            raise IntakeError("raw observations must be stored OUTSIDE the Git repository")
         self.out.mkdir(parents=True, exist_ok=False)
         self.raw_dir = self.out / "raw"
         self.raw_dir.mkdir()
