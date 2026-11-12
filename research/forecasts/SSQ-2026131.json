@@ -1,0 +1,60 @@
+{
+  "content_sha256": "a43a9bf8d98be11eec5e1211d6c7b2ad1e4d0bcf9707a7e9abf75f056d7b909b",
+  "created_at_local_untrusted": "2026-11-12T21:37:50.388839+00:00",
+  "earliest_conservative_research_issue_stop_local": "2026-11-15T19:00:00+08:00",
+  "edge": "NO_EDGE",
+  "estimated_next_draw_date_not_verified": "2026-11-15",
+  "external_predraw_tsa": "NOT_RUN",
+  "fixed_v47_null_preserved": true,
+  "formal_A": 0,
+  "formula_decision_sha256": "0997e4e7bfca29ace7411b39e80e6b0c5102cfd12095239bf748467f5ab43c25",
+  "game": "SSQ",
+  "historical_rows": 101,
+  "history_sha256": "00b3424577385d130bf12e66748873f1513f07383318aecb94c579d73e6363f4",
+  "issuer_primary_html_sha256": "8c8cd0f6dac0bdd04dd87ef3fcc1332c672f4155ee8b79733d8e0acff0765928",
+  "issuer_primary_url": "https://www.swlc.net.cn/lottery/ssq.html?limit=50&view=previous",
+  "issuer_second_html_sha256": "aa18d196560c75a206ff75e80485bec8c0e11fec19a1199aee740e99ddbe3678",
+  "issuer_second_url": "https://www.scflcp.com.cn/ssq",
+  "official_sales_cutoff_verified": false,
+  "paid_model_calls": 0,
+  "prediction": {
+    "back": [
+      7
+    ],
+    "d2_pair": [
+      3,
+      28
+    ],
+    "front": [
+      3,
+      4,
+      6,
+      18,
+      25,
+      28
+    ]
+  },
+  "research_null": {
+    "back": [
+      4
+    ],
+    "d2_pair": [
+      2,
+      5
+    ],
+    "front": [
+      2,
+      5,
+      9,
+      11,
+      23,
+      30
+    ],
+    "not_formal_v47_null": true
+  },
+  "research_only": true,
+  "schema": "SSQDLT_ROLLING_RESEARCH_ISSUE_V1",
+  "source_last_date_as_reported": "2026-11-12",
+  "source_last_issue": 2026130,
+  "target_issue": 2026131
+}

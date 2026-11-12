@@ -1,0 +1,26 @@
+{
+  "edge": "NO_EDGE",
+  "formal_A": 0,
+  "game": "SSQ",
+  "issue": 2026130,
+  "issuer_primary_html_sha256": "8c8cd0f6dac0bdd04dd87ef3fcc1332c672f4155ee8b79733d8e0acff0765928",
+  "issuer_primary_url": "https://www.swlc.net.cn/lottery/ssq.html?limit=50&view=previous",
+  "issuer_second_html_sha256": "aa18d196560c75a206ff75e80485bec8c0e11fec19a1199aee740e99ddbe3678",
+  "issuer_second_url": "https://www.scflcp.com.cn/ssq",
+  "original_prediction_ledger_record": "fae2e4d672b7459b69f68eb7b40938ae76d68332deb73c528b8137ac6f77f47b",
+  "schema": "SSQDLT_RESEARCH_SCORE_V1",
+  "scoring": {
+    "formal_a": 0,
+    "game": "SSQ",
+    "issue": 2026130,
+    "issuer_outcome_authentication": "UNVERIFIED_BY_THIS_FUNCTION",
+    "research_back_hits": 0,
+    "research_d2_hit": 0,
+    "research_front_hits": 2,
+    "research_full_hit": 0,
+    "research_null_d2_hit": 0,
+    "research_null_full_hit": 0,
+    "research_status": "NO_EDGE"
+  },
+  "source_trust": "TWO_ISSUERS_DATE_AND_BALLS_AGREED_ONLY_ISSUE_UNVERIFIED"
+}
