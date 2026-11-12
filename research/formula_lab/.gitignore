@@ -1,0 +1,8 @@
+__pycache__/
+*.json
+*.jsonl
+*.csv
+*.bin
+*.sha256
+*.prof
+private/
