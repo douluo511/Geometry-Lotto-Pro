@@ -17,7 +17,7 @@ on:
         description: 'Historical 2026 periods per lottery (not future data)'
         type: choice
         required: true
-        default: '40'
+        default: '50'
         options: ['10', '20', '40', '50']
 
 permissions:
@@ -53,11 +53,11 @@ jobs:
         run: |
           test "$(git -C formula-code rev-parse HEAD)" = "199cc2a2797f11b8179aaa6649f0649613c72010"
           test -f formula-code/research/inverse_formula/formula_bank.py
-      - name: Verify inverse-bank family ablations, controls and causal boundaries
+      - name: Verify all supercompute regressions including reverse bank causal boundaries
         env:
           FORMULA_CHECKOUT: formula-code
           FORMULA_EXPECTED_SHA: 199cc2a2797f11b8179aaa6649f0649613c72010
-        run: python -m unittest discover -s research/supercompute/tests -p 'test_reverse_bank_audit.py' -v
+        run: python -m unittest discover -s research/supercompute/tests -p 'test_*.py' -v
 
   study:
     runs-on: ubuntu-latest
@@ -79,7 +79,7 @@ jobs:
         env:
           FORMULA_CHECKOUT: formula-code
           FORMULA_EXPECTED_SHA: 199cc2a2797f11b8179aaa6649f0649613c72010
-          PERIODS: ${{ github.event.inputs.periods || '40' }}
+          PERIODS: ${{ github.event.inputs.periods || '50' }}
         shell: bash
         run: |
           test "$(git -C formula-code rev-parse HEAD)" = "$FORMULA_EXPECTED_SHA"
