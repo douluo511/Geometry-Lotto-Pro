@@ -1,0 +1,108 @@
+name: SSQDLT D2 paired historical audit and exact coverage (research only)
+
+on:
+  push:
+    branches:
+      - 'research/ssqdlt-d2-validation-coverage-*'
+    paths:
+      - 'research/supercompute/d2_lab.py'
+      - 'research/supercompute/tests/test_d2_lab.py'
+      - '.github/workflows/ssqdlt-d2-lab.yml'
+      - 'docs/superpowers/specs/2026-11-12-ssqdlt-d2-validation-coverage.md'
+  workflow_dispatch:
+    inputs:
+      periods:
+        description: 'Past-only historical study periods (NOT future evidence)'
+        type: choice
+        required: true
+        default: '500'
+        options: ['50', '200', '500']
+      pairs:
+        description: 'Fixed number of D2 candidate pairs for exact coverage'
+        type: choice
+        required: true
+        default: '4'
+        options: ['1', '2', '3', '4']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ssqdlt-d2-lab-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Run complete supercompute regression, coverage, P0 and D2 tests
+        run: python -m unittest discover -s research/supercompute/tests -p 'test_*.py' -v
+
+  study:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Produce full paired historical research and exact D2 coverage report
+        env:
+          PERIODS: ${{ github.event.inputs.periods || '500' }}
+          PAIRS: ${{ github.event.inputs.pairs || '4' }}
+        run: |
+          set -euo pipefail
+          python -m research.supercompute.d2_lab \
+            --periods "$PERIODS" --pairs "$PAIRS" --seed 2026 \
+            --out d2-research-report
+      - name: Verify immutable artifact hash, exact cohort and no formal promotion
+        shell: bash
+        run: |
+          python - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          root = Path("d2-research-report")
+          raw = (root/"report.json").read_bytes()
+          expected = (root/"report.sha256").read_text("ascii").split()[0]
+          assert hashlib.sha256(raw).hexdigest() == expected
+          d = json.loads(raw)
+          assert d["formal_A"] == 0 and d["edge"] == "NO_EDGE"
+          assert d["prospective_sample_size"] == 0
+          assert d["research_valid"] == "NOT_YET"
+          assert d["engineering_pass"] == "NOT_YET"
+          assert len(d["model_comparisons"]) == 4
+          assert set(d["games"]) == {"ssq", "dlt"}
+          for name, item in d["games"].items():
+              rows = item["historical_study"]["rows"]
+              n = item["historical_study"]["evaluated"]
+              assert len(rows) == n
+              assert len({r["issue"] for r in rows}) == n
+              assert item["source"]["status"] == "historical_snapshot_not_live_verified"
+          print("SSQDLT_D2_HISTORICAL_EXACT_COVERAGE_PASS", expected)
+          PY
+      - name: Store full roster, coverage audit and Markdown summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ssqdlt-d2-research-${{ github.run_id }}
+          path: d2-research-report/
+          retention-days: 90
+          if-no-files-found: warn
+      - name: Publish safe read-only human summary
+        if: success()
+        shell: bash
+        run: cat d2-research-report/summary.md >> "$GITHUB_STEP_SUMMARY"
