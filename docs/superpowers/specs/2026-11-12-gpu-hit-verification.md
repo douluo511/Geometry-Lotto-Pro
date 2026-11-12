@@ -15,7 +15,7 @@ The optional PyTorch module performs entire formula evaluation over batched expr
 
 - Supports torch.device("cpu") and torch.device("cuda"); CUDA is rejected if torch.cuda.is_available() is false.
 - Bounds batch count and estimated peak memory; checks available VRAM to fail closed before allocating.
-- The benchmark measures the **full end-to-end function**, including device transfer and CPU-side ticket completion, with several repetitions and device synchronization. The CSV/receipt inputs are never read by this synthetic benchmark.
+- The benchmark measures the **full end-to-end function**, including device transfer and CPU-side ticket completion, with several repetitions and device synchronization. GPU is considered faster only when its median end-to-end latency beats NumPy, Torch CPU, AND warmed Numba on the same synthetic workload and host. The CSV/receipt inputs are never read by this synthetic benchmark.
 - CI has read-only standard hosted runners, no real GPU, no authoritative GPU speedup. A true GPU result requires a real CUDA-equipped host and a separate owner-approved local execution. GitHub GPU larger runners are not automatically enabled or paid for.
 - The CPU-only PyTorch path is also tested against 72/312 expression semantics, independently of CUDA hardware.
 
