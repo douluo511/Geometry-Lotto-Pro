@@ -7,10 +7,12 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/ssqdlt-research-loop.yml'
+      - 'research/ssqdlt_research_tick.py'
+      - 'research/ssqdlt_research_ledger_audit.py'
   schedule:
-    # Each China day 09:07 and 22:57. The actual trigger may be delayed.
-    - cron: '07 01 * * *'
-    - cron: '57 14 * * *'
+    # Retry source availability every 30 minutes, away from the hour boundary.
+    # GitHub may delay/drop schedules; only actual API events prove execution.
+    - cron: '17,47 * * * *'
   workflow_dispatch:
 
 permissions:
@@ -56,6 +58,12 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Load current reviewed receipt writer
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: workflow-code
+          persist-credentials: false
       - name: Load pinned reviewed research code (not official six V4.7 producers)
         uses: actions/checkout@v4
         with:
@@ -67,16 +75,17 @@ jobs:
         with:
           ref: ssqdlt-research-ledger-v1
           path: ledger
+          fetch-depth: 0
           persist-credentials: true
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
       - name: Verify remote prefix before any new evidence
         env:
-          PYTHONPATH: ${{ github.workspace }}/formula-code
+          PYTHONPATH: ${{ github.workspace }}/workflow-code
         run: >-
-          python -m research.inverse_formula.rolling_research
-          --ledger ledger --verify-ledger-only
+          python -m research.ssqdlt_research_ledger_audit
+          --ledger ledger --check-git-history --scorer-root formula-code
       - name: Probe two issuers per lottery, score only prior stored tickets, issue future research candidates
         env:
           PYTHONPATH: ${{ github.workspace }}/formula-code
@@ -91,39 +100,15 @@ jobs:
           cat "$attempt/tick.json" >> "$GITHUB_STEP_SUMMARY"
           echo "All candidate forecasts are SHADOW, not authorized V4.7." >> "$GITHUB_STEP_SUMMARY"
 
-          export RECEIPT_DIR="$attempt"
-          python - <<'PY'
-          import json, os
-          from pathlib import Path
-          tick = json.loads((Path(os.environ["RECEIPT_DIR"]) / "tick.json").read_text())
-          assert tick["formal_A"] == 0 and tick["edge"] == "NO_EDGE"
-          assert tick["paid_model_calls"] == 0
-          for item in tick["results"]:
-              assert item["formal_A"] == 0
-              if item["status"] == "BLOCKED":
-                  print("SOURCE_BLOCKED", item["game"], item.get("error"))
-          out = (Path(os.environ["GITHUB_WORKSPACE"]) / "ledger" /
-                 "research" / "ticks" / (os.environ["GITHUB_RUN_ID"] + ".json"))
-          out.parent.mkdir(parents=True, exist_ok=True)
-          wrapper = {
-              "schema": "SSQDLT_ACTIONS_RESEARCH_TICK_V1",
-              "github_run_id": os.environ["GITHUB_RUN_ID"],
-              "github_run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
-              "trigger": os.environ["GITHUB_EVENT_NAME"],
-              "workflow_source_commit": os.environ["GITHUB_SHA"],
-              "pinned_formula_commit": "199cc2a2797f11b8179aaa6649f0649613c72010",
-              "report": tick,
-          }
-          with out.open("x", encoding="utf-8") as f:
-              json.dump(wrapper, f, ensure_ascii=False, sort_keys=True, indent=2)
-              f.write("\n")
-          PY
+          PYTHONPATH="$GITHUB_WORKSPACE/workflow-code" \
+            python -m research.ssqdlt_research_tick \
+            --ledger "$GITHUB_WORKSPACE/ledger" --report "$attempt/tick.json"
 
       - name: Upload the independent source bytes and blocked-attempt evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ssqdlt-research-raw-${{ github.run_id }}
+          name: ssqdlt-research-raw-${{ github.run_id }}-attempt-${{ github.run_attempt }}
           path: ${{ runner.temp }}/ssqdlt-research-${{ github.run_id }}/
           if-no-files-found: warn
 
@@ -165,7 +150,7 @@ jobs:
           echo "remote_ledger_sha=$remote_sha" >> "$GITHUB_STEP_SUMMARY"
       - name: Re-audit complete remotely persisted research ledger
         env:
-          PYTHONPATH: ${{ github.workspace }}/formula-code
+          PYTHONPATH: ${{ github.workspace }}/workflow-code
         run: >-
-          python -m research.inverse_formula.rolling_research
-          --ledger ledger --verify-ledger-only
+          python -m research.ssqdlt_research_ledger_audit
+          --ledger ledger --check-git-history --scorer-root formula-code

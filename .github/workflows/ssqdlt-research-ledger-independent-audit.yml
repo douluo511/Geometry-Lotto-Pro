@@ -1,0 +1,129 @@
+name: SSQDLT independent research ledger and real schedule audit
+
+# Read-only attestation against a FULL, fresh remote Git history and GitHub's
+# authoritative Actions runs. Not an alternative predictor or formal V4.7 gate.
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/ssqdlt-research-ledger-independent-audit.yml'
+      - 'research/ssqdlt_research_ledger_audit.py'
+      - 'research/ssqdlt_research_tick.py'
+      - '.github/workflows/ssqdlt-research-loop.yml'
+      - 'tests/test_ssqdlt_audit_recovery.py'
+      - 'tests/test_ssqdlt_research_ledger_audit.py'
+      - 'docs/superpowers/**/2026-11-11-ssqdlt-*'
+      - 'docs/superpowers/**/2026-11-12-ssqdlt-*'
+  workflow_run:
+    workflows:
+      - 'SSQDLT unattended shadow research loop (not formal V4.7)'
+    types:
+      - completed
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  independent-failure-tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Verify strict anti-tamper and real Actions-event tests (offline)
+        env:
+          PYTHONPATH: .
+        run: python -m unittest discover -s tests -p 'test_ssqdlt*.py' -v
+
+  fresh-remote-independent-audit:
+    needs: independent-failure-tests
+    if: >-
+      github.repository == 'douluo511/Geometry-Lotto-Pro' &&
+      (github.event_name == 'pull_request' ||
+       (github.event_name == 'workflow_run' &&
+        github.event.workflow_run.head_branch == 'main' &&
+        github.event.workflow_run.head_repository.full_name == 'douluo511/Geometry-Lotto-Pro'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Load verifier under review, not from the ledger
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          path: auditor
+          persist-credentials: false
+      - name: Cold fetch the real remote research ledger with its FULL append history
+        uses: actions/checkout@v4
+        with:
+          ref: ssqdlt-research-ledger-v1
+          path: ledger
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Checkout the original pinned research scorer for independent full-cohort replay
+        uses: actions/checkout@v4
+        with:
+          ref: 199cc2a2797f11b8179aaa6649f0649613c72010
+          path: formula-code
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Independently confirm remote ref still matches the cold checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          git -C ledger fetch --no-tags origin refs/heads/ssqdlt-research-ledger-v1
+          local_sha="$(git -C ledger rev-parse HEAD)"
+          remote_sha="$(git -C ledger rev-parse FETCH_HEAD)"
+          test "$local_sha" = "$remote_sha" || {
+            echo "::error::Remote research history changed during this read-only audit"
+            exit 1
+          }
+          echo "full_history_remote_head_sha=$remote_sha" >> "$GITHUB_STEP_SUMMARY"
+      - name: Recompute all saved scores from raw source bytes with pinned scorer
+        env:
+          PYTHONPATH: ${{ github.workspace }}/formula-code
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m research.inverse_formula.rolling_research \
+            --ledger ledger --verify-ledger-only \
+            | tee "$RUNNER_TEMP/pinned-research-replay.json"
+      - name: Independently audit Git full append history and exact GitHub Actions event identities
+        id: attestation
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PYTHONPATH: ${{ github.workspace }}/auditor
+        shell: bash
+        run: |
+          set +e
+          python -m research.ssqdlt_research_ledger_audit \
+            --ledger ledger --check-git-history --check-actions-api \
+            --scorer-root formula-code \
+            --out "$RUNNER_TEMP/independent-research-evidence.json"
+          rc=$?
+          echo "exit=$rc" >> "$GITHUB_OUTPUT"
+          if test -f "$RUNNER_TEMP/independent-research-evidence.json"; then
+            echo "### Independent remote research evidence" >> "$GITHUB_STEP_SUMMARY"
+            cat "$RUNNER_TEMP/independent-research-evidence.json" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit "$rc"
+      - name: Archive independent read-only evidence regardless of result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ssqdlt-independent-ledger-audit-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/independent-research-evidence.json
+            ${{ runner.temp }}/pinned-research-replay.json
+          if-no-files-found: warn
+          retention-days: 30
