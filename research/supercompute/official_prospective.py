@@ -319,6 +319,8 @@ def score_available(ledger, source):
             old = load(score_path)
             if old.get("forecast_sha256") != fc["sha256"]:
                 raise ValueError("existing score tied to changed forecast")
+            if old.get("official_draw") != actual:
+                raise ValueError("official result conflict with earlier immutable score")
             scored.append({"issue": actual["issue"], "state": "ALREADY_SCORED"})
             continue
         result = receipt({
