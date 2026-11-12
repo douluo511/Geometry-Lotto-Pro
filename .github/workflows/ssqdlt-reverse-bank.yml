@@ -1,0 +1,122 @@
+name: Reverse Formula Bank v2 ablation and matched-control research (not formal)
+
+# Original formulas remain pinned and untouched. Results are post-hoc,
+# not a live forecast or a reliable future winning probability.
+on:
+  push:
+    branches:
+      - 'research/reverse-bank-ablation-*'
+    paths:
+      - 'research/supercompute/reverse_bank_audit.py'
+      - 'research/supercompute/tests/test_reverse_bank_audit.py'
+      - '.github/workflows/ssqdlt-reverse-bank.yml'
+      - 'docs/superpowers/specs/2026-11-12-reverse-formula-bank-ablation.md'
+  workflow_dispatch:
+    inputs:
+      periods:
+        description: 'Historical 2026 periods per lottery (not future data)'
+        type: choice
+        required: true
+        default: '40'
+        options: ['10', '20', '40', '50']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ssqdlt-reverse-bank-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Load original reverse formula library from one frozen commit
+        uses: actions/checkout@v4
+        with:
+          ref: 199cc2a2797f11b8179aaa6649f0649613c72010
+          path: formula-code
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Check exact SHA of original source (fail closed)
+        shell: bash
+        run: |
+          test "$(git -C formula-code rev-parse HEAD)" = "199cc2a2797f11b8179aaa6649f0649613c72010"
+          test -f formula-code/research/inverse_formula/formula_bank.py
+      - name: Verify inverse-bank family ablations, controls and causal boundaries
+        env:
+          FORMULA_CHECKOUT: formula-code
+          FORMULA_EXPECTED_SHA: 199cc2a2797f11b8179aaa6649f0649613c72010
+        run: python -m unittest discover -s research/supercompute/tests -p 'test_reverse_bank_audit.py' -v
+
+  study:
+    runs-on: ubuntu-latest
+    needs: verify
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: 199cc2a2797f11b8179aaa6649f0649613c72010
+          path: formula-code
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Execute historical 8-arm x 2-game bank study
+        env:
+          FORMULA_CHECKOUT: formula-code
+          FORMULA_EXPECTED_SHA: 199cc2a2797f11b8179aaa6649f0649613c72010
+          PERIODS: ${{ github.event.inputs.periods || '40' }}
+        shell: bash
+        run: |
+          test "$(git -C formula-code rev-parse HEAD)" = "$FORMULA_EXPECTED_SHA"
+          python -m research.supercompute.reverse_bank_audit \
+            --periods "$PERIODS" --out reverse-bank-output
+      - name: Independently check report SHA, complete paired family and blocked edge
+        shell: bash
+        run: |
+          python - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          base=Path("reverse-bank-output")
+          raw=(base/"report.json").read_bytes()
+          h=(base/"report.sha256").read_text("ascii").split()[0]
+          assert hashlib.sha256(raw).hexdigest() == h
+          report=json.loads(raw)
+          assert report["formal_A"] == 0 and report["edge"] == "NO_EDGE"
+          assert report["prospective_scored"] == 0
+          assert len(report["paired_comparisons"]) == 16
+          assert set(report["games"]) == {"ssq", "dlt"}
+          assert report["original_formula_code_sha"] == "199cc2a2797f11b8179aaa6649f0649613c72010"
+          for game, entry in report["games"].items():
+              n=entry["evaluated"]
+              assert n == len(entry["rows"]) == len({r["issue"] for r in entry["rows"]})
+              assert entry["source"]["status"] == "historical_snapshot_not_live_verified"
+              assert all(len(row["arms"]) == 8 for row in entry["rows"])
+          print("REVERSE_BANK_CAUSAL_HISTORICAL_PASS", h)
+          PY
+      - name: Archive exact-head report and all history rows
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ssqdlt-reverse-bank-audit-${{ github.run_id }}
+          path: reverse-bank-output/
+          retention-days: 90
+          if-no-files-found: warn
+      - name: Publish safe summary
+        if: success()
+        shell: bash
+        run: cat reverse-bank-output/summary.md >> "$GITHUB_STEP_SUMMARY"
