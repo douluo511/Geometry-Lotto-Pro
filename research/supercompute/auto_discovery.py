@@ -44,8 +44,8 @@ def grammar():
             for j, right in enumerate(ATOMS):
                 if op in ("ADD", "MUL") and j < i:
                     continue
-                if op == "SUB" and i == j:
-                    continue
+                if (op == "SUB" or op == "ADD") and i == j:
+                    continue  # x+x is already DOUBLE(x); x-x is constant
                 expressions.append((op, left, right))
     result = []
     for op, left, right in expressions:
