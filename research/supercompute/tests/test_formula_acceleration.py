@@ -132,9 +132,9 @@ class FormulaAccelerationTests(unittest.TestCase):
             cohort = fast.synthetic_rows(game, n=190)
             r = fast.holdout_evaluate(
                 cohort, game, validation=20, holdout=20,
-                expressions=fast.GRAMMAR[:80], backend="numpy")
+                expressions=tuple(x for x in fast.GRAMMAR if x["window"] == 8), backend="numpy")
             self.assertEqual(r["holdout"], 20)
-            self.assertEqual(r["expressions_scanned"], 80)
+            self.assertEqual(r["expressions_scanned"], 78)
             self.assertEqual(len(r["selected_formula_ids"]), 8)
             self.assertEqual(r["edge"], "NO_EDGE")
             self.assertEqual(r["prospective_scored"], 0)
@@ -154,7 +154,7 @@ class FormulaAccelerationTests(unittest.TestCase):
 
     def test_holdout_cannot_select_based_on_future_outcome(self):
         rows = fast.synthetic_rows("dlt", n=190)
-        limited = fast.GRAMMAR[:72]
+        limited = tuple(x for x in fast.GRAMMAR if x["window"] == 8)
         frozen = fast.training_rank(
             rows[:170], "dlt", list(range(150, 170)),
             expressions=limited)
