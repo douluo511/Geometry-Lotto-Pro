@@ -5,9 +5,9 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/ssqdlt-p0-scheduler.yml'
-      - 'research/p0_scheduler/**'
-      - 'tests/test_p0_scheduler.py'
-      - 'tests/test_p0_acceptance.py'
+      - 'research/supercompute/automation/**'
+      - 'research/supercompute/tests/test_p0_scheduler.py'
+      - 'research/supercompute/tests/test_p0_acceptance.py'
   schedule:
     # P0 bootstrap: two independent UTC windows/day. No lottery or paid API calls.
     - cron: '17 16,17 * * *'
@@ -34,7 +34,7 @@ jobs:
       - name: Verify idempotence, tamper evidence and restart tests
         env:
           PYTHONPATH: .
-        run: python -m unittest discover -s tests -p 'test_p0_*.py' -v
+        run: python -m unittest discover -s research/supercompute/tests -p 'test_p0_*.py' -v
 
   record-unattended-heartbeat:
     needs: offline-contract
@@ -77,7 +77,7 @@ jobs:
             git worktree add --detach "$ledger" "$GITHUB_SHA"
           fi
 
-          python research/p0_scheduler/runner.py record --ledger "$ledger"
+          python research/supercompute/automation/runner.py record --ledger "$ledger"
 
           git -C "$ledger" config user.name "github-actions[bot]"
           git -C "$ledger" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -91,12 +91,12 @@ jobs:
           git fetch --no-tags origin "refs/heads/$branch:$tracking"
           git worktree add --detach "$restore" "$tracking"
           echo "### P0 remote persistence and recovery check" >> "$GITHUB_STEP_SUMMARY"
-          python research/p0_scheduler/runner.py verify --ledger "$restore" \
+          python research/supercompute/automation/runner.py verify --ledger "$restore" \
             --expected-run-id "$GITHUB_RUN_ID" | tee -a "$GITHUB_STEP_SUMMARY"
 
           # Cross-check every sampled receipt against independent GitHub
           # Actions event metadata; in-progress runs remain UNVERIFIED.
-          python research/p0_scheduler/acceptance.py --ledger "$restore" \
+          python research/supercompute/automation/acceptance.py --ledger "$restore" \
             --out "$RUNNER_TEMP/p0-acceptance.json" | tee -a "$GITHUB_STEP_SUMMARY"
 
           # Infrastructure acceptance is separate from any lottery forecast.

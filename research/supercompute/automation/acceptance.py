@@ -13,7 +13,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-from research.p0_scheduler.runner import REL, _read, verify
+from research.supercompute.automation.runner import REL, _read, verify
 
 REPOSITORY = "douluo511/Geometry-Lotto-Pro"
 WORKFLOW_ID = 414851175

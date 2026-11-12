@@ -4,7 +4,7 @@ This is a genuine CPU batch calculator, not a supercomputer cluster or GPU setup
 
 Windows / PowerShell (Python 3.11 or newer; repository root):
 
-    python -m unittest discover -s tests -p "test_supercompute.py" -v
+    python -m unittest discover -s research/supercompute/tests -p "test_supercompute.py" -v
     python -m research.supercompute.engine --game both --backtest 200 --simulate 50000 --workers 2 --out supercompute-output
 
 The separate GitHub Actions workflow provides a manually runnable button with bounded compute inputs; the workflow is initially offered through a feature branch and has to be merged to main for a durable Actions launcher.
@@ -23,3 +23,7 @@ The separate GitHub Actions workflow provides a manually runnable button with bo
 * Edge is always NO_EDGE, formal_A=0, paid_api_calls=0. Increased trial count does not make random lottery outcomes predictable.
 
 To build a true longitudinal validation loop later, source verification, pre-draw sealing, independent append-only evidence, subsequent official draw checks and out-of-sample statistical tests must all be established. This tool does not claim those tasks are complete.
+
+P0 unattended heartbeat code and tests were consolidated under `research/supercompute/automation/` and `research/supercompute/tests/` without changing the separate P0 ledger branch. Run their tests using:
+
+    python -m unittest discover -s research/supercompute/tests -p 'test_p0_*.py' -v
