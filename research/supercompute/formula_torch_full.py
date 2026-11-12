@@ -236,9 +236,20 @@ def benchmark(game="ssq", *, history=190, targets=8,
             "all_outputs_equal": "NOT_TESTED_WITH_TORCH",
             "real_draws_used": False, "formal_A": 0, "edge": "NO_EDGE",
         }
+    # Compare against the strongest available warmed CPU reference too.
+    numba_time = "NOT_INSTALLED"
+    if cpu.njit is not None:
+        cpu.evaluate_grid(
+            rows, game, ts, exprs[:1], backend="numba")
+        observed_numba, numba_time = _clock(
+            lambda: cpu.evaluate_grid(
+                rows, game, ts, exprs, backend="numba"),
+            repeats=repeats)
+        if dict(reference) != dict(observed_numba):
+            raise AssertionError("Numba and NumPy full pipeline disagree")
     # First call may create runtime kernels; do not include it in warmed batch.
-    warm = evaluate_torch_grid(rows, game, ts, exprs[:1], device="cpu",
-                               batch_size=batch_size)
+    evaluate_torch_grid(rows, game, ts, exprs[:1], device="cpu",
+                        batch_size=batch_size)
     observed_cpu, cpu_result = _clock(
         lambda: evaluate_torch_grid(
             rows, game, ts, exprs, device="cpu", batch_size=batch_size),
@@ -257,14 +268,17 @@ def benchmark(game="ssq", *, history=190, targets=8,
             device="cuda", repeats=repeats)
         if observed_cuda != observed_cpu:
             raise AssertionError("CUDA and CPU ticket predictions disagree")
-        gpu_better = bool(
-            gpu_result["median_seconds"] < base["median_seconds"] and
-            gpu_result["median_seconds"] < cpu_result["median_seconds"])
+        baselines = [
+            base["median_seconds"], cpu_result["median_seconds"]]
+        if isinstance(numba_time, dict):
+            baselines.append(numba_time["median_seconds"])
+        gpu_better = bool(gpu_result["median_seconds"] < min(baselines))
     return {
         "protocol": PROTOCOL, "game": game, "synthetic_history": history,
         "synthetic_targets": targets, "formula_count": formula_count,
         "numpy_end_to_end": base,
         "torch_cpu_end_to_end": cpu_result,
+        "numba_warmed_end_to_end": numba_time,
         "cuda_end_to_end": gpu_result,
         "gpu_improves_full_pipeline": gpu_better,
         "cpu_parity": "PASS",
