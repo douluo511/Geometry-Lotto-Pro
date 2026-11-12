@@ -5,7 +5,7 @@ Date 2026-11-12. This extends the existing SSQDLT P0/research evidence loop; it 
 ## Official observation design
 
 - SSQ: independently governed Shanghai Welfare Lottery official history and Hebei Welfare Lottery homepage-plus-announcement consensus. Native parsers must preserve original response bytes, SHA256, URL, status and fetched timestamp.
-- DLT: Gansu Sports Lottery history plus Jiangsu Sports Lottery listing and **linked official announcement**. The Jiangsu listing date is explicitly a publication date, NOT draw date. Only an explicit 开奖日期 in the linked per-issue announcement can authenticate draw_date semantics. Its issue and numbers must match the listing.
+- DLT: Gansu Sports Lottery current-draw homepage plus Jiangsu Sports Lottery listing and **linked official announcement**. The Jiangsu listing date is explicitly a publication date, NOT draw date. Only an explicit 开奖日期 in the linked per-issue announcement can authenticate draw_date semantics. Its issue and numbers must match the listing.
 - Require EXACT latest issue, date and all ball sets to match between both separately governed lottery centres. Non-200, timeout, missing raw, stale issue/date, publication-date confusion, changed page schema, content mismatch, unknown redirect or insufficient source count must yield SOURCE_BLOCKED and a create-only failure receipt.
 - Source observation evidence is a two-centre public-website consensus, **NOT** a digitally signed issuer record or trusted formal observation. Raw HTTP bytes must be retained and hash-verifiable, not merely inferred from cached text or a historical checked-in seed.
 
@@ -52,6 +52,6 @@ Until these gates are independently proven: ENGINEERING_PASS=NOT_YET; RESEARCH_V
 Official website references:
 - https://www.swlc.net.cn/lottery/ssq.html
 - https://www.yzfcw.com/
-- https://www.gstc.org.cn/wanfa/dlt_history
+- https://www.gstc.org.cn/wanfa/dlt
 - https://www.js-lottery.com/wfzq/dlt/data
 - https://api.js-lottery.com/cms/post-148233.html (per-issue example only, not hardcoded to latest)
