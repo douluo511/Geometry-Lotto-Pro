@@ -11,6 +11,7 @@ on:
       - 'research/supercompute/exhaustive.py'
       - 'research/supercompute/tests/test_exhaustive.py'
       - '.github/workflows/ssqdlt-exhaustive.yml'
+      - 'README.md'
   workflow_dispatch:
     inputs:
       games:
