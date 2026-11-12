@@ -49,6 +49,46 @@ jobs:
       - name: Verify historical data, CPU determinism, and research firewall
         run: python -m unittest discover -s tests -p 'test_supercompute.py' -v
 
+  smoke:
+    if: github.event_name == 'push'
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Actually compute both historical snapshots with CPU parallel workers
+        run: >-
+          python -m research.supercompute.engine
+          --game both --simulate 10000
+          --backtest 200 --workers 2
+          --out supercompute-output
+      - name: Verify receipt SHA256 and research-only outputs
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json, hashlib
+          p=Path("supercompute-output")
+          raw=(p/"report.json").read_bytes()
+          assert hashlib.sha256(raw).hexdigest()==(p/"report.sha256").read_text().split()[0]
+          r=json.loads(raw)
+          assert set(r["games"])=={"ssq","dlt"} and r["paid_api_calls"]==0
+          for entry in r["games"].values():
+              assert entry["edge"]=="NO_EDGE"
+              assert entry["formal_A"]==0
+              assert entry["uniform_monte_carlo"]["trials"]==10000
+              assert entry["historical_walk_forward"]["models"]["RANDOM_NULL"]["evaluated"]==200
+          print("FULL_BOTH_GAMES_RESEARCH_SMOKE_PASS")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ssqdlt-cpu-smoke-${{ github.run_id }}
+          path: supercompute-output/
+          retention-days: 90
+          if-no-files-found: error
+
   calculate:
     if: github.event_name == 'workflow_dispatch'
     needs: verify
