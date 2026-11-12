@@ -16,6 +16,8 @@ from zoneinfo import ZoneInfo
 
 from research.supercompute.engine import SPECS
 
+ROOT = Path(__file__).resolve().parents[2]
+
 SCHEMA = "SSQDLT_OFFICIAL_CONSENSUS_SHADOW_V1"
 ZERO = "0" * 64
 CHINA = ZoneInfo("Asia/Shanghai")
@@ -90,6 +92,8 @@ def load(path):
 
 def create_once(path, obj):
     p = Path(path)
+    if p.resolve().is_relative_to(ROOT.resolve()):
+        raise ValueError("Git repository is CODE ONLY: store evidence OUTSIDE the checkout")
     p.parent.mkdir(parents=True, exist_ok=True)
     if p.is_symlink() or any(x.is_symlink() for x in p.parents if x.exists()):
         raise ValueError("refuse symlinked output path")
