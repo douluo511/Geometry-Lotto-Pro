@@ -26,7 +26,7 @@ def write_json(root: Path, relative: str, value: dict) -> Path:
     file = root / relative
     file.parent.mkdir(parents=True, exist_ok=True)
     file.write_text(json.dumps(value, sort_keys=True, ensure_ascii=False) + "\n",
-                    encoding="utf-8")
+                    encoding="utf-8", newline="\n")
     return file
 
 
@@ -215,7 +215,7 @@ class LedgerAuditTests(unittest.TestCase):
     def test_actions_api_distinguishes_push_and_actual_schedule(self):
         current = tick()
         result = verify_actions_ticks(
-            [current], lambda rid: fake_api(rid))
+            [current], lambda rid, attempt: fake_api(rid, attempt=attempt))
         self.assertEqual(result["verified_push_runs"], 1)
         self.assertEqual(result["verified_schedule_runs"], 0)
         self.assertEqual(result["schedule_two_trigger_gate"], "UNVERIFIED")
@@ -224,23 +224,24 @@ class LedgerAuditTests(unittest.TestCase):
         controls = {"123456": fake_api("123456", "schedule"),
                     "234567": fake_api("234567", "schedule")}
         confirmed = verify_actions_ticks(
-            [a, b], lambda rid: controls[rid])
+            [a, b], lambda rid, attempt: controls[rid])
         self.assertEqual(confirmed["schedule_two_trigger_gate"], "PASS")
         self.assertEqual(confirmed["verified_schedule_runs"], 2)
 
     def test_actions_api_rejects_forged_workflow_identity_or_unauthenticated_run(self):
         with self.assertRaisesRegex(GateError, "EVENT"):
-            verify_actions_ticks([tick()], lambda rid: fake_api(rid, "schedule"))
+            verify_actions_ticks([tick()], lambda rid, attempt: fake_api(rid, "schedule"))
         with self.assertRaisesRegex(GateError, "SHA"):
-            verify_actions_ticks([tick()], lambda rid: fake_api(rid, sha="f"*40))
-        with self.assertRaisesRegex(GateError, "NOT_SUCCESS"):
-            verify_actions_ticks([tick()], lambda rid: fake_api(
-                rid, conclusion="failure"))
-        with self.assertRaisesRegex(GateError, "NOT_SUCCESS"):
-            verify_actions_ticks([tick()], lambda rid: fake_api(
+            verify_actions_ticks([tick()], lambda rid, attempt: fake_api(rid, sha="f"*40))
+        failed = verify_actions_ticks([tick()], lambda rid, attempt: fake_api(
+            rid, conclusion="failure"))
+        self.assertEqual(failed["failed_attempt_count"], 1)
+        self.assertEqual(failed["verified_push_runs"], 0)
+        with self.assertRaisesRegex(GateError, "NOT_COMPLETED"):
+            verify_actions_ticks([tick()], lambda rid, attempt: fake_api(
                 rid, status="in_progress", conclusion=None))
         with self.assertRaisesRegex(GateError, "WORKFLOW"):
-            verify_actions_ticks([tick()], lambda rid: {
+            verify_actions_ticks([tick()], lambda rid, attempt: {
                 **fake_api(rid), "workflow_id": 0})
 
     def test_local_clean_ledger_without_actions_remains_unverified(self):
@@ -265,6 +266,7 @@ class GitHistoryTests(unittest.TestCase):
         git("init", "-q")
         git("config", "user.email", "ci@example.invalid")
         git("config", "user.name", "CI")
+        git("config", "core.autocrlf", "false")
         write_json(self.repo, "research/forecasts/SSQ-2026130.json", forecast())
         git("add", "research")
         git("commit", "-qm", "first immutable forecast")

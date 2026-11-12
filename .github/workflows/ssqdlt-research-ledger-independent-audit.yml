@@ -7,8 +7,12 @@ on:
     paths:
       - '.github/workflows/ssqdlt-research-ledger-independent-audit.yml'
       - 'research/ssqdlt_research_ledger_audit.py'
+      - 'research/ssqdlt_research_tick.py'
+      - '.github/workflows/ssqdlt-research-loop.yml'
+      - 'tests/test_ssqdlt_audit_recovery.py'
       - 'tests/test_ssqdlt_research_ledger_audit.py'
       - 'docs/superpowers/**/2026-11-11-ssqdlt-*'
+      - 'docs/superpowers/**/2026-11-12-ssqdlt-*'
   workflow_run:
     workflows:
       - 'SSQDLT unattended shadow research loop (not formal V4.7)'
@@ -38,7 +42,7 @@ jobs:
       - name: Verify strict anti-tamper and real Actions-event tests (offline)
         env:
           PYTHONPATH: .
-        run: python -m unittest discover -s tests -p 'test_ssqdlt_research_ledger_audit.py' -v
+        run: python -m unittest discover -s tests -p 'test_ssqdlt*.py' -v
 
   fresh-remote-independent-audit:
     needs: independent-failure-tests
@@ -104,6 +108,7 @@ jobs:
           set +e
           python -m research.ssqdlt_research_ledger_audit \
             --ledger ledger --check-git-history --check-actions-api \
+            --scorer-root formula-code \
             --out "$RUNNER_TEMP/independent-research-evidence.json"
           rc=$?
           echo "exit=$rc" >> "$GITHUB_OUTPUT"

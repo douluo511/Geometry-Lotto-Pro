@@ -10,14 +10,17 @@ import argparse
 import base64
 from collections import Counter
 import hashlib
+import io
 import json
 import os
 from pathlib import Path
 import re
 import subprocess
 import sys
+import tempfile
 import urllib.error
 import urllib.request
+import zipfile
 
 class GateError(ValueError):
     """A mandatory evidence check is missing, ambiguous or contradicted."""
@@ -45,6 +48,7 @@ SOURCES = {
 }
 MAX_JSON_BYTES = 16_000_000
 MAX_RAW_BYTES = 2_000_000
+PINNED_SCORER_SHA = "199cc2a2797f11b8179aaa6649f0649613c72010"
 
 
 def deny(code: str) -> None:
@@ -113,6 +117,8 @@ def _paths(root: Path):
             rel = item.relative_to(root).as_posix()
             if not item.is_file() or not PATH_RE.fullmatch(rel) or item.suffix != ".json":
                 deny("UNEXPECTED_RESEARCH_PATH:" + rel[:200])
+            if folder != "raw" and len(rel.split("/")) != 3:
+                deny("NONCANONICAL_RESEARCH_RECEIPT_PATH:" + rel[:200])
             yield rel, item
 
 
@@ -163,7 +169,7 @@ def _forecast_item(item: dict, *, legacy: bool) -> tuple[str, int]:
     return game, issue
 
 
-def scan_ledger(ledger: Path) -> dict:
+def scan_ledger(ledger: Path, *, score_replayer=None) -> dict:
     """Scan every research receipt, including losses; never mutate the ledger."""
     ledger = Path(ledger)
     paths = list(_paths(ledger))
@@ -287,12 +293,12 @@ def scan_ledger(ledger: Path) -> dict:
     tick_receipts = []
     for rel, path in inventory["ticks"]:
         value = load_json(path)
+        run_id = value.get("github_run_id")
+        attempt = value.get("github_run_attempt")
         if (value.get("schema") != TICK_SCHEMA
-                or not path.stem.isdecimal()
-                or value.get("github_run_id") != path.stem
-                or not isinstance(value.get("github_run_attempt"), str)
-                or not value["github_run_attempt"].isdecimal()
-                or int(value["github_run_attempt"]) < 1
+                or not isinstance(run_id, str) or not re.fullmatch(r"[1-9][0-9]*", run_id)
+                or not isinstance(attempt, str) or not re.fullmatch(r"[1-9][0-9]*", attempt)
+                or path.stem not in (run_id, f"{run_id}-attempt-{attempt}")
                 or value.get("trigger") not in ("push", "schedule", "workflow_dispatch")
                 or not _sha40(value.get("workflow_source_commit"))
                 or not _sha40(value.get("pinned_formula_commit"))):
@@ -320,6 +326,27 @@ def scan_ledger(ledger: Path) -> dict:
                         "NEW_RESEARCH_PREVIEW_RECORDED")):
                 deny("TICK_NONCANONICAL_GAME_RESULT")
         tick_receipts.append(value)
+
+    # A hash-valid score claim is not an independently recomputed score.
+    # The original scorer must inspect the exact same complete cohort.
+    replay = score_replayer() if score_replayer is not None else None
+    if scored and replay is None:
+        deny("SCORE_REPLAY_REQUIRED")
+    if replay is not None:
+        if (not isinstance(replay, dict)
+                or replay.get("status") != "PASS_RESEARCH_REPLAY_NOT_FORMAL"
+                or type(replay.get("formal_A")) is not int or replay["formal_A"] != 0
+                or replay.get("edge") != "NO_EDGE"
+                or replay.get("forecast_issues") != len(forecasts)
+                or replay.get("scored_issues") != len(scored)
+                or replay.get("source_raw_envelopes") != raw_count):
+            deny("PINNED_REPLAY_ROSTER_MISMATCH")
+        replay_scores = replay.get("per_game_reconstructed_scoreboard", {})
+        for game, counts in scoreboard.items():
+            reconstructed = replay_scores.get(game, {})
+            for key, count in counts.items():
+                if type(reconstructed.get(key)) is not int or reconstructed[key] != count:
+                    deny("PINNED_REPLAY_SCORE_MISMATCH:" + game + ":" + key)
 
     for game, s in scoreboard.items():
         n = s["n"]
@@ -350,19 +377,64 @@ def scan_ledger(ledger: Path) -> dict:
             for game in GAME
         },
         "scoreboard": scoreboard,
+        "score_replay": "PASS_PINNED_REPLAY" if replay is not None else "UNVERIFIED_NO_SCORES",
         "all_research_receipt_bytes_sha256": full_inventory.hexdigest(),
         "_ticks": tick_receipts,
     }
 
 
-def _git(root: Path, *args: str) -> str:
+def _git_bytes(root: Path, *args: str) -> bytes:
     try:
         completed = subprocess.run(
             ["git", "-C", str(root), *args],
-            capture_output=True, text=True, check=True, timeout=45)
+            capture_output=True, check=True, timeout=45,
+            env={**os.environ, "GIT_NO_REPLACE_OBJECTS": "1"})
         return completed.stdout
     except (OSError, subprocess.SubprocessError) as exc:
         raise GateError("GIT_HISTORY_UNAVAILABLE:" + str(exc)[:220]) from exc
+
+
+def _git(root: Path, *args: str) -> str:
+    return _git_bytes(root, *args).decode("utf-8")
+
+
+def replay_pinned_scores(ledger: Path, scorer_root: Path) -> dict:
+    """Execute committed scorer bytes, never mutable checkout/PYTHONPATH code."""
+    archive = _git_bytes(scorer_root, "archive", "--format=zip", PINNED_SCORER_SHA,
+                         "research/inverse_formula")
+    with tempfile.TemporaryDirectory(prefix="ssqdlt-pinned-replay-") as directory:
+        destination = Path(directory)
+        with zipfile.ZipFile(io.BytesIO(archive)) as bundle:
+            for member in bundle.infolist():
+                if member.filename == "research/" and member.is_dir():
+                    continue
+                parts = member.filename.split("/")
+                if (parts[:2] != ["research", "inverse_formula"]
+                        or any(p in (".", "..") for p in parts)
+                        or "\\" in member.filename
+                        or (member.external_attr >> 16) & 0o170000 == 0o120000):
+                    deny("UNSAFE_PINNED_SCORER_ARCHIVE")
+                target = destination.joinpath(*parts)
+                if member.is_dir():
+                    target.mkdir(parents=True, exist_ok=True)
+                else:
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    target.write_bytes(bundle.read(member))
+        script = (
+            "import sys,json;from pathlib import Path;sys.path.insert(0,sys.argv[1]);"
+            "from research.inverse_formula.rolling_research import verify_saved_research_ledger;"
+            "print(json.dumps(verify_saved_research_ledger(Path(sys.argv[2])),allow_nan=False))"
+        )
+        completed = subprocess.run(
+            [sys.executable, "-I", "-S", "-B", "-c", script,
+             str(destination), str(Path(ledger).resolve())],
+            capture_output=True, timeout=90)
+        if completed.returncode:
+            deny("PINNED_SCORE_REPLAY_FAILED:" + completed.stderr.decode("utf-8", "replace")[-350:])
+        if len(completed.stdout) > MAX_JSON_BYTES:
+            deny("PINNED_SCORE_REPLAY_OVERSIZED")
+        return json.loads(completed.stdout.decode("utf-8"), object_pairs_hook=_no_duplicate,
+                          parse_constant=_no_nonfinite)
 
 
 def validate_git_append_only(ledger: Path) -> dict:
@@ -382,7 +454,9 @@ def validate_git_append_only(ledger: Path) -> dict:
     disk = sorted(rel for rel, _ in _paths(root))
     if sorted(tracked) != disk:
         deny("TRACKED_LEDGER_FILE_SET_CHANGED")
-    changes = _git(root, "log", "--no-renames", "--format=",
+    # Inspect merge parents too; default git log hides their M/D changes.
+    changes = _git(root, "log", "--full-history", "--diff-merges=separate",
+                   "--no-renames", "--format=",
                    "--name-status", "--", *patterns)
     additions = Counter()
     bad = []
@@ -394,8 +468,11 @@ def validate_git_append_only(ledger: Path) -> dict:
             bad.append(line[:170])
             continue
         additions[parts[1]] += 1
-    if bad or any(additions.get(path) != 1 for path in tracked):
+    if bad or set(additions) != set(tracked) or any(additions.get(path) != 1 for path in tracked):
         deny("NON_APPEND_GIT_HISTORY:" + str(bad[:4])[:300])
+    for rel in tracked:
+        if (root / rel).read_bytes() != _git_bytes(root, "cat-file", "blob", "HEAD:" + rel):
+            deny("GIT_BLOB_BYTES_DIFFER_FROM_CHECKOUT:" + rel)
     return {"status": "PASS", "appended_files": len(tracked),
             "non_add_commits": len(bad),
             "ledger_head_sha": _git(root, "rev-parse", "HEAD").strip(),
@@ -405,15 +482,18 @@ def validate_git_append_only(ledger: Path) -> dict:
 def verify_actions_ticks(ticks: list[dict], fetcher) -> dict:
     """Each saved trigger must match the actual GitHub Actions REST event."""
     seen = set()
-    counts = Counter()
+    successes = {event: set() for event in ("push", "schedule", "workflow_dispatch")}
+    failed = 0
     evidence = []
     for tick in ticks:
         run_id = tick["github_run_id"]
-        if run_id in seen:
-            deny("DUPLICATE_GITHUB_ACTIONS_RUN_ID")
-        seen.add(run_id)
+        attempt = int(tick["github_run_attempt"])
+        identity = (run_id, attempt)
+        if identity in seen:
+            deny("DUPLICATE_GITHUB_ACTIONS_RUN_ATTEMPT")
+        seen.add(identity)
         try:
-            run = fetcher(run_id)
+            run = fetcher(run_id, attempt)
         except Exception as exc:
             raise GateError("ACTIONS_FETCH_UNVERIFIED:" + str(exc)[:180]) from exc
         if not isinstance(run, dict) or type(run.get("id")) is not int or (
@@ -431,42 +511,50 @@ def verify_actions_ticks(ticks: list[dict], fetcher) -> dict:
         if type(run.get("run_attempt")) is not int or (
                 run["run_attempt"] != int(tick["github_run_attempt"])):
             deny("GITHUB_API_RUN_ATTEMPT_MISMATCH")
-        if (run.get("status") != "completed"
-                or run.get("conclusion") != "success"):
-            deny("GITHUB_API_RUN_NOT_SUCCESS")
+        if run.get("status") != "completed":
+            deny("GITHUB_API_RUN_NOT_COMPLETED")
+        if run.get("conclusion") not in (
+                "success", "failure", "cancelled", "timed_out", "action_required",
+                "neutral", "skipped", "stale", "startup_failure"):
+            deny("GITHUB_API_UNKNOWN_CONCLUSION")
         url = "https://github.com/" + REPO + "/actions/runs/" + run_id
         if run.get("html_url") != url:
             deny("GITHUB_API_RUN_URL_MISMATCH")
-        counts[tick["trigger"]] += 1
+        if run["conclusion"] == "success":
+            successes[tick["trigger"]].add(run_id)
+        else:
+            failed += 1
         evidence.append({
             "run_id": run_id, "event": run["event"],
             "head_sha": run["head_sha"],
             "run_attempt": run["run_attempt"], "run_url": url,
+            "conclusion": run["conclusion"],
         })
     return {
-        "status": "PASS" if ticks else "UNVERIFIED_NO_TICKS",
+        "status": ("PASS_IDENTITIES_WITH_FAILED_ATTEMPTS" if failed else "PASS") if ticks else "UNVERIFIED_NO_TICKS",
         "api_verified_tick_count": len(ticks),
-        "verified_push_runs": counts["push"],
-        "verified_dispatch_runs": counts["workflow_dispatch"],
-        "verified_schedule_runs": counts["schedule"],
-        "schedule_two_trigger_gate": "PASS" if counts["schedule"] >= 2
+        "failed_attempt_count": failed,
+        "verified_push_runs": len(successes["push"]),
+        "verified_dispatch_runs": len(successes["workflow_dispatch"]),
+        "verified_schedule_runs": len(successes["schedule"]),
+        "schedule_two_trigger_gate": "PASS" if len(successes["schedule"]) >= 2
                                     else "UNVERIFIED",
         "actions_evidence": evidence,
     }
 
 
-def _fetch_github_run(run_id: str) -> dict:
+def _fetch_github_run(run_id: str, attempt: int) -> dict:
     token = os.environ.get("GITHUB_TOKEN")
-    if not token:
-        deny("GITHUB_TOKEN_MISSING_ACTIONS_API_UNVERIFIED")
     url = ("https://api.github.com/repos/" + REPO +
-           "/actions/runs/" + run_id)
-    request = urllib.request.Request(url, headers={
-        "Authorization": "Bearer " + token,
+           "/actions/runs/" + run_id + "/attempts/" + str(attempt))
+    headers = {
         "Accept": "application/vnd.github+json",
         "User-Agent": "SSQDLT-ReadOnly-Ledger-Auditor-v1",
         "X-GitHub-Api-Version": "2022-11-28",
-    })
+    }
+    if token:
+        headers["Authorization"] = "Bearer " + token
+    request = urllib.request.Request(url, headers=headers)
     with urllib.request.urlopen(request, timeout=20) as response:
         if response.status != 200:
             deny("GITHUB_ACTIONS_API_NON_200")
@@ -481,8 +569,9 @@ def _fetch_github_run(run_id: str) -> dict:
         raise GateError("BAD_GITHUB_API_RUN_JSON") from exc
 
 
-def overall_report(ledger: Path, *, fetcher=None, verify_git=False) -> dict:
-    scanned = scan_ledger(ledger)
+def overall_report(ledger: Path, *, fetcher=None, verify_git=False, scorer_root=None) -> dict:
+    scanned = scan_ledger(ledger, score_replayer=(
+        lambda: replay_pinned_scores(ledger, scorer_root)) if scorer_root is not None else None)
     ticks = scanned.pop("_ticks")
     git_result = validate_git_append_only(ledger) if verify_git else None
     actions = verify_actions_ticks(ticks, fetcher) if fetcher is not None else None
@@ -497,6 +586,8 @@ def overall_report(ledger: Path, *, fetcher=None, verify_git=False) -> dict:
         "verified_push_runs": actions["verified_push_runs"] if actions else 0,
         "verified_dispatch_runs": actions["verified_dispatch_runs"] if actions else 0,
         "actions_evidence": actions["actions_evidence"] if actions else [],
+        "failed_attempt_count": actions["failed_attempt_count"] if actions else 0,
+        "pinned_scorer_commit": PINNED_SCORER_SHA if scorer_root is not None else None,
         "inventory": scanned,
         "engineering_pass": "NOT_YET",
         "research_valid": "NOT_YET",
@@ -517,6 +608,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--ledger", type=Path, required=True)
     ap.add_argument("--check-git-history", action="store_true")
     ap.add_argument("--check-actions-api", action="store_true")
+    ap.add_argument("--scorer-root", type=Path,
+                    help="Git repository containing the pinned original scorer commit")
     ap.add_argument("--out", type=Path)
     args = ap.parse_args(argv)
     try:
@@ -524,6 +617,7 @@ def main(argv: list[str] | None = None) -> int:
             args.ledger,
             fetcher=_fetch_github_run if args.check_actions_api else None,
             verify_git=args.check_git_history,
+            scorer_root=args.scorer_root,
         )
         code = 0
     except (GateError, OSError, TypeError, KeyError) as exc:
