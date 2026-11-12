@@ -104,6 +104,23 @@ class PairedStudyTests(unittest.TestCase):
             {arm: v["ticket"] for arm, v in altered["rows"][0]["arms"].items()},
         )
 
+    def test_missing_issue_inside_same_year_fails_closed(self):
+        for game in SPECS:
+            draws, _ = snapshot(game)
+            # Remove a draw from the middle without altering all subsequent
+            # legitimate issue numbers. A partial cohort must be rejected.
+            broken = json.loads(json.dumps(draws[:170]))
+            broken.pop(150)
+            with self.assertRaises(ValueError):
+                evaluate_history(broken, game, 20, seed=2026)
+
+    def test_cross_year_rollover_is_not_mistaken_for_missing_issue(self):
+        for game in SPECS:
+            draws, _ = snapshot(game)
+            # Historical snapshots legitimately transition 2025xx -> 2026001.
+            study = evaluate_history(draws, game, 500, seed=2026)
+            self.assertEqual(study["evaluated"], 500)
+
     def test_insufficient_samples_fail_instead_of_shrink(self):
         draws, _ = snapshot("dlt")
         with self.assertRaises(ValueError):
