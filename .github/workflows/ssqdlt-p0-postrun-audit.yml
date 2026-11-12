@@ -51,7 +51,7 @@ jobs:
           fi
           git fetch --no-tags origin "refs/heads/$branch:$tracking"
           git worktree add --detach "$audit_root" "$tracking"
-          python research/p0_scheduler/acceptance.py --ledger "$audit_root" \
+          python research/supercompute/automation/acceptance.py --ledger "$audit_root" \
             --out "$RUNNER_TEMP/p0-postrun-acceptance.json"
           cat "$RUNNER_TEMP/p0-postrun-acceptance.json" >> "$GITHUB_STEP_SUMMARY"
 

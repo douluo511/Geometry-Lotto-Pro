@@ -42,7 +42,7 @@ can rewrite branches and GitHub log retention is finite.
 
 From repository root:
 
-    python -m unittest discover -s tests -p 'test_p0_*.py' -v
+    python -m unittest discover -s research/supercompute/tests -p 'test_p0_*.py' -v
 
 These tests check idempotence, run-type isolation, hash tampering, orphaned
 events, crash-before-push restart, and mocked GitHub API/ledger agreement.
@@ -51,7 +51,7 @@ do not prove P0 deployment.
 
 ## Independent read-only verification
 
-- `research/p0_scheduler/acceptance.py` reads verified hash-chained remote
+- `research/supercompute/automation/acceptance.py` reads verified hash-chained remote
   receipts, then fetches actual GitHub Actions run IDs via the read-only REST
   API. It checks event == schedule vs workflow_dispatch, exact workflow ID and
   path, default main branch, code SHA, and completed success status.

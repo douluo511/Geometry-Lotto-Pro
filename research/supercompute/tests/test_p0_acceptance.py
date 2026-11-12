@@ -4,8 +4,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from research.p0_scheduler.acceptance import assess, selected_receipts
-from research.p0_scheduler.runner import REL, record, verify
+from research.supercompute.automation.acceptance import assess, selected_receipts
+from research.supercompute.automation.runner import REL, record, verify
 
 SHA = "a" * 40
 

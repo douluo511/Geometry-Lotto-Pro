@@ -1,20 +1,15 @@
-# Geometry Lotto Pro — migration / acceptance workspace
+# Geometry Lotto Pro — SSQ + DLT research and automation
 
-> **NOT a portfolio-final repository.** This repository currently contains multiple independent products. Under the frozen release policy, a project hosted here must report `repository_independence=FAIL` and must not publish a unique FINAL artifact.
+This repository contains two lottery applications and an independent research toolkit.
 
-Current project directories include DLT, SSQ, Investment Finance, Psychology Insight, Head Intelligence, English Root Intelligence, Guoxue Zhice, and staging/recovery work on other branches.
+- `SSQ/` and `DLT/`: game-specific implementations and acceptance tests.
+- `research/supercompute/`: offline CPU Monte Carlo simulation, historical walk-forward scoring, reproducible evidence receipts, and P0 unattended-schedule verification.
+- `.github/workflows/`: GitHub Actions for these two lotteries, their unattended schedule audits, and the manual research calculator.
 
-Final promotion for any one product requires **all** of the following on that product's own independent repository:
+Validate the consolidated research tools from the repository root:
 
-1. current-run evidence for requirements / 5 Why / risk boundary / Domain / architecture / contracts;
-2. fail-closed NetClient, raw provenance, atomic Storage and auditable Evidence;
-3. Unit / Contract / Integration / Fault Injection / Real Network / Business / Counterexample / Reversal validation;
-4. an independent Updater/Repair process with manifest/hash verification, rollback-safe failure handling, and machine evidence from the exact updater artifact;
-5. native Windows Build / Exact EXE / Physical GUI Click / Same Hash for both the main product and updater where applicable;
-6. `repository_independence=PASS`;
-7. evidence-derived Final Gate `PASS` with `hard_fail_count=0`;
-8. only then, the unique final product set may be uploaded.
+    python -m unittest discover -s research/supercompute/tests -p 'test_*.py' -v
 
-A scientifically honest `NO_EDGE / NULL_DAN` is valid. Fabricated predictive edge, inherited historical PASS, missing evidence, or any PENDING/WARNING/SKIPPED/UNAVAILABLE/UNKNOWN state is not PASS.
+See `research/supercompute/README.md` and `research/supercompute/automation/README.md` for detailed commands and limitations.
 
-See `PORTFOLIO_GOVERNANCE.md`.
+**Research limits:** Snapshots are not live official draws. Neither the Monte Carlo simulator nor historical model scores show a proven predictive advantage. Formal V4.7 selectors and historical forecast evidence remain separate from this research-only code.

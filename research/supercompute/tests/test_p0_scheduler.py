@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from research.p0_scheduler.runner import REL, record, verify
+from research.supercompute.automation.runner import REL, record, verify
 
 
 def env(run_id="101", trigger="schedule"):

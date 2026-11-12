@@ -7,7 +7,7 @@ on:
       - 'feature/ssqdlt-supercompute-*'
     paths:
       - 'research/supercompute/**'
-      - 'tests/test_supercompute.py'
+      - 'research/supercompute/tests/test_supercompute.py'
       - '.github/workflows/ssqdlt-supercompute.yml'
   workflow_dispatch:
     inputs:
@@ -47,7 +47,7 @@ jobs:
         with:
           python-version: '3.11'
       - name: Verify historical data, CPU determinism, and research firewall
-        run: python -m unittest discover -s tests -p 'test_supercompute.py' -v
+        run: python -m unittest discover -s research/supercompute/tests -p 'test_supercompute.py' -v
 
   smoke:
     if: github.event_name == 'push'
@@ -88,6 +88,9 @@ jobs:
           path: supercompute-output/
           retention-days: 90
           if-no-files-found: error
+
+      - name: Verify relocated P0 scheduler and audit contracts
+        run: python -m unittest discover -s research/supercompute/tests -p 'test_p0_*.py' -v
 
   calculate:
     if: github.event_name == 'workflow_dispatch'
