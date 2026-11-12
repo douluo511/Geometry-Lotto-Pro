@@ -142,7 +142,7 @@ def benchmark(game, *, rows_count=180, target_count=8, parallel=False,
     if accel.njit is None:
         result["numba"] = "NOT_INSTALLED"
     else:
-        # Do not conflate first compilation with warmed execution.
+        # First call may compile OR load an existing disk JIT cache.
         _, compile_measure = timed(lambda: accel.evaluate_grid(
             rows, game, targets, expressions[:1],
             backend="numba", workers=1))
@@ -151,7 +151,7 @@ def benchmark(game, *, rows_count=180, target_count=8, parallel=False,
             backend="numba", workers=1))
         if warmed != legacy:
             raise AssertionError("Numba parity mismatch")
-        result["numba_first_invocation_with_compile"] = compile_measure
+        result["numba_first_invocation_possible_compile_or_cache_load"] = compile_measure
         result["numba_warm"] = jit
         result["numba_speedup_over_reference"] = round(
             baseline["seconds"] / max(jit["seconds"], 1e-12), 3)
