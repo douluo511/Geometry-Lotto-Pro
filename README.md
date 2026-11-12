@@ -13,3 +13,15 @@ Validate the consolidated research tools from the repository root:
 See `research/supercompute/README.md` and `research/supercompute/automation/README.md` for detailed commands and limitations.
 
 **Research limits:** Snapshots are not live official draws. Neither the Monte Carlo simulator nor historical model scores show a proven predictive advantage. Formal V4.7 selectors and historical forecast evidence remain separate from this research-only code.
+
+## SSQ + DLT：一键穷举全部 39,146,800 组
+
+[**打开 GitHub Actions 全部组合计算器（Run workflow）**](https://github.com/douluo511/Geometry-Lotto-Pro/actions/workflows/ssqdlt-exhaustive.yml)
+
+1. 打开链接，点击 **Run workflow**。
+2. 选择 **Branch: main**、**games: both**、**workers: 4**，再次点击 **Run workflow**。
+3. 等该次任务成功，进入其运行页面底部 **Artifacts**，下载 `ssqdlt-all-combinations-<run_id>`；检查 `report.json` 和 `report.sha256`。
+
+程序真正枚举所有合法开奖结果：SSQ `C(33,6)*C(16,1)=17,721,088`，DLT `C(35,5)*C(12,2)=21,425,712`，共 **39,146,800**。它输出精确号码匹配分布、D2 随机基线、分区 SHA-256 和全量验算；**不导出数千万行号码清单**，也不使用过时历史数据做下一期预测。
+
+它是一个独立的研究计算器，**并非下一期中奖号码预测**，不能证明提高中奖概率。原正式 V4.7 的开奖前封存、真实定时运行及开奖后评分仍需另行验收。若看不到按钮，请确认仓库 Actions 已启用且此工作流已经合并到默认分支。
