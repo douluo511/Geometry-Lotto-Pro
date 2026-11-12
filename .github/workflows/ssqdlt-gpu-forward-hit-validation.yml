@@ -1,0 +1,66 @@
+name: SSQDLT private paired research and full-formula GPU validation (code only)
+
+# Standard hosted runners are CPU-only. This CI explicitly proves CUDA
+# unavailable rather than pretending a GPU was exercised.
+# No actual lottery source, draw history, prediction tickets or score receipts.
+on:
+  push:
+    branches:
+      - 'research/gpu-forward-hit-validation-*'
+    paths:
+      - 'research/supercompute/formula_torch_full.py'
+      - 'research/supercompute/private_hit_validation.py'
+      - 'research/supercompute/tests/test_gpu_forward_hit_validation.py'
+      - '.github/workflows/ssqdlt-gpu-forward-hit-validation.yml'
+      - 'docs/superpowers/specs/2026-11-12-gpu-hit-verification.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ssqdlt-gpu-private-validation-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  offline-private-validation-contract:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install --disable-pip-version-check "numpy>=1.26,<3" "numba>=0.61"
+      - name: Test privacy boundaries, actual paired methodology and CUDA unavailable guard
+        run: python -m unittest discover -s research/supercompute/tests -p test_gpu_forward_hit_validation.py -v
+
+  torch-cpu-full-pipeline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install --disable-pip-version-check "numpy>=1.26,<3" "numba>=0.61"
+      - name: Install CPU-only PyTorch from official distribution, not paid GPU
+        run: python -m pip install --disable-pip-version-check torch --index-url https://download.pytorch.org/whl/cpu
+      - name: Verify full-formula Torch CPU matches original NumPy tickets
+        run: python -m unittest discover -s research/supercompute/tests -p test_gpu_forward_hit_validation.py -v
+      - name: Benchmark complete CPU Torch vs NumPy; no real draw data or GPU claim
+        run: python -m research.supercompute.formula_torch_full --game both --history 190 --targets 8 --formulas 72 --repeats 3
+      - name: Confirm CPU only, no CUDA result falsely claimed
+        run: >-
+          python -c "from research.supercompute import formula_torch_full as x;
+          assert x.torch_available('cpu');
+          assert not x.torch_available('cuda');
+          print('GPU_UNVERIFIED_NO_CUDA_HARDWARE')"
