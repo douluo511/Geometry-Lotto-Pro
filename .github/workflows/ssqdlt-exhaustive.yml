@@ -1,0 +1,123 @@
+name: SSQDLT full legal combination exhaustive CPU audit (research only)
+
+# First run happens on a feature branch push; later users may select
+# "Run workflow" after the workflow receives reviewed approval on main.
+# Neither mode buys tickets or claims predicting a fair random draw.
+on:
+  push:
+    branches:
+      - 'feature/ssqdlt-supercompute-exhaustive-*'
+    paths:
+      - 'research/supercompute/exhaustive.py'
+      - 'research/supercompute/tests/test_exhaustive.py'
+      - '.github/workflows/ssqdlt-exhaustive.yml'
+  workflow_dispatch:
+    inputs:
+      games:
+        description: 'Full legal ticket universes to enumerate'
+        type: choice
+        required: true
+        default: both
+        options: [both, ssq, dlt]
+      workers:
+        description: 'CPU processes (does not change output)'
+        type: choice
+        required: true
+        default: '4'
+        options: ['1', '2', '4']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ssqdlt-full-space-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Unit and adversarial tests on small FULL outcome universes
+        run: python -m unittest discover -s research/supercompute/tests -p 'test_exhaustive.py' -v
+
+  enumerate:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Actually visit each legal combination, NOT a Monte Carlo sample
+        env:
+          GITHUB_SHA: ${{ github.sha }}
+          GAMES: ${{ github.event.inputs.games || 'both' }}
+          WORKERS: ${{ github.event.inputs.workers || '4' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m research.supercompute.exhaustive \
+            --game "$GAMES" --workers "$WORKERS" \
+            --out exhaustive-evidence
+      - name: Independently verify exact count, full histogram and SHA256 report receipt
+        shell: bash
+        run: |
+          python - <<'PY'
+          import hashlib, json, math
+          from pathlib import Path
+          root = Path("exhaustive-evidence")
+          raw = (root / "report.json").read_bytes()
+          expected = (root / "report.sha256").read_text("ascii").split()[0]
+          assert hashlib.sha256(raw).hexdigest() == expected, "REPORT_HASH_FAIL"
+          data = json.loads(raw)
+          assert data["formal_A"] == 0 and data["edge"] == "NO_EDGE"
+          assert data["total_enumerated_outcomes"] == data["total_exact_combination_count"]
+          spaces = {"ssq": (33, 6, 16, 1, 17721088),
+                    "dlt": (35, 5, 12, 2, 21425712)}
+          for name, entry in data["games"].items():
+              a, b, c, d, n = spaces[name]
+              assert n == math.comb(a,b) * math.comb(c,d)
+              assert entry["enumerated_outcomes"] == n and entry["entire_space_exhausted"]
+              assert entry["full_ticket_matches"] == 1
+              assert entry["d2_matches"] == math.comb(a-2,b-2) * math.comb(c,d)
+              assert sum(entry["histogram"].values()) == n
+              assert entry["reference_ticket"]["source"] == "SYNTHETIC_CANONICAL_NO_PREDICTION"
+              assert entry["edge"] == "NO_EDGE" and entry["formal_A"] == 0
+          if set(data["games"]) == {"ssq", "dlt"}:
+              assert data["total_enumerated_outcomes"] == 39146800
+          print("EXHAUSTIVE_FULL_SPACE_PASS", data["total_enumerated_outcomes"], expected)
+          PY
+      - name: Archive full-universe evidence (histograms + per-partition stream fingerprints)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ssqdlt-all-combinations-${{ github.run_id }}
+          path: exhaustive-evidence/
+          retention-days: 90
+          if-no-files-found: warn
+      - name: Human-readable completion receipt
+        if: success()
+        shell: bash
+        run: |
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          from pathlib import Path
+          data = json.loads(Path("exhaustive-evidence/report.json").read_text())
+          print("## Every legal ticket enumerated exactly once (research only)")
+          for name, item in data["games"].items():
+              print(f"* {name.upper()}: {item['enumerated_outcomes']:,} / {item['expected_outcomes']:,}; "
+                    f"full match 1; D2 matches {item['d2_matches']:,}; "
+                    f"SHA256 partition certificate {item['partition_digest_sha256']}")
+          print(f"**Total** {data['total_enumerated_outcomes']:,} combinations")
+          print("No verified edge, no live draw authentication, no future winner prediction.")
+          PY
