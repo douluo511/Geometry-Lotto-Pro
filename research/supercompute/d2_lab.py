@@ -183,8 +183,19 @@ def evaluate_history(rows, game, periods, seed):
         check_balls(row.get("back"), back_pick, back_max)
         issues.append(int(issue))
         dates.append(day)
-    if any(b <= a for a, b in zip(issues, issues[1:])) or dates != sorted(dates):
-        raise ValueError("issue/date order invalid or duplicate")
+    if dates != sorted(dates) or len(set(dates)) != len(dates):
+        raise ValueError("draw dates missing, reordered or duplicated")
+    # Lottery issue numbers increment within a year. Annual numbering restarts
+    # at ...001; permit only a plausible old-year terminal issue (140..165),
+    # and never silently accept a skipped issue in the middle of the year.
+    for previous, current in zip(issues, issues[1:]):
+        if current == previous + 1:
+            continue
+        rollover = (current // 1000 == previous // 1000 + 1
+                    and current % 1000 == 1
+                    and 140 <= previous % 1000 <= 165)
+        if not rollover:
+            raise ValueError("missing, duplicate, or ambiguous draw issue")
     start = len(rows) - periods
     if start < 120:
         raise ValueError("insufficient past-only warmup; never truncate cohort")
