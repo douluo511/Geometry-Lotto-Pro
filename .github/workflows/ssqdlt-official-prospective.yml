@@ -1,0 +1,176 @@
+name: SSQDLT official source consensus and prospective shadow ledger (NO FORMAL PROMOTION)
+
+# This augments existing research ledger, not formal V4.7.
+# The scheduled workflow only runs after independent review and merge to main.
+on:
+  push:
+    branches: ['research/official-prospective-gates-*']
+    paths:
+      - 'research/supercompute/official_probe.py'
+      - 'research/supercompute/official_prospective.py'
+      - 'research/supercompute/tests/test_official_prospective.py'
+      - '.github/workflows/ssqdlt-official-prospective.yml'
+      - 'docs/superpowers/specs/2026-11-12-official-prospective-gates.md'
+  workflow_dispatch:
+  schedule:
+    - cron: '15 15 * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ssqdlt-official-prospective-shadow-\${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  offline-contract:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: \${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install native source dependency
+        run: python -m pip install --disable-pip-version-check requests
+      - name: Verify CPU and official-source/admission regression tests
+        run: python -m unittest discover -s research/supercompute/tests -p 'test_*.py' -v
+
+  real-public-source-probe:
+    needs: offline-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 14
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install --disable-pip-version-check requests
+      - name: Capture two independently governed official source centres per lottery
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p official-capture
+          python -m research.supercompute.official_probe \
+            --game ssq --out official-capture/ssq
+          python -m research.supercompute.official_probe \
+            --game dlt --out official-capture/dlt
+      - name: Check raw official evidence or explicitly archived blocker
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from research.supercompute.official_prospective import load,inspect_manifest
+          for game in ('ssq','dlt'):
+              root=Path("official-capture")/game
+              attempt=load(root/"attempt.json")
+              assert attempt["game"]==game and attempt["formal_A"]==0
+              assert attempt["status"] in (
+                  "SOURCE_BLOCKED","TWO_OFFICIAL_CENTRE_CONSENSUS")
+              target=root/"verified_latest.json"
+              if attempt["status"]=="SOURCE_BLOCKED":
+                  assert not target.exists()
+                  print("SOURCE_BLOCKED",game,attempt["result"])
+              else:
+                  assert target.is_file()
+                  obs=inspect_manifest(load(target),root/"raw")
+                  assert obs["formal_A"]==0
+                  assert obs["official_result_authentication"]==(
+                      "TWO_PUBLIC_OFFICIAL_CENTRES_NO_DIGITAL_SIGNATURE")
+                  print("TWO_CENTRE_OBSERVED",game,obs["draw"])
+          PY
+      - name: Archive successful bytes and failed original HTTP attempts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ssqdlt-official-prospective-probe-\${{ github.run_id }}
+          path: official-capture/
+          retention-days: 90
+          if-no-files-found: error
+
+  persist-shadow-and-score:
+    needs: real-public-source-probe
+    if: >-
+      github.repository == 'douluo511/Geometry-Lotto-Pro' &&
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: ssqdlt-research-ledger-v1
+          path: ledger
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install --disable-pip-version-check requests
+      - name: Audit remote ledger prefix before any write
+        run: python -m research.supercompute.official_prospective audit --ledger ledger
+      - name: Probe, preserve both attempts and score strictly previously frozen issue
+        shell: bash
+        run: |
+          set -euo pipefail
+          run="$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          base="ledger/research/official_prospective/attempts/$run"
+          mkdir -p "$base"
+          for game in ssq dlt; do
+            python -m research.supercompute.official_probe \
+              --game "$game" --out "$base/$game"
+            if test -f "$base/$game/verified_latest.json"; then
+              python -m research.supercompute.official_prospective score \
+                --ledger ledger \
+                --source "$base/$game/verified_latest.json" \
+                --raw "$base/$game/raw"
+            else
+              echo "SOURCE_BLOCKED $game; no forecast or score" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          done
+          python -m research.supercompute.official_prospective audit --ledger ledger \
+            | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Append only official-source research receipts then reread remote SHA
+        shell: bash
+        run: |
+          set -euo pipefail
+          git -C ledger add -A -- research/official_prospective
+          python - <<'PY'
+          import subprocess
+          raw=subprocess.check_output([
+              "git","-C","ledger","diff","--cached","--name-status","-z"
+          ]).decode()
+          parts=[x for x in raw.split("\0") if x]
+          assert parts and len(parts)%2==0, "no add-only evidence"
+          for state, path in zip(parts[::2],parts[1::2]):
+              assert state=="A" and path.startswith(
+                  "research/official_prospective/"), (state,path)
+          print("CREATE_ONLY_PROSPECTIVE_EVIDENCE_FILES",len(parts)//2)
+          PY
+          git -C ledger config user.name "github-actions[bot]"
+          git -C ledger config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C ledger commit -m "shadow-prospective: $GITHUB_EVENT_NAME run $GITHUB_RUN_ID"
+          git -C ledger push origin HEAD:refs/heads/ssqdlt-research-ledger-v1
+          git -C ledger fetch --no-tags origin refs/heads/ssqdlt-research-ledger-v1
+          test "$(git -C ledger rev-parse HEAD)" = "$(git -C ledger rev-parse FETCH_HEAD)"
+          python -m research.supercompute.official_prospective audit --ledger ledger
+      - name: Archive persisted attempt diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ssqdlt-official-prospective-ledger-\${{ github.run_id }}
+          path: ledger/research/official_prospective/attempts/\${{ github.run_id }}-\${{ github.run_attempt }}/
+          retention-days: 90
+          if-no-files-found: warn
