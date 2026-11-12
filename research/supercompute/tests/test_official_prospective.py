@@ -40,7 +40,7 @@ def observation_sources(root, game, draw):
             "draw": draw,
             "raw_records": [{
                 "source": source_id,
-                "url": f"https://example.org/{source_id}",
+                "url": f"https://{core.OFFICIAL_HOSTS[source_id][0]}/",
                 "http_status": 200, "sha256": sha,
                 "bytes": len(data),
                 "parser_version": "test-only-not-official",
