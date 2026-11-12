@@ -46,6 +46,8 @@ def _device(device):
     if device not in ("cpu", "cuda"):
         raise ValueError("only CPU or CUDA are supported")
     if torch is None:
+        if device == "cuda":
+            raise RuntimeError("GPU_UNVERIFIED: PyTorch is not installed")
         raise RuntimeError("PyTorch unavailable")
     if device == "cuda" and not torch.cuda.is_available():
         raise RuntimeError("GPU_UNVERIFIED: CUDA device unavailable")
@@ -266,7 +268,7 @@ def benchmark(game="ssq", *, history=190, targets=8,
         "cuda_end_to_end": gpu_result,
         "gpu_improves_full_pipeline": gpu_better,
         "cpu_parity": "PASS",
-        "gpu_parity": ("PASS" if gpu_better is not "UNVERIFIED"
+        "gpu_parity": ("PASS" if isinstance(gpu_better, bool)
                        else "UNVERIFIED"),
         "real_draws_used": False, "formal_A": 0,
         "prediction_hit_rate_improved": "UNVERIFIED", "edge": "NO_EDGE",
