@@ -1,0 +1,54 @@
+name: SSQDLT formula CPU optimization - synthetic code-only
+
+# Actual draw history, forecast tickets, receipts and evaluation reports
+# must never be produced, uploaded, or saved in GitHub by this workflow.
+on:
+  push:
+    branches:
+      - 'research/formula-compute-accel-*'
+    paths:
+      - 'research/supercompute/formula_acceleration.py'
+      - 'research/supercompute/formula_benchmark.py'
+      - 'research/supercompute/tests/test_formula_acceleration.py'
+      - 'docs/superpowers/specs/2026-11-12-formula-compute-acceleration.md'
+      - '.github/workflows/ssqdlt-formula-cpu-acceleration.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ssqdlt-formula-compute-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  tests-and-bench:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install CPU-only open-source numeric runtime
+        run: python -m pip install --disable-pip-version-check "numpy>=1.26,<3" "numba>=0.61"
+      - name: Synthetic-only exact parity, leak guards and Windows-spawn multiprocessing
+        run: python -m unittest discover -s research/supercompute/tests -p test_formula_acceleration.py -v
+      - name: Measure original Python, vectorized NumPy, warm Numba and two CPU processes
+        run: python -m research.supercompute.formula_benchmark --game both --history 170 --targets 6 --parallel --gpu
+      - name: Check no unexpected untracked data files were written
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Python bytecode is ephemeral test code cache, never committed.
+          git status --short --untracked-files=all             | grep -Ev '^(\?\? .*(__pycache__/|\.pyc$))' > "$RUNNER_TEMP/remaining-untracked.txt" || true
+          test ! -s "$RUNNER_TEMP/remaining-untracked.txt" || {
+            echo "::error::unexpected files created by code-only benchmark"
+            exit 1
+          }
