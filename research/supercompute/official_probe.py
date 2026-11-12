@@ -25,7 +25,8 @@ from research.supercompute.official_prospective import (
 
 ROOT = Path(__file__).resolve().parents[2]
 PROBE_VERSION = "OFFICIAL_PUBLIC_SOURCE_INTAKE_20261112_V1"
-JS_LIST_URL = "https://www.js-lottery.com/wfzq/dlt/data"
+JS_LIST_URL = "https://api.js-lottery.com/wfzq/dlt/data"
+GANSU_LATEST_URL = "https://www.gstc.org.cn/wanfa/dlt"
 ALLOWED_JS_HOSTS = {"www.js-lottery.com", "api.js-lottery.com"}
 
 
@@ -170,20 +171,34 @@ def parse_jiangsu_detail(raw):
     })
 
 
+def parse_gansu_latest(raw):
+    """Accept only latest Gansu official home panel, not its stale history."""
+    text = plain(raw)
+    found = re.search(
+        r"超级大乐透\s*(26\d{3})\s*期\s*开奖日期\s*[:：]\s*"
+        r"(20\d{2}-\d{2}-\d{2}).{0,90}?开奖号码\s*[:：]\s*"
+        r"((?:(?:\d{2})\s+){6}\d{2})(?!\d)", text)
+    if not found:
+        raise IntakeError("Gansu homepage lacks one explicit issue/date/result")
+    nums = [int(x) for x in re.findall(r"(?<!\d)\d{2}(?!\d)", found.group(3))]
+    if len(nums) != 7:
+        raise IntakeError("Gansu current result must contain exactly seven numbers")
+    return check_draw("dlt", {"issue": found.group(1),
+                               "draw_date": found.group(2),
+                               "front": sorted(nums[:5]),
+                               "back": sorted(nums[5:])})
+
+
 def probe_dlt(store):
-    sys.path.insert(0, str(ROOT / "DLT/src"))
-    from glp.sources import fetch_gansu_recent
     sources = []
     try:
-        rows, receipt_obj, meta = fetch_gansu_recent(limit=20)
-        raw = base64.b64decode(meta["body_b64"], validate=True)
-        evidence = store.save(
-            "GANSU_SPORT", meta.get("requested_url",
-                                  "https://www.gstc.org.cn/wanfa/dlt_history"),
-            meta["http_status"], raw, parser="dlt-native-gansu-v1")
+        raw, evidence = limited_get(
+            GANSU_LATEST_URL, store, "GANSU_SPORT",
+            hosts={"www.gstc.org.cn"})
+        latest = parse_gansu_latest(raw)
         sources.append({
             "source_id": "GANSU_SPORT", "status": "PASS",
-            "draw": rows[-1].to_dict(), "raw_records": [evidence],
+            "draw": latest, "raw_records": [evidence],
         })
     except Exception as error:
         store.attempts.append({
