@@ -14,6 +14,10 @@ from research.supercompute import reverse_bank_audit as audit
 class ReverseBankTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        # Generic main-only test discovery may not provide the separately
+        # pinned 199cc source; dedicated CI MUST supply it and run all tests.
+        if not os.environ.get("FORMULA_CHECKOUT"):
+            raise unittest.SkipTest("pinned original formula checkout not supplied")
         cls.dependencies = audit.validate_dependencies(
             Path(os.environ["FORMULA_CHECKOUT"]),
             os.environ["FORMULA_EXPECTED_SHA"],
