@@ -183,6 +183,23 @@ class FormulaAccelerationTests(unittest.TestCase):
         self.assertIn("gpu", gpu)
         self.assertIn("worth_using", gpu)
 
+    def test_two_game_holm_correction_on_frozen_synthetic_holdout(self):
+        self.assertEqual(fast.holm_adjust([0.01, 0.03, 0.06]),
+                         [0.03, 0.06, 0.06])
+        with self.assertRaises(ValueError):
+            fast.holm_adjust([float("nan")])
+        pair = fast.synthetic_two_game_holdout(
+            history=180, validation=20, holdout=20, backend="numpy")
+        self.assertEqual(set(pair["games"]), {"ssq", "dlt"})
+        self.assertEqual(pair["formal_A"], 0)
+        self.assertFalse(pair["formally_admissible"])
+        for result in pair["games"].values():
+            compared = result["paired_same_issue"]
+            self.assertEqual(compared["predeclared_family_size"], 2)
+            self.assertGreaterEqual(
+                compared["p_holm_two_games_exploratory"],
+                compared["p_exploratory_two_sided"])
+
     def test_wilson_and_unverified_baseline_theory(self):
         self.assertEqual(fast.wilson(0, 10)[0], 0)
         self.assertGreater(fast.wilson(10, 10)[0], 0.5)
