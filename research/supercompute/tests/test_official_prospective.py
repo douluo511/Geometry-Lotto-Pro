@@ -108,6 +108,15 @@ class OfficialGateTests(TestCase):
             probe.parse_jiangsu_detail(
                 official.replace("开奖日期：2026年11月11日", "发布日期：2026年11月12日").encode())
 
+    def test_gansu_homepage_explicit_current_draw(self):
+        markup = """<section><h3>超级大乐透</h3><p>26129</p><p>期</p>
+        <p>开奖日期：2026-11-11 开奖日：每周一、三、六
+        开奖号码：02 12 14 17 33 07 08</p></section>"""
+        self.assertEqual(probe.parse_gansu_latest(markup.encode()), DLT_OLD)
+        with self.assertRaises(probe.IntakeError):
+            probe.parse_gansu_latest(markup.replace(
+                "开奖日期：", "发布日期：").encode())
+
     def test_shadow_freeze_before_claimed_cutoff_once_and_score_only_prior(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
