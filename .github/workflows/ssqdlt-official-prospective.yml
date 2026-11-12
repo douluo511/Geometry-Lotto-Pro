@@ -33,6 +33,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - run: python -m pip install --disable-pip-version-check requests
+      - run: python -m pip install --disable-pip-version-check requests tzdata
       - name: Test algorithms and synthetic security scenarios, no real data
         run: python -m unittest discover -s research/supercompute/tests -p 'test_*.py' -v
