@@ -2,6 +2,21 @@
 
 Date 2026-11-12. This extends the existing SSQDLT P0/research evidence loop; it does not create another Harness or modify formal V4.7 six-arm producers, fixed Random NULL seeds, frozen ledgers or previous forecasts.
 
+## GitHub code-only storage policy (updated by user)
+
+GitHub contains formula/algorithm **source code**, synthetic tests, CI code checks and implementation documentation only. **Never** run real-source HTTP probes or upload raw HTTP bodies, actual draw results, model tickets, pre-draw receipts, score results, ledger state, or artifacts into GitHub Actions. The previous on-GitHub schedule and append-to-ledger job from this PR were removed; the new Actions workflow runs only deterministic offline synthetic regression tests on Windows and Ubuntu.
+
+The program REJECTS an observation output directory or immutable receipt destination inside the Git checkout. Run locally on the user's authorized Windows computer with a private persistent directory outside this repository; keep the private audit history there. GitHub .gitignore additionally excludes likely accidental generated data paths, but does not erase pre-existing tracked files, historical commits, past Action logs, or previously generated artifacts. Do not falsely claim those old records were deleted. Independent trusted timestamping and offsite encrypted backup for the private append-only evidence remain separate future gates.
+
+Windows PowerShell example (data does not enter the repository):
+
+    $privateRoot = Join-Path $env:LOCALAPPDATA 'GeometryLottoPrivate'
+    python -m research.supercompute.official_probe --game ssq --out (Join-Path $privateRoot 'official-capture/ssq')
+    python -m research.supercompute.official_probe --game dlt --out (Join-Path $privateRoot 'official-capture/dlt')
+    python -m research.supercompute.official_prospective audit --ledger (Join-Path $privateRoot 'ledger')
+
+No locally scheduled job is claimed to have been installed. A future unattended local run must require the user's authorization, a persistent local drive, recovery tests and secure backups.
+
 ## Official observation design
 
 - SSQ: independently governed Shanghai Welfare Lottery official history and Hebei Welfare Lottery homepage-plus-announcement consensus. Native parsers must preserve original response bytes, SHA256, URL, status and fetched timestamp.
@@ -20,25 +35,25 @@ Date 2026-11-12. This extends the existing SSQDLT P0/research evidence loop; it 
 - The scorer only consumes an already persisted freeze and subsequently corroborated matching official outcome (same game/issue). Missing freezes cannot be reconstructed from the result. Score receipts hash-bind the original forecast and official-source consensus, record front/back hits, explicit D2, full-ticket hit, D1-D5 threshold counts; they are created only once.
 - Unmatched forecasts remain PENDING in the complete-denominator audit, never silently removed. Current adapter only scores the newest two-centre corroborated issue; catch-up of a missed issue requires a separate independently authenticated historical dual-source backfill.
 - A local auditor recomputes every score from its frozen card and rejects hash tampering, orphaned scores and unauthorised formal flags.
-- The proposed scheduled workflow runs only once independently reviewed and merged to main. On main it appends only new research/official_prospective files to the existing ssqdlt-research-ledger-v1 branch, pushes and freshly rereads the remote head. Branch CI never writes the original ledger.
+- No GitHub-scheduled production workflow or remote ledger write is included. All real evidence remains on local/private authorized storage outside the checkout.
 
 ## Commands (Windows-compatible; Python 3.11+)
 
     python -m pip install requests
     python -m unittest discover -s research/supercompute/tests -p test_*.py -v
-    python -m research.supercompute.official_probe --game ssq --out official-capture/ssq
-    python -m research.supercompute.official_probe --game dlt --out official-capture/dlt
-    python -m research.supercompute.official_prospective audit --ledger ledger
+    python -m research.supercompute.official_probe --game ssq --out ../private-lottery-data/official-capture/ssq
+    python -m research.supercompute.official_probe --game dlt --out ../private-lottery-data/official-capture/dlt
+    python -m research.supercompute.official_prospective audit --ledger ../private-lottery-data/ledger
 
 Research shadow freeze (only when a verified source manifest, separate candidate and FUTURE claimed cutoff exist):
 
-    python -m research.supercompute.official_prospective freeze --ledger ledger --source official-capture/ssq/verified_latest.json --raw official-capture/ssq/raw --candidate candidate.json --target-issue 2026130 --cutoff-utc 2026-11-12T12:00:00+00:00
+    python -m research.supercompute.official_prospective freeze --ledger ../private-lottery-data/ledger --source ../private-lottery-data/official-capture/ssq/verified_latest.json --raw ../private-lottery-data/official-capture/ssq/raw --candidate ../private-lottery-data/candidate.json --target-issue 2026130 --cutoff-utc 2026-11-12T12:00:00+00:00
 
 The example cutoff is NOT a verified official cutoff; the example MUST NOT be run if the time has passed. The tool does not buy tickets.
 
 Score only an existing forecast after corroborated outcome:
 
-    python -m research.supercompute.official_prospective score --ledger ledger --source official-capture/ssq/verified_latest.json --raw official-capture/ssq/raw
+    python -m research.supercompute.official_prospective score --ledger ../private-lottery-data/ledger --source ../private-lottery-data/official-capture/ssq/verified_latest.json --raw ../private-lottery-data/official-capture/ssq/raw
 
 ## Remaining independent formal gates
 
