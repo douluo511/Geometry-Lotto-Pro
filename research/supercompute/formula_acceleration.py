@@ -498,3 +498,47 @@ def bounded_formula_search(rows, game, targets, *,
         "time_limited": len(records) < len(GRAMMAR),
         "no_holdout_outcomes_used": True, "formal_A": 0,
     }
+
+
+def holm_adjust(p_values):
+    """Familywise exploratory correction across predeclared game comparisons."""
+    if not p_values or any(
+            not isinstance(p, (float, int)) or not math.isfinite(p)
+            or p < 0 or p > 1 for p in p_values):
+        raise ValueError("invalid testing family")
+    ordered = sorted(range(len(p_values)), key=lambda i: (p_values[i], i))
+    out = [0.0] * len(p_values)
+    maximum = 0.0
+    for rank, index in enumerate(ordered):
+        maximum = max(maximum, min(1.0, p_values[index] * (
+            len(p_values) - rank)))
+        out[index] = maximum
+    return out
+
+
+def synthetic_two_game_holdout(*, history=190, validation=20, holdout=20,
+                               backend="numpy", workers=1):
+    """Aggregate-only synthetic experiment; two-game Holm family (not official)."""
+    if not 150 <= history <= 500:
+        raise ValueError("synthetic history budget exceeded")
+    # Include every operator family, preserving predeclared deterministic order.
+    expressions = tuple(x for x in GRAMMAR if x["window"] == 8)
+    outputs = [holdout_evaluate(
+        synthetic_rows(game, n=history), game, validation=validation,
+        holdout=holdout, backend=backend, workers=workers,
+        expressions=expressions) for game in ("ssq", "dlt")]
+    corrected = holm_adjust([
+        out["paired_same_issue"]["p_exploratory_two_sided"]
+        for out in outputs
+    ])
+    for output, adjusted in zip(outputs, corrected):
+        output["paired_same_issue"]["p_holm_two_games_exploratory"] = adjusted
+        output["paired_same_issue"]["predeclared_family_size"] = 2
+    return {
+        "schema": SCHEMA,
+        "experiment": "SYNTHETIC_ONLY_FROZEN_TWO_GAME_EXPLORATION",
+        "games": {x["game"]: x for x in outputs},
+        "formally_admissible": False,
+        "prospective_scored": 0,
+        "formal_A": 0, "edge": "NO_EDGE",
+    }
