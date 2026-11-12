@@ -185,15 +185,18 @@ def evaluate_history(rows, game, periods, seed):
         dates.append(day)
     if dates != sorted(dates) or len(set(dates)) != len(dates):
         raise ValueError("draw dates missing, reordered or duplicated")
-    # Lottery issue numbers increment within a year. Annual numbering restarts
-    # at ...001; permit only a plausible old-year terminal issue (140..165),
-    # and never silently accept a skipped issue in the middle of the year.
+    # Lottery issue numbers increment within a year. At the year boundary
+    # they restart at ...001. Historically SSQ 2020 ended at 134 (pandemic)
+    # and inaugural DLT 2007 at 093: a guessed 140..165 threshold would
+    # reject legitimate fixture rows. Accept only plausible year-end (>=90);
+    # the exact official annual last issue still requires source authentication.
+    # Never silently accept a skipped issue WITHIN the same year.
     for previous, current in zip(issues, issues[1:]):
         if current == previous + 1:
             continue
         rollover = (current // 1000 == previous // 1000 + 1
                     and current % 1000 == 1
-                    and 140 <= previous % 1000 <= 165)
+                    and 90 <= previous % 1000 <= 165)
         if not rollover:
             raise ValueError("missing, duplicate, or ambiguous draw issue")
     start = len(rows) - periods
