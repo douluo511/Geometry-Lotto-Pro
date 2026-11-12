@@ -23,6 +23,12 @@ SOURCE_IDS = {
     "ssq": ("SHANGHAI_FULI", "HEBEI_FULI"),
     "dlt": ("JIANGSU_SPORT", "GANSU_SPORT"),
 }
+OFFICIAL_HOSTS = {
+    "SHANGHAI_FULI": ("www.swlc.net.cn",),
+    "HEBEI_FULI": ("www.yzfcw.com",),
+    "JIANGSU_SPORT": ("www.js-lottery.com", "api.js-lottery.com"),
+    "GANSU_SPORT": ("www.gstc.org.cn",),
+}
 MAX_AGE_DAYS = 5
 MAX_BYTES = 8 * 1024 * 1024
 
@@ -162,9 +168,13 @@ def latest_consensus(game, sources, *, observed_at=None):
             raise ValueError("source did not pass network and parser checks")
         if not item.get("raw_records"):
             raise ValueError("source must preserve original raw HTTP evidence")
+        from urllib.parse import urlparse
+        allowed = set(OFFICIAL_HOSTS[item["source_id"]])
         for record in item["raw_records"]:
-            if (record.get("http_status") != 200
-                    or not str(record.get("url", "")).startswith("https://")
+            url = urlparse(str(record.get("url", "")))
+            if (url.scheme != "https" or url.hostname not in allowed
+                    or url.username or url.password
+                    or record.get("http_status") != 200
                     or not re.fullmatch(r"[0-9a-f]{64}", str(record.get("sha256", "")))
                     or type(record.get("bytes")) is not int
                     or not 0 < record["bytes"] <= MAX_BYTES):
