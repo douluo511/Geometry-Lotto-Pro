@@ -1,0 +1,4 @@
+# Normalize only research fixture/config text on every GitHub runner.
+# Keeps source-byte hashes and audit seals comparable across Windows/Linux.
+*.txt text eol=lf
+*.json text eol=lf

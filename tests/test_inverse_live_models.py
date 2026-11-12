@@ -1,0 +1,428 @@
+"""No network, no API charges: deterministic contract tests for LIVE adapter."""
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import pytest
+
+from research.inverse_formula.live_models import (
+    Agent, consensus, formula_ticket, parse_agents, parse_proposal,
+    parse_review, provider_call, require_keys, run_council, sha,
+)
+from research.inverse_formula.probe import DLT, SSQ, load_history
+
+DATA = Path(__file__).parents[1] / "research" / "inverse_formula"
+AGENTS = parse_agents([
+    {"role": "mathematician", "provider": "openai", "model": "model-a"},
+    {"role": "formula_discovery", "provider": "anthropic", "model": "model-b"},
+    {"role": "skeptical_reviewer", "provider": "gemini", "model": "model-c"},
+])
+
+
+def proposal_for(role: str, game) -> str:
+    offsets = {"mathematician": 0, "formula_discovery": 1,
+               "skeptical_reviewer": 2}
+    k = offsets[role]
+    return json.dumps({
+        "hypothesis": "Try an explicit bounded recurrence for historical comparison",
+        "front": {"lags": [1], "coefficients": [1], "bias": k,
+                  "issue_coefficient": 0},
+        "back": {"lags": [2], "coefficients": [-1], "bias": k,
+                 "issue_coefficient": 0},
+        "limitation": "No prospective edge is demonstrated.",
+    })
+
+
+def fake_transport(game, calls):
+    def transmit(agent, _system, prompt):
+        obj = json.loads(prompt)
+        calls.append((agent.role, obj))
+        if obj["task"].startswith("independently"):
+            assert "untrusted_peer_data" not in obj
+            assert obj["role"] == agent.role
+            assert "draws" in obj["past_only"]
+            assert len(obj["past_only"]["draws"]) <= 30
+            return proposal_for(agent.role, game)
+        assert obj["task"].startswith("independent skeptical review")
+        assert len(obj["untrusted_peer_data"]) == len(AGENTS) - 1
+        assert all(x["role"] != agent.role for x in obj["untrusted_peer_data"])
+        return json.dumps({
+            "concerns": "No preregistration and no independent future holdout",
+            "recommendation": "needs_evidence",
+            "cannot_certify_edge": True,
+        })
+    return transmit
+
+
+@pytest.mark.parametrize("game,filename", [
+    (SSQ, "ssq_2026.txt"), (DLT, "dlt_2026.txt")
+])
+def test_separate_provider_calls_two_rounds_and_auditable_consensus(game, filename):
+    draws, _ = load_history(DATA / filename, game)
+    calls = []
+    first = run_council(draws[:35], game, AGENTS,
+                        transport=fake_transport(game, calls))
+    assert first["execution"] == "INJECTED_MOCK_TRANSPORT_TEST_ONLY"
+    assert first["asof_issue"] == draws[34].issue
+    assert first["target_issue"] == draws[34].issue + 1
+    assert len(calls) == 6
+    assert len(first["independent_proposals"]) == 3
+    assert len(first["cross_reviews"]) == 3
+    assert first["unique_formulas"] == 3
+    assert len(first["candidate_tickets"]) == 3
+    assert first["decision"] == "NO_EDGE_REQUIRES_PROSPECTIVE_VALIDATION"
+    assert first["guards"]["formal_v47_modified"] is False
+    assert first["guards"]["trusted_timestamp_established"] is False
+    vote = first["proposed_ticket"]
+    assert len(vote["front"]) == game.front_pick
+    assert len(vote["back"]) == game.back_pick
+    assert set(vote["d2_pair"]).issubset(vote["front"])
+    checksum = first.pop("sha256")
+    assert checksum == sha(first)
+    assert all(c[1]["target_issue"] == draws[34].issue + 1
+               if c[1]["task"].startswith("independent skeptical")
+               else c[1]["past_only"]["target_issue"] == draws[34].issue + 1
+               for c in calls)
+    calls2 = []
+    changed = list(draws)
+    changed[35] = draws[36]  # mutate unknown target after the cutoff
+    same = run_council(changed[:35], game, AGENTS,
+                       transport=fake_transport(game, calls2))
+    assert same["sha256"] == checksum
+
+
+def test_invalid_agent_configs_or_missing_credentials_fail_closed(monkeypatch):
+    with pytest.raises(ValueError, match="3..6"):
+        parse_agents([])
+    with pytest.raises(ValueError, match="duplicate model"):
+        parse_agents([
+            {"role": "mathematician", "provider": "openai", "model": "same"},
+            {"role": "formula_discovery", "provider": "openai", "model": "same"},
+            {"role": "engineer", "provider": "gemini", "model": "diff"},
+        ])
+    # Six different GPT model IDs are valid even with only one provider.
+    assert len(parse_agents([
+        {"role": "mathematician", "provider": "openai", "model": "a"},
+        {"role": "formula_discovery", "provider": "openai", "model": "b"},
+        {"role": "engineer", "provider": "openai", "model": "c"},
+    ])) == 3
+    for field in ("OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GEMINI_API_KEY"):
+        monkeypatch.delenv(field, raising=False)
+    with pytest.raises(RuntimeError, match="missing required API"):
+        require_keys(AGENTS)
+    draws, _ = load_history(DATA / "ssq_2026.txt", SSQ)
+    with pytest.raises(RuntimeError, match="missing required API"):
+        run_council(draws[:35], SSQ, AGENTS)
+
+
+def test_bad_generated_formula_and_reviews_are_rejected():
+    wrong = json.loads(proposal_for("mathematician", SSQ))
+    wrong["front"]["coefficients"] = [999]
+    with pytest.raises(ValueError, match="lag or coefficient"):
+        parse_proposal(json.dumps(wrong), SSQ)
+    wrong["front"]["coefficients"] = [1]
+    wrong["front"]["lags"] = [0]
+    with pytest.raises(ValueError, match="lag or coefficient"):
+        parse_proposal(json.dumps(wrong), SSQ)
+    wrong["front"]["lags"] = [1]
+    wrong["front"]["code"] = "__import__('os').system('echo dangerous')"
+    with pytest.raises(ValueError, match="invalid structured formula"):
+        parse_proposal(json.dumps(wrong), SSQ)
+    with pytest.raises(ValueError, match="review must"):
+        parse_review(json.dumps({
+            "concerns": "test", "recommendation": "test",
+            "cannot_certify_edge": False,
+        }))
+
+
+def test_parallel_failure_cannot_silently_replace_with_fake_result():
+    draws, _ = load_history(DATA / "dlt_2026.txt", DLT)
+    def broken(agent, system, prompt):
+        if agent.provider == "anthropic":
+            raise RuntimeError("intentionally unavailable")
+        return fake_transport(DLT, [])(agent, system, prompt)
+    with pytest.raises(RuntimeError, match="intentionally unavailable"):
+        run_council(draws[:35], DLT, AGENTS, transport=broken)
+
+
+@pytest.mark.parametrize("provider,payload", [
+    ("openai", {"output": [{"type": "message",
+                   "content": [{"type": "output_text", "text": "{\"ok\":true}"}]}]}),
+    ("anthropic", {"content": [{"type": "text", "text": "{\"ok\":true}"}]}),
+    ("gemini", {"candidates": [{"content": {
+                   "parts": [{"text": "{\"ok\":true}"}]}}]}),
+])
+def test_real_adapter_formats_three_official_provider_requests(
+        provider, payload, monkeypatch):
+    captured = []
+    def fake_post(url, headers, body):
+        captured.append((url, headers, body))
+        return payload
+    payload["responseId" if provider == "gemini" else "id"] = "test-response-123"
+    monkeypatch.setattr(
+        "research.inverse_formula.live_models.post_json", fake_post)
+    env = {"openai": "OPENAI_API_KEY", "anthropic": "ANTHROPIC_API_KEY",
+           "gemini": "GEMINI_API_KEY"}[provider]
+    monkeypatch.setenv(env, "not-a-real-key")
+    a = Agent("mathematician", provider, "configured-model")
+    result = provider_call(a, "system", "user")
+    assert result == '{"ok":true}'
+    assert result.provider_response_id == "test-response-123"
+    assert len(captured) == 1
+    url, headers, body = captured[0]
+    assert url.startswith("https://")
+    assert body["model"] == "configured-model" if provider != "gemini" else (
+        "configured-model" in url)
+    assert "not-a-real-key" in json.dumps(headers)
+    assert "not-a-real-key" not in json.dumps(body)
+
+
+def test_consensus_and_formula_are_safe_limited_math():
+    draws, _ = load_history(DATA / "ssq_2026.txt", SSQ)
+    formula = parse_proposal(proposal_for("mathematician", SSQ), SSQ)
+    ticket = formula_ticket(draws[:35], SSQ, formula)
+    assert len(ticket["front"]) == 6
+    assert len(ticket["back"]) == 1
+    out = consensus([ticket], SSQ)
+    assert set(out["d2_pair"]).issubset(out["front"])
+
+
+def test_six_role_real_model_configuration_and_specialist_evidence():
+    from research.inverse_formula.live_models import (
+        ROLES, proposal_prompt, review_prompt, ROLE_TASKS,
+    )
+    source = DATA / "multi_provider_agents.example.json"
+    agents = parse_agents(json.loads(source.read_text(encoding="utf-8")))
+    assert len(agents) == 6
+    assert {a.role for a in agents} == set(ROLES) == set(ROLE_TASKS)
+    assert len({(a.provider, a.model) for a in agents}) == 5
+    assert len({a.role for a in agents}) == 6
+    assert all(a.model.startswith("gpt-6") for a in agents)
+    assert {a.provider for a in agents} == {"openai"}
+    assert all(a.model.startswith("gpt-") for a in agents)
+    assert len({a.model for a in agents}) == 5
+    assert sum(a.model == "gpt-6-astra" for a in agents) == 2
+    draws, _ = load_history(DATA / "ssq_2026.txt", SSQ)
+    for agent in agents:
+        body = json.loads(proposal_prompt(agent, draws[:35], SSQ))
+        assert body["specialist_task"] == ROLE_TASKS[agent.role]
+        assert body["specialist_evidence"]
+        assert body["past_only"]["asof_issue"] == draws[34].issue
+        assert body["past_only"]["target_issue"] == draws[34].issue + 1
+        assert all(r["issue"] <= draws[34].issue
+                   for r in body["past_only"]["draws"])
+        critique = json.loads(review_prompt(agent, draws[:35], []))
+        assert critique["specialist_review_task"] == ROLE_TASKS[agent.role]
+        if agent.role == "formula_discovery":
+            assert body["specialist_evidence"]["bank_size"] > 0
+            assert body["specialist_evidence"]["top_prior_formulas"]
+        if agent.role == "ensemble_researcher":
+            assert body["specialist_evidence"]["selected_formula_ids"]
+        if agent.role == "statistician":
+            assert "recent_past_only_replay" in body["specialist_evidence"]
+            assert "theoretical_d2" in body["specialist_evidence"]
+        if agent.role == "skeptical_reviewer":
+            assert "reject_if" in body["specialist_evidence"]
+
+
+def test_six_real_role_protocol_uses_twelve_separate_mocked_requests():
+    from research.inverse_formula.live_models import ROLES
+    agents = parse_agents(json.loads(
+        (DATA / "multi_provider_agents.example.json").read_text(encoding="utf-8")))
+    draws, _ = load_history(DATA / "dlt_2026.txt", DLT)
+    calls = []
+    def mock(agent, system, raw):
+        body = json.loads(raw)
+        calls.append((agent.role, body["task"]))
+        if body["task"].startswith("independently"):
+            k = ROLES.index(agent.role)
+            return json.dumps({
+                "hypothesis": "Bounded modular recurrence with role-specific parameters",
+                "front": {"lags": [1], "coefficients": [1],
+                          "bias": k, "issue_coefficient": 0},
+                "back": {"lags": [2], "coefficients": [-1],
+                         "bias": k, "issue_coefficient": 0},
+                "limitation": "Historical optimization does not prove a future edge",
+            })
+        assert len(body["untrusted_peer_data"]) == 5
+        assert all(row["role"] != agent.role for row in body["untrusted_peer_data"])
+        return json.dumps({
+            "concerns": "No frozen independent prospective evaluation",
+            "recommendation": "needs_evidence",
+            "cannot_certify_edge": True,
+        })
+    receipt = run_council(draws[:35], DLT, agents, transport=mock)
+    assert len(calls) == 12
+    assert len(receipt["independent_proposals"]) == 6
+    assert len(receipt["cross_reviews"]) == 6
+    assert receipt["unique_formulas"] == 6
+    assert receipt["complete_six_role_committee"] is True
+    assert set(row["role"] for row in receipt["role_assignments"]) == set(ROLES)
+    assert receipt["decision"] == "NO_EDGE_REQUIRES_PROSPECTIVE_VALIDATION"
+    assert len(receipt["candidate_tickets"]) == 6
+    assert receipt["guards"]["unknown_target_used"] is False
+    assert receipt["guards"]["formal_v47_modified"] is False
+
+
+def test_openai_only_six_role_council_has_twelve_independent_requests_and_only_one_key(monkeypatch):
+    from research.inverse_formula.live_models import (
+        require_keys, ROLES, parse_agents,
+    )
+    agents = parse_agents(json.loads(
+        (DATA / "multi_provider_agents.example.json").read_text(encoding="utf-8")
+    ))
+    assert len(agents) == len(ROLES) == 6
+    for key in ("OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GEMINI_API_KEY"):
+        monkeypatch.delenv(key, raising=False)
+    with pytest.raises(RuntimeError, match="OPENAI_API_KEY"):
+        require_keys(agents)
+    monkeypatch.setenv("OPENAI_API_KEY", "test-only-value")
+    require_keys(agents)  # Other providers' credentials are unnecessary.
+
+    draws, _ = load_history(DATA / "ssq_2026.txt", SSQ)
+    calls = []
+    role_indexes = {agent.role: i for i, agent in enumerate(agents)}
+    def mock(agent, system, raw):
+        prompt = json.loads(raw)
+        calls.append((agent.role, agent.model, prompt["task"]))
+        if prompt["task"].startswith("independently"):
+            num = role_indexes[agent.role]
+            return json.dumps({
+                "hypothesis": "bounded modular recurrence for research",
+                "front": {"lags": [1], "coefficients": [1],
+                          "bias": num, "issue_coefficient": 0},
+                "back": {"lags": [1], "coefficients": [-1],
+                         "bias": num, "issue_coefficient": 0},
+                "limitation": "No verified edge."
+            })
+        assert len(prompt["untrusted_peer_data"]) == 5
+        return json.dumps({
+            "concerns": "Insufficient independent prospective evidence",
+            "recommendation": "needs_evidence",
+            "cannot_certify_edge": True,
+        })
+    receipt = run_council(draws[:35], SSQ, agents, transport=mock)
+    assert len(calls) == 12
+    assert len(receipt["independent_proposals"]) == 6
+    assert len(receipt["cross_reviews"]) == 6
+    assert receipt["complete_six_role_committee"] is True
+    assert {x["provider"] for x in receipt["independent_proposals"]} == {"openai"}
+    assert len({x["model"] for x in receipt["independent_proposals"]}) == 5
+    assert sum(x["model"] == "gpt-6-astra"
+               for x in receipt["independent_proposals"]) == 2
+    assert receipt["execution"] == "INJECTED_MOCK_TRANSPORT_TEST_ONLY"
+    assert receipt["decision"] == "NO_EDGE_REQUIRES_PROSPECTIVE_VALIDATION"
+
+
+
+def test_only_a_single_gpt6_model_repeat_is_allowed():
+    # Independently executed roles are not necessarily six unique model names.
+    config = json.loads((DATA / "multi_provider_agents.example.json")
+                        .read_text(encoding="utf-8"))
+    agents = parse_agents(config)
+    assert len(agents) == 6
+    assert len({a.model for a in agents}) == 5
+    assert {a.role for a in agents} == {
+        "mathematician", "formula_discovery", "ensemble_researcher",
+        "statistician", "skeptical_reviewer", "engineer",
+    }
+    wrong = json.loads(json.dumps(config))
+    wrong[4]["model"] = "gpt-5.6-sol"
+    # Six unique mixed-generation IDs could be used in general library
+    # tests, but that does not qualify for the explicit GPT-6+ plan.
+    assert not all(x["model"].startswith("gpt-6") for x in wrong)
+
+    wrong = json.loads(json.dumps(config))
+    wrong[5]["model"] = "gpt-6-astra"  # only four distinct model IDs
+    with pytest.raises(ValueError, match="duplicate model identity"):
+        parse_agents(wrong)
+
+    wrong = json.loads(json.dumps(config))
+    wrong[3]["model"] = "gpt-5.6-sol"  # 5 unique including GPT-5.6
+    with pytest.raises(ValueError, match="duplicate model identity"):
+        parse_agents(wrong)
+
+
+
+def test_live_six_gpt6_model_allowlist_rejects_older_or_unverified_ids():
+    from research.inverse_formula.live_models import (
+        verify_six_gpt6_agents, GPT6_APPROVED_IDS,
+    )
+    original = json.loads(
+        (DATA / "multi_provider_agents.example.json").read_text(encoding="utf-8")
+    )
+    council = parse_agents(original)
+    verify_six_gpt6_agents(council)
+    assert {agent.model for agent in council} == GPT6_APPROVED_IDS
+
+    older = json.loads(json.dumps(original))
+    older[4]["model"] = "gpt-5.6-sol"
+    with pytest.raises(ValueError, match="GPT-6"):
+        verify_six_gpt6_agents(parse_agents(older))
+    unknown = json.loads(json.dumps(original))
+    unknown[4]["model"] = "gpt-6.999-fictional"
+    with pytest.raises(ValueError, match="GPT-6"):
+        verify_six_gpt6_agents(parse_agents(unknown))
+    with pytest.raises(ValueError, match="six distinct"):
+        verify_six_gpt6_agents(parse_agents(original[:4] + original[5:]))
+
+
+
+def test_high_effort_is_enforced_for_all_six_gpt6_roles():
+    from research.inverse_formula.live_models import (
+        verify_six_gpt6_agents, MAX_TOKENS,
+    )
+    raw = json.loads(
+        (DATA / "multi_provider_agents.example.json").read_text(encoding="utf-8")
+    )
+    agents = parse_agents(raw)
+    assert len(agents) == 6
+    assert {a.reasoning_effort for a in agents} == {"high"}
+    verify_six_gpt6_agents(agents)
+    assert MAX_TOKENS >= 8192
+
+    for role in range(6):
+        wrong = json.loads(json.dumps(raw))
+        wrong[role]["reasoning_effort"] = "medium"
+        with pytest.raises(ValueError, match="requires high reasoning"):
+            verify_six_gpt6_agents(parse_agents(wrong))
+    wrong = json.loads(json.dumps(raw))
+    wrong[0]["reasoning_effort"] = "ultra"
+    with pytest.raises(ValueError, match="reasoning_effort"):
+        parse_agents(wrong)
+
+
+def test_high_effort_is_in_real_openai_responses_payload(monkeypatch):
+    from research.inverse_formula.live_models import (
+        MAX_TOKENS, provider_call, parse_agents,
+    )
+    config = json.loads(
+        (DATA / "multi_provider_agents.example.json").read_text(encoding="utf-8")
+    )
+    agents = parse_agents(config)
+    recorded = []
+
+    def fake_post(url, headers, body):
+        recorded.append((url, headers, body))
+        return {
+            "id": "resp-test-high",
+            "output": [{"type": "message", "content": [
+                {"type": "output_text", "text": '{"ok":true}'}
+            ]}],
+            "reasoning": {"effort": "high"},
+        }
+    monkeypatch.setattr(
+        "research.inverse_formula.live_models.post_json", fake_post
+    )
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key-not-real")
+    for agent in agents:
+        text = provider_call(agent, "system", "user")
+        assert text.provider_response_id == "resp-test-high"
+    assert len(recorded) == 6
+    for url, headers, body in recorded:
+        assert url == "https://api.openai.com/v1/responses"
+        assert body["reasoning"] == {"effort": "high"}
+        assert body["max_output_tokens"] == MAX_TOKENS
+        assert body["store"] is False
+        assert "test-key-not-real" not in json.dumps(body)

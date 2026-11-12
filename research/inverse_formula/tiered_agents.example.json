@@ -1,0 +1,38 @@
+[
+  {
+    "role": "mathematician",
+    "provider": "openai",
+    "model": "gpt-6.1-sol",
+    "reasoning_effort": "high"
+  },
+  {
+    "role": "formula_discovery",
+    "provider": "openai",
+    "model": "gpt-6-luna",
+    "reasoning_effort": "high"
+  },
+  {
+    "role": "ensemble_researcher",
+    "provider": "openai",
+    "model": "gpt-6.1-terra",
+    "reasoning_effort": "high"
+  },
+  {
+    "role": "statistician",
+    "provider": "openai",
+    "model": "gpt-6-sol",
+    "reasoning_effort": "high"
+  },
+  {
+    "role": "skeptical_reviewer",
+    "provider": "openai",
+    "model": "gpt-6-astra",
+    "reasoning_effort": "high"
+  },
+  {
+    "role": "engineer",
+    "provider": "openai",
+    "model": "gpt-6-luna",
+    "reasoning_effort": "high"
+  }
+]
