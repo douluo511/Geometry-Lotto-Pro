@@ -1,0 +1,106 @@
+name: SSQDLT automatic mathematical formula discovery (research only)
+
+# No official prediction writes, no V4.7 changes, no live source claims.
+on:
+  push:
+    branches:
+      - 'research/auto-formula-discovery-*'
+    paths:
+      - 'research/supercompute/auto_discovery.py'
+      - 'research/supercompute/tests/test_auto_discovery.py'
+      - 'docs/superpowers/specs/2026-11-12-auto-formula-discovery.md'
+      - '.github/workflows/ssqdlt-auto-discovery.yml'
+  workflow_dispatch:
+    inputs:
+      periods:
+        description: 'Preselected retrospective historical cohort size'
+        type: choice
+        default: '40'
+        required: true
+        options: ['10', '20', '40', '50']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ssqdlt-auto-formula-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Check all CPU research and discovery unit tests
+        run: python -m unittest discover -s research/supercompute/tests -p 'test_*.py' -v
+
+  study:
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Run bounded auto discovery on both fixed historical sources
+        shell: bash
+        env:
+          PERIODS: ${{ inputs.periods || '40' }}
+        run: |
+          set -euo pipefail
+          python -m research.supercompute.auto_discovery \
+            --periods "$PERIODS" --out auto-formula-output
+      - name: Independently validate complete paired cohort and create-only report
+        shell: bash
+        run: |
+          python - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          p=Path("auto-formula-output")
+          raw=(p/"report.json").read_bytes()
+          digest=(p/"report.sha256").read_text("ascii").split()[0]
+          assert hashlib.sha256(raw).hexdigest()==digest
+          r=json.loads(raw)
+          assert r["schema"]=="SSQDLT_AUTOMATIC_FORMULA_DISCOVERY_V1"
+          assert r["formal_A"]==0 and r["edge"]=="NO_EDGE"
+          assert r["prospective_scored"]==0 and r["formal_prediction"] is False
+          assert r["official_source_authenticated"] is False
+          assert r["pre_draw_independent_seal_verified"] is False
+          assert set(r["games"])=={"ssq","dlt"}
+          for game, obj in r["games"].items():
+              assert obj["data"]["status"]=="historical_snapshot_not_live_verified"
+              n=obj["cohort_size"]
+              assert len(obj["evidence"])==n
+              assert n==len({row["target_issue"] for row in obj["evidence"]})
+              assert all(row["observed_asof_issue"]!=row["target_issue"]
+                         for row in obj["evidence"])
+              assert all(len(row["formula_ids"])==8
+                         for row in obj["evidence"])
+              assert obj["offline_next_after_stale_snapshot"]["not_formal"]
+          print("PASS: historical-only, no leakage in interface, complete cohorts",digest)
+          PY
+      - name: Archive complete research report and evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ssqdlt-auto-discovery-${{ github.run_id }}
+          path: auto-formula-output/
+          if-no-files-found: warn
+          retention-days: 90
+      - name: Publish study summary
+        if: success()
+        shell: bash
+        run: cat auto-formula-output/summary.md >> "$GITHUB_STEP_SUMMARY"
