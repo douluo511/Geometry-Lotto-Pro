@@ -1,0 +1,38 @@
+name: SSQDLT official-source algorithm code-only CI
+
+# Code and synthetic regression tests ONLY.
+# No schedules, live source requests, real lottery numbers, prediction receipts,
+# GitHub Artifacts containing observations, or writes to any ledger branch.
+on:
+  push:
+    branches: ['research/official-prospective-gates-*']
+    paths:
+      - 'research/supercompute/official_probe.py'
+      - 'research/supercompute/official_prospective.py'
+      - 'research/supercompute/tests/test_official_prospective.py'
+      - '.github/workflows/ssqdlt-official-prospective.yml'
+      - 'docs/superpowers/specs/2026-11-12-official-prospective-gates.md'
+      - '.gitignore'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offline-code-tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install --disable-pip-version-check requests tzdata
+      - name: Test algorithms and synthetic security scenarios, no real data
+        run: python -m unittest discover -s research/supercompute/tests -p 'test_*.py' -v

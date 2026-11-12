@@ -1,0 +1,18 @@
+# Code-only GitHub checkout: real lottery inputs, forecasts and evidence remain private.
+# These patterns prevent accidental additions but DO NOT remove files
+# already tracked by Git or erase older commits / Actions artifacts.
+**/official-capture/
+**/private-official-data/
+**/private-lottery-data/
+**/auto-formula-output/
+**/auto-formula-v2-output/
+**/reverse-bank-output/
+**/supercompute-output/
+**/official-prospective-output/
+**/forecast-receipts/
+**/score-receipts/
+**/official_prospective/attempts/
+**/official_prospective/forecasts/
+**/official_prospective/scores/
+*.pyc
+__pycache__/
