@@ -137,7 +137,7 @@ class PairedStudyTests(unittest.TestCase):
             raw = (out / "report.json").read_bytes()
             expected = (out / "report.sha256").read_text().split()[0]
             self.assertEqual(hashlib.sha256(raw).hexdigest(), expected)
-            self.assertIn("NOT_YET", (out / "summary.md").read_text())
+            self.assertIn("NOT_YET", (out / "summary.md").read_text(encoding="utf-8"))
             with self.assertRaises(FileExistsError):
                 write_report(report, out)
 
