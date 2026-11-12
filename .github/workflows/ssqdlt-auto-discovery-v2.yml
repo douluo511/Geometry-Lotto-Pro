@@ -1,0 +1,108 @@
+name: SSQDLT frozen auto formula V2 falsification (historical only)
+
+# Stacked on research/auto-formula-discovery-20261112; no live forecasts.
+on:
+  push:
+    branches:
+      - 'research/auto-formula-v2-falsification-*'
+    paths:
+      - 'research/supercompute/auto_discovery_v2.py'
+      - 'research/supercompute/tests/test_auto_discovery_v2.py'
+      - 'docs/superpowers/specs/2026-11-12-auto-formula-v2-falsification.md'
+      - '.github/workflows/ssqdlt-auto-discovery-v2.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ssqdlt-formula-v2-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Run full CPU research regression including V1 and frozen V2
+        run: python -m unittest discover -s research/supercompute/tests -p 'test_*.py' -v
+
+  locked-holdout:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Execute predeclared 60-validation 120-holdout experiment
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m research.supercompute.auto_discovery_v2 \
+            --validation 60 --holdout 120 --out auto-formula-v2-output
+      - name: Check immutable hash, full cohort, three controls and NO_EDGE
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          folder=Path("auto-formula-v2-output")
+          raw=(folder/"report.json").read_bytes()
+          sha=(folder/"report.sha256").read_text("ascii").split()[0]
+          assert hashlib.sha256(raw).hexdigest()==sha
+          report=json.loads(raw)
+          assert report["schema"]=="SSQDLT_FORMULA_DISCOVERY_V2_FROZEN_HOLDOUT"
+          assert report["formal_A"]==0 and report["edge"]=="NO_EDGE"
+          assert report["formal_prediction"] is False
+          assert report["next_live_prediction"] is None
+          assert report["prospective_scored"]==0
+          assert report["official_source_authenticated"] is False
+          assert report["predraw_independent_timestamp_verified"] is False
+          assert report["automatic_formal_promotion_allowed"] is False
+          assert report["search"]["validation"]==60
+          assert report["search"]["holdout"]==120
+          assert report["search"]["grammar_candidates"]==72
+          assert set(report["games"])=={"ssq","dlt"}
+          for game, data in report["games"].items():
+              assert data["holdout_size"]==120
+              assert len(data["rows"])==len({x["issue"] for x in data["rows"]})==120
+              assert data["source"]["status"]=="historical_snapshot_not_live_verified"
+              selection=data["selection"]
+              assert selection["holdout_accessed"] is False
+              assert len(selection["expressions"])==8
+              assert len({x["expr"]["id"] for x in selection["expressions"]})==8
+              assert all(x["weight"]==1.0 for x in selection["expressions"])
+              assert len(data["paired"])==3
+              assert {x["control"] for x in data["paired"]}=={
+                  "FROZEN_RESEARCH_NULL", "HOT60", "EWMA30"}
+              assert all(row["selection_sha256"]==selection["selection_sha256"]
+                  and row["asof_issue"]!=row["issue"] for row in data["rows"])
+          print("V2_FROZEN_HISTORICAL_AUDIT_PASS",sha)
+          PY
+      - name: Archive complete V2 historical audit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ssqdlt-auto-formula-v2-${{ github.run_id }}
+          path: auto-formula-v2-output/
+          retention-days: 90
+          if-no-files-found: warn
+      - name: Publish restrained summary
+        if: success()
+        shell: bash
+        run: cat auto-formula-v2-output/summary.md >> "$GITHUB_STEP_SUMMARY"
