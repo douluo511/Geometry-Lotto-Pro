@@ -219,6 +219,14 @@ class OfficialGateTests(TestCase):
             with self.assertRaisesRegex(ValueError, "orphaned"):
                 core.audit_ledger(Path(tmp) / "ledger")
 
+    def test_github_checkout_refuses_real_receipts_or_raw_source_data(self):
+        from research.supercompute import official_prospective as core
+        from research.supercompute import official_probe as probe
+        with self.assertRaisesRegex(ValueError, "CODE ONLY"):
+            core.create_once(core.ROOT / "private-receipt.json", {"formal_A": 0})
+        with self.assertRaisesRegex(probe.IntakeError, "OUTSIDE"):
+            probe.RawStore(probe.ROOT / "official-capture" / "ssq")
+
     def test_network_failure_is_archived_not_called_verified(self):
         with tempfile.TemporaryDirectory() as td, mock.patch.object(
                 probe, "probe_ssq", side_effect=RuntimeError("HTTP 403")):
