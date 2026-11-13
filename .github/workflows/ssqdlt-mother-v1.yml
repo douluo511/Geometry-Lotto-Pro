@@ -31,6 +31,9 @@ jobs:
           python-version: '3.11'
       - name: Install V4.7 offline replay dependency
         run: python -m pip install --disable-pip-version-check requests==2.34.2
+      - name: Audit every model source and registrar for missing arms
+        shell: bash
+        run: python -m research.mother_v1.inventory --out "$RUNNER_TEMP/inventory.json"
       - name: Verify unified mother all-arm output, data leakage and physics refusal gates
         run: python -m unittest research.mother_v1.test_mother -v
       - name: Verify all physical issuer/transport/SQLite/restart contracts
@@ -89,5 +92,6 @@ jobs:
             ${{ runner.temp }}/mother-historical-shadow-results/
             ${{ runner.temp }}/mother-synthetic-results/
             ${{ runner.temp }}/historical-shadow-input.json
+            ${{ runner.temp }}/inventory.json
           if-no-files-found: warn
           retention-days: 90
