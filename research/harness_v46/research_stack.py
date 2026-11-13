@@ -214,6 +214,8 @@ def main(argv=None) -> int:
     parser.add_argument("--steps", type=int, default=12)
     parser.add_argument("--full-combinations", action="store_true",
                         help="score entire SSQ and DLT legal combination space, research only")
+    parser.add_argument("--report-file",
+                        help="create-only local JSON synthetic report (never an official seal)")
     args = parser.parse_args(argv)
     if not args.synthetic:
         print("BLOCKED: --synthetic required; no live forecasting", file=sys.stderr)
@@ -225,7 +227,20 @@ def main(argv=None) -> int:
     except (ValueError, OSError, subprocess.SubprocessError) as exc:
         print("UNIFIED_SYNTHETIC_STACK_BLOCKED: " + str(exc), file=sys.stderr)
         return 1
-    print(json.dumps(report, sort_keys=True))
+    payload = json.dumps(report, sort_keys=True)
+    if args.report_file:
+        try:
+            path = Path(args.report_file)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            # Never overwrite an existing evidence receipt, even on reruns.
+            with path.open("x", encoding="utf-8") as receipt:
+                receipt.write(payload + "\n")
+                receipt.flush()
+                os.fsync(receipt.fileno())
+        except OSError as exc:
+            print("UNIFIED_SYNTHETIC_REPORT_BLOCKED: " + str(exc), file=sys.stderr)
+            return 1
+    print(payload)
     return 0
 
 
