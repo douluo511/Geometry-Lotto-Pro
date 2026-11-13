@@ -58,7 +58,7 @@ jobs:
       - name: Test deterministic contracts and record each case without unaccounted skips
         run: python -m research.harness_v46.ci_coverage run --output out/ci-coverage/${{ matrix.os }}.json
       - name: Execute unified synthetic research stack (M1/M2/M3 + both geometries + mechanical toy)
-        run: python -m research.harness_v46.research_stack --synthetic --seed 20261114 --trials 3000 --steps 12 --full-combinations
+        run: python -m research.harness_v46.research_stack --synthetic --seed 20261114 --trials 3000 --steps 12 --full-combinations --report-file out/research/${{ matrix.os }}.json
       - name: Test offline SSQ source-app contracts
         env:
           PYTHONPATH: ${{ github.workspace }}/SSQ/SSQ
@@ -71,6 +71,14 @@ jobs:
           GLP_DISABLE_BACKGROUND: "1"
           GLP_DATA_DIR: ${{ runner.temp }}/v47-dlt-offline-tests
         run: python -B -m unittest discover -s DLT/tests -p "test*.py" -v
+      - name: Upload create-only experimental research receipt (not official predraw seal)
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v47-research-${{ matrix.os }}
+          path: out/research/${{ matrix.os }}.json
+          if-no-files-found: error
+          retention-days: 30
       - name: Upload exact-HEAD per-test coverage receipt
         if: always()
         uses: actions/upload-artifact@v4
