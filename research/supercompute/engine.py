@@ -203,3 +203,27 @@ def main(argv=None):
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
+
+def compute_v47_research(game, periods=30, trials=10000, seed=2026):
+    """Explicit opt-in research report for 11 components.
+
+    Keeps legacy compute()/MODELS, formal predictors, frozen receipts and NULL
+    experiments untouched. Reads repository historical snapshots, NOT live
+    official results. No valid claim of forecasting advantage.
+    """
+    from research.supercompute.v47_models import (
+        MODELS as V47_LAB_MODELS, backtest as v47_backtest,
+        candidates as v47_candidates, geometry_state, m1_math,
+        monte_carlo as v47_mc, physics_toy,
+    )
+    rows, meta = snapshot(game)
+    examples = {name: v47_candidates(rows, game, name, limit=1, seed=seed)[0]
+                for name in V47_LAB_MODELS[1:]}
+    return {"snapshot": meta, "m1": m1_math(rows, game, examples["HOT60"]),
+            "historical_walk_forward": v47_backtest(rows, game, periods, seed),
+            "geometry": geometry_state(rows, game),
+            "uniform_monte_carlo": v47_mc(game, trials, seed),
+            "uncalibrated_physics_toy": physics_toy(game, seed),
+            "hypothetical_candidates": examples,
+            "edge": "NO_EDGE", "formal_A": 0, "formal_prediction": False}
