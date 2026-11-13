@@ -13,7 +13,7 @@ from research.harness_v46 import core
 from research.mother_v1.fixture import invented_bundle
 from research.mother_v1.mother import MotherBlocked, forecast_all, sha
 from research.mother_v1.registry import (
-    ALL_MODELS, REGISTERED_V47, EXPLORATORY_V47, LEGACY_SUPERCOMPUTE, NATIVE_FEATURES, PHYSICAL,
+    ALL_MODELS, REGISTERED_V47, EXPLORATORY_V47, LEGACY_SUPERCOMPUTE, PHYSICAL,
 )
 
 
@@ -23,18 +23,17 @@ class MotherRegistryTests(unittest.TestCase):
         cls.bundle = invented_bundle()
         cls.first = forecast_all(cls.bundle)
 
-    def test_six_plus_five_plus_three_plus_eight_plus_two_per_game(self):
+    def test_six_plus_five_plus_three_plus_two_per_game(self):
         self.assertEqual(6, len(REGISTERED_V47))
         self.assertEqual(5, len(EXPLORATORY_V47))
         self.assertEqual(3, len(LEGACY_SUPERCOMPUTE))
-        self.assertEqual(8, len(NATIVE_FEATURES))
         self.assertEqual(2, len(PHYSICAL))
-        self.assertEqual(24, len(ALL_MODELS))
+        self.assertEqual(16, len(ALL_MODELS))
         self.assertEqual(0, self.first["formal_A"])
         self.assertEqual("NO_EDGE", self.first["decision"])
         for game in ("SSQ", "DLT"):
             rows = self.first["games"][game]["models"]
-            self.assertEqual(24, len(rows))
+            self.assertEqual(16, len(rows))
             self.assertEqual(list(ALL_MODELS), [r["name"] for r in rows])
             self.assertEqual(len(rows), len({r["name"] for r in rows}))
             self.assertTrue(all(r["formal_A"] == 0 for r in rows))
@@ -69,21 +68,21 @@ class MotherRegistryTests(unittest.TestCase):
                 self.assertFalse(row["fallback_is_physical_forecast"])
                 self.assertEqual(null["ticket"], row["display_only_random_null_fallback"])
 
-    def test_native_models_cover_all_frequency_and_geometry_components(self):
-        expected = {
+    def test_eight_native_models_removed_for_both_games(self):
+        retired = {
             "native_simple_frequency", "native_recency", "native_gap",
             "native_transition", "native_pair_graph", "native_geometry_state",
             "native_geometry_transition", "native_research_ensemble",
         }
-        self.assertEqual(expected, set(NATIVE_FEATURES))
+        self.assertTrue(retired.isdisjoint(set(ALL_MODELS)))
         for game in ("SSQ", "DLT"):
-            models = [row for row in self.first["games"][game]["models"]
-                      if row["name"] in NATIVE_FEATURES]
-            self.assertEqual(8, len(models))
-            self.assertTrue(all(x["provider"] == "native_engine_separate_python_process"
-                                and x["status"] == "PREDICTED_SHADOW_NO_EDGE"
-                                and x["ticket"] is not None
-                                and x["model_source_sha256"] for x in models))
+            names = {row["name"] for row in self.first["games"][game]["models"]}
+            self.assertTrue(retired.isdisjoint(names))
+            self.assertEqual(len(ALL_MODELS), len(names))
+        from research.mother_v1.inventory import audit
+        summary = audit()
+        self.assertEqual(32, summary["model_rows_per_two_games"])
+        self.assertEqual(retired, set(summary["removed_native_names"]))
 
     def test_hash_stable_and_original_v47_null_control(self):
         self.assertEqual(sha(self.first), sha(forecast_all(self.bundle)))
