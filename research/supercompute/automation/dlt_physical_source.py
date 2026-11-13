@@ -20,6 +20,10 @@ from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 from uuid import uuid4
 
+from research.supercompute.automation.physical_transport import (
+    TransportExhausted, dlt_fetch,
+)
+
 PARSER = "GD_DLT_PHYSICAL_ANNOUNCEMENT_V1"
 HOST = "www.gdlottery.cn"
 MAX_BYTES = 1_200_000
@@ -155,7 +159,7 @@ def fetch_http(url: str) -> tuple[int, str, bytes]:
         return exc.code, exc.geturl(), exc.read(MAX_BYTES + 1)
 
 
-def collect(issue: str, ledger: Path, *, fetcher=fetch_http) -> dict:
+def collect(issue: str, ledger: Path, *, fetcher=dlt_fetch) -> dict:
     url = source_url(issue)
     observed_at = datetime.now(timezone.utc).isoformat()
     receipt = {
@@ -165,6 +169,7 @@ def collect(issue: str, ledger: Path, *, fetcher=fetch_http) -> dict:
         "observed_at_utc": observed_at,
         "parser_sha256": sha256(Path(__file__).read_bytes()).hexdigest(),
         "http_status": None,
+        "transport_attempts": [],
         "response_sha256": None,
         "final_url": None,
         "status": "BLOCKED",
@@ -173,7 +178,11 @@ def collect(issue: str, ledger: Path, *, fetcher=fetch_http) -> dict:
         "predictive_edge": "NO_EDGE",
     }
     try:
-        http_status, final_url, raw = fetcher(url)
+        fetched = fetcher(url)
+        if len(fetched) == 4:
+            http_status, final_url, raw, receipt["transport_attempts"] = fetched
+        else:
+            http_status, final_url, raw = fetched
         receipt["http_status"] = http_status
         receipt["final_url"] = final_url
         if not isinstance(raw, bytes) or not raw or len(raw) > MAX_BYTES:
@@ -182,7 +191,7 @@ def collect(issue: str, ledger: Path, *, fetcher=fetch_http) -> dict:
         receipt["response_sha256"] = digest
         _create_once(ledger / "raw" / (digest + ".bin"), raw)
         parts = urlsplit(final_url)
-        if parts.scheme != "https" or parts.hostname != HOST or parts.path != urlsplit(url).path:
+        if parts.scheme != "https" or parts.hostname not in (HOST, "gdlottery.cn") or parts.path != urlsplit(url).path:
             raise Blocked("UNTRUSTED_SOURCE_REDIRECT")
         if http_status != 200:
             raise Blocked("OFFICIAL_HTTP_NON_200")
@@ -202,6 +211,8 @@ def collect(issue: str, ledger: Path, *, fetcher=fetch_http) -> dict:
                 raise Blocked("DRAW_CREATE_RACE")
             receipt["status"] = "RECORDED"
     except Exception as exc:
+        if isinstance(exc, TransportExhausted):
+            receipt["transport_attempts"] = exc.attempts
         receipt["status"] = "BLOCKED"
         receipt["reason"] = str(exc) if isinstance(exc, Blocked) else "NETWORK_OR_IO_FAILURE:" + type(exc).__name__
     finally:
