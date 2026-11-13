@@ -41,7 +41,7 @@ def main(argv=None):
     prep = sub.add_parser("freeze", help="create-only research candidate receipt")
     prep.add_argument("--game", choices=SPECS, required=True)
     prep.add_argument("--data", type=Path, required=True)
-    prep.add_argument("--model", choices=MODELS[1:], required=True)
+    prep.add_argument("--model", choices=MODELS, required=True)
     prep.add_argument("--target-issue", required=True)
     prep.add_argument("--seed", type=int, default=2026)
     prep.add_argument("--output", type=Path, required=True)
@@ -62,7 +62,7 @@ def main(argv=None):
             champion = benchmark["challenger_selected_before_test"]["parameters"]
             examples = {name: candidates(rows, game, name,
                         champion if name == "Challenger" else None,
-                        limit=3, seed=args.seed) for name in MODELS[1:]}
+                        limit=3, seed=args.seed) for name in MODELS}
             result[game] = {
                 "history_source_sha256": digest,
                 "source_status": "REPOSITORY_HISTORICAL_NOT_LIVE_VERIFIED",

@@ -18,7 +18,7 @@ class EngineTest(unittest.TestCase):
             self.assertEqual(data[-1]["issue"], meta["asof_issue"])
             self.assertEqual(meta["status"], "historical_snapshot_not_live_verified")
 
-    def test_exact_random_baseline(self):
+    def test_exact_fair_probability(self):
         for name, (fm, fp, bm, bp) in SPECS.items():
             self.assertEqual(chance(name)["full_ticket_one_in"],
                              math.comb(fm, fp) * math.comb(bm, bp))
@@ -42,7 +42,7 @@ class EngineTest(unittest.TestCase):
         data, _ = snapshot("ssq")
         history = data[:130]
         earlier = {m: ticket(history, "ssq", m, 19) for m in
-                   ("HOT60", "EWMA30", "RANDOM_NULL")}
+                   ("HOT60", "EWMA30")}
         changed = copy.deepcopy(data)
         changed[130]["front"] = [1, 2, 3, 4, 5, 6]
         later = {m: ticket(changed[:130], "ssq", m, 19) for m in earlier}
@@ -51,7 +51,7 @@ class EngineTest(unittest.TestCase):
     def test_all_tickets_legal(self):
         for game, (fm, fp, bm, bp) in SPECS.items():
             rows, _ = snapshot(game)
-            for model in ("RANDOM_NULL", "HOT60", "EWMA30"):
+            for model in ("HOT60", "EWMA30"):
                 t = ticket(rows, game, model, 7)
                 check_balls(t["front"], fp, fm)
                 check_balls(t["back"], bp, bm)

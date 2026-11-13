@@ -19,7 +19,7 @@ def example_report():
                           "models": {"edge": "NO_EDGE",
                                      "strictly_past_only": True,
                                      "independent_test_tail": True,
-                                     "models": {"RANDOM_NULL": {"n": 2}}}}
+                                     "models": {name: {"n": 2} for name in ("HOT60", "EWMA", "ShrinkMix", "Pairwise-D2", "Challenger")}}}
                       for g in ("ssq", "dlt")}}
 
 
@@ -158,6 +158,18 @@ class TestV47UnattendedSchedule(unittest.TestCase):
             s.record(self.ledger, self.report, 101, 1, SHA, "schedule",
                      unified_report_path=bad)
         self.assertEqual(s.verify(self.ledger)["count"], 0)
+
+
+    def test_current_report_requires_exactly_five_families(self):
+        payload = example_report()
+        s.check_report(payload)
+        for game in ("ssq", "dlt"):
+            payload["games"][game]["models"]["models"].pop("Challenger")
+        with self.assertRaises(ValueError):
+            s.check_report(payload)
+        # Historical archived records remain readable without changing hash receipts.
+        s.check_report(payload, allow_legacy_archive=True)
+
 
 
 if __name__ == "__main__":

@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[2]
 SOURCES = {"ssq": ROOT / "SSQ/SSQ/resources/official_seed.json",
            "dlt": ROOT / "DLT/src/resources/official_seed.json"}
 SPECS = {"ssq": (33, 6, 16, 1), "dlt": (35, 5, 12, 2)}
-MODELS = ("RANDOM_NULL", "HOT60", "EWMA30")
+MODELS = ("HOT60", "EWMA30")
 
 
 def derive_seed(*parts):
@@ -82,11 +82,7 @@ def ticket(history, game, model, seed=2026):
     if not history:
         raise ValueError("must have past draws")
     fm, fp, bm, bp = SPECS[game]
-    if model == "RANDOM_NULL":
-        rng = random.Random(derive_seed(seed, game, history[-1]["issue"], model))
-        front, back = rng.sample(range(1, fm + 1), fp), rng.sample(range(1, bm + 1), bp)
-    else:
-        front, back = rank(history, "front", fm, model)[:fp], rank(history, "back", bm, model)[:bp]
+    front, back = rank(history, "front", fm, model)[:fp], rank(history, "back", bm, model)[:bp]
     return {"front": sorted(front), "back": sorted(back),
             "dan2": sorted(front[:2]), "after_issue": history[-1]["issue"],
             "formal_prediction": False}
@@ -208,7 +204,7 @@ if __name__ == "__main__":
 def compute_v47_research(game, periods=30, trials=10000, seed=2026):
     """Explicit opt-in research report for 11 components.
 
-    Keeps legacy compute()/MODELS, formal predictors, frozen receipts and NULL
+    Keeps legacy compute()/MODELS, formal predictors, frozen receipts and earlier archived receipts
     experiments untouched. Reads repository historical snapshots, NOT live
     official results. No valid claim of forecasting advantage.
     """
@@ -219,7 +215,7 @@ def compute_v47_research(game, periods=30, trials=10000, seed=2026):
     )
     rows, meta = snapshot(game)
     examples = {name: v47_candidates(rows, game, name, limit=1, seed=seed)[0]
-                for name in V47_LAB_MODELS[1:]}
+                for name in V47_LAB_MODELS}
     return {"snapshot": meta, "m1": m1_math(rows, game, examples["HOT60"]),
             "historical_walk_forward": v47_backtest(rows, game, periods, seed),
             "geometry": geometry_state(rows, game),

@@ -81,9 +81,10 @@ class TestV47ModelLab(unittest.TestCase):
         self.assertFalse(m.physics_toy("ssq", 7, steps=5)["machine_calibrated"])
         self.assertEqual(m.monte_carlo("dlt", 100, 9), m.monte_carlo("dlt", 100, 9))
 
-    def test_m2_m3_and_random_baseline(self):
-        refutation = m.m2_refutation([1, 0, 1], [0, 1, 0])
-        self.assertEqual(refutation["wins"], 2)
+    def test_m2_m3_and_exact_fair_chance(self):
+        refutation = m.m2_refutation([1, 0, 1], .2)
+        self.assertEqual(refutation["hits"], 2)
+        self.assertAlmostEqual(refutation["exploratory_one_sided_p"], .104)
         self.assertFalse(refutation["multiple_tests_adjusted"])
         calibration = m.m3_calibration([(.5, 1), (.5, 0)])
         self.assertAlmostEqual(calibration["brier"], .25)
@@ -133,6 +134,22 @@ class TestV47ModelLab(unittest.TestCase):
             self.assertEqual(set(payload["games"]), set(m.SPECS))
             with self.assertRaises(FileExistsError), redirect_stdout(StringIO()):
                 main(args)
+
+
+    def test_exactly_five_registered_families_and_fair_m2(self):
+        expected = ("HOT60", "EWMA", "ShrinkMix", "Pairwise-D2", "Challenger")
+        self.assertEqual(m.MODELS, expected)
+        for game in m.SPECS:
+            rows = synthetic(game)
+            report = m.backtest(rows, game, periods=2, seed=3)
+            self.assertEqual(set(report["models"]), set(expected))
+            fair = m.SPECS[game][1] * (m.SPECS[game][1] - 1) / (
+                m.SPECS[game][0] * (m.SPECS[game][0] - 1))
+            for model in expected:
+                self.assertAlmostEqual(report["models"][model]["m2"]["fair_probability"], fair)
+        with self.assertRaises(ValueError):
+            m.m2_refutation([0, 2], .2)
+
 
 
 if __name__ == "__main__":

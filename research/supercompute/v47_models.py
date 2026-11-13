@@ -17,7 +17,7 @@ import random
 import statistics
 
 SPECS = {"ssq": (33, 6, 16, 1), "dlt": (35, 5, 12, 2)}
-MODELS = ("RANDOM_NULL", "HOT60", "EWMA", "ShrinkMix", "Pairwise-D2", "Challenger")
+MODELS = ("HOT60", "EWMA", "ShrinkMix", "Pairwise-D2", "Challenger")
 DEFAULT = {"window": 60, "half_life": 30.0, "prior": 60.0, "mix": 0.5,
            "pair_weight": 0.12, "geo_weight": 0.0}
 
@@ -100,8 +100,6 @@ def inclusion_probabilities(rows, game, area, model, opts=None):
         raise ValueError("unknown game/area/model")
     p = parameters(opts)
     maximum, picked = SPECS[game][:2] if area == "front" else SPECS[game][2:]
-    if model == "RANDOM_NULL":
-        return [0.0] + [picked / maximum] * maximum
     a, na = weighted_counts(rows, area, maximum, "HOT60", p)
     b, nb = weighted_counts(rows, area, maximum, "EWMA", p)
     if model == "HOT60":
@@ -191,11 +189,6 @@ def random_ticket(game, seed):
 def candidates(rows, game, model, opts=None, limit=3, seed=2026):
     if not rows or model not in MODELS or not 1 <= limit <= 100:
         raise ValueError("invalid candidate request")
-    if model == "RANDOM_NULL":
-        ticket = random_ticket(game, seed_from(seed, game, rows[-1]["issue"], "null"))
-        ticket["dan2"] = ticket["front"][:2]
-        return [{**ticket, "after_issue": str(rows[-1]["issue"]),
-                 "formal_prediction": False}]
     p = parameters(opts)
     fm, fp, bm, bp = SPECS[game]
     front = inclusion_probabilities(rows, game, "front", model, p)
@@ -314,18 +307,27 @@ def m1_math(rows, game, prediction):
             "fair_d2": math.comb(fm - 2, fp - 2) / math.comb(fm, fp)}
 
 
-def m2_refutation(model_events, null_events):
-    if len(model_events) != len(null_events) or not model_events:
-        raise ValueError("paired outcomes required")
-    if any(x not in (0, 1) for x in (*model_events, *null_events)):
-        raise ValueError("events must be binary")
-    wins = sum(a > b for a, b in zip(model_events, null_events))
-    losses = sum(a < b for a, b in zip(model_events, null_events))
-    n = wins + losses
-    p = (sum(math.comb(n, k) for k in range(wins, n + 1)) / 2 ** n
-         if n else 1.0)
-    return {"status": "PASS", "wins": wins, "losses": losses,
-            "discordant": n, "exploratory_one_sided_p": p,
+def m2_refutation(model_events, fair_d2_probability):
+    """Independent exact binomial D2 test against combinatorial fair chance.
+
+    The theoretical reference is a mathematical hypothesis, not an additional
+    prediction model. Retrospective exploratory p-values are not adjusted for
+    multiple comparisons and must not be interpreted as prospective evidence.
+    """
+    if (not model_events or any(type(e) is not int or e not in (0, 1)
+                                for e in model_events)
+            or not isinstance(fair_d2_probability, (int, float))
+            or not math.isfinite(fair_d2_probability)
+            or not 0 < fair_d2_probability < 1):
+        raise ValueError("binary model outcomes and valid fair probability required")
+    n = len(model_events)
+    hits = sum(model_events)
+    p0 = fair_d2_probability
+    tail = sum(math.comb(n, k) * p0 ** k * (1 - p0) ** (n - k)
+               for k in range(hits, n + 1))
+    return {"status": "PASS", "test": "exact_binomial_fair_d2",
+            "hits": hits, "trials": n, "fair_probability": p0,
+            "exploratory_one_sided_p": min(1.0, tail),
             "multiple_tests_adjusted": False}
 
 
@@ -419,13 +421,14 @@ def backtest(rows, game, periods=30, seed=2026):
                 observed = set(actual[area])
                 item["records"].extend((probabilities[x], int(x in observed))
                                        for x in range(1, maximum + 1))
-    baseline = data["RANDOM_NULL"]["d2"]
+    fm, fp, _, _ = SPECS[game]
+    fair_d2 = fp * (fp - 1) / (fm * (fm - 1))
     result = {}
     for name, item in data.items():
         result[name] = {"n": periods, "d2_hits": sum(item["d2"]),
                         "d2_rate": sum(item["d2"]) / periods,
                         "full_hits": item["full_hits"],
-                        "m2": m2_refutation(item["d2"], baseline),
+                        "m2": m2_refutation(item["d2"], fair_d2),
                         "m3": m3_calibration(item["records"])}
     return {"game": game, "first_issue": str(rows[start]["issue"]),
             "last_issue": str(rows[-1]["issue"]),
@@ -438,7 +441,7 @@ def backtest(rows, game, periods=30, seed=2026):
 def freeze(path, rows, game, model, target_issue, opts=None, seed=2026):
     """Research-only create-once SHA receipt; not independently time sealed."""
     validate_history(rows, game)
-    if not rows or model == "RANDOM_NULL" or model not in MODELS or not str(target_issue):
+    if not rows or model not in MODELS or not str(target_issue):
         raise ValueError("invalid freeze input")
     output = Path(path)
     pred = candidates(rows, game, model, opts, 1, seed)[0]

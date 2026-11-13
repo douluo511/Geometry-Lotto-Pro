@@ -33,7 +33,7 @@ All score/outcome claims are historical research only: repository snapshots are 
 
 ## Production safety
 
-- The original official V4.7 selectors, fixed RANDOM_NULL records, P0 schedule, and freeze ledger are untouched.
+- The official V4.7 selectors, previously issued immutable evidence, P0 schedule, and freeze ledger are untouched. New candidate reports contain only the five named families.
 - GitHub Actions hosted runner resources are bounded (15-minute scheduled job). No paid API or training loop is invoked.
 - The event ledger uses a Git branch with SHA256 linkage; repository administrators could still rewrite this branch. It is audit-aiding but not independently immutable or timestamp-trusted.
 - A returned audit status PASS means only two completed genuine schedule-run records and cross-run persistence were verified; it does not mean better lottery forecasting.
