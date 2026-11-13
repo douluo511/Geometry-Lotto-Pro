@@ -70,7 +70,7 @@ def verify(working_tree, expected_run_id=None):
         if digest(report_path.read_bytes()) != payload.get("report_sha256"):
             raise ValueError("report tampered")
         report = json.loads(report_path.read_bytes())
-        check_report(report)
+        check_report(report, allow_legacy_archive=True)
         if payload.get("unified_sha256"):
             unified_copy = folder / "reports" / f"{payload['run_id']}-unified.json"
             if (not unified_copy.is_file() or
@@ -94,7 +94,7 @@ def verify(working_tree, expected_run_id=None):
             "remote_persistence": expected_run_id is not None}
 
 
-def check_report(report):
+def check_report(report, allow_legacy_archive=False):
     if (report.get("schema") != "SSQDLT_11_COMPONENT_RESEARCH_V1"
             or report.get("edge") != "NO_EDGE"
             or report.get("formal_prediction") is not False
@@ -105,8 +105,14 @@ def check_report(report):
                 or section.get("models", {}).get("edge") != "NO_EDGE"
                 or section.get("models", {}).get("strictly_past_only") is not True
                 or section.get("models", {}).get("independent_test_tail") is not True
-                or section.get("models", {}).get("models", {}).get("RANDOM_NULL") is None):
+                ):
             raise ValueError(f"missing research guard: {game}")
+        models = section["models"].get("models", {})
+        required = {"HOT60", "EWMA", "ShrinkMix", "Pairwise-D2", "Challenger"}
+        legacy_ok = (allow_legacy_archive and len(models) >= 3
+                     and {"HOT60", "EWMA"}.issubset(models))
+        if set(models) != required and not legacy_ok:
+            raise ValueError(f"missing current research models: {game}")
 
 
 
