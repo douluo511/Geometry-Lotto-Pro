@@ -1,0 +1,74 @@
+{
+  "results": [
+    {
+      "suite": "strict",
+      "command": [
+        "C:\\Users\\15928\\AppData\\Local\\Programs\\Python\\Python311\\python.exe",
+        "-m",
+        "unittest",
+        "research.strict_audit_20261113.test_audit",
+        "-v"
+      ],
+      "exit_code": 0,
+      "status": "PASS",
+      "tests": 10,
+      "log_sha256": "bce637433bbf457717038ea4ca6c707aa9f3c81bf330f07fb0b21137a181dc95"
+    },
+    {
+      "suite": "mother",
+      "command": [
+        "C:\\Users\\15928\\AppData\\Local\\Programs\\Python\\Python311\\python.exe",
+        "-m",
+        "unittest",
+        "research.mother_v1.test_mother",
+        "research.mother_v1.test_source_identity",
+        "research.mother_v1.test_rolling_audit",
+        "-v"
+      ],
+      "exit_code": 0,
+      "status": "PASS",
+      "tests": 22,
+      "log_sha256": "16b256a866ad0eb359a148e8f2177292fb3869f67fbb1cab8ed31e91f250b16b"
+    },
+    {
+      "suite": "harness",
+      "command": [
+        "C:\\Users\\15928\\AppData\\Local\\Programs\\Python\\Python311\\python.exe",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "research/harness_v46/tests",
+        "-v"
+      ],
+      "exit_code": 1,
+      "status": "FAIL",
+      "tests": 593,
+      "log_sha256": "ad6246dfe72a6e3b4e1d65b4b6c9eb93e14159e9951367f6fe4d4c2a87ecc47d"
+    },
+    {
+      "suite": "supercompute",
+      "command": [
+        "C:\\Users\\15928\\AppData\\Local\\Programs\\Python\\Python311\\python.exe",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "research/supercompute/tests",
+        "-v"
+      ],
+      "exit_code": 0,
+      "status": "PASS",
+      "tests": 53,
+      "log_sha256": "b73208b0b7f5d1b8dc7aa641a2a5b9ca770b3b8a6c3d74d83ae052a55e1b8216"
+    }
+  ],
+  "created_utc_untrusted": "2026-11-13T12:54:19.583079+00:00",
+  "github_sha": null,
+  "github_run_id": null,
+  "strict_latest": {
+    "tests": 16,
+    "status": "PASS",
+    "log": "all-models-green.log"
+  }
+}

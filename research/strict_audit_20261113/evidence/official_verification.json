@@ -1,0 +1,42 @@
+{
+  "observation_method": "Firecrawl maxAge=0; saved tool-extracted text, NOT issuer raw response bytes or trusted seal.",
+  "recorded_after_retrieval_utc": "2026-11-13T12:34:51Z",
+  "games": {
+    "SSQ": {
+      "latest_issue": "2026130",
+      "draw_date": "2026-11-12",
+      "front": [
+        1,
+        2,
+        6,
+        16,
+        20,
+        28
+      ],
+      "back": [
+        2
+      ],
+      "url": "https://www.swlc.net.cn/",
+      "retrieved_utc": "2026-11-13T12:34:51Z",
+      "snapshot": "official_ssq.json"
+    },
+    "DLT": {
+      "latest_issue": "26129",
+      "draw_date": "2026-11-11",
+      "front": [
+        2,
+        12,
+        14,
+        17,
+        33
+      ],
+      "back": [
+        7,
+        8
+      ],
+      "url": "https://www.shsportslottery.com/dlt/kjgg.html",
+      "retrieved_utc": "2026-11-13T12:34:51Z",
+      "snapshot": "official_dlt.json"
+    }
+  }
+}

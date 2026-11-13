@@ -1,0 +1,18 @@
+{
+  "betting": false,
+  "eligible_draws_per_game": 500,
+  "endpoint": "registered D2 both hit",
+  "family": "two games, max(fair p, paired fixed NULL p), Holm .05",
+  "missing_seal_policy": "Record failure; no success assigned; block complete-case promotion",
+  "model_switching": false,
+  "n_scored_clean": 0,
+  "optional_stopping": false,
+  "parameters_and_null_unchanged": true,
+  "retain_failed_or_missing_seals": true,
+  "selected_models": {
+    "DLT": "recency_pair_h45_120",
+    "SSQ": "ewma"
+  },
+  "start": "First eligible draw after public commit plus verified presale publication",
+  "status": "DESIGN_ONLY_NOT_ACTIVATED"
+}
