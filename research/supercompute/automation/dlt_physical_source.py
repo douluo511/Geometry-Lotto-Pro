@@ -179,7 +179,13 @@ def collect(issue: str, ledger: Path, *, fetcher=dlt_fetch) -> dict:
     }
     try:
         fetched = fetcher(url)
-        if len(fetched) == 4:
+        if len(fetched) == 5:
+            http_status, final_url, raw, receipt["transport_attempts"] = fetched[:4]
+            for digest, body in fetched[4].items():
+                if sha256(body).hexdigest() != digest:
+                    raise Blocked("TRANSPORT_RAW_HASH_MISMATCH")
+                _create_once(ledger / "raw" / (digest + ".bin"), body)
+        elif len(fetched) == 4:
             http_status, final_url, raw, receipt["transport_attempts"] = fetched
         else:
             http_status, final_url, raw = fetched
@@ -213,6 +219,15 @@ def collect(issue: str, ledger: Path, *, fetcher=dlt_fetch) -> dict:
     except Exception as exc:
         if isinstance(exc, TransportExhausted):
             receipt["transport_attempts"] = exc.attempts
+            for digest, body in exc.raw_bodies.items():
+                if sha256(body).hexdigest() != digest:
+                    raise Blocked("TRANSPORT_RAW_HASH_MISMATCH")
+                _create_once(ledger / "raw" / (digest + ".bin"), body)
+            if exc.attempts:
+                last = exc.attempts[-1]
+                receipt["http_status"] = last.get("http_status")
+                receipt["final_url"] = last.get("final_url")
+                receipt["response_sha256"] = last.get("response_sha256")
         receipt["status"] = "BLOCKED"
         receipt["reason"] = str(exc) if isinstance(exc, Blocked) else "NETWORK_OR_IO_FAILURE:" + type(exc).__name__
     finally:
