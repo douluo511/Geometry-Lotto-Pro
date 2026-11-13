@@ -1,0 +1,119 @@
+name: SSQDLT Fable 5.2 explicit-paid research audit (manual only)
+
+# No schedule. No paid API request without explicit workflow_dispatch boolean.
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_paid_api:
+        description: "I authorize one paid Fable 5.2 API call for this frozen research issue."
+        required: true
+        type: boolean
+        default: false
+      game:
+        description: "Frozen research lottery"
+        required: true
+        type: choice
+        default: SSQ
+        options:
+          - SSQ
+          - DLT
+      issue:
+        description: "Already recorded forecast issue, e.g. 2026131 or 26130"
+        required: true
+        type: string
+  push:
+    branches: ['research/fable52-manual-audit-*']
+    paths:
+      - '.github/workflows/ssqdlt-fable52-manual-review.yml'
+      - 'research/supercompute/automation/fable52_manual_review.py'
+      - 'research/supercompute/tests/test_fable52_manual_review.py'
+  pull_request:
+    paths:
+      - '.github/workflows/ssqdlt-fable52-manual-review.yml'
+      - 'research/supercompute/automation/fable52_manual_review.py'
+      - 'research/supercompute/tests/test_fable52_manual_review.py'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ssqdlt-fable52-explicit-manual-audit
+  cancel-in-progress: false
+
+jobs:
+  offline-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: "Nine no-cost tests: schema, model ID, tamper and payment guard"
+        run: python -m unittest discover -s research/supercompute/tests -p test_fable52_manual_review.py -v
+
+  one-paid-model-review:
+    needs: offline-contract
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      inputs.confirm_paid_api == true &&
+      github.repository == 'douluo511/Geometry-Lotto-Pro' &&
+      github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Recover actual SHA-persisted research ledger branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          branch="ssqdlt-official-shadow-ledger-v1"
+          ledger="$RUNNER_TEMP/fable-ledger"
+          tracking="refs/remotes/origin/$branch"
+          git ls-remote --exit-code --heads origin "$branch" >/dev/null || {
+            echo "::error::No prior sealed research ledger"; exit 1;
+          }
+          git fetch --no-tags origin "refs/heads/$branch:$tracking"
+          git worktree add --detach "$ledger" "$tracking"
+          echo "SHADOW_LEDGER=$ledger" >> "$GITHUB_ENV"
+          echo "SHADOW_LEDGER_BRANCH=$branch" >> "$GITHUB_ENV"
+      - name: Call Fable once, review only (never replace a forecast)
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          MODEL_REVIEW_GAME: ${{ inputs.game }}
+          MODEL_REVIEW_ISSUE: ${{ inputs.issue }}
+        run: >-
+          python -m research.supercompute.automation.fable52_manual_review
+          --ledger "$SHADOW_LEDGER" --game "$MODEL_REVIEW_GAME"
+          --issue "$MODEL_REVIEW_ISSUE" --live-paid
+      - name: Assert exactly one new Fable review and verify remote Git SHA
+        shell: bash
+        run: |
+          set -euo pipefail
+          git -C "$SHADOW_LEDGER" add -A -- research/forward_shadow_v1/reviews
+          python - <<'PY'
+          import os, subprocess
+          root = os.environ['SHADOW_LEDGER']
+          raw=subprocess.check_output(['git','-C',root,'diff','--cached','--name-status','-z'])
+          entries=[x for x in raw.decode().split('\0') if x]
+          if len(entries)!=2 or entries[0]!='A' or not entries[1].startswith('research/forward_shadow_v1/reviews/'):
+              raise SystemExit('FAIL_CLOSED_ONLY_ONE_CREATE_ONCE_REVIEW')
+          PY
+          git -C "$SHADOW_LEDGER" config user.name "github-actions[bot]"
+          git -C "$SHADOW_LEDGER" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C "$SHADOW_LEDGER" commit -m "fable52: explicit paid audit run $GITHUB_RUN_ID"
+          git -C "$SHADOW_LEDGER" push origin "HEAD:refs/heads/$SHADOW_LEDGER_BRANCH"
+          git -C "$SHADOW_LEDGER" fetch --no-tags origin "refs/heads/$SHADOW_LEDGER_BRANCH"
+          test "$(git -C "$SHADOW_LEDGER" rev-parse HEAD)" = "$(git -C "$SHADOW_LEDGER" rev-parse FETCH_HEAD)" || {
+            echo "::error::Review remote SHA not verified"; exit 1;
+          }
+          echo "Fable 5.2 method audit recorded on separate research branch; no forecast modification." >> "$GITHUB_STEP_SUMMARY"
