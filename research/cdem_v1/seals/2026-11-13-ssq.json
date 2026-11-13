@@ -1,0 +1,52 @@
+{
+  "schema": "CDEM_V1_SEALED_CANDIDATE",
+  "created_for": "2026-11-13",
+  "game": "ssq",
+  "target_issue": "2026131",
+  "source_cutoff_issue": "2026130",
+  "prediction": {
+    "front": [
+      4,
+      5,
+      6,
+      10,
+      14,
+      30
+    ],
+    "back": [
+      1
+    ],
+    "dan2": [
+      14,
+      30
+    ],
+    "low_rank_front": [
+      32,
+      20,
+      23,
+      11,
+      16
+    ]
+  },
+  "model_id": "SSQ-G3-061",
+  "model_weights": [
+    0.534112188,
+    0,
+    0.088368651,
+    0,
+    0,
+    0.018736441,
+    0.060978115,
+    0.094438802,
+    0,
+    0.203365804
+  ],
+  "selected_on": "historical_selection_300_only",
+  "holdout_d2": 2,
+  "holdout_n": 200,
+  "holdout_p_bonferroni_5": 1,
+  "edge": "NO_EDGE",
+  "dan_certification": "NULL_DAN",
+  "post_draw_real_score": null,
+  "source_blob_sha": "4d2ed825034f20d1f039f99f802174ead7814172"
+}
