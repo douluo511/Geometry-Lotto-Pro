@@ -1,8 +1,11 @@
 """Offline retry/host-safety tests. Zero internet or sleep."""
 import io
+from pathlib import Path
+import tempfile
 from urllib.error import HTTPError, URLError
 import unittest
 
+from research.supercompute.automation.dlt_physical_source import collect as collect_dlt
 from research.supercompute.automation.physical_transport import (
     TransportExhausted, resilient_fetch, dlt_fetch, ssq_fetch,
 )
@@ -82,6 +85,22 @@ class TransportTest(unittest.TestCase):
                 sleeper=lambda _: None)
         self.assertEqual(4, len(ctx.exception.attempts))
         self.assertTrue(all(x["reason"] == "NETWORK_URLError" for x in ctx.exception.attempts))
+
+    def test_all_non200_raw_bytes_persist_with_attempt_receipt(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            ledger = Path(tmp)
+            raw = b"issuer temporary 503 response"
+            def server_error(req, timeout=12):
+                raise HTTPError(req.full_url, 503, "busy", {}, io.BytesIO(raw))
+            result = collect_dlt("26105", ledger, fetcher=lambda url: dlt_fetch(
+                url, opener=server_error, sleeper=lambda _: None, max_attempts=2))
+            self.assertEqual("BLOCKED", result["status"])
+            self.assertEqual(2, len(result["transport_attempts"]))
+            self.assertEqual(503, result["http_status"])
+            self.assertEqual(2, len(result["transport_attempts"]))
+            digest = result["response_sha256"]
+            self.assertEqual(raw, (ledger/"raw"/(digest+".bin")).read_bytes())
+            self.assertEqual(1, len(list((ledger/"attempts"/"26105").glob("*.json"))))
 
     def test_bad_transport_limits_and_alternates(self):
         with self.assertRaisesRegex(ValueError, "UNTRUSTED_OFFICIAL_ALTERNATE"):
