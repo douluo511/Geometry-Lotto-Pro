@@ -1,0 +1,55 @@
+{
+  "checked_at_utc": "2026-11-13T09:01:20+00:00",
+  "edge": "NO_EDGE",
+  "event": "push",
+  "external_trusted_timestamp_verified": false,
+  "fable_reviews_performed": 0,
+  "formal_A": 0,
+  "github_run_attempt": "1",
+  "github_run_id": "43397804073",
+  "official_issuer_signatures_verified": false,
+  "results": [
+    {
+      "candidate": {
+        "chosen_model": "UNIFORM",
+        "forecast_sha256": "86a82a0fb2634b4ad5c16f0f568f409f39425d926435ec7cf56211f6db948ed4",
+        "status": "NEW_SHADOW_FORECAST_SEALED_LOCALLY",
+        "target_issue": "2026131"
+      },
+      "edge": "NO_EDGE",
+      "formal_A": 0,
+      "game": "SSQ",
+      "latest": "2026130",
+      "official_match_count": 50,
+      "official_window": 50,
+      "score": {
+        "blocked_late_forecasts": [],
+        "scored": []
+      },
+      "source_rows": 100,
+      "status": "PASS_RESEARCH_ONLY"
+    },
+    {
+      "candidate": {
+        "chosen_model": "UNIFORM",
+        "forecast_sha256": "860106b381a79904ab25e6206e0828909cb78f344e8f22d527765268d77d9090",
+        "status": "NEW_SHADOW_FORECAST_SEALED_LOCALLY",
+        "target_issue": "26130"
+      },
+      "edge": "NO_EDGE",
+      "formal_A": 0,
+      "game": "DLT",
+      "latest": "26129",
+      "official_match_count": 10,
+      "official_window": 10,
+      "score": {
+        "blocked_late_forecasts": [],
+        "scored": []
+      },
+      "source_rows": 100,
+      "status": "PASS_RESEARCH_ONLY"
+    }
+  ],
+  "schema": "SSQDLT_SHADOW_END_TO_END_TICK_V1",
+  "workflow_commit": "c4a0301533d877407267b3dabae2ef8b9c5ad0c0"
+}

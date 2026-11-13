@@ -1,0 +1,63 @@
+{
+  "claimed_timestamp_trust": "GITHUB_RUNNER_CLOCK_NOT_EXTERNAL_TSA",
+  "content_sha256": "86a82a0fb2634b4ad5c16f0f568f409f39425d926435ec7cf56211f6db948ed4",
+  "created_at_utc": "2026-11-13T09:01:20+00:00",
+  "edge": "NO_EDGE",
+  "fable_review": {
+    "model": "claude-fable-5-2",
+    "model_result_sha256": null,
+    "status": "NOT_CALLED_NO_AUTHORIZED_API_CREDENTIALS"
+  },
+  "formal_A": 0,
+  "game": "SSQ",
+  "history_sha256": "973782ec0236a479e27f45858ecafb68691ad4e4c1400d38a04d4591a920da41",
+  "independent_random_null": {
+    "back": [
+      6
+    ],
+    "front": [
+      13,
+      14,
+      23,
+      24,
+      28,
+      31
+    ]
+  },
+  "prediction": {
+    "back": [
+      1
+    ],
+    "front": [
+      3,
+      7,
+      12,
+      16,
+      20,
+      25
+    ]
+  },
+  "purchased": false,
+  "schema": "SSQDLT_OFFICIAL_CROSSCHECK_SHADOW_FORECAST_V1",
+  "selection": {
+    "algorithm": "HISTORICAL_MARGINAL_SELECTION_V1",
+    "chosen": "UNIFORM",
+    "validation_last_60_only": true,
+    "validation_log_score_delta": {
+      "EWMA30": -1.6248,
+      "HOT60": -4.20275,
+      "UNIFORM": 0.0
+    }
+  },
+  "source_crosscheck": {
+    "matched_issues": 50,
+    "official_html_sha256": "8c8cd0f6dac0bdd04dd87ef3fcc1332c672f4155ee8b79733d8e0acff0765928",
+    "official_url": "https://www.swlc.net.cn/lottery/ssq.html?limit=50&view=previous",
+    "official_window": 50,
+    "sina_html_sha256": "5a285bb178c542cb00442628583617f711a5297690bac73e0e6f0c35b2fed4f6",
+    "sina_url": "https://lotto.sina.cn/trend/qxc_qlc_proxy.d.html?lottoType=ssq&actionType=chzs&type=50&dpc=1"
+  },
+  "source_latest_issue": "2026130",
+  "target_date_estimate_not_official": "2026-11-15",
+  "target_issue": "2026131"
+}
