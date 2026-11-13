@@ -1,5 +1,6 @@
 """SQLite materialization, restart, immutability and crash regression tests."""
 import json
+from contextlib import closing
 from pathlib import Path
 import sqlite3
 import tempfile
@@ -53,7 +54,7 @@ class DurableSqliteTest(unittest.TestCase):
             self.assertEqual(1, report["counts"]["DLT"]["draws"])
             self.assertEqual(1, report["counts"]["DLT"]["attempts"])
             self.assertEqual(report["counts"], sync(root, db)["counts"])
-            with sqlite3.connect(db) as conn:
+            with closing(sqlite3.connect(db)) as conn:
                 self.assertEqual(2, conn.execute("SELECT count(*) FROM draws").fetchone()[0])
                 self.assertEqual(2, conn.execute("SELECT count(*) FROM attempts").fetchone()[0])
                 ssq = conn.execute(
@@ -74,7 +75,7 @@ class DurableSqliteTest(unittest.TestCase):
             ssq_collect("2026130", root / "SSQ", fetcher=fake(b"blocked", 503))
             first = sync(root, db)
             self.assertEqual(2, first["counts"]["SSQ"]["attempts"])
-            with sqlite3.connect(db) as conn:
+            with closing(sqlite3.connect(db)) as conn:
                 statuses = [x[0] for x in conn.execute(
                     "SELECT status FROM attempts WHERE game='SSQ' ORDER BY receipt_path")]
             self.assertIn("BLOCKED", statuses)
@@ -92,7 +93,7 @@ class DurableSqliteTest(unittest.TestCase):
             file.write_text(json.dumps(record))
             with self.assertRaises(Exception):
                 sync(root, db)
-            with sqlite3.connect(db) as conn:
+            with closing(sqlite3.connect(db)) as conn:
                 self.assertEqual(2, conn.execute("SELECT count(*) FROM draws").fetchone()[0])
 
     def test_missing_canonical_history_not_ignored(self):
