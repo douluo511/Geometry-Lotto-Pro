@@ -1,0 +1,196 @@
+name: SSQDLT official crosscheck + forward shadow scoring (not V4.7)
+
+on:
+  push:
+    branches: [main, 'research/official-source-and-forward-loop-*']
+    paths:
+      - '.github/workflows/ssqdlt-official-shadow-loop.yml'
+      - 'research/supercompute/automation/official_source_gate.py'
+      - 'research/supercompute/automation/shadow_forward_loop.py'
+      - 'research/supercompute/tests/test_official_source_gate.py'
+      - 'research/supercompute/tests/test_shadow_forward_loop.py'
+  pull_request:
+    paths:
+      - '.github/workflows/ssqdlt-official-shadow-loop.yml'
+      - 'research/supercompute/automation/official_source_gate.py'
+      - 'research/supercompute/automation/shadow_forward_loop.py'
+      - 'research/supercompute/tests/test_official_source_gate.py'
+      - 'research/supercompute/tests/test_shadow_forward_loop.py'
+  workflow_dispatch:
+  schedule:
+    # China-time 08:19 and 22:19, 22:49, 23:19, 23:49.
+    # GitHub schedules are best-effort, NOT an official draw cutoff or TSA.
+    - cron: '19 0 * * *'
+    - cron: '19,49 14-15 * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ssqdlt-official-forward-shadow-v1
+  cancel-in-progress: false
+
+jobs:
+  offline-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Verify 14 existing Sina source tests
+        run: python -m unittest discover -s research/supercompute/tests -p test_sina_trend_monitor.py -v
+      - name: Verify official issuer parsing and fail-closed conflict gates
+        run: python -m unittest discover -s research/supercompute/tests -p test_official_source_gate.py -v
+      - name: Verify chronological model selection, seal and paired scoring
+        run: python -m unittest discover -s research/supercompute/tests -p test_shadow_forward_loop.py -v
+
+  live-code-smoke:
+    needs: offline-contract
+    if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref != 'refs/heads/main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Check both live official tables against both Sina trend windows
+        run: >-
+          python -m research.supercompute.automation.official_source_gate
+          --output "$RUNNER_TEMP/official-live-audit.json"
+      - name: Run entire source-gated pipeline in disposable CI workspace only
+        run: >-
+          python -m research.supercompute.automation.shadow_forward_loop
+          --repo-root .
+          --ledger "$RUNNER_TEMP"
+          --output "$RUNNER_TEMP/forward-shadow-smoke.json"
+      - name: Verify sealed local-only records before activation
+        run: >-
+          python -m research.supercompute.automation.shadow_forward_loop
+          --ledger "$RUNNER_TEMP" --verify-ledger-only
+
+  persisted-forward-loop:
+    needs: offline-contract
+    if: >-
+      github.repository == 'douluo511/Geometry-Lotto-Pro' &&
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || github.event_name == 'push')
+    runs-on: ubuntu-latest
+    timeout-minutes: 14
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Recover separate create-only research ledger from real Git
+        shell: bash
+        run: |
+          set -euo pipefail
+          branch="ssqdlt-official-shadow-ledger-v1"
+          ledger="$RUNNER_TEMP/ssqdlt-official-shadow-ledger"
+          tracking="refs/remotes/origin/$branch"
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null; then
+            git fetch --no-tags origin "refs/heads/$branch:$tracking"
+            git worktree add --detach "$ledger" "$tracking"
+          else
+            git worktree add --detach "$ledger" "$GITHUB_SHA"
+          fi
+          echo "SHADOW_LEDGER=$ledger" >> "$GITHUB_ENV"
+          echo "SHADOW_LEDGER_BRANCH=$branch" >> "$GITHUB_ENV"
+      - name: Recheck remote forecast/score ledger before making new evidence
+        run: >-
+          python -m research.supercompute.automation.shadow_forward_loop
+          --ledger "$SHADOW_LEDGER" --verify-ledger-only
+      - name: Poll, verify, freeze future prediction, score already sealed prior issues
+        id: research
+        continue-on-error: true
+        run: >-
+          python -m research.supercompute.automation.shadow_forward_loop
+          --repo-root . --ledger "$SHADOW_LEDGER"
+          --output "$RUNNER_TEMP/ssqdlt-forward-tick.json"
+      - name: Preserve blocked-source receipt and only append create-once shadow records
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s "$RUNNER_TEMP/ssqdlt-forward-tick.json" || exit 1
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          root = Path(os.environ['SHADOW_LEDGER'])
+          tick = json.loads((Path(os.environ['RUNNER_TEMP']) /
+                             'ssqdlt-forward-tick.json').read_text())
+          assert tick['formal_A'] == 0 and tick['edge'] == 'NO_EDGE'
+          assert tick['fable_reviews_performed'] == 0
+          path = (root / 'research/forward_shadow_v1/ticks' /
+                  (os.environ['GITHUB_RUN_ID'] + '-' +
+                   os.environ['GITHUB_RUN_ATTEMPT'] + '.json'))
+          path.parent.mkdir(parents=True, exist_ok=True)
+          tick['github_run_id'] = os.environ['GITHUB_RUN_ID']
+          tick['github_run_attempt'] = os.environ['GITHUB_RUN_ATTEMPT']
+          tick['event'] = os.environ['GITHUB_EVENT_NAME']
+          tick['workflow_commit'] = os.environ['GITHUB_SHA']
+          with path.open('x', encoding='utf-8') as f:
+              json.dump(tick, f, ensure_ascii=False, sort_keys=True, indent=2)
+              f.write('\n')
+          PY
+          git -C "$SHADOW_LEDGER" add -A -- research/forward_shadow_v1
+          python - <<'PY'
+          import os, subprocess
+          root = os.environ['SHADOW_LEDGER']
+          raw = subprocess.check_output(['git', '-C', root, 'diff',
+                                         '--cached', '--name-status', '-z'])
+          xs = [x for x in raw.decode().split('\0') if x]
+          assert xs and len(xs) % 2 == 0
+          allowed = ('research/forward_shadow_v1/draw_windows/',
+                     'research/forward_shadow_v1/forecasts/',
+                     'research/forward_shadow_v1/scores/',
+                     'research/forward_shadow_v1/ticks/')
+          for op, path in zip(xs[::2], xs[1::2]):
+              if op != 'A' or not path.startswith(allowed):
+                  raise SystemExit('BLOCKED_NON_APPEND_ONLY_CHANGE: ' + op + ' ' + path)
+          print('Research-only new immutable files:', len(xs)//2)
+          PY
+          git -C "$SHADOW_LEDGER" config user.name "github-actions[bot]"
+          git -C "$SHADOW_LEDGER" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C "$SHADOW_LEDGER" commit -m "shadow: $GITHUB_EVENT_NAME run $GITHUB_RUN_ID"
+          git -C "$SHADOW_LEDGER" push origin "HEAD:refs/heads/$SHADOW_LEDGER_BRANCH"
+          git -C "$SHADOW_LEDGER" fetch --no-tags origin "refs/heads/$SHADOW_LEDGER_BRANCH"
+          test "$(git -C "$SHADOW_LEDGER" rev-parse HEAD)" = "$(git -C "$SHADOW_LEDGER" rev-parse FETCH_HEAD)" || {
+            echo "::error::Remote post-push audit failed"; exit 1;
+          }
+      - name: Verify separately persisted predictions and later score linkages
+        run: >-
+          python -m research.supercompute.automation.shadow_forward_loop
+          --ledger "$SHADOW_LEDGER" --verify-ledger-only
+      - name: Summarize results without claiming Fable review or official cutoff
+        shell: bash
+        run: |
+          python - "$RUNNER_TEMP/ssqdlt-forward-tick.json" <<'PY'
+          import json, os, sys
+          tick=json.load(open(sys.argv[1],encoding='utf8'))
+          rows=['### SSQ/DLT issuer-crosschecked research shadow pipeline',
+                'Fable 5.2: **NOT CALLED**; paid API calls: 0.',
+                'Trusted predraw TSA: **UNVERIFIED**; formal_A=0; NO_EDGE.',
+                '| Game | Data | Latest | Research candidate |',
+                '|---|---|---|---|']
+          for result in tick['results']:
+              rows.append('| {game} | {status} | {latest} | {candidate} |'.format(
+                  game=result['game'], status=result['status'],
+                  latest=result.get('latest','-'),
+                  candidate=result.get('candidate',{}).get('status','-')))
+          with open(os.environ['GITHUB_STEP_SUMMARY'],'a',encoding='utf8') as f:
+              f.write('\n'.join(rows)+'\n')
+          PY
+      - name: Fail closed after preserving blocked-source receipts
+        if: steps.research.outcome != 'success'
+        run: exit 1
