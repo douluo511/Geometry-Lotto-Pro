@@ -1,0 +1,35 @@
+name: Physical SSQDLT dead-code audit
+on:
+  push:
+    branches: ['research/physical-deadcode-cleanup-20261113']
+  pull_request:
+    paths:
+      - 'research/supercompute/automation/*physical*'
+      - 'research/supercompute/automation/physical_*'
+      - 'research/supercompute/tests/test_*physical*'
+      - '.github/scripts/physical_deadcode_audit.py'
+      - '.github/workflows/physical-deadcode-audit.yml'
+permissions:
+  contents: read
+jobs:
+  physical-audit-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Inspect references without deleting model functions
+        run: python .github/scripts/physical_deadcode_audit.py
+      - name: Run existing physical evidence and recovery tests
+        run: |
+          python -m unittest discover -s research/supercompute/tests -p 'test_dlt_physical_source.py' -v
+          python -m unittest discover -s research/supercompute/tests -p 'test_ssq_physical_source.py' -v
+          python -m unittest discover -s research/supercompute/tests -p 'test_physical_transport.py' -v
+          python -m unittest discover -s research/supercompute/tests -p 'test_physical_ledger_db.py' -v
+          python -m unittest discover -s research/supercompute/tests -p 'test_physical_tick.py' -v
+      - name: Compile physical evidence modules
+        run: python -m compileall -q research/supercompute/automation
