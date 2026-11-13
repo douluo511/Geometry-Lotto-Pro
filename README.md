@@ -29,3 +29,7 @@ See `research/supercompute/README.md` and `research/supercompute/automation/READ
 ## 11-component V4.7 research extension
 
 The new opt-in model lab adds HOT60, EWMA, ShrinkMix, Pairwise-D2, Challenger, statistical/geometric/physical simulations, frozen research receipts, and M1-M3 checks. It is independent from formal V4.7 and does not assert predictive edge. See [V47_MODEL_LAB.md](research/supercompute/V47_MODEL_LAB.md) for Windows commands, limitations and test coverage.
+
+## V4.7 unified eleven-stage research forecast
+
+The command `python -m research.supercompute.v47_forecast generate` executes HOT60, EWMA, ShrinkMix, Pairwise-D2, an inheritable evolutionary Challenger, statistical/geometric/probability/physical simulations, combined candidate ranking, M1-M3 verification and create-only research freezing. It accepts explicit target issue IDs and supports `--previous` for inherited champion parameters. Both-games instructions: [V47_UNIFIED_11.md](research/supercompute/V47_UNIFIED_11.md). The separate GitHub schedule also preserves prior champion genealogy on its audit ledger branch. Historical snapshots are not live official data.
