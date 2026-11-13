@@ -74,10 +74,6 @@ def _now():
     return datetime.now(timezone.utc).isoformat()
 
 
-def _bytes(value):
-    return value.encode("utf-8") if isinstance(value, str) else value or b""
-
-
 def _child_identity(process):
     """Query this owned child's handle; a PID or local clock is not identity."""
     value = {"pid": process.pid, "identity_status": "NOT_VERIFIED",
