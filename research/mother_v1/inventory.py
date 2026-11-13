@@ -42,7 +42,7 @@ class InventoryBlocked(ValueError):
 
 
 def _native_ssq_sources() -> set[str]:
-    code = ast.parse((ROOT / "SSQ/SSQ/glp/engine.py").read_text())
+    code = ast.parse((ROOT / "SSQ/SSQ/glp/engine.py").read_text(encoding="utf-8"))
     func = next((x for x in code.body if isinstance(x, ast.FunctionDef)
                  and x.name == "model_scores_from_features"), None)
     if func is None:
@@ -58,7 +58,7 @@ def _native_ssq_sources() -> set[str]:
 
 
 def _native_dlt_sources() -> set[str]:
-    code = ast.parse((ROOT / "DLT/src/glp/engine.py").read_text())
+    code = ast.parse((ROOT / "DLT/src/glp/engine.py").read_text(encoding="utf-8"))
     base = next((x for x in code.body if isinstance(x, ast.Assign)
                  and any(isinstance(t, ast.Name) and t.id == "BASE_MODELS" for t in x.targets)), None)
     if base is None:
