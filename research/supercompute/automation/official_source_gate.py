@@ -92,6 +92,8 @@ def official_rows(html: bytes | str, game: str) -> list[Draw]:
     seen = set()
     spec = SOURCES[game]
     for cells in parser.rows:
+        if game == 'DLT' and len(cells) >= 2 and cells[1] == '期号':
+            continue  # Jiangsu HTML uses an ordinary TD-based header row
         if game == 'SSQ':
             if len(cells) < 4:
                 raise SourceBlocked('OFFICIAL_SSQ_COLUMNS_INVALID')
