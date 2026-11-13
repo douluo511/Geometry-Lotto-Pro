@@ -4,6 +4,7 @@ on:
     paths:
       - 'research/supercompute/v47_*.py'
       - 'research/supercompute/tests/test_v47_models.py'
+      - 'research/supercompute/tests/test_v47_integrated.py'
       - '.github/workflows/v47-model-lab-ci.yml'
       - 'research/supercompute/automation/v47_schedule.py'
       - 'research/supercompute/tests/test_v47_schedule.py'
@@ -29,7 +30,14 @@ jobs:
         run: python -m unittest discover -s research/supercompute/tests -p 'test_supercompute.py' -v
       - name: Validate unattended schedule evidence logic
         run: python -m unittest discover -s research/supercompute/tests -p 'test_v47_schedule.py' -v
+      - name: Unified 11-stage integration acceptance
+        run: python -m unittest discover -s research/supercompute/tests -p 'test_v47_integrated.py' -v
       - name: Historical repository snapshot end-to-end smoke
         run: |
           python -m research.supercompute.v47_cli run --game both --periods 2 --trials 100 --seed 2026 --output /tmp/v47-historical-smoke.json
           python -c "import json; x=json.load(open('/tmp/v47-historical-smoke.json')); assert x['edge']=='NO_EDGE' and set(x['games'])=={'ssq','dlt'}; assert all(g['models']['strictly_past_only'] and g['models']['edge']=='NO_EDGE' for g in x['games'].values()); print('Historical snapshots smoke PASS; NO_EDGE')"
+
+      - name: Next-candidate unified historical snapshot smoke
+        run: |
+          python -m research.supercompute.v47_forecast generate --game both --ssq-target UNVERIFIED_RESEARCH_NEXT_SSQ --dlt-target UNVERIFIED_RESEARCH_NEXT_DLT --generations 1 --validation 3 --holdout 2 --mc-trials 30 --physics-steps 3 --seed 2026 --output /tmp/v47-unified-11.json
+          python -c "import json; p=json.load(open('/tmp/v47-unified-11.json')); assert all(len(v['requirement_modules']) == 11 and len(v['proposed_tickets']) == 3 and v['edge'] == 'NO_EDGE' for v in p['games'].values()); print('Eleven-stage SSQ/DLT smoke PASS')"
