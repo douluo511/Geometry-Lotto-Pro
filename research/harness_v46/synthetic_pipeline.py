@@ -17,6 +17,10 @@ import random
 import sqlite3
 
 from . import core
+from .experimental_fusion import (
+    build_research_candidate, freeze_research_candidate,
+    score_frozen_research_candidate,
+)
 
 
 def score_frozen_synthetic(conn, run_id: str, snapshot: dict, synthetic_outcome: dict) -> dict:
@@ -109,6 +113,7 @@ def run_synthetic_walk_forward(
     `periods` is limited to prevent accidental unbounded CI simulations.
     """
     from .research_stack import synthetic_fixture, _int
+    from .research_stack import _geometry_subprocess
     if allow_real_outcomes:
         raise ValueError("SYNTHETIC_ONLY_NO_OFFICIAL_AUTHENTICATION")
     if game not in core.RULES:
@@ -124,10 +129,15 @@ def run_synthetic_walk_forward(
             run_id = f"SYNTHETIC-LOCAL-{game}-{seed}-{period}"
             core.validate_study_snapshot(snapshot)
             frozen_at = snapshot["as_of"]  # invented clock, NOT a trusted seal
+            geometry = _geometry_subprocess(snapshot, game)
+            experiment = build_research_candidate(snapshot, geometry)
             with db:
                 for model in core.MODELS:
                     predicted = core.forecast(snapshot, model)
                     core.freeze_shadow(db, run_id, snapshot, predicted, frozen_at)
+                experiment_sha = freeze_research_candidate(
+                    db, run_id, snapshot, geometry, experiment,
+                )
             frozen_count = db.execute(
                 "SELECT COUNT(*) FROM predictions WHERE run_id=? AND lottery=?",
                 (run_id, game),
@@ -139,6 +149,11 @@ def run_synthetic_walk_forward(
             # independent synthetic outcomes is NOT an official draw.
             outcome = _invent_outcome(snapshot, seed, period)
             scored = score_frozen_synthetic(db, run_id, snapshot, outcome)
+            experimental_score = score_frozen_research_candidate(
+                db, run_id, snapshot, geometry, outcome,
+            )
+            if experimental_score["frozen_sha256"] != experiment_sha:
+                raise core.GateError("EXPERIMENTAL_FROZEN_SHA_CHANGED")
             if len(scored) != len(core.MODELS):
                 raise core.GateError("INCOMPLETE_SYNTHETIC_SCORE_ROSTER")
             rows = db.execute(
@@ -162,6 +177,13 @@ def run_synthetic_walk_forward(
                 "models": {m: by_model[m] for m in core.MODELS},
                 "frozen_count": frozen_count,
                 "score_count": len(scored),
+                "experimental": {
+                    "model": experiment["model"],
+                    "frozen_sha256": experiment_sha,
+                    "primary_d2": experiment["primary_d2"],
+                    "ticket": experiment["ticket"],
+                    **experimental_score,
+                },
                 "frozen_at": frozen_at,
                 "evidence_class": "SYNTHETIC_SHADOW_ONLY",
             })
@@ -174,6 +196,15 @@ def run_synthetic_walk_forward(
         ).fetchone()[0]
         if total != periods * len(core.MODELS) or frozen_events != total:
             raise core.GateError("INCOMPLETE_SYNTHETIC_FREEZE_AUDIT")
+        experimental_count = db.execute(
+            "SELECT COUNT(*) FROM synthetic_experimental_forecasts",
+        ).fetchone()[0]
+        if experimental_count != periods:
+            raise core.GateError("INCOMPLETE_SYNTHETIC_EXPERIMENTAL_ROSTER")
+        experiment_hits = sum(
+            row["experimental"]["score"]["D2"] for row in reports
+        )
+        null_hits = sum(row["models"]["random_null"]["D2"] for row in reports)
         return {
             "status": "SYNTHETIC_LOCAL_ONLY", "game": game, "periods": periods,
             "source": "INVENTED_DRAW_HISTORY", "db_location": "MEMORY_ONLY",
@@ -182,6 +213,16 @@ def run_synthetic_walk_forward(
             "frozen_predictions": total,
             "freeze_audit_events": frozen_events,
             "scores_computed": total,
+            "experimental_frozen": experimental_count,
+            "experimental_scored": experimental_count,
+            "experimental_against_random_null": {
+                "status": "TOO_FEW_SYNTHETIC_ISSUES_NO_EDGE_CLAIM",
+                "experimental_d2_hits": experiment_hits,
+                "random_null_d2_hits": null_hits,
+                "periods": periods,
+                "official_prospective_evidence": False,
+                "probability_calibration": "NOT_RUN_NO_REAL_FORECASTS",
+            },
             "walk_forward": reports,
             "synthetic_d2_success_counts": {
                 model: sum(item["models"][model]["D2"] for item in reports)
