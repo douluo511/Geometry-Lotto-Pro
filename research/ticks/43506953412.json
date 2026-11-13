@@ -1,0 +1,41 @@
+{
+  "github_run_attempt": "1",
+  "github_run_id": "43506953412",
+  "pinned_formula_commit": "199cc2a2797f11b8179aaa6649f0649613c72010",
+  "report": {
+    "edge": "NO_EDGE",
+    "formal_A": 0,
+    "official_v47_formal_ledger_modified": false,
+    "paid_model_calls": 0,
+    "recorded_at_local_untrusted": "2026-11-13T21:02:15.203808+00:00",
+    "results": [
+      {
+        "asof_issue": 2026130,
+        "edge": "NO_EDGE",
+        "formal_A": 0,
+        "game": "SSQ",
+        "scored_prior_issues": [],
+        "source_primary_sha256": "8c8cd0f6dac0bdd04dd87ef3fcc1332c672f4155ee8b79733d8e0acff0765928",
+        "source_secondary_sha256": "aa18d196560c75a206ff75e80485bec8c0e11fec19a1199aee740e99ddbe3678",
+        "status": "NO_NEW_ISSUE_ALREADY_RECORDED",
+        "target_issue": 2026131
+      },
+      {
+        "asof_issue": 26129,
+        "edge": "NO_EDGE",
+        "formal_A": 0,
+        "game": "DLT",
+        "scored_prior_issues": [],
+        "source_primary_sha256": "d4fc14a6429ab1141a54172c24dee6e1473a6694c43f834e53aa2384f7d16d52",
+        "source_secondary_sha256": "ef4db462db3bce2d2765e5f100cdf7aa5484ba2a7db1bd0445e1169c804a4ad5",
+        "status": "NO_NEW_ISSUE_ALREADY_RECORDED",
+        "target_issue": 26130
+      }
+    ],
+    "schema": "SSQDLT_SHADOW_ROLLING_TICK_V1",
+    "status": "RESEARCH_ONLY"
+  },
+  "schema": "SSQDLT_ACTIONS_RESEARCH_TICK_V1",
+  "trigger": "schedule",
+  "workflow_source_commit": "5b09490148212253149723c30d3bd2cfb0fe9cfd"
+}
