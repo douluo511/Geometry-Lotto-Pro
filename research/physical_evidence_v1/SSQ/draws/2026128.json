@@ -1,0 +1,23 @@
+{
+  "ball_group_evidence": "NOT_PUBLISHED_IN_THIS_SOURCE",
+  "blue_ball_group": null,
+  "blue_number": 11,
+  "draw_date": "2026-11-08",
+  "game": "SSQ",
+  "issue": "2026128",
+  "observation_class": "SORTED_ONLY",
+  "order_evidence": "NOT_PUBLISHED_IN_THIS_SOURCE",
+  "red_ball_group": null,
+  "red_order": null,
+  "red_sorted": [
+    5,
+    6,
+    10,
+    25,
+    27,
+    30
+  ],
+  "schema": "SH_SSQ_SORTED_OFFICIAL_EVIDENCE_V1",
+  "source_sha256": "8c8cd0f6dac0bdd04dd87ef3fcc1332c672f4155ee8b79733d8e0acff0765928",
+  "source_url": "https://www.swlc.net.cn/lottery/ssq.html?limit=50&view=previous"
+}

@@ -1,0 +1,26 @@
+{
+  "final_url": "https://www.swlc.net.cn/lottery/ssq.html?limit=50&view=previous",
+  "formal_A": 0,
+  "game": "SSQ",
+  "http_status": 200,
+  "issue": "2026129",
+  "issuer_table_parser_sha256": "831a0c8f37318311fd2f33d2d10f93d3bfdc13aeb88b20d3d260e561388c92e6",
+  "observed_at_utc": "2026-11-13T09:35:27.858253+00:00",
+  "parser_sha256": "6f35b35f9d56117a66d9efe6faaa3ad165eaae81b057f52b2441db540b7b3ff8",
+  "predictive_edge": "NO_EDGE",
+  "reason": null,
+  "requested_url": "https://www.swlc.net.cn/lottery/ssq.html?limit=50&view=previous",
+  "response_sha256": "8c8cd0f6dac0bdd04dd87ef3fcc1332c672f4155ee8b79733d8e0acff0765928",
+  "schema": "SH_SSQ_SORTED_OFFICIAL_EVIDENCE_V1",
+  "status": "RECORDED_SORTED_ONLY",
+  "transport_attempts": [
+    {
+      "attempt": 1,
+      "final_url": "https://www.swlc.net.cn/lottery/ssq.html?limit=50&view=previous",
+      "http_status": 200,
+      "reason": "HTTP_200",
+      "response_sha256": "8c8cd0f6dac0bdd04dd87ef3fcc1332c672f4155ee8b79733d8e0acff0765928",
+      "url": "https://www.swlc.net.cn/lottery/ssq.html?limit=50&view=previous"
+    }
+  ]
+}

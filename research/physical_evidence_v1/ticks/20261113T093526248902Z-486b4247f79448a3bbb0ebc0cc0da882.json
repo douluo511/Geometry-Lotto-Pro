@@ -1,0 +1,79 @@
+{
+  "actions": [
+    {
+      "game": "SSQ",
+      "issue": "2026130",
+      "reason": null,
+      "status": "RECORDED_SORTED_ONLY"
+    },
+    {
+      "game": "SSQ",
+      "issue": "2026129",
+      "reason": null,
+      "status": "RECORDED_SORTED_ONLY"
+    },
+    {
+      "game": "SSQ",
+      "issue": "2026128",
+      "reason": null,
+      "status": "RECORDED_SORTED_ONLY"
+    },
+    {
+      "game": "SSQ",
+      "issue": "2026127",
+      "reason": null,
+      "status": "RECORDED_SORTED_ONLY"
+    },
+    {
+      "game": "SSQ",
+      "issue": "2026126",
+      "reason": null,
+      "status": "RECORDED_SORTED_ONLY"
+    },
+    {
+      "game": "SSQ",
+      "issue": "2026125",
+      "reason": null,
+      "status": "RECORDED_SORTED_ONLY"
+    },
+    {
+      "game": "SSQ",
+      "issue": "2026124",
+      "reason": null,
+      "status": "RECORDED_SORTED_ONLY"
+    },
+    {
+      "game": "SSQ",
+      "issue": "2026123",
+      "reason": null,
+      "status": "RECORDED_SORTED_ONLY"
+    },
+    {
+      "game": "DLT",
+      "issue": "26001",
+      "reason": "NETWORK_OR_IO_FAILURE:TransportExhausted",
+      "status": "BLOCKED"
+    }
+  ],
+  "actual_schedule_verified": false,
+  "db_counts": {
+    "DLT": {
+      "attempts": 1,
+      "draws": 0,
+      "raw": 0
+    },
+    "SSQ": {
+      "attempts": 8,
+      "draws": 8,
+      "raw": 1
+    }
+  },
+  "edge": "NO_EDGE",
+  "formal_A": 0,
+  "github_event": "push",
+  "github_run_id": "43402550925",
+  "github_sha": "c880a405e7e358d3ad41d3c5e470e085e8fc9e8a",
+  "observed_utc": "2026-11-13T09:35:26.248902+00:00",
+  "remote_commit_verified": false,
+  "schema": "SSQDLT_PHYSICAL_UNATTENDED_TICK_V1"
+}

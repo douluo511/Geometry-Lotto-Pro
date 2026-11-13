@@ -1,0 +1,48 @@
+{
+  "final_url": null,
+  "formal_A": 0,
+  "http_status": null,
+  "issue": "26001",
+  "observed_at_utc": "2026-11-13T09:35:27.938394+00:00",
+  "parser_sha256": "5125ddcc5be694d8356de04c414d5b8803a1fd3f25c1eabe4033773369d43337",
+  "predictive_edge": "NO_EDGE",
+  "reason": "NETWORK_OR_IO_FAILURE:TransportExhausted",
+  "requested_url": "https://www.gdlottery.cn/f_html/kjgg/P085_26001.html",
+  "response_sha256": null,
+  "schema": "GD_DLT_PHYSICAL_ANNOUNCEMENT_V1",
+  "status": "BLOCKED",
+  "transport_attempts": [
+    {
+      "attempt": 1,
+      "final_url": null,
+      "http_status": null,
+      "reason": "NETWORK_URLError",
+      "response_sha256": null,
+      "url": "https://www.gdlottery.cn/f_html/kjgg/P085_26001.html"
+    },
+    {
+      "attempt": 2,
+      "final_url": null,
+      "http_status": null,
+      "reason": "NETWORK_URLError",
+      "response_sha256": null,
+      "url": "https://gdlottery.cn/f_html/kjgg/P085_26001.html"
+    },
+    {
+      "attempt": 3,
+      "final_url": null,
+      "http_status": null,
+      "reason": "NETWORK_URLError",
+      "response_sha256": null,
+      "url": "https://www.gdlottery.cn/f_html/kjgg/P085_26001.html"
+    },
+    {
+      "attempt": 4,
+      "final_url": null,
+      "http_status": null,
+      "reason": "NETWORK_URLError",
+      "response_sha256": null,
+      "url": "https://gdlottery.cn/f_html/kjgg/P085_26001.html"
+    }
+  ]
+}
