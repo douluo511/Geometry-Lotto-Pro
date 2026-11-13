@@ -1,0 +1,82 @@
+name: SSQDLT complete rolling model comparison research
+
+on:
+  push:
+    branches:
+      - research/ssqdlt-rolling-model-audit-20261113
+  pull_request:
+    paths:
+      - research/mother_v1/rolling_audit.py
+      - research/mother_v1/test_rolling_audit.py
+      - .github/workflows/ssqdlt-rolling-model-audit.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ssqdlt-rolling-20261113-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  model-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install existing research suite dependency
+        run: python -m pip install --disable-pip-version-check requests==2.34.2
+      - name: Verify 14-arm model parity, archived SHA and leakage gates
+        run: python -m unittest research.mother_v1.test_rolling_audit -v
+      - name: Verify full-mother regression after native model removal
+        run: python -m unittest research.mother_v1.test_mother -v
+      - name: Evaluate two frozen historical validation and test blocks for all 14 arms
+        run: python -m research.mother_v1.rolling_audit --out "$RUNNER_TEMP/model-audit"
+      - name: Independently verify issue counts and output identities
+        shell: bash
+        run: |
+          python - <<'PY'
+          import hashlib,json,os
+          from pathlib import Path
+          p=Path(os.environ["RUNNER_TEMP"])/"model-audit"
+          d=json.loads((p/"comparisons.json").read_text())
+          f=json.loads((p/"candidate_dan_kill.json").read_text())
+          hashes=json.loads((p/"SHA256.json").read_text())["sha256"]
+          assert d["model_names"] and len(d["model_names"])==14
+          assert len(d["physical_models"])==2
+          assert d["formal_A"]==0 and d["decision"]=="NO_EDGE"
+          for game,n in (("SSQ",392),("DLT",564)):
+              x=d["games"][game]
+              assert x["validation"]["n"]==x["test"]["n"]==n
+              assert len(x["significance"])==12
+              assert len(x["test"]["model_scores"])==14
+              assert len(x["test"]["events"])==n
+              assert x["selected_model_by_validation_d2_exploratory"] not in ("random_null","supercompute_random_null")
+              assert f["games"][game]["history_last_issue"] != f["games"][game]["target_issue"]
+          for name,digest in hashes.items():
+              assert hashlib.sha256((p/name).read_bytes()).hexdigest()==digest
+          print("PASS: 14x2 retrospective model completeness, exact D2 and kill3, SHA integrity")
+          print("SUMMARY", json.dumps({
+            game: {
+              "validation_chosen":d["games"][game]["selected_model_by_validation_d2_exploratory"],
+              "test_top_posthoc":d["games"][game]["best_test_d2_model_posthoc_not_prospective"],
+              "D2":f["games"][game]["d2_candidates_unproven"],
+              "kill3":f["games"][game]["kill3_unproven"],
+              "ticket_front":f["games"][game]["front"],
+              "ticket_back":f["games"][game]["back"],
+              "n":d["games"][game]["test"]["n"],
+            } for game in ("SSQ","DLT")
+          },ensure_ascii=False,sort_keys=True))
+          PY
+      - name: Publish exact source-data and results for independent review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ssqdlt-rolling-14-arm-results-${{ github.run_id }}
+          path: ${{ runner.temp }}/model-audit/
+          if-no-files-found: warn
+          retention-days: 90
