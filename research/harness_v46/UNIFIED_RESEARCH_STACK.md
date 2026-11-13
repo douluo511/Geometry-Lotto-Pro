@@ -9,14 +9,14 @@ This code does **not** integrate a calibrated real lottery machine. It cannot re
 Windows PowerShell (from repository root; Python 3.11+):
 
 ```powershell
-py -3 -m research.harness_v46.research_stack --synthetic --seed 2026 --trials 3000 --steps 12 --full-combinations
+py -3 -m research.harness_v46.research_stack --synthetic --seed 2026 --trials 3000 --steps 12 --full-combinations --report-file out/research/latest-synthetic.json
 py -3 -m unittest research.harness_v46.tests.test_unified_stack -v
 ```
 
 Linux/macOS Python from repository root:
 
 ```bash
-python -m research.harness_v46.research_stack --synthetic --seed 2026 --trials 3000 --steps 12 --full-combinations
+python -m research.harness_v46.research_stack --synthetic --seed 2026 --trials 3000 --steps 12 --full-combinations --report-file out/research/latest-synthetic.json
 python -m unittest research.harness_v46.tests.test_unified_stack -v
 ```
 
@@ -90,3 +90,17 @@ Inspect the `games.SSQ.research_fusion`,
 the printed JSON report. This is **experimental research integration**, not
 a new official lottery model slot, certified operational deployment, or
 a validated enhanced chance of winning.
+
+### Reviewable CI report artifacts
+
+GitHub Actions now runs the unified experimental model under both
+Ubuntu and Windows and publishes a separate
+`v47-research-ubuntu-latest` / `v47-research-windows-2022`
+create-only JSON report. The `--report-file` option writes and fsyncs
+a JSON receipt once; it refuses overwrites. This is reproducible
+**synthetic** evidence, not a trusted predraw time seal or authenticated
+official source. The workflow verifies exact commit identity before
+execution and separately enforces zero unexecuted tests across both OSes.
+
+All synthetic model scores remain `NO_EDGE`; real-world calibration and
+Windows owner-machine unattended deployment are still **NOT_VERIFIED**.
