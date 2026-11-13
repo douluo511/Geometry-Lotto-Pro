@@ -289,20 +289,41 @@ class ValidationModel(Model):
         for name, record in results.items():
             m1[name] = m1_math(history, game, record["prediction"]["ticket"])
         prior = results["ProbabilitySimulation"]["prediction"]["retrospective"]["models"]
-        # Evaluation choice is based on a historical holdout, never target data.
-        order = sorted(MODELS, key=lambda m: (prior[m]["brier"], m))
-        self.winner = order[0]
+        # Past-only Brier scores allocate the 60% five-family share.
+        # Independent models 6-10 each have strictly positive influence.
+        inverse = {m: 1 / max(1e-8, prior[m]["brier"]) for m in MODELS}
+        norm = sum(inverse.values())
+        weights = {name: .60 * value / norm for name, value in inverse.items()}
+        weights.update({"Statistics": .12, "ForecastSearch": .14,
+                        "Geometry": .08, "ProbabilitySimulation": .04,
+                        "Physics": .02})
+        if abs(sum(weights.values()) - 1) > 1e-8 or set(weights) != set(results):
+            raise ValueError("all ten candidate model influences required")
+        self.weights, self.game = weights, game
         self.m2 = {k: prior[k]["m2"] for k in MODELS}
         self.m3 = {k: prior[k]["brier"] for k in MODELS}
         self.m1 = m1
+        # The eleventh model has a distinct, fitted ensemble posterior.
+        fm, fp, bm, bp = SPECS[game]
+        self.posterior = {}
+        for area, maximum in (("front", fm), ("back", bm)):
+            self.posterior[area] = [0.0] * (maximum + 1)
+            for name, weight in weights.items():
+                balls = set(results[name]["prediction"]["ticket"][area])
+                for num in balls:
+                    self.posterior[area][num] += weight
         return {"m1_passed_models": sorted(m1), "m2": self.m2,
-                "m3_brier": self.m3, "chosen_parent": self.winner,
-                "selection_uses_test_target": False,
-                "scope": "past_draws_only"}
+                "m3_brier": self.m3, "influence_weights": self.weights,
+                "independent_candidate_models_fused": len(self.weights),
+                "selection_uses_test_target": False, "scope": "past_draws_only"}
     def predict(self, history, game, context):
-        parent = context["results"][self.winner]["prediction"]["ticket"]
-        return {"ticket": dict(parent), "selected_from": self.winner,
-                "legal_math_checks": len(self.m1),
+        out = rank_probabilities(game, self.posterior["front"],
+                                 self.posterior["back"], limit=3)
+        m1_math(history, game, out[0])
+        return {"ticket": out[0], "alternates": out[1:],
+                "ensemble_from": list(self.weights),
+                "influence_weights": self.weights,
+                "legal_math_checks": len(self.m1) + 1,
                 "independent_fair_d2_tests": self.m2,
                 "marginal_brier_scores": self.m3}
 
