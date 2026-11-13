@@ -43,6 +43,8 @@ jobs:
         run: python -m unittest discover -s research/supercompute/tests -p test_physical_transport.py -v
       - name: Verify SQLite transactional crash recovery
         run: python -m unittest discover -s research/supercompute/tests -p test_physical_ledger_db.py -v
+      - name: Verify two tick recovery and no-fabrication failure handling
+        run: python -m unittest discover -s research/supercompute/tests -p test_physical_tick.py -v
       - name: Regression both issuer recorders
         run: |
           python -m unittest discover -s research/supercompute/tests -p test_ssq_physical_source.py -v
