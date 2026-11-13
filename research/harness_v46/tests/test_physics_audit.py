@@ -112,5 +112,27 @@ class MathsAndPhysicsAuditTests(unittest.TestCase):
             collide(a, b, restitution=1.1)
 
 
+
+class AdversarialMathsAuditTests(unittest.TestCase):
+    def test_independent_integer_oracle_catches_forged_pair_scores(self):
+        from itertools import combinations
+        from unittest.mock import patch
+
+        snapshot = synthetic_snapshot("SSQ")
+        good = core.forecast(snapshot, "pairwise_d2")["primary_d2"]
+        pairs = list(combinations(range(1, 34), 2))
+        malicious = next(pair for pair in pairs if list(pair) != good)
+        fake = {pair: float(pair == malicious) for pair in pairs}
+        with patch.object(core, "_pair_scores", return_value=fake):
+            with self.assertRaisesRegex(ValueError, "PAIRWISE_INDEPENDENT_DISAGREEMENT"):
+                audit_model_contracts(snapshot)
+
+    def test_claimed_official_data_not_promoted_by_synthetic_auditor(self):
+        snapshot = synthetic_snapshot("DLT")
+        snapshot["provenance"]["status"] = "OFFICIAL_VERIFIED"
+        with self.assertRaisesRegex(ValueError, "SYNTHETIC_ONLY"):
+            audit_model_contracts(snapshot)
+
+
 if __name__ == "__main__":
     unittest.main()
