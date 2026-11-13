@@ -16,6 +16,10 @@ import re
 from urllib.parse import urlsplit
 from uuid import uuid4
 
+from research.supercompute.automation.physical_transport import (
+    TransportExhausted, ssq_fetch,
+)
+
 from research.supercompute.automation.dlt_physical_source import (
     Blocked, _create_once, _sealed_bytes, fetch_http,
 )
@@ -72,7 +76,7 @@ def parse_public_table(raw: bytes, expected_issue: str) -> dict:
     }
 
 
-def collect(issue: str, ledger: Path, *, fetcher=fetch_http) -> dict:
+def collect(issue: str, ledger: Path, *, fetcher=ssq_fetch) -> dict:
     url = source_url(issue)
     receipt = {
         "schema": PARSER,
@@ -85,6 +89,7 @@ def collect(issue: str, ledger: Path, *, fetcher=fetch_http) -> dict:
             (Path(__file__).parent / "official_source_gate.py").read_bytes()
         ).hexdigest(),
         "http_status": None,
+        "transport_attempts": [],
         "response_sha256": None,
         "final_url": None,
         "status": "BLOCKED",
@@ -93,7 +98,11 @@ def collect(issue: str, ledger: Path, *, fetcher=fetch_http) -> dict:
         "predictive_edge": "NO_EDGE",
     }
     try:
-        code, resolved_url, raw = fetcher(url)
+        fetched = fetcher(url)
+        if len(fetched) == 4:
+            code, resolved_url, raw, receipt["transport_attempts"] = fetched
+        else:
+            code, resolved_url, raw = fetched
         receipt["http_status"] = code
         receipt["final_url"] = resolved_url
         if not isinstance(raw, bytes) or not raw or len(raw) > MAX_BYTES:
@@ -123,6 +132,8 @@ def collect(issue: str, ledger: Path, *, fetcher=fetch_http) -> dict:
                 raise Blocked("DRAW_CREATE_RACE")
             receipt["status"] = "RECORDED_SORTED_ONLY"
     except Exception as exc:
+        if isinstance(exc, TransportExhausted):
+            receipt["transport_attempts"] = exc.attempts
         receipt["status"] = "BLOCKED"
         receipt["reason"] = (str(exc) if isinstance(exc, Blocked)
                              else "NETWORK_OR_IO_FAILURE:" + type(exc).__name__)
