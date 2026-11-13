@@ -10,6 +10,10 @@ from copy import deepcopy
 import json
 import sqlite3
 import unittest
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
 
 from research.harness_v46 import core
 from research.harness_v46.research_stack import (
@@ -144,7 +148,26 @@ class ExperimentalFusionTests(unittest.TestCase):
                              "TOO_FEW_SYNTHETIC_ISSUES_NO_EDGE_CLAIM")
             self.assertFalse(row["research_fusion"]["physical_forecast_supported"])
 
-    def test_official_snapshots_blocked_by_experimental_model(self):
+    def test_cli_can_write_create_only_research_report(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "fusion-research.json"
+            cmd = [
+                sys.executable, "-m", "research.harness_v46.research_stack",
+                "--synthetic", "--seed", "82", "--trials", "80",
+                "--steps", "2", "--report-file", str(out),
+            ]
+            first = subprocess.run(cmd, capture_output=True, text=True, timeout=45)
+            self.assertEqual(first.returncode, 0, first.stderr[-600:])
+            stored = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(stored, json.loads(first.stdout))
+            self.assertEqual(stored["status"], "SYNTHETIC_RESEARCH_ONLY")
+            self.assertEqual(stored["formal_A"], 0)
+            second = subprocess.run(cmd, capture_output=True, text=True, timeout=45)
+            self.assertNotEqual(second.returncode, 0)
+            self.assertIn("BLOCKED", second.stderr)
+            self.assertEqual(stored, json.loads(out.read_text(encoding="utf-8")))
+
+
         snap = synthetic_fixture("SSQ", seed=81)
         geo = _geometry_subprocess(snap, "SSQ")
         snap["provenance"]["status"] = "OFFICIAL_VERIFIED"
