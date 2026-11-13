@@ -72,6 +72,23 @@ class LiveTickOfflineContract(unittest.TestCase):
             self.assertEqual(1, sync(root/REL, root/REL/"physical_history.sqlite3")
                              ["counts"]["SSQ"]["attempts"])
 
+    def test_recent_failure_cooldown_skips_issue_and_preserves_history(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            now = datetime.now(timezone.utc)
+            def denied(issue, ledger):
+                return dlt_collect(issue, ledger,
+                                   fetcher=lambda url: (567, url, b"blocked"))
+            network = lambda url: (200, url, ssq_html(), [])
+            first = tick(root, max_ssq_new=1, now=now,
+                         ssq_network=network, dlt_collector=denied)
+            second = tick(root, max_ssq_new=1, now=now,
+                          ssq_network=network, dlt_collector=denied)
+            self.assertEqual("26001", first["actions"][-1]["issue"])
+            self.assertEqual("26002", second["actions"][-1]["issue"])
+            self.assertEqual(2, second["counts"]["DLT"]["attempts"])
+            self.assertEqual(0, second["counts"]["DLT"]["draws"])
+
     def test_invalid_batch_bound_blocks_before_network(self):
         with tempfile.TemporaryDirectory() as tmp:
             with self.assertRaisesRegex(ValueError, "BATCH_OUT_OF_RANGE"):
