@@ -18,9 +18,10 @@ UA = "Geometry-Lotto-Pro-Issuer-Evidence/2.0"
 
 
 class TransportExhausted(OSError):
-    def __init__(self, attempts):
+    def __init__(self, attempts, raw_bodies=None):
         super().__init__("OFFICIAL_SOURCE_ATTEMPTS_EXHAUSTED")
         self.attempts = attempts
+        self.raw_bodies = dict(raw_bodies or {})
 
 
 def resilient_fetch(url: str, *, alternates=(), opener=urlopen,
@@ -44,6 +45,7 @@ def resilient_fetch(url: str, *, alternates=(), opener=urlopen,
     if max_attempts < 1 or max_attempts > 8:
         raise ValueError("ATTEMPT_LIMIT_INVALID")
     attempts = []
+    raw_bodies = {}
     for i in range(max_attempts):
         target = urls[i % len(urls)]
         record = {"attempt": i + 1, "url": target, "http_status": None,
@@ -65,6 +67,8 @@ def resilient_fetch(url: str, *, alternates=(), opener=urlopen,
             record["http_status"], record["final_url"] = code, resolved
             if isinstance(raw, bytes):
                 record["response_sha256"] = sha256(raw).hexdigest()
+                if raw:
+                    raw_bodies[record["response_sha256"]] = raw
             destination = urlsplit(resolved)
             if (destination.scheme != "https" or destination.hostname not in allowed
                     or destination.path != initial.path
@@ -72,19 +76,19 @@ def resilient_fetch(url: str, *, alternates=(), opener=urlopen,
                 record["reason"] = "UNTRUSTED_REDIRECT"
                 attempts.append(record)
                 # Never retry a potentially untrusted endpoint.
-                raise TransportExhausted(attempts)
+                raise TransportExhausted(attempts, raw_bodies)
             if not isinstance(raw, bytes) or not raw or len(raw) > MAX_BYTES:
                 record["reason"] = "RESPONSE_BYTES_INVALID"
                 attempts.append(record)
-                raise TransportExhausted(attempts)
+                raise TransportExhausted(attempts, raw_bodies)
             if code == 200:
                 record["reason"] = "HTTP_200"
                 attempts.append(record)
-                return code, resolved, raw, attempts
+                return code, resolved, raw, attempts, raw_bodies
             record["reason"] = "HTTP_NON_200"
             attempts.append(record)
             if code not in RETRYABLE:
-                raise TransportExhausted(attempts)
+                raise TransportExhausted(attempts, raw_bodies)
         except TransportExhausted:
             raise
         except (URLError, TimeoutError, OSError, HTTPException) as exc:
@@ -94,7 +98,7 @@ def resilient_fetch(url: str, *, alternates=(), opener=urlopen,
         # access restrictions with proxies, randomized agents or TLS bypass.
         if i + 1 < max_attempts:
             sleeper(min(delay_seconds * 2 ** i, 2))
-    raise TransportExhausted(attempts)
+    raise TransportExhausted(attempts, raw_bodies)
 
 
 def dlt_fetch(url: str, **kwargs):
