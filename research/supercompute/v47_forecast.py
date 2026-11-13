@@ -17,6 +17,7 @@ from research.supercompute.v47_integrated import (
     freeze_result, run_all, score_result,
 )
 from research.supercompute.v47_models import SPECS, canonical
+from research.supercompute.v47_registry import execute_eleven
 
 
 def _previous(path, game):
@@ -77,6 +78,13 @@ def main(argv=None):
                          holdout=args.holdout, mc_trials=args.mc_trials,
                          physics_steps=args.physics_steps,
                          previous_champion=_previous(args.previous, game))
+        # Run eleven independently fitted model objects in the same execution,
+        # not a checklist of five selectors and six helper functions.
+        report["independent_11"] = execute_eleven(
+            rows, game, seed=args.seed, generations=args.generations,
+            validation=args.validation, holdout=args.holdout,
+            mc_trials=args.mc_trials, physics_steps=args.physics_steps,
+            previous_champion=_previous(args.previous, game))
         report["snapshot_file_sha256"] = digest
         reports[game] = report
     payload = {"schema": "SSQDLT_V47_UNIFIED_RUN_V1",
