@@ -26,7 +26,7 @@ jobs:
   fixtures:
     name: Synthetic gate tests (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 7
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -55,8 +55,10 @@ jobs:
           if actual != expected:
               raise SystemExit("EXACT_CANDIDATE_SHA_MISMATCH")
           PY
-      - name: Test deterministic contracts with invented fixtures only
-        run: python -m unittest discover -s research/harness_v46/tests -v
+      - name: Test deterministic contracts and record each case without unaccounted skips
+        run: python -m research.harness_v46.ci_coverage run --output out/ci-coverage/${{ matrix.os }}.json
+      - name: Execute unified synthetic research stack (M1/M2/M3 + both geometries + mechanical toy)
+        run: python -m research.harness_v46.research_stack --synthetic --seed 20261114 --trials 3000 --steps 12 --full-combinations --report-file out/research/${{ matrix.os }}.json
       - name: Test offline SSQ source-app contracts
         env:
           PYTHONPATH: ${{ github.workspace }}/SSQ/SSQ
@@ -69,3 +71,39 @@ jobs:
           GLP_DISABLE_BACKGROUND: "1"
           GLP_DATA_DIR: ${{ runner.temp }}/v47-dlt-offline-tests
         run: python -B -m unittest discover -s DLT/tests -p "test*.py" -v
+      - name: Upload create-only experimental research receipt (not official predraw seal)
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v47-research-${{ matrix.os }}
+          path: out/research/${{ matrix.os }}.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload exact-HEAD per-test coverage receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v47-coverage-${{ matrix.os }}
+          path: out/ci-coverage/${{ matrix.os }}.json
+          if-no-files-found: error
+          retention-days: 30
+
+  coverage-gate:
+    name: Enforce zero unexecuted tests across Ubuntu and Windows
+    needs: fixtures
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: v47-coverage-*
+          path: out/ci-coverage
+          merge-multiple: true
+      - name: Verify all 19 Linux-skipped native cases passed on exact-HEAD Windows
+        run: python -m research.harness_v46.ci_coverage matrix --linux out/ci-coverage/ubuntu-latest.json --windows out/ci-coverage/windows-2022.json
