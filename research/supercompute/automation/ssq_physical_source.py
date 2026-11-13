@@ -21,7 +21,7 @@ from research.supercompute.automation.physical_transport import (
 )
 
 from research.supercompute.automation.dlt_physical_source import (
-    Blocked, _create_once, _sealed_bytes, fetch_http,
+    Blocked, _create_once, _sealed_bytes,
 )
 from research.supercompute.automation.official_source_gate import (
     OFFICIAL, SourceBlocked, official_rows,
