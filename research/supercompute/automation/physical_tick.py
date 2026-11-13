@@ -41,7 +41,12 @@ def _attempt_too_recent(ledger: Path, issue: str, now: datetime,
         try:
             row = json.loads(path.read_text(encoding="utf-8"))
             observed = datetime.fromisoformat(row["observed_at_utc"])
-            if observed.tzinfo and timedelta(0) <= (now - observed) < cooldown:
+            if not observed.tzinfo:
+                raise ValueError("ATTEMPT_TIMESTAMP_NOT_TIMEZONE_AWARE")
+            delta = now - observed
+            if delta < -timedelta(minutes=5):
+                raise ValueError("ATTEMPT_TIMESTAMP_UNTRUSTED_FUTURE")
+            if -timedelta(minutes=5) <= delta < cooldown:
                 return True
         except (KeyError, TypeError, ValueError):
             # Malformed evidence must not silently force a new attempt.
