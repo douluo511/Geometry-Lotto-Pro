@@ -119,7 +119,8 @@ class UnifiedPredictionTest(unittest.TestCase):
                       "--seed", "19", "--generations", "1",
                       "--validation", "3", "--holdout", "2",
                       "--physics-steps", "3", "--mc-trials", "30",
-                      "--output", str(root / "out.json")]
+                      "--output", str(root / "out.json"),
+                      "--freeze-dir", str(root / "frozen")]
             for game in self.rows:
                 path = root / (game + ".json")
                 path.write_text(json.dumps({"game": game, "draws": self.rows[game]}),
@@ -130,6 +131,29 @@ class UnifiedPredictionTest(unittest.TestCase):
             saved = json.loads((root / "out.json").read_text(encoding="utf-8"))
             self.assertEqual(set(saved["games"]), {"ssq", "dlt"})
             self.assertEqual(len(saved["games"]["ssq"]["requirement_modules"]), 11)
+            from research.supercompute.v47_registry import REGISTRY
+            for game, payload in saved["games"].items():
+                tickets = payload["proposed_tickets"]
+                self.assertEqual(payload["ticket_count"], 11)
+                self.assertEqual(len(tickets), 11)
+                self.assertEqual([t["model_number"] for t in tickets], list(range(1, 12)))
+                self.assertEqual([t["model_name"] for t in tickets],
+                                 [m.label for m in REGISTRY])
+                for ticket in tickets:
+                    actual = payload["independent_11"]["models"][
+                        ticket["model_name"]]["prediction"]["ticket"]
+                    self.assertEqual(ticket["front"], actual["front"])
+                    self.assertEqual(ticket["back"], actual["back"])
+                    self.assertEqual(ticket["dan2"], actual["dan2"])
+                frozen = root / "frozen" / f"{game}-{payload['target_issue']}-v47-unified.json"
+                sha = __import__("hashlib").sha256(frozen.read_bytes()).hexdigest()
+                actual = {**random_ticket(game, 339), "issue": payload["target_issue"]}
+                result = u.score_result(frozen, sha, actual)
+                self.assertEqual(result["ticket_count"], 11)
+                self.assertEqual(len(result["per_model_score"]), 11)
+                self.assertEqual([item["model_name"] for item in result["per_model_score"]],
+                                 [m.label for m in REGISTRY])
+            self.assertEqual(sum(g["ticket_count"] for g in saved["games"].values()), 22)
             with redirect_stdout(StringIO()), self.assertRaises(FileExistsError):
                 main(params)
 
