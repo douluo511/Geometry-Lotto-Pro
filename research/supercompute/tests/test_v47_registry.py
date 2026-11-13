@@ -69,7 +69,9 @@ class ElevenIndependentModelTests(unittest.TestCase):
             self.assertEqual(models["Physics"]["number"], 10)
             self.assertEqual(models["Physics"]["prediction"]["physical_simulation"]["machine_calibrated"], False)
             self.assertEqual(models["M1_M2_M3_Validation"]["number"], 11)
-            self.assertEqual(models["M1_M2_M3_Validation"]["prediction"]["legal_math_checks"], 10)
+            self.assertEqual(models["M1_M2_M3_Validation"]["prediction"]["legal_math_checks"], 11)
+            self.assertEqual(len(models["M1_M2_M3_Validation"]["prediction"]["ensemble_from"]), 10)
+            self.assertAlmostEqual(sum(models["M1_M2_M3_Validation"]["prediction"]["influence_weights"].values()), 1)
             self.assertEqual(len(models["M1_M2_M3_Validation"]["fit"]["m2"]), 5)
             self.assertEqual(len(models["M1_M2_M3_Validation"]["fit"]["m3_brier"]), 5)
 
