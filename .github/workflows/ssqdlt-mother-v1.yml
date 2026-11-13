@@ -95,3 +95,40 @@ jobs:
             ${{ runner.temp }}/inventory.json
           if-no-files-found: warn
           retention-days: 90
+
+
+  cross-platform-identical-output:
+    needs: mother-model-matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Retrieve Ubuntu audited results
+        uses: actions/download-artifact@v4
+        with:
+          name: mother-v1-ubuntu-latest-${{ github.run_id }}
+          path: ${{ runner.temp }}/mother-ubuntu
+      - name: Retrieve Windows audited results
+        uses: actions/download-artifact@v4
+        with:
+          name: mother-v1-windows-2022-${{ github.run_id }}
+          path: ${{ runner.temp }}/mother-windows
+      - name: Confirm byte-identical normalized model predictions across OS
+        shell: bash
+        run: |
+          python - <<'PY'
+          from hashlib import sha256
+          from pathlib import Path
+          import os
+          root=Path(os.environ["RUNNER_TEMP"])
+          for segment in ("mother-synthetic-results", "mother-historical-shadow-results"):
+              a=root/"mother-ubuntu"/segment/"predictions.json"
+              b=root/"mother-windows"/segment/"predictions.json"
+              if not a.is_file() or not b.is_file():
+                  raise SystemExit("MISSING_CROSS_PLATFORM_BATCH:"+segment)
+              left, right = a.read_bytes(), b.read_bytes()
+              if left != right:
+                  raise SystemExit(
+                      "CROSS_PLATFORM_FORECAST_BYTES_MISMATCH:"+segment+
+                      " ubuntu="+sha256(left).hexdigest()+" windows="+sha256(right).hexdigest())
+              print(segment,"identical_sha256",sha256(left).hexdigest())
+          PY
