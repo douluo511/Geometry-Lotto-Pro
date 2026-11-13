@@ -61,7 +61,7 @@ def _candidate_dlt(root: Path, now: datetime) -> str | None:
 
 
 def tick(repo_ledger: Path, *, max_ssq_new=8,
-         ssq_network=ssq_fetch, now=None) -> dict:
+         ssq_network=ssq_fetch, dlt_collector=collect_dlt, now=None) -> dict:
     if not 1 <= max_ssq_new <= 50:
         raise ValueError("SSQ_BATCH_OUT_OF_RANGE")
     current = now or datetime.now(timezone.utc)
@@ -98,7 +98,7 @@ def tick(repo_ledger: Path, *, max_ssq_new=8,
                         "status": receipt["status"], "reason": receipt["reason"]})
     next_dlt = _candidate_dlt(dlt, current)
     if next_dlt:
-        receipt = collect_dlt(next_dlt, dlt)
+        receipt = dlt_collector(next_dlt, dlt)
         actions.append({"game": "DLT", "issue": next_dlt,
                         "status": receipt["status"], "reason": receipt["reason"]})
     else:
