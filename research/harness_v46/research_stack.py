@@ -23,6 +23,7 @@ from .physics_audit import Ball, audit_model_contracts, d2_probability
 from .physics_sim import Chamber, simulate_chamber
 from .synthetic_pipeline import run_synthetic_walk_forward
 from .experimental_fusion import build_research_candidate
+from .research_review import review_synthetic_stack
 
 ROOT = Path(__file__).resolve().parents[2]
 GAME_APP = {"SSQ": ROOT / "SSQ" / "SSQ", "DLT": ROOT / "DLT" / "src"}
@@ -183,7 +184,7 @@ def run_synthetic_stack(*, seed: int = 2026, trials: int = 3000, steps: int = 12
     left = Ball(1.0, 0.12, (0.65, 1.0, 1.5), (0.85, 0.0, 0.0))
     right = Ball(1.0, 0.12, (1.75, 1.0, 1.5), (-0.85, 0.0, 0.0))
     physical = simulate_chamber(chamber, [left, right], steps=steps, dt=0.025)
-    return {
+    report = {
         "schema": "V47-UNIFIED-SYNTHETIC-RESEARCH-v1",
         "status": "SYNTHETIC_RESEARCH_ONLY",
         "games": games,
@@ -203,6 +204,8 @@ def run_synthetic_stack(*, seed: int = 2026, trials: int = 3000, steps: int = 12
             "No owner Windows host, reboot recovery, pre-draw freeze or live model integration is certified.",
         ],
     }
+    report["review"] = review_synthetic_stack(report)
+    return report
 
 
 def main(argv=None) -> int:
