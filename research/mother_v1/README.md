@@ -12,7 +12,8 @@
 - 6 条冻结 V4.7 研究模型：`hot60`、`ewma`、`shrinkmix`、`pairwise_d2`、`challenger`、`random_null`。
 - 5 条 V4.7 探索性模型：`hot30`、`hot120`、`pair_margin`、`pair_residual`、`recency_pair_h45_120`。
 - 3 条旧超算独立实现：`supercompute_hot60`、`supercompute_ewma30`、`supercompute_random_null`。
-- 已删除母体中 SSQ、DLT 各 8 条原生频率/近期性/遗漏/转移/号码关系/几何状态/几何转移/研究集成模型及其桥接代码，后续预测不再输出这些模型。原有 Windows 应用中的紧耦合特征实现和不可变历史预测记录属于独立兼容性迁移，未因本次删除母体适配层而改写。\n- 2 条物理研究模型：`physical_exit_order`、`physical_ball_group`。
+- 已删除母体中 SSQ、DLT 各 8 条原生频率/近期性/遗漏/转移/号码关系/几何状态/几何转移/研究集成模型及其桥接代码，后续预测不再输出这些模型。原有 Windows 应用中的紧耦合特征实现和不可变历史预测记录属于独立兼容性迁移，未因本次删除母体适配层而改写。
+- 2 条物理研究模型：`physical_exit_order`、`physical_ball_group`。
 
 固定的 V4.7 `random_null` 是唯一保留的原统计对照；旧超算的独立随机实现不能替换它。
 
