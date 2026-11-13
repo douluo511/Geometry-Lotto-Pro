@@ -57,6 +57,8 @@ jobs:
           PY
       - name: Test deterministic contracts and record each case without unaccounted skips
         run: python -m research.harness_v46.ci_coverage run --output out/ci-coverage/${{ matrix.os }}.json
+      - name: Execute unified synthetic research stack (M1/M2/M3 + both geometries + mechanical toy)
+        run: python -m research.harness_v46.research_stack --synthetic --seed 20261114 --trials 3000 --steps 12
       - name: Test offline SSQ source-app contracts
         env:
           PYTHONPATH: ${{ github.workspace }}/SSQ/SSQ
