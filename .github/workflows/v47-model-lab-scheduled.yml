@@ -41,6 +41,8 @@ jobs:
         run: python -m unittest discover -s research/supercompute/tests -p 'test_v47_schedule.py' -v
       - name: Test 11-component model API
         run: python -m unittest discover -s research/supercompute/tests -p 'test_v47_models.py' -v
+      - name: Test eleven independent model objects
+        run: python -m unittest discover -s research/supercompute/tests -p 'test_v47_registry.py' -v
 
   record-scheduled-research:
     needs: preflight
@@ -85,6 +87,7 @@ jobs:
                 --output "$RUNNER_TEMP/v47-unified-11.json")
           if [ -s "$previous" ]; then args+=(--previous "$previous"); fi
           python -m research.supercompute.v47_forecast "${args[@]}"
+          python -c "import json,sys; p=json.load(open(sys.argv[1])); assert all(g['independent_11']['model_count']==11 and len(g['independent_11']['models'])==11 and g['primary_candidate_source']=='M1_M2_M3_Validation' for g in p['games'].values()), 'eleven independent models not executed'" "$RUNNER_TEMP/v47-unified-11.json"
       - name: Commit schedule receipt to separate branch then verify fresh remote restore
         shell: bash
         run: |
