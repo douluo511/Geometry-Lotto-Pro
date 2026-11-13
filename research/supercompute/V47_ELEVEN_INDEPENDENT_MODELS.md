@@ -43,10 +43,14 @@ From a Windows repository root (Python 3.11+), with real target identifiers and 
     python -m unittest discover -s research/supercompute/tests -p 'test_v47_registry.py' -v
     python -m research.supercompute.v47_forecast generate --game both --ssq-target EXPLICIT_SSQ_NEXT --dlt-target EXPLICIT_DLT_NEXT --generations 2 --validation 6 --holdout 3 --mc-trials 300 --physics-steps 30 --output research-output/unified-11.json --freeze-dir research-output/frozen
 
-Output: `games.ssq.independent_11` and `games.dlt.independent_11` each contain 11 separate `models` with `fit` and `prediction`; the first of `proposed_tickets` comes from Model 11's ten-source ensemble. Each model also exposes a callable `score()` method for post-draw evaluation. Research-only create-once SHA256 freezing and tamper refusal are inherited from `v47_integrated.freeze_result()`.
+Output: `games.ssq.independent_11` and `games.dlt.independent_11` each contain 11 separate `models` with `fit` and `prediction`; `proposed_tickets` contains **11 model-labelled rows per game (22 total)**, ordered by model number; the eleventh row is the Model 11 ten-source ensemble. Each model also exposes a callable `score()` method for post-draw evaluation. Research-only create-once SHA256 freezing and tamper refusal are inherited from `v47_integrated.freeze_result()`.
 
 Acceptance asserts: eleven unique concrete classes; eleven unique fit and predict implementations; eleven legal predictions per game; 6–11 independent outputs; real mutation/crossover genealogy; past-only backtesting; M1, M2, M3; deterministic repeated runs; strict separation of prospective data; score/freeze integrity. A later schedule result is only counted by actual GitHub `event=schedule`, not PR CI.
 
 ## Evidence limits
 
 This is a fitted, evolutionary research predictor, not self-training on future results without a source. Checked-in historical snapshots can be stale. Model 10 is **not** a calibrated physical lottery machine. The model output remains `formal_prediction=false`, `edge=NO_EDGE`. These flags do not change whether the code runs; they prevent unverified statistical or physical claims. No evidence is overwritten or retroactively changed.
+
+## Required 22-row output contract
+
+Every normal combined SSQ/DLT CLI run emits exactly **11 rows for SSQ and 11 rows for DLT**. The rows are labelled by `model_number` and `model_name` and are copies of their corresponding independent model's own `prediction.ticket`, with no replacement by a three-ticket merged shortlist. The research freeze contains all 11 rows for each game; scoring returns one result per row. Duplicate ball combinations from independently computed models are retained **as separate attributed model rows** and are not silently modified or counted as a new unique combination. An evidence gate rejects reports with other counts or mismatched sources. Past 3-row immutable reports remain verifiable but cannot satisfy the new 22-row contract.
