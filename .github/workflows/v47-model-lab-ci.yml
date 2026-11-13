@@ -5,6 +5,10 @@ on:
       - 'research/supercompute/v47_*.py'
       - 'research/supercompute/tests/test_v47_models.py'
       - '.github/workflows/v47-model-lab-ci.yml'
+      - 'research/supercompute/automation/v47_schedule.py'
+      - 'research/supercompute/tests/test_v47_schedule.py'
+      - '.github/workflows/v47-model-lab-scheduled.yml'
+      - '.github/workflows/v47-model-lab-audit.yml'
   workflow_dispatch:
 permissions:
   contents: read
@@ -23,6 +27,8 @@ jobs:
         run: python -m unittest discover -s research/supercompute/tests -p 'test_v47_models.py' -v
       - name: Run existing independent CPU research tests
         run: python -m unittest discover -s research/supercompute/tests -p 'test_supercompute.py' -v
+      - name: Validate unattended schedule evidence logic
+        run: python -m unittest discover -s research/supercompute/tests -p 'test_v47_schedule.py' -v
       - name: Historical repository snapshot end-to-end smoke
         run: |
           python -m research.supercompute.v47_cli run --game both --periods 2 --trials 100 --seed 2026 --output /tmp/v47-historical-smoke.json

@@ -1,0 +1,52 @@
+name: V4.7 independent unattended schedule audit
+
+on:
+  workflow_run:
+    workflows: ['V4.7 eleven-model unattended research schedule']
+    types: [completed]
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  verify-real-schedule:
+    if: >-
+      github.event.workflow_run.event == 'schedule' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.repository == 'douluo511/Geometry-Lotto-Pro'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout independent verifier from main
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Fetch persisted ledger and verify real completed schedule metadata
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          branch=ssqdlt-v47-lab-ledger-v1
+          tracking="refs/remotes/origin/$branch"
+          audit_root="$RUNNER_TEMP/v47-read-only-audit"
+          git fetch --no-tags origin "refs/heads/$branch:$tracking"
+          git worktree add --detach "$audit_root" "$tracking"
+          python -m research.supercompute.automation.v47_schedule audit \
+            --ledger "$audit_root" \
+            --out "$RUNNER_TEMP/v47-external-acceptance.json" \
+            | tee "$GITHUB_STEP_SUMMARY"
+          echo '' >> "$GITHUB_STEP_SUMMARY"
+          echo 'PASS needs two distinct externally checked completed schedule events, a valid hash chain, and recovered remote-prefix history. This does not establish official lottery-source verification or Windows reboot recovery.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Archive independent audit evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: v47-independent-audit-${{ github.event.workflow_run.id }}
+          path: ${{ runner.temp }}/v47-external-acceptance.json
+          if-no-files-found: error
