@@ -19,7 +19,7 @@ def example_report():
                           "models": {"edge": "NO_EDGE",
                                      "strictly_past_only": True,
                                      "independent_test_tail": True,
-                                     "models": {"RANDOM_NULL": {"n": 2}}}}
+                                     "models": {name: {"n": 2} for name in ("HOT60", "EWMA", "ShrinkMix", "Pairwise-D2", "Challenger")}}}
                       for g in ("ssq", "dlt")}}
 
 
