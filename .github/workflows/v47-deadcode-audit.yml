@@ -1,0 +1,33 @@
+name: V47 unused-code audit and targeted safety tests
+on:
+  push:
+    branches:
+      - research/v47-model-deadcode-cleanup-20261113
+  pull_request:
+    paths:
+      - '.github/scripts/model_deadcode_audit.py'
+      - 'research/harness_v46/**'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inventory-and-contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Identify unreferenced model helpers (diagnostic only)
+        run: python .github/scripts/model_deadcode_audit.py
+      - name: Verify model ranking, forecast identity and frozen record contracts
+        run: |
+          python -m unittest research.harness_v46.tests.test_core -v
+          python -m unittest research.harness_v46.tests.test_d2_challenger_lab -v
+          python -m unittest research.harness_v46.tests.test_pairwise_v47_independent -v
+          python -m unittest research.harness_v46.tests.test_versioned_frozen_replay -v
+      - name: Validate source modules compile without optional runtime dependencies
+        run: python -m compileall -q research/harness_v46
