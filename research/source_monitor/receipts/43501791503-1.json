@@ -1,0 +1,44 @@
+{
+  "checked_at_utc": "2026-11-13T20:28:13+00:00",
+  "edge": "NO_EDGE",
+  "formal_A": 0,
+  "games": [
+    {
+      "edge": "NO_EDGE",
+      "formal_A": 0,
+      "game": "SSQ",
+      "latest_date": "2026-11-12",
+      "latest_draw_sha256": "8bcff1b65da6f8ac99f06ce55b2b08dcb860b79e042e7bfd513dc5786ff9aad1",
+      "latest_issue": "2026130",
+      "new_since_prior_monitor": 0,
+      "official_source_authenticated": false,
+      "seed_overlap": 79,
+      "source_kind": "SINA_THIRD_PARTY_NOT_OFFICIAL",
+      "status": "UNCHANGED",
+      "untracked_since_old_seed": 21,
+      "window_issues": 100,
+      "window_sha256": "615a71cdda4917d87042e00741e8e6b387c785235eb8f766eac7ae7d23f6298c"
+    },
+    {
+      "edge": "NO_EDGE",
+      "formal_A": 0,
+      "game": "DLT",
+      "latest_date": "2026-11-11",
+      "latest_draw_sha256": "ff7704c10644765998cbb30772340c3b789649c36e7e0ad21c1da5359b4d46c3",
+      "latest_issue": "26129",
+      "new_since_prior_monitor": 0,
+      "official_source_authenticated": false,
+      "seed_overlap": 79,
+      "source_kind": "SINA_THIRD_PARTY_NOT_OFFICIAL",
+      "status": "UNCHANGED",
+      "untracked_since_old_seed": 21,
+      "window_issues": 100,
+      "window_sha256": "4d9f670d4029224ac2f2e62229e6895d089125af9fa62c9cda70452cd5861b77"
+    }
+  ],
+  "github_run_attempt": "1",
+  "github_run_id": "43501791503",
+  "schema": "SSQDLT_SINA_SECONDARY_SOURCE_MONITOR_V1",
+  "trigger": "schedule",
+  "workflow_commit": "5b09490148212253149723c30d3bd2cfb0fe9cfd"
+}
