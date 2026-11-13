@@ -15,6 +15,7 @@ from pathlib import Path
 
 from .mother import MotherBlocked, forecast_all, _bytes, sha
 from .report import markdown_report
+from .registry import ALL_MODELS
 
 
 def _load_object(path: Path) -> dict:
@@ -67,7 +68,7 @@ def main(argv=None) -> int:
         "forecast_sha256": sha256(predictions).hexdigest(),
         "mother_source_sha256": sha256(Path(__file__).with_name("mother.py").read_bytes()).hexdigest(),
         "registry_source_sha256": sha256(Path(__file__).with_name("registry.py").read_bytes()).hexdigest(),
-        "game_count": 2, "models_each": 16,
+        "game_count": 2, "models_each": len(ALL_MODELS),
         "physical_provenance": "SOURCE_GATED_NO_PREDRAW_MECHANICAL_EDGE",
         "formal_A": 0, "decision": "NO_EDGE",
         "official_source_authenticity": "UNVERIFIED",
@@ -83,7 +84,7 @@ def main(argv=None) -> int:
             "out": str(args.out), "forecast_sha256": receipt["forecast_sha256"],
             "ssq": forecast["games"]["SSQ"]["target_issue"],
             "dlt": forecast["games"]["DLT"]["target_issue"],
-            "arms_each": 16,
+            "arms_each": len(ALL_MODELS),
             "physical_statuses": {
                 g: [m["status"] for m in forecast["games"][g]["models"]
                     if m["name"].startswith("physical_")]
