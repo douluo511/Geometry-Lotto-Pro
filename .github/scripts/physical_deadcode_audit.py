@@ -42,6 +42,8 @@ def main():
         if relative in PHYSICAL:
             for node in ast.walk(parsed):
                 if isinstance(node, (ast.Import, ast.ImportFrom)):
+                    if isinstance(node, ast.ImportFrom) and node.module == "__future__":
+                        continue
                     for alias in node.names:
                         if alias.name == "*":
                             continue
@@ -71,7 +73,7 @@ def main():
     for path, line, name in unused_imports:
         print(f"UNUSED_IMPORT {path}:{line} {name}")
     print("NOTE: private dynamic and external references are not proved absent")
-    return 0
+    return 1 if candidates or unused_imports else 0
 
 
 if __name__ == "__main__":
