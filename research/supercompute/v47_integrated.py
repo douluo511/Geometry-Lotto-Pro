@@ -319,6 +319,13 @@ def freeze_result(path, report):
             or not report.get("proposed_tickets")
             or report.get("formal_prediction") is not False):
         raise ValueError("not an acceptable 11-module research report")
+    if report.get("independent_11") is not None:
+        items = report["proposed_tickets"]
+        if (len(items) != 11
+                or report.get("ticket_count") != 11
+                or [t.get("model_number") for t in items] != list(range(1, 12))
+                or len({t.get("model_name") for t in items}) != 11):
+            raise ValueError("freeze requires all 11 attributed model tickets")
     doc = {"schema": "SSQDLT_V47_UNIFIED_FROZEN_V1",
            "created_utc": datetime.now(timezone.utc).isoformat(),
            "source": report, "formal_prediction": False,
@@ -351,4 +358,13 @@ def score_result(path, sha256, actual):
                                    and ticket["back"] == actual["back"]})
     return {"status": "UNVERIFIED_DRAW_INPUT", "game": source["game"],
             "target_issue": source["target_issue"],
+            "ticket_count": len(scores),
+            "per_model_score": [
+                {"model_number": item["ticket"].get("model_number"),
+                 "model_name": item["ticket"].get("model_name"),
+                 "front_hits": item["front_hits"],
+                 "back_hits": item["back_hits"],
+                 "d2_hit": item["d2_hit"], "full_hit": item["full_hit"]}
+                for item in scores
+            ],
             "tickets": scores, "edge": "NO_EDGE"}
