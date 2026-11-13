@@ -134,5 +134,19 @@ class UnifiedPredictionTest(unittest.TestCase):
                 main(params)
 
 
+    def test_unified_validation_only_five_families(self):
+        for game, report in self.reports.items():
+            expected = set(u.FAMILIES)
+            self.assertEqual(len(expected), 5)
+            self.assertEqual(set(report["model_family_tickets"]), expected)
+            self.assertEqual(set(report["simulation"]["retrospective_validation"]["models"]), expected)
+            self.assertEqual(set(report["validation"]["M2"]), expected)
+            self.assertEqual(set(report["validation"]["M3"]), expected)
+            fair = report["simulation"]["retrospective_validation"]["mathematical_fair_d2_probability"]
+            for model in expected:
+                self.assertAlmostEqual(report["validation"]["M2"][model]["fair_probability"], fair)
+
+
+
 if __name__ == "__main__":
     unittest.main()
