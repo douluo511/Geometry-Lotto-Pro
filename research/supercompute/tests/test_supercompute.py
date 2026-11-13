@@ -18,7 +18,7 @@ class EngineTest(unittest.TestCase):
             self.assertEqual(data[-1]["issue"], meta["asof_issue"])
             self.assertEqual(meta["status"], "historical_snapshot_not_live_verified")
 
-    def test_exact_random_baseline(self):
+    def test_exact_fair_probability(self):
         for name, (fm, fp, bm, bp) in SPECS.items():
             self.assertEqual(chance(name)["full_ticket_one_in"],
                              math.comb(fm, fp) * math.comb(bm, bp))
