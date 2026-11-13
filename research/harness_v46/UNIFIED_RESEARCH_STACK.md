@@ -50,3 +50,43 @@ Run the existing full V4.7 suite and both game suites through GitHub Actions wor
 The unified command now executes a **two-period synthetic** walk-forward for both games using the original V4.7 six selectors, local immutable prediction freeze in in-memory SQLite, read-back with SHA256 verification, then scoring on *invented* future outcomes generated after freezing. It reports each model and the unchanged SHA256-sort Random NULL. This is not an external predraw TSA timestamp, an official-source ingest, or statistically qualified future sample.
 
 The `--full-combinations` option calls the original full-space search on SSQ front/back (SSQ code exposes actual enumeration count) and DLT front/back (DLT code exposes only selected best combo; displayed total is a theoretical combinatorial count, NOT independently instrumented iterator count). The research CLI runs on synthetic fixtures and never promotes output to a betting recommendation.
+
+## Experimental model integration (separate from registered six-arm baseline)
+
+The `experimental_fusion.py` research adapter is now wired into the **same**
+`research_stack.py` CLI. It builds `research_fusion` for both games from the
+**existing** V4.7 statistical selectors and **actual original** game-engine
+geometry rankings, without mutating `core.MODELS` or the fixed Random NULL.
+
+The fixed, untrained heuristic for **front** positions is:
+- 70% equal-weight Borda rank score from the five registered statistical
+  arms: HOT60, EWMA, ShrinkMix (Bayesian-style shrinkage *heuristic*, not an
+  estimated Bayesian posterior), Pairwise-D2 and Challenger.
+- 30% equal-weight Borda rank score from the original engine's
+  `geometry_state` and `geometry_transition`.
+- When `--full-combinations` is specified, an additional fixed 0.05 rank-score
+  bonus for numbers selected by the **original** complete-space search.
+  No probability interpretation is attached to the score.
+
+The **back** positions use the two geometry Borda ranks (and optional
+full-space membership bonus). No back-ball model advantage is claimed.
+
+**Physical machine contribution = 0.0.** The existing uncalibrated two-ball
+experiment runs in the same report only as a mechanical self-test. Its
+motion has no measured relationship to the next SSQ or DLT draw, and feeding
+it into number ranking would be unjustified.
+
+At each of two **synthetic** future dates, the experimental output is frozen
+in a **separate, immutable in-memory SQLite table**, SHA-256 checked and
+scored after the independent invented outcome is generated; the original
+six V4.7 models and Random NULL remain distinct and unchanged. The
+head-to-head comparison explicitly returns
+`TOO_FEW_SYNTHETIC_ISSUES_NO_EDGE_CLAIM`; there is **no real prospective
+calibration**.
+
+Inspect the `games.SSQ.research_fusion`,
+`games.DLT.research_fusion` and
+`games.*.walk_forward.experimental_against_random_null` fields of
+the printed JSON report. This is **experimental research integration**, not
+a new official lottery model slot, certified operational deployment, or
+a validated enhanced chance of winning.
