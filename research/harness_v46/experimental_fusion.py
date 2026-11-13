@@ -205,7 +205,9 @@ def _in_memory_only(conn):
 def _init_synthetic_receipts(conn):
     _in_memory_only(conn)
     conn.execute("PRAGMA recursive_triggers = ON")
-    conn.executescript("""
+    # sqlite3.executescript() commits implicitly; individual CREATE statements
+    # preserve the caller-owned freeze transaction even on failures.
+    conn.execute("""
         CREATE TABLE IF NOT EXISTS synthetic_experimental_forecasts (
             run_id TEXT NOT NULL,
             lottery TEXT NOT NULL,
@@ -217,13 +219,17 @@ def _init_synthetic_receipts(conn):
             trust_class TEXT NOT NULL CHECK(
                 trust_class='SYNTHETIC_LOCAL_NO_EXTERNAL_SEAL'),
             PRIMARY KEY(run_id,lottery)
-        );
+        )
+    """)
+    conn.execute("""
         CREATE TRIGGER IF NOT EXISTS block_synthetic_fusion_update
         BEFORE UPDATE ON synthetic_experimental_forecasts
-        BEGIN SELECT RAISE(ABORT, 'immutable synthetic fusion record'); END;
+        BEGIN SELECT RAISE(ABORT, 'immutable synthetic fusion record'); END
+    """)
+    conn.execute("""
         CREATE TRIGGER IF NOT EXISTS block_synthetic_fusion_delete
         BEFORE DELETE ON synthetic_experimental_forecasts
-        BEGIN SELECT RAISE(ABORT, 'immutable synthetic fusion record'); END;
+        BEGIN SELECT RAISE(ABORT, 'immutable synthetic fusion record'); END
     """)
 
 
