@@ -13,7 +13,7 @@ The separate GitHub Actions workflow provides a manually runnable button with bo
 
 * SSQ: six front balls from 1..33 and one back ball from 1..16.
 * DLT: five front balls from 1..35 and two back balls from 1..12.
-* Models: frozen seeded uniform RANDOM_NULL, HOT60 frequency, EWMA30 (30-draw half-life). These are statistical research baselines, not proven predictive models.
+* Models: HOT60 frequency and EWMA30 (30-draw half-life). M2 uses the exact combinatorial fair-D2 probability; uniform Monte Carlo remains a simulation utility, not a candidate selector.
 * Time-ordered, strictly past-only backtest with a 120-draw minimum training prefix; reports exact full-ticket hits and D2.
 * D2 means both of two preselected front numbers appear in the next observed front draw (not a prize level). The theoretical fair-draw chance is k(k-1)/[N(N-1)].
 * Exact full-ticket fair-draw probability is 1/[C(N,k)*C(M,b)].
