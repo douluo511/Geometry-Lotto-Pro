@@ -160,5 +160,17 @@ class TestV47UnattendedSchedule(unittest.TestCase):
         self.assertEqual(s.verify(self.ledger)["count"], 0)
 
 
+    def test_current_report_requires_exactly_five_families(self):
+        payload = example_report()
+        s.check_report(payload)
+        for game in ("ssq", "dlt"):
+            payload["games"][game]["models"]["models"].pop("Challenger")
+        with self.assertRaises(ValueError):
+            s.check_report(payload)
+        # Historical archived records remain readable without changing hash receipts.
+        s.check_report(payload, allow_legacy_archive=True)
+
+
+
 if __name__ == "__main__":
     unittest.main()
