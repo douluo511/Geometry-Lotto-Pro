@@ -1,0 +1,29 @@
+name: V4.7 eleven-model research checks
+on:
+  pull_request:
+    paths:
+      - 'research/supercompute/v47_*.py'
+      - 'research/supercompute/tests/test_v47_models.py'
+      - '.github/workflows/v47-model-lab-ci.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Compile research modules
+        run: python -m compileall -q research/supercompute/v47_models.py research/supercompute/v47_cli.py
+      - name: Run synthetic acceptance tests
+        run: python -m unittest discover -s research/supercompute/tests -p 'test_v47_models.py' -v
+      - name: Run existing independent CPU research tests
+        run: python -m unittest discover -s research/supercompute/tests -p 'test_supercompute.py' -v
+      - name: Historical repository snapshot end-to-end smoke
+        run: |
+          python -m research.supercompute.v47_cli run --game both --periods 2 --trials 100 --seed 2026 --output /tmp/v47-historical-smoke.json
+          python -c "import json; x=json.load(open('/tmp/v47-historical-smoke.json')); assert x['edge']=='NO_EDGE' and set(x['games'])=={'ssq','dlt'}; assert all(g['models']['strictly_past_only'] and g['models']['edge']=='NO_EDGE' for g in x['games'].values()); print('Historical snapshots smoke PASS; NO_EDGE')"

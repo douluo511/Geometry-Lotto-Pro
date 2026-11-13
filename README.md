@@ -25,3 +25,7 @@ See `research/supercompute/README.md` and `research/supercompute/automation/READ
 程序真正枚举所有合法开奖结果：SSQ `C(33,6)*C(16,1)=17,721,088`，DLT `C(35,5)*C(12,2)=21,425,712`，共 **39,146,800**。它输出精确号码匹配分布、D2 随机基线、分区 SHA-256 和全量验算；**不导出数千万行号码清单**，也不使用过时历史数据做下一期预测。
 
 它是一个独立的研究计算器，**并非下一期中奖号码预测**，不能证明提高中奖概率。原正式 V4.7 的开奖前封存、真实定时运行及开奖后评分仍需另行验收。若看不到按钮，请确认仓库 Actions 已启用且此工作流已经合并到默认分支。
+
+## 11-component V4.7 research extension
+
+The new opt-in model lab adds HOT60, EWMA, ShrinkMix, Pairwise-D2, Challenger, statistical/geometric/physical simulations, frozen research receipts, and M1-M3 checks. It is independent from formal V4.7 and does not assert predictive edge. See [V47_MODEL_LAB.md](research/supercompute/V47_MODEL_LAB.md) for Windows commands, limitations and test coverage.
