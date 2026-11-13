@@ -36,6 +36,50 @@ jobs:
       - name: Run offline, deterministic regression tests
         run: python -m unittest discover -s research/supercompute/tests -p test_dlt_physical_source.py -v
 
+  live-historical-issuer-probe:
+    # Network evidence on a previously published issue; never a prospective seal.
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
+    needs: offline-parse-and-receipt
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Probe the fixed published 26105 announcement (may be blocked)
+        id: probe
+        continue-on-error: true
+        run: |
+          python -m research.supercompute.automation.dlt_physical_source \
+            --ledger "$RUNNER_TEMP/dlt-physical-probe" --issue 26105
+      - name: Verify captured raw evidence and parsed draws
+        id: verify
+        if: always()
+        continue-on-error: true
+        run: |
+          python -m research.supercompute.automation.dlt_physical_source \
+            --ledger "$RUNNER_TEMP/dlt-physical-probe" --verify
+      - name: Archive original bytes and failure receipts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dlt-physical-probe-${{ github.run_id }}
+          path: ${{ runner.temp }}/dlt-physical-probe/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Report historical issuer probe separately
+        if: always()
+        env:
+          PROBE_STATUS: ${{ steps.probe.outcome }}
+          VERIFY_STATUS: ${{ steps.verify.outcome }}
+        run: |
+          echo "Historical issuer probe: $PROBE_STATUS" >> "$GITHUB_STEP_SUMMARY"
+          echo "Raw/normalized verify: $VERIFY_STATUS" >> "$GITHUB_STEP_SUMMARY"
+          echo "Probe success is NOT evidence of unattended capture or predictive advantage." >> "$GITHUB_STEP_SUMMARY"
+
   manual-live-capture:
     if: github.event_name == 'workflow_dispatch'
     needs: offline-parse-and-receipt
