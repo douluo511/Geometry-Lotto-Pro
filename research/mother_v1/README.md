@@ -7,11 +7,12 @@
 
 每期开奖目标必须包含同一完整模型注册表，不因异常或物理数据不足漏掉结果行。只有开奖前可获得的数据才能影响该期号码；未来球组、开奖后出球顺序、来源不明的原文字节不能被假装成已知特征。
 
-母体每彩种注册 16 条模型位置：
+母体每彩种注册 24 条模型位置：
 
 - 6 条冻结 V4.7 研究模型：`hot60`、`ewma`、`shrinkmix`、`pairwise_d2`、`challenger`、`random_null`。
 - 5 条 V4.7 探索性模型：`hot30`、`hot120`、`pair_margin`、`pair_residual`、`recency_pair_h45_120`。
 - 3 条旧超算独立实现：`supercompute_hot60`、`supercompute_ewma30`、`supercompute_random_null`。
+- 8 条原生程序特征及集成研究模型：`native_simple_frequency`、`native_recency`、`native_gap`、`native_transition`、`native_pair_graph`、`native_geometry_state`、`native_geometry_transition`、`native_research_ensemble`。SSQ、DLT 同名模块分别通过独立 Python 进程加载，绝不混用包名 glp。
 - 2 条物理研究模型：`physical_exit_order`、`physical_ball_group`。
 
 固定的 V4.7 `random_null` 是唯一保留的原统计对照；旧超算的独立随机实现不能替换它。
@@ -34,7 +35,7 @@ python -m research.mother_v1.cli --input .\two_games.json --out .\forecasts\new_
 
 输出为三个不可覆盖的文件：
 
-- `predictions.json`：每彩种 16 个模型的完整输出、状态、模型源码哈希、参数哈希、历史哈希。
+- `predictions.json`：每彩种 24 个模型的完整输出、状态、模型源码哈希、参数哈希、历史哈希。
 - `audit_receipt.json`：本次输入与输出的 SHA-256、不可信本地时间、固定模型数量。
 - `full_model_report.md`：完整中文号码表；物理拒绝预测时明确列出 ABSTAIN。
 
