@@ -51,7 +51,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Nine no-cost tests: schema, model ID, tamper and payment guard
+      - name: "Nine no-cost tests: schema, model ID, tamper and payment guard"
         run: python -m unittest discover -s research/supercompute/tests -p test_fable52_manual_review.py -v
 
   one-paid-model-review:
