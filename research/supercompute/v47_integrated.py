@@ -130,7 +130,12 @@ def cell_division(rows, game, seed=2026, generations=2, validation=6,
         cell["fitness"] = evaluations[cell["id"]]
     champion = min(population, key=lambda x: (x["fitness"], x["id"]))
     lineage.append({"generation": generations, "final_id": champion["id"],
-                    "final_objective": champion["fitness"]})
+                    "final_objective": champion["fitness"],
+                    "evaluated": [{"id": c["id"], "parents": c["parent_ids"],
+                                   "objective": c["fitness"], "origin": c["origin"]}
+                                  for c in sorted(population,
+                                      key=lambda x: (x["fitness"], x["id"]))],
+                    "survivor_ids": [champion["id"]]})
     return {"champion_id": champion["id"], "champion": champion["genes"],
             "validation_objective": champion["fitness"],
             "validation_first_issue": rows[-validation]["issue"],

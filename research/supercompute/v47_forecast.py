@@ -16,7 +16,8 @@ from research.supercompute.v47_cli import load_snapshot
 from research.supercompute.v47_integrated import (
     freeze_result, run_all, score_result,
 )
-from research.supercompute.v47_models import SPECS, canonical
+from research.supercompute.v47_models import SPECS, canonical, m1_math
+from research.supercompute.v47_registry import execute_eleven
 
 
 def _previous(path, game):
@@ -77,6 +78,31 @@ def main(argv=None):
                          holdout=args.holdout, mc_trials=args.mc_trials,
                          physics_steps=args.physics_steps,
                          previous_champion=_previous(args.previous, game))
+        # Run eleven independently fitted model objects in the same execution,
+        # not a checklist of five selectors and six helper functions.
+        report["independent_11"] = execute_eleven(
+            rows, game, seed=args.seed, generations=args.generations,
+            validation=args.validation, holdout=args.holdout,
+            mc_trials=args.mc_trials, physics_steps=args.physics_steps,
+            previous_champion=_previous(args.previous, game))
+        # The primary frozen research candidate now comes from Model 11's
+        # ten-source validated ensemble, not the legacy five-only selector.
+        main_ticket = dict(report["independent_11"]["final_candidate"])
+        main_ticket["after_issue"] = str(rows[-1]["issue"])
+        prior_candidates = report["proposed_tickets"]
+        combined = [main_ticket]
+        for item in prior_candidates:
+            if ((item["front"], item["back"]) !=
+                    (main_ticket["front"], main_ticket["back"])):
+                combined.append(item)
+            if len(combined) == 3:
+                break
+        if len(combined) != 3:
+            raise ValueError("not enough unique eleven-stage candidates")
+        report["proposed_tickets"] = combined
+        report["validation"]["M1"] = [m1_math(rows, game, ticket)
+                                      for ticket in combined]
+        report["primary_candidate_source"] = "M1_M2_M3_Validation"
         report["snapshot_file_sha256"] = digest
         reports[game] = report
     payload = {"schema": "SSQDLT_V47_UNIFIED_RUN_V1",
@@ -98,7 +124,9 @@ def main(argv=None):
                       "games": {game: {"target": reports[game]["target_issue"],
                                        "history_asof": reports[game]["history_last_issue"],
                                        "tickets": reports[game]["proposed_tickets"],
-                                       "model_lineage": reports[game]["evolution"]["champion_id"]}
+                                       "model_lineage": reports[game]["independent_11"]["models"]["Challenger"]["fit"]["champion_id"],
+                                       "eleven_independent_models": reports[game]["independent_11"]["model_count"],
+                                       "model11_prediction": reports[game]["independent_11"]["final_candidate"]}
                                 for game in games}}, ensure_ascii=False))
 
 

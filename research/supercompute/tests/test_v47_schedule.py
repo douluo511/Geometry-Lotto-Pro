@@ -133,6 +133,23 @@ class TestV47UnattendedSchedule(unittest.TestCase):
                                   "edge": "NO_EDGE", "formal_prediction": False,
                                   "evolution": {"uses_future_draws": False}}
                              for g in ("ssq", "dlt")}}
+        from research.supercompute.v47_registry import REGISTRY
+        for game, report in payload["games"].items():
+            report["history_sha256"] = "synthetic-test-history-hash"
+            report["independent_11"] = {
+                "schema": "SSQDLT_V47_11_INDEPENDENT_MODELS_V1",
+                "model_count": 11, "independent_modules": True,
+                "history_sha256": "synthetic-test-history-hash",
+                "formal_prediction": False,
+                "models": {m.label: {
+                    "status": "EXECUTED", "fit": {"training": "synthetic"},
+                    "prediction": {"ticket": {"front": [1], "back": [2]}}}
+                    for m in REGISTRY}}
+        s.check_unified_report(payload)
+        incomplete = json.loads(json.dumps(payload))
+        incomplete["games"]["ssq"]["independent_11"]["models"].pop("Geometry")
+        with self.assertRaises(ValueError):
+            s.check_unified_report(incomplete)
         prior = self.base / "unified.json"
         prior.write_bytes(canonical(payload))
         s.record(self.ledger, self.report, 101, 1, SHA, "schedule",
