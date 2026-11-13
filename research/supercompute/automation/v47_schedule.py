@@ -76,7 +76,7 @@ def verify(working_tree, expected_run_id=None):
             if (not unified_copy.is_file() or
                     digest(unified_copy.read_bytes()) != payload["unified_sha256"]):
                 raise ValueError("unified forecast receipt tampered")
-            check_unified_report(json.loads(unified_copy.read_bytes()))
+            check_unified_report(json.loads(unified_copy.read_bytes()), allow_legacy_archive=True)
             last_unified = payload["unified_sha256"]
         ids.add(payload["run_id"])
         last_id = payload["run_id"]
@@ -117,7 +117,7 @@ def check_report(report, allow_legacy_archive=False):
 
 
 
-def check_unified_report(payload):
+def check_unified_report(payload, allow_legacy_archive=False):
     """Validate inherited research output before it can enter evidence ledger."""
     if (payload.get("schema") != "SSQDLT_V47_UNIFIED_RUN_V1"
             or set(payload.get("games", {})) != {"ssq", "dlt"}
@@ -138,6 +138,21 @@ def check_unified_report(payload):
                 or report.get("formal_prediction") is not False
                 or report.get("evolution", {}).get("uses_future_draws") is not False):
             raise ValueError("incomplete unified research evidence: " + game)
+        independent = report.get("independent_11")
+        if independent is None and allow_legacy_archive:
+            continue
+        if (not isinstance(independent, dict)
+                or independent.get("schema") != "SSQDLT_V47_11_INDEPENDENT_MODELS_V1"
+                or independent.get("model_count") != 11
+                or independent.get("independent_modules") is not True
+                or independent.get("formal_prediction") is not False
+                or independent.get("history_sha256") != report.get("history_sha256")
+                or len(independent.get("models", {})) != 11
+                or any(model.get("status") != "EXECUTED"
+                       or not model.get("fit")
+                       or not model.get("prediction", {}).get("ticket")
+                       for model in independent["models"].values())):
+            raise ValueError("eleven independent model executions not verified: " + game)
 
 
 def record(working_tree, report_path, run_id, run_attempt, commit_sha, event, unified_report_path=None):
