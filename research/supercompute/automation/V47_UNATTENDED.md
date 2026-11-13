@@ -37,3 +37,7 @@ All score/outcome claims are historical research only: repository snapshots are 
 - GitHub Actions hosted runner resources are bounded (15-minute scheduled job). No paid API or training loop is invoked.
 - The event ledger uses a Git branch with SHA256 linkage; repository administrators could still rewrite this branch. It is audit-aiding but not independently immutable or timestamp-trusted.
 - A returned audit status PASS means only two completed genuine schedule-run records and cross-run persistence were verified; it does not mean better lottery forecasting.
+
+## Unified eleven-stage generation and cross-run inheritance
+
+The scheduled job now also runs `python -m research.supercompute.v47_forecast generate` for both games with eleven-component output and research-only target placeholders. It reads `research/v47_lab_ledger/latest_unified.json` from the prior remote ledger (if present) and passes it as `--previous`, allowing parent genomes to survive into later runs. The latest index may change; each original `reports/<run_id>-unified.json` is create-only and its SHA256 is included in the immutable event hash chain. All such files are verified on subsequent starts and by the independent read-only post-run audit. This does **not** ingest new official lottery data or prove forecasting edge. A schedule event alone is not formal predraw timestamp evidence.
