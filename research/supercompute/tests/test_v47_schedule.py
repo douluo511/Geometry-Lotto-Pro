@@ -118,5 +118,47 @@ class TestV47UnattendedSchedule(unittest.TestCase):
         self.assertEqual(s.verify(self.ledger)["count"], 0)
 
 
+    def test_unified_champion_cross_run_persistence(self):
+        req = ["1:HOT60", "2:EWMA", "3:ShrinkMix", "4:Pairwise-D2",
+               "5:Challenger", "6:statistics", "7:combination_freeze_score",
+               "8:geometry", "9:probability_simulation",
+               "10:uncalibrated_physics", "11:M1_M2_M3"]
+        models = {k: [{"front": [1, 2, 3, 4, 5], "back": [1, 2]}]
+                  for k in ("HOT60", "EWMA", "ShrinkMix", "Pairwise-D2", "Challenger")}
+        payload = {"schema": "SSQDLT_V47_UNIFIED_RUN_V1", "edge": "NO_EDGE",
+                   "formal_prediction": False,
+                   "games": {g: {"game": g, "requirement_modules": req,
+                                  "model_family_tickets": models,
+                                  "proposed_tickets": [{"front": [1, 2, 3, 4, 5]}] * 3,
+                                  "edge": "NO_EDGE", "formal_prediction": False,
+                                  "evolution": {"uses_future_draws": False}}
+                             for g in ("ssq", "dlt")}}
+        prior = self.base / "unified.json"
+        prior.write_bytes(canonical(payload))
+        s.record(self.ledger, self.report, 101, 1, SHA, "schedule",
+                 unified_report_path=prior)
+        latest = self.ledger / s.LEDGER / "latest_unified.json"
+        self.assertEqual(latest.read_bytes(), canonical(payload))
+        restored = self.base / "recovered"
+        shutil.copytree(self.ledger, restored)
+        s.record(restored, self.report, 102, 1, SHA, "schedule",
+                 unified_report_path=prior)
+        self.assertEqual(s.verify(restored)["count"], 2)
+        self.assertTrue((restored / s.LEDGER / "reports" / "102-unified.json").exists())
+        latest.write_bytes(b"tampered")
+        with self.assertRaises(ValueError):
+            s.verify(self.ledger)
+
+    def test_reject_missing_unified_stages(self):
+        bad = self.base / "bad-unified.json"
+        bad.write_bytes(canonical({"schema": "SSQDLT_V47_UNIFIED_RUN_V1",
+                                   "games": {"ssq": {}, "dlt": {}},
+                                   "edge": "NO_EDGE", "formal_prediction": False}))
+        with self.assertRaises(ValueError):
+            s.record(self.ledger, self.report, 101, 1, SHA, "schedule",
+                     unified_report_path=bad)
+        self.assertEqual(s.verify(self.ledger)["count"], 0)
+
+
 if __name__ == "__main__":
     unittest.main()

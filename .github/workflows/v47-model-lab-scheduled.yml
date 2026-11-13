@@ -67,6 +67,24 @@ jobs:
         run: |
           set -euo pipefail
           python -m research.supercompute.v47_cli run --game both --periods 12 --trials 1000 --seed 2026 --output "$RUNNER_TEMP/v47-research-report.json"
+      - name: Generate eleven-stage unified research with previous-run champion
+        shell: bash
+        run: |
+          set -euo pipefail
+          branch=ssqdlt-v47-lab-ledger-v1
+          previous="$RUNNER_TEMP/v47-previous-unified.json"
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null; then
+            git fetch --no-tags origin "refs/heads/$branch:refs/remotes/origin/$branch"
+            git show "refs/remotes/origin/$branch:research/v47_lab_ledger/latest_unified.json" > "$previous" || rm -f "$previous"
+          fi
+          args=(generate --game both
+                --ssq-target "RESEARCH_UNVERIFIED_SSQ_RUN_$GITHUB_RUN_ID"
+                --dlt-target "RESEARCH_UNVERIFIED_DLT_RUN_$GITHUB_RUN_ID"
+                --seed 2026 --generations 2 --validation 6 --holdout 3
+                --mc-trials 300 --physics-steps 30
+                --output "$RUNNER_TEMP/v47-unified-11.json")
+          if [ -s "$previous" ]; then args+=(--previous "$previous"); fi
+          python -m research.supercompute.v47_forecast "${args[@]}"
       - name: Commit schedule receipt to separate branch then verify fresh remote restore
         shell: bash
         run: |
@@ -86,7 +104,8 @@ jobs:
           python -m research.supercompute.automation.v47_schedule record \
             --ledger "$ledger" --report "$RUNNER_TEMP/v47-research-report.json" \
             --run-id "$GITHUB_RUN_ID" --run-attempt "$GITHUB_RUN_ATTEMPT" \
-            --commit-sha "$GITHUB_SHA" --event "$GITHUB_EVENT_NAME"
+            --commit-sha "$GITHUB_SHA" --event "$GITHUB_EVENT_NAME" \
+            --unified-report "$RUNNER_TEMP/v47-unified-11.json"
 
           git -C "$ledger" config user.name "github-actions[bot]"
           git -C "$ledger" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -106,5 +125,6 @@ jobs:
           name: v47-scheduled-research-${{ github.run_id }}
           path: |
             ${{ runner.temp }}/v47-research-report.json
+            ${{ runner.temp }}/v47-unified-11.json
             ${{ runner.temp }}/v47-remote-verification.json
           if-no-files-found: error
