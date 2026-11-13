@@ -3,7 +3,7 @@
 Usage:
   python -m research.mother_v1.cli --input two_games.json --out ./new_batch
   python -m research.mother_v1.cli --input two_games.json --out ./new_batch --physical-ledger ./research/physical_evidence_v1
-Output: predictions.json, audit_receipt.json. No tickets bought or sent.
+Output: predictions.json, audit_receipt.json, full_model_report.md. No purchase.
 """
 from __future__ import annotations
 
@@ -14,6 +14,7 @@ import json
 from pathlib import Path
 
 from .mother import MotherBlocked, forecast_all, _bytes, sha
+from .report import markdown_report
 
 
 def _load_object(path: Path) -> dict:
@@ -76,6 +77,7 @@ def main(argv=None) -> int:
     args.out.mkdir(parents=True, exist_ok=False)
     _create_once(args.out / "predictions.json", predictions)
     _create_once(args.out / "audit_receipt.json", _bytes(receipt) + b"\n")
+    _create_once(args.out / "full_model_report.md", markdown_report(forecast).encode("utf-8"))
     if args.print_summary:
         print(json.dumps({
             "out": str(args.out), "forecast_sha256": receipt["forecast_sha256"],
