@@ -204,7 +204,7 @@ if __name__ == "__main__":
 def compute_v47_research(game, periods=30, trials=10000, seed=2026):
     """Explicit opt-in research report for 11 components.
 
-    Keeps legacy compute()/MODELS, formal predictors, frozen receipts and NULL
+    Keeps legacy compute()/MODELS, formal predictors, frozen receipts and earlier archived receipts
     experiments untouched. Reads repository historical snapshots, NOT live
     official results. No valid claim of forecasting advantage.
     """
@@ -215,7 +215,7 @@ def compute_v47_research(game, periods=30, trials=10000, seed=2026):
     )
     rows, meta = snapshot(game)
     examples = {name: v47_candidates(rows, game, name, limit=1, seed=seed)[0]
-                for name in V47_LAB_MODELS[1:]}
+                for name in V47_LAB_MODELS}
     return {"snapshot": meta, "m1": m1_math(rows, game, examples["HOT60"]),
             "historical_walk_forward": v47_backtest(rows, game, periods, seed),
             "geometry": geometry_state(rows, game),
