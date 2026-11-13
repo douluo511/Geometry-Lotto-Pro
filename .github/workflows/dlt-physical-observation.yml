@@ -1,0 +1,135 @@
+name: DLT issuer physical draw evidence (research only)
+
+on:
+  pull_request:
+    paths:
+      - 'research/supercompute/automation/dlt_physical_source.py'
+      - 'research/supercompute/tests/test_dlt_physical_source.py'
+      - '.github/workflows/dlt-physical-observation.yml'
+  push:
+    branches: ['research/dlt-physical-audit-*']
+    paths:
+      - 'research/supercompute/automation/dlt_physical_source.py'
+      - 'research/supercompute/tests/test_dlt_physical_source.py'
+      - '.github/workflows/dlt-physical-observation.yml'
+  workflow_dispatch:
+    inputs:
+      issue:
+        description: 'Explicit 5-digit DLT issue number; must already be published'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  offline-parse-and-receipt:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Run offline, deterministic regression tests
+        run: python -m unittest discover -s research/supercompute/tests -p test_dlt_physical_source.py -v
+
+  live-historical-issuer-probe:
+    # Network evidence on a previously published issue; never a prospective seal.
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
+    needs: offline-parse-and-receipt
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Probe the fixed published 26105 announcement (may be blocked)
+        id: probe
+        continue-on-error: true
+        run: |
+          python -m research.supercompute.automation.dlt_physical_source \
+            --ledger "$RUNNER_TEMP/dlt-physical-probe" --issue 26105
+      - name: Verify captured raw evidence and parsed draws
+        id: verify
+        if: always()
+        continue-on-error: true
+        run: |
+          python -m research.supercompute.automation.dlt_physical_source \
+            --ledger "$RUNNER_TEMP/dlt-physical-probe" --verify
+      - name: Archive original bytes and failure receipts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dlt-physical-probe-${{ github.run_id }}
+          path: ${{ runner.temp }}/dlt-physical-probe/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Report historical issuer probe separately
+        if: always()
+        env:
+          PROBE_STATUS: ${{ steps.probe.outcome }}
+          VERIFY_STATUS: ${{ steps.verify.outcome }}
+        run: |
+          echo "Historical issuer probe: $PROBE_STATUS" >> "$GITHUB_STEP_SUMMARY"
+          echo "Raw/normalized verify: $VERIFY_STATUS" >> "$GITHUB_STEP_SUMMARY"
+          echo "Probe success is NOT evidence of unattended capture or predictive advantage." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Fail closed after archiving blocked issuer evidence
+        if: steps.probe.outcome != 'success' || steps.verify.outcome != 'success'
+        run: |
+          echo "::error::Historical issuer probe BLOCKED; offline tests do not imply live issuer PASS."
+          exit 1
+
+  manual-live-capture:
+    if: github.event_name == 'workflow_dispatch'
+    needs: offline-parse-and-receipt
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Check explicit issue syntax before any network request
+        env:
+          ISSUE_INPUT: ${{ inputs.issue }}
+        run: |
+          python - <<'PY'
+          import os
+          from research.supercompute.automation.dlt_physical_source import source_url
+          print(source_url(os.environ['ISSUE_INPUT']))
+          PY
+      - name: Capture original response bytes and immutable attempt receipt
+        id: capture
+        continue-on-error: true
+        env:
+          ISSUE_INPUT: ${{ inputs.issue }}
+        run: |
+          python -m research.supercompute.automation.dlt_physical_source \
+            --ledger "$RUNNER_TEMP/dlt-physical-evidence" --issue "$ISSUE_INPUT"
+      - name: Verify all stored draw bytes and normalized records
+        if: always()
+        run: |
+          python -m research.supercompute.automation.dlt_physical_source \
+            --ledger "$RUNNER_TEMP/dlt-physical-evidence" --verify
+      - name: Upload source bytes, success or failure receipts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dlt-physical-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/dlt-physical-evidence/
+          if-no-files-found: warn
+          retention-days: 30
+      - name: Surface official-source failure (not a prediction outcome)
+        if: steps.capture.outcome != 'success'
+        run: |
+          echo "::error::Issuer collection blocked. Inspect evidence artifact; no draw was fabricated."
+          exit 1

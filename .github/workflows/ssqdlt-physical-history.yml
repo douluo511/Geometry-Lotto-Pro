@@ -1,0 +1,154 @@
+name: SSQDLT physical issuer history durable ingestion (research only)
+
+on:
+  push:
+    branches: ['research/dlt-physical-audit-*']
+    paths:
+      - '.github/workflows/ssqdlt-physical-history.yml'
+      - 'research/supercompute/automation/physical_*'
+      - 'research/supercompute/automation/ssq_physical_source.py'
+      - 'research/supercompute/automation/dlt_physical_source.py'
+      - 'research/supercompute/tests/test_physical_*.py'
+  pull_request:
+    paths:
+      - '.github/workflows/ssqdlt-physical-history.yml'
+      - 'research/supercompute/automation/physical_*'
+      - 'research/supercompute/automation/ssq_physical_source.py'
+      - 'research/supercompute/automation/dlt_physical_source.py'
+      - 'research/supercompute/tests/test_physical_*.py'
+  schedule:
+    # Only enabled on default branch after a separately reviewed merge.
+    - cron: '11 2,14 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ssqdlt-physical-durable-ledger-v1
+  cancel-in-progress: false
+
+jobs:
+  isolated-contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Verify network retry and issuer host boundaries
+        run: python -m unittest discover -s research/supercompute/tests -p test_physical_transport.py -v
+      - name: Verify SQLite transactional crash recovery
+        run: python -m unittest discover -s research/supercompute/tests -p test_physical_ledger_db.py -v
+      - name: Verify two tick recovery and no-fabrication failure handling
+        run: python -m unittest discover -s research/supercompute/tests -p test_physical_tick.py -v
+      - name: Regression both issuer recorders
+        run: |
+          python -m unittest discover -s research/supercompute/tests -p test_ssq_physical_source.py -v
+          python -m unittest discover -s research/supercompute/tests -p test_dlt_physical_source.py -v
+
+  append-issuer-ledger:
+    needs: isolated-contracts
+    if: >-
+      github.repository == 'douluo511/Geometry-Lotto-Pro' &&
+      ((github.event_name == 'push' &&
+        startsWith(github.ref, 'refs/heads/research/dlt-physical-audit-')) ||
+       (github.event_name == 'schedule' && github.ref == 'refs/heads/main') ||
+       (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Restore canonical state from dedicated remote branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          branch="ssqdlt-physical-evidence-ledger-v1"
+          ledger="$RUNNER_TEMP/physical-ledger"
+          restored="$RUNNER_TEMP/physical-restored"
+          tracking="refs/remotes/origin/$branch"
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null; then
+            git fetch --no-tags origin "refs/heads/$branch:$tracking"
+            git worktree add --detach "$ledger" "$tracking"
+          else
+            git worktree add --detach "$ledger" "$GITHUB_SHA"
+          fi
+          echo "PHYSICAL_LEDGER=$ledger" >> "$GITHUB_ENV"
+          echo "PHYSICAL_RESTORED=$restored" >> "$GITHUB_ENV"
+          echo "PHYSICAL_BRANCH=$branch" >> "$GITHUB_ENV"
+          echo "PHYSICAL_TRACKING=$tracking" >> "$GITHUB_ENV"
+      - name: Check restored SQLite and original bytes before writing
+        run: |
+          python -m research.supercompute.automation.physical_tick \
+            --ledger "$PHYSICAL_LEDGER" --verify-only
+      - name: Execute bounded issuer fetch and transactional index
+        id: ingest
+        continue-on-error: true
+        shell: bash
+        run: |
+          python -m research.supercompute.automation.physical_tick \
+            --ledger "$PHYSICAL_LEDGER" | tee "$RUNNER_TEMP/physical-tick.json"
+      - name: Publish append-only evidence and fresh-checkout verify
+        shell: bash
+        env:
+          INGEST_RESULT: ${{ steps.ingest.outcome }}
+        run: |
+          set -euo pipefail
+          if [[ "$INGEST_RESULT" != "success" ]]; then
+            echo "::error::Tick failed; remote persistence cannot be admitted"
+            exit 1
+          fi
+          git -C "$PHYSICAL_LEDGER" add -A -- research/physical_evidence_v1
+          python - <<'PY'
+          import os, subprocess
+          repo=os.environ["PHYSICAL_LEDGER"]
+          raw=subprocess.check_output(["git","-C",repo,"diff","--cached",
+              "--name-status","-z","--","research/physical_evidence_v1"])
+          parts=[x for x in raw.decode().split("\0") if x]
+          if not parts or len(parts)%2: raise SystemExit("NO_EVIDENCE_COMMIT")
+          for op,path in zip(parts[::2],parts[1::2]):
+              db=path=="research/physical_evidence_v1/physical_history.sqlite3"
+              if not path.startswith("research/physical_evidence_v1/"):
+                  raise SystemExit("UNEXPECTED_STAGED_PATH")
+              if op!="A" and not (db and op=="M"):
+                  raise SystemExit("NON_APPEND_OBSERVATION: "+op+" "+path)
+          print("evidence files changed:",len(parts)//2)
+          PY
+          git -C "$PHYSICAL_LEDGER" config user.name "github-actions[bot]"
+          git -C "$PHYSICAL_LEDGER" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C "$PHYSICAL_LEDGER" commit -m "physical: append $GITHUB_EVENT_NAME run $GITHUB_RUN_ID"
+          git -C "$PHYSICAL_LEDGER" push origin "HEAD:refs/heads/$PHYSICAL_BRANCH"
+          git fetch --no-tags origin "refs/heads/$PHYSICAL_BRANCH:$PHYSICAL_TRACKING"
+          git worktree add --detach "$PHYSICAL_RESTORED" "$PHYSICAL_TRACKING"
+          test "$(git -C "$PHYSICAL_LEDGER" rev-parse HEAD)" = \
+               "$(git -C "$PHYSICAL_RESTORED" rev-parse HEAD)"
+      - name: Rebuild-check from independently re-fetched remote ledger
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m research.supercompute.automation.physical_tick \
+            --ledger "$PHYSICAL_RESTORED" --verify-only | \
+            tee "$RUNNER_TEMP/physical-remote-verify.json"
+          test -s "$RUNNER_TEMP/physical-remote-verify.json"
+          echo "Remote branch persistence and fresh recovery: verified." >> "$GITHUB_STEP_SUMMARY"
+          echo "Scheduled trigger and formal pre-draw proof: NOT VERIFIED." >> "$GITHUB_STEP_SUMMARY"
+      - name: Archive run report even if a source was blocked
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: physical-ledger-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/physical-tick.json
+            ${{ runner.temp }}/physical-remote-verify.json
+          if-no-files-found: warn
+          retention-days: 30

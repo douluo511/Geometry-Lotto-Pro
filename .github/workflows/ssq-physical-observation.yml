@@ -1,0 +1,126 @@
+name: SSQ issuer sorted-only evidence (research only)
+
+on:
+  pull_request:
+    paths:
+      - 'research/supercompute/automation/ssq_physical_source.py'
+      - 'research/supercompute/tests/test_ssq_physical_source.py'
+      - '.github/workflows/ssq-physical-observation.yml'
+  push:
+    branches: ['research/dlt-physical-audit-*']
+    paths:
+      - 'research/supercompute/automation/ssq_physical_source.py'
+      - 'research/supercompute/tests/test_ssq_physical_source.py'
+      - '.github/workflows/ssq-physical-observation.yml'
+  workflow_dispatch:
+    inputs:
+      issue:
+        description: 'Published seven-digit SSQ issue in Shanghai official history window'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  offline-ssq-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Verify offline SSQ issuer parsing and create-only receipts
+        run: python -m unittest discover -s research/supercompute/tests -p test_ssq_physical_source.py -v
+
+  live-published-ssq-probe:
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
+    needs: offline-ssq-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Fetch fixed published issue 2026130, not a forecast
+        id: capture
+        continue-on-error: true
+        run: |
+          python -m research.supercompute.automation.ssq_physical_source \
+            --ledger "$RUNNER_TEMP/ssq-physical-probe" --issue 2026130
+      - name: Reparse and verify stored original source bytes
+        id: verify
+        if: always()
+        continue-on-error: true
+        run: |
+          python -m research.supercompute.automation.ssq_physical_source \
+            --ledger "$RUNNER_TEMP/ssq-physical-probe" --verify
+      - name: Archive success or failure evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ssq-physical-probe-${{ github.run_id }}
+          path: ${{ runner.temp }}/ssq-physical-probe/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Fail closed if real issuer capture is blocked
+        if: steps.capture.outcome != 'success' || steps.verify.outcome != 'success'
+        run: |
+          echo "::error::SSQ official source capture BLOCKED; examine artifact."
+          exit 1
+
+  manual-ssq-observation:
+    if: github.event_name == 'workflow_dispatch'
+    needs: offline-ssq-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Validate issue before public-source request
+        env:
+          ISSUE_INPUT: ${{ inputs.issue }}
+        run: |
+          python - <<'PY'
+          import os
+          from research.supercompute.automation.ssq_physical_source import source_url
+          print(source_url(os.environ["ISSUE_INPUT"]))
+          PY
+      - name: Fetch issuer HTML with immutability receipts
+        id: capture
+        continue-on-error: true
+        env:
+          ISSUE_INPUT: ${{ inputs.issue }}
+        run: |
+          python -m research.supercompute.automation.ssq_physical_source \
+            --ledger "$RUNNER_TEMP/ssq-physical-manual" --issue "$ISSUE_INPUT"
+      - name: Verify saved canonical SSQ record
+        id: verify
+        if: always()
+        continue-on-error: true
+        run: |
+          python -m research.supercompute.automation.ssq_physical_source \
+            --ledger "$RUNNER_TEMP/ssq-physical-manual" --verify
+      - name: Archive all evidence including failures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ssq-physical-manual-${{ github.run_id }}
+          path: ${{ runner.temp }}/ssq-physical-manual/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Fail closed on blocked source or verification
+        if: steps.capture.outcome != 'success' || steps.verify.outcome != 'success'
+        run: |
+          echo "::error::SSQ issuer observation not verified; see archived receipt."
+          exit 1
