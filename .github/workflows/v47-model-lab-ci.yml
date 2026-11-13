@@ -48,7 +48,7 @@ jobs:
       - name: Next-candidate unified historical snapshot smoke
         run: |
           python -m research.supercompute.v47_forecast generate --game both --ssq-target UNVERIFIED_RESEARCH_NEXT_SSQ --dlt-target UNVERIFIED_RESEARCH_NEXT_DLT --generations 1 --validation 3 --holdout 2 --mc-trials 30 --physics-steps 3 --seed 2026 --output /tmp/v47-unified-11.json
-          python -c "import json; p=json.load(open('/tmp/v47-unified-11.json')); assert all(len(v['requirement_modules']) == 11 and len(v['proposed_tickets']) == 3 and v['edge'] == 'NO_EDGE' and v['independent_11']['model_count'] == 11 and all(x['status'] == 'EXECUTED' for x in v['independent_11']['models'].values()) for v in p['games'].values()); print('Eleven-stage SSQ/DLT smoke PASS')"
+          python -c "import json; p=json.load(open('/tmp/v47-unified-11.json')); assert all(len(v['requirement_modules']) == 11 and len(v['proposed_tickets']) == 11 and v['ticket_count'] == 11 and v['edge'] == 'NO_EDGE' and v['independent_11']['model_count'] == 11 and all(x['status'] == 'EXECUTED' for x in v['independent_11']['models'].values()) for v in p['games'].values()); assert sum(g['ticket_count'] for g in p['games'].values()) == 22; print('Twenty-two model tickets smoke PASS')"
 
       - name: Execute eleven independent models for issue targets and create frozen receipts
         shell: bash
@@ -72,7 +72,7 @@ jobs:
       - name: Persist complete research output, eleven-model traces, and frozen SHA256 receipts
         uses: actions/upload-artifact@v4
         with:
-          name: v47-eleven-model-execution-${{ github.run_id }}
+          name: v47-twenty-two-model-tickets-${{ github.run_id }}
           path: |
             ${{ runner.temp }}/v47-executed-11.json
             ${{ runner.temp }}/v47-execution-evidence.json
