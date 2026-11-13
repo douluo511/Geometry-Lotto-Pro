@@ -15,16 +15,25 @@ EXPLORATORY_V47 = (
 LEGACY_SUPERCOMPUTE = (
     "supercompute_hot60", "supercompute_ewma30", "supercompute_random_null",
 )
+NATIVE_FEATURES = (
+    "native_simple_frequency", "native_recency", "native_gap",
+    "native_transition", "native_pair_graph", "native_geometry_state",
+    "native_geometry_transition", "native_research_ensemble",
+)
 PHYSICAL = (
     "physical_exit_order", "physical_ball_group",
 )
-ALL_MODELS = REGISTERED_V47 + EXPLORATORY_V47 + LEGACY_SUPERCOMPUTE + PHYSICAL
-assert len(ALL_MODELS) == len(set(ALL_MODELS)) == 16
+ALL_MODELS = (
+    REGISTERED_V47 + EXPLORATORY_V47 + LEGACY_SUPERCOMPUTE +
+    NATIVE_FEATURES + PHYSICAL
+)
+assert len(ALL_MODELS) == len(set(ALL_MODELS)) == 24
 
 MODEL_FAMILIES = {
     **{name: "FROZEN_V47_RESEARCH" for name in REGISTERED_V47},
     **{name: "EXPLORATORY_V47_ABLATION" for name in EXPLORATORY_V47},
     **{name: "LEGACY_SUPERCOMPUTE_ISOLATED" for name in LEGACY_SUPERCOMPUTE},
+    **{name: "SSQ_DLT_NATIVE_FEATURE_ISOLATED" for name in NATIVE_FEATURES},
     **{name: "PHYSICAL_EXPLORATORY" for name in PHYSICAL},
 }
 HISTORY_POLICIES = {
