@@ -44,7 +44,8 @@ def synthetic_fixture(game: str, *, seed: int) -> dict:
         rng = random.Random(seed * 1009 + idx * 101 + (0 if game == "SSQ" else 1))
         stamp = start + timedelta(days=idx)
         rows.append({
-            "issue": str(26001 + idx),
+            "issue": (f"2026{idx + 1:03d}" if game == "SSQ"
+                      else f"26{idx + 1:03d}"),
             "front": sorted(rng.sample(range(1, r["pool"] + 1), r["front"])),
             "back": sorted(rng.sample(range(1, r["back_pool"] + 1), r["back"])),
             "drawn_at": stamp.isoformat(),
@@ -56,7 +57,7 @@ def synthetic_fixture(game: str, *, seed: int) -> dict:
         "as_of": "2026-10-20T00:00:00+00:00",
         "sales_cutoff": "2026-10-23T12:00:00+08:00",
         "target_draw_at": "2026-10-23T21:00:00+08:00",
-        "target_issue": "29999",
+        "target_issue": "2026999" if game == "SSQ" else "26999",
         "draws": rows,
         "provenance": {"status": "SYNTHETIC_FIXTURE_NOT_OFFICIAL"},
     }
@@ -143,7 +144,7 @@ def run_synthetic_stack(*, seed: int = 2026, trials: int = 3000, steps: int = 12
         geometry = _geometry_subprocess(snapshot, game)
         random_reference = simulate_fair_d2(
             pool=r["pool"], picks=r["front"], trials=trials,
-            seed=seed + (0 if game == "SSQ" else 104729),
+            seed=(seed + (0 if game == "SSQ" else 104729)) % (2**32),
         )
         games[game] = {
             "m1_math": {
