@@ -10,6 +10,8 @@ from __future__ import annotations
 from hashlib import sha256
 import json
 from pathlib import Path
+
+from research.mother_v1.source_identity import committed_source_sha256
 import sys
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -41,7 +43,7 @@ def run(game: str, rows: list[dict]) -> dict:
                 raise ValueError("NATIVE_RANKING_INVALID")
     return {
         "game": game, "provider": relative + "/glp/engine.py",
-        "source_sha256": sha256(Path(engine.__file__).read_bytes()).hexdigest(),
+        "source_sha256": committed_source_sha256(engine.__file__),
         "identity": engine.model_identity(),
         "front_rankings": front, "back_rankings": back,
         "research_only": True, "formal_A": 0, "decision": "NO_EDGE",
