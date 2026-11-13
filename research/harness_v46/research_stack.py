@@ -21,6 +21,7 @@ from pathlib import Path
 from . import core
 from .physics_audit import Ball, audit_model_contracts, d2_probability
 from .physics_sim import Chamber, simulate_chamber
+from .synthetic_pipeline import run_synthetic_walk_forward
 
 ROOT = Path(__file__).resolve().parents[2]
 GAME_APP = {"SSQ": ROOT / "SSQ" / "SSQ", "DLT": ROOT / "DLT" / "src"}
@@ -142,6 +143,7 @@ def run_synthetic_stack(*, seed: int = 2026, trials: int = 3000, steps: int = 12
             raise ValueError("REGISTERED_MODELS_CHANGED:" + game)
         r = core.RULES[game]
         geometry = _geometry_subprocess(snapshot, game)
+        walk_forward = run_synthetic_walk_forward(game, seed=seed, periods=2)
         random_reference = simulate_fair_d2(
             pool=r["pool"], picks=r["front"], trials=trials,
             seed=(seed + (0 if game == "SSQ" else 104729)) % (2**32),
@@ -159,6 +161,7 @@ def run_synthetic_stack(*, seed: int = 2026, trials: int = 3000, steps: int = 12
             },
             "m3_probability": random_reference,
             "geometry": geometry,
+            "walk_forward": walk_forward,
             "provenance": "SYNTHETIC_FIXTURE_NOT_OFFICIAL",
         }
     chamber = Chamber(
@@ -187,6 +190,7 @@ def run_synthetic_stack(*, seed: int = 2026, trials: int = 3000, steps: int = 12
         "limitations": [
             "No official draw or target authenticated by this research command.",
             "M3 simulations check a theoretical fair null, not actual prediction calibration.",
+            "Local freeze and walk-forward score use invented outcomes and in-memory SQLite only; never formal A.",
             "Toy physical box is uncalibrated and lacks full machinery, airflow CFD, ball spin and drawing mechanism.",
             "No owner Windows host, reboot recovery, pre-draw freeze or live model integration is certified.",
         ],
