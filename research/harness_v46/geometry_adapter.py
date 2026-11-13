@@ -32,6 +32,7 @@ def extract_geometry(snapshot: dict, game: str, *, complete_space: bool = False)
     draws = [Draw.from_dict(row) for row in snapshot["draws"]]
     features = {}
     geometry_first_pairs = {}
+    geometry_rankings = {}
     for area in ("front", "back"):
         data = engine.feature_vectors(draws, area)
         rankings = engine.individual_model_rankings(draws, area)
@@ -41,8 +42,15 @@ def extract_geometry(snapshot: dict, game: str, *, complete_space: bool = False)
         if any(not values for values in data.values()):
             raise ValueError("GEOMETRY_FEATURE_EMPTY")
         features[area] = sorted(data.keys())
+        pool = core.RULES[game]["pool" if area == "front" else "back_pool"]
+        chosen = {label: list(rankings[label]) for label in sorted(required)}
+        for label, ranking in chosen.items():
+            if (len(ranking) != pool or len(set(ranking)) != pool
+                    or any(type(n) is not int or not 1 <= n <= pool for n in ranking)):
+                raise ValueError("GEOMETRY_ENGINE_RANKING_NOT_PERMUTATION:" + label)
+        geometry_rankings[area] = chosen
         geometry_first_pairs[area] = {
-            label: list(rankings[label][:2]) for label in sorted(required)
+            label: chosen[label][:2] for label in sorted(required)
         }
     # Full legal-combination enumeration is intentionally opt-in because it
     # is computationally costly and not supported by evidence of prediction.
@@ -78,6 +86,7 @@ def extract_geometry(snapshot: dict, game: str, *, complete_space: bool = False)
         "status": "RESEARCH_FEATURES_NOT_PHYSICS",
         "complete_space": complete,
         "features": features,
+        "geometry_rankings": geometry_rankings,
         "illustrative_top_two_from_geometry_scores": geometry_first_pairs,
         "real_machine_geometry_observed": False,
         "validated_official_draws": False,
