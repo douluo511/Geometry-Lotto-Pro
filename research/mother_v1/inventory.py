@@ -14,6 +14,7 @@ from pathlib import Path
 from research.harness_v46 import core
 from research.harness_v46.d2_challenger_lab import ABLATION_ARMS, CHALLENGER_ID
 from research.supercompute import engine as legacy
+from research.mother_v1.source_identity import committed_source_sha256
 from research.mother_v1.registry import (
     REGISTERED_V47, EXPLORATORY_V47, LEGACY_SUPERCOMPUTE,
     NATIVE_FEATURES, PHYSICAL, ALL_MODELS,
@@ -101,8 +102,7 @@ def audit() -> dict:
         path = ROOT / relative
         if not path.is_file() or path.is_symlink():
             raise InventoryBlocked("MODEL_SOURCE_MISSING_OR_SYMLINK")
-        raw = path.read_bytes()
-        hashes[relative] = sha256(raw).hexdigest()
+        hashes[relative] = committed_source_sha256(path)
     return {
         "schema": "SSQDLT_MOTHER_V1_COMPLETE_MODEL_SOURCE_INVENTORY",
         "registered_models_per_game": list(ALL_MODELS),
