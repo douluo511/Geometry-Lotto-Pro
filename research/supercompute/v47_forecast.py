@@ -85,23 +85,27 @@ def main(argv=None):
             validation=args.validation, holdout=args.holdout,
             mc_trials=args.mc_trials, physics_steps=args.physics_steps,
             previous_champion=_previous(args.previous, game))
-        # The primary frozen research candidate now comes from Model 11's
-        # ten-source validated ensemble, not the legacy five-only selector.
-        main_ticket = dict(report["independent_11"]["final_candidate"])
-        main_ticket["after_issue"] = str(rows[-1]["issue"])
-        prior_candidates = report["proposed_tickets"]
-        combined = [main_ticket]
-        for item in prior_candidates:
-            if ((item["front"], item["back"]) !=
-                    (main_ticket["front"], main_ticket["back"])):
-                combined.append(item)
-            if len(combined) == 3:
-                break
-        if len(combined) != 3:
-            raise ValueError("not enough unique eleven-stage candidates")
-        report["proposed_tickets"] = combined
+        # One named, independently computed ticket for EACH of the eleven
+        # executable models. Never replace these with three fused alternatives.
+        model_evidence = report["independent_11"]["models"]
+        ordered = sorted(model_evidence.items(), key=lambda kv: kv[1]["number"])
+        if len(ordered) != 11 or [v["number"] for _, v in ordered] != list(range(1, 12)):
+            raise ValueError("expected exactly eleven independent model outputs")
+        grouped = []
+        for model_name, execution in ordered:
+            ticket = dict(execution["prediction"]["ticket"])
+            ticket["model_number"] = execution["number"]
+            ticket["model_name"] = model_name
+            ticket["after_issue"] = str(rows[-1]["issue"])
+            ticket["source"] = "INDEPENDENT_MODEL_PREDICTION"
+            grouped.append(ticket)
+        if grouped[-1]["model_name"] != "M1_M2_M3_Validation":
+            raise ValueError("eleventh final validation model missing")
+        report["proposed_tickets"] = grouped
+        report["ticket_count"] = 11
+        report["per_model_ticket_contract"] = "ONE_ROW_PER_MODEL"
         report["validation"]["M1"] = [m1_math(rows, game, ticket)
-                                      for ticket in combined]
+                                      for ticket in grouped]
         report["primary_candidate_source"] = "M1_M2_M3_Validation"
         report["snapshot_file_sha256"] = digest
         reports[game] = report
@@ -126,6 +130,7 @@ def main(argv=None):
                                        "tickets": reports[game]["proposed_tickets"],
                                        "model_lineage": reports[game]["independent_11"]["models"]["Challenger"]["fit"]["champion_id"],
                                        "eleven_independent_models": reports[game]["independent_11"]["model_count"],
+                                       "ticket_count": reports[game]["ticket_count"],
                                        "model11_prediction": reports[game]["independent_11"]["final_candidate"]}
                                 for game in games}}, ensure_ascii=False))
 

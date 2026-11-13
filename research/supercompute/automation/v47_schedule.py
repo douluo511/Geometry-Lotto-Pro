@@ -133,11 +133,23 @@ def check_unified_report(payload, allow_legacy_archive=False):
         if (report.get("game") != game
                 or set(report.get("requirement_modules", [])) != required
                 or set(report.get("model_family_tickets", {})) != families
-                or len(report.get("proposed_tickets", [])) != 3
+                or len(report.get("proposed_tickets", [])) != (
+                    3 if allow_legacy_archive and report.get("ticket_count") is None
+                    else 11
+                )
                 or report.get("edge") != "NO_EDGE"
                 or report.get("formal_prediction") is not False
                 or report.get("evolution", {}).get("uses_future_draws") is not False):
             raise ValueError("incomplete unified research evidence: " + game)
+        if report.get("ticket_count") == 11:
+            from research.supercompute.v47_registry import REGISTRY
+            actual = report["proposed_tickets"]
+            if (len(actual) != 11
+                    or [t.get("model_number") for t in actual] != list(range(1, 12))
+                    or [t.get("model_name") for t in actual]
+                       != [model.label for model in REGISTRY]
+                    or report.get("per_model_ticket_contract") != "ONE_ROW_PER_MODEL"):
+                raise ValueError("scheduled evidence not 11 model-labelled tickets")
         independent = report.get("independent_11")
         if independent is None and allow_legacy_archive:
             continue
@@ -153,6 +165,16 @@ def check_unified_report(payload, allow_legacy_archive=False):
                        or not model.get("prediction", {}).get("ticket")
                        for model in independent["models"].values())):
             raise ValueError("eleven independent model executions not verified: " + game)
+        if report.get("ticket_count") == 11:
+            for t in report["proposed_tickets"]:
+                record = independent["models"][t["model_name"]]
+                original = record["prediction"]["ticket"]
+                if (t["front"] != original["front"]
+                        or t["back"] != original["back"]
+                        or t["dan2"] != original["dan2"]):
+                    raise ValueError("model ticket does not match independent output")
+        elif not allow_legacy_archive:
+            raise ValueError("new schedule receipt requires exactly 11 model tickets")
 
 
 def record(working_tree, report_path, run_id, run_attempt, commit_sha, event, unified_report_path=None):

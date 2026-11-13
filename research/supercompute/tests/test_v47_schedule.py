@@ -145,6 +145,17 @@ class TestV47UnattendedSchedule(unittest.TestCase):
                     "status": "EXECUTED", "fit": {"training": "synthetic"},
                     "prediction": {"ticket": {"front": [1], "back": [2]}}}
                     for m in REGISTRY}}
+        for game, report in payload["games"].items():
+            sample = ({"front": [1, 2, 3, 4, 5, 6], "back": [1], "dan2": [1, 2]}
+                      if game == "ssq"
+                      else {"front": [1, 2, 3, 4, 5], "back": [1, 2], "dan2": [1, 2]})
+            report["proposed_tickets"] = []
+            report["ticket_count"] = 11
+            report["per_model_ticket_contract"] = "ONE_ROW_PER_MODEL"
+            for index, model in enumerate(REGISTRY, 1):
+                ticket = dict(sample, model_number=index, model_name=model.label)
+                report["proposed_tickets"].append(ticket)
+                report["independent_11"]["models"][model.label]["prediction"]["ticket"] = dict(sample)
         s.check_unified_report(payload)
         incomplete = json.loads(json.dumps(payload))
         incomplete["games"]["ssq"]["independent_11"]["models"].pop("Geometry")
