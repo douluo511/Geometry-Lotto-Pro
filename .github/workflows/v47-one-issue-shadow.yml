@@ -20,5 +20,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Inspect latest pinned historic observation rows
+      - name: Execute six V47 models and five exploratory arms per game
         run: python -m research.harness_v46.next_issue_shadow
+      - name: Preserve exact model outputs and source hashes
+        uses: actions/upload-artifact@v4
+        with:
+          name: one-issue-ssq-2026131-dlt-26130
+          path: one-issue-shadow-20261113.json
+          if-no-files-found: error
+          retention-days: 90
