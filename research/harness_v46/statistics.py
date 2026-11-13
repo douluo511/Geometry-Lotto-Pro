@@ -26,16 +26,6 @@ def _validate_binomial(k: int, n: int, p: float) -> None:
         raise EvaluationBlocked("INVALID_BINOMIAL_PROBABILITY")
 
 
-def _pmf(k: int, n: int, p: float) -> float:
-    if p == 0:
-        return 1.0 if k == 0 else 0.0
-    if p == 1:
-        return 1.0 if k == n else 0.0
-    log_value = (lgamma(n + 1) - lgamma(k + 1) - lgamma(n - k + 1)
-                 + k * log(p) + (n - k) * log1p(-p))
-    return exp(log_value)
-
-
 def _log_tail_from_boundary(k: int, n: int, p: float, *, upper: bool) -> float:
     """Sum a tail away from its largest term, without exponentiating its PMF.
 
