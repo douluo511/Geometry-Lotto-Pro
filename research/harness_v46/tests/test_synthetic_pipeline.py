@@ -86,6 +86,27 @@ class SyntheticPipelineTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             run_synthetic_walk_forward("SSQ", seed=7, periods=0)
 
+    def test_real_game_combination_search_called_and_limited_to_synthetic(self):
+        from research.harness_v46.research_stack import _geometry_subprocess
+        for game in ("SSQ", "DLT"):
+            with self.subTest(game=game):
+                snap = synthetic_fixture(game, seed=17)
+                report = _geometry_subprocess(snap, game, complete_space=True)
+                self.assertEqual(set(report["complete_space"]), {"front", "back"})
+                rules = core.RULES[game]
+                for area in ("front", "back"):
+                    pick = rules["front" if area == "front" else "back"]
+                    pool = rules["pool" if area == "front" else "back_pool"]
+                    rec = report["complete_space"][area]
+                    self.assertEqual(rec["status"], "SOURCE_ENGINE_EXECUTED_RESEARCH_ONLY")
+                    self.assertEqual(rec["theoretical_legal_combinations"], comb(pool, pick))
+                    if game == "SSQ":
+                        self.assertEqual(rec["engine_reported_count"], comb(pool, pick))
+                    else:
+                        self.assertIsNone(rec["engine_reported_count"])
+                    self.assertEqual(len(rec["best_synthetic_scored_combination"]), pick)
+                self.assertFalse(report["physical_forecast_supported"])
+
     def test_main_stack_exposes_synthetic_replay_not_prediction_advantage(self):
         report = run_synthetic_stack(seed=12, trials=200, steps=3)
         for game in ("SSQ", "DLT"):
