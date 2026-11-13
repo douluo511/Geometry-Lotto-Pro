@@ -1,0 +1,186 @@
+name: SSQDLT Sina secondary-source monitor (not formal V4.7)
+
+# Read-only inspection of two user-provided secondary-source endpoints.
+# No raw draw numbers, forecasting tickets, historical scoring reports, or
+# unverified official-source claims may be published by this workflow.
+on:
+  push:
+    branches: [main, 'research/sina-source-monitor-*']
+    paths:
+      - '.github/workflows/ssqdlt-sina-source-monitor.yml'
+      - 'research/supercompute/automation/sina_trend_monitor.py'
+      - 'research/supercompute/tests/test_sina_trend_monitor.py'
+  pull_request:
+    paths:
+      - '.github/workflows/ssqdlt-sina-source-monitor.yml'
+      - 'research/supercompute/automation/sina_trend_monitor.py'
+      - 'research/supercompute/tests/test_sina_trend_monitor.py'
+  schedule:
+    # GitHub schedule is best-effort, not real-time; times below are UTC.
+    # 08:13 Asia/Shanghai every day plus ~21:13–23:43 Asia/Shanghai.
+    - cron: '13 0 * * *'
+    - cron: '13,43 13-15 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ssqdlt-sina-secondary-source-monitor-v1
+  cancel-in-progress: false
+
+jobs:
+  offline-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Parser, provenance and fail-closed unit tests (no external network)
+        run: python -m unittest discover -s research/supercompute/tests -p test_sina_trend_monitor.py -v
+
+  live-readonly-probe:
+    needs: offline-tests
+    if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref != 'refs/heads/main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Verify GitHub runner can read both Sina endpoints and old seed overlap
+        run: >-
+          python -m research.supercompute.automation.sina_trend_monitor
+          --repo-root . --output "$RUNNER_TEMP/probe.json"
+      - name: Summarize provenance without storing raw outcomes
+        if: always()
+        shell: bash
+        run: |
+          if [ -f "$RUNNER_TEMP/probe.json" ]; then
+            python - "$RUNNER_TEMP/probe.json" <<'PY'
+          import json, sys
+          r=json.load(open(sys.argv[1], encoding='utf8'))
+          for g in r['games']:
+              print(g['game'], g['status'], g.get('latest_issue', '-'),
+                    'secondary-source-only', g.get('error_code', ''))
+          PY
+          fi
+
+  scheduled-observation:
+    needs: offline-tests
+    if: >-
+      github.repository == 'douluo511/Geometry-Lotto-Pro' &&
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || github.event_name == 'push')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Restore independent monitor evidence branch (not main)
+        shell: bash
+        run: |
+          set -euo pipefail
+          branch="ssqdlt-sina-source-metadata-v1"
+          ledger="$RUNNER_TEMP/sina-ledger"
+          tracking="refs/remotes/origin/$branch"
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null; then
+            git fetch --no-tags origin "refs/heads/$branch:$tracking"
+            git worktree add --detach "$ledger" "$tracking"
+          else
+            git worktree add --detach "$ledger" "$GITHUB_SHA"
+          fi
+          echo "SINA_LEDGER=$ledger" >> "$GITHUB_ENV"
+          echo "SINA_LEDGER_BRANCH=$branch" >> "$GITHUB_ENV"
+      - name: Poll both Sina sources, validate 100-row overlap, and compare previous receipt
+        id: monitor
+        continue-on-error: true
+        run: >-
+          python -m research.supercompute.automation.sina_trend_monitor
+          --repo-root .
+          --prior-ledger "$SINA_LEDGER/research/source_monitor/receipts"
+          --output "$RUNNER_TEMP/sina-observation.json"
+      - name: Append metadata-only create-once receipt to separate Git branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s "$RUNNER_TEMP/sina-observation.json" || {
+            echo "::error::Monitor failed before producing a fail-closed receipt"
+            exit 1
+          }
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          src = Path(os.environ['RUNNER_TEMP']) / 'sina-observation.json'
+          report = json.loads(src.read_text(encoding='utf8'))
+          assert report['formal_A'] == 0 and report['edge'] == 'NO_EDGE'
+          assert set(item['game'] for item in report['games']) == {'SSQ', 'DLT'}
+          for item in report['games']:
+              assert item['formal_A'] == 0 and not item['official_source_authenticated']
+              assert not any(k in item for k in ('front', 'back', 'forecast', 'ticket', 'raw_html'))
+          target = (Path(os.environ['SINA_LEDGER']) / 'research/source_monitor/receipts' /
+                    (os.environ['GITHUB_RUN_ID'] + '-' + os.environ['GITHUB_RUN_ATTEMPT'] + '.json'))
+          target.parent.mkdir(parents=True, exist_ok=True)
+          wrapper = dict(report)
+          wrapper['github_run_id'] = os.environ['GITHUB_RUN_ID']
+          wrapper['github_run_attempt'] = os.environ['GITHUB_RUN_ATTEMPT']
+          wrapper['trigger'] = os.environ['GITHUB_EVENT_NAME']
+          wrapper['workflow_commit'] = os.environ['GITHUB_SHA']
+          with target.open('x', encoding='utf8') as f:
+              json.dump(wrapper, f, ensure_ascii=False, sort_keys=True, indent=2)
+              f.write('\n')
+          PY
+          git -C "$SINA_LEDGER" add -- research/source_monitor/receipts
+          python - <<'PY'
+          import os, subprocess
+          root=os.environ['SINA_LEDGER']
+          raw=subprocess.check_output(['git','-C',root,'diff','--cached','--name-status','-z'])
+          entries=[x for x in raw.decode('utf8').split('\0') if x]
+          if len(entries)!=2 or entries[0]!='A' or not entries[1].startswith('research/source_monitor/receipts/'):
+              raise SystemExit('FAIL_CLOSED: only one new metadata-only receipt permitted')
+          PY
+          git -C "$SINA_LEDGER" config user.name "github-actions[bot]"
+          git -C "$SINA_LEDGER" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C "$SINA_LEDGER" commit -m "secondary-source: observe $GITHUB_EVENT_NAME run $GITHUB_RUN_ID"
+          git -C "$SINA_LEDGER" push origin "HEAD:refs/heads/$SINA_LEDGER_BRANCH"
+          git -C "$SINA_LEDGER" fetch --no-tags origin "refs/heads/$SINA_LEDGER_BRANCH"
+          test "$(git -C "$SINA_LEDGER" rev-parse HEAD)" = "$(git -C "$SINA_LEDGER" rev-parse FETCH_HEAD)" || {
+            echo "::error::Remote monitor receipt persistence verification failed"
+            exit 1
+          }
+      - name: Show metadata-only monitoring status
+        shell: bash
+        run: |
+          python - "$RUNNER_TEMP/sina-observation.json" <<'PY'
+          import json, sys
+          report=json.load(open(sys.argv[1], encoding='utf8'))
+          lines=['### SSQ/DLT Sina public trend source observation', '',
+                 'Sina is a **secondary** source; formal official authentication is **NOT VERIFIED**.',
+                 '', '| Game | Status | Latest issue | New since prior monitor | Old snapshot overlap |',
+                 '|---|---|---|---:|---:|']
+          for g in report['games']:
+              lines.append('| {game} | {status} | {issue} | {new} | {overlap} |'.format(
+                  game=g['game'], status=g['status'], issue=g.get('latest_issue', '-'),
+                  new=g.get('new_since_prior_monitor', '-'), overlap=g.get('seed_overlap', '-')))
+          lines.extend(['', 'No raw draw histories or prediction tickets were persisted.',
+                        'formal_A=0; NO_EDGE; schedule/host is NOT a pre-draw certification.'])
+          print('\n'.join(lines))
+          with open(__import__('os').environ['GITHUB_STEP_SUMMARY'],'a',encoding='utf8') as f:
+              f.write('\n'.join(lines)+'\n')
+          PY
+      - name: Fail closed if a source failed, while retaining its metadata receipt
+        if: steps.monitor.outcome != 'success'
+        run: exit 1
