@@ -136,5 +136,21 @@ class TestV47ModelLab(unittest.TestCase):
                 main(args)
 
 
+    def test_exactly_five_registered_families_and_fair_m2(self):
+        expected = ("HOT60", "EWMA", "ShrinkMix", "Pairwise-D2", "Challenger")
+        self.assertEqual(m.MODELS, expected)
+        for game in m.SPECS:
+            rows = synthetic(game)
+            report = m.backtest(rows, game, periods=2, seed=3)
+            self.assertEqual(set(report["models"]), set(expected))
+            fair = m.SPECS[game][1] * (m.SPECS[game][1] - 1) / (
+                m.SPECS[game][0] * (m.SPECS[game][0] - 1))
+            for model in expected:
+                self.assertAlmostEqual(report["models"][model]["m2"]["fair_probability"], fair)
+        with self.assertRaises(ValueError):
+            m.m2_refutation([0, 2], .2)
+
+
+
 if __name__ == "__main__":
     unittest.main()
