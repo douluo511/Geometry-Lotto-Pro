@@ -1,0 +1,114 @@
+"""Contract tests proving eleven independent executable model objects."""
+from datetime import date, timedelta
+import copy
+import hashlib
+import json
+import random
+import unittest
+
+from research.supercompute import v47_registry as reg
+from research.supercompute.v47_models import SPECS, canonical, random_ticket, seed_from
+
+
+def fixtures(game, count=124):
+    rng = random.Random(seed_from("eleven-independence-fixture", game))
+    return [{**random_ticket(game, rng.getrandbits(64)),
+             "issue": str(i + 4000),
+             "draw_date": (date(2025, 1, 1) + timedelta(days=i)).isoformat()}
+            for i in range(count)]
+
+
+class ElevenIndependentModelTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.rows = {g: fixtures(g) for g in SPECS}
+        cls.results = {g: reg.execute_eleven(cls.rows[g], g, seed=11,
+                      generations=1, validation=3, holdout=2,
+                      mc_trials=35, physics_steps=3) for g in SPECS}
+
+    def test_registry_has_eleven_distinct_concrete_classes(self):
+        classes = reg.REGISTRY
+        self.assertEqual(len(classes), 11)
+        self.assertEqual([m.number for m in classes], list(range(1, 12)))
+        self.assertEqual(len({m.label for m in classes}), 11)
+        self.assertEqual(len({m.__name__ for m in classes}), 11)
+        self.assertEqual(len({m.fit for m in classes}), 11)
+        self.assertEqual(len({m.predict for m in classes}), 11)
+        for ModelClass in classes:
+            self.assertTrue(callable(ModelClass.score))
+
+    def test_both_games_all_eleven_fit_and_predict_with_real_outputs(self):
+        for game, run in self.results.items():
+            self.assertEqual(run["model_count"], 11)
+            self.assertEqual(len(run["models"]), 11)
+            self.assertTrue(run["independent_modules"])
+            self.assertFalse(run["formal_prediction"])
+            self.assertFalse(run["physical_model_calibrated"])
+            for name, item in run["models"].items():
+                self.assertEqual(item["status"], "EXECUTED")
+                self.assertTrue(item["fit"], name)
+                self.assertTrue(item["prediction"]["ticket"])
+                reg.validate_ticket(item["prediction"]["ticket"], game)
+                self.assertEqual(item["contract"], ["fit", "predict", "score"])
+            self.assertEqual(run["run_digest_sha256"],
+                             hashlib.sha256(canonical({k: v for k, v in run.items()
+                                 if k != "run_digest_sha256"})).hexdigest())
+
+    def test_models_six_to_eleven_are_independently_executed(self):
+        for game, run in self.results.items():
+            models = run["models"]
+            self.assertEqual(models["Statistics"]["number"], 6)
+            self.assertTrue(models["Statistics"]["prediction"]["top_pairs"])
+            self.assertEqual(models["ForecastSearch"]["number"], 7)
+            self.assertEqual(len(models["ForecastSearch"]["prediction"]["alternates"]), 2)
+            self.assertEqual(models["Geometry"]["number"], 8)
+            self.assertIn("span", models["Geometry"]["prediction"]["features"])
+            self.assertEqual(models["ProbabilitySimulation"]["number"], 9)
+            self.assertEqual(models["ProbabilitySimulation"]["fit"]["mc_trials"], 35)
+            self.assertTrue(models["ProbabilitySimulation"]["prediction"]["retrospective"]["strictly_past_only"])
+            self.assertEqual(models["Physics"]["number"], 10)
+            self.assertEqual(models["Physics"]["prediction"]["physical_simulation"]["machine_calibrated"], False)
+            self.assertEqual(models["M1_M2_M3_Validation"]["number"], 11)
+            self.assertEqual(models["M1_M2_M3_Validation"]["prediction"]["legal_math_checks"], 10)
+            self.assertEqual(len(models["M1_M2_M3_Validation"]["fit"]["m2"]), 5)
+            self.assertEqual(len(models["M1_M2_M3_Validation"]["fit"]["m3_brier"]), 5)
+
+    def test_cell_division_has_real_genomes_and_lineage(self):
+        for run in self.results.values():
+            stage = run["models"]["Challenger"]
+            self.assertTrue(stage["fit"]["genome"])
+            self.assertTrue(stage["fit"]["lineage"])
+            self.assertTrue(any(c["origin"] == "crossover_mutation"
+                for part in stage["fit"]["lineage"] if part.get("evaluated")
+                for c in part["evaluated"]))
+            self.assertEqual(run["champion_genome"], stage["fit"]["genome"])
+
+    def test_score_contract_and_no_future_leak(self):
+        for game, run in self.results.items():
+            actual = {**random_ticket(game, 99), "issue": "NEXT"}
+            for ModelClass in reg.REGISTRY:
+                model = ModelClass()
+                out = model.score(run["models"][model.label]["prediction"]["ticket"],
+                                  actual, game)
+                self.assertIn("d2_hit", out)
+                self.assertIn("front_hits", out)
+            # Modifying the future heldout target cannot alter a prior fit.
+            before = self.rows[game][:-2]
+            altered = copy.deepcopy(self.rows[game])
+            altered[-1]["front"] = [1, 2, 3, 4, 5, 6] if game == "ssq" else [1, 2, 3, 4, 5]
+            self.assertEqual(reg.execute_eleven(before, game, generations=1,
+                validation=3, holdout=2, mc_trials=20, physics_steps=2),
+                reg.execute_eleven(altered[:-2], game, generations=1,
+                validation=3, holdout=2, mc_trials=20, physics_steps=2))
+
+    def test_inherited_champion_survives_across_runs(self):
+        rows = self.rows["ssq"]
+        prior = self.results["ssq"]["champion_genome"]
+        run = reg.execute_eleven(rows, "ssq", seed=11, generations=1,
+                                 validation=3, holdout=2, mc_trials=20,
+                                 physics_steps=2, previous_champion=prior)
+        self.assertTrue(run["models"]["Challenger"]["fit"]["inherited"])
+
+
+if __name__ == "__main__":
+    unittest.main()
