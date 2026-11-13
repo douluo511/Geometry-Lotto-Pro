@@ -1,8 +1,6 @@
 name: SSQDLT unified mother V1 exhaustive research audit
 
 on:
-  push:
-    branches: ['research/ssqdlt-unified-mother-v1-20261113']
   pull_request:
     paths:
       - 'research/mother_v1/**'
@@ -13,6 +11,10 @@ on:
 
 permissions:
   contents: read
+
+concurrency:
+  group: mother-v1-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   mother-model-matrix:
