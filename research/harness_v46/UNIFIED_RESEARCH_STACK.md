@@ -104,3 +104,30 @@ execution and separately enforces zero unexecuted tests across both OSes.
 
 All synthetic model scores remain `NO_EDGE`; real-world calibration and
 Windows owner-machine unattended deployment are still **NOT_VERIFIED**.
+
+### Mandatory independent M1/M2/M3 admission review
+
+Every unified research invocation now invokes
+`research_review.review_synthetic_stack` **before** the CLI can return
+success or write its create-only JSON artifact. The reviewer separately
+recomputes the theoretical D2 rates, verifies the six registered model IDs
+and immutable Random NULL inclusion, checks the independent pairwise
+oracle/NULL invariance receipts, recalculates the Monte Carlo fair-null
+rate and Brier score, verifies each frozen six-model and experimental D2
+score against the *same invented* future outcome, and computes exact
+Clopper–Pearson synthetic-rate intervals plus paired synthetic NULL
+comparison arithmetic.
+
+**Scope:** `review.status=SYNTHETIC_CONTRACT_PASS_NOT_REAL_CALIBRATION`.
+The `review.official_prospective_calibration` field must remain
+`BLOCKED_NO_AUTHENTICATED_FUTURE`. These intervals and p-values are
+unusable as significance or probability calibration evidence for genuine
+future lottery outcomes. The reviewer immediately blocks a forged
+official-status claim, uncalibrated physical signal, six-model roster
+change, null-score manipulation, or incomplete synthetic freeze. Both
+`formal_A=0` and `edge=NO_EDGE` remain mandatory.
+
+A real forward calibration layer requires an **independently sealed
+pre-sales forecast**, verified original official draw and immutable
+hypothesis family; not one of those can be substituted by this synthetic
+research command.
