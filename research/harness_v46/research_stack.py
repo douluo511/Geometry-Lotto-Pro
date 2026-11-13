@@ -95,7 +95,7 @@ def simulate_fair_d2(*, pool: int, picks: int, trials: int, seed: int) -> dict:
     }
 
 
-def _geometry_subprocess(snapshot: dict, game: str) -> dict:
+def _geometry_subprocess(snapshot: dict, game: str, *, complete_space: bool = False) -> dict:
     """Use actual glp.engine per game without global sys.path cross-talk."""
     path = GAME_APP[game]
     if not path.is_dir():
@@ -104,6 +104,8 @@ def _geometry_subprocess(snapshot: dict, game: str) -> dict:
     env["GLP_DISABLE_BACKGROUND"] = "1"
     env["PYTHONPATH"] = os.pathsep.join((str(path), str(ROOT)))
     args = [sys.executable, "-m", "research.harness_v46.geometry_adapter", "--game", game]
+    if complete_space:
+        args.append("--complete-space")
     try:
         child = subprocess.run(
             args,
@@ -130,11 +132,13 @@ def _geometry_subprocess(snapshot: dict, game: str) -> dict:
     return report
 
 
-def run_synthetic_stack(*, seed: int = 2026, trials: int = 3000, steps: int = 12) -> dict:
+def run_synthetic_stack(*, seed: int = 2026, trials: int = 3000, steps: int = 12, full_combinations: bool = False) -> dict:
     """Reproducible integration smoke, deliberately NOT a model promotion."""
     _int(seed, 0, 2**32 - 1, "SEED")
     _int(trials, 1, 100000, "TRIALS")
     _int(steps, 1, 10000, "STEPS")
+    if type(full_combinations) is not bool:
+        raise ValueError("FULL_COMBINATIONS_MUST_BE_BOOLEAN")
     games = {}
     for game in ("SSQ", "DLT"):
         snapshot = synthetic_fixture(game, seed=seed)
@@ -142,7 +146,7 @@ def run_synthetic_stack(*, seed: int = 2026, trials: int = 3000, steps: int = 12
         if audit["model_ids"] != list(core.MODELS) or audit["edge"] != "NO_EDGE":
             raise ValueError("REGISTERED_MODELS_CHANGED:" + game)
         r = core.RULES[game]
-        geometry = _geometry_subprocess(snapshot, game)
+        geometry = _geometry_subprocess(snapshot, game, complete_space=full_combinations)
         walk_forward = run_synthetic_walk_forward(game, seed=seed, periods=2)
         random_reference = simulate_fair_d2(
             pool=r["pool"], picks=r["front"], trials=trials,
@@ -204,13 +208,16 @@ def main(argv=None) -> int:
     parser.add_argument("--seed", type=int, default=2026)
     parser.add_argument("--trials", type=int, default=3000)
     parser.add_argument("--steps", type=int, default=12)
+    parser.add_argument("--full-combinations", action="store_true",
+                        help="score entire SSQ and DLT legal combination space, research only")
     args = parser.parse_args(argv)
     if not args.synthetic:
         print("BLOCKED: --synthetic required; no live forecasting", file=sys.stderr)
         return 2
     try:
         report = run_synthetic_stack(
-            seed=args.seed, trials=args.trials, steps=args.steps)
+            seed=args.seed, trials=args.trials, steps=args.steps,
+            full_combinations=args.full_combinations)
     except (ValueError, OSError, subprocess.SubprocessError) as exc:
         print("UNIFIED_SYNTHETIC_STACK_BLOCKED: " + str(exc), file=sys.stderr)
         return 1
