@@ -40,8 +40,8 @@ def verify(working_tree, expected_run_id=None):
              else clean_state())
     if state.get("schema") != SCHEMA:
         raise ValueError("ledger schema mismatch")
-    records = sorted((folder / "events").glob("*.json"))
-                     if (folder / "events").is_dir() else [])
+    records = (sorted((folder / "events").glob("*.json"))
+               if (folder / "events").is_dir() else [])
     if len(records) != state.get("count"):
         raise ValueError("ledger event count mismatch")
     last_hash = ZERO
