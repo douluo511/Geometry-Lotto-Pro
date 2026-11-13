@@ -56,6 +56,18 @@ def _valid_ticket(game: str, ticket: dict) -> dict:
     return ticket
 
 
+def _next_issue(game: str, previous: str, current: str) -> bool:
+    if len(previous) != len(current) or not previous.isascii() or not current.isascii():
+        return False
+    if int(current) == int(previous) + 1:
+        return True
+    # Issue suffix resets when the year's published issue sequence rolls over.
+    prefix = 4 if game == "SSQ" else 2
+    return (int(current[:prefix]) == int(previous[:prefix]) + 1
+            and current[prefix:] == "001"
+            and previous[prefix:] != "000")
+
+
 def _validate_history(game: str, ctx: dict) -> dict:
     if game not in core.RULES or not isinstance(ctx, dict):
         raise MotherBlocked("GAME_OR_CONTEXT_INVALID")
@@ -95,14 +107,14 @@ def _validate_history(game: str, ctx: dict) -> dict:
         except (ValueError, TypeError) as exc:
             raise MotherBlocked("HISTORY_DRAW_DATE_INVALID") from exc
         if (d.isoformat() != day or (previous_date is not None and d <= previous_date)
-                or (previous_issue is not None and int(issue) != int(previous_issue) + 1)):
+                or (previous_issue is not None and not _next_issue(game, previous_issue, issue))):
             raise MotherBlocked("HISTORY_GAP_OR_UNORDERED")
         if d >= d_target or d > as_of.date():
             raise MotherBlocked("FUTURE_INFORMATION_LEAK")
         core._balls(row["front"], r["pool"], r["front"])
         core._balls(row["back"], r["back_pool"], r["back"])
         previous_issue, previous_date = issue, d
-    if int(target_issue) != int(previous_issue) + 1:
+    if not _next_issue(game, previous_issue, target_issue):
         raise MotherBlocked("TARGET_NOT_NEXT_AFTER_HISTORY")
     if as_of.date() >= d_target:
         raise MotherBlocked("AS_OF_NOT_PRE_DRAW_DAY")
