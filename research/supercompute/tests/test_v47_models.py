@@ -82,8 +82,9 @@ class TestV47ModelLab(unittest.TestCase):
         self.assertEqual(m.monte_carlo("dlt", 100, 9), m.monte_carlo("dlt", 100, 9))
 
     def test_m2_m3_and_random_baseline(self):
-        refutation = m.m2_refutation([1, 0, 1], [0, 1, 0])
-        self.assertEqual(refutation["wins"], 2)
+        refutation = m.m2_refutation([1, 0, 1], .2)
+        self.assertEqual(refutation["hits"], 2)
+        self.assertAlmostEqual(refutation["exploratory_one_sided_p"], .104)
         self.assertFalse(refutation["multiple_tests_adjusted"])
         calibration = m.m3_calibration([(.5, 1), (.5, 0)])
         self.assertAlmostEqual(calibration["brier"], .25)
