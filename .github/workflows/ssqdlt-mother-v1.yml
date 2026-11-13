@@ -34,6 +34,8 @@ jobs:
       - name: Audit every model source and registrar for missing arms
         shell: bash
         run: python -m research.mother_v1.inventory --out "$RUNNER_TEMP/inventory.json"
+      - name: Test exact Git source hashes and Windows CRLF equivalence
+        run: python -m unittest research.mother_v1.test_source_identity -v
       - name: Verify unified mother all-arm output, data leakage and physics refusal gates
         run: python -m unittest research.mother_v1.test_mother -v
       - name: Verify all physical issuer/transport/SQLite/restart contracts
