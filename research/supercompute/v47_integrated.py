@@ -146,32 +146,33 @@ def _historical_validation(rows, game, seed, holdout=3):
     prefix = rows[:-holdout]
     frozen_training = cell_division(prefix, game, seed=seed, validation=5,
                                     generations=1)
-    events = {m: [] for m in (*FAMILIES, "RANDOM_NULL")}
-    calibrations = {m: [] for m in FAMILIES}
+    events = {name: [] for name in FAMILIES}
+    calibrations = {name: [] for name in FAMILIES}
+    fm, fp, _, _ = SPECS[game]
+    fair_d2 = fp * (fp - 1) / (fm * (fm - 1))
     for i in range(len(prefix), len(rows)):
         history, actual = rows[:i], rows[i]
-        for model in (*FAMILIES, "RANDOM_NULL"):
+        for model in FAMILIES:
             genes = frozen_training["champion"] if model == "Challenger" else None
             ticket = candidates(history, game, model, genes, 1, seed)[0]
             events[model].append(int(set(ticket["dan2"]).issubset(actual["front"])))
-            if model != "RANDOM_NULL":
-                for area, (ceiling, _) in (
-                        ("front", SPECS[game][:2]), ("back", SPECS[game][2:])):
-                    probs = inclusion_probabilities(history, game, area, model, genes)
-                    observed = set(actual[area])
-                    calibrations[model].extend((probs[n], int(n in observed))
-                                               for n in range(1, ceiling + 1))
+            for area, (ceiling, _) in (
+                    ("front", SPECS[game][:2]), ("back", SPECS[game][2:])):
+                probs = inclusion_probabilities(history, game, area, model, genes)
+                observed = set(actual[area])
+                calibrations[model].extend((probs[n], int(n in observed))
+                                           for n in range(1, ceiling + 1))
     return {
         "holdout_issues": [str(x["issue"]) for x in rows[-holdout:]],
         "champion_selected_through": str(prefix[-1]["issue"]),
-        "strictly_past_only": True, "random_null_d2_hits": sum(events["RANDOM_NULL"]),
+        "strictly_past_only": True,
+        "mathematical_fair_d2_probability": fair_d2,
         "models": {name: {
             "d2_hits": sum(events[name]), "trials": holdout,
-            "m2": m2_refutation(events[name], events["RANDOM_NULL"]),
+            "m2": m2_refutation(events[name], fair_d2),
             "m3": m3_calibration(calibrations[name]),
         } for name in FAMILIES},
     }
-
 
 def _ranking(rows, game, champion, physics_ticket, top_n=3):
     """Combinatorial ensemble: all five families + pair/geometry/physics traces."""
