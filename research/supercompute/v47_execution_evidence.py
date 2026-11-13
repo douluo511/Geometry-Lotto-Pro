@@ -30,6 +30,7 @@ def inspect_run(report_path, frozen_dir, expected_targets, latest_verified):
                 "verified_from": "GITHUB_ACTIONS_EXECUTION",
                 "input_source": "CHECKED_IN_HISTORICAL_SNAPSHOT",
                 "source_current_verification": False,
+                "expected_ticket_count": 22,
                 "games": {}}
     for game, outcome in payload["games"].items():
         target = str(expected_targets[game])
@@ -55,12 +56,19 @@ def inspect_run(report_path, frozen_dir, expected_targets, latest_verified):
                     or not record["prediction"].get("ticket")):
                 raise ValueError("empty model computation: " + name)
             validate_ticket(record["prediction"]["ticket"], game)
-        first = outcome["proposed_tickets"][0]
-        if (first["front"], first["back"]) != (
-            independent["final_candidate"]["front"],
-            independent["final_candidate"]["back"]
-        ):
-            raise ValueError("model-11 primary candidate was not emitted")
+        tickets = outcome["proposed_tickets"]
+        if (len(tickets) != 11 or outcome.get("ticket_count") != 11
+                or [ticket.get("model_number") for ticket in tickets] != list(range(1, 12))
+                or [ticket.get("model_name") for ticket in tickets] != list(EXPECTED)):
+            raise ValueError("one ticket per model required")
+        for name, ticket in zip(EXPECTED, tickets):
+            original = independent["models"][name]["prediction"]["ticket"]
+            if any(ticket[k] != original[k] for k in ("front", "back", "dan2")):
+                raise ValueError("generated ticket not from named model: " + name)
+        last = tickets[10]
+        if any(last[k] != independent["final_candidate"][k]
+               for k in ("front", "back", "dan2")):
+            raise ValueError("model-11 candidate mismatch")
         if not all(v["status"] == "PASS" for v in outcome["validation"]["M1"]):
             raise ValueError("M1 failed")
         if len(outcome["validation"]["M2"]) != 5 or len(outcome["validation"]["M3"]) != 5:
@@ -77,7 +85,7 @@ def inspect_run(report_path, frozen_dir, expected_targets, latest_verified):
         doc = json.loads(frozen)
         if (doc.get("schema") != "SSQDLT_V47_UNIFIED_FROZEN_V1"
                 or doc["source"]["target_issue"] != target
-                or doc["source"]["proposed_tickets"][0] != first
+                or doc["source"]["proposed_tickets"] != tickets
                 or doc.get("formal_prediction") is not False):
             raise ValueError("frozen research receipt differs: " + game)
         entry = {"target_issue": target,
@@ -85,14 +93,16 @@ def inspect_run(report_path, frozen_dir, expected_targets, latest_verified):
                  "history_last_date": outcome["history_last_date"],
                  "latest_public_issue_checked": str(latest_verified[game]),
                  "source_is_fresh": src_issue == str(latest_verified[game]),
-                 "model_count": 11,
+                 "model_count": 11, "ticket_count": 11,
                  "model_names": list(EXPECTED),
-                 "primary": {"front": first["front"], "back": first["back"],
-                             "dan2": first["dan2"]},
-                 "alternate_candidates": [
-                     {"front": t["front"], "back": t["back"], "dan2": t["dan2"]}
-                     for t in outcome["proposed_tickets"][1:]
+                 "model_tickets": [
+                     {"model_number": t["model_number"], "model_name": t["model_name"],
+                      "front": t["front"], "back": t["back"], "dan2": t["dan2"]}
+                     for t in tickets
                  ],
+                 "primary": {"model_name": last["model_name"],
+                             "front": last["front"], "back": last["back"],
+                             "dan2": last["dan2"]},
                  "genome_id": independent["models"]["Challenger"]
                                       ["fit"]["champion_id"],
                  "generations": len(outcome["evolution"]["lineage"]) - 1,
@@ -102,6 +112,9 @@ def inspect_run(report_path, frozen_dir, expected_targets, latest_verified):
                  "frozen_sha256": hashlib.sha256(frozen).hexdigest(),
                  "predictive_edge": "NO_EDGE"}
         evidence["games"][game] = entry
+    evidence["ticket_count"] = sum(v["ticket_count"] for v in evidence["games"].values())
+    if evidence["ticket_count"] != 22:
+        raise ValueError("expected exactly 22 model-labelled output rows")
     evidence["source_current_verification"] = all(
         g["source_is_fresh"] for g in evidence["games"].values())
     return evidence
@@ -125,7 +138,7 @@ def main(argv=None):
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with args.output.open("xb") as f:
         f.write(canonical(evidence))
-    print("V47_EXECUTED_11_EVIDENCE=" + json.dumps(evidence,
+    print("V47_EXECUTED_22_EVIDENCE=" + json.dumps(evidence,
           ensure_ascii=False, separators=(",", ":")))
 
 
