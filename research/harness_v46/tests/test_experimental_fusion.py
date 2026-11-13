@@ -168,6 +168,7 @@ class ExperimentalFusionTests(unittest.TestCase):
             self.assertEqual(stored, json.loads(out.read_text(encoding="utf-8")))
 
 
+    def test_official_snapshots_blocked_by_experimental_model(self):
         snap = synthetic_fixture("SSQ", seed=81)
         geo = _geometry_subprocess(snap, "SSQ")
         snap["provenance"]["status"] = "OFFICIAL_VERIFIED"
