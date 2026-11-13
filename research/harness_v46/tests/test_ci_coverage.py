@@ -39,7 +39,7 @@ class MatrixCoverageGateTests(unittest.TestCase):
         self.assertEqual(check_platform(record("linux", self.common, WINDOWS_ONLY)),
                          len(self.all))
         with self.assertRaisesRegex(CoverageBlocked, "NON_WINDOWS_UNEXPECTED_SKIP"):
-            check_platform(record("linux", self.common, WINDOWS_ONLY | {"test_alpha"}))
+            check_platform(record("linux", self.common, WINDOWS_ONLY | {"test_extra_unexpected"}))
 
     def test_linux_cannot_hide_missing_native_case(self):
         with self.assertRaisesRegex(CoverageBlocked, "WINDOWS_SKIP_SET_MISMATCH"):
@@ -56,7 +56,7 @@ class MatrixCoverageGateTests(unittest.TestCase):
     def test_missing_windows_execution_is_hard_failure(self):
         ubuntu = record("linux", self.common, WINDOWS_ONLY)
         windows = record("windows", self.all - {next(iter(WINDOWS_ONLY))})
-        with self.assertRaisesRegex(CoverageBlocked, "CROSS_PLATFORM_ROSTER_MISMATCH"):
+        with self.assertRaisesRegex(CoverageBlocked, "WINDOWS_NATIVE_TEST_NOT_EXECUTED"):
             check_matrix(ubuntu, windows)
 
     def test_mixed_sha_is_hard_failure(self):
