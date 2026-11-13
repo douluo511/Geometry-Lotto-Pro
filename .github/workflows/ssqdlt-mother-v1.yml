@@ -1,0 +1,93 @@
+name: SSQDLT unified mother V1 exhaustive research audit
+
+on:
+  push:
+    branches: ['research/ssqdlt-unified-mother-v1-20261113']
+  pull_request:
+    paths:
+      - 'research/mother_v1/**'
+      - 'research/harness_v46/**'
+      - 'research/supercompute/**'
+      - '.github/workflows/ssqdlt-mother-v1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mother-model-matrix:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-2022]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install V4.7 offline replay dependency
+        run: python -m pip install --disable-pip-version-check requests==2.34.2
+      - name: Verify unified mother all-arm output, data leakage and physics refusal gates
+        run: python -m unittest research.mother_v1.test_mother -v
+      - name: Verify all physical issuer/transport/SQLite/restart contracts
+        shell: bash
+        run: |
+          python -m unittest discover -s research/supercompute/tests -p 'test_dlt_physical_source.py' -v
+          python -m unittest discover -s research/supercompute/tests -p 'test_ssq_physical_source.py' -v
+          python -m unittest discover -s research/supercompute/tests -p 'test_physical_transport.py' -v
+          python -m unittest discover -s research/supercompute/tests -p 'test_physical_ledger_db.py' -v
+          python -m unittest discover -s research/supercompute/tests -p 'test_physical_tick.py' -v
+      - name: Verify full legacy model reproducibility and frozen original replay
+        run: python -m unittest discover -s research/harness_v46/tests -v
+      - name: Produce an invented offline model matrix with explicit physical abstention
+        shell: bash
+        run: |
+          python -m research.mother_v1.fixture --out "$RUNNER_TEMP/mother-fixture.json"
+          python -m research.mother_v1.cli \
+            --input "$RUNNER_TEMP/mother-fixture.json" \
+            --out "$RUNNER_TEMP/mother-synthetic-results" --print-summary
+      - name: Replay pre-draw-dated November 13 historical research inputs (not real TSA)
+        shell: bash
+        run: |
+          python -m research.mother_v1.historical_example \
+            --out "$RUNNER_TEMP/historical-shadow-input.json"
+          python -m research.mother_v1.cli \
+            --input "$RUNNER_TEMP/historical-shadow-input.json" \
+            --out "$RUNNER_TEMP/mother-historical-shadow-results" --print-summary
+      - name: Independent model-count, NULL isolation and hash check
+        shell: bash
+        run: |
+          python - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+          root=Path(os.environ["RUNNER_TEMP"])
+          for name in ("mother-synthetic-results","mother-historical-shadow-results"):
+              pred=root/name/"predictions.json"
+              receipt=json.loads((root/name/"audit_receipt.json").read_text())
+              raw=pred.read_bytes()
+              j=json.loads(raw)
+              assert hashlib.sha256(raw).hexdigest() == receipt["forecast_sha256"]
+              assert j["formal_A"] == 0 and j["decision"] == "NO_EDGE"
+              for game in ("SSQ","DLT"):
+                  g=j["games"][game]
+                  assert g["model_count"]==16
+                  assert len(set(x["name"] for x in g["models"]))==16
+                  assert len([x for x in g["models"] if x["ticket"] is None])==2
+                  assert not any(x["physical_prediction_verified"] for x in g["models"])
+              print(name,receipt["forecast_sha256"],"PASS 16x2")
+          PY
+      - name: Archive source and model outputs after an exact-head test
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mother-v1-${{ matrix.os }}-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/mother-historical-shadow-results/
+            ${{ runner.temp }}/mother-synthetic-results/
+            ${{ runner.temp }}/historical-shadow-input.json
+          if-no-files-found: warn
+          retention-days: 90
