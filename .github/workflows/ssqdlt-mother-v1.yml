@@ -74,11 +74,11 @@ jobs:
               assert j["formal_A"] == 0 and j["decision"] == "NO_EDGE"
               for game in ("SSQ","DLT"):
                   g=j["games"][game]
-                  assert g["model_count"]==16
-                  assert len(set(x["name"] for x in g["models"]))==16
+                  assert g["model_count"]==24
+                  assert len(set(x["name"] for x in g["models"]))==24
                   assert len([x for x in g["models"] if x["ticket"] is None])==2
                   assert not any(x["physical_prediction_verified"] for x in g["models"])
-              print(name,receipt["forecast_sha256"],"PASS 16x2")
+              print(name,receipt["forecast_sha256"],"PASS 24x2")
           PY
       - name: Archive source and model outputs after an exact-head test
         if: always()
