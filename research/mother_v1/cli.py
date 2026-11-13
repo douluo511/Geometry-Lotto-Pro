@@ -16,6 +16,7 @@ from pathlib import Path
 from .mother import MotherBlocked, forecast_all, _bytes, sha
 from .report import markdown_report
 from .registry import ALL_MODELS
+from .source_identity import committed_source_sha256
 
 
 def _load_object(path: Path) -> dict:
@@ -66,8 +67,8 @@ def main(argv=None) -> int:
         "input_file_sha256": sha256(args.input.read_bytes()).hexdigest(),
         "input_contract_sha256": sha(source),
         "forecast_sha256": sha256(predictions).hexdigest(),
-        "mother_source_sha256": sha256(Path(__file__).with_name("mother.py").read_bytes()).hexdigest(),
-        "registry_source_sha256": sha256(Path(__file__).with_name("registry.py").read_bytes()).hexdigest(),
+        "mother_source_sha256": committed_source_sha256(Path(__file__).with_name("mother.py")),
+        "registry_source_sha256": committed_source_sha256(Path(__file__).with_name("registry.py")),
         "game_count": 2, "models_each": len(ALL_MODELS),
         "physical_provenance": "SOURCE_GATED_NO_PREDRAW_MECHANICAL_EDGE",
         "formal_A": 0, "decision": "NO_EDGE",
