@@ -13,14 +13,14 @@ from pathlib import Path
 from uuid import uuid4
 
 from research.supercompute.automation.ssq_physical_source import (
-    URL as SSQ_URL, collect as collect_ssq, parse_public_table,
+    URL as SSQ_URL, collect as collect_ssq,
 )
 from research.supercompute.automation.dlt_physical_source import (
     collect as collect_dlt, _create_once, _sealed_bytes,
 )
 from research.supercompute.automation.official_source_gate import official_rows
 from research.supercompute.automation.physical_transport import (
-    ssq_fetch, TransportExhausted,
+    ssq_fetch,
 )
 from research.supercompute.automation.physical_ledger_db import sync
 
