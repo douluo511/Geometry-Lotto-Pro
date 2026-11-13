@@ -1,0 +1,4912 @@
+{
+  "schema": "CDEM_V1_RESEARCH_20261113",
+  "game": "dlt",
+  "target_issue": "26130",
+  "base_snapshot": {
+    "github_path": "DLT/src/resources/official_seed.json",
+    "github_blob_sha": "4db8ac5164be0937587661c21554d36cff8f571d",
+    "snapshot_rows": 2926,
+    "asof_issue": "26108",
+    "asof_date": "2026-09-21",
+    "canonical_hash": "649b3fc72accfd5931d98c6557c19b84295a7384fea38c932d98cbad90562369"
+  },
+  "additional_verified_rows": 21,
+  "added_rows": "109 12 14 16 27 34 04 08\n110 03 24 25 26 35 07 09\n111 10 11 17 26 29 01 03\n112 01 03 05 10 22 03 09\n113 02 04 06 10 11 01 10\n114 08 12 15 29 30 09 12\n115 12 20 32 33 35 06 07\n116 09 18 22 25 35 01 10\n117 04 13 19 29 31 02 12\n118 02 09 21 26 32 06 12\n119 03 06 20 24 32 04 07\n120 01 06 10 15 32 03 04\n121 06 08 19 24 25 01 08\n122 02 14 21 22 24 02 12\n123 13 18 19 20 28 09 11\n124 12 14 18 22 27 01 09\n125 12 13 23 25 29 07 10\n126 05 11 17 25 34 04 06\n127 05 06 17 18 27 03 12\n128 03 13 20 25 34 09 12\n129 02 12 14 17 33 07 08",
+  "additional_source": "https://api.js-lottery.com/wfzq/dlt/data",
+  "latest_issue": "26129",
+  "data_rows": 2947,
+  "scope": "research_simulation; not production glp byte-equivalent",
+  "algorithm": "10 z-standardized features (seeded random, HOT60, EWMA30, FREQ120, RECENCY, GAP, TRANSITION, PAIR_GRAPH, GEOMETRY_STATE, GEOMETRY_TRANSITION); deterministic positive-weight crossover/mutation and selection. Model paths are independent CDEM research approximations, not exact production predictors.",
+  "population": {
+    "g0": 10,
+    "g1": 20,
+    "g2": 40,
+    "g3": 80
+  },
+  "periods": {
+    "selection": {
+      "start_issue": "23082",
+      "last_issue": "25079",
+      "count": 300
+    },
+    "holdout": {
+      "start_issue": "25080",
+      "last_issue": "26129",
+      "count": 200
+    }
+  },
+  "random_seed": 2814688722,
+  "baseline_d2": 0.01680672268907563,
+  "trained_populations": {
+    "g0": [
+      {
+        "id": "DLT-G0-02",
+        "generation": 0,
+        "parents": [],
+        "weights": [
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 8,
+          "front_hits": 199,
+          "back_hits": 88,
+          "full_hits": 0,
+          "d2_pct": 2.667,
+          "avg_front": 0.6633,
+          "avg_back": 0.2933
+        },
+        "fitness": 819988
+      },
+      {
+        "id": "DLT-G0-08",
+        "generation": 0,
+        "parents": [],
+        "weights": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 7,
+          "front_hits": 229,
+          "back_hits": 101,
+          "full_hits": 0,
+          "d2_pct": 2.333,
+          "avg_front": 0.7633,
+          "avg_back": 0.3367
+        },
+        "fitness": 723001
+      },
+      {
+        "id": "DLT-G0-09",
+        "generation": 0,
+        "parents": [],
+        "weights": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 6,
+          "front_hits": 219,
+          "back_hits": 100,
+          "full_hits": 0,
+          "d2_pct": 2,
+          "avg_front": 0.73,
+          "avg_back": 0.3333
+        },
+        "fitness": 622000
+      },
+      {
+        "id": "DLT-G0-10",
+        "generation": 0,
+        "parents": [],
+        "weights": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 6,
+          "front_hits": 217,
+          "back_hits": 97,
+          "full_hits": 0,
+          "d2_pct": 2,
+          "avg_front": 0.7233,
+          "avg_back": 0.3233
+        },
+        "fitness": 621797
+      },
+      {
+        "id": "DLT-G0-01",
+        "generation": 0,
+        "parents": [],
+        "weights": [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 6,
+          "front_hits": 204,
+          "back_hits": 108,
+          "full_hits": 0,
+          "d2_pct": 2,
+          "avg_front": 0.68,
+          "avg_back": 0.36
+        },
+        "fitness": 620508
+      },
+      {
+        "id": "DLT-G0-06",
+        "generation": 0,
+        "parents": [],
+        "weights": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 5,
+          "front_hits": 219,
+          "back_hits": 84,
+          "full_hits": 0,
+          "d2_pct": 1.667,
+          "avg_front": 0.73,
+          "avg_back": 0.28
+        },
+        "fitness": 521984
+      },
+      {
+        "id": "DLT-G0-04",
+        "generation": 0,
+        "parents": [],
+        "weights": [
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 4,
+          "front_hits": 210,
+          "back_hits": 101,
+          "full_hits": 0,
+          "d2_pct": 1.333,
+          "avg_front": 0.7,
+          "avg_back": 0.3367
+        },
+        "fitness": 421101
+      },
+      {
+        "id": "DLT-G0-05",
+        "generation": 0,
+        "parents": [],
+        "weights": [
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 4,
+          "front_hits": 203,
+          "back_hits": 104,
+          "full_hits": 0,
+          "d2_pct": 1.333,
+          "avg_front": 0.6767,
+          "avg_back": 0.3467
+        },
+        "fitness": 420404
+      },
+      {
+        "id": "DLT-G0-03",
+        "generation": 0,
+        "parents": [],
+        "weights": [
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 4,
+          "front_hits": 201,
+          "back_hits": 96,
+          "full_hits": 0,
+          "d2_pct": 1.333,
+          "avg_front": 0.67,
+          "avg_back": 0.32
+        },
+        "fitness": 420196
+      },
+      {
+        "id": "DLT-G0-07",
+        "generation": 0,
+        "parents": [],
+        "weights": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 4,
+          "front_hits": 194,
+          "back_hits": 90,
+          "full_hits": 0,
+          "d2_pct": 1.333,
+          "avg_front": 0.6467,
+          "avg_back": 0.3
+        },
+        "fitness": 419490
+      }
+    ],
+    "g1": [
+      {
+        "id": "DLT-G1-004",
+        "generation": 1,
+        "parents": [
+          "DLT-G0-02",
+          "DLT-G0-02"
+        ],
+        "weights": [
+          0,
+          0.853068944,
+          0,
+          0,
+          0,
+          0.146931056,
+          0,
+          0,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 9,
+          "front_hits": 202,
+          "back_hits": 90,
+          "full_hits": 0,
+          "d2_pct": 3,
+          "avg_front": 0.6733,
+          "avg_back": 0.3
+        },
+        "fitness": 920290
+      },
+      {
+        "id": "DLT-G1-003",
+        "generation": 1,
+        "parents": [
+          "DLT-G0-02",
+          "DLT-G0-09"
+        ],
+        "weights": [
+          0,
+          0.708005179,
+          0,
+          0,
+          0,
+          0.144624262,
+          0,
+          0,
+          0.147370558,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 9,
+          "front_hits": 198,
+          "back_hits": 92,
+          "full_hits": 0,
+          "d2_pct": 3,
+          "avg_front": 0.66,
+          "avg_back": 0.3067
+        },
+        "fitness": 919892
+      },
+      {
+        "id": "DLT-G1-019",
+        "generation": 1,
+        "parents": [
+          "DLT-G0-10",
+          "DLT-G0-10"
+        ],
+        "weights": [
+          0,
+          0,
+          0.075564356,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0.924435644
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 8,
+          "front_hits": 216,
+          "back_hits": 94,
+          "full_hits": 0,
+          "d2_pct": 2.667,
+          "avg_front": 0.72,
+          "avg_back": 0.3133
+        },
+        "fitness": 821694
+      },
+      {
+        "id": "DLT-G1-012",
+        "generation": 1,
+        "parents": [
+          "DLT-G0-06",
+          "DLT-G0-03"
+        ],
+        "weights": [
+          0,
+          0,
+          0.195904248,
+          0.089219052,
+          0,
+          0.7148767,
+          0,
+          0,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 7,
+          "front_hits": 214,
+          "back_hits": 91,
+          "full_hits": 0,
+          "d2_pct": 2.333,
+          "avg_front": 0.7133,
+          "avg_back": 0.3033
+        },
+        "fitness": 721491
+      },
+      {
+        "id": "DLT-G1-016",
+        "generation": 1,
+        "parents": [
+          "DLT-G0-08",
+          "DLT-G0-01"
+        ],
+        "weights": [
+          0.260244852,
+          0,
+          0,
+          0,
+          0.161511127,
+          0,
+          0,
+          0.578244021,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 7,
+          "front_hits": 207,
+          "back_hits": 100,
+          "full_hits": 0,
+          "d2_pct": 2.333,
+          "avg_front": 0.69,
+          "avg_back": 0.3333
+        },
+        "fitness": 720800
+      },
+      {
+        "id": "DLT-G1-009",
+        "generation": 1,
+        "parents": [
+          "DLT-G0-05",
+          "DLT-G0-03"
+        ],
+        "weights": [
+          0,
+          0,
+          0.079966,
+          0,
+          0.752924437,
+          0.167109563,
+          0,
+          0,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 7,
+          "front_hits": 203,
+          "back_hits": 104,
+          "full_hits": 0,
+          "d2_pct": 2.333,
+          "avg_front": 0.6767,
+          "avg_back": 0.3467
+        },
+        "fitness": 720404
+      },
+      {
+        "id": "DLT-G1-015",
+        "generation": 1,
+        "parents": [
+          "DLT-G0-08",
+          "DLT-G0-05"
+        ],
+        "weights": [
+          0,
+          0,
+          0,
+          0,
+          0.043431887,
+          0,
+          0,
+          0.956568113,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 6,
+          "front_hits": 218,
+          "back_hits": 101,
+          "full_hits": 0,
+          "d2_pct": 2,
+          "avg_front": 0.7267,
+          "avg_back": 0.3367
+        },
+        "fitness": 621901
+      },
+      {
+        "id": "DLT-G1-020",
+        "generation": 1,
+        "parents": [
+          "DLT-G0-10",
+          "DLT-G0-10"
+        ],
+        "weights": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 6,
+          "front_hits": 217,
+          "back_hits": 97,
+          "full_hits": 0,
+          "d2_pct": 2,
+          "avg_front": 0.7233,
+          "avg_back": 0.3233
+        },
+        "fitness": 621797
+      },
+      {
+        "id": "DLT-G1-018",
+        "generation": 1,
+        "parents": [
+          "DLT-G0-09",
+          "DLT-G0-07"
+        ],
+        "weights": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0.054383678,
+          0.049671506,
+          0.895944817,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 6,
+          "front_hits": 215,
+          "back_hits": 99,
+          "full_hits": 0,
+          "d2_pct": 2,
+          "avg_front": 0.7167,
+          "avg_back": 0.33
+        },
+        "fitness": 621599
+      },
+      {
+        "id": "DLT-G1-011",
+        "generation": 1,
+        "parents": [
+          "DLT-G0-06",
+          "DLT-G0-01"
+        ],
+        "weights": [
+          0.307760572,
+          0,
+          0,
+          0,
+          0.06224998,
+          0.629989448,
+          0,
+          0,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 6,
+          "front_hits": 212,
+          "back_hits": 92,
+          "full_hits": 0,
+          "d2_pct": 2,
+          "avg_front": 0.7067,
+          "avg_back": 0.3067
+        },
+        "fitness": 621292
+      },
+      {
+        "id": "DLT-G1-017",
+        "generation": 1,
+        "parents": [
+          "DLT-G0-09",
+          "DLT-G0-10"
+        ],
+        "weights": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0.145230399,
+          0.650557601,
+          0.204212001
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 5,
+          "front_hits": 213,
+          "back_hits": 88,
+          "full_hits": 0,
+          "d2_pct": 1.667,
+          "avg_front": 0.71,
+          "avg_back": 0.2933
+        },
+        "fitness": 521388
+      },
+      {
+        "id": "DLT-G1-006",
+        "generation": 1,
+        "parents": [
+          "DLT-G0-03",
+          "DLT-G0-02"
+        ],
+        "weights": [
+          0.086815074,
+          0.076012461,
+          0.837172466,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 5,
+          "front_hits": 200,
+          "back_hits": 95,
+          "full_hits": 0,
+          "d2_pct": 1.667,
+          "avg_front": 0.6667,
+          "avg_back": 0.3167
+        },
+        "fitness": 520095
+      },
+      {
+        "id": "DLT-G1-005",
+        "generation": 1,
+        "parents": [
+          "DLT-G0-03",
+          "DLT-G0-01"
+        ],
+        "weights": [
+          0.111401634,
+          0,
+          0.815201603,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0.073396763
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 4,
+          "front_hits": 197,
+          "back_hits": 93,
+          "full_hits": 0,
+          "d2_pct": 1.333,
+          "avg_front": 0.6567,
+          "avg_back": 0.31
+        },
+        "fitness": 419793
+      },
+      {
+        "id": "DLT-G1-001",
+        "generation": 1,
+        "parents": [
+          "DLT-G0-01",
+          "DLT-G0-06"
+        ],
+        "weights": [
+          0.745962636,
+          0,
+          0,
+          0.082489735,
+          0,
+          0.171547629,
+          0,
+          0,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 3,
+          "front_hits": 207,
+          "back_hits": 96,
+          "full_hits": 0,
+          "d2_pct": 1,
+          "avg_front": 0.69,
+          "avg_back": 0.32
+        },
+        "fitness": 320796
+      },
+      {
+        "id": "DLT-G1-007",
+        "generation": 1,
+        "parents": [
+          "DLT-G0-04",
+          "DLT-G0-01"
+        ],
+        "weights": [
+          0.15590375,
+          0,
+          0,
+          0.794403648,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0.049692602
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 3,
+          "front_hits": 201,
+          "back_hits": 100,
+          "full_hits": 0,
+          "d2_pct": 1,
+          "avg_front": 0.67,
+          "avg_back": 0.3333
+        },
+        "fitness": 320200
+      },
+      {
+        "id": "DLT-G1-014",
+        "generation": 1,
+        "parents": [
+          "DLT-G0-07",
+          "DLT-G0-07"
+        ],
+        "weights": [
+          0,
+          0,
+          0.166588499,
+          0,
+          0,
+          0,
+          0.833411501,
+          0,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 3,
+          "front_hits": 189,
+          "back_hits": 85,
+          "full_hits": 0,
+          "d2_pct": 1,
+          "avg_front": 0.63,
+          "avg_back": 0.2833
+        },
+        "fitness": 318985
+      },
+      {
+        "id": "DLT-G1-002",
+        "generation": 1,
+        "parents": [
+          "DLT-G0-01",
+          "DLT-G0-03"
+        ],
+        "weights": [
+          0.706196377,
+          0,
+          0.231410615,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0.062393008
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 2,
+          "front_hits": 213,
+          "back_hits": 104,
+          "full_hits": 0,
+          "d2_pct": 0.667,
+          "avg_front": 0.71,
+          "avg_back": 0.3467
+        },
+        "fitness": 221404
+      },
+      {
+        "id": "DLT-G1-010",
+        "generation": 1,
+        "parents": [
+          "DLT-G0-05",
+          "DLT-G0-08"
+        ],
+        "weights": [
+          0,
+          0,
+          0,
+          0.046155282,
+          0.813270397,
+          0,
+          0,
+          0.140574322,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 2,
+          "front_hits": 203,
+          "back_hits": 104,
+          "full_hits": 0,
+          "d2_pct": 0.667,
+          "avg_front": 0.6767,
+          "avg_back": 0.3467
+        },
+        "fitness": 220404
+      },
+      {
+        "id": "DLT-G1-008",
+        "generation": 1,
+        "parents": [
+          "DLT-G0-04",
+          "DLT-G0-10"
+        ],
+        "weights": [
+          0,
+          0,
+          0,
+          0.668918911,
+          0,
+          0,
+          0.071836385,
+          0,
+          0,
+          0.259244704
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 2,
+          "front_hits": 193,
+          "back_hits": 96,
+          "full_hits": 0,
+          "d2_pct": 0.667,
+          "avg_front": 0.6433,
+          "avg_back": 0.32
+        },
+        "fitness": 219396
+      },
+      {
+        "id": "DLT-G1-013",
+        "generation": 1,
+        "parents": [
+          "DLT-G0-07",
+          "DLT-G0-08"
+        ],
+        "weights": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0.746301626,
+          0.212180798,
+          0.041517576,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 1,
+          "front_hits": 187,
+          "back_hits": 90,
+          "full_hits": 0,
+          "d2_pct": 0.333,
+          "avg_front": 0.6233,
+          "avg_back": 0.3
+        },
+        "fitness": 118790
+      }
+    ],
+    "g2": [
+      {
+        "id": "DLT-G2-001",
+        "generation": 2,
+        "parents": [
+          "DLT-G1-004",
+          "DLT-G1-003"
+        ],
+        "weights": [
+          0,
+          0.70170552,
+          0.133972256,
+          0,
+          0,
+          0.126656793,
+          0,
+          0,
+          0.037665431,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 10,
+          "front_hits": 199,
+          "back_hits": 88,
+          "full_hits": 0,
+          "d2_pct": 3.333,
+          "avg_front": 0.6633,
+          "avg_back": 0.2933
+        },
+        "fitness": 1019988
+      },
+      {
+        "id": "DLT-G2-039",
+        "generation": 2,
+        "parents": [
+          "DLT-G1-019",
+          "DLT-G1-009"
+        ],
+        "weights": [
+          0,
+          0,
+          0.150012287,
+          0,
+          0.187682638,
+          0.041655659,
+          0,
+          0,
+          0,
+          0.620649416
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 9,
+          "front_hits": 213,
+          "back_hits": 89,
+          "full_hits": 0,
+          "d2_pct": 3,
+          "avg_front": 0.71,
+          "avg_back": 0.2967
+        },
+        "fitness": 921389
+      },
+      {
+        "id": "DLT-G2-003",
+        "generation": 2,
+        "parents": [
+          "DLT-G1-019",
+          "DLT-G1-009"
+        ],
+        "weights": [
+          0,
+          0,
+          0.069540365,
+          0,
+          0.150640272,
+          0.033434205,
+          0,
+          0,
+          0,
+          0.746385158
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 9,
+          "front_hits": 212,
+          "back_hits": 93,
+          "full_hits": 0,
+          "d2_pct": 3,
+          "avg_front": 0.7067,
+          "avg_back": 0.31
+        },
+        "fitness": 921293
+      },
+      {
+        "id": "DLT-G2-040",
+        "generation": 2,
+        "parents": [
+          "DLT-G1-012",
+          "DLT-G1-004"
+        ],
+        "weights": [
+          0,
+          0.155154041,
+          0.145267039,
+          0.066157767,
+          0.076601889,
+          0.556819265,
+          0,
+          0,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 9,
+          "front_hits": 199,
+          "back_hits": 93,
+          "full_hits": 0,
+          "d2_pct": 3,
+          "avg_front": 0.6633,
+          "avg_back": 0.31
+        },
+        "fitness": 919993
+      },
+      {
+        "id": "DLT-G2-002",
+        "generation": 2,
+        "parents": [
+          "DLT-G1-003",
+          "DLT-G1-004"
+        ],
+        "weights": [
+          0,
+          0.77290949,
+          0,
+          0,
+          0,
+          0.12602426,
+          0,
+          0,
+          0.101066249,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 9,
+          "front_hits": 197,
+          "back_hits": 92,
+          "full_hits": 0,
+          "d2_pct": 3,
+          "avg_front": 0.6567,
+          "avg_back": 0.3067
+        },
+        "fitness": 919792
+      },
+      {
+        "id": "DLT-G2-035",
+        "generation": 2,
+        "parents": [
+          "DLT-G1-017",
+          "DLT-G1-016"
+        ],
+        "weights": [
+          0.157730177,
+          0,
+          0,
+          0,
+          0.026784865,
+          0,
+          0,
+          0.200401751,
+          0.468134402,
+          0.146948806
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 8,
+          "front_hits": 216,
+          "back_hits": 86,
+          "full_hits": 0,
+          "d2_pct": 2.667,
+          "avg_front": 0.72,
+          "avg_back": 0.2867
+        },
+        "fitness": 821686
+      },
+      {
+        "id": "DLT-G2-037",
+        "generation": 2,
+        "parents": [
+          "DLT-G1-004",
+          "DLT-G1-004"
+        ],
+        "weights": [
+          0,
+          0.732842957,
+          0,
+          0.140933494,
+          0,
+          0.126223549,
+          0,
+          0,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 8,
+          "front_hits": 194,
+          "back_hits": 93,
+          "full_hits": 0,
+          "d2_pct": 2.667,
+          "avg_front": 0.6467,
+          "avg_back": 0.31
+        },
+        "fitness": 819493
+      },
+      {
+        "id": "DLT-G2-015",
+        "generation": 2,
+        "parents": [
+          "DLT-G1-019",
+          "DLT-G1-011"
+        ],
+        "weights": [
+          0.098268255,
+          0,
+          0.040423056,
+          0,
+          0.01987648,
+          0.201156254,
+          0,
+          0.145750285,
+          0,
+          0.49452567
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 7,
+          "front_hits": 213,
+          "back_hits": 93,
+          "full_hits": 0,
+          "d2_pct": 2.333,
+          "avg_front": 0.71,
+          "avg_back": 0.31
+        },
+        "fitness": 721393
+      },
+      {
+        "id": "DLT-G2-032",
+        "generation": 2,
+        "parents": [
+          "DLT-G1-020",
+          "DLT-G1-003"
+        ],
+        "weights": [
+          0,
+          0.262517472,
+          0,
+          0,
+          0,
+          0.05362446,
+          0.119689077,
+          0,
+          0.054642745,
+          0.509526246
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 7,
+          "front_hits": 212,
+          "back_hits": 92,
+          "full_hits": 0,
+          "d2_pct": 2.333,
+          "avg_front": 0.7067,
+          "avg_back": 0.3067
+        },
+        "fitness": 721292
+      },
+      {
+        "id": "DLT-G2-033",
+        "generation": 2,
+        "parents": [
+          "DLT-G1-018",
+          "DLT-G1-003"
+        ],
+        "weights": [
+          0,
+          0.248589319,
+          0,
+          0,
+          0.049365747,
+          0.050779356,
+          0.032604209,
+          0.029779159,
+          0.58888221,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 7,
+          "front_hits": 209,
+          "back_hits": 89,
+          "full_hits": 0,
+          "d2_pct": 2.333,
+          "avg_front": 0.6967,
+          "avg_back": 0.2967
+        },
+        "fitness": 720989
+      },
+      {
+        "id": "DLT-G2-038",
+        "generation": 2,
+        "parents": [
+          "DLT-G1-003",
+          "DLT-G1-015"
+        ],
+        "weights": [
+          0,
+          0.5433149,
+          0,
+          0.075082306,
+          0.006841798,
+          0.110982968,
+          0,
+          0.150687584,
+          0.113090444,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 7,
+          "front_hits": 201,
+          "back_hits": 91,
+          "full_hits": 0,
+          "d2_pct": 2.333,
+          "avg_front": 0.67,
+          "avg_back": 0.3033
+        },
+        "fitness": 720191
+      },
+      {
+        "id": "DLT-G2-014",
+        "generation": 2,
+        "parents": [
+          "DLT-G1-003",
+          "DLT-G1-006"
+        ],
+        "weights": [
+          0.028446078,
+          0.529788403,
+          0.274310345,
+          0,
+          0,
+          0.082940105,
+          0,
+          0,
+          0.08451507,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 7,
+          "front_hits": 200,
+          "back_hits": 88,
+          "full_hits": 0,
+          "d2_pct": 2.333,
+          "avg_front": 0.6667,
+          "avg_back": 0.2933
+        },
+        "fitness": 720088
+      },
+      {
+        "id": "DLT-G2-012",
+        "generation": 2,
+        "parents": [
+          "DLT-G1-006",
+          "DLT-G1-011"
+        ],
+        "weights": [
+          0.142780699,
+          0.051259395,
+          0.564551567,
+          0,
+          0.068975236,
+          0.172433103,
+          0,
+          0,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 7,
+          "front_hits": 182,
+          "back_hits": 94,
+          "full_hits": 0,
+          "d2_pct": 2.333,
+          "avg_front": 0.6067,
+          "avg_back": 0.3133
+        },
+        "fitness": 718294
+      },
+      {
+        "id": "DLT-G2-022",
+        "generation": 2,
+        "parents": [
+          "DLT-G1-011",
+          "DLT-G1-015"
+        ],
+        "weights": [
+          0.329173179,
+          0,
+          0,
+          0,
+          0.053299881,
+          0.473002378,
+          0,
+          0.144524563,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 6,
+          "front_hits": 222,
+          "back_hits": 98,
+          "full_hits": 0,
+          "d2_pct": 2,
+          "avg_front": 0.74,
+          "avg_back": 0.3267
+        },
+        "fitness": 622298
+      },
+      {
+        "id": "DLT-G2-010",
+        "generation": 2,
+        "parents": [
+          "DLT-G1-011",
+          "DLT-G1-011"
+        ],
+        "weights": [
+          0.277018721,
+          0,
+          0,
+          0,
+          0.155920756,
+          0.567060523,
+          0,
+          0,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 6,
+          "front_hits": 214,
+          "back_hits": 95,
+          "full_hits": 0,
+          "d2_pct": 2,
+          "avg_front": 0.7133,
+          "avg_back": 0.3167
+        },
+        "fitness": 621495
+      },
+      {
+        "id": "DLT-G2-007",
+        "generation": 2,
+        "parents": [
+          "DLT-G1-015",
+          "DLT-G1-003"
+        ],
+        "weights": [
+          0,
+          0.258108913,
+          0.128720845,
+          0,
+          0.022007858,
+          0.052723924,
+          0,
+          0.484713353,
+          0.053725108,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 6,
+          "front_hits": 211,
+          "back_hits": 102,
+          "full_hits": 0,
+          "d2_pct": 2,
+          "avg_front": 0.7033,
+          "avg_back": 0.34
+        },
+        "fitness": 621202
+      },
+      {
+        "id": "DLT-G2-013",
+        "generation": 2,
+        "parents": [
+          "DLT-G1-004",
+          "DLT-G1-019"
+        ],
+        "weights": [
+          0,
+          0.423216114,
+          0.025475026,
+          0,
+          0.166759707,
+          0.07289398,
+          0,
+          0,
+          0,
+          0.311655174
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 6,
+          "front_hits": 209,
+          "back_hits": 92,
+          "full_hits": 0,
+          "d2_pct": 2,
+          "avg_front": 0.6967,
+          "avg_back": 0.3067
+        },
+        "fitness": 620992
+      },
+      {
+        "id": "DLT-G2-017",
+        "generation": 2,
+        "parents": [
+          "DLT-G1-016",
+          "DLT-G1-006"
+        ],
+        "weights": [
+          0.149354133,
+          0.030583816,
+          0.336838575,
+          0,
+          0.07101284,
+          0.157969639,
+          0,
+          0.254240997,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 6,
+          "front_hits": 204,
+          "back_hits": 97,
+          "full_hits": 0,
+          "d2_pct": 2,
+          "avg_front": 0.68,
+          "avg_back": 0.3233
+        },
+        "fitness": 620497
+      },
+      {
+        "id": "DLT-G2-027",
+        "generation": 2,
+        "parents": [
+          "DLT-G1-019",
+          "DLT-G1-011"
+        ],
+        "weights": [
+          0.125885779,
+          0,
+          0.035571989,
+          0,
+          0.025462609,
+          0.377900702,
+          0,
+          0,
+          0,
+          0.43517892
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 6,
+          "front_hits": 204,
+          "back_hits": 90,
+          "full_hits": 0,
+          "d2_pct": 2,
+          "avg_front": 0.68,
+          "avg_back": 0.3
+        },
+        "fitness": 620490
+      },
+      {
+        "id": "DLT-G2-019",
+        "generation": 2,
+        "parents": [
+          "DLT-G1-015",
+          "DLT-G1-017"
+        ],
+        "weights": [
+          0.178477533,
+          0,
+          0,
+          0,
+          0.027706242,
+          0,
+          0,
+          0.636881819,
+          0.119441392,
+          0.037493014
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 5,
+          "front_hits": 223,
+          "back_hits": 104,
+          "full_hits": 0,
+          "d2_pct": 1.667,
+          "avg_front": 0.7433,
+          "avg_back": 0.3467
+        },
+        "fitness": 522404
+      },
+      {
+        "id": "DLT-G2-008",
+        "generation": 2,
+        "parents": [
+          "DLT-G1-020",
+          "DLT-G1-009"
+        ],
+        "weights": [
+          0,
+          0,
+          0.033099338,
+          0.053536256,
+          0.311648708,
+          0.069169596,
+          0,
+          0,
+          0,
+          0.5325461
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 5,
+          "front_hits": 216,
+          "back_hits": 91,
+          "full_hits": 0,
+          "d2_pct": 1.667,
+          "avg_front": 0.72,
+          "avg_back": 0.3033
+        },
+        "fitness": 521691
+      },
+      {
+        "id": "DLT-G2-034",
+        "generation": 2,
+        "parents": [
+          "DLT-G1-011",
+          "DLT-G1-009"
+        ],
+        "weights": [
+          0.189388094,
+          0,
+          0.018560282,
+          0,
+          0.213062459,
+          0.426466109,
+          0.152523056,
+          0,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 5,
+          "front_hits": 212,
+          "back_hits": 92,
+          "full_hits": 0,
+          "d2_pct": 1.667,
+          "avg_front": 0.7067,
+          "avg_back": 0.3067
+        },
+        "fitness": 521292
+      },
+      {
+        "id": "DLT-G2-009",
+        "generation": 2,
+        "parents": [
+          "DLT-G1-018",
+          "DLT-G1-016"
+        ],
+        "weights": [
+          0.09004138,
+          0,
+          0,
+          0.049211604,
+          0.055880778,
+          0,
+          0.032891315,
+          0.230106401,
+          0.541868523,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 5,
+          "front_hits": 206,
+          "back_hits": 92,
+          "full_hits": 0,
+          "d2_pct": 1.667,
+          "avg_front": 0.6867,
+          "avg_back": 0.3067
+        },
+        "fitness": 520692
+      },
+      {
+        "id": "DLT-G2-005",
+        "generation": 2,
+        "parents": [
+          "DLT-G1-016",
+          "DLT-G1-006"
+        ],
+        "weights": [
+          0.183847044,
+          0.023630092,
+          0.260252888,
+          0,
+          0.183741958,
+          0,
+          0,
+          0.348528018,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 5,
+          "front_hits": 206,
+          "back_hits": 91,
+          "full_hits": 0,
+          "d2_pct": 1.667,
+          "avg_front": 0.6867,
+          "avg_back": 0.3033
+        },
+        "fitness": 520691
+      },
+      {
+        "id": "DLT-G2-011",
+        "generation": 2,
+        "parents": [
+          "DLT-G1-017",
+          "DLT-G1-020"
+        ],
+        "weights": [
+          0,
+          0,
+          0.123720141,
+          0,
+          0,
+          0,
+          0,
+          0.093682965,
+          0.419651572,
+          0.362945321
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 5,
+          "front_hits": 206,
+          "back_hits": 84,
+          "full_hits": 0,
+          "d2_pct": 1.667,
+          "avg_front": 0.6867,
+          "avg_back": 0.28
+        },
+        "fitness": 520684
+      },
+      {
+        "id": "DLT-G2-006",
+        "generation": 2,
+        "parents": [
+          "DLT-G1-009",
+          "DLT-G1-018"
+        ],
+        "weights": [
+          0,
+          0,
+          0.062777144,
+          0,
+          0.591081784,
+          0.131189019,
+          0.005837946,
+          0.005332107,
+          0.096177338,
+          0.107604662
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 5,
+          "front_hits": 203,
+          "back_hits": 104,
+          "full_hits": 0,
+          "d2_pct": 1.667,
+          "avg_front": 0.6767,
+          "avg_back": 0.3467
+        },
+        "fitness": 520404
+      },
+      {
+        "id": "DLT-G2-020",
+        "generation": 2,
+        "parents": [
+          "DLT-G1-020",
+          "DLT-G1-018"
+        ],
+        "weights": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0.024168152,
+          0.022074059,
+          0.398158623,
+          0.555599167
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 5,
+          "front_hits": 203,
+          "back_hits": 89,
+          "full_hits": 0,
+          "d2_pct": 1.667,
+          "avg_front": 0.6767,
+          "avg_back": 0.2967
+        },
+        "fitness": 520389
+      },
+      {
+        "id": "DLT-G2-031",
+        "generation": 2,
+        "parents": [
+          "DLT-G1-015",
+          "DLT-G1-019"
+        ],
+        "weights": [
+          0.156612025,
+          0,
+          0.011025912,
+          0,
+          0.030292602,
+          0,
+          0,
+          0.667181174,
+          0,
+          0.134888286
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 4,
+          "front_hits": 223,
+          "back_hits": 101,
+          "full_hits": 0,
+          "d2_pct": 1.333,
+          "avg_front": 0.7433,
+          "avg_back": 0.3367
+        },
+        "fitness": 422401
+      },
+      {
+        "id": "DLT-G2-023",
+        "generation": 2,
+        "parents": [
+          "DLT-G1-017",
+          "DLT-G1-020"
+        ],
+        "weights": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0.083305387,
+          0.505220917,
+          0.411473696
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 4,
+          "front_hits": 217,
+          "back_hits": 88,
+          "full_hits": 0,
+          "d2_pct": 1.333,
+          "avg_front": 0.7233,
+          "avg_back": 0.2933
+        },
+        "fitness": 421788
+      },
+      {
+        "id": "DLT-G2-004",
+        "generation": 2,
+        "parents": [
+          "DLT-G1-012",
+          "DLT-G1-019"
+        ],
+        "weights": [
+          0,
+          0,
+          0.13844659,
+          0.049929756,
+          0,
+          0.400067233,
+          0,
+          0.059071653,
+          0,
+          0.352484767
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 4,
+          "front_hits": 214,
+          "back_hits": 91,
+          "full_hits": 0,
+          "d2_pct": 1.333,
+          "avg_front": 0.7133,
+          "avg_back": 0.3033
+        },
+        "fitness": 421491
+      },
+      {
+        "id": "DLT-G2-030",
+        "generation": 2,
+        "parents": [
+          "DLT-G1-009",
+          "DLT-G1-016"
+        ],
+        "weights": [
+          0.115140339,
+          0,
+          0.040068729,
+          0,
+          0.505224031,
+          0.083733935,
+          0,
+          0.255832966,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 4,
+          "front_hits": 203,
+          "back_hits": 101,
+          "full_hits": 0,
+          "d2_pct": 1.333,
+          "avg_front": 0.6767,
+          "avg_back": 0.3367
+        },
+        "fitness": 420401
+      },
+      {
+        "id": "DLT-G2-018",
+        "generation": 2,
+        "parents": [
+          "DLT-G1-009",
+          "DLT-G1-012"
+        ],
+        "weights": [
+          0,
+          0,
+          0.10313463,
+          0.124811119,
+          0.474246579,
+          0.297807672,
+          0,
+          0,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 4,
+          "front_hits": 202,
+          "back_hits": 105,
+          "full_hits": 0,
+          "d2_pct": 1.333,
+          "avg_front": 0.6733,
+          "avg_back": 0.35
+        },
+        "fitness": 420305
+      },
+      {
+        "id": "DLT-G2-026",
+        "generation": 2,
+        "parents": [
+          "DLT-G1-003",
+          "DLT-G1-012"
+        ],
+        "weights": [
+          0,
+          0.354978988,
+          0.085456829,
+          0.101322478,
+          0,
+          0.38435319,
+          0,
+          0,
+          0.073888515,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 4,
+          "front_hits": 197,
+          "back_hits": 90,
+          "full_hits": 0,
+          "d2_pct": 1.333,
+          "avg_front": 0.6567,
+          "avg_back": 0.3
+        },
+        "fitness": 419790
+      },
+      {
+        "id": "DLT-G2-016",
+        "generation": 2,
+        "parents": [
+          "DLT-G1-012",
+          "DLT-G1-016"
+        ],
+        "weights": [
+          0.102951834,
+          0,
+          0.096228539,
+          0.043824568,
+          0.063893163,
+          0.351148796,
+          0,
+          0.228751048,
+          0,
+          0.113202052
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 3,
+          "front_hits": 210,
+          "back_hits": 100,
+          "full_hits": 0,
+          "d2_pct": 1,
+          "avg_front": 0.7,
+          "avg_back": 0.3333
+        },
+        "fitness": 321100
+      },
+      {
+        "id": "DLT-G2-028",
+        "generation": 2,
+        "parents": [
+          "DLT-G1-012",
+          "DLT-G1-017"
+        ],
+        "weights": [
+          0,
+          0.132465682,
+          0.075634967,
+          0.034445808,
+          0,
+          0.276000527,
+          0,
+          0.069921614,
+          0.313212919,
+          0.098318484
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 3,
+          "front_hits": 202,
+          "back_hits": 85,
+          "full_hits": 0,
+          "d2_pct": 1,
+          "avg_front": 0.6733,
+          "avg_back": 0.2833
+        },
+        "fitness": 320285
+      },
+      {
+        "id": "DLT-G2-025",
+        "generation": 2,
+        "parents": [
+          "DLT-G1-004",
+          "DLT-G1-017"
+        ],
+        "weights": [
+          0,
+          0.342621226,
+          0,
+          0.109036301,
+          0,
+          0.059012462,
+          0,
+          0.071065593,
+          0.318337358,
+          0.099927061
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 3,
+          "front_hits": 200,
+          "back_hits": 85,
+          "full_hits": 0,
+          "d2_pct": 1,
+          "avg_front": 0.6667,
+          "avg_back": 0.2833
+        },
+        "fitness": 320085
+      },
+      {
+        "id": "DLT-G2-021",
+        "generation": 2,
+        "parents": [
+          "DLT-G1-018",
+          "DLT-G1-020"
+        ],
+        "weights": [
+          0.156068458,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0.030451308,
+          0.0278128,
+          0.501670589,
+          0.283996845
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 2,
+          "front_hits": 226,
+          "back_hits": 91,
+          "full_hits": 0,
+          "d2_pct": 0.667,
+          "avg_front": 0.7533,
+          "avg_back": 0.3033
+        },
+        "fitness": 222691
+      },
+      {
+        "id": "DLT-G2-029",
+        "generation": 2,
+        "parents": [
+          "DLT-G1-016",
+          "DLT-G1-019"
+        ],
+        "weights": [
+          0.272023997,
+          0,
+          0.022799994,
+          0,
+          0.093062624,
+          0,
+          0,
+          0.333183892,
+          0,
+          0.278929492
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 2,
+          "front_hits": 206,
+          "back_hits": 89,
+          "full_hits": 0,
+          "d2_pct": 0.667,
+          "avg_front": 0.6867,
+          "avg_back": 0.2967
+        },
+        "fitness": 220689
+      },
+      {
+        "id": "DLT-G2-036",
+        "generation": 2,
+        "parents": [
+          "DLT-G1-006",
+          "DLT-G1-018"
+        ],
+        "weights": [
+          0.045984132,
+          0.040262214,
+          0.443432778,
+          0.111105359,
+          0,
+          0,
+          0.019535461,
+          0.017842776,
+          0.32183728,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 2,
+          "front_hits": 203,
+          "back_hits": 98,
+          "full_hits": 0,
+          "d2_pct": 0.667,
+          "avg_front": 0.6767,
+          "avg_back": 0.3267
+        },
+        "fitness": 220398
+      },
+      {
+        "id": "DLT-G2-024",
+        "generation": 2,
+        "parents": [
+          "DLT-G1-006",
+          "DLT-G1-018"
+        ],
+        "weights": [
+          0.033425548,
+          0.029266325,
+          0.322328224,
+          0,
+          0,
+          0,
+          0.165058497,
+          0.023633553,
+          0.426287853,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 0,
+          "front_hits": 205,
+          "back_hits": 84,
+          "full_hits": 0,
+          "d2_pct": 0,
+          "avg_front": 0.6833,
+          "avg_back": 0.28
+        },
+        "fitness": 20584
+      }
+    ],
+    "g3": [
+      {
+        "id": "DLT-G3-014",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-022",
+          "DLT-G2-022"
+        ],
+        "weights": [
+          0.28241096,
+          0,
+          0,
+          0,
+          0.04572812,
+          0.405807837,
+          0,
+          0.266053083,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 9,
+          "front_hits": 223,
+          "back_hits": 95,
+          "full_hits": 0,
+          "d2_pct": 3,
+          "avg_front": 0.7433,
+          "avg_back": 0.3167
+        },
+        "fitness": 922395
+      },
+      {
+        "id": "DLT-G3-048",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-015",
+          "DLT-G2-010"
+        ],
+        "weights": [
+          0.160133702,
+          0,
+          0.158594049,
+          0,
+          0.074703884,
+          0.327795539,
+          0,
+          0.063458917,
+          0,
+          0.215313908
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 9,
+          "front_hits": 211,
+          "back_hits": 93,
+          "full_hits": 0,
+          "d2_pct": 3,
+          "avg_front": 0.7033,
+          "avg_back": 0.31
+        },
+        "fitness": 921193
+      },
+      {
+        "id": "DLT-G3-062",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-039",
+          "DLT-G2-032"
+        ],
+        "weights": [
+          0.096182233,
+          0.03143623,
+          0.117619934,
+          0,
+          0.147156076,
+          0.039082378,
+          0.014332659,
+          0,
+          0.006543419,
+          0.54764707
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 9,
+          "front_hits": 206,
+          "back_hits": 90,
+          "full_hits": 0,
+          "d2_pct": 3,
+          "avg_front": 0.6867,
+          "avg_back": 0.3
+        },
+        "fitness": 920690
+      },
+      {
+        "id": "DLT-G3-009",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-032",
+          "DLT-G2-033"
+        ],
+        "weights": [
+          0,
+          0.380794826,
+          0,
+          0,
+          0.007973456,
+          0.044401062,
+          0.08606248,
+          0.00480987,
+          0.13200175,
+          0.343956555
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 9,
+          "front_hits": 203,
+          "back_hits": 86,
+          "full_hits": 0,
+          "d2_pct": 3,
+          "avg_front": 0.6767,
+          "avg_back": 0.2867
+        },
+        "fitness": 920386
+      },
+      {
+        "id": "DLT-G3-065",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-002",
+          "DLT-G2-001"
+        ],
+        "weights": [
+          0,
+          0.711412154,
+          0.013852423,
+          0,
+          0,
+          0.117262853,
+          0,
+          0,
+          0.15747257,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 9,
+          "front_hits": 193,
+          "back_hits": 94,
+          "full_hits": 0,
+          "d2_pct": 3,
+          "avg_front": 0.6433,
+          "avg_back": 0.3133
+        },
+        "fitness": 919394
+      },
+      {
+        "id": "DLT-G3-041",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-001",
+          "DLT-G2-037"
+        ],
+        "weights": [
+          0,
+          0.674817566,
+          0.057271989,
+          0.07208658,
+          0,
+          0.179722217,
+          0,
+          0,
+          0.016101648,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 9,
+          "front_hits": 190,
+          "back_hits": 87,
+          "full_hits": 0,
+          "d2_pct": 3,
+          "avg_front": 0.6333,
+          "avg_back": 0.29
+        },
+        "fitness": 919087
+      },
+      {
+        "id": "DLT-G3-047",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-037",
+          "DLT-G2-035"
+        ],
+        "weights": [
+          0.020221385,
+          0.56701846,
+          0,
+          0.10904368,
+          0.003433884,
+          0.097662237,
+          0.098073234,
+          0.025691983,
+          0.060015948,
+          0.018839188
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 9,
+          "front_hits": 188,
+          "back_hits": 94,
+          "full_hits": 0,
+          "d2_pct": 3,
+          "avg_front": 0.6267,
+          "avg_back": 0.3133
+        },
+        "fitness": 918894
+      },
+      {
+        "id": "DLT-G3-020",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-019",
+          "DLT-G2-022"
+        ],
+        "weights": [
+          0.221282435,
+          0,
+          0,
+          0,
+          0.035181377,
+          0.178491223,
+          0,
+          0.479695042,
+          0.064959072,
+          0.020390849
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 8,
+          "front_hits": 231,
+          "back_hits": 92,
+          "full_hits": 0,
+          "d2_pct": 2.667,
+          "avg_front": 0.77,
+          "avg_back": 0.3067
+        },
+        "fitness": 823192
+      },
+      {
+        "id": "DLT-G3-066",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-035",
+          "DLT-G2-019"
+        ],
+        "weights": [
+          0.145077598,
+          0,
+          0,
+          0,
+          0.150210495,
+          0,
+          0,
+          0.328600685,
+          0.286254933,
+          0.08985629
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 8,
+          "front_hits": 220,
+          "back_hits": 96,
+          "full_hits": 0,
+          "d2_pct": 2.667,
+          "avg_front": 0.7333,
+          "avg_back": 0.32
+        },
+        "fitness": 822096
+      },
+      {
+        "id": "DLT-G3-054",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-022",
+          "DLT-G2-007"
+        ],
+        "weights": [
+          0.258430384,
+          0.095954476,
+          0.047853215,
+          0,
+          0.037564519,
+          0.280354957,
+          0,
+          0.259869623,
+          0.019972827,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 8,
+          "front_hits": 216,
+          "back_hits": 96,
+          "full_hits": 0,
+          "d2_pct": 2.667,
+          "avg_front": 0.72,
+          "avg_back": 0.32
+        },
+        "fitness": 821696
+      },
+      {
+        "id": "DLT-G3-075",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-010",
+          "DLT-G2-015"
+        ],
+        "weights": [
+          0.15824178,
+          0,
+          0.019396663,
+          0,
+          0.07206408,
+          0.323922752,
+          0,
+          0.189080753,
+          0,
+          0.237293972
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 8,
+          "front_hits": 213,
+          "back_hits": 90,
+          "full_hits": 0,
+          "d2_pct": 2.667,
+          "avg_front": 0.71,
+          "avg_back": 0.3
+        },
+        "fitness": 821390
+      },
+      {
+        "id": "DLT-G3-046",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-035",
+          "DLT-G2-033"
+        ],
+        "weights": [
+          0.05391225,
+          0.124208327,
+          0,
+          0,
+          0.033820809,
+          0.025372043,
+          0.016290781,
+          0.083376652,
+          0.612791966,
+          0.050227172
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 8,
+          "front_hits": 211,
+          "back_hits": 86,
+          "full_hits": 0,
+          "d2_pct": 2.667,
+          "avg_front": 0.7033,
+          "avg_back": 0.2867
+        },
+        "fitness": 821186
+      },
+      {
+        "id": "DLT-G3-055",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-010",
+          "DLT-G2-039"
+        ],
+        "weights": [
+          0.179770426,
+          0.065144821,
+          0.042889763,
+          0,
+          0.154844313,
+          0.379901839,
+          0,
+          0,
+          0,
+          0.177448839
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 8,
+          "front_hits": 208,
+          "back_hits": 88,
+          "full_hits": 0,
+          "d2_pct": 2.667,
+          "avg_front": 0.6933,
+          "avg_back": 0.2933
+        },
+        "fitness": 820888
+      },
+      {
+        "id": "DLT-G3-037",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-013",
+          "DLT-G2-032"
+        ],
+        "weights": [
+          0,
+          0.307348959,
+          0.012684874,
+          0,
+          0.083035275,
+          0.056032002,
+          0.178081815,
+          0,
+          0.020110397,
+          0.342706678
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 8,
+          "front_hits": 206,
+          "back_hits": 86,
+          "full_hits": 0,
+          "d2_pct": 2.667,
+          "avg_front": 0.6867,
+          "avg_back": 0.2867
+        },
+        "fitness": 820686
+      },
+      {
+        "id": "DLT-G3-006",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-035",
+          "DLT-G2-027"
+        ],
+        "weights": [
+          0.148024538,
+          0.045092222,
+          0.002896789,
+          0,
+          0.025469399,
+          0.030774177,
+          0,
+          0.175045563,
+          0.408902863,
+          0.16379445
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 8,
+          "front_hits": 205,
+          "back_hits": 86,
+          "full_hits": 0,
+          "d2_pct": 2.667,
+          "avg_front": 0.6833,
+          "avg_back": 0.2867
+        },
+        "fitness": 820586
+      },
+      {
+        "id": "DLT-G3-003",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-003",
+          "DLT-G2-007"
+        ],
+        "weights": [
+          0.104572743,
+          0.050235872,
+          0.073786666,
+          0,
+          0.109851612,
+          0.033692267,
+          0,
+          0.094340012,
+          0.010456546,
+          0.523064283
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 8,
+          "front_hits": 204,
+          "back_hits": 96,
+          "full_hits": 0,
+          "d2_pct": 2.667,
+          "avg_front": 0.68,
+          "avg_back": 0.32
+        },
+        "fitness": 820496
+      },
+      {
+        "id": "DLT-G3-071",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-038",
+          "DLT-G2-002"
+        ],
+        "weights": [
+          0,
+          0.720747105,
+          0,
+          0.027047188,
+          0.002464647,
+          0.10365468,
+          0,
+          0.054282769,
+          0.091803611,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 8,
+          "front_hits": 201,
+          "back_hits": 92,
+          "full_hits": 0,
+          "d2_pct": 2.667,
+          "avg_front": 0.67,
+          "avg_back": 0.3067
+        },
+        "fitness": 820192
+      },
+      {
+        "id": "DLT-G3-005",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-002",
+          "DLT-G2-038"
+        ],
+        "weights": [
+          0,
+          0.567793073,
+          0,
+          0.025454277,
+          0.002319495,
+          0.100171815,
+          0,
+          0.05108585,
+          0.088499485,
+          0.164676005
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 8,
+          "front_hits": 200,
+          "back_hits": 91,
+          "full_hits": 0,
+          "d2_pct": 2.667,
+          "avg_front": 0.6667,
+          "avg_back": 0.3033
+        },
+        "fitness": 820091
+      },
+      {
+        "id": "DLT-G3-044",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-040",
+          "DLT-G2-017"
+        ],
+        "weights": [
+          0.035395076,
+          0.118629188,
+          0.184110133,
+          0.047493005,
+          0.071819741,
+          0.437163458,
+          0,
+          0.105389401,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 8,
+          "front_hits": 198,
+          "back_hits": 101,
+          "full_hits": 0,
+          "d2_pct": 2.667,
+          "avg_front": 0.66,
+          "avg_back": 0.3367
+        },
+        "fitness": 819901
+      },
+      {
+        "id": "DLT-G3-025",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-002",
+          "DLT-G2-038"
+        ],
+        "weights": [
+          0.116569222,
+          0.602563915,
+          0,
+          0.026242838,
+          0.002391352,
+          0.106076464,
+          0,
+          0.052668466,
+          0.093487743,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 8,
+          "front_hits": 196,
+          "back_hits": 97,
+          "full_hits": 0,
+          "d2_pct": 2.667,
+          "avg_front": 0.6533,
+          "avg_back": 0.3233
+        },
+        "fitness": 819697
+      },
+      {
+        "id": "DLT-G3-027",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-037",
+          "DLT-G2-002"
+        ],
+        "weights": [
+          0,
+          0.713521802,
+          0,
+          0.074095461,
+          0,
+          0.169462956,
+          0,
+          0,
+          0.042919781,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 8,
+          "front_hits": 194,
+          "back_hits": 90,
+          "full_hits": 0,
+          "d2_pct": 2.667,
+          "avg_front": 0.6467,
+          "avg_back": 0.3
+        },
+        "fitness": 819490
+      },
+      {
+        "id": "DLT-G3-069",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-032",
+          "DLT-G2-022"
+        ],
+        "weights": [
+          0.050683648,
+          0.200600705,
+          0,
+          0,
+          0.008206721,
+          0.11380612,
+          0.091459486,
+          0.022252822,
+          0.041754833,
+          0.471235666
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 7,
+          "front_hits": 211,
+          "back_hits": 94,
+          "full_hits": 0,
+          "d2_pct": 2.333,
+          "avg_front": 0.7033,
+          "avg_back": 0.3133
+        },
+        "fitness": 721194
+      },
+      {
+        "id": "DLT-G3-021",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-001",
+          "DLT-G2-039"
+        ],
+        "weights": [
+          0.097075626,
+          0.369712514,
+          0.126998627,
+          0,
+          0.070577559,
+          0.082397054,
+          0,
+          0,
+          0.01984505,
+          0.23339357
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 7,
+          "front_hits": 211,
+          "back_hits": 93,
+          "full_hits": 0,
+          "d2_pct": 2.333,
+          "avg_front": 0.7033,
+          "avg_back": 0.31
+        },
+        "fitness": 721193
+      },
+      {
+        "id": "DLT-G3-070",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-033",
+          "DLT-G2-013"
+        ],
+        "weights": [
+          0,
+          0.338067363,
+          0.014626561,
+          0,
+          0.114626222,
+          0.061273593,
+          0.012469951,
+          0.054772049,
+          0.22522652,
+          0.178937739
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 7,
+          "front_hits": 205,
+          "back_hits": 86,
+          "full_hits": 0,
+          "d2_pct": 2.333,
+          "avg_front": 0.6833,
+          "avg_back": 0.2867
+        },
+        "fitness": 720586
+      },
+      {
+        "id": "DLT-G3-036",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-007",
+          "DLT-G2-033"
+        ],
+        "weights": [
+          0,
+          0.237300384,
+          0.091051443,
+          0,
+          0.026434977,
+          0.048473365,
+          0.007177632,
+          0.349420541,
+          0.167641861,
+          0.072499797
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 7,
+          "front_hits": 204,
+          "back_hits": 95,
+          "full_hits": 0,
+          "d2_pct": 2.333,
+          "avg_front": 0.68,
+          "avg_back": 0.3167
+        },
+        "fitness": 720495
+      },
+      {
+        "id": "DLT-G3-019",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-027",
+          "DLT-G2-010"
+        ],
+        "weights": [
+          0.136008627,
+          0,
+          0.025640467,
+          0,
+          0.159611804,
+          0.365059963,
+          0,
+          0,
+          0,
+          0.313679138
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 7,
+          "front_hits": 200,
+          "back_hits": 86,
+          "full_hits": 0,
+          "d2_pct": 2.333,
+          "avg_front": 0.6667,
+          "avg_back": 0.2867
+        },
+        "fitness": 720086
+      },
+      {
+        "id": "DLT-G3-012",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-014",
+          "DLT-G2-001"
+        ],
+        "weights": [
+          0.016942369,
+          0.562289833,
+          0.210488571,
+          0,
+          0.052760802,
+          0.093936796,
+          0,
+          0,
+          0.063581628,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 7,
+          "front_hits": 196,
+          "back_hits": 92,
+          "full_hits": 0,
+          "d2_pct": 2.333,
+          "avg_front": 0.6533,
+          "avg_back": 0.3067
+        },
+        "fitness": 719692
+      },
+      {
+        "id": "DLT-G3-045",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-002",
+          "DLT-G2-027"
+        ],
+        "weights": [
+          0.046982334,
+          0.400528551,
+          0.013275964,
+          0.10857714,
+          0.009503002,
+          0.206344719,
+          0,
+          0,
+          0.052373426,
+          0.162414863
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 7,
+          "front_hits": 194,
+          "back_hits": 87,
+          "full_hits": 0,
+          "d2_pct": 2.333,
+          "avg_front": 0.6467,
+          "avg_back": 0.29
+        },
+        "fitness": 719487
+      },
+      {
+        "id": "DLT-G3-052",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-014",
+          "DLT-G2-010"
+        ],
+        "weights": [
+          0.056024646,
+          0.42342837,
+          0.299829236,
+          0,
+          0.018737024,
+          0.134432854,
+          0,
+          0,
+          0.06754787,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 7,
+          "front_hits": 192,
+          "back_hits": 90,
+          "full_hits": 0,
+          "d2_pct": 2.333,
+          "avg_front": 0.64,
+          "avg_back": 0.3
+        },
+        "fitness": 719290
+      },
+      {
+        "id": "DLT-G3-064",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-040",
+          "DLT-G2-001"
+        ],
+        "weights": [
+          0,
+          0.38525342,
+          0.132610888,
+          0.033785192,
+          0.039118755,
+          0.339590444,
+          0.053215074,
+          0,
+          0.016426226,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 7,
+          "front_hits": 192,
+          "back_hits": 88,
+          "full_hits": 0,
+          "d2_pct": 2.333,
+          "avg_front": 0.64,
+          "avg_back": 0.2933
+        },
+        "fitness": 719288
+      },
+      {
+        "id": "DLT-G3-060",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-019",
+          "DLT-G2-038"
+        ],
+        "weights": [
+          0.111430618,
+          0.133477467,
+          0,
+          0.018445649,
+          0.148966816,
+          0.02726545,
+          0,
+          0.434650413,
+          0.102355208,
+          0.023408379
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 6,
+          "front_hits": 220,
+          "back_hits": 100,
+          "full_hits": 0,
+          "d2_pct": 2,
+          "avg_front": 0.7333,
+          "avg_back": 0.3333
+        },
+        "fitness": 622100
+      },
+      {
+        "id": "DLT-G3-043",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-003",
+          "DLT-G2-001"
+        ],
+        "weights": [
+          0,
+          0.237872703,
+          0.064823681,
+          0,
+          0.110114249,
+          0.037666994,
+          0,
+          0,
+          0.003933598,
+          0.545588775
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 6,
+          "front_hits": 218,
+          "back_hits": 92,
+          "full_hits": 0,
+          "d2_pct": 2,
+          "avg_front": 0.7267,
+          "avg_back": 0.3067
+        },
+        "fitness": 621892
+      },
+      {
+        "id": "DLT-G3-061",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-001",
+          "DLT-G2-022"
+        ],
+        "weights": [
+          0.076318742,
+          0.417889247,
+          0.079784986,
+          0,
+          0.012357568,
+          0.185093897,
+          0,
+          0.206124528,
+          0.022431031,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 6,
+          "front_hits": 215,
+          "back_hits": 90,
+          "full_hits": 0,
+          "d2_pct": 2,
+          "avg_front": 0.7167,
+          "avg_back": 0.3
+        },
+        "fitness": 621590
+      },
+      {
+        "id": "DLT-G3-042",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-039",
+          "DLT-G2-035"
+        ],
+        "weights": [
+          0.059085506,
+          0,
+          0.072032281,
+          0,
+          0.100154248,
+          0.165227556,
+          0,
+          0.075070218,
+          0.175362498,
+          0.353067694
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 6,
+          "front_hits": 215,
+          "back_hits": 85,
+          "full_hits": 0,
+          "d2_pct": 2,
+          "avg_front": 0.7167,
+          "avg_back": 0.2833
+        },
+        "fitness": 621585
+      },
+      {
+        "id": "DLT-G3-034",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-022",
+          "DLT-G2-014"
+        ],
+        "weights": [
+          0.244803021,
+          0.099746299,
+          0.051645981,
+          0,
+          0.038771426,
+          0.443991008,
+          0,
+          0.105130128,
+          0.015912137,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 6,
+          "front_hits": 213,
+          "back_hits": 96,
+          "full_hits": 0,
+          "d2_pct": 2,
+          "avg_front": 0.71,
+          "avg_back": 0.32
+        },
+        "fitness": 621396
+      },
+      {
+        "id": "DLT-G3-001",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-001",
+          "DLT-G2-039"
+        ],
+        "weights": [
+          0,
+          0.511318995,
+          0.112451391,
+          0,
+          0.018552093,
+          0.096409898,
+          0,
+          0,
+          0.027446058,
+          0.233821565
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 6,
+          "front_hits": 210,
+          "back_hits": 88,
+          "full_hits": 0,
+          "d2_pct": 2,
+          "avg_front": 0.7,
+          "avg_back": 0.2933
+        },
+        "fitness": 621088
+      },
+      {
+        "id": "DLT-G3-049",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-032",
+          "DLT-G2-019"
+        ],
+        "weights": [
+          0.03531379,
+          0.180061548,
+          0,
+          0,
+          0.005481992,
+          0.036781183,
+          0.082095109,
+          0.126014242,
+          0.177348087,
+          0.356904047
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 6,
+          "front_hits": 209,
+          "back_hits": 90,
+          "full_hits": 0,
+          "d2_pct": 2,
+          "avg_front": 0.6967,
+          "avg_back": 0.3
+        },
+        "fitness": 620990
+      },
+      {
+        "id": "DLT-G3-023",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-003",
+          "DLT-G2-037"
+        ],
+        "weights": [
+          0,
+          0.508591038,
+          0.025636498,
+          0.064755744,
+          0.055534495,
+          0.07032259,
+          0,
+          0,
+          0,
+          0.275159636
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 6,
+          "front_hits": 207,
+          "back_hits": 90,
+          "full_hits": 0,
+          "d2_pct": 2,
+          "avg_front": 0.69,
+          "avg_back": 0.3
+        },
+        "fitness": 620790
+      },
+      {
+        "id": "DLT-G3-073",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-012",
+          "DLT-G2-022"
+        ],
+        "weights": [
+          0.156314951,
+          0.032762475,
+          0.360833494,
+          0,
+          0.2178326,
+          0.203693177,
+          0,
+          0.028563303,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 6,
+          "front_hits": 206,
+          "back_hits": 93,
+          "full_hits": 0,
+          "d2_pct": 2,
+          "avg_front": 0.6867,
+          "avg_back": 0.31
+        },
+        "fitness": 620693
+      },
+      {
+        "id": "DLT-G3-010",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-033",
+          "DLT-G2-014"
+        ],
+        "weights": [
+          0.132372827,
+          0.354931396,
+          0.132505132,
+          0,
+          0.019663352,
+          0.060290493,
+          0.0129869,
+          0.011861627,
+          0.275388272,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 6,
+          "front_hits": 203,
+          "back_hits": 92,
+          "full_hits": 0,
+          "d2_pct": 2,
+          "avg_front": 0.6767,
+          "avg_back": 0.3067
+        },
+        "fitness": 620392
+      },
+      {
+        "id": "DLT-G3-057",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-013",
+          "DLT-G2-002"
+        ],
+        "weights": [
+          0,
+          0.468288399,
+          0.012184689,
+          0,
+          0.079761066,
+          0.078214805,
+          0,
+          0,
+          0.034764635,
+          0.326786404
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 6,
+          "front_hits": 203,
+          "back_hits": 89,
+          "full_hits": 0,
+          "d2_pct": 2,
+          "avg_front": 0.6767,
+          "avg_back": 0.2967
+        },
+        "fitness": 620389
+      },
+      {
+        "id": "DLT-G3-077",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-013",
+          "DLT-G2-013"
+        ],
+        "weights": [
+          0,
+          0.516268996,
+          0.021365125,
+          0,
+          0.139856266,
+          0.061133951,
+          0,
+          0,
+          0,
+          0.261375662
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 6,
+          "front_hits": 199,
+          "back_hits": 94,
+          "full_hits": 0,
+          "d2_pct": 2,
+          "avg_front": 0.6633,
+          "avg_back": 0.3133
+        },
+        "fitness": 619994
+      },
+      {
+        "id": "DLT-G3-032",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-014",
+          "DLT-G2-027"
+        ],
+        "weights": [
+          0.045782962,
+          0.354585731,
+          0.309408073,
+          0,
+          0.005409462,
+          0.135795527,
+          0,
+          0,
+          0.056565674,
+          0.092452573
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 6,
+          "front_hits": 199,
+          "back_hits": 86,
+          "full_hits": 0,
+          "d2_pct": 2,
+          "avg_front": 0.6633,
+          "avg_back": 0.2867
+        },
+        "fitness": 619986
+      },
+      {
+        "id": "DLT-G3-022",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-039",
+          "DLT-G2-033"
+        ],
+        "weights": [
+          0,
+          0.085743031,
+          0.071439065,
+          0.178860173,
+          0.106405648,
+          0.037352052,
+          0.011245792,
+          0.01027138,
+          0.203116312,
+          0.295566548
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 6,
+          "front_hits": 197,
+          "back_hits": 89,
+          "full_hits": 0,
+          "d2_pct": 2,
+          "avg_front": 0.6567,
+          "avg_back": 0.2967
+        },
+        "fitness": 619789
+      },
+      {
+        "id": "DLT-G3-017",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-013",
+          "DLT-G2-017"
+        ],
+        "weights": [
+          0.035989377,
+          0.259519348,
+          0.09634476,
+          0.163239165,
+          0.116466182,
+          0.081495231,
+          0,
+          0.061263622,
+          0,
+          0.185682315
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 6,
+          "front_hits": 195,
+          "back_hits": 96,
+          "full_hits": 0,
+          "d2_pct": 2,
+          "avg_front": 0.65,
+          "avg_back": 0.32
+        },
+        "fitness": 619596
+      },
+      {
+        "id": "DLT-G3-007",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-037",
+          "DLT-G2-007"
+        ],
+        "weights": [
+          0,
+          0.598290424,
+          0.021394363,
+          0.106807557,
+          0.00365787,
+          0.180357305,
+          0,
+          0.080562968,
+          0.008929513,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 6,
+          "front_hits": 194,
+          "back_hits": 91,
+          "full_hits": 0,
+          "d2_pct": 2,
+          "avg_front": 0.6467,
+          "avg_back": 0.3033
+        },
+        "fitness": 619491
+      },
+      {
+        "id": "DLT-G3-039",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-027",
+          "DLT-G2-035"
+        ],
+        "weights": [
+          0.111377254,
+          0,
+          0.027483048,
+          0.137892607,
+          0.02206985,
+          0.291967455,
+          0,
+          0.017936711,
+          0.04189979,
+          0.349373285
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 6,
+          "front_hits": 194,
+          "back_hits": 86,
+          "full_hits": 0,
+          "d2_pct": 2,
+          "avg_front": 0.6467,
+          "avg_back": 0.2867
+        },
+        "fitness": 619486
+      },
+      {
+        "id": "DLT-G3-067",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-037",
+          "DLT-G2-032"
+        ],
+        "weights": [
+          0,
+          0.552615281,
+          0,
+          0.09377751,
+          0,
+          0.184335104,
+          0.029626063,
+          0,
+          0.013525456,
+          0.126120586
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 6,
+          "front_hits": 191,
+          "back_hits": 89,
+          "full_hits": 0,
+          "d2_pct": 2,
+          "avg_front": 0.6367,
+          "avg_back": 0.2967
+        },
+        "fitness": 619189
+      },
+      {
+        "id": "DLT-G3-063",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-003",
+          "DLT-G2-033"
+        ],
+        "weights": [
+          0,
+          0.042240099,
+          0.045406869,
+          0,
+          0.106749809,
+          0.030459486,
+          0.005540081,
+          0.005060051,
+          0.277186187,
+          0.487357418
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 5,
+          "front_hits": 217,
+          "back_hits": 88,
+          "full_hits": 0,
+          "d2_pct": 1.667,
+          "avg_front": 0.7233,
+          "avg_back": 0.2933
+        },
+        "fitness": 521788
+      },
+      {
+        "id": "DLT-G3-015",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-010",
+          "DLT-G2-035"
+        ],
+        "weights": [
+          0.241317797,
+          0,
+          0,
+          0.04776512,
+          0.124149252,
+          0.433163756,
+          0,
+          0.037747509,
+          0.08817741,
+          0.027679156
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 5,
+          "front_hits": 215,
+          "back_hits": 95,
+          "full_hits": 0,
+          "d2_pct": 1.667,
+          "avg_front": 0.7167,
+          "avg_back": 0.3167
+        },
+        "fitness": 521595
+      },
+      {
+        "id": "DLT-G3-074",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-022",
+          "DLT-G2-039"
+        ],
+        "weights": [
+          0.218200801,
+          0,
+          0.033690196,
+          0,
+          0.077481492,
+          0.322896787,
+          0.112541698,
+          0.095801777,
+          0,
+          0.13938725
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 5,
+          "front_hits": 214,
+          "back_hits": 86,
+          "full_hits": 0,
+          "d2_pct": 1.667,
+          "avg_front": 0.7133,
+          "avg_back": 0.2867
+        },
+        "fitness": 521486
+      },
+      {
+        "id": "DLT-G3-050",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-033",
+          "DLT-G2-007"
+        ],
+        "weights": [
+          0,
+          0.207836227,
+          0.047071529,
+          0,
+          0.030577124,
+          0.042454719,
+          0.192820851,
+          0.190843702,
+          0.288395848,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 5,
+          "front_hits": 209,
+          "back_hits": 81,
+          "full_hits": 0,
+          "d2_pct": 1.667,
+          "avg_front": 0.6967,
+          "avg_back": 0.27
+        },
+        "fitness": 520981
+      },
+      {
+        "id": "DLT-G3-035",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-010",
+          "DLT-G2-027"
+        ],
+        "weights": [
+          0.211263695,
+          0,
+          0.070076608,
+          0,
+          0.104020625,
+          0.471891035,
+          0,
+          0,
+          0,
+          0.142748036
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 5,
+          "front_hits": 208,
+          "back_hits": 97,
+          "full_hits": 0,
+          "d2_pct": 1.667,
+          "avg_front": 0.6933,
+          "avg_back": 0.3233
+        },
+        "fitness": 520897
+      },
+      {
+        "id": "DLT-G3-029",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-032",
+          "DLT-G2-027"
+        ],
+        "weights": [
+          0.039725241,
+          0.163944411,
+          0.011225302,
+          0,
+          0.008035127,
+          0.21266713,
+          0.074746854,
+          0,
+          0.034124863,
+          0.455531072
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 5,
+          "front_hits": 207,
+          "back_hits": 94,
+          "full_hits": 0,
+          "d2_pct": 1.667,
+          "avg_front": 0.69,
+          "avg_back": 0.3133
+        },
+        "fitness": 520794
+      },
+      {
+        "id": "DLT-G3-072",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-014",
+          "DLT-G2-040"
+        ],
+        "weights": [
+          0.171754454,
+          0.296030738,
+          0.179175442,
+          0.026387341,
+          0.030553029,
+          0.258746471,
+          0,
+          0,
+          0.037352524,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 5,
+          "front_hits": 207,
+          "back_hits": 88,
+          "full_hits": 0,
+          "d2_pct": 1.667,
+          "avg_front": 0.69,
+          "avg_back": 0.2933
+        },
+        "fitness": 520788
+      },
+      {
+        "id": "DLT-G3-079",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-027",
+          "DLT-G2-033"
+        ],
+        "weights": [
+          0.079208226,
+          0.067726258,
+          0.022382148,
+          0.098350549,
+          0.029470574,
+          0.251612253,
+          0.008882767,
+          0.008113104,
+          0.160436452,
+          0.273817668
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 5,
+          "front_hits": 206,
+          "back_hits": 86,
+          "full_hits": 0,
+          "d2_pct": 1.667,
+          "avg_front": 0.6867,
+          "avg_back": 0.2867
+        },
+        "fitness": 520686
+      },
+      {
+        "id": "DLT-G3-051",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-038",
+          "DLT-G2-017"
+        ],
+        "weights": [
+          0.070981775,
+          0.260976279,
+          0.160085291,
+          0.034056426,
+          0.03685279,
+          0.125416897,
+          0,
+          0.260334083,
+          0.051296458,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 5,
+          "front_hits": 203,
+          "back_hits": 99,
+          "full_hits": 0,
+          "d2_pct": 1.667,
+          "avg_front": 0.6767,
+          "avg_back": 0.33
+        },
+        "fitness": 520399
+      },
+      {
+        "id": "DLT-G3-056",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-007",
+          "DLT-G2-040"
+        ],
+        "weights": [
+          0,
+          0.192796566,
+          0.109806032,
+          0.186110719,
+          0.029187047,
+          0.145017508,
+          0,
+          0.303448249,
+          0.033633878,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 5,
+          "front_hits": 202,
+          "back_hits": 102,
+          "full_hits": 0,
+          "d2_pct": 1.667,
+          "avg_front": 0.6733,
+          "avg_back": 0.34
+        },
+        "fitness": 520302
+      },
+      {
+        "id": "DLT-G3-030",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-033",
+          "DLT-G2-012"
+        ],
+        "weights": [
+          0.049182194,
+          0.154044544,
+          0.194465254,
+          0.106893459,
+          0.05084355,
+          0.087256186,
+          0.017888197,
+          0.016338242,
+          0.323088375,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 5,
+          "front_hits": 200,
+          "back_hits": 93,
+          "full_hits": 0,
+          "d2_pct": 1.667,
+          "avg_front": 0.6667,
+          "avg_back": 0.31
+        },
+        "fitness": 520093
+      },
+      {
+        "id": "DLT-G3-013",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-012",
+          "DLT-G2-012"
+        ],
+        "weights": [
+          0.20551396,
+          0.047508116,
+          0.523236397,
+          0,
+          0.063927471,
+          0.159814056,
+          0,
+          0,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 5,
+          "front_hits": 197,
+          "back_hits": 97,
+          "full_hits": 0,
+          "d2_pct": 1.667,
+          "avg_front": 0.6567,
+          "avg_back": 0.3233
+        },
+        "fitness": 519797
+      },
+      {
+        "id": "DLT-G3-033",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-012",
+          "DLT-G2-012"
+        ],
+        "weights": [
+          0.121487165,
+          0.043614849,
+          0.480357428,
+          0,
+          0.058688646,
+          0.295851912,
+          0,
+          0,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 5,
+          "front_hits": 194,
+          "back_hits": 93,
+          "full_hits": 0,
+          "d2_pct": 1.667,
+          "avg_front": 0.6467,
+          "avg_back": 0.31
+        },
+        "fitness": 519493
+      },
+      {
+        "id": "DLT-G3-004",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-040",
+          "DLT-G2-012"
+        ],
+        "weights": [
+          0.016562572,
+          0.118382692,
+          0.17075974,
+          0.047943026,
+          0.063512776,
+          0.423516487,
+          0.159322707,
+          0,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 5,
+          "front_hits": 193,
+          "back_hits": 88,
+          "full_hits": 0,
+          "d2_pct": 1.667,
+          "avg_front": 0.6433,
+          "avg_back": 0.2933
+        },
+        "fitness": 519388
+      },
+      {
+        "id": "DLT-G3-053",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-012",
+          "DLT-G2-015"
+        ],
+        "weights": [
+          0.108067153,
+          0.031466057,
+          0.354955042,
+          0,
+          0.046471372,
+          0.147649421,
+          0,
+          0.030286537,
+          0,
+          0.281104419
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 4,
+          "front_hits": 209,
+          "back_hits": 87,
+          "full_hits": 0,
+          "d2_pct": 1.333,
+          "avg_front": 0.6967,
+          "avg_back": 0.29
+        },
+        "fitness": 420987
+      },
+      {
+        "id": "DLT-G3-011",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-038",
+          "DLT-G2-019"
+        ],
+        "weights": [
+          0.039621616,
+          0.38957079,
+          0,
+          0.114812388,
+          0.01105647,
+          0.079577649,
+          0,
+          0.249433233,
+          0.107604488,
+          0.008323366
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 4,
+          "front_hits": 208,
+          "back_hits": 90,
+          "full_hits": 0,
+          "d2_pct": 1.333,
+          "avg_front": 0.6933,
+          "avg_back": 0.3
+        },
+        "fitness": 420890
+      },
+      {
+        "id": "DLT-G3-068",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-015",
+          "DLT-G2-032"
+        ],
+        "weights": [
+          0.081001925,
+          0.030746063,
+          0.033320479,
+          0,
+          0.016384062,
+          0.172092377,
+          0.014017992,
+          0.178727091,
+          0.006399762,
+          0.467310249
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 4,
+          "front_hits": 207,
+          "back_hits": 94,
+          "full_hits": 0,
+          "d2_pct": 1.333,
+          "avg_front": 0.69,
+          "avg_back": 0.3133
+        },
+        "fitness": 420794
+      },
+      {
+        "id": "DLT-G3-040",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-019",
+          "DLT-G2-033"
+        ],
+        "weights": [
+          0.124035454,
+          0.041555907,
+          0.137869131,
+          0,
+          0.027507159,
+          0.008488628,
+          0.005450345,
+          0.447588005,
+          0.181449079,
+          0.026056294
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 4,
+          "front_hits": 205,
+          "back_hits": 104,
+          "full_hits": 0,
+          "d2_pct": 1.333,
+          "avg_front": 0.6833,
+          "avg_back": 0.3467
+        },
+        "fitness": 420604
+      },
+      {
+        "id": "DLT-G3-026",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-035",
+          "DLT-G2-012"
+        ],
+        "weights": [
+          0.122616221,
+          0.023036662,
+          0.253717067,
+          0,
+          0.040923826,
+          0.077493756,
+          0,
+          0.254286611,
+          0.173472359,
+          0.054453499
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 4,
+          "front_hits": 205,
+          "back_hits": 103,
+          "full_hits": 0,
+          "d2_pct": 1.333,
+          "avg_front": 0.6833,
+          "avg_back": 0.3433
+        },
+        "fitness": 420603
+      },
+      {
+        "id": "DLT-G3-028",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-015",
+          "DLT-G2-037"
+        ],
+        "weights": [
+          0.059315712,
+          0.159528325,
+          0.203105469,
+          0.030678993,
+          0.011997644,
+          0.148896819,
+          0,
+          0.087976345,
+          0,
+          0.298500693
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 4,
+          "front_hits": 205,
+          "back_hits": 91,
+          "full_hits": 0,
+          "d2_pct": 1.333,
+          "avg_front": 0.6833,
+          "avg_back": 0.3033
+        },
+        "fitness": 420591
+      },
+      {
+        "id": "DLT-G3-018",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-017",
+          "DLT-G2-012"
+        ],
+        "weights": [
+          0.121324471,
+          0.031037686,
+          0.341837327,
+          0,
+          0.05799164,
+          0.134346381,
+          0.175293953,
+          0.13816854,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 4,
+          "front_hits": 204,
+          "back_hits": 88,
+          "full_hits": 0,
+          "d2_pct": 1.333,
+          "avg_front": 0.68,
+          "avg_back": 0.2933
+        },
+        "fitness": 420488
+      },
+      {
+        "id": "DLT-G3-078",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-017",
+          "DLT-G2-032"
+        ],
+        "weights": [
+          0.227743523,
+          0.075808404,
+          0.22183025,
+          0,
+          0.046766603,
+          0.115404441,
+          0.025380128,
+          0.167434338,
+          0.011587021,
+          0.108045292
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 4,
+          "front_hits": 202,
+          "back_hits": 91,
+          "full_hits": 0,
+          "d2_pct": 1.333,
+          "avg_front": 0.6733,
+          "avg_back": 0.3033
+        },
+        "fitness": 420291
+      },
+      {
+        "id": "DLT-G3-016",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-007",
+          "DLT-G2-012"
+        ],
+        "weights": [
+          0.0738965,
+          0.126968293,
+          0.342274657,
+          0,
+          0.0442623,
+          0.109759828,
+          0,
+          0.188618284,
+          0.020906248,
+          0.09331389
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 4,
+          "front_hits": 196,
+          "back_hits": 87,
+          "full_hits": 0,
+          "d2_pct": 1.333,
+          "avg_front": 0.6533,
+          "avg_back": 0.29
+        },
+        "fitness": 419687
+      },
+      {
+        "id": "DLT-G3-038",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-017",
+          "DLT-G2-017"
+        ],
+        "weights": [
+          0.123102444,
+          0.025208157,
+          0.453401185,
+          0,
+          0.058531049,
+          0.130203619,
+          0,
+          0.209553545,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 4,
+          "front_hits": 195,
+          "back_hits": 87,
+          "full_hits": 0,
+          "d2_pct": 1.333,
+          "avg_front": 0.65,
+          "avg_back": 0.29
+        },
+        "fitness": 419587
+      },
+      {
+        "id": "DLT-G3-031",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-038",
+          "DLT-G2-032"
+        ],
+        "weights": [
+          0,
+          0.347261935,
+          0,
+          0.145519811,
+          0.002799166,
+          0.070935217,
+          0.056980514,
+          0.061650401,
+          0.072282219,
+          0.242570737
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 4,
+          "front_hits": 195,
+          "back_hits": 86,
+          "full_hits": 0,
+          "d2_pct": 1.333,
+          "avg_front": 0.65,
+          "avg_back": 0.2867
+        },
+        "fitness": 419586
+      },
+      {
+        "id": "DLT-G3-080",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-019",
+          "DLT-G2-013"
+        ],
+        "weights": [
+          0.159684215,
+          0.189045127,
+          0.011379362,
+          0,
+          0.087764711,
+          0.032560792,
+          0,
+          0.305159068,
+          0.057229807,
+          0.157176917
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 3,
+          "front_hits": 212,
+          "back_hits": 94,
+          "full_hits": 0,
+          "d2_pct": 1,
+          "avg_front": 0.7067,
+          "avg_back": 0.3133
+        },
+        "fitness": 321294
+      },
+      {
+        "id": "DLT-G3-024",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-040",
+          "DLT-G2-012"
+        ],
+        "weights": [
+          0.032613574,
+          0.109699702,
+          0.220700117,
+          0.041783489,
+          0.204144164,
+          0.391058956,
+          0,
+          0,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 3,
+          "front_hits": 202,
+          "back_hits": 98,
+          "full_hits": 0,
+          "d2_pct": 1,
+          "avg_front": 0.6733,
+          "avg_back": 0.3267
+        },
+        "fitness": 320298
+      },
+      {
+        "id": "DLT-G3-076",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-007",
+          "DLT-G2-038"
+        ],
+        "weights": [
+          0,
+          0.33576904,
+          0.058450768,
+          0.030204084,
+          0.012745851,
+          0.068587563,
+          0.14363098,
+          0.280721731,
+          0.069889984,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 3,
+          "front_hits": 199,
+          "back_hits": 92,
+          "full_hits": 0,
+          "d2_pct": 1,
+          "avg_front": 0.6633,
+          "avg_back": 0.3067
+        },
+        "fitness": 319992
+      },
+      {
+        "id": "DLT-G3-059",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-027",
+          "DLT-G2-038"
+        ],
+        "weights": [
+          0.123898662,
+          0.236881605,
+          0.017910156,
+          0.032735375,
+          0.015803157,
+          0.238657202,
+          0,
+          0.065698763,
+          0.049306665,
+          0.219108415
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 2,
+          "front_hits": 207,
+          "back_hits": 91,
+          "full_hits": 0,
+          "d2_pct": 0.667,
+          "avg_front": 0.69,
+          "avg_back": 0.3033
+        },
+        "fitness": 220791
+      },
+      {
+        "id": "DLT-G3-002",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-039",
+          "DLT-G2-040"
+        ],
+        "weights": [
+          0,
+          0.085455882,
+          0.131315732,
+          0.036438434,
+          0.106379845,
+          0.320931989,
+          0,
+          0,
+          0,
+          0.319478118
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 2,
+          "front_hits": 200,
+          "back_hits": 99,
+          "full_hits": 0,
+          "d2_pct": 0.667,
+          "avg_front": 0.6667,
+          "avg_back": 0.33
+        },
+        "fitness": 220099
+      },
+      {
+        "id": "DLT-G3-008",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-015",
+          "DLT-G2-001"
+        ],
+        "weights": [
+          0.057595122,
+          0.228244669,
+          0.067269324,
+          0.088627698,
+          0.011649625,
+          0.159095702,
+          0,
+          0.085424388,
+          0.012251484,
+          0.289841989
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 2,
+          "front_hits": 197,
+          "back_hits": 92,
+          "full_hits": 0,
+          "d2_pct": 0.667,
+          "avg_front": 0.6567,
+          "avg_back": 0.3067
+        },
+        "fitness": 219792
+      },
+      {
+        "id": "DLT-G3-058",
+        "generation": 3,
+        "parents": [
+          "DLT-G2-017",
+          "DLT-G2-027"
+        ],
+        "weights": [
+          0.137019157,
+          0.021232688,
+          0.243267151,
+          0,
+          0.056042083,
+          0.20972621,
+          0,
+          0.17650576,
+          0,
+          0.156206952
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 1,
+          "front_hits": 212,
+          "back_hits": 90,
+          "full_hits": 0,
+          "d2_pct": 0.333,
+          "avg_front": 0.7067,
+          "avg_back": 0.3
+        },
+        "fitness": 121290
+      }
+    ]
+  },
+  "holdout_finalists": [
+    {
+      "id": "DLT-G3-014",
+      "generation": 3,
+      "parents": [
+        "DLT-G2-022",
+        "DLT-G2-022"
+      ],
+      "weights": [
+        0.28241096,
+        0,
+        0,
+        0,
+        0.04572812,
+        0.405807837,
+        0,
+        0.266053083,
+        0,
+        0
+      ],
+      "statistics": {
+        "trials": 200,
+        "d2": 2,
+        "front_hits": 127,
+        "back_hits": 73,
+        "full_hits": 0,
+        "d2_pct": 1,
+        "avg_front": 0.635,
+        "avg_back": 0.365
+      },
+      "fitness": 212773,
+      "holdout_wilson95": [
+        0.002746658133544525,
+        0.03572176171617572
+      ],
+      "p_one_sided": 0.8510348246807864,
+      "p_bonferroni_5": 1,
+      "edge_pass": false
+    },
+    {
+      "id": "DLT-G3-048",
+      "generation": 3,
+      "parents": [
+        "DLT-G2-015",
+        "DLT-G2-010"
+      ],
+      "weights": [
+        0.160133702,
+        0,
+        0.158594049,
+        0,
+        0.074703884,
+        0.327795539,
+        0,
+        0.063458917,
+        0,
+        0.215313908
+      ],
+      "statistics": {
+        "trials": 200,
+        "d2": 6,
+        "front_hits": 129,
+        "back_hits": 76,
+        "full_hits": 0,
+        "d2_pct": 3,
+        "avg_front": 0.645,
+        "avg_back": 0.38
+      },
+      "fitness": 612976,
+      "holdout_wilson95": [
+        0.013820314340111623,
+        0.063894292454518
+      ],
+      "p_one_sided": 0.12288813347376155,
+      "p_bonferroni_5": 0.6144406673688078,
+      "edge_pass": false
+    },
+    {
+      "id": "DLT-G3-062",
+      "generation": 3,
+      "parents": [
+        "DLT-G2-039",
+        "DLT-G2-032"
+      ],
+      "weights": [
+        0.096182233,
+        0.03143623,
+        0.117619934,
+        0,
+        0.147156076,
+        0.039082378,
+        0.014332659,
+        0,
+        0.006543419,
+        0.54764707
+      ],
+      "statistics": {
+        "trials": 200,
+        "d2": 2,
+        "front_hits": 133,
+        "back_hits": 67,
+        "full_hits": 0,
+        "d2_pct": 1,
+        "avg_front": 0.665,
+        "avg_back": 0.335
+      },
+      "fitness": 213367,
+      "holdout_wilson95": [
+        0.002746658133544525,
+        0.03572176171617572
+      ],
+      "p_one_sided": 0.8510348246807864,
+      "p_bonferroni_5": 1,
+      "edge_pass": false
+    },
+    {
+      "id": "DLT-G3-009",
+      "generation": 3,
+      "parents": [
+        "DLT-G2-032",
+        "DLT-G2-033"
+      ],
+      "weights": [
+        0,
+        0.380794826,
+        0,
+        0,
+        0.007973456,
+        0.044401062,
+        0.08606248,
+        0.00480987,
+        0.13200175,
+        0.343956555
+      ],
+      "statistics": {
+        "trials": 200,
+        "d2": 3,
+        "front_hits": 142,
+        "back_hits": 65,
+        "full_hits": 0,
+        "d2_pct": 1.5,
+        "avg_front": 0.71,
+        "avg_back": 0.325
+      },
+      "fitness": 314265,
+      "holdout_wilson95": [
+        0.005114237793258453,
+        0.04316572879268914
+      ],
+      "p_one_sided": 0.655005332452305,
+      "p_bonferroni_5": 1,
+      "edge_pass": false
+    },
+    {
+      "id": "DLT-G3-065",
+      "generation": 3,
+      "parents": [
+        "DLT-G2-002",
+        "DLT-G2-001"
+      ],
+      "weights": [
+        0,
+        0.711412154,
+        0.013852423,
+        0,
+        0,
+        0.117262853,
+        0,
+        0,
+        0.15747257,
+        0
+      ],
+      "statistics": {
+        "trials": 200,
+        "d2": 2,
+        "front_hits": 140,
+        "back_hits": 70,
+        "full_hits": 0,
+        "d2_pct": 1,
+        "avg_front": 0.7,
+        "avg_back": 0.35
+      },
+      "fitness": 214070,
+      "holdout_wilson95": [
+        0.002746658133544525,
+        0.03572176171617572
+      ],
+      "p_one_sided": 0.8510348246807864,
+      "p_bonferroni_5": 1,
+      "edge_pass": false
+    }
+  ],
+  "selection_champion_id": "DLT-G3-014",
+  "selection_champion_validation": {
+    "trials": 300,
+    "d2": 9,
+    "front_hits": 223,
+    "back_hits": 95,
+    "full_hits": 0,
+    "d2_pct": 3,
+    "avg_front": 0.7433,
+    "avg_back": 0.3167
+  },
+  "holdout_main_model": {
+    "trials": 200,
+    "d2": 2,
+    "front_hits": 127,
+    "back_hits": 73,
+    "full_hits": 0,
+    "d2_pct": 1,
+    "avg_front": 0.635,
+    "avg_back": 0.365
+  },
+  "prospective_prediction": {
+    "front": [
+      7,
+      14,
+      16,
+      21,
+      35
+    ],
+    "back": [
+      4,
+      5
+    ],
+    "dan2": [
+      14,
+      35
+    ],
+    "low_rank_front": [
+      11,
+      3,
+      12,
+      28,
+      23
+    ]
+  },
+  "formal_dan_state": "NULL_DAN",
+  "edge_state": "NO_EDGE",
+  "holdout_data_used_to_select_model": false,
+  "forecast_status": "research_only_unverified_future",
+  "prospective_result": null
+}

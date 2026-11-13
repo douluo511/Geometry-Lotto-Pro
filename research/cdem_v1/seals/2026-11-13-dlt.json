@@ -1,0 +1,52 @@
+{
+  "schema": "CDEM_V1_SEALED_CANDIDATE",
+  "created_for": "2026-11-13",
+  "game": "dlt",
+  "target_issue": "26130",
+  "source_cutoff_issue": "26129",
+  "prediction": {
+    "front": [
+      7,
+      14,
+      16,
+      21,
+      35
+    ],
+    "back": [
+      4,
+      5
+    ],
+    "dan2": [
+      14,
+      35
+    ],
+    "low_rank_front": [
+      11,
+      3,
+      12,
+      28,
+      23
+    ]
+  },
+  "model_id": "DLT-G3-014",
+  "model_weights": [
+    0.28241096,
+    0,
+    0,
+    0,
+    0.04572812,
+    0.405807837,
+    0,
+    0.266053083,
+    0,
+    0
+  ],
+  "selected_on": "historical_selection_300_only",
+  "holdout_d2": 2,
+  "holdout_n": 200,
+  "holdout_p_bonferroni_5": 1,
+  "edge": "NO_EDGE",
+  "dan_certification": "NULL_DAN",
+  "post_draw_real_score": null,
+  "source_blob_sha": "4db8ac5164be0937587661c21554d36cff8f571d"
+}

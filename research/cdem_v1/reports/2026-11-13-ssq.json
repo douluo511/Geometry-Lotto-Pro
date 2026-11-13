@@ -1,0 +1,4912 @@
+{
+  "schema": "CDEM_V1_RESEARCH_20261113",
+  "game": "ssq",
+  "target_issue": "2026131",
+  "base_snapshot": {
+    "github_path": "SSQ/SSQ/resources/official_seed.json",
+    "github_blob_sha": "4d2ed825034f20d1f039f99f802174ead7814172",
+    "snapshot_rows": 2067,
+    "asof_issue": "2026109",
+    "asof_date": "2026-09-20",
+    "canonical_hash": "8f91a4c53bf3ab145c20fd8e1bfb61b161c4bc4e78655fd8f0e61cf1f0cb3556"
+  },
+  "additional_verified_rows": 21,
+  "added_rows": "110 02 05 16 19 26 32 14\n111 06 07 14 22 31 32 05\n112 01 04 11 12 17 29 11\n113 03 04 20 24 29 31 10\n114 07 18 23 24 29 31 10\n115 04 13 14 18 22 24 03\n116 10 19 24 27 28 33 12\n117 04 11 14 22 26 27 04\n118 05 21 22 23 28 31 14\n119 12 22 23 25 27 30 04\n120 13 14 16 18 20 31 03\n121 02 07 20 24 26 30 02\n122 01 02 04 17 19 30 09\n123 04 05 20 21 26 30 12\n124 03 11 17 22 23 29 09\n125 04 06 10 15 26 27 11\n126 09 10 13 22 29 32 12\n127 13 14 19 25 29 32 12\n128 05 06 10 25 27 30 11\n129 03 09 16 20 25 30 05\n130 01 02 06 16 20 28 02",
+  "additional_source": "https://www.swlc.net.cn/lottery/ssq.html?limit=100&view=previous",
+  "latest_issue": "2026130",
+  "data_rows": 2088,
+  "scope": "research_simulation; not production glp byte-equivalent",
+  "algorithm": "10 z-standardized features (seeded random, HOT60, EWMA30, FREQ120, RECENCY, GAP, TRANSITION, PAIR_GRAPH, GEOMETRY_STATE, GEOMETRY_TRANSITION); deterministic positive-weight crossover/mutation and selection. Model paths are independent CDEM research approximations, not exact production predictors.",
+  "population": {
+    "g0": 10,
+    "g1": 20,
+    "g2": 40,
+    "g3": 80
+  },
+  "periods": {
+    "selection": {
+      "start_issue": "2023084",
+      "last_issue": "2025081",
+      "count": 300
+    },
+    "holdout": {
+      "start_issue": "2025082",
+      "last_issue": "2026130",
+      "count": 200
+    }
+  },
+  "random_seed": 1643470429,
+  "baseline_d2": 0.028409090909090908,
+  "trained_populations": {
+    "g0": [
+      {
+        "id": "SSQ-G0-03",
+        "generation": 0,
+        "parents": [],
+        "weights": [
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 12,
+          "front_hits": 323,
+          "back_hits": 25,
+          "full_hits": 0,
+          "d2_pct": 4,
+          "avg_front": 1.0767,
+          "avg_back": 0.0833
+        },
+        "fitness": 1232325
+      },
+      {
+        "id": "SSQ-G0-07",
+        "generation": 0,
+        "parents": [],
+        "weights": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 11,
+          "front_hits": 334,
+          "back_hits": 16,
+          "full_hits": 0,
+          "d2_pct": 3.667,
+          "avg_front": 1.1133,
+          "avg_back": 0.0533
+        },
+        "fitness": 1133416
+      },
+      {
+        "id": "SSQ-G0-02",
+        "generation": 0,
+        "parents": [],
+        "weights": [
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 10,
+          "front_hits": 327,
+          "back_hits": 22,
+          "full_hits": 0,
+          "d2_pct": 3.333,
+          "avg_front": 1.09,
+          "avg_back": 0.0733
+        },
+        "fitness": 1032722
+      },
+      {
+        "id": "SSQ-G0-10",
+        "generation": 0,
+        "parents": [],
+        "weights": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 8,
+          "front_hits": 336,
+          "back_hits": 19,
+          "full_hits": 0,
+          "d2_pct": 2.667,
+          "avg_front": 1.12,
+          "avg_back": 0.0633
+        },
+        "fitness": 833619
+      },
+      {
+        "id": "SSQ-G0-08",
+        "generation": 0,
+        "parents": [],
+        "weights": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 8,
+          "front_hits": 325,
+          "back_hits": 18,
+          "full_hits": 0,
+          "d2_pct": 2.667,
+          "avg_front": 1.0833,
+          "avg_back": 0.06
+        },
+        "fitness": 832518
+      },
+      {
+        "id": "SSQ-G0-04",
+        "generation": 0,
+        "parents": [],
+        "weights": [
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 6,
+          "front_hits": 305,
+          "back_hits": 20,
+          "full_hits": 0,
+          "d2_pct": 2,
+          "avg_front": 1.0167,
+          "avg_back": 0.0667
+        },
+        "fitness": 630520
+      },
+      {
+        "id": "SSQ-G0-01",
+        "generation": 0,
+        "parents": [],
+        "weights": [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 5,
+          "front_hits": 318,
+          "back_hits": 15,
+          "full_hits": 0,
+          "d2_pct": 1.667,
+          "avg_front": 1.06,
+          "avg_back": 0.05
+        },
+        "fitness": 531815
+      },
+      {
+        "id": "SSQ-G0-06",
+        "generation": 0,
+        "parents": [],
+        "weights": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 5,
+          "front_hits": 303,
+          "back_hits": 18,
+          "full_hits": 0,
+          "d2_pct": 1.667,
+          "avg_front": 1.01,
+          "avg_back": 0.06
+        },
+        "fitness": 530318
+      },
+      {
+        "id": "SSQ-G0-05",
+        "generation": 0,
+        "parents": [],
+        "weights": [
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 4,
+          "front_hits": 330,
+          "back_hits": 21,
+          "full_hits": 0,
+          "d2_pct": 1.333,
+          "avg_front": 1.1,
+          "avg_back": 0.07
+        },
+        "fitness": 433021
+      },
+      {
+        "id": "SSQ-G0-09",
+        "generation": 0,
+        "parents": [],
+        "weights": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 4,
+          "front_hits": 329,
+          "back_hits": 20,
+          "full_hits": 0,
+          "d2_pct": 1.333,
+          "avg_front": 1.0967,
+          "avg_back": 0.0667
+        },
+        "fitness": 432920
+      }
+    ],
+    "g1": [
+      {
+        "id": "SSQ-G1-005",
+        "generation": 1,
+        "parents": [
+          "SSQ-G0-03",
+          "SSQ-G0-05"
+        ],
+        "weights": [
+          0,
+          0,
+          0.650716072,
+          0,
+          0.30353035,
+          0,
+          0.045753578,
+          0,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 12,
+          "front_hits": 337,
+          "back_hits": 25,
+          "full_hits": 0,
+          "d2_pct": 4,
+          "avg_front": 1.1233,
+          "avg_back": 0.0833
+        },
+        "fitness": 1233725
+      },
+      {
+        "id": "SSQ-G1-001",
+        "generation": 1,
+        "parents": [
+          "SSQ-G0-01",
+          "SSQ-G0-01"
+        ],
+        "weights": [
+          0.835793941,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0.164206059
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 12,
+          "front_hits": 333,
+          "back_hits": 16,
+          "full_hits": 0,
+          "d2_pct": 4,
+          "avg_front": 1.11,
+          "avg_back": 0.0533
+        },
+        "fitness": 1233316
+      },
+      {
+        "id": "SSQ-G1-014",
+        "generation": 1,
+        "parents": [
+          "SSQ-G0-07",
+          "SSQ-G0-09"
+        ],
+        "weights": [
+          0,
+          0.048972537,
+          0,
+          0,
+          0,
+          0,
+          0.685495591,
+          0,
+          0.265531872,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 11,
+          "front_hits": 342,
+          "back_hits": 14,
+          "full_hits": 0,
+          "d2_pct": 3.667,
+          "avg_front": 1.14,
+          "avg_back": 0.0467
+        },
+        "fitness": 1134214
+      },
+      {
+        "id": "SSQ-G1-008",
+        "generation": 1,
+        "parents": [
+          "SSQ-G0-04",
+          "SSQ-G0-08"
+        ],
+        "weights": [
+          0,
+          0,
+          0,
+          0.794191619,
+          0,
+          0,
+          0,
+          0.205808381,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 10,
+          "front_hits": 301,
+          "back_hits": 20,
+          "full_hits": 0,
+          "d2_pct": 3.333,
+          "avg_front": 1.0033,
+          "avg_back": 0.0667
+        },
+        "fitness": 1030120
+      },
+      {
+        "id": "SSQ-G1-013",
+        "generation": 1,
+        "parents": [
+          "SSQ-G0-07",
+          "SSQ-G0-06"
+        ],
+        "weights": [
+          0.055507946,
+          0,
+          0,
+          0,
+          0,
+          0.317981778,
+          0.626510276,
+          0,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 9,
+          "front_hits": 351,
+          "back_hits": 8,
+          "full_hits": 0,
+          "d2_pct": 3,
+          "avg_front": 1.17,
+          "avg_back": 0.0267
+        },
+        "fitness": 935108
+      },
+      {
+        "id": "SSQ-G1-015",
+        "generation": 1,
+        "parents": [
+          "SSQ-G0-08",
+          "SSQ-G0-01"
+        ],
+        "weights": [
+          0.285755903,
+          0,
+          0.110133211,
+          0,
+          0,
+          0,
+          0,
+          0.604110886,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 9,
+          "front_hits": 332,
+          "back_hits": 17,
+          "full_hits": 0,
+          "d2_pct": 3,
+          "avg_front": 1.1067,
+          "avg_back": 0.0567
+        },
+        "fitness": 933217
+      },
+      {
+        "id": "SSQ-G1-002",
+        "generation": 1,
+        "parents": [
+          "SSQ-G0-01",
+          "SSQ-G0-01"
+        ],
+        "weights": [
+          0.943465218,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0.056534782,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 9,
+          "front_hits": 322,
+          "back_hits": 14,
+          "full_hits": 0,
+          "d2_pct": 3,
+          "avg_front": 1.0733,
+          "avg_back": 0.0467
+        },
+        "fitness": 932214
+      },
+      {
+        "id": "SSQ-G1-004",
+        "generation": 1,
+        "parents": [
+          "SSQ-G0-02",
+          "SSQ-G0-02"
+        ],
+        "weights": [
+          0,
+          0.854146267,
+          0,
+          0,
+          0.145853733,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 9,
+          "front_hits": 321,
+          "back_hits": 24,
+          "full_hits": 0,
+          "d2_pct": 3,
+          "avg_front": 1.07,
+          "avg_back": 0.08
+        },
+        "fitness": 932124
+      },
+      {
+        "id": "SSQ-G1-007",
+        "generation": 1,
+        "parents": [
+          "SSQ-G0-04",
+          "SSQ-G0-02"
+        ],
+        "weights": [
+          0.084407852,
+          0.263115902,
+          0,
+          0.652476245,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 9,
+          "front_hits": 316,
+          "back_hits": 19,
+          "full_hits": 0,
+          "d2_pct": 3,
+          "avg_front": 1.0533,
+          "avg_back": 0.0633
+        },
+        "fitness": 931619
+      },
+      {
+        "id": "SSQ-G1-019",
+        "generation": 1,
+        "parents": [
+          "SSQ-G0-10",
+          "SSQ-G0-09"
+        ],
+        "weights": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0.12528303,
+          0,
+          0,
+          0.145377172,
+          0.729339798
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 8,
+          "front_hits": 340,
+          "back_hits": 18,
+          "full_hits": 0,
+          "d2_pct": 2.667,
+          "avg_front": 1.1333,
+          "avg_back": 0.06
+        },
+        "fitness": 834018
+      },
+      {
+        "id": "SSQ-G1-020",
+        "generation": 1,
+        "parents": [
+          "SSQ-G0-10",
+          "SSQ-G0-03"
+        ],
+        "weights": [
+          0,
+          0,
+          0.066016826,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0.933983174
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 7,
+          "front_hits": 342,
+          "back_hits": 19,
+          "full_hits": 0,
+          "d2_pct": 2.333,
+          "avg_front": 1.14,
+          "avg_back": 0.0633
+        },
+        "fitness": 734219
+      },
+      {
+        "id": "SSQ-G1-006",
+        "generation": 1,
+        "parents": [
+          "SSQ-G0-03",
+          "SSQ-G0-01"
+        ],
+        "weights": [
+          0.23647702,
+          0,
+          0.604373208,
+          0,
+          0,
+          0.159149772,
+          0,
+          0,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 7,
+          "front_hits": 334,
+          "back_hits": 21,
+          "full_hits": 0,
+          "d2_pct": 2.333,
+          "avg_front": 1.1133,
+          "avg_back": 0.07
+        },
+        "fitness": 733421
+      },
+      {
+        "id": "SSQ-G1-017",
+        "generation": 1,
+        "parents": [
+          "SSQ-G0-09",
+          "SSQ-G0-09"
+        ],
+        "weights": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0.921524364,
+          0.078475636
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 7,
+          "front_hits": 328,
+          "back_hits": 21,
+          "full_hits": 0,
+          "d2_pct": 2.333,
+          "avg_front": 1.0933,
+          "avg_back": 0.07
+        },
+        "fitness": 732821
+      },
+      {
+        "id": "SSQ-G1-011",
+        "generation": 1,
+        "parents": [
+          "SSQ-G0-06",
+          "SSQ-G0-07"
+        ],
+        "weights": [
+          0.14235316,
+          0,
+          0,
+          0,
+          0,
+          0.705776306,
+          0.151870534,
+          0,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 6,
+          "front_hits": 305,
+          "back_hits": 18,
+          "full_hits": 0,
+          "d2_pct": 2,
+          "avg_front": 1.0167,
+          "avg_back": 0.06
+        },
+        "fitness": 630518
+      },
+      {
+        "id": "SSQ-G1-012",
+        "generation": 1,
+        "parents": [
+          "SSQ-G0-06",
+          "SSQ-G0-07"
+        ],
+        "weights": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0.65812139,
+          0.34187861,
+          0,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 6,
+          "front_hits": 304,
+          "back_hits": 20,
+          "full_hits": 0,
+          "d2_pct": 2,
+          "avg_front": 1.0133,
+          "avg_back": 0.0667
+        },
+        "fitness": 630420
+      },
+      {
+        "id": "SSQ-G1-003",
+        "generation": 1,
+        "parents": [
+          "SSQ-G0-02",
+          "SSQ-G0-07"
+        ],
+        "weights": [
+          0,
+          0.665603009,
+          0,
+          0,
+          0,
+          0,
+          0.231230527,
+          0,
+          0.103166464,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 5,
+          "front_hits": 332,
+          "back_hits": 21,
+          "full_hits": 0,
+          "d2_pct": 1.667,
+          "avg_front": 1.1067,
+          "avg_back": 0.07
+        },
+        "fitness": 533221
+      },
+      {
+        "id": "SSQ-G1-010",
+        "generation": 1,
+        "parents": [
+          "SSQ-G0-05",
+          "SSQ-G0-07"
+        ],
+        "weights": [
+          0,
+          0,
+          0,
+          0,
+          0.613073522,
+          0,
+          0.268192143,
+          0,
+          0,
+          0.118734334
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 4,
+          "front_hits": 342,
+          "back_hits": 21,
+          "full_hits": 0,
+          "d2_pct": 1.333,
+          "avg_front": 1.14,
+          "avg_back": 0.07
+        },
+        "fitness": 434221
+      },
+      {
+        "id": "SSQ-G1-018",
+        "generation": 1,
+        "parents": [
+          "SSQ-G0-09",
+          "SSQ-G0-05"
+        ],
+        "weights": [
+          0.112164292,
+          0,
+          0,
+          0,
+          0.26533772,
+          0,
+          0,
+          0,
+          0.622497988,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 3,
+          "front_hits": 333,
+          "back_hits": 19,
+          "full_hits": 0,
+          "d2_pct": 1,
+          "avg_front": 1.11,
+          "avg_back": 0.0633
+        },
+        "fitness": 333319
+      },
+      {
+        "id": "SSQ-G1-016",
+        "generation": 1,
+        "parents": [
+          "SSQ-G0-08",
+          "SSQ-G0-09"
+        ],
+        "weights": [
+          0,
+          0,
+          0,
+          0,
+          0.093179843,
+          0,
+          0,
+          0.632908587,
+          0.273911569,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 3,
+          "front_hits": 318,
+          "back_hits": 17,
+          "full_hits": 0,
+          "d2_pct": 1,
+          "avg_front": 1.06,
+          "avg_back": 0.0567
+        },
+        "fitness": 331817
+      },
+      {
+        "id": "SSQ-G1-009",
+        "generation": 1,
+        "parents": [
+          "SSQ-G0-05",
+          "SSQ-G0-10"
+        ],
+        "weights": [
+          0,
+          0,
+          0,
+          0,
+          0.714181707,
+          0.144208637,
+          0,
+          0,
+          0,
+          0.141609656
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 1,
+          "front_hits": 330,
+          "back_hits": 21,
+          "full_hits": 0,
+          "d2_pct": 0.333,
+          "avg_front": 1.1,
+          "avg_back": 0.07
+        },
+        "fitness": 133021
+      }
+    ],
+    "g2": [
+      {
+        "id": "SSQ-G2-038",
+        "generation": 2,
+        "parents": [
+          "SSQ-G1-001",
+          "SSQ-G1-006"
+        ],
+        "weights": [
+          0.569072029,
+          0,
+          0.202381316,
+          0,
+          0,
+          0.053293131,
+          0.079007215,
+          0,
+          0,
+          0.096246309
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 18,
+          "front_hits": 332,
+          "back_hits": 16,
+          "full_hits": 0,
+          "d2_pct": 6,
+          "avg_front": 1.1067,
+          "avg_back": 0.0533
+        },
+        "fitness": 1833216
+      },
+      {
+        "id": "SSQ-G2-014",
+        "generation": 2,
+        "parents": [
+          "SSQ-G1-001",
+          "SSQ-G1-015"
+        ],
+        "weights": [
+          0.623502518,
+          0,
+          0.032135842,
+          0,
+          0,
+          0,
+          0.061971572,
+          0.176273911,
+          0,
+          0.106116158
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 15,
+          "front_hits": 332,
+          "back_hits": 14,
+          "full_hits": 0,
+          "d2_pct": 5,
+          "avg_front": 1.1067,
+          "avg_back": 0.0467
+        },
+        "fitness": 1533214
+      },
+      {
+        "id": "SSQ-G2-003",
+        "generation": 2,
+        "parents": [
+          "SSQ-G1-014",
+          "SSQ-G1-006"
+        ],
+        "weights": [
+          0.123949885,
+          0.021056305,
+          0.316783379,
+          0,
+          0,
+          0.083418659,
+          0.294736707,
+          0,
+          0.11416848,
+          0.045886586
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 14,
+          "front_hits": 343,
+          "back_hits": 21,
+          "full_hits": 0,
+          "d2_pct": 4.667,
+          "avg_front": 1.1433,
+          "avg_back": 0.07
+        },
+        "fitness": 1434321
+      },
+      {
+        "id": "SSQ-G2-034",
+        "generation": 2,
+        "parents": [
+          "SSQ-G1-019",
+          "SSQ-G1-006"
+        ],
+        "weights": [
+          0.10359999,
+          0,
+          0.401574431,
+          0,
+          0,
+          0.122981241,
+          0,
+          0,
+          0.061800194,
+          0.310044145
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 14,
+          "front_hits": 342,
+          "back_hits": 22,
+          "full_hits": 0,
+          "d2_pct": 4.667,
+          "avg_front": 1.14,
+          "avg_back": 0.0733
+        },
+        "fitness": 1434222
+      },
+      {
+        "id": "SSQ-G2-002",
+        "generation": 2,
+        "parents": [
+          "SSQ-G1-001",
+          "SSQ-G1-001"
+        ],
+        "weights": [
+          0.707192462,
+          0.153867446,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0.138940092
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 14,
+          "front_hits": 333,
+          "back_hits": 15,
+          "full_hits": 0,
+          "d2_pct": 4.667,
+          "avg_front": 1.11,
+          "avg_back": 0.05
+        },
+        "fitness": 1433315
+      },
+      {
+        "id": "SSQ-G2-036",
+        "generation": 2,
+        "parents": [
+          "SSQ-G1-006",
+          "SSQ-G1-002"
+        ],
+        "weights": [
+          0.527524546,
+          0.061328503,
+          0.306106344,
+          0,
+          0,
+          0.080607072,
+          0,
+          0,
+          0.024433534,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 14,
+          "front_hits": 330,
+          "back_hits": 18,
+          "full_hits": 0,
+          "d2_pct": 4.667,
+          "avg_front": 1.1,
+          "avg_back": 0.06
+        },
+        "fitness": 1433018
+      },
+      {
+        "id": "SSQ-G2-019",
+        "generation": 2,
+        "parents": [
+          "SSQ-G1-002",
+          "SSQ-G1-006"
+        ],
+        "weights": [
+          0.684263497,
+          0,
+          0.224352059,
+          0,
+          0,
+          0.059078693,
+          0,
+          0,
+          0.032305752,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 14,
+          "front_hits": 330,
+          "back_hits": 15,
+          "full_hits": 0,
+          "d2_pct": 4.667,
+          "avg_front": 1.1,
+          "avg_back": 0.05
+        },
+        "fitness": 1433015
+      },
+      {
+        "id": "SSQ-G2-024",
+        "generation": 2,
+        "parents": [
+          "SSQ-G1-006",
+          "SSQ-G1-020"
+        ],
+        "weights": [
+          0.139655586,
+          0,
+          0.372988797,
+          0,
+          0,
+          0.26006272,
+          0,
+          0,
+          0,
+          0.227292897
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 13,
+          "front_hits": 346,
+          "back_hits": 20,
+          "full_hits": 0,
+          "d2_pct": 4.333,
+          "avg_front": 1.1533,
+          "avg_back": 0.0667
+        },
+        "fitness": 1334620
+      },
+      {
+        "id": "SSQ-G2-029",
+        "generation": 2,
+        "parents": [
+          "SSQ-G1-013",
+          "SSQ-G1-020"
+        ],
+        "weights": [
+          0.023321779,
+          0.14774069,
+          0.028526348,
+          0,
+          0,
+          0.133600707,
+          0.263229598,
+          0,
+          0,
+          0.403580879
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 12,
+          "front_hits": 352,
+          "back_hits": 19,
+          "full_hits": 0,
+          "d2_pct": 4,
+          "avg_front": 1.1733,
+          "avg_back": 0.0633
+        },
+        "fitness": 1235219
+      },
+      {
+        "id": "SSQ-G2-028",
+        "generation": 2,
+        "parents": [
+          "SSQ-G1-008",
+          "SSQ-G1-013"
+        ],
+        "weights": [
+          0.020241935,
+          0,
+          0,
+          0.37270267,
+          0,
+          0.115957569,
+          0.228467836,
+          0.26262999,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 12,
+          "front_hits": 316,
+          "back_hits": 19,
+          "full_hits": 0,
+          "d2_pct": 4,
+          "avg_front": 1.0533,
+          "avg_back": 0.0633
+        },
+        "fitness": 1231619
+      },
+      {
+        "id": "SSQ-G2-026",
+        "generation": 2,
+        "parents": [
+          "SSQ-G1-001",
+          "SSQ-G1-013"
+        ],
+        "weights": [
+          0.384730058,
+          0,
+          0,
+          0,
+          0.057623626,
+          0.164190597,
+          0.323499972,
+          0,
+          0,
+          0.069955747
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 11,
+          "front_hits": 354,
+          "back_hits": 14,
+          "full_hits": 0,
+          "d2_pct": 3.667,
+          "avg_front": 1.18,
+          "avg_back": 0.0467
+        },
+        "fitness": 1135414
+      },
+      {
+        "id": "SSQ-G2-011",
+        "generation": 2,
+        "parents": [
+          "SSQ-G1-020",
+          "SSQ-G1-020"
+        ],
+        "weights": [
+          0.156869747,
+          0,
+          0.055660783,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0.78746947
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 11,
+          "front_hits": 353,
+          "back_hits": 20,
+          "full_hits": 0,
+          "d2_pct": 3.667,
+          "avg_front": 1.1767,
+          "avg_back": 0.0667
+        },
+        "fitness": 1135320
+      },
+      {
+        "id": "SSQ-G2-017",
+        "generation": 2,
+        "parents": [
+          "SSQ-G1-013",
+          "SSQ-G1-013"
+        ],
+        "weights": [
+          0.1769481,
+          0,
+          0,
+          0,
+          0,
+          0.277096568,
+          0.545955332,
+          0,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 11,
+          "front_hits": 342,
+          "back_hits": 9,
+          "full_hits": 0,
+          "d2_pct": 3.667,
+          "avg_front": 1.14,
+          "avg_back": 0.03
+        },
+        "fitness": 1134209
+      },
+      {
+        "id": "SSQ-G2-039",
+        "generation": 2,
+        "parents": [
+          "SSQ-G1-014",
+          "SSQ-G1-020"
+        ],
+        "weights": [
+          0,
+          0.031611624,
+          0.013750103,
+          0,
+          0,
+          0,
+          0.442485327,
+          0.146221228,
+          0.171400019,
+          0.194531699
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 11,
+          "front_hits": 340,
+          "back_hits": 17,
+          "full_hits": 0,
+          "d2_pct": 3.667,
+          "avg_front": 1.1333,
+          "avg_back": 0.0567
+        },
+        "fitness": 1134017
+      },
+      {
+        "id": "SSQ-G2-007",
+        "generation": 2,
+        "parents": [
+          "SSQ-G1-002",
+          "SSQ-G1-014"
+        ],
+        "weights": [
+          0.581876035,
+          0.015576584,
+          0,
+          0.065188762,
+          0,
+          0,
+          0.218034036,
+          0,
+          0.119324582,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 11,
+          "front_hits": 326,
+          "back_hits": 11,
+          "full_hits": 0,
+          "d2_pct": 3.667,
+          "avg_front": 1.0867,
+          "avg_back": 0.0367
+        },
+        "fitness": 1132611
+      },
+      {
+        "id": "SSQ-G2-013",
+        "generation": 2,
+        "parents": [
+          "SSQ-G1-005",
+          "SSQ-G1-013"
+        ],
+        "weights": [
+          0.022745638,
+          0.171686846,
+          0.272351033,
+          0,
+          0.127039746,
+          0.130300236,
+          0.275876501,
+          0,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 10,
+          "front_hits": 343,
+          "back_hits": 24,
+          "full_hits": 0,
+          "d2_pct": 3.333,
+          "avg_front": 1.1433,
+          "avg_back": 0.08
+        },
+        "fitness": 1034324
+      },
+      {
+        "id": "SSQ-G2-010",
+        "generation": 2,
+        "parents": [
+          "SSQ-G1-019",
+          "SSQ-G1-004"
+        ],
+        "weights": [
+          0,
+          0.338181038,
+          0,
+          0,
+          0.032013485,
+          0.078903939,
+          0,
+          0,
+          0.091559339,
+          0.4593422
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 10,
+          "front_hits": 328,
+          "back_hits": 25,
+          "full_hits": 0,
+          "d2_pct": 3.333,
+          "avg_front": 1.0933,
+          "avg_back": 0.0833
+        },
+        "fitness": 1032825
+      },
+      {
+        "id": "SSQ-G2-009",
+        "generation": 2,
+        "parents": [
+          "SSQ-G1-007",
+          "SSQ-G1-007"
+        ],
+        "weights": [
+          0.072245408,
+          0.225203169,
+          0,
+          0.558460043,
+          0,
+          0,
+          0.14409138,
+          0,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 10,
+          "front_hits": 324,
+          "back_hits": 18,
+          "full_hits": 0,
+          "d2_pct": 3.333,
+          "avg_front": 1.08,
+          "avg_back": 0.06
+        },
+        "fitness": 1032418
+      },
+      {
+        "id": "SSQ-G2-022",
+        "generation": 2,
+        "parents": [
+          "SSQ-G1-019",
+          "SSQ-G1-001"
+        ],
+        "weights": [
+          0.106959045,
+          0,
+          0,
+          0.147852114,
+          0,
+          0.090726826,
+          0,
+          0,
+          0.105278499,
+          0.549183516
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 9,
+          "front_hits": 352,
+          "back_hits": 20,
+          "full_hits": 0,
+          "d2_pct": 3,
+          "avg_front": 1.1733,
+          "avg_back": 0.0667
+        },
+        "fitness": 935220
+      },
+      {
+        "id": "SSQ-G2-005",
+        "generation": 2,
+        "parents": [
+          "SSQ-G1-013",
+          "SSQ-G1-002"
+        ],
+        "weights": [
+          0.263707296,
+          0,
+          0,
+          0,
+          0,
+          0.27612915,
+          0.446733287,
+          0,
+          0.013430268,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 9,
+          "front_hits": 346,
+          "back_hits": 13,
+          "full_hits": 0,
+          "d2_pct": 3,
+          "avg_front": 1.1533,
+          "avg_back": 0.0433
+        },
+        "fitness": 934613
+      },
+      {
+        "id": "SSQ-G2-015",
+        "generation": 2,
+        "parents": [
+          "SSQ-G1-014",
+          "SSQ-G1-013"
+        ],
+        "weights": [
+          0.012851734,
+          0.028820274,
+          0,
+          0,
+          0,
+          0.073622202,
+          0.548468951,
+          0,
+          0.15626516,
+          0.179971679
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 9,
+          "front_hits": 339,
+          "back_hits": 17,
+          "full_hits": 0,
+          "d2_pct": 3,
+          "avg_front": 1.13,
+          "avg_back": 0.0567
+        },
+        "fitness": 933917
+      },
+      {
+        "id": "SSQ-G2-037",
+        "generation": 2,
+        "parents": [
+          "SSQ-G1-005",
+          "SSQ-G1-004"
+        ],
+        "weights": [
+          0,
+          0.113669626,
+          0.579924627,
+          0,
+          0.268811479,
+          0,
+          0.037594268,
+          0,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 9,
+          "front_hits": 331,
+          "back_hits": 25,
+          "full_hits": 0,
+          "d2_pct": 3,
+          "avg_front": 1.1033,
+          "avg_back": 0.0833
+        },
+        "fitness": 933125
+      },
+      {
+        "id": "SSQ-G2-030",
+        "generation": 2,
+        "parents": [
+          "SSQ-G1-015",
+          "SSQ-G1-008"
+        ],
+        "weights": [
+          0.122859916,
+          0,
+          0.047351453,
+          0.416986948,
+          0,
+          0,
+          0.045007152,
+          0.367794531,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 9,
+          "front_hits": 326,
+          "back_hits": 16,
+          "full_hits": 0,
+          "d2_pct": 3,
+          "avg_front": 1.0867,
+          "avg_back": 0.0533
+        },
+        "fitness": 932616
+      },
+      {
+        "id": "SSQ-G2-033",
+        "generation": 2,
+        "parents": [
+          "SSQ-G1-007",
+          "SSQ-G1-008"
+        ],
+        "weights": [
+          0.035866107,
+          0.111801719,
+          0.147851618,
+          0.616552209,
+          0,
+          0,
+          0,
+          0.087928347,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 9,
+          "front_hits": 315,
+          "back_hits": 19,
+          "full_hits": 0,
+          "d2_pct": 3,
+          "avg_front": 1.05,
+          "avg_back": 0.0633
+        },
+        "fitness": 931519
+      },
+      {
+        "id": "SSQ-G2-012",
+        "generation": 2,
+        "parents": [
+          "SSQ-G1-006",
+          "SSQ-G1-002"
+        ],
+        "weights": [
+          0.323730038,
+          0,
+          0.541097338,
+          0,
+          0,
+          0.127089655,
+          0,
+          0,
+          0.008082969,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 8,
+          "front_hits": 341,
+          "back_hits": 20,
+          "full_hits": 0,
+          "d2_pct": 2.667,
+          "avg_front": 1.1367,
+          "avg_back": 0.0667
+        },
+        "fitness": 834120
+      },
+      {
+        "id": "SSQ-G2-035",
+        "generation": 2,
+        "parents": [
+          "SSQ-G1-020",
+          "SSQ-G1-020"
+        ],
+        "weights": [
+          0,
+          0,
+          0.062838886,
+          0,
+          0,
+          0,
+          0.048138331,
+          0,
+          0,
+          0.889022783
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 8,
+          "front_hits": 336,
+          "back_hits": 20,
+          "full_hits": 0,
+          "d2_pct": 2.667,
+          "avg_front": 1.12,
+          "avg_back": 0.0667
+        },
+        "fitness": 833620
+      },
+      {
+        "id": "SSQ-G2-031",
+        "generation": 2,
+        "parents": [
+          "SSQ-G1-002",
+          "SSQ-G1-008"
+        ],
+        "weights": [
+          0.448024504,
+          0,
+          0,
+          0.345689891,
+          0.089856103,
+          0,
+          0,
+          0.089582759,
+          0.026846742,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 8,
+          "front_hits": 335,
+          "back_hits": 16,
+          "full_hits": 0,
+          "d2_pct": 2.667,
+          "avg_front": 1.1167,
+          "avg_back": 0.0533
+        },
+        "fitness": 833516
+      },
+      {
+        "id": "SSQ-G2-027",
+        "generation": 2,
+        "parents": [
+          "SSQ-G1-014",
+          "SSQ-G1-008"
+        ],
+        "weights": [
+          0,
+          0.031448463,
+          0,
+          0.184916736,
+          0,
+          0,
+          0.440201474,
+          0.172917974,
+          0.170515351,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 8,
+          "front_hits": 332,
+          "back_hits": 18,
+          "full_hits": 0,
+          "d2_pct": 2.667,
+          "avg_front": 1.1067,
+          "avg_back": 0.06
+        },
+        "fitness": 833218
+      },
+      {
+        "id": "SSQ-G2-008",
+        "generation": 2,
+        "parents": [
+          "SSQ-G1-004",
+          "SSQ-G1-007"
+        ],
+        "weights": [
+          0.011158188,
+          0.671713887,
+          0,
+          0.086253261,
+          0.108762232,
+          0,
+          0.122112432,
+          0,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 8,
+          "front_hits": 331,
+          "back_hits": 24,
+          "full_hits": 0,
+          "d2_pct": 2.667,
+          "avg_front": 1.1033,
+          "avg_back": 0.08
+        },
+        "fitness": 833124
+      },
+      {
+        "id": "SSQ-G2-001",
+        "generation": 2,
+        "parents": [
+          "SSQ-G1-005",
+          "SSQ-G1-008"
+        ],
+        "weights": [
+          0.179885471,
+          0,
+          0.287703946,
+          0.300188668,
+          0.134201203,
+          0,
+          0.02022923,
+          0.077791483,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 8,
+          "front_hits": 331,
+          "back_hits": 22,
+          "full_hits": 0,
+          "d2_pct": 2.667,
+          "avg_front": 1.1033,
+          "avg_back": 0.0733
+        },
+        "fitness": 833122
+      },
+      {
+        "id": "SSQ-G2-025",
+        "generation": 2,
+        "parents": [
+          "SSQ-G1-005",
+          "SSQ-G1-005"
+        ],
+        "weights": [
+          0,
+          0,
+          0.577343241,
+          0,
+          0.26930516,
+          0,
+          0.040594539,
+          0.11275706,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 8,
+          "front_hits": 328,
+          "back_hits": 25,
+          "full_hits": 0,
+          "d2_pct": 2.667,
+          "avg_front": 1.0933,
+          "avg_back": 0.0833
+        },
+        "fitness": 832825
+      },
+      {
+        "id": "SSQ-G2-040",
+        "generation": 2,
+        "parents": [
+          "SSQ-G1-008",
+          "SSQ-G1-019"
+        ],
+        "weights": [
+          0,
+          0,
+          0,
+          0.489913825,
+          0,
+          0.035245865,
+          0.101799018,
+          0.126957234,
+          0.040898949,
+          0.205185109
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 8,
+          "front_hits": 313,
+          "back_hits": 21,
+          "full_hits": 0,
+          "d2_pct": 2.667,
+          "avg_front": 1.0433,
+          "avg_back": 0.07
+        },
+        "fitness": 831321
+      },
+      {
+        "id": "SSQ-G2-023",
+        "generation": 2,
+        "parents": [
+          "SSQ-G1-020",
+          "SSQ-G1-020"
+        ],
+        "weights": [
+          0,
+          0,
+          0.061280349,
+          0,
+          0,
+          0.071746516,
+          0,
+          0,
+          0,
+          0.866973136
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 7,
+          "front_hits": 340,
+          "back_hits": 20,
+          "full_hits": 0,
+          "d2_pct": 2.333,
+          "avg_front": 1.1333,
+          "avg_back": 0.0667
+        },
+        "fitness": 734020
+      },
+      {
+        "id": "SSQ-G2-006",
+        "generation": 2,
+        "parents": [
+          "SSQ-G1-015",
+          "SSQ-G1-005"
+        ],
+        "weights": [
+          0.102821408,
+          0.180026594,
+          0.339055988,
+          0,
+          0.13966976,
+          0,
+          0.02105355,
+          0.2173727,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 7,
+          "front_hits": 331,
+          "back_hits": 26,
+          "full_hits": 0,
+          "d2_pct": 2.333,
+          "avg_front": 1.1033,
+          "avg_back": 0.0867
+        },
+        "fitness": 733126
+      },
+      {
+        "id": "SSQ-G2-020",
+        "generation": 2,
+        "parents": [
+          "SSQ-G1-004",
+          "SSQ-G1-001"
+        ],
+        "weights": [
+          0.306567717,
+          0.415045699,
+          0,
+          0,
+          0.218156096,
+          0,
+          0,
+          0,
+          0,
+          0.060230488
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 7,
+          "front_hits": 330,
+          "back_hits": 22,
+          "full_hits": 0,
+          "d2_pct": 2.333,
+          "avg_front": 1.1,
+          "avg_back": 0.0733
+        },
+        "fitness": 733022
+      },
+      {
+        "id": "SSQ-G2-018",
+        "generation": 2,
+        "parents": [
+          "SSQ-G1-015",
+          "SSQ-G1-015"
+        ],
+        "weights": [
+          0.255187633,
+          0,
+          0.098351891,
+          0,
+          0.106973364,
+          0,
+          0,
+          0.539487112,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 7,
+          "front_hits": 326,
+          "back_hits": 18,
+          "full_hits": 0,
+          "d2_pct": 2.333,
+          "avg_front": 1.0867,
+          "avg_back": 0.06
+        },
+        "fitness": 732618
+      },
+      {
+        "id": "SSQ-G2-021",
+        "generation": 2,
+        "parents": [
+          "SSQ-G1-007",
+          "SSQ-G1-001"
+        ],
+        "weights": [
+          0.276851765,
+          0.151480825,
+          0,
+          0.526822493,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0.044844917
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 7,
+          "front_hits": 320,
+          "back_hits": 17,
+          "full_hits": 0,
+          "d2_pct": 2.333,
+          "avg_front": 1.0667,
+          "avg_back": 0.0567
+        },
+        "fitness": 732017
+      },
+      {
+        "id": "SSQ-G2-032",
+        "generation": 2,
+        "parents": [
+          "SSQ-G1-004",
+          "SSQ-G1-004"
+        ],
+        "weights": [
+          0,
+          0.809235394,
+          0,
+          0,
+          0.190764606,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 6,
+          "front_hits": 327,
+          "back_hits": 24,
+          "full_hits": 0,
+          "d2_pct": 2,
+          "avg_front": 1.09,
+          "avg_back": 0.08
+        },
+        "fitness": 632724
+      },
+      {
+        "id": "SSQ-G2-004",
+        "generation": 2,
+        "parents": [
+          "SSQ-G1-008",
+          "SSQ-G1-013"
+        ],
+        "weights": [
+          0.016645678,
+          0,
+          0,
+          0.450120455,
+          0,
+          0.09535612,
+          0.321232645,
+          0.116645102,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 6,
+          "front_hits": 316,
+          "back_hits": 21,
+          "full_hits": 0,
+          "d2_pct": 2,
+          "avg_front": 1.0533,
+          "avg_back": 0.07
+        },
+        "fitness": 631621
+      },
+      {
+        "id": "SSQ-G2-016",
+        "generation": 2,
+        "parents": [
+          "SSQ-G1-008",
+          "SSQ-G1-006"
+        ],
+        "weights": [
+          0.033667076,
+          0,
+          0.086044211,
+          0.59400479,
+          0.109694305,
+          0.022658047,
+          0,
+          0.153931572,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 6,
+          "front_hits": 315,
+          "back_hits": 19,
+          "full_hits": 0,
+          "d2_pct": 2,
+          "avg_front": 1.05,
+          "avg_back": 0.0633
+        },
+        "fitness": 631519
+      }
+    ],
+    "g3": [
+      {
+        "id": "SSQ-G3-061",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-038",
+          "SSQ-G2-014"
+        ],
+        "weights": [
+          0.534112188,
+          0,
+          0.088368651,
+          0,
+          0,
+          0.018736441,
+          0.060978115,
+          0.094438802,
+          0,
+          0.203365804
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 17,
+          "front_hits": 337,
+          "back_hits": 19,
+          "full_hits": 0,
+          "d2_pct": 5.667,
+          "avg_front": 1.1233,
+          "avg_back": 0.0633
+        },
+        "fitness": 1733719
+      },
+      {
+        "id": "SSQ-G3-015",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-007",
+          "SSQ-G2-028"
+        ],
+        "weights": [
+          0.396472239,
+          0.01046588,
+          0,
+          0.145266061,
+          0,
+          0.031568684,
+          0.208695555,
+          0.1273576,
+          0.080173981,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 16,
+          "front_hits": 331,
+          "back_hits": 14,
+          "full_hits": 0,
+          "d2_pct": 5.333,
+          "avg_front": 1.1033,
+          "avg_back": 0.0467
+        },
+        "fitness": 1633114
+      },
+      {
+        "id": "SSQ-G3-013",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-017",
+          "SSQ-G2-026"
+        ],
+        "weights": [
+          0.1832009,
+          0.113205064,
+          0,
+          0,
+          0.007289334,
+          0.231445335,
+          0.456010031,
+          0,
+          0,
+          0.008849336
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 15,
+          "front_hits": 340,
+          "back_hits": 9,
+          "full_hits": 0,
+          "d2_pct": 5,
+          "avg_front": 1.1333,
+          "avg_back": 0.03
+        },
+        "fitness": 1534009
+      },
+      {
+        "id": "SSQ-G3-040",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-005",
+          "SSQ-G2-011"
+        ],
+        "weights": [
+          0.229667683,
+          0,
+          0.009551651,
+          0,
+          0,
+          0.21229849,
+          0.343465376,
+          0,
+          0.010325696,
+          0.194691104
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 15,
+          "front_hits": 337,
+          "back_hits": 9,
+          "full_hits": 0,
+          "d2_pct": 5,
+          "avg_front": 1.1233,
+          "avg_back": 0.03
+        },
+        "fitness": 1533709
+      },
+      {
+        "id": "SSQ-G3-043",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-003",
+          "SSQ-G2-017"
+        ],
+        "weights": [
+          0.108747976,
+          0.015843757,
+          0.238362761,
+          0.160056911,
+          0,
+          0.087012951,
+          0.269542662,
+          0,
+          0.085905751,
+          0.034527232
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 14,
+          "front_hits": 354,
+          "back_hits": 22,
+          "full_hits": 0,
+          "d2_pct": 4.667,
+          "avg_front": 1.18,
+          "avg_back": 0.0733
+        },
+        "fitness": 1435422
+      },
+      {
+        "id": "SSQ-G3-036",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-013",
+          "SSQ-G2-017"
+        ],
+        "weights": [
+          0.066390809,
+          0.088045525,
+          0.317563962,
+          0,
+          0.06514932,
+          0.152521404,
+          0.31032898,
+          0,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 14,
+          "front_hits": 350,
+          "back_hits": 22,
+          "full_hits": 0,
+          "d2_pct": 4.667,
+          "avg_front": 1.1667,
+          "avg_back": 0.0733
+        },
+        "fitness": 1435022
+      },
+      {
+        "id": "SSQ-G3-007",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-019",
+          "SSQ-G2-028"
+        ],
+        "weights": [
+          0.493670347,
+          0,
+          0.16023969,
+          0.091079468,
+          0,
+          0.070533174,
+          0.055831983,
+          0.064180382,
+          0.064464957,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 14,
+          "front_hits": 340,
+          "back_hits": 16,
+          "full_hits": 0,
+          "d2_pct": 4.667,
+          "avg_front": 1.1333,
+          "avg_back": 0.0533
+        },
+        "fitness": 1434016
+      },
+      {
+        "id": "SSQ-G3-071",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-026",
+          "SSQ-G2-014"
+        ],
+        "weights": [
+          0.594520302,
+          0,
+          0.014073302,
+          0,
+          0.022533552,
+          0.064206259,
+          0.153643042,
+          0.077195925,
+          0,
+          0.073827617
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 14,
+          "front_hits": 335,
+          "back_hits": 9,
+          "full_hits": 0,
+          "d2_pct": 4.667,
+          "avg_front": 1.1167,
+          "avg_back": 0.03
+        },
+        "fitness": 1433509
+      },
+      {
+        "id": "SSQ-G3-005",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-002",
+          "SSQ-G2-007"
+        ],
+        "weights": [
+          0.620764898,
+          0.124721405,
+          0,
+          0.006072079,
+          0,
+          0,
+          0.020309021,
+          0,
+          0.116821102,
+          0.111311496
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 14,
+          "front_hits": 330,
+          "back_hits": 15,
+          "full_hits": 0,
+          "d2_pct": 4.667,
+          "avg_front": 1.1,
+          "avg_back": 0.05
+        },
+        "fitness": 1433015
+      },
+      {
+        "id": "SSQ-G3-022",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-014",
+          "SSQ-G2-026"
+        ],
+        "weights": [
+          0.543988008,
+          0,
+          0.024918564,
+          0,
+          0.009063856,
+          0.025826211,
+          0.098938225,
+          0.136685163,
+          0.06729245,
+          0.093287523
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 14,
+          "front_hits": 330,
+          "back_hits": 11,
+          "full_hits": 0,
+          "d2_pct": 4.667,
+          "avg_front": 1.1,
+          "avg_back": 0.0367
+        },
+        "fitness": 1433011
+      },
+      {
+        "id": "SSQ-G3-056",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-013",
+          "SSQ-G2-028"
+        ],
+        "weights": [
+          0.019262896,
+          0.097366164,
+          0.154454321,
+          0.117167443,
+          0.072046129,
+          0.110349064,
+          0.228277654,
+          0.082563627,
+          0.118512702,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 14,
+          "front_hits": 323,
+          "back_hits": 23,
+          "full_hits": 0,
+          "d2_pct": 4.667,
+          "avg_front": 1.0767,
+          "avg_back": 0.0767
+        },
+        "fitness": 1432323
+      },
+      {
+        "id": "SSQ-G3-044",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-034",
+          "SSQ-G2-007"
+        ],
+        "weights": [
+          0.176170375,
+          0.002500487,
+          0.320804697,
+          0.010464659,
+          0,
+          0.138849789,
+          0.035000691,
+          0,
+          0.068525161,
+          0.247684141
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 13,
+          "front_hits": 346,
+          "back_hits": 21,
+          "full_hits": 0,
+          "d2_pct": 4.333,
+          "avg_front": 1.1533,
+          "avg_back": 0.07
+        },
+        "fitness": 1334621
+      },
+      {
+        "id": "SSQ-G3-027",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-019",
+          "SSQ-G2-005"
+        ],
+        "weights": [
+          0.479815287,
+          0,
+          0.138737846,
+          0.166704572,
+          0,
+          0.095874575,
+          0.096003863,
+          0,
+          0.022863857,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 13,
+          "front_hits": 345,
+          "back_hits": 17,
+          "full_hits": 0,
+          "d2_pct": 4.333,
+          "avg_front": 1.15,
+          "avg_back": 0.0567
+        },
+        "fitness": 1334517
+      },
+      {
+        "id": "SSQ-G3-001",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-038",
+          "SSQ-G2-005"
+        ],
+        "weights": [
+          0.441485721,
+          0.083642388,
+          0.132441549,
+          0,
+          0,
+          0.107205617,
+          0.168721664,
+          0,
+          0.003517948,
+          0.062985114
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 13,
+          "front_hits": 345,
+          "back_hits": 16,
+          "full_hits": 0,
+          "d2_pct": 4.333,
+          "avg_front": 1.15,
+          "avg_back": 0.0533
+        },
+        "fitness": 1334516
+      },
+      {
+        "id": "SSQ-G3-046",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-036",
+          "SSQ-G2-013"
+        ],
+        "weights": [
+          0.33213466,
+          0.087250938,
+          0.267292444,
+          0,
+          0.036552626,
+          0.182312046,
+          0.079376816,
+          0,
+          0.01508047,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 13,
+          "front_hits": 340,
+          "back_hits": 18,
+          "full_hits": 0,
+          "d2_pct": 4.333,
+          "avg_front": 1.1333,
+          "avg_back": 0.06
+        },
+        "fitness": 1334018
+      },
+      {
+        "id": "SSQ-G3-008",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-024",
+          "SSQ-G2-038"
+        ],
+        "weights": [
+          0.233958606,
+          0.059956899,
+          0.309832159,
+          0,
+          0,
+          0.195030178,
+          0.018891152,
+          0,
+          0,
+          0.182331006
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 13,
+          "front_hits": 335,
+          "back_hits": 20,
+          "full_hits": 0,
+          "d2_pct": 4.333,
+          "avg_front": 1.1167,
+          "avg_back": 0.0667
+        },
+        "fitness": 1333520
+      },
+      {
+        "id": "SSQ-G3-021",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-038",
+          "SSQ-G2-022"
+        ],
+        "weights": [
+          0.413729505,
+          0,
+          0.140940202,
+          0.024083595,
+          0,
+          0.192593378,
+          0.055021348,
+          0,
+          0.017148789,
+          0.156483182
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 13,
+          "front_hits": 329,
+          "back_hits": 17,
+          "full_hits": 0,
+          "d2_pct": 4.333,
+          "avg_front": 1.0967,
+          "avg_back": 0.0567
+        },
+        "fitness": 1332917
+      },
+      {
+        "id": "SSQ-G3-020",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-005",
+          "SSQ-G2-026"
+        ],
+        "weights": [
+          0.257354506,
+          0,
+          0,
+          0,
+          0.108626501,
+          0.230418933,
+          0.38225136,
+          0,
+          0.00990011,
+          0.011448591
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 12,
+          "front_hits": 354,
+          "back_hits": 14,
+          "full_hits": 0,
+          "d2_pct": 4,
+          "avg_front": 1.18,
+          "avg_back": 0.0467
+        },
+        "fitness": 1235414
+      },
+      {
+        "id": "SSQ-G3-032",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-011",
+          "SSQ-G2-009"
+        ],
+        "weights": [
+          0.129800669,
+          0.023267401,
+          0.043407626,
+          0.057698628,
+          0,
+          0,
+          0.014887144,
+          0,
+          0.116822483,
+          0.614116049
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 12,
+          "front_hits": 348,
+          "back_hits": 23,
+          "full_hits": 0,
+          "d2_pct": 4,
+          "avg_front": 1.16,
+          "avg_back": 0.0767
+        },
+        "fitness": 1234823
+      },
+      {
+        "id": "SSQ-G3-066",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-036",
+          "SSQ-G2-039"
+        ],
+        "weights": [
+          0.437172618,
+          0.054048277,
+          0.255080156,
+          0,
+          0,
+          0.066801071,
+          0.045125756,
+          0.014912005,
+          0.107021288,
+          0.019838827
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 12,
+          "front_hits": 344,
+          "back_hits": 17,
+          "full_hits": 0,
+          "d2_pct": 4,
+          "avg_front": 1.1467,
+          "avg_back": 0.0567
+        },
+        "fitness": 1234417
+      },
+      {
+        "id": "SSQ-G3-077",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-010",
+          "SSQ-G2-038"
+        ],
+        "weights": [
+          0.130315069,
+          0.213041164,
+          0.187386836,
+          0,
+          0.020167275,
+          0.061910374,
+          0.018092315,
+          0,
+          0.057678894,
+          0.311408073
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 12,
+          "front_hits": 343,
+          "back_hits": 21,
+          "full_hits": 0,
+          "d2_pct": 4,
+          "avg_front": 1.1433,
+          "avg_back": 0.07
+        },
+        "fitness": 1234321
+      },
+      {
+        "id": "SSQ-G3-023",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-003",
+          "SSQ-G2-002"
+        ],
+        "weights": [
+          0.150210783,
+          0.028149722,
+          0.242855985,
+          0,
+          0,
+          0.219283577,
+          0.225954321,
+          0,
+          0.087525106,
+          0.046020506
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 12,
+          "front_hits": 343,
+          "back_hits": 20,
+          "full_hits": 0,
+          "d2_pct": 4,
+          "avg_front": 1.1433,
+          "avg_back": 0.0667
+        },
+        "fitness": 1234320
+      },
+      {
+        "id": "SSQ-G3-073",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-017",
+          "SSQ-G2-005"
+        ],
+        "weights": [
+          0.268434556,
+          0,
+          0,
+          0,
+          0,
+          0.262641234,
+          0.461151227,
+          0,
+          0.007772983,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 12,
+          "front_hits": 343,
+          "back_hits": 12,
+          "full_hits": 0,
+          "d2_pct": 4,
+          "avg_front": 1.1433,
+          "avg_back": 0.04
+        },
+        "fitness": 1234312
+      },
+      {
+        "id": "SSQ-G3-079",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-022",
+          "SSQ-G2-019"
+        ],
+        "weights": [
+          0.229464542,
+          0,
+          0.052049039,
+          0.097754343,
+          0.106839879,
+          0.073691306,
+          0,
+          0,
+          0.077101087,
+          0.363099804
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 12,
+          "front_hits": 341,
+          "back_hits": 18,
+          "full_hits": 0,
+          "d2_pct": 4,
+          "avg_front": 1.1367,
+          "avg_back": 0.06
+        },
+        "fitness": 1234118
+      },
+      {
+        "id": "SSQ-G3-065",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-002",
+          "SSQ-G2-034"
+        ],
+        "weights": [
+          0.44649949,
+          0.235361754,
+          0.105621487,
+          0,
+          0,
+          0.032346336,
+          0,
+          0,
+          0.016254592,
+          0.163916341
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 12,
+          "front_hits": 341,
+          "back_hits": 17,
+          "full_hits": 0,
+          "d2_pct": 4,
+          "avg_front": 1.1367,
+          "avg_back": 0.0567
+        },
+        "fitness": 1234117
+      },
+      {
+        "id": "SSQ-G3-062",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-014",
+          "SSQ-G2-022"
+        ],
+        "weights": [
+          0.432625366,
+          0,
+          0.020957831,
+          0.035939916,
+          0,
+          0.022053892,
+          0.040415613,
+          0.219715534,
+          0.025591115,
+          0.202700732
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 12,
+          "front_hits": 339,
+          "back_hits": 20,
+          "full_hits": 0,
+          "d2_pct": 4,
+          "avg_front": 1.13,
+          "avg_back": 0.0667
+        },
+        "fitness": 1233920
+      },
+      {
+        "id": "SSQ-G3-047",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-019",
+          "SSQ-G2-024"
+        ],
+        "weights": [
+          0.410304486,
+          0,
+          0.231261025,
+          0,
+          0,
+          0.108745296,
+          0,
+          0,
+          0.017422186,
+          0.232267006
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 12,
+          "front_hits": 339,
+          "back_hits": 18,
+          "full_hits": 0,
+          "d2_pct": 4,
+          "avg_front": 1.13,
+          "avg_back": 0.06
+        },
+        "fitness": 1233918
+      },
+      {
+        "id": "SSQ-G3-060",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-005",
+          "SSQ-G2-017"
+        ],
+        "weights": [
+          0.23677692,
+          0,
+          0,
+          0,
+          0.067677472,
+          0.257542712,
+          0.426887649,
+          0,
+          0.011115247,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 12,
+          "front_hits": 338,
+          "back_hits": 14,
+          "full_hits": 0,
+          "d2_pct": 4,
+          "avg_front": 1.1267,
+          "avg_back": 0.0467
+        },
+        "fitness": 1233814
+      },
+      {
+        "id": "SSQ-G3-064",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-034",
+          "SSQ-G2-014"
+        ],
+        "weights": [
+          0.295737763,
+          0,
+          0.201192143,
+          0,
+          0.134368321,
+          0.057714035,
+          0.024561832,
+          0.069864457,
+          0.029002298,
+          0.187559152
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 12,
+          "front_hits": 329,
+          "back_hits": 20,
+          "full_hits": 0,
+          "d2_pct": 4,
+          "avg_front": 1.0967,
+          "avg_back": 0.0667
+        },
+        "fitness": 1232920
+      },
+      {
+        "id": "SSQ-G3-026",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-036",
+          "SSQ-G2-007"
+        ],
+        "weights": [
+          0.528570727,
+          0.040390405,
+          0.170154624,
+          0.026365272,
+          0.039687272,
+          0.044806866,
+          0.088182786,
+          0,
+          0.061842048,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 12,
+          "front_hits": 327,
+          "back_hits": 16,
+          "full_hits": 0,
+          "d2_pct": 4,
+          "avg_front": 1.09,
+          "avg_back": 0.0533
+        },
+        "fitness": 1232716
+      },
+      {
+        "id": "SSQ-G3-052",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-011",
+          "SSQ-G2-039"
+        ],
+        "weights": [
+          0.073728251,
+          0.012271635,
+          0.031498171,
+          0,
+          0,
+          0,
+          0.171772845,
+          0.198566382,
+          0.066537503,
+          0.445625212
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 11,
+          "front_hits": 354,
+          "back_hits": 20,
+          "full_hits": 0,
+          "d2_pct": 3.667,
+          "avg_front": 1.18,
+          "avg_back": 0.0667
+        },
+        "fitness": 1135420
+      },
+      {
+        "id": "SSQ-G3-069",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-029",
+          "SSQ-G2-013"
+        ],
+        "weights": [
+          0.021305708,
+          0.1430161,
+          0.09736516,
+          0,
+          0.037044802,
+          0.122051481,
+          0.246058554,
+          0.079242159,
+          0,
+          0.253916035
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 11,
+          "front_hits": 347,
+          "back_hits": 21,
+          "full_hits": 0,
+          "d2_pct": 3.667,
+          "avg_front": 1.1567,
+          "avg_back": 0.07
+        },
+        "fitness": 1134721
+      },
+      {
+        "id": "SSQ-G3-049",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-029",
+          "SSQ-G2-024"
+        ],
+        "weights": [
+          0.241160572,
+          0.058688885,
+          0.172112968,
+          0,
+          0,
+          0.165174894,
+          0.10456599,
+          0,
+          0,
+          0.258296692
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 11,
+          "front_hits": 347,
+          "back_hits": 17,
+          "full_hits": 0,
+          "d2_pct": 3.667,
+          "avg_front": 1.1567,
+          "avg_back": 0.0567
+        },
+        "fitness": 1134717
+      },
+      {
+        "id": "SSQ-G3-003",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-003",
+          "SSQ-G2-029"
+        ],
+        "weights": [
+          0.159065847,
+          0.048189017,
+          0.230995987,
+          0,
+          0,
+          0.089215432,
+          0.268206935,
+          0,
+          0.080936173,
+          0.12339061
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 11,
+          "front_hits": 343,
+          "back_hits": 21,
+          "full_hits": 0,
+          "d2_pct": 3.667,
+          "avg_front": 1.1433,
+          "avg_back": 0.07
+        },
+        "fitness": 1134321
+      },
+      {
+        "id": "SSQ-G3-010",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-028",
+          "SSQ-G2-005"
+        ],
+        "weights": [
+          0.12239444,
+          0,
+          0,
+          0.159057572,
+          0,
+          0.168601244,
+          0.290210799,
+          0.112082075,
+          0.005793436,
+          0.141860434
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 11,
+          "front_hits": 343,
+          "back_hits": 12,
+          "full_hits": 0,
+          "d2_pct": 3.667,
+          "avg_front": 1.1433,
+          "avg_back": 0.04
+        },
+        "fitness": 1134312
+      },
+      {
+        "id": "SSQ-G3-041",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-038",
+          "SSQ-G2-024"
+        ],
+        "weights": [
+          0.360347972,
+          0,
+          0.266604084,
+          0,
+          0,
+          0.139509016,
+          0.041726233,
+          0.043651322,
+          0,
+          0.148161374
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 11,
+          "front_hits": 340,
+          "back_hits": 18,
+          "full_hits": 0,
+          "d2_pct": 3.667,
+          "avg_front": 1.1333,
+          "avg_back": 0.06
+        },
+        "fitness": 1134018
+      },
+      {
+        "id": "SSQ-G3-031",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-026",
+          "SSQ-G2-022"
+        ],
+        "weights": [
+          0.401653642,
+          0,
+          0,
+          0.043277895,
+          0.031556748,
+          0.116473327,
+          0.177160098,
+          0,
+          0.030816143,
+          0.199062146
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 11,
+          "front_hits": 338,
+          "back_hits": 12,
+          "full_hits": 0,
+          "d2_pct": 3.667,
+          "avg_front": 1.1267,
+          "avg_back": 0.04
+        },
+        "fitness": 1133812
+      },
+      {
+        "id": "SSQ-G3-035",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-007",
+          "SSQ-G2-022"
+        ],
+        "weights": [
+          0.359484952,
+          0.008510229,
+          0,
+          0.093090546,
+          0,
+          0.035268405,
+          0.119122369,
+          0,
+          0.106117801,
+          0.278405698
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 11,
+          "front_hits": 337,
+          "back_hits": 15,
+          "full_hits": 0,
+          "d2_pct": 3.667,
+          "avg_front": 1.1233,
+          "avg_back": 0.05
+        },
+        "fitness": 1133715
+      },
+      {
+        "id": "SSQ-G3-055",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-007",
+          "SSQ-G2-019"
+        ],
+        "weights": [
+          0.538131157,
+          0.005614957,
+          0.267290305,
+          0.023498867,
+          0,
+          0.028352021,
+          0.078595645,
+          0,
+          0.058517049,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 11,
+          "front_hits": 335,
+          "back_hits": 16,
+          "full_hits": 0,
+          "d2_pct": 3.667,
+          "avg_front": 1.1167,
+          "avg_back": 0.0533
+        },
+        "fitness": 1133516
+      },
+      {
+        "id": "SSQ-G3-051",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-026",
+          "SSQ-G2-036"
+        ],
+        "weights": [
+          0.34771336,
+          0.006990798,
+          0.034892871,
+          0,
+          0.043072979,
+          0.131918878,
+          0.241812401,
+          0.138522457,
+          0.002785163,
+          0.052291093
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 11,
+          "front_hits": 334,
+          "back_hits": 13,
+          "full_hits": 0,
+          "d2_pct": 3.667,
+          "avg_front": 1.1133,
+          "avg_back": 0.0433
+        },
+        "fitness": 1133413
+      },
+      {
+        "id": "SSQ-G3-012",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-011",
+          "SSQ-G2-005"
+        ],
+        "weights": [
+          0.149367628,
+          0,
+          0.046062351,
+          0.098312546,
+          0,
+          0.020470172,
+          0.0331175,
+          0,
+          0.000995621,
+          0.651674182
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 10,
+          "front_hits": 356,
+          "back_hits": 19,
+          "full_hits": 0,
+          "d2_pct": 3.333,
+          "avg_front": 1.1867,
+          "avg_back": 0.0633
+        },
+        "fitness": 1035619
+      },
+      {
+        "id": "SSQ-G3-009",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-029",
+          "SSQ-G2-029"
+        ],
+        "weights": [
+          0.103871143,
+          0.135556105,
+          0.026173701,
+          0,
+          0,
+          0.122582286,
+          0.241520322,
+          0,
+          0,
+          0.370296443
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 10,
+          "front_hits": 353,
+          "back_hits": 16,
+          "full_hits": 0,
+          "d2_pct": 3.333,
+          "avg_front": 1.1767,
+          "avg_back": 0.0533
+        },
+        "fitness": 1035316
+      },
+      {
+        "id": "SSQ-G3-042",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-014",
+          "SSQ-G2-039"
+        ],
+        "weights": [
+          0.283236474,
+          0.014022545,
+          0.122842594,
+          0,
+          0,
+          0,
+          0.224432925,
+          0.144937401,
+          0.076031037,
+          0.134497023
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 10,
+          "front_hits": 349,
+          "back_hits": 15,
+          "full_hits": 0,
+          "d2_pct": 3.333,
+          "avg_front": 1.1633,
+          "avg_back": 0.05
+        },
+        "fitness": 1034915
+      },
+      {
+        "id": "SSQ-G3-059",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-022",
+          "SSQ-G2-039"
+        ],
+        "weights": [
+          0.041665444,
+          0.175165194,
+          0.006180649,
+          0.057595166,
+          0,
+          0.035342252,
+          0.19889645,
+          0.065726209,
+          0.11805483,
+          0.301373806
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 10,
+          "front_hits": 348,
+          "back_hits": 22,
+          "full_hits": 0,
+          "d2_pct": 3.333,
+          "avg_front": 1.16,
+          "avg_back": 0.0733
+        },
+        "fitness": 1034822
+      },
+      {
+        "id": "SSQ-G3-080",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-005",
+          "SSQ-G2-038"
+        ],
+        "weights": [
+          0.383630335,
+          0,
+          0.099350984,
+          0.113700003,
+          0,
+          0.135340865,
+          0.215419355,
+          0,
+          0.005310195,
+          0.047248262
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 10,
+          "front_hits": 348,
+          "back_hits": 15,
+          "full_hits": 0,
+          "d2_pct": 3.333,
+          "avg_front": 1.16,
+          "avg_back": 0.05
+        },
+        "fitness": 1034815
+      },
+      {
+        "id": "SSQ-G3-053",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-017",
+          "SSQ-G2-029"
+        ],
+        "weights": [
+          0.103459289,
+          0.04488565,
+          0.008666696,
+          0,
+          0,
+          0.191508855,
+          0.377324344,
+          0,
+          0,
+          0.274155165
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 10,
+          "front_hits": 346,
+          "back_hits": 13,
+          "full_hits": 0,
+          "d2_pct": 3.333,
+          "avg_front": 1.1533,
+          "avg_back": 0.0433
+        },
+        "fitness": 1034613
+      },
+      {
+        "id": "SSQ-G3-002",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-014",
+          "SSQ-G2-029"
+        ],
+        "weights": [
+          0.3257327,
+          0.052657759,
+          0.026527476,
+          0,
+          0,
+          0.047617984,
+          0.125369584,
+          0.089739696,
+          0.134487522,
+          0.197867279
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 10,
+          "front_hits": 346,
+          "back_hits": 12,
+          "full_hits": 0,
+          "d2_pct": 3.333,
+          "avg_front": 1.1533,
+          "avg_back": 0.04
+        },
+        "fitness": 1034612
+      },
+      {
+        "id": "SSQ-G3-058",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-009",
+          "SSQ-G2-002"
+        ],
+        "weights": [
+          0.363603082,
+          0.171838264,
+          0,
+          0.247199788,
+          0,
+          0,
+          0.063781391,
+          0,
+          0.088424254,
+          0.065153221
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 10,
+          "front_hits": 336,
+          "back_hits": 19,
+          "full_hits": 0,
+          "d2_pct": 3.333,
+          "avg_front": 1.12,
+          "avg_back": 0.0633
+        },
+        "fitness": 1033619
+      },
+      {
+        "id": "SSQ-G3-068",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-024",
+          "SSQ-G2-009"
+        ],
+        "weights": [
+          0.098788636,
+          0.159648524,
+          0.164192825,
+          0.288416105,
+          0,
+          0.11448181,
+          0.074415842,
+          0,
+          0,
+          0.100056257
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 10,
+          "front_hits": 336,
+          "back_hits": 19,
+          "full_hits": 0,
+          "d2_pct": 3.333,
+          "avg_front": 1.12,
+          "avg_back": 0.0633
+        },
+        "fitness": 1033619
+      },
+      {
+        "id": "SSQ-G3-057",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-010",
+          "SSQ-G2-003"
+        ],
+        "weights": [
+          0.020764677,
+          0.255445595,
+          0.053069066,
+          0,
+          0.111401779,
+          0.07275189,
+          0.049375702,
+          0,
+          0.08733052,
+          0.349860771
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 10,
+          "front_hits": 335,
+          "back_hits": 27,
+          "full_hits": 0,
+          "d2_pct": 3.333,
+          "avg_front": 1.1167,
+          "avg_back": 0.09
+        },
+        "fitness": 1033527
+      },
+      {
+        "id": "SSQ-G3-070",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-028",
+          "SSQ-G2-029"
+        ],
+        "weights": [
+          0.019856471,
+          0.168705776,
+          0.014236232,
+          0.151305917,
+          0,
+          0.113749408,
+          0.22411716,
+          0.106619766,
+          0,
+          0.201409271
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 10,
+          "front_hits": 335,
+          "back_hits": 23,
+          "full_hits": 0,
+          "d2_pct": 3.333,
+          "avg_front": 1.1167,
+          "avg_back": 0.0767
+        },
+        "fitness": 1033523
+      },
+      {
+        "id": "SSQ-G3-078",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-009",
+          "SSQ-G2-007"
+        ],
+        "weights": [
+          0.098172139,
+          0.174432009,
+          0,
+          0.434501158,
+          0,
+          0,
+          0.126832282,
+          0,
+          0.008731793,
+          0.157330618
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 10,
+          "front_hits": 334,
+          "back_hits": 18,
+          "full_hits": 0,
+          "d2_pct": 3.333,
+          "avg_front": 1.1133,
+          "avg_back": 0.06
+        },
+        "fitness": 1033418
+      },
+      {
+        "id": "SSQ-G3-050",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-028",
+          "SSQ-G2-010"
+        ],
+        "weights": [
+          0.009456804,
+          0.140035874,
+          0,
+          0.174122482,
+          0.013256321,
+          0.086847047,
+          0.225463348,
+          0.122697768,
+          0.037913397,
+          0.190206958
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 10,
+          "front_hits": 331,
+          "back_hits": 22,
+          "full_hits": 0,
+          "d2_pct": 3.333,
+          "avg_front": 1.1033,
+          "avg_back": 0.0733
+        },
+        "fitness": 1033122
+      },
+      {
+        "id": "SSQ-G3-075",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-007",
+          "SSQ-G2-017"
+        ],
+        "weights": [
+          0.458542193,
+          0.011731401,
+          0,
+          0.049096484,
+          0,
+          0.03179889,
+          0.226863322,
+          0,
+          0.221967709,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 10,
+          "front_hits": 328,
+          "back_hits": 15,
+          "full_hits": 0,
+          "d2_pct": 3.333,
+          "avg_front": 1.0933,
+          "avg_back": 0.05
+        },
+        "fitness": 1032815
+      },
+      {
+        "id": "SSQ-G3-025",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-002",
+          "SSQ-G2-009"
+        ],
+        "weights": [
+          0.30234817,
+          0.165649667,
+          0,
+          0.266231353,
+          0,
+          0,
+          0.068691831,
+          0.144444044,
+          0,
+          0.052634935
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 10,
+          "front_hits": 324,
+          "back_hits": 20,
+          "full_hits": 0,
+          "d2_pct": 3.333,
+          "avg_front": 1.08,
+          "avg_back": 0.0667
+        },
+        "fitness": 1032420
+      },
+      {
+        "id": "SSQ-G3-024",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-034",
+          "SSQ-G2-005"
+        ],
+        "weights": [
+          0.166831856,
+          0,
+          0.125800165,
+          0,
+          0.177162506,
+          0.179233175,
+          0.227641936,
+          0,
+          0.026203648,
+          0.097126714
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 9,
+          "front_hits": 354,
+          "back_hits": 22,
+          "full_hits": 0,
+          "d2_pct": 3,
+          "avg_front": 1.18,
+          "avg_back": 0.0733
+        },
+        "fitness": 935422
+      },
+      {
+        "id": "SSQ-G3-072",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-011",
+          "SSQ-G2-011"
+        ],
+        "weights": [
+          0.13536447,
+          0,
+          0.048030245,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0.816605285
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 9,
+          "front_hits": 352,
+          "back_hits": 20,
+          "full_hits": 0,
+          "d2_pct": 3,
+          "avg_front": 1.1733,
+          "avg_back": 0.0667
+        },
+        "fitness": 935220
+      },
+      {
+        "id": "SSQ-G3-074",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-039",
+          "SSQ-G2-034"
+        ],
+        "weights": [
+          0.021848183,
+          0.020641197,
+          0.093666257,
+          0,
+          0,
+          0.025935492,
+          0.288926219,
+          0.095476943,
+          0.124950775,
+          0.328554933
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 9,
+          "front_hits": 347,
+          "back_hits": 22,
+          "full_hits": 0,
+          "d2_pct": 3,
+          "avg_front": 1.1567,
+          "avg_back": 0.0733
+        },
+        "fitness": 934722
+      },
+      {
+        "id": "SSQ-G3-054",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-039",
+          "SSQ-G2-009"
+        ],
+        "weights": [
+          0.025688462,
+          0.096592338,
+          0.007184111,
+          0.198572891,
+          0,
+          0,
+          0.282423241,
+          0.076397209,
+          0.089552544,
+          0.223589204
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 9,
+          "front_hits": 346,
+          "back_hits": 20,
+          "full_hits": 0,
+          "d2_pct": 3,
+          "avg_front": 1.1533,
+          "avg_back": 0.0667
+        },
+        "fitness": 934620
+      },
+      {
+        "id": "SSQ-G3-029",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-029",
+          "SSQ-G2-010"
+        ],
+        "weights": [
+          0.017901632,
+          0.142362578,
+          0.021896623,
+          0,
+          0.002741261,
+          0.109307367,
+          0.202053175,
+          0.146778773,
+          0.007840071,
+          0.34911852
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 9,
+          "front_hits": 345,
+          "back_hits": 17,
+          "full_hits": 0,
+          "d2_pct": 3,
+          "avg_front": 1.15,
+          "avg_back": 0.0567
+        },
+        "fitness": 934517
+      },
+      {
+        "id": "SSQ-G3-045",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-002",
+          "SSQ-G2-029"
+        ],
+        "weights": [
+          0.365236384,
+          0.237978252,
+          0.01124742,
+          0,
+          0,
+          0.052676329,
+          0.103786644,
+          0,
+          0,
+          0.229074971
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 9,
+          "front_hits": 341,
+          "back_hits": 17,
+          "full_hits": 0,
+          "d2_pct": 3,
+          "avg_front": 1.1367,
+          "avg_back": 0.0567
+        },
+        "fitness": 934117
+      },
+      {
+        "id": "SSQ-G3-017",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-010",
+          "SSQ-G2-034"
+        ],
+        "weights": [
+          0.00849395,
+          0.259474782,
+          0.032924263,
+          0,
+          0.175308996,
+          0.070623282,
+          0,
+          0,
+          0.075317231,
+          0.377857495
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 9,
+          "front_hits": 338,
+          "back_hits": 23,
+          "full_hits": 0,
+          "d2_pct": 3,
+          "avg_front": 1.1267,
+          "avg_back": 0.0767
+        },
+        "fitness": 933823
+      },
+      {
+        "id": "SSQ-G3-037",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-010",
+          "SSQ-G2-019"
+        ],
+        "weights": [
+          0.058940214,
+          0.378657555,
+          0.019324951,
+          0,
+          0.025888954,
+          0.068897593,
+          0,
+          0,
+          0.076825743,
+          0.37146499
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 9,
+          "front_hits": 335,
+          "back_hits": 22,
+          "full_hits": 0,
+          "d2_pct": 3,
+          "avg_front": 1.1167,
+          "avg_back": 0.0733
+        },
+        "fitness": 933522
+      },
+      {
+        "id": "SSQ-G3-019",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-022",
+          "SSQ-G2-036"
+        ],
+        "weights": [
+          0.256524262,
+          0.023917784,
+          0.119379818,
+          0.07021178,
+          0,
+          0.074520535,
+          0,
+          0,
+          0.194650413,
+          0.260795407
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 9,
+          "front_hits": 335,
+          "back_hits": 21,
+          "full_hits": 0,
+          "d2_pct": 3,
+          "avg_front": 1.1167,
+          "avg_back": 0.07
+        },
+        "fitness": 933521
+      },
+      {
+        "id": "SSQ-G3-004",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-034",
+          "SSQ-G2-005"
+        ],
+        "weights": [
+          0.148194551,
+          0,
+          0.199174592,
+          0,
+          0,
+          0.162367581,
+          0.164001956,
+          0.136901948,
+          0.03558236,
+          0.153777012
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 9,
+          "front_hits": 334,
+          "back_hits": 19,
+          "full_hits": 0,
+          "d2_pct": 3,
+          "avg_front": 1.1133,
+          "avg_back": 0.0633
+        },
+        "fitness": 933419
+      },
+      {
+        "id": "SSQ-G3-038",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-009",
+          "SSQ-G2-028"
+        ],
+        "weights": [
+          0.044631019,
+          0.112189249,
+          0.074965032,
+          0.437301577,
+          0,
+          0.049498334,
+          0.169306998,
+          0.112107791,
+          0,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 9,
+          "front_hits": 325,
+          "back_hits": 19,
+          "full_hits": 0,
+          "d2_pct": 3,
+          "avg_front": 1.0833,
+          "avg_back": 0.0633
+        },
+        "fitness": 932519
+      },
+      {
+        "id": "SSQ-G3-063",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-003",
+          "SSQ-G2-002"
+        ],
+        "weights": [
+          0.217381298,
+          0.182419443,
+          0.212611368,
+          0,
+          0,
+          0.055987013,
+          0.197814591,
+          0,
+          0.076624969,
+          0.057161318
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 8,
+          "front_hits": 353,
+          "back_hits": 20,
+          "full_hits": 0,
+          "d2_pct": 2.667,
+          "avg_front": 1.1767,
+          "avg_back": 0.0667
+        },
+        "fitness": 835320
+      },
+      {
+        "id": "SSQ-G3-030",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-028",
+          "SSQ-G2-024"
+        ],
+        "weights": [
+          0.083338546,
+          0,
+          0.203354743,
+          0.132529762,
+          0.09920552,
+          0.18302055,
+          0.081241135,
+          0.093388894,
+          0,
+          0.12392085
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 8,
+          "front_hits": 351,
+          "back_hits": 22,
+          "full_hits": 0,
+          "d2_pct": 2.667,
+          "avg_front": 1.17,
+          "avg_back": 0.0733
+        },
+        "fitness": 835122
+      },
+      {
+        "id": "SSQ-G3-039",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-022",
+          "SSQ-G2-039"
+        ],
+        "weights": [
+          0.050413205,
+          0.012125194,
+          0.005274094,
+          0.069687411,
+          0,
+          0.042762443,
+          0.169723025,
+          0.201186293,
+          0.1153646,
+          0.333463736
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 8,
+          "front_hits": 348,
+          "back_hits": 19,
+          "full_hits": 0,
+          "d2_pct": 2.667,
+          "avg_front": 1.16,
+          "avg_back": 0.0633
+        },
+        "fitness": 834819
+      },
+      {
+        "id": "SSQ-G3-067",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-019",
+          "SSQ-G2-022"
+        ],
+        "weights": [
+          0.410497701,
+          0,
+          0.125400191,
+          0.038750521,
+          0,
+          0.056800238,
+          0.178966473,
+          0,
+          0.045649513,
+          0.143935362
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 8,
+          "front_hits": 347,
+          "back_hits": 15,
+          "full_hits": 0,
+          "d2_pct": 2.667,
+          "avg_front": 1.1567,
+          "avg_back": 0.05
+        },
+        "fitness": 834715
+      },
+      {
+        "id": "SSQ-G3-018",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-009",
+          "SSQ-G2-039"
+        ],
+        "weights": [
+          0.029088702,
+          0.106285492,
+          0.006790001,
+          0.32840499,
+          0,
+          0,
+          0.276522255,
+          0.072206166,
+          0.084639818,
+          0.096062578
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 8,
+          "front_hits": 336,
+          "back_hits": 21,
+          "full_hits": 0,
+          "d2_pct": 2.667,
+          "avg_front": 1.12,
+          "avg_back": 0.07
+        },
+        "fitness": 833621
+      },
+      {
+        "id": "SSQ-G3-048",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-024",
+          "SSQ-G2-002"
+        ],
+        "weights": [
+          0.173746785,
+          0.015154902,
+          0.278009392,
+          0,
+          0,
+          0.193839277,
+          0,
+          0.156150889,
+          0,
+          0.183098756
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 8,
+          "front_hits": 334,
+          "back_hits": 19,
+          "full_hits": 0,
+          "d2_pct": 2.667,
+          "avg_front": 1.1133,
+          "avg_back": 0.0633
+        },
+        "fitness": 833419
+      },
+      {
+        "id": "SSQ-G3-014",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-039",
+          "SSQ-G2-010"
+        ],
+        "weights": [
+          0,
+          0.160666703,
+          0.005231664,
+          0,
+          0.194063827,
+          0.034680262,
+          0.168357613,
+          0.055634516,
+          0.105457215,
+          0.275908199
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 8,
+          "front_hits": 333,
+          "back_hits": 23,
+          "full_hits": 0,
+          "d2_pct": 2.667,
+          "avg_front": 1.11,
+          "avg_back": 0.0767
+        },
+        "fitness": 833323
+      },
+      {
+        "id": "SSQ-G3-076",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-013",
+          "SSQ-G2-026"
+        ],
+        "weights": [
+          0.132604451,
+          0.195932169,
+          0.16266131,
+          0,
+          0.093700706,
+          0.128615465,
+          0.26484447,
+          0,
+          0,
+          0.021641429
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 7,
+          "front_hits": 345,
+          "back_hits": 21,
+          "full_hits": 0,
+          "d2_pct": 2.333,
+          "avg_front": 1.15,
+          "avg_back": 0.07
+        },
+        "fitness": 734521
+      },
+      {
+        "id": "SSQ-G3-006",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-036",
+          "SSQ-G2-013"
+        ],
+        "weights": [
+          0.351169035,
+          0.087712604,
+          0.275652789,
+          0,
+          0.035236543,
+          0.088836389,
+          0.145419635,
+          0,
+          0.015973006,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 7,
+          "front_hits": 344,
+          "back_hits": 19,
+          "full_hits": 0,
+          "d2_pct": 2.333,
+          "avg_front": 1.1467,
+          "avg_back": 0.0633
+        },
+        "fitness": 734419
+      },
+      {
+        "id": "SSQ-G3-011",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-026",
+          "SSQ-G2-029"
+        ],
+        "weights": [
+          0.18005555,
+          0.069061916,
+          0.013334744,
+          0,
+          0.025335295,
+          0.134641569,
+          0.265280379,
+          0.092877874,
+          0,
+          0.219412672
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 7,
+          "front_hits": 343,
+          "back_hits": 14,
+          "full_hits": 0,
+          "d2_pct": 2.333,
+          "avg_front": 1.1433,
+          "avg_back": 0.0467
+        },
+        "fitness": 734314
+      },
+      {
+        "id": "SSQ-G3-028",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-024",
+          "SSQ-G2-002"
+        ],
+        "weights": [
+          0.281192973,
+          0.213698552,
+          0.201455904,
+          0,
+          0,
+          0.140463121,
+          0,
+          0,
+          0,
+          0.16318945
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 7,
+          "front_hits": 341,
+          "back_hits": 19,
+          "full_hits": 0,
+          "d2_pct": 2.333,
+          "avg_front": 1.1367,
+          "avg_back": 0.0633
+        },
+        "fitness": 734119
+      },
+      {
+        "id": "SSQ-G3-016",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-013",
+          "SSQ-G2-002"
+        ],
+        "weights": [
+          0.145452983,
+          0.23062495,
+          0.202400662,
+          0,
+          0.094410983,
+          0.096834052,
+          0.205020652,
+          0,
+          0,
+          0.025255718
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 7,
+          "front_hits": 337,
+          "back_hits": 23,
+          "full_hits": 0,
+          "d2_pct": 2.333,
+          "avg_front": 1.1233,
+          "avg_back": 0.0767
+        },
+        "fitness": 733723
+      },
+      {
+        "id": "SSQ-G3-034",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-039",
+          "SSQ-G2-011"
+        ],
+        "weights": [
+          0.015764333,
+          0.023250536,
+          0.015706809,
+          0,
+          0,
+          0,
+          0.325450576,
+          0.271547522,
+          0.126065728,
+          0.222214495
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 7,
+          "front_hits": 337,
+          "back_hits": 20,
+          "full_hits": 0,
+          "d2_pct": 2.333,
+          "avg_front": 1.1233,
+          "avg_back": 0.0667
+        },
+        "fitness": 733720
+      },
+      {
+        "id": "SSQ-G3-033",
+        "generation": 3,
+        "parents": [
+          "SSQ-G2-017",
+          "SSQ-G2-005"
+        ],
+        "weights": [
+          0.177302953,
+          0,
+          0,
+          0,
+          0,
+          0.347993354,
+          0.471954918,
+          0,
+          0.002748776,
+          0
+        ],
+        "statistics": {
+          "trials": 300,
+          "d2": 5,
+          "front_hits": 347,
+          "back_hits": 13,
+          "full_hits": 0,
+          "d2_pct": 1.667,
+          "avg_front": 1.1567,
+          "avg_back": 0.0433
+        },
+        "fitness": 534713
+      }
+    ]
+  },
+  "holdout_finalists": [
+    {
+      "id": "SSQ-G3-061",
+      "generation": 3,
+      "parents": [
+        "SSQ-G2-038",
+        "SSQ-G2-014"
+      ],
+      "weights": [
+        0.534112188,
+        0,
+        0.088368651,
+        0,
+        0,
+        0.018736441,
+        0.060978115,
+        0.094438802,
+        0,
+        0.203365804
+      ],
+      "statistics": {
+        "trials": 200,
+        "d2": 2,
+        "front_hits": 231,
+        "back_hits": 13,
+        "full_hits": 0,
+        "d2_pct": 1,
+        "avg_front": 1.155,
+        "avg_back": 0.065
+      },
+      "fitness": 223113,
+      "holdout_wilson95": [
+        0.002746658133544525,
+        0.03572176171617572
+      ],
+      "p_one_sided": 0.9785093624182442,
+      "p_bonferroni_5": 1,
+      "edge_pass": false
+    },
+    {
+      "id": "SSQ-G3-015",
+      "generation": 3,
+      "parents": [
+        "SSQ-G2-007",
+        "SSQ-G2-028"
+      ],
+      "weights": [
+        0.396472239,
+        0.01046588,
+        0,
+        0.145266061,
+        0,
+        0.031568684,
+        0.208695555,
+        0.1273576,
+        0.080173981,
+        0
+      ],
+      "statistics": {
+        "trials": 200,
+        "d2": 5,
+        "front_hits": 238,
+        "back_hits": 12,
+        "full_hits": 0,
+        "d2_pct": 2.5,
+        "avg_front": 1.19,
+        "avg_back": 0.06
+      },
+      "fitness": 523812,
+      "holdout_wilson95": [
+        0.010724719651761503,
+        0.057178340406640785
+      ],
+      "p_one_sided": 0.6736913280442381,
+      "p_bonferroni_5": 1,
+      "edge_pass": false
+    },
+    {
+      "id": "SSQ-G3-013",
+      "generation": 3,
+      "parents": [
+        "SSQ-G2-017",
+        "SSQ-G2-026"
+      ],
+      "weights": [
+        0.1832009,
+        0.113205064,
+        0,
+        0,
+        0.007289334,
+        0.231445335,
+        0.456010031,
+        0,
+        0,
+        0.008849336
+      ],
+      "statistics": {
+        "trials": 200,
+        "d2": 2,
+        "front_hits": 220,
+        "back_hits": 12,
+        "full_hits": 0,
+        "d2_pct": 1,
+        "avg_front": 1.1,
+        "avg_back": 0.06
+      },
+      "fitness": 222012,
+      "holdout_wilson95": [
+        0.002746658133544525,
+        0.03572176171617572
+      ],
+      "p_one_sided": 0.9785093624182442,
+      "p_bonferroni_5": 1,
+      "edge_pass": false
+    },
+    {
+      "id": "SSQ-G3-040",
+      "generation": 3,
+      "parents": [
+        "SSQ-G2-005",
+        "SSQ-G2-011"
+      ],
+      "weights": [
+        0.229667683,
+        0,
+        0.009551651,
+        0,
+        0,
+        0.21229849,
+        0.343465376,
+        0,
+        0.010325696,
+        0.194691104
+      ],
+      "statistics": {
+        "trials": 200,
+        "d2": 3,
+        "front_hits": 207,
+        "back_hits": 11,
+        "full_hits": 0,
+        "d2_pct": 1.5,
+        "avg_front": 1.035,
+        "avg_back": 0.055
+      },
+      "fitness": 320711,
+      "holdout_wilson95": [
+        0.005114237793258453,
+        0.04316572879268914
+      ],
+      "p_one_sided": 0.9251157407477568,
+      "p_bonferroni_5": 1,
+      "edge_pass": false
+    },
+    {
+      "id": "SSQ-G3-043",
+      "generation": 3,
+      "parents": [
+        "SSQ-G2-003",
+        "SSQ-G2-017"
+      ],
+      "weights": [
+        0.108747976,
+        0.015843757,
+        0.238362761,
+        0.160056911,
+        0,
+        0.087012951,
+        0.269542662,
+        0,
+        0.085905751,
+        0.034527232
+      ],
+      "statistics": {
+        "trials": 200,
+        "d2": 8,
+        "front_hits": 247,
+        "back_hits": 15,
+        "full_hits": 0,
+        "d2_pct": 4,
+        "avg_front": 1.235,
+        "avg_back": 0.075
+      },
+      "fitness": 824715,
+      "holdout_wilson95": [
+        0.020405632066152677,
+        0.07693206820093164
+      ],
+      "p_one_sided": 0.21101703068920283,
+      "p_bonferroni_5": 1,
+      "edge_pass": false
+    }
+  ],
+  "selection_champion_id": "SSQ-G3-061",
+  "selection_champion_validation": {
+    "trials": 300,
+    "d2": 17,
+    "front_hits": 337,
+    "back_hits": 19,
+    "full_hits": 0,
+    "d2_pct": 5.667,
+    "avg_front": 1.1233,
+    "avg_back": 0.0633
+  },
+  "holdout_main_model": {
+    "trials": 200,
+    "d2": 2,
+    "front_hits": 231,
+    "back_hits": 13,
+    "full_hits": 0,
+    "d2_pct": 1,
+    "avg_front": 1.155,
+    "avg_back": 0.065
+  },
+  "prospective_prediction": {
+    "front": [
+      4,
+      5,
+      6,
+      10,
+      14,
+      30
+    ],
+    "back": [
+      1
+    ],
+    "dan2": [
+      14,
+      30
+    ],
+    "low_rank_front": [
+      32,
+      20,
+      23,
+      11,
+      16
+    ]
+  },
+  "formal_dan_state": "NULL_DAN",
+  "edge_state": "NO_EDGE",
+  "holdout_data_used_to_select_model": false,
+  "forecast_status": "research_only_unverified_future",
+  "prospective_result": null
+}
