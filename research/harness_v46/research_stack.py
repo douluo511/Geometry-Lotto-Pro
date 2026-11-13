@@ -114,7 +114,7 @@ def _geometry_subprocess(snapshot: dict, game: str, *, complete_space: bool = Fa
             input=json.dumps(snapshot, separators=(",", ":"), sort_keys=True),
             text=True,
             capture_output=True,
-            timeout=30,
+            timeout=180 if complete_space else 30,
             check=False,
         )
     except subprocess.TimeoutExpired as exc:
