@@ -15,9 +15,7 @@ import json
 import os
 from pathlib import Path
 import re
-from urllib.error import HTTPError
 from urllib.parse import urlsplit
-from urllib.request import Request, urlopen
 from uuid import uuid4
 
 from research.supercompute.automation.physical_transport import (
@@ -145,18 +143,6 @@ def _create_once(path: Path, data: bytes) -> bool:
         if path.read_bytes() == data:
             return False
         raise Blocked("IMMUTABLE_FILE_CONFLICT")
-
-
-def fetch_http(url: str) -> tuple[int, str, bytes]:
-    request = Request(url, headers={
-        "User-Agent": "Geometry-Lotto-Pro-Physical-Audit/1.0",
-        "Accept": "text/html,application/xhtml+xml",
-    })
-    try:
-        with urlopen(request, timeout=20) as response:
-            return response.status, response.geturl(), response.read(MAX_BYTES + 1)
-    except HTTPError as exc:
-        return exc.code, exc.geturl(), exc.read(MAX_BYTES + 1)
 
 
 def collect(issue: str, ledger: Path, *, fetcher=dlt_fetch) -> dict:
