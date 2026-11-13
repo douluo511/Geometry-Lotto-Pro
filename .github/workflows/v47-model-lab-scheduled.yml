@@ -1,0 +1,110 @@
+name: V4.7 eleven-model unattended research schedule
+
+on:
+  schedule:
+    # Two daily UTC observation windows, separate from the P0 heartbeat.
+    - cron: '29 19,20 * * *'
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'research/supercompute/automation/v47_schedule.py'
+      - 'research/supercompute/tests/test_v47_schedule.py'
+      - '.github/workflows/v47-model-lab-scheduled.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'research/supercompute/automation/v47_schedule.py'
+      - 'research/supercompute/tests/test_v47_schedule.py'
+      - '.github/workflows/v47-model-lab-scheduled.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ssqdlt-v47-research-unattended-ledger
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout pinned branch/commit
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Compile model and scheduler
+        run: python -m compileall -q research/supercompute/v47_models.py research/supercompute/v47_cli.py research/supercompute/automation/v47_schedule.py
+      - name: Test append-only ledger, schedule-only gate and mocked external audit
+        run: python -m unittest discover -s research/supercompute/tests -p 'test_v47_schedule.py' -v
+      - name: Test 11-component model API
+        run: python -m unittest discover -s research/supercompute/tests -p 'test_v47_models.py' -v
+
+  record-scheduled-research:
+    needs: preflight
+    if: >-
+      github.repository == 'douluo511/Geometry-Lotto-Pro' &&
+      github.ref == 'refs/heads/main' &&
+      github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - name: Checkout trusted default-branch commit
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Generate two-game research-only report from stored historical snapshots
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m research.supercompute.v47_cli run --game both --periods 12 --trials 1000 --seed 2026 --output "$RUNNER_TEMP/v47-research-report.json"
+      - name: Commit schedule receipt to separate branch then verify fresh remote restore
+        shell: bash
+        run: |
+          set -euo pipefail
+          branch=ssqdlt-v47-lab-ledger-v1
+          tracker="refs/remotes/origin/$branch"
+          ledger="$RUNNER_TEMP/v47-ledger"
+          restored="$RUNNER_TEMP/v47-restored"
+
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null; then
+            git fetch --no-tags origin "refs/heads/$branch:$tracker"
+            git worktree add --detach "$ledger" "$tracker"
+          else
+            git worktree add --detach "$ledger" "$GITHUB_SHA"
+          fi
+
+          python -m research.supercompute.automation.v47_schedule record \
+            --ledger "$ledger" --report "$RUNNER_TEMP/v47-research-report.json" \
+            --run-id "$GITHUB_RUN_ID" --run-attempt "$GITHUB_RUN_ATTEMPT" \
+            --commit-sha "$GITHUB_SHA" --event "$GITHUB_EVENT_NAME"
+
+          git -C "$ledger" config user.name "github-actions[bot]"
+          git -C "$ledger" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C "$ledger" add research/v47_lab_ledger
+          git -C "$ledger" commit -m "v47: append schedule run $GITHUB_RUN_ID research receipt"
+          git -C "$ledger" push origin "HEAD:refs/heads/$branch"
+
+          git fetch --no-tags origin "refs/heads/$branch:$tracker"
+          git worktree add --detach "$restored" "$tracker"
+          python -m research.supercompute.automation.v47_schedule verify \
+            --ledger "$restored" --expected-run-id "$GITHUB_RUN_ID" \
+            | tee "$RUNNER_TEMP/v47-remote-verification.json"
+          echo 'Ledger pushed and freshly restored. The current in-progress job is NOT yet an independently verified successful schedule run.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Archive research report and restored-state evidence (not formal predraw forecast)
+        uses: actions/upload-artifact@v4
+        with:
+          name: v47-scheduled-research-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/v47-research-report.json
+            ${{ runner.temp }}/v47-remote-verification.json
+          if-no-files-found: error
