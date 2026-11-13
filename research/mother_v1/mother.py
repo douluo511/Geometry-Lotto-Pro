@@ -19,9 +19,10 @@ from research.harness_v46.d2_challenger_lab import (
 )
 from research.supercompute import engine as legacy_engine
 from research.supercompute.automation import dlt_physical_source, ssq_physical_source
+from .native_provider import native_models
 from .registry import (
     ALL_MODELS, REGISTERED_V47, EXPLORATORY_V47, LEGACY_SUPERCOMPUTE,
-    PHYSICAL, MODEL_FAMILIES, SCHEMA, NO_EDGE, FORMAL_A,
+    NATIVE_FEATURES, PHYSICAL, MODEL_FAMILIES, SCHEMA, NO_EDGE, FORMAL_A,
 )
 
 PHYSICAL_MIN_ROWS = 60
@@ -200,7 +201,7 @@ def _physical_exit_rank(game: str, physical: list[dict]) -> list[int]:
     return sorted(range(1, pool + 1), key=lambda n: (-score[n], n))
 
 
-def _one_regular(ctx: dict, game: str, name: str) -> dict:
+def _one_regular(ctx: dict, game: str, name: str, native: dict | None = None) -> dict:
     issue, history = ctx["target_issue"], ctx["history"]
     state = {"lottery": game, "target_issue": issue, "draws": history}
     if name in REGISTERED_V47:
@@ -235,6 +236,26 @@ def _one_regular(ctx: dict, game: str, name: str) -> dict:
                     "protocol": "legacy_supercompute_original_ticket_v1"})
         source = sha256(Path(legacy_engine.__file__).read_bytes()).hexdigest()
         provider = "legacy_supercompute_engine"
+    elif name in NATIVE_FEATURES:
+        if native is None:
+            raise MotherBlocked("NATIVE_PROVIDER_NOT_EXECUTED")
+        rawname = name.removeprefix("native_")
+        front_rank = native["front_rankings"][rawname]
+        back_rank = native["back_rankings"][rawname]
+        r = core.RULES[game]
+        if (set(front_rank) != set(range(1, r["pool"] + 1))
+                or set(back_rank) != set(range(1, r["back_pool"] + 1))):
+            raise MotherBlocked("NATIVE_RANKING_INVALID")
+        ticket = _valid_ticket(game, {
+            "front": sorted(front_rank[:r["front"]]),
+            "back": sorted(back_rank[:r["back"]]),
+        })
+        first5 = front_rank[:5]
+        psha = sha({"model": rawname, "identity": native["identity"],
+                    "native_source_sha256": native["source_sha256"],
+                    "rank_tie_policy": "original_native_engine"})
+        source = native["source_sha256"]
+        provider = "native_engine_separate_python_process"
     else:
         raise MotherBlocked("UNREGISTERED_MODEL")
     return {
@@ -315,7 +336,8 @@ def forecast_all(bundle: dict, *, physical_ledger: Path | None = None) -> dict:
     for game in ("SSQ", "DLT"):
         ctx = bundle[game]
         metadata = _validate_history(game, ctx)
-        regular = [_one_regular(ctx, game, name) for name in ALL_MODELS
+        native = native_models(game, ctx["history"])
+        regular = [_one_regular(ctx, game, name, native) for name in ALL_MODELS
                    if name not in PHYSICAL]
         null_row = next(row for row in regular if row["name"] == "random_null")
         physical, state = _physical_observations(
