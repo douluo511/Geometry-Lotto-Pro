@@ -1,0 +1,25 @@
+name: V4.7 eleven-model research checks
+on:
+  pull_request:
+    paths:
+      - 'research/supercompute/v47_*.py'
+      - 'research/supercompute/tests/test_v47_models.py'
+      - '.github/workflows/v47-model-lab-ci.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Compile research modules
+        run: python -m compileall -q research/supercompute/v47_models.py research/supercompute/v47_cli.py
+      - name: Run synthetic acceptance tests
+        run: python -m unittest discover -s research/supercompute/tests -p 'test_v47_models.py' -v
+      - name: Run existing independent CPU research tests
+        run: python -m unittest discover -s research/supercompute/tests -p 'test_supercompute.py' -v
