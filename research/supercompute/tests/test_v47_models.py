@@ -81,7 +81,7 @@ class TestV47ModelLab(unittest.TestCase):
         self.assertFalse(m.physics_toy("ssq", 7, steps=5)["machine_calibrated"])
         self.assertEqual(m.monte_carlo("dlt", 100, 9), m.monte_carlo("dlt", 100, 9))
 
-    def test_m2_m3_and_random_baseline(self):
+    def test_m2_m3_and_exact_fair_chance(self):
         refutation = m.m2_refutation([1, 0, 1], .2)
         self.assertEqual(refutation["hits"], 2)
         self.assertAlmostEqual(refutation["exploratory_one_sided_p"], .104)
