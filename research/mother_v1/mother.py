@@ -20,6 +20,7 @@ from research.harness_v46.d2_challenger_lab import (
 from research.supercompute import engine as legacy_engine
 from research.supercompute.automation import dlt_physical_source, ssq_physical_source
 from .native_provider import native_models
+from .source_identity import committed_source_sha256
 from .registry import (
     ALL_MODELS, REGISTERED_V47, EXPLORATORY_V47, LEGACY_SUPERCOMPUTE,
     NATIVE_FEATURES, PHYSICAL, MODEL_FAMILIES, SCHEMA, NO_EDGE, FORMAL_A,
@@ -223,7 +224,7 @@ def _one_regular(ctx: dict, game: str, name: str, native: dict | None = None) ->
             psha = core.digest({"arm": arm, "source": "d2_challenger_lab_v47",
                                 "rules": core.RULES[game]})
         ticket, first5 = _rank_ticket(game, issue, name, ranking)
-        source = sha256(Path(ablation_rank.__code__.co_filename).read_bytes()).hexdigest()
+        source = committed_source_sha256(ablation_rank.__code__.co_filename)
         provider = "v47_exploratory"
     elif name in LEGACY_SUPERCOMPUTE:
         raw_name = {"supercompute_hot60": "HOT60",
@@ -234,7 +235,7 @@ def _one_regular(ctx: dict, game: str, name: str, native: dict | None = None) ->
         first5 = ticket["front"][:5]
         psha = sha({"model": raw_name, "seed": 2026,
                     "protocol": "legacy_supercompute_original_ticket_v1"})
-        source = sha256(Path(legacy_engine.__file__).read_bytes()).hexdigest()
+        source = committed_source_sha256(legacy_engine.__file__)
         provider = "legacy_supercompute_engine"
     elif name in NATIVE_FEATURES:
         if native is None:
@@ -274,7 +275,7 @@ def _physical_model(ctx: dict, game: str, name: str, physical: list[dict],
             "provider": "issuer_physical_raw_evidence", "physical_history_rows": len(physical),
             "physical_data_state": physical_status, "formal_A": 0,
             "physical_prediction_verified": False,
-            "model_source_sha256": sha256(Path(__file__).read_bytes()).hexdigest(),
+            "model_source_sha256": committed_source_sha256(__file__),
             "parameters_sha256": sha({"name": name, "min_rows": PHYSICAL_MIN_ROWS,
                                        "algorithm": "early_exit_weighted_decay_45"
                                        if name == "physical_exit_order"
