@@ -1,0 +1,75 @@
+name: V4.7 twenty-two real subset and non-subset models
+on:
+  pull_request:
+    paths:
+      - 'research/supercompute/v47_hedge.py'
+      - 'research/supercompute/tests/test_v47_hedge.py'
+      - '.github/workflows/v47-hedge-44.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'research/supercompute/v47_hedge.py'
+      - 'research/supercompute/tests/test_v47_hedge.py'
+      - '.github/workflows/v47-hedge-44.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  prove-44:
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Compile twenty-two executable hedge model classes
+        run: python -m py_compile research/supercompute/v47_hedge.py
+      - name: Prove twenty-two model registry, set algebra, mutation, scoring, no leakage
+        run: python -m unittest discover -s research/supercompute/tests -p 'test_v47_hedge.py' -v
+      - name: Reconstruct previously verified issue-continuous as-of input (not live verified)
+        run: python -m research.supercompute.v47_merge_history --output-dir "$RUNNER_TEMP/v47-current"
+      - name: Execute twenty-two fit/predict/score contracts for BOTH lottery types and freeze 44 tickets
+        run: |
+          python -m research.supercompute.v47_hedge generate \
+            --ssq-data "$RUNNER_TEMP/v47-current/ssq-merged-history.json" \
+            --dlt-data "$RUNNER_TEMP/v47-current/dlt-merged-history.json" \
+            --ssq-target 2026131 --dlt-target 26130 \
+            --seed 20261114 --generations 2 --validation 4 --holdout 3 \
+            --mc-trials 80 --physics-steps 6 \
+            --output "$RUNNER_TEMP/v47-hedge-44.json" \
+            --freeze-dir "$RUNNER_TEMP/v47-hedge-frozen"
+      - name: Machine check that 22 plus and minus pairs exist for each game
+        run: |
+          python - <<'PY'
+          import json, os, hashlib
+          from pathlib import Path
+          root=Path(os.environ['RUNNER_TEMP'])
+          raw=(root/'v47-hedge-44.json').read_bytes()
+          a=json.loads(raw)
+          assert a['ticket_count']==44 and set(a['games'])=={'ssq','dlt'}
+          for g,v in a['games'].items():
+              assert v['model_count']==22 and v['ticket_count']==22
+              assert len(v['tickets'])==len(v['models'])==22
+              assert len(v['historical_validation']['models'])==22
+              assert [t['model_id'] for t in v['tickets']]==[f'M{i:02d}{sign}' for i in range(1,12) for sign in ('+','-')]
+              for t in v['tickets']:
+                  if t['direction']=='not_subset':
+                      assert len(t['excluded_pair'])==2
+                      assert not set(t['excluded_pair']) & set(t['front'])
+              frozen=root/'v47-hedge-frozen'/f"{g}-{v['target_issue']}-hedge22.json"
+              doc=json.loads(frozen.read_bytes())
+              assert doc['source']['model_count']==22
+              print('V47_HEDGE_FREEZE_SHA256',g,hashlib.sha256(frozen.read_bytes()).hexdigest())
+          print('V47_HEDGE_44_ACCEPTANCE_PASS',hashlib.sha256(raw).hexdigest())
+          PY
+      - name: Upload 44 model calculation, lineages, validation and immutable freezes
+        uses: actions/upload-artifact@v4
+        with:
+          name: v47-subset-hedge-44-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/v47-hedge-44.json
+            ${{ runner.temp }}/v47-hedge-frozen/
+            ${{ runner.temp }}/v47-current/merge-receipt.json
+          if-no-files-found: error
+          retention-days: 90
