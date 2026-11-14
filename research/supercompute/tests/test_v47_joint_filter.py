@@ -140,7 +140,7 @@ class ExactJointFilterTests(unittest.TestCase):
             target = Path(td) / "legacy.json"
             raw = canonical(frozen)
             target.write_bytes(raw)
-            actual = {"front": [4, 5, 6, 14, 24, 21], "back": [4],
+            actual = {"front": [4, 5, 6, 14, 21, 24], "back": [4],
                       "issue": "9999999"}
             scored = score_frozen(target, hashlib.sha256(raw).hexdigest(), actual)
             self.assertFalse(scored["strict_disjoint_verified"])
