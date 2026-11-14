@@ -63,12 +63,41 @@ jobs:
               print('V47_HEDGE_FREEZE_SHA256',g,hashlib.sha256(frozen.read_bytes()).hexdigest())
           print('V47_HEDGE_44_ACCEPTANCE_PASS',hashlib.sha256(raw).hexdigest())
           PY
+      - name: Execute second generation using actual frozen champions from first 44-row run
+        run: |
+          python -m research.supercompute.v47_hedge generate \
+            --ssq-data "$RUNNER_TEMP/v47-current/ssq-merged-history.json" \
+            --dlt-data "$RUNNER_TEMP/v47-current/dlt-merged-history.json" \
+            --ssq-target 2026131 --dlt-target 26130 \
+            --previous "$RUNNER_TEMP/v47-hedge-44.json" \
+            --seed 20261115 --generations 2 --validation 4 --holdout 3 \
+            --mc-trials 40 --physics-steps 4 \
+            --output "$RUNNER_TEMP/v47-hedge-44-inherited.json" \
+            --freeze-dir "$RUNNER_TEMP/v47-hedge-inherited-frozen"
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          root=Path(os.environ['RUNNER_TEMP'])
+          a=json.loads((root/'v47-hedge-44.json').read_bytes())
+          b=json.loads((root/'v47-hedge-44-inherited.json').read_bytes())
+          for game in ('ssq','dlt'):
+              before=a['games'][game]
+              after=b['games'][game]
+              assert after['models']['M05+']['fit']['inherited']
+              for i in range(1,12):
+                  negative=after['models'][f'M{i:02d}-']['fit']['cell_evolution']
+                  assert negative['previous_inherited'] and negative['parent_in_generation_one']
+              assert after['ticket_count']==44
+          print('V47_HEDGE_ALL_11_NEGATIVE_CHAMPIONS_INHERITED_BOTH_GAMES_PASS')
+          PY
       - name: Upload 44 model calculation, lineages, validation and immutable freezes
         uses: actions/upload-artifact@v4
         with:
           name: v47-subset-hedge-44-${{ github.run_id }}
           path: |
             ${{ runner.temp }}/v47-hedge-44.json
+            ${{ runner.temp }}/v47-hedge-44-inherited.json
+            ${{ runner.temp }}/v47-hedge-inherited-frozen/
             ${{ runner.temp }}/v47-hedge-frozen/
             ${{ runner.temp }}/v47-current/merge-receipt.json
           if-no-files-found: error
