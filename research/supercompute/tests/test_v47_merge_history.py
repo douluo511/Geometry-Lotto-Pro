@@ -40,7 +40,8 @@ class HistoricalMergeAcceptance(unittest.TestCase):
             receipt = build(SEEDS, DELTA, Path(d) / "receipts")
             self.assertFalse(receipt["live_official_source_verified"])
             self.assertEqual(receipt["games"]["dlt"][
-                "secondary_rows_require_confirmation"], 8)
+                "secondary_rows_require_confirmation"], 0)
+            self.assertEqual(receipt["games"]["dlt"]["source_tier_counts"]["ISSUER_PROVINCIAL"], 21)
             self.assertEqual(receipt["games"]["ssq"]["added_draws"], 21)
             for game in ("ssq", "dlt"):
                 output = json.loads((Path(d) / "receipts" /
