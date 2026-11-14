@@ -210,6 +210,11 @@ def score_joint_search(search, actual, game):
     minus = evaluate_relation(game, "front", sorted(ex), actual)
     pos = plus["contained"]
     neg = minus["disjoint"]
+    for ticket in search["tickets"]:
+        validate_ticket(ticket, game)
+        if not req.issubset(ticket["front"]) or not ex.isdisjoint(
+                ticket["front"]):
+            raise ValueError("frozen joint candidate violates hard constraints")
     full = [t for t in search["tickets"]
             if t["front"] == actual["front"] and t["back"] == actual["back"]]
     return {
