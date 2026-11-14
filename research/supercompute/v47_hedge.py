@@ -420,6 +420,7 @@ def historical_audit(rows, game, *, seed, holdout, validation, mc_trials,
     fair = fair_pair(game)
     series = {name: [] for name, _ in REGISTRY_22}
     fold_issues = []
+    joint_folds = []
     for idx in range(len(rows) - holdout, len(rows)):
         past, actual = rows[:idx], rows[idx]
         _, predictions = _run_22_core(
@@ -429,6 +430,15 @@ def historical_audit(rows, game, *, seed, holdout, validation, mc_trials,
         fold_issues.append({"train_last": str(past[-1]["issue"]),
                             "test_issue": str(actual["issue"]),
                             "test_ignored_during_fit": True})
+        joint_prediction = construct_joint_search(predictions, game, limit=8)
+        joint_result = score_joint_search(joint_prediction, actual, game)
+        joint_folds.append({
+            "history_last_issue": str(past[-1]["issue"]),
+            "actual_issue": str(actual["issue"]),
+            "events": joint_result,
+            "retained_front": joint_prediction["retained_front_combinations"],
+            "required": joint_prediction["constraints"]["required"],
+            "excluded": joint_prediction["constraints"]["excluded"]})
         for item in predictions:
             event = score_one(item, actual, game)
             is_positive = item["direction"] == "subset"
@@ -468,7 +478,17 @@ def historical_audit(rows, game, *, seed, holdout, validation, mc_trials,
             "direction": "subset" if positive else "disjoint",
             "not_prospective_edge": True}
     return {"status": "PASS", "models": audits, "model_count": 22,
-            "folds": fold_issues, "multiple_tests_adjusted": False,
+            "folds": fold_issues, "joint": {
+                "folds": joint_folds,
+                "survived_count": sum(int(x["events"]["joint_filter_keeps_actual_front"])
+                                      for x in joint_folds),
+                "full_jackpot_hits": sum(x["events"]["exact_jackpot_ticket_hits"]
+                                          for x in joint_folds),
+                "fair_reference":
+                    math.comb(SPECS[game][0] - 4, SPECS[game][1] - 2)
+                    / math.comb(SPECS[game][0], SPECS[game][1]),
+                "status": "EXPLORATORY_TOO_FEW_FOLDS_FOR_EDGE"},
+            "multiple_tests_adjusted": False,
             "no_future_draws": True, "edge": "NO_EDGE"}
 
 
@@ -485,6 +505,7 @@ def run_hedge22(rows, game, target, *, seed=2026, generations=2,
     audit = historical_audit(rows, game, seed=seed, holdout=holdout,
                              validation=validation, mc_trials=mc_trials,
                              physics_steps=physics_steps)
+    joint = construct_joint_search(records, game, limit=8)
     tickets = []
     for record in records:
         ticket = dict(record["prediction"]["ticket"])
@@ -501,7 +522,8 @@ def run_hedge22(rows, game, target, *, seed=2026, generations=2,
             "edge": "NO_EDGE", "formal_prediction": False,
             "models": {r["model_id"]: r for r in records},
             "model_count": 22, "ticket_count": 22,
-            "tickets": tickets, "historical_validation": audit,
+            "tickets": tickets, "joint_search": joint,
+            "historical_validation": audit,
             "evolution": {
                 "base_champion": base["champion_genome"],
                 "negative_champions": {
