@@ -169,14 +169,16 @@ def _store(path, data):
 def ingest(base_paths, out_dir, *, fetch=fetch_publisher, minimum_overlap=3):
     """All-or-nothing validated snapshot, partial failures never accepted."""
     root = Path(out_dir)
-    base_hashes, joined, evidence = {}, {}, {}
+    base_hashes, joined, evidence, raw_sources = {}, {}, {}, {}
     for game in ("ssq", "dlt"):
+        raw, fetch_receipt = None, None
         try:
             base_raw = Path(base_paths[game]).read_bytes()
             base = json.loads(base_raw)["draws"]
             base_hashes[game] = hashlib.sha256(base_raw).hexdigest()
             raw, fetch_receipt = fetch(game)
             fetched = parse_publisher_table(game, raw)
+            raw_sources[game] = raw
             history, check = append_verified(
                 base, fetched, game, minimum_overlap=minimum_overlap)
             joined[game] = history
@@ -222,11 +224,14 @@ def ingest(base_paths, out_dir, *, fetch=fetch_publisher, minimum_overlap=3):
                "games": evidence, "base_sha256": base_hashes}
     # Check absence of all output paths before writing.
     outputs = [root / (g + "-verified-history.json") for g in ("ssq","dlt")]
+    outputs += [root / (g + "-publisher-raw.html") for g in ("ssq","dlt")]
     outputs.append(root / "official-ingest-receipt.json")
     if any(x.exists() for x in outputs):
         raise FileExistsError("refuse to overwrite live issuer ingest")
     for game in ("ssq", "dlt"):
         _store(root / (game + "-verified-history.json"), snapshots[game])
+        with (root / (game + "-publisher-raw.html")).open("xb") as rawfile:
+            rawfile.write(raw_sources[game])
     _store(root / "official-ingest-receipt.json", receipt)
     return receipt
 
