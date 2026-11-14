@@ -285,11 +285,14 @@ def record(worktree, source_dir, run_id, run_attempt, sha, event, now=None,
                                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 report = read(report_path)
                 game_report = report.get("games", {}).get(game, {})
-                if (report.get("schema") != "SSQDLT_V47_HEDGE22_RUN_V1"
+                if (report.get("schema") != "SSQDLT_V47_HEDGE22_RUN_V2"
                         or report.get("ticket_count") != 22
                         or set(report.get("games", {})) != {game}
                         or game_report.get("ticket_count") != 22
                         or game_report.get("model_count") != 22
+                        or game_report.get("joint_search", {}).get("schema") !=
+                           "SSQDLT_V47_JOINT_HARD_CONSTRAINT_V1"
+                        or len(game_report.get("joint_search", {}).get("tickets", [])) != 8
                         or len(game_report.get("historical_validation", {}).get("models", {})) != 22
                         or game_report.get("target_issue") != target
                         or game_report.get("history_sha256") !=
@@ -314,6 +317,7 @@ def record(worktree, source_dir, run_id, run_attempt, sha, event, now=None,
                 frozen = read(freeze_path)
                 stamp = datetime.fromisoformat(frozen["created_utc"])
                 if (stamp.tzinfo is None
+                        or frozen.get("schema") != "SSQDLT_V47_HEDGE22_FROZEN_V2"
                         or stamp.astimezone(CST) >= cutoff
                         or frozen["source"]["ticket_count"] != 22
                         or frozen["source"]["target_issue"] != target):

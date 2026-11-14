@@ -62,7 +62,7 @@ class TwentyTwoComputationalModelsTests(unittest.TestCase):
                 self.assertTrue(record["fit"])
                 self.assertTrue(record["prediction"]["ticket"])
                 validate_ticket(record["prediction"]["ticket"], game)
-                self.assertEqual(record["direction"] in ("subset", "not_subset"), True)
+                self.assertEqual(record["direction"] in ("subset", "disjoint"), True)
             for name, result in data["historical_validation"]["models"].items():
                 self.assertEqual(result["M2"]["status"], "PASS", name)
                 self.assertEqual(result["M2"]["trials"], 3)
@@ -70,6 +70,12 @@ class TwentyTwoComputationalModelsTests(unittest.TestCase):
                 self.assertEqual(result["M3"]["tested_on_heldout_folds"], 1)
                 self.assertEqual(result["M3"]["calibrated"]["samples"], 1)
             self.assertFalse(data["historical_validation"]["multiple_tests_adjusted"])
+            self.assertEqual(data["joint_search"]["model_count_used"], 22)
+            self.assertEqual(len(data["joint_search"]["tickets"]), 8)
+            self.assertEqual(len(data["historical_validation"]["joint"]["folds"]), 3)
+            for name, model_audit in data["historical_validation"]["models"].items():
+                expected = fair_pair(game)["subset"] if name.endswith("+") else fair_pair(game)["disjoint"]
+                self.assertAlmostEqual(model_audit["M2"]["fair_probability"], expected)
         self.assertEqual(sum(g["ticket_count"] for g in self.report.values()), 44)
 
     def test_negative_eleven_are_computed_not_copied_from_positive(self):
@@ -82,7 +88,7 @@ class TwentyTwoComputationalModelsTests(unittest.TestCase):
                 self.assertTrue(set(ex).isdisjoint(negative["prediction"]["ticket"]["front"]))
                 self.assertTrue(negative["prediction"]["candidate_uses_hard_exclusion"])
                 self.assertEqual(negative["prediction"]["logical_event"],
-                                 "EXCLUDED_PAIR_NOT_SUBSET_OF_DRAW")
+                                 "EXCLUDED_PAIR_DISJOINT_FROM_DRAW")
                 self.assertEqual(negative["prediction"]["source_positive_name"],
                                  positive["base_name"])
                 self.assertNotEqual(negative["prediction"]["ticket"]["front"],
@@ -103,16 +109,18 @@ class TwentyTwoComputationalModelsTests(unittest.TestCase):
             self.assertGreater(fair["not_subset"], fair["disjoint"])
             actual = {"front": [1, 2, 3, 4, 5, 6], "back": [1]} if game == "ssq" \
                 else {"front": [1, 2, 3, 4, 5], "back": [1, 2]}
-            rec = {"direction": "not_subset", "prediction": {
+            rec = {"direction": "disjoint", "prediction": {
                 "excluded_pair": [1, 7],
                 "ticket": {"front": actual["front"], "back": actual["back"],
                            "dan2": [1, 2]}}}
             evaluation = score_one(rec, actual, game)
-            self.assertTrue(evaluation["negative_event_not_subset"])
-            self.assertFalse(evaluation["stronger_event_disjoint"])
+            self.assertFalse(evaluation["negative_event_disjoint"])
+            self.assertEqual(evaluation["excluded_hits"], 1)
             self.assertTrue(evaluation["candidate_d2_hit"])
             rec["prediction"]["excluded_pair"] = [1, 2]
-            self.assertFalse(score_one(rec, actual, game)["negative_event_not_subset"])
+            self.assertFalse(score_one(rec, actual, game)["negative_event_disjoint"])
+            rec["prediction"]["excluded_pair"] = [7, 8]
+            self.assertTrue(score_one(rec, actual, game)["negative_event_disjoint"])
 
     def test_evolution_inherits_actual_negative_parent_genome(self):
         for game, data in self.report.items():
@@ -145,7 +153,7 @@ class TwentyTwoComputationalModelsTests(unittest.TestCase):
             target = run["target_issue"]
             with tempfile.TemporaryDirectory() as temp:
                 f = Path(temp) / "frozen.json"
-                doc = {"schema": "SSQDLT_V47_HEDGE22_FROZEN_V1",
+                doc = {"schema": "SSQDLT_V47_HEDGE22_FROZEN_V2",
                        "source": run, "created_utc": "2026-11-14T02:00:00Z"}
                 b = canonical(doc)
                 with f.open("xb") as h:
@@ -157,6 +165,9 @@ class TwentyTwoComputationalModelsTests(unittest.TestCase):
                 out = score_frozen(f, hashlib.sha256(b).hexdigest(), actual)
                 self.assertEqual(out["count"], 22)
                 self.assertEqual(len(out["models"]), 22)
+                self.assertTrue(out["strict_disjoint_verified"])
+                self.assertIn("joint", out)
+                self.assertEqual(out["joint"]["candidate_count"], 8)
                 self.assertTrue(out["status"].endswith("UNVERIFIED"))
                 with self.assertRaises(ValueError):
                     score_frozen(f, "0" * 64, actual)
