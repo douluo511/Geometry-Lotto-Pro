@@ -21,3 +21,13 @@ Do NOT treat a pull-request smoke test, workflow dispatch, source-fetch success,
 ## Limitations
 
 Authoritative provincial pages are cross-matched over HTTPS, but are not digitally signed. `signed_issuer_feed=false`, `trusted_predraw_seal=false` and `edge=NO_EDGE` remain in force. Source access may fail (HTTP 403/5xx or anti-bot page), in which case no new candidate or outcome is accepted. Cloud worker restart evidence cannot establish Windows host physical reboot recovery. Lottery draws under fair mechanical conditions are not made reliably predictable by frequencies, evolutionary optimization or toy physics. All outputs are research, not money/prize claims.
+
+## Final P0 evidence gate (independently verified against GitHub)
+
+The scheduled workflow now calls `python -m research.supercompute.v47_schedule_acceptance --ledger <restored-worktree> --repo douluo511/Geometry-Lotto-Pro --output p0-acceptance.json` after pushing and re-fetching the remote evidence branch. The verifier checks each immutable live-ledger event and queries the exact GitHub Actions run ID via the REST API. Only `event=schedule`, the expected workflow file, branch `main`, matching SHA/attempt and **completed success** count. A pull-request run, manual dispatch, unfinished or failed job is not counted, even if somebody set the local event field to `schedule`.
+
+Full P0 requires **two distinct successful genuine schedule runs**, a real archived dual-game 22+22 freeze, a later *genuinely scheduled* run reusing previous champions for both games, and archived post-publication scores for all 22 arms of both games. A failed source fetch must fail closed and cannot advance any gate. The previously merged legacy P0 schedule with one run does not satisfy the new hedge44 live-ledger acceptance.
+
+The current schedule run cannot be marked completed while it is still executing. Therefore the verifier records it as `PENDING` until a later successful run can independently confirm it through GitHub's API. `PASS` requires everything, not just cron syntax or mock test success. The produced acceptance JSON and raw issuer/frozen artifacts are uploaded to the GitHub Actions run.
+
+Host-specific Windows shutdown/reboot recovery, cryptographic issuer signatures and independently trusted predraw timestamps are *separate* UNVERIFIED limits; these cannot be inferred from cloud worker restart. All predictive edge claims remain NO_EDGE.
