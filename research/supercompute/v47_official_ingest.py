@@ -198,7 +198,7 @@ def ingest(base_paths, out_dir, *, fetch=fetch_publisher, minimum_overlap=3):
                         title.group(1).decode("utf-8", errors="replace")
                         if title else None),
                 }
-            if "fetch_receipt" in locals():
+            if isinstance(fetch_receipt, dict):
                 diagnostics["http_status"] = fetch_receipt.get("http_status")
                 diagnostics["effective_url"] = fetch_receipt.get("effective_url")
             error = {"schema": "SSQDLT_V47_LIVE_FETCH_FAILURE_V1",
