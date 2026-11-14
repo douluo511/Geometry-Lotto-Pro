@@ -87,7 +87,12 @@ jobs:
               for i in range(1,12):
                   negative=after['models'][f'M{i:02d}-']['fit']['cell_evolution']
                   assert negative['previous_inherited'] and negative['parent_in_generation_one']
-              assert after['ticket_count']==44
+                  name=after['models'][f'M{i:02d}-']['base_name']
+                  old=before['evolution']['negative_champions'][name]
+                  assert any(x['origin']=='inherited' and x['genes']==old
+                             for x in negative['lineage'][0]['evaluated'])
+              assert after['ticket_count']==22
+          assert b['ticket_count']==44
           print('V47_HEDGE_ALL_11_NEGATIVE_CHAMPIONS_INHERITED_BOTH_GAMES_PASS')
           PY
       - name: Upload 44 model calculation, lineages, validation and immutable freezes
