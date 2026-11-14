@@ -3,6 +3,8 @@ on:
   pull_request:
     paths:
       - 'research/supercompute/v47_hedge.py'
+      - 'research/supercompute/v47_set_relations.py'
+      - 'research/supercompute/tests/test_v47_set_relations.py'
       - 'research/supercompute/v47_joint_filter.py'
       - 'research/supercompute/v47_interval_search.py'
       - 'research/supercompute/tests/test_v47_interval_search.py'
@@ -31,6 +33,7 @@ jobs:
         run: python -m py_compile research/supercompute/v47_hedge.py
       - name: Prove twenty-two model registry, set algebra, mutation, scoring, no leakage
         run: |
+          python -m unittest discover -s research/supercompute/tests -p 'test_v47_set_relations.py' -v
           python -m unittest discover -s research/supercompute/tests -p 'test_v47_interval_search.py' -v
           python -m unittest discover -s research/supercompute/tests -p 'test_v47_joint_filter.py' -v
           python -m unittest discover -s research/supercompute/tests -p 'test_v47_hedge.py' -v
@@ -77,6 +80,12 @@ jobs:
               assert require.isdisjoint(exclude)
               assert all(require.issubset(t['front']) and exclude.isdisjoint(t['front']) for t in joint['tickets'])
               assert v['historical_validation']['joint']['folds']
+              # Confirm both model directions can be independently scored
+              # on real earlier draws and expose the per-number truth table.
+              for n,r in v['models'].items():
+                  expected='subset' if n.endswith('+') else 'disjoint'
+                  assert r['direction']==expected
+              assert all(t['direction'] in ('subset','disjoint') for t in v['tickets'])
               interval=v['interval_search']
               assert interval['schema']=='SSQDLT_V47_FOUR_AREA_INTERVAL_SEARCH_V1'
               assert interval['model_records_used']==22 and interval['ticket_count']==8

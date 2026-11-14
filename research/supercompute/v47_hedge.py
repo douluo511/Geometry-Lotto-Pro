@@ -25,6 +25,7 @@ from research.supercompute.v47_models import (
 )
 from research.supercompute.v47_registry import REGISTRY, execute_eleven
 from research.supercompute.v47_joint_filter import construct_joint_search, score_joint_search
+from research.supercompute.v47_set_relations import score_model_relation
 from research.supercompute.v47_interval_search import (
     calibrate_profiles, construct_interval_search, score_interval_search,
 )
@@ -270,9 +271,11 @@ class NegativeBase:
         if len(excluded) != 2 or len(set(excluded)) != 2:
             raise ValueError("invalid excluded pair")
         included = set(ticket["dan2"]).issubset(actual["front"])
-        excluded_hits = len(set(excluded) & set(actual["front"]))
-        return {"negative_event_disjoint": excluded_hits == 0,
+        relation = score_model_relation(game, "disjoint", excluded, actual)
+        excluded_hits = relation["member_count"]
+        return {"negative_event_disjoint": relation["success"],
                 "excluded_hits": excluded_hits,
+                "excluded_membership": relation,
                 "partial_exclusion_is_not_success": True,
                 "front_hits": len(set(ticket["front"]) & set(actual["front"])),
                 "back_hits": len(set(ticket["back"]) & set(actual["back"])),
@@ -372,7 +375,9 @@ REGISTRY_22 = tuple((f"M{i:02d}{sign}", cls)
 def score_one(record, actual, game):
     if record["direction"] == "subset":
         ticket = record["prediction"]["ticket"]
-        return {"subset_event": set(ticket["dan2"]).issubset(actual["front"]),
+        relation = score_model_relation(game, "subset", ticket["dan2"], actual)
+        return {"subset_event": relation["success"],
+                "included_membership": relation,
                 "fair_subset": fair_pair(game)["subset"],
                 "front_hits": len(set(ticket["front"]) & set(actual["front"])),
                 "back_hits": len(set(ticket["back"]) & set(actual["back"]))}

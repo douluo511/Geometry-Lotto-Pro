@@ -18,6 +18,7 @@ import itertools
 import math
 
 from research.supercompute.v47_models import SPECS, validate_ticket
+from research.supercompute.v47_set_relations import evaluate_relation
 
 ZONES = {
     "ssq": {"front": ((1, 11), (12, 22), (23, 33)),
@@ -154,13 +155,23 @@ def score_constraints(areas, actual, game):
     validate_ticket(actual, game)
     by_area = {}
     for area in AREAS:
-        included = set(areas[area]["required"]).issubset(actual[area])
-        disjoint = set(areas[area]["excluded"]).isdisjoint(actual[area])
-        by_area[area] = {"required_all_present": included,
-                         "excluded_all_absent": disjoint,
-                         "retains_actual": included and disjoint,
-                         "excluded_hits": len(set(areas[area]["excluded"]) &
-                                               set(actual[area]))}
+        plus = evaluate_relation(game, area, areas[area]["required"], actual)
+        minus = evaluate_relation(game, area, areas[area]["excluded"], actual)
+        included, disjoint = plus["contained"], minus["disjoint"]
+        by_area[area] = {
+            "required_all_present": included,
+            "excluded_all_absent": disjoint,
+            "retains_actual": included and disjoint,
+            "excluded_hits": minus["member_count"],
+            "required_active": plus["active_constraint"],
+            "excluded_active": minus["active_constraint"],
+            "vacuous_include": plus["vacuous_when_empty"],
+            "vacuous_exclude": minus["vacuous_when_empty"],
+            "positive_membership": plus,
+            "negative_membership": minus,
+            "negative_partial_not_subset_is_not_m_minus_success":
+                minus["not_contained"] and not minus["disjoint"],
+        }
     return {"areas": by_area,
             "all_area_constraints_survived":
                 all(by_area[area]["retains_actual"] for area in AREAS)}
@@ -264,12 +275,22 @@ def score_interval_search(search, actual, game):
     if search.get("game") != game:
         raise ValueError("lottery mismatch")
     outcome = score_constraints(search["areas"], actual, game)
+    # A hash-valid but semantically illegal candidate cannot count as jackpot
+    # evidence: reject inconsistent frozen forecast contents.
+    for ticket in search["tickets"]:
+        validate_ticket(ticket, game)
+        for area in AREAS:
+            if (not set(search["areas"][area]["required"]).issubset(ticket[area])
+                    or not set(search["areas"][area]["excluded"]).isdisjoint(
+                        ticket[area])):
+                raise ValueError("frozen candidate violates hard constraints")
     exact = sum(int(t["front"] == actual["front"] and
                     t["back"] == actual["back"]) for t in search["tickets"])
     return {**outcome, "exact_full_jackpot_hits": exact,
             "complete_tickets_searched": len(search["tickets"]),
             "retained_full_ticket_combinations":
                 search["retained_full_ticket_combinations"],
+            "frozen_candidates_satisfy_constraints": True,
             "edge": "NO_EDGE"}
 
 
