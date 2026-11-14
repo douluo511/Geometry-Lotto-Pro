@@ -130,7 +130,7 @@ def inspect_run(report_path, frozen_dir, expected_targets, latest_verified):
     evidence["history_issue_matches_latest"] = all(
         g["source_is_fresh"] for g in evidence["games"].values())
     evidence["source_current_verification"] = False
-    evidence["source_provenance"] = "CITED_ISSUER_AND_SECONDARY_NOT_LIVE_ATTESTED"
+    evidence["source_provenance"] = "CITED_PROVINCIAL_ISSUER_PUBLISHED_NOT_LIVE_AUTHENTICATED"
     return evidence
 
 
