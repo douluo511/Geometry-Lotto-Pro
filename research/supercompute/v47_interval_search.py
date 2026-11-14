@@ -275,12 +275,22 @@ def score_interval_search(search, actual, game):
     if search.get("game") != game:
         raise ValueError("lottery mismatch")
     outcome = score_constraints(search["areas"], actual, game)
+    # A hash-valid but semantically illegal candidate cannot count as jackpot
+    # evidence: reject inconsistent frozen forecast contents.
+    for ticket in search["tickets"]:
+        validate_ticket(ticket, game)
+        for area in AREAS:
+            if (not set(search["areas"][area]["required"]).issubset(ticket[area])
+                    or not set(search["areas"][area]["excluded"]).isdisjoint(
+                        ticket[area])):
+                raise ValueError("frozen candidate violates hard constraints")
     exact = sum(int(t["front"] == actual["front"] and
                     t["back"] == actual["back"]) for t in search["tickets"])
     return {**outcome, "exact_full_jackpot_hits": exact,
             "complete_tickets_searched": len(search["tickets"]),
             "retained_full_ticket_combinations":
                 search["retained_full_ticket_combinations"],
+            "frozen_candidates_satisfy_constraints": True,
             "edge": "NO_EDGE"}
 
 
