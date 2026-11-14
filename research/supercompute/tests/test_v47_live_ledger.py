@@ -65,42 +65,64 @@ class LiveScheduleLedgerTests(unittest.TestCase):
     def make_hedge_forecast(self, command, **kwargs):
         if not any(str(arg).endswith(".v47_hedge") for arg in command):
             return self.make_forecast(command, **kwargs)
+        game = command[command.index("--game") + 1]
+        source_path = Path(command[command.index("--" + game + "-data") + 1])
+        data = json.loads(source_path.read_bytes())
+        target = command[command.index("--" + game + "-target") + 1]
         outpath = Path(command[command.index("--output") + 1])
         freezedir = Path(command[command.index("--freeze-dir") + 1])
         freezedir.mkdir(parents=True, exist_ok=True)
-        games = {}
-        for game in ("ssq", "dlt"):
-            source_path = Path(command[command.index("--" + game + "-data") + 1])
-            data = json.loads(source_path.read_bytes())
-            target = command[command.index("--" + game + "-target") + 1]
-            from research.supercompute.v47_models import canonical
-            one = {"front": [1,3,7,10,20,31], "back": [5],
-                   "dan2": [1,3]} if game == "ssq" else {
-                   "front": [2,5,11,19,30], "back": [4,12],
-                   "dan2": [2,5]}
-            models = {}
-            for i in range(1, 12):
-                for sign in ("+", "-"):
-                    name = f"M{i:02d}{sign}"
-                    pred = {"ticket": one}
-                    if sign == "-":
-                        pred["excluded_pair"] = [15, 16]
-                    models[name] = {"direction": "subset" if sign == "+" else "not_subset",
-                                    "prediction": pred}
-            report = {"schema": "SSQDLT_V47_HEDGE22_GAME_V1",
-                      "game": game, "target_issue": target,
-                      "ticket_count": 22, "model_count": 22, "models": models,
-                      "history_sha256": hashlib.sha256(
-                          canonical(data["draws"])).hexdigest(),
-                      "historical_validation": {"models":
-                          {name: {} for name in models}}}
-            games[game] = report
-            (freezedir / f"{game}-{target}-hedge22.json").write_bytes(
-                canonical({"schema": "SSQDLT_V47_HEDGE22_FROZEN_V1",
-                           "created_utc": "2026-11-14T02:00:00+00:00",
-                           "source": report}))
-        outpath.write_bytes(canonical({"schema": "SSQDLT_V47_HEDGE44_RUN_V1",
-                                       "ticket_count": 44, "games": games}))
+        has_prior = "--previous" in command
+        prior = json.loads(Path(command[command.index("--previous") + 1]).read_bytes()) \
+            if has_prior else None
+        from research.supercompute.v47_registry import REGISTRY
+        from research.supercompute.v47_models import canonical
+        one = {"front": [1, 3, 7, 10, 20, 31], "back": [5],
+               "dan2": [1, 3]} if game == "ssq" else {
+               "front": [2, 5, 11, 19, 30], "back": [4, 12],
+               "dan2": [2, 5]}
+        models = {}
+        champions = {}
+        for i, cls in enumerate(REGISTRY, 1):
+            for sign in ("+", "-"):
+                name = f"M{i:02d}{sign}"
+                pred = {"ticket": one}
+                if sign == "-":
+                    pred["excluded_pair"] = [15, 16]
+                    genome = {"blend": .25, "recent_weight": .3,
+                              "pair_weight": .1}
+                    champions[cls.label] = genome
+                    ancestry = []
+                    if has_prior:
+                        old = prior["games"][game]["evolution"][
+                            "negative_champions"][cls.label]
+                        ancestry.append({"origin": "inherited", "genes": old})
+                    fit = {"cell_evolution": {"lineage": [
+                        {"evaluated": ancestry}]}}
+                else:
+                    fit = {"inherited": has_prior}
+                models[name] = {
+                    "base_name": cls.label,
+                    "fit": fit,
+                    "direction": "subset" if sign == "+" else "not_subset",
+                    "prediction": pred}
+        game_report = {"schema": "SSQDLT_V47_HEDGE22_GAME_V1",
+                       "game": game, "target_issue": target,
+                       "ticket_count": 22, "model_count": 22, "models": models,
+                       "history_sha256": hashlib.sha256(
+                           canonical(data["draws"])).hexdigest(),
+                       "historical_validation": {"models":
+                           {name: {} for name in models}},
+                       "evolution": {
+                           "base_champion": {"mix": .4},
+                           "negative_champions": champions}}
+        freezedir.joinpath(f"{game}-{target}-hedge22.json").write_bytes(
+            canonical({"schema": "SSQDLT_V47_HEDGE22_FROZEN_V1",
+                       "created_utc": "2026-11-14T02:00:00+00:00",
+                       "source": game_report}))
+        outpath.write_bytes(canonical({
+            "schema": "SSQDLT_V47_HEDGE22_RUN_V1",
+            "ticket_count": 22, "games": {game: game_report}}))
         return type("P", (), {"returncode": 0})()
 
     def test_real_issue_44_remote_receipts_and_postdraw_score(self):
@@ -112,7 +134,7 @@ class LiveScheduleLedgerTests(unittest.TestCase):
                        side_effect=self.make_hedge_forecast) as process:
                 first = record(home, sources, 333301, 1, "c"*40, "schedule",
                                first_now, include_hedge44=True)
-                self.assertEqual(process.call_count, 3)
+                self.assertEqual(process.call_count, 4)
                 self.assertEqual(len(first["hedge44_generated"]), 2)
                 self.assertEqual(first["hedge44_scored"], [])
                 self.assertFalse(any(x["previous_champion_inherited"]
@@ -150,6 +172,9 @@ class LiveScheduleLedgerTests(unittest.TestCase):
                                late, include_hedge44=True)
             self.assertEqual(len(third["hedge44_scored"]), 2)
             self.assertEqual([x["count"] for x in third["hedge44_scored"]], [22,22])
+            self.assertEqual(len(third["hedge44_generated"]), 1)
+            self.assertEqual(third["hedge44_generated"][0]["game"], "ssq")
+            self.assertTrue(third["hedge44_generated"][0]["previous_champion_inherited"])
             ledger = home / "research/v47_live_ledger"
             for game, target in (("ssq", "2026131"), ("dlt", "26130")):
                 score = json.loads((ledger / f"hedge44/scores/{game}-{target}.json").read_bytes())
