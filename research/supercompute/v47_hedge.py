@@ -547,8 +547,10 @@ def score_frozen(path, expected_sha256, actual):
     if str(actual.get("issue")) != payload["target_issue"]:
         raise ValueError("actual issue is not prediction target")
     validate_ticket(actual, game)
-    strict = (doc["schema"] == "SSQDLT_V47_HEDGE22_FROZEN_V2"
-              and "joint_search" in payload)
+    if (doc["schema"] == "SSQDLT_V47_HEDGE22_FROZEN_V2"
+            and "joint_search" not in payload):
+        raise ValueError("strict-disjoint freeze is missing its joint search")
+    strict = doc["schema"] == "SSQDLT_V47_HEDGE22_FROZEN_V2"
     if not strict:
         # Immutable old frozen forecasts must stay scoreable, but NEVER
         # rebrand their partial-exclusion target as a strict M- success.
