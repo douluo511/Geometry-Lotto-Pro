@@ -293,6 +293,13 @@ def record(worktree, source_dir, run_id, run_attempt, sha, event, now=None,
                         or game_report.get("joint_search", {}).get("schema") !=
                            "SSQDLT_V47_JOINT_HARD_CONSTRAINT_V1"
                         or len(game_report.get("joint_search", {}).get("tickets", [])) != 8
+                        or game_report.get("interval_search", {}).get("schema") !=
+                           "SSQDLT_V47_FOUR_AREA_INTERVAL_SEARCH_V1"
+                        or len(game_report.get("interval_search", {}).get("tickets", [])) != 8
+                        or set(game_report.get("interval_search", {}).get("areas", {})) !=
+                           {"front", "back"}
+                        or not game_report.get("interval_search", {}).get(
+                            "calibration", {}).get("validation_independent_of_selection")
                         or len(game_report.get("historical_validation", {}).get("models", {})) != 22
                         or game_report.get("target_issue") != target
                         or game_report.get("history_sha256") !=
