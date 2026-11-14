@@ -61,6 +61,7 @@ def verify(worktree):
         raise ValueError("live ledger record count mismatch")
     last_hash, ids, last_report_sha = ZERO, set(), {}
     last_hedge44_sha = None
+    last_hedge22_sha = {}
     for count, path in enumerate(records, 1):
         e = read(path)
         payload = {k: v for k, v in e.items() if k != "event_hash"}
@@ -84,6 +85,8 @@ def verify(worktree):
                 last_report_sha[item["game"]] = item["sha256"]
             if item["kind"] == "hedge44_report":
                 last_hedge44_sha = item["sha256"]
+            if item["kind"] == "hedge22_report":
+                last_hedge22_sha[item["game"]] = item["sha256"]
         ids.add(payload["run_id"])
         last_hash = e["event_hash"]
     if state["last_hash"] != last_hash:
@@ -97,9 +100,14 @@ def verify(worktree):
         if (not latest_hedge.is_file()
                 or digest(latest_hedge.read_bytes()) != last_hedge44_sha):
             raise ValueError("hedge 44-champion index changed")
+    for game, sha in last_hedge22_sha.items():
+        latest_per_game = root / f"latest_hedge22_{game}.json"
+        if (not latest_per_game.is_file() or
+                digest(latest_per_game.read_bytes()) != sha):
+            raise ValueError("per-game hedge-22 champion index changed")
     return {"status": "PASS", "count": len(records), "last_hash": last_hash,
             "run_ids": sorted(ids), "hedge44_index_verified":
-                last_hedge44_sha is not None}
+                last_hedge44_sha is not None or bool(last_hedge22_sha)}
 
 
 def record(worktree, source_dir, run_id, run_attempt, sha, event, now=None,
@@ -238,76 +246,96 @@ def record(worktree, source_dir, run_id, run_attempt, sha, event, now=None,
             cutoff_by_game[game] = next_nominal_draw(last["draw_date"], game)
             history_by_game[game] = source_rows
         root_hedge = root / "hedge44"
-        existing = [root_hedge / "frozen" /
-                    f"{g}-{target_by_game[g]}-hedge22.json"
-                    for g in ("ssq", "dlt")]
-        if any(x.exists() for x in existing):
-            if not all(x.exists() for x in existing):
-                raise ValueError("partial prior 44-model frozen issue pair")
-            hedge_pending.append({"status": "ALREADY_FROZEN",
-                                  "targets": target_by_game})
-        elif any(now.astimezone(CST) >= cutoff_by_game[g]
-                 for g in ("ssq", "dlt")):
-            hedge_pending.append({"status": "PUBLISHER_LATE_AFTER_DRAW",
-                                  "targets": target_by_game})
-        else:
-            future_report = (root_hedge / "reports" /
-                             f"ssq-{target_by_game['ssq']}_dlt-{target_by_game['dlt']}.json")
-            future_report.parent.mkdir(parents=True, exist_ok=True)
-            prior = root / "latest_hedge44.json"
-            had_previous_champion = prior.is_file()
-            cmd = [sys.executable, "-m",
-                   "research.supercompute.v47_hedge", "generate",
-                   "--ssq-data", str(source_dir / "ssq-verified-history.json"),
-                   "--dlt-data", str(source_dir / "dlt-verified-history.json"),
-                   "--ssq-target", target_by_game["ssq"],
-                   "--dlt-target", target_by_game["dlt"],
-                   "--output", str(future_report),
-                   "--freeze-dir", str(root_hedge / "frozen"),
-                   "--generations", "2", "--validation", "4",
-                   "--holdout", "3", "--mc-trials", "100",
-                   "--physics-steps", "8", "--seed", "2026"]
-            if prior.is_file():
-                cmd.extend(["--previous", str(prior)])
-            subprocess.run(cmd, check=True, timeout=600,
-                           stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            fresh = read(future_report)
-            if (fresh.get("schema") != "SSQDLT_V47_HEDGE44_RUN_V1"
-                    or fresh.get("ticket_count") != 44
-                    or set(fresh.get("games", {})) != {"ssq", "dlt"}):
-                raise ValueError("new scheduled 44-model report incomplete")
-            for game in ("ssq", "dlt"):
-                game_report = fresh["games"][game]
-                if (game_report.get("ticket_count") != 22
+        # SSQ and DLT draw on different weekdays. Each new issue must be
+        # independently frozen (22 arms), without treating the other game's
+        # pre-existing target as an invalid partial 44-row batch.
+        for game in ("ssq", "dlt"):
+            target = target_by_game[game]
+            freeze_path = root_hedge / "frozen" / f"{game}-{target}-hedge22.json"
+            cutoff = cutoff_by_game[game]
+            if freeze_path.is_file():
+                hedge_pending.append({"game": game, "target": target,
+                                      "status": "ALREADY_FROZEN"})
+            elif now.astimezone(CST) >= cutoff:
+                hedge_pending.append({"game": game, "target": target,
+                                      "status": "PUBLISHER_LATE_AFTER_DRAW"})
+            else:
+                historical = source_dir / f"{game}-verified-history.json"
+                report_path = root_hedge / "reports" / f"{game}-{target}.json"
+                report_path.parent.mkdir(parents=True, exist_ok=True)
+                freeze_path.parent.mkdir(parents=True, exist_ok=True)
+                prior = root / f"latest_hedge22_{game}.json"
+                if not prior.is_file():
+                    # Forward-compatible with existing combined 44-row reports.
+                    prior = root / "latest_hedge44.json"
+                has_prior = prior.is_file()
+                cmd = [sys.executable, "-m",
+                       "research.supercompute.v47_hedge", "generate",
+                       "--game", game,
+                       "--" + game + "-data", str(historical),
+                       "--" + game + "-target", target,
+                       "--output", str(report_path),
+                       "--freeze-dir", str(root_hedge / "frozen"),
+                       "--generations", "2", "--validation", "4",
+                       "--holdout", "3", "--mc-trials", "100",
+                       "--physics-steps", "8", "--seed", "2026"]
+                if has_prior:
+                    cmd.extend(["--previous", str(prior)])
+                subprocess.run(cmd, check=True, timeout=600,
+                               stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                report = read(report_path)
+                game_report = report.get("games", {}).get(game, {})
+                if (report.get("schema") != "SSQDLT_V47_HEDGE22_RUN_V1"
+                        or report.get("ticket_count") != 22
+                        or set(report.get("games", {})) != {game}
+                        or game_report.get("ticket_count") != 22
                         or game_report.get("model_count") != 22
                         or len(game_report.get("historical_validation", {}).get("models", {})) != 22
-                        or game_report.get("target_issue") != target_by_game[game]
+                        or game_report.get("target_issue") != target
                         or game_report.get("history_sha256") !=
                            publisher["games"][game]["history_sha256"]):
-                    raise ValueError("scheduled 22-arm evidence/snapshot disagreement")
-                freeze_path = existing[0 if game == "ssq" else 1]
+                    raise ValueError("per-game 22-arm report/source validation failed")
+                if has_prior:
+                    prior_report = read(prior)
+                    previous_game = prior_report["games"][game]["evolution"]
+                    if (game_report["models"]["M05+"]["fit"]["inherited"]
+                            is not True):
+                        raise ValueError("positive challenger champion did not transfer")
+                    for model_number in range(1, 12):
+                        model_id = f"M{model_number:02d}-"
+                        item = game_report["models"][model_id]
+                        lineage = item["fit"]["cell_evolution"]["lineage"]
+                        old_genome = previous_game["negative_champions"][
+                            item["base_name"]]
+                        if not any(cell["origin"] == "inherited"
+                                   and cell["genes"] == old_genome
+                                   for cell in lineage[0]["evaluated"]):
+                            raise ValueError(f"negative champion not really inherited: {model_id}")
                 frozen = read(freeze_path)
                 stamp = datetime.fromisoformat(frozen["created_utc"])
                 if (stamp.tzinfo is None
-                        or stamp.astimezone(CST) >= cutoff_by_game[game]
+                        or stamp.astimezone(CST) >= cutoff
                         or frozen["source"]["ticket_count"] != 22
-                        or frozen["source"]["target_issue"] != target_by_game[game]):
-                    raise ValueError("invalid/late per-game 22-arm frozen receipt")
-                rawf = freeze_path.read_bytes()
+                        or frozen["source"]["target_issue"] != target):
+                    raise ValueError("per-game 22-arm freeze was late or incomplete")
+                frozen_raw = freeze_path.read_bytes()
                 files.append({"kind": "hedge44_frozen", "game": game,
                               "path": str(Path("hedge44/frozen") / freeze_path.name),
-                              "sha256": digest(rawf)})
-                hedge_generated.append({"game": game,
-                    "target_issue": target_by_game[game], "count": 22,
-                    "frozen_sha256": digest(rawf),
-                    "previous_champion_inherited": had_previous_champion})
-            rawreport = future_report.read_bytes()
-            files.append({"kind": "hedge44_report",
-                          "path": str(Path("hedge44/reports") / future_report.name),
-                          "sha256": digest(rawreport)})
-            create(root / "latest_hedge44.next.json", rawreport)
-            os.replace(root / "latest_hedge44.next.json",
-                       root / "latest_hedge44.json")
+                              "sha256": digest(frozen_raw)})
+                report_raw = report_path.read_bytes()
+                files.append({"kind": "hedge22_report", "game": game,
+                              "path": str(Path("hedge44/reports") / report_path.name),
+                              "sha256": digest(report_raw)})
+                hedge_generated.append({
+                    "game": game, "target_issue": target, "count": 22,
+                    "frozen_sha256": digest(frozen_raw),
+                    "previous_champion_inherited": has_prior})
+                next_index = root / f"latest_hedge22_{game}.next.json"
+                create(next_index, report_raw)
+                os.replace(next_index, root / f"latest_hedge22_{game}.json")
+        # Independently settle each game's earlier immutable frozen issues.
+        # Later published dates are genuine outcomes only after source receipt
+        # verified and raw publisher bytes persisted in this same event.
         for game in ("ssq", "dlt"):
             actuals = history_by_game[game]
             for frozen in sorted((root_hedge / "frozen").glob(
@@ -319,11 +347,11 @@ def record(worktree, source_dir, run_id, run_attempt, sha, event, now=None,
                 score_path = root_hedge / "scores" / f"{game}-{target}.json"
                 if score_path.exists():
                     continue
-                frozen_raw = frozen.read_bytes()
-                result = score_hedge_frozen(frozen, digest(frozen_raw),
+                result = score_hedge_frozen(frozen,
+                                            digest(frozen.read_bytes()),
                                             actuals[target])
                 if result["count"] != 22:
-                    raise ValueError("incomplete postdraw hedge scores")
+                    raise ValueError("partial published-draw hedge scoring")
                 born = datetime.fromisoformat(document["created_utc"])
                 nominal = datetime.combine(
                     date.fromisoformat(actuals[target]["draw_date"]),
@@ -341,7 +369,7 @@ def record(worktree, source_dir, run_id, run_attempt, sha, event, now=None,
                 hedge_scored.append({"game": game, "issue": target,
                                      "count": 22,
                                      "before_nominal_draw":
-                                        result["created_before_nominal_draw"]})
+                                         result["created_before_nominal_draw"]})
 
     sequence = previous["count"] + 1
     payload = {"schema": SCHEMA, "sequence": sequence,
