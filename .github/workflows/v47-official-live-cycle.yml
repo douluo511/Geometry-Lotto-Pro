@@ -1,0 +1,64 @@
+name: V4.7 official live source and issue-scoring gate
+
+on:
+  schedule:
+    # 18:41 and 23:41 Beijing (UTC+8); GitHub may delay/skip schedules.
+    - cron: '41 10,15 * * *'
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'research/supercompute/v47_official_ingest.py'
+      - 'research/supercompute/v47_official_score.py'
+      - 'research/supercompute/v47_live_ledger.py'
+      - 'research/supercompute/tests/test_v47_official_*.py'
+      - '.github/workflows/v47-official-live-cycle.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: v47-official-live-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  official-source-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Official HTML parser and post-publication score contract tests
+        run: |
+          python -m unittest discover -s research/supercompute/tests -p 'test_v47_official_ingest.py' -v
+          python -m unittest discover -s research/supercompute/tests -p 'test_v47_official_score.py' -v
+      - name: Build checked-in seed and issued-draw delta without modifying either
+        run: python -m research.supercompute.v47_merge_history --output-dir "$RUNNER_TEMP/v47-published"
+      - name: Fetch and cross-check two independently published issuer HTML tables
+        id: live
+        continue-on-error: true
+        run: |
+          python -m research.supercompute.v47_official_ingest \
+            --ssq-data "$RUNNER_TEMP/v47-published/ssq-merged-history.json" \
+            --dlt-data "$RUNNER_TEMP/v47-published/dlt-merged-history.json" \
+            --out-dir "$RUNNER_TEMP/v47-live"
+      - name: Show explicit authentication/failure result
+        if: always()
+        shell: bash
+        run: |
+          if [ "${{ steps.live.outcome }}" = success ]; then
+            echo 'PUBLISHER_TABLE_OVERLAP=PASS; SIGNED_ISSUER_ATTESTATION=UNVERIFIED' | tee -a "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'PUBLISHER_TABLE_OVERLAP=UNVERIFIED; NO_FORECAST_OR_SCORE_ALLOWED' | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Publish read-only issuer source evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v47-live-source-check-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/v47-published/merge-receipt.json
+            ${{ runner.temp }}/v47-live/official-ingest-receipt.json
+            ${{ runner.temp }}/v47-live/failure-receipt.json
+          if-no-files-found: error
