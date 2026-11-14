@@ -199,24 +199,26 @@ class NegativeBase:
             raise ValueError("negative model used without its fit")
         maximum, picked, backmax, backpick = SPECS[game]
         sample = history[-120:]
-        co = Counter(pair for row in sample
-                     for pair in itertools.combinations(row["front"], 2))
         prior = 12
         fair = fair_pair(game)
+        # Count both absent in each historical draw; not merely one absent.
+        absent_counts = Counter(
+            pair for row in sample
+            for pair in itertools.combinations(
+                sorted(set(range(1, maximum + 1)) - set(row["front"])), 2))
         contenders = []
+        blend = self.evolution["champion"]["pair_weight"]
         for a, b in itertools.combinations(range(1, maximum + 1), 2):
-            pair_rate = (co[(a, b)] + prior * fair["subset"]) / (len(sample) + prior)
-            mass = max(1e-6, .5 * pair_rate + .5 *
-                       (1 - self.anti[a]) * (1 - self.anti[b]))
-            uncertainty = self.evolution["champion"]["pair_weight"]
-            utility = -math.log(mass) - uncertainty * max(
-                -4, min(4, self.residual[(a,b)])) / max(1, len(sample))
-            contenders.append((utility, a, b, mass))
+            observed_joint = (absent_counts[(a, b)] +
+                              prior * fair["disjoint"]) / (len(sample) + prior)
+            proxy = self.anti[a] * self.anti[b]
+            mass = max(1e-5, min(1 - 1e-5,
+                (1 - blend) * observed_joint + blend * proxy))
+            contenders.append((mass, a, b))
         contenders.sort(key=lambda x: (-x[0], x[1], x[2]))
-        _, a, b, pair_mass = contenders[0]
+        disjoint_mass, a, b = contenders[0]
         self.excluded_pair = [a, b]
-        # Hard exclusion is stronger than the requested logical event; score
-        # the two separately, never confuse E not-subset B with E disjoint B.
+        # Hard exclusion constrains the candidate ticket, not the actual draw.
         front_pool = sorted((n for n in range(1, maximum + 1)
                              if n not in self.excluded_pair),
                             key=lambda n: (-self.candidate[n], n))[:max(11, picked + 5)]
@@ -246,13 +248,12 @@ class NegativeBase:
         if not set(self.excluded_pair).isdisjoint(ticket["front"]):
             raise ValueError("negative exclusion constraint violated")
         return {"ticket": ticket, "excluded_pair": self.excluded_pair,
-                "estimated_pair_subset_probability": pair_mass,
-                "estimated_not_subset_probability": 1 - pair_mass,
+                "estimated_disjoint_probability": disjoint_mass,
                 "anti_marginals": self.anti,
                 "candidate_marginals": {"front": self.candidate, "back": self.back},
                 "fair_baseline": fair,
-                "logical_event": "EXCLUDED_PAIR_NOT_SUBSET_OF_DRAW",
-                "stronger_disjoint_event_separate": True,
+                "logical_event": "EXCLUDED_PAIR_DISJOINT_FROM_DRAW",
+                "success_requires_zero_excluded_hits": True,
                 "candidate_uses_hard_exclusion": True,
                 "method": self.method,
                 "source_positive_name": self.label,
@@ -266,9 +267,10 @@ class NegativeBase:
         if len(excluded) != 2 or len(set(excluded)) != 2:
             raise ValueError("invalid excluded pair")
         included = set(ticket["dan2"]).issubset(actual["front"])
-        non_subset = not set(excluded).issubset(actual["front"])
-        return {"negative_event_not_subset": non_subset,
-                "stronger_event_disjoint": set(excluded).isdisjoint(actual["front"]),
+        excluded_hits = len(set(excluded) & set(actual["front"]))
+        return {"negative_event_disjoint": excluded_hits == 0,
+                "excluded_hits": excluded_hits,
+                "partial_exclusion_is_not_success": True,
                 "front_hits": len(set(ticket["front"]) & set(actual["front"])),
                 "back_hits": len(set(ticket["back"]) & set(actual["back"])),
                 "candidate_d2_hit": included,
