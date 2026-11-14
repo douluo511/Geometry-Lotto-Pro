@@ -189,6 +189,49 @@ class LiveScheduleLedgerTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 verify(home)
 
+    def test_mismatched_draw_dates_freeze_only_new_dlt_and_score_prior_dlt(self):
+        """SSQ stays on its frozen Sunday issue while DLT advances on Saturday."""
+        with tempfile.TemporaryDirectory() as temp:
+            home = Path(temp)
+            sources = self.make_sources(home)
+            original = datetime(2026, 11, 14, 9, 0, tzinfo=timezone.utc)
+            with patch("research.supercompute.v47_live_ledger.subprocess.run",
+                       side_effect=self.make_hedge_forecast):
+                first = record(home, sources, 555501, 1, "d"*40, "schedule",
+                               original, include_hedge44=True)
+            self.assertEqual(len(first["hedge44_generated"]), 2)
+            # DLT published Saturday's numbers, SSQ Sunday's target is still
+            # pending. This is the normal real-world case, not a bad partial
+            # pair, and must NEVER block a new DLT ticket/score.
+            path = sources / "dlt-verified-history.json"
+            data = json.loads(path.read_bytes())
+            data["draws"].append(dict(data["draws"][-1],
+                                      issue="26130", draw_date="2026-11-14"))
+            path.write_bytes(canonical(data))
+            rec_path = sources / "official-ingest-receipt.json"
+            receipt = json.loads(rec_path.read_bytes())
+            receipt["games"]["dlt"]["history_sha256"] = hashlib.sha256(
+                canonical(data["draws"])).hexdigest()
+            receipt["games"]["dlt"]["new_target_issue"] = "26131"
+            rec_path.write_bytes(canonical(receipt))
+            later = datetime(2026, 11, 15, 2, 0, tzinfo=timezone.utc)
+            with patch("research.supercompute.v47_live_ledger.subprocess.run",
+                       side_effect=self.make_hedge_forecast) as process:
+                result = record(home, sources, 555502, 1, "d"*40, "schedule",
+                                later, include_hedge44=True)
+                self.assertEqual(process.call_count, 2)
+            self.assertEqual([x["game"] for x in result["hedge44_generated"]],
+                             ["dlt"])
+            self.assertEqual(result["hedge44_generated"][0]["target_issue"], "26131")
+            self.assertTrue(
+                result["hedge44_generated"][0]["previous_champion_inherited"])
+            self.assertEqual(result["hedge44_pending"][0]["game"], "ssq")
+            self.assertEqual(result["hedge44_pending"][0]["status"], "ALREADY_FROZEN")
+            self.assertEqual(result["hedge44_scored"][0]["game"], "dlt")
+            self.assertEqual(result["hedge44_scored"][0]["issue"], "26130")
+            self.assertEqual(result["hedge44_scored"][0]["count"], 22)
+            self.assertEqual(verify(home)["count"], 2)
+
     def test_two_genuine_context_receipts_and_recovery(self):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
