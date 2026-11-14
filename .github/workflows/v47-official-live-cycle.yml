@@ -65,9 +65,10 @@ jobs:
               target = data['games'][game]['new_target_issue']
               if target != str(int(last['issue']) + 1):
                   raise SystemExit('LIVE_ISSUE_INCONSISTENT')
-              with open(os.environ['GITHUB_ENV'], 'a') as f:
+              with open(root + '/targets.env', 'a') as f:
                   f.write(game.upper() + '_TARGET=' + target + '\n')
           PY
+          source "$RUNNER_TEMP/v47-live/targets.env"
           python -m research.supercompute.v47_forecast generate \
             --game both \
             --ssq-data "$RUNNER_TEMP/v47-live/ssq-verified-history.json" \
