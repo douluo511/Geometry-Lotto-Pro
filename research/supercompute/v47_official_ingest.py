@@ -31,30 +31,33 @@ TWO_DIGIT = re.compile(r"\d{2}")
 
 
 class ResultTable(HTMLParser):
+    """Extract table cell text, ignoring nested tags and HTML void elements.
+
+    Publisher rows embed images and icons in later cells; these must not
+    prevent the row closing when the browser sees an HTML void <img>.
+    """
     def __init__(self):
         super().__init__(convert_charrefs=True)
         self.rows = []
         self.row = None
         self.cell = None
-        self.depth = 0
 
     def handle_starttag(self, tag, attrs):
         if tag == "tr":
             self.row = []
-        elif tag == "td" and self.row is not None and self.cell is None:
+            self.cell = None
+        elif tag == "td" and self.row is not None:
+            if self.cell is not None:
+                raise ValueError("nested table cell")
             self.cell = []
-            self.depth = 1
-        elif self.cell is not None:
-            self.depth += 1
 
     def handle_endtag(self, tag):
-        if self.cell is not None:
-            self.depth -= 1
-            if tag == "td" and self.depth <= 0:
-                self.row.append("".join(self.cell).strip())
-                self.cell = None
-                self.depth = 0
+        if tag == "td" and self.cell is not None:
+            self.row.append("".join(self.cell).strip())
+            self.cell = None
         elif tag == "tr" and self.row is not None:
+            if self.cell is not None:
+                raise ValueError("unclosed publisher cell")
             if self.row:
                 self.rows.append(self.row)
             self.row = None
