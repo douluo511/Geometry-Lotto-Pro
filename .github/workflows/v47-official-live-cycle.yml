@@ -91,6 +91,21 @@ jobs:
                      len(x['validation']['M3'])==11 for x in p['games'].values())
           print('V47_LIVE_REAL_TARGET_22_ROWS_PASS')
           PY
+      - name: Exercise full live ledger in isolated PR dry-run (never count as actual schedule)
+        if: github.event_name == 'pull_request' && steps.live.outcome == 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/v47-ledger-dry-run"
+          python -m research.supercompute.v47_live_ledger record \
+            --ledger "$RUNNER_TEMP/v47-ledger-dry-run" \
+            --source-dir "$RUNNER_TEMP/v47-live" \
+            --run-id 999111 --run-attempt 1 \
+            --commit-sha "$GITHUB_SHA" --event schedule \
+            | tee "$RUNNER_TEMP/v47-live/ledger-dry-run.json"
+          python -m research.supercompute.v47_live_ledger verify \
+            --ledger "$RUNNER_TEMP/v47-ledger-dry-run"
+          echo 'LEDGER_DRY_RUN_ONLY: no actual event=schedule and no remote ledger write' >> "$GITHUB_STEP_SUMMARY"
       - name: Show explicit authentication/failure result
         if: always()
         shell: bash
@@ -113,6 +128,7 @@ jobs:
             ${{ runner.temp }}/v47-live/ssq-publisher-raw.html
             ${{ runner.temp }}/v47-live/dlt-publisher-raw.html
             ${{ runner.temp }}/v47-live/research-22.json
+            ${{ runner.temp }}/v47-live/ledger-dry-run.json
             ${{ runner.temp }}/v47-live/frozen/
             ${{ runner.temp }}/v47-live/published-scores/
             ${{ runner.temp }}/v47-live/failure-receipt.json
