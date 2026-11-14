@@ -135,6 +135,14 @@ class UnifiedPredictionTest(unittest.TestCase):
             for game, payload in saved["games"].items():
                 tickets = payload["proposed_tickets"]
                 self.assertEqual(payload["ticket_count"], 11)
+                self.assertEqual(len(payload["validation"]["M2"]), 11)
+                self.assertEqual(len(payload["validation"]["M3"]), 11)
+                self.assertEqual(payload["full_model_validation"], "PASS")
+                audit = payload["independent_11"]["validation_all_11"]
+                self.assertEqual(audit["model_count"], 11)
+                self.assertEqual(len(audit["fold_evidence"]), 2)
+                self.assertTrue(all(v["m3"]["recalibrated"]["samples"] > 0
+                                    for v in audit["models"].values()))
                 self.assertEqual(len(tickets), 11)
                 self.assertEqual([t["model_number"] for t in tickets], list(range(1, 12)))
                 self.assertEqual([t["model_name"] for t in tickets],
