@@ -77,6 +77,20 @@ jobs:
             --ssq-public-latest 2026130 \
             --dlt-public-latest 26129 \
             --output "$RUNNER_TEMP/v47-execution-evidence.json"
+      - name: Verify cross-run inherited champion with two actual completed computations
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m research.supercompute.v47_forecast generate \
+            --game both \
+            --ssq-data "$RUNNER_TEMP/v47-current/ssq-merged-history.json" \
+            --dlt-data "$RUNNER_TEMP/v47-current/dlt-merged-history.json" \
+            --previous "$RUNNER_TEMP/v47-executed-11.json" \
+            --ssq-target 2026131 --dlt-target 26130 \
+            --seed 20261115 --generations 1 --validation 3 \
+            --holdout 2 --mc-trials 30 --physics-steps 3 \
+            --output "$RUNNER_TEMP/v47-cross-run-inherited.json"
+          python -c "import json,sys; a=json.load(open(sys.argv[1])); b=json.load(open(sys.argv[2])); assert all(b['games'][g]['independent_11']['models']['Challenger']['fit']['inherited'] and b['games'][g]['evolution']['inherited_parent_present_in_initial_population'] and b['games'][g]['evolution']['inherited_champion_id']==a['games'][g]['evolution']['champion_id'] for g in ('ssq','dlt')); print('CROSS_RUN_GENOME_INHERITANCE_PASS')" "$RUNNER_TEMP/v47-executed-11.json" "$RUNNER_TEMP/v47-cross-run-inherited.json"
       - name: Persist complete research output, eleven-model traces, and frozen SHA256 receipts
         uses: actions/upload-artifact@v4
         with:
@@ -85,6 +99,7 @@ jobs:
             ${{ runner.temp }}/v47-executed-11.json
             ${{ runner.temp }}/v47-execution-evidence.json
             ${{ runner.temp }}/v47-current/merge-receipt.json
+            ${{ runner.temp }}/v47-cross-run-inherited.json
             ${{ runner.temp }}/v47-frozen/
           retention-days: 90
           if-no-files-found: error
