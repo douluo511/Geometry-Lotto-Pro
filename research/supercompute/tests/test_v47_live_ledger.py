@@ -117,6 +117,20 @@ class LiveScheduleLedgerTests(unittest.TestCase):
                                "excluded": [15, 16]},
                            "tickets": [one] * 8,
                            "fair_probability_constraints_all_correct": .02},
+                       "interval_search": {
+                           "schema": "SSQDLT_V47_FOUR_AREA_INTERVAL_SEARCH_V1",
+                           "game": game,
+                           "profile": {
+                               "front_include": 2, "front_exclude": 2,
+                               "back_include": 0, "back_exclude": 0},
+                           "areas": {
+                               "front": {"required": [1, 3] if game == "ssq"
+                                         else [2, 5], "excluded": [15, 16]},
+                               "back": {"required": [], "excluded": []}},
+                           "tickets": [one] * 8,
+                           "retained_full_ticket_combinations": 100,
+                           "calibration": {
+                               "validation_independent_of_selection": True}},
                        "history_sha256": hashlib.sha256(
                            canonical(data["draws"])).hexdigest(),
                        "historical_validation": {"models":
@@ -192,6 +206,8 @@ class LiveScheduleLedgerTests(unittest.TestCase):
                 self.assertEqual(len(score["models"]), 22)
                 self.assertTrue(score["strict_disjoint_verified"])
                 self.assertIn("joint", score)
+                self.assertIn("interval", score)
+                self.assertIn("all_area_constraints_survived", score["interval"])
                 self.assertFalse(score["trusted_predraw_seal"])
             self.assertEqual(verify(home)["count"], 3)
             item = next((ledger / "hedge44/frozen").glob("ssq-*-hedge22.json"))

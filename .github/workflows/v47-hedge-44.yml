@@ -4,6 +4,8 @@ on:
     paths:
       - 'research/supercompute/v47_hedge.py'
       - 'research/supercompute/v47_joint_filter.py'
+      - 'research/supercompute/v47_interval_search.py'
+      - 'research/supercompute/tests/test_v47_interval_search.py'
       - 'research/supercompute/tests/test_v47_joint_filter.py'
       - 'research/supercompute/tests/test_v47_hedge.py'
       - '.github/workflows/v47-hedge-44.yml'
@@ -29,6 +31,7 @@ jobs:
         run: python -m py_compile research/supercompute/v47_hedge.py
       - name: Prove twenty-two model registry, set algebra, mutation, scoring, no leakage
         run: |
+          python -m unittest discover -s research/supercompute/tests -p 'test_v47_interval_search.py' -v
           python -m unittest discover -s research/supercompute/tests -p 'test_v47_joint_filter.py' -v
           python -m unittest discover -s research/supercompute/tests -p 'test_v47_hedge.py' -v
       - name: Reconstruct previously verified issue-continuous as-of input (not live verified)
@@ -74,6 +77,19 @@ jobs:
               assert require.isdisjoint(exclude)
               assert all(require.issubset(t['front']) and exclude.isdisjoint(t['front']) for t in joint['tickets'])
               assert v['historical_validation']['joint']['folds']
+              interval=v['interval_search']
+              assert interval['schema']=='SSQDLT_V47_FOUR_AREA_INTERVAL_SEARCH_V1'
+              assert interval['model_records_used']==22 and interval['ticket_count']==8
+              assert set(interval['areas'])=={'front','back'}
+              assert set(interval['profile'])=={'front_include','front_exclude','back_include','back_exclude'}
+              assert interval['retained_full_ticket_combinations']>0
+              assert interval['retained_full_ticket_combinations']<=interval['original_full_ticket_combinations']
+              for t in interval['tickets']:
+                  for area in ('front','back'):
+                      assert set(interval['areas'][area]['required']).issubset(t[area])
+                      assert not (set(interval['areas'][area]['excluded']) & set(t[area]))
+              assert interval['calibration']['validation_independent_of_selection']
+              assert interval['calibration']['edge']=='NO_EDGE'
               assert doc['source']['model_count']==22
               print('V47_HEDGE_FREEZE_SHA256',g,hashlib.sha256(frozen.read_bytes()).hexdigest())
           print('V47_HEDGE_44_ACCEPTANCE_PASS',hashlib.sha256(raw).hexdigest())
@@ -102,6 +118,7 @@ jobs:
               record=item['games'][game]
               assert len(record['models'])==22
               assert record['joint_search']['ticket_count']==8
+              assert record['interval_search']['ticket_count']==8
               assert record['models']['M05+']['fit']['inherited']
               assert all(record['models'][f'M{i:02d}-']['fit']['cell_evolution']['previous_inherited']
                          for i in range(1,12))

@@ -25,6 +25,9 @@ from research.supercompute.v47_models import (
 )
 from research.supercompute.v47_registry import REGISTRY, execute_eleven
 from research.supercompute.v47_joint_filter import construct_joint_search, score_joint_search
+from research.supercompute.v47_interval_search import (
+    calibrate_profiles, construct_interval_search, score_interval_search,
+)
 
 
 def fair_pair(game):
@@ -421,6 +424,7 @@ def historical_audit(rows, game, *, seed, holdout, validation, mc_trials,
     series = {name: [] for name, _ in REGISTRY_22}
     fold_issues = []
     joint_folds = []
+    interval_folds = []
     for idx in range(len(rows) - holdout, len(rows)):
         past, actual = rows[:idx], rows[idx]
         _, predictions = _run_22_core(
@@ -430,6 +434,7 @@ def historical_audit(rows, game, *, seed, holdout, validation, mc_trials,
         fold_issues.append({"train_last": str(past[-1]["issue"]),
                             "test_issue": str(actual["issue"]),
                             "test_ignored_during_fit": True})
+        interval_folds.append({"records": predictions, "actual": actual})
         joint_prediction = construct_joint_search(predictions, game, limit=8)
         joint_result = score_joint_search(joint_prediction, actual, game)
         joint_folds.append({
@@ -477,7 +482,9 @@ def historical_audit(rows, game, *, seed, holdout, validation, mc_trials,
             "fair_event_probability": fair_prob,
             "direction": "subset" if positive else "disjoint",
             "not_prospective_edge": True}
+    interval_calibration = calibrate_profiles(interval_folds, game)
     return {"status": "PASS", "models": audits, "model_count": 22,
+            "interval_calibration": interval_calibration,
             "folds": fold_issues, "joint": {
                 "folds": joint_folds,
                 "survived_count": sum(int(x["events"]["joint_filter_keeps_actual_front"])
@@ -506,6 +513,9 @@ def run_hedge22(rows, game, target, *, seed=2026, generations=2,
                              validation=validation, mc_trials=mc_trials,
                              physics_steps=physics_steps)
     joint = construct_joint_search(records, game, limit=8)
+    interval_search = construct_interval_search(
+        records, game, audit["interval_calibration"]["profile"], limit=8)
+    interval_search["calibration"] = audit["interval_calibration"]
     tickets = []
     for record in records:
         ticket = dict(record["prediction"]["ticket"])
@@ -523,6 +533,7 @@ def run_hedge22(rows, game, target, *, seed=2026, generations=2,
             "models": {r["model_id"]: r for r in records},
             "model_count": 22, "ticket_count": 22,
             "tickets": tickets, "joint_search": joint,
+            "interval_search": interval_search,
             "historical_validation": audit,
             "evolution": {
                 "base_champion": base["champion_genome"],
@@ -579,6 +590,9 @@ def score_frozen(path, expected_sha256, actual):
                 name: score_one(record, actual, game)
                 for name, record in payload["models"].items()},
             "joint": score_joint_search(payload["joint_search"], actual, game),
+            "interval": (score_interval_search(payload["interval_search"], actual, game)
+                         if "interval_search" in payload else {
+                             "status": "NOT_AVAILABLE_IN_OLD_V2_FREEZE"}),
             "strict_disjoint_verified": True}
 
 
@@ -668,6 +682,14 @@ def main(argv=None):
                             "retained_front": v["joint_search"]["retained_front_combinations"],
                             "original_front": v["joint_search"]["original_front_combinations"],
                             "ranked_tickets": v["joint_search"]["tickets"]},
+                        "interval": {
+                            "profile": v["interval_search"]["profile"],
+                            "front": v["interval_search"]["areas"]["front"],
+                            "back": v["interval_search"]["areas"]["back"],
+                            "retained_full": v["interval_search"]["retained_full_ticket_combinations"],
+                            "original_full": v["interval_search"]["original_full_ticket_combinations"],
+                            "heldout": v["historical_validation"]["interval_calibration"]["heldout_outcome"],
+                            "ranked_tickets": v["interval_search"]["tickets"]},
                         "tickets": v["tickets"]}
                   for game, v in games.items()}}, ensure_ascii=False))
 
