@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 from html.parser import HTMLParser
 import hashlib
 import json
@@ -136,6 +137,9 @@ def append_verified(base, fetched, game, *, minimum_overlap=3):
     validate_history(base, game)
     known = {str(x["issue"]): x for x in base}
     overlaps = [x for x in fetched if x["issue"] in known]
+    if fetched[-1]["draw_date"] > datetime.now(
+            ZoneInfo("Asia/Shanghai")).date().isoformat():
+        raise ValueError("publisher has future-dated winning numbers")
     if len(overlaps) < minimum_overlap:
         raise ValueError("insufficient overlap with frozen history")
     for row in overlaps:
