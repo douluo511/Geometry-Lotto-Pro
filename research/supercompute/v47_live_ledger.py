@@ -99,7 +99,7 @@ def verify(worktree):
             raise ValueError("hedge 44-champion index changed")
     return {"status": "PASS", "count": len(records), "last_hash": last_hash,
             "run_ids": sorted(ids), "hedge44_index_verified":
-                last_hedge44_sha is None or True}
+                last_hedge44_sha is not None}
 
 
 def record(worktree, source_dir, run_id, run_attempt, sha, event, now=None,
@@ -255,6 +255,7 @@ def record(worktree, source_dir, run_id, run_attempt, sha, event, now=None,
                              f"ssq-{target_by_game['ssq']}_dlt-{target_by_game['dlt']}.json")
             future_report.parent.mkdir(parents=True, exist_ok=True)
             prior = root / "latest_hedge44.json"
+            had_previous_champion = prior.is_file()
             cmd = [sys.executable, "-m",
                    "research.supercompute.v47_hedge", "generate",
                    "--ssq-data", str(source_dir / "ssq-verified-history.json"),
@@ -299,7 +300,7 @@ def record(worktree, source_dir, run_id, run_attempt, sha, event, now=None,
                 hedge_generated.append({"game": game,
                     "target_issue": target_by_game[game], "count": 22,
                     "frozen_sha256": digest(rawf),
-                    "previous_champion_inherited": prior.is_file()})
+                    "previous_champion_inherited": had_previous_champion})
             rawreport = future_report.read_bytes()
             files.append({"kind": "hedge44_report",
                           "path": str(Path("hedge44/reports") / future_report.name),
