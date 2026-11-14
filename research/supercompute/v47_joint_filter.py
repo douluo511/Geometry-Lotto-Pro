@@ -13,6 +13,7 @@ import itertools
 import math
 
 from research.supercompute.v47_models import SPECS, validate_ticket
+from research.supercompute.v47_set_relations import evaluate_relation
 
 
 def fair_constraint_probability(game, required_size=2, excluded_size=2):
@@ -205,13 +206,19 @@ def score_joint_search(search, actual, game):
     req = set(search["constraints"]["required"])
     ex = set(search["constraints"]["excluded"])
     actual_front = set(actual["front"])
-    pos = req.issubset(actual_front)
-    neg = ex.isdisjoint(actual_front)
+    plus = evaluate_relation(game, "front", sorted(req), actual)
+    minus = evaluate_relation(game, "front", sorted(ex), actual)
+    pos = plus["contained"]
+    neg = minus["disjoint"]
     full = [t for t in search["tickets"]
             if t["front"] == actual["front"] and t["back"] == actual["back"]]
     return {
         "required_all_appear": pos,
         "excluded_all_absent": neg,
+        "positive_membership": plus,
+        "negative_membership": minus,
+        "negative_partial_not_subset_is_not_m_minus_success":
+            minus["not_contained"] and not minus["disjoint"],
         "joint_filter_keeps_actual_front": pos and neg,
         "winning_front_in_retained_space": pos and neg,
         "exact_jackpot_ticket_hits": len(full),
