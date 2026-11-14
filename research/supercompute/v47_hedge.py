@@ -516,10 +516,11 @@ def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__)
     sub = p.add_subparsers(dest="command", required=True)
     g = sub.add_parser("generate")
-    g.add_argument("--ssq-data", type=Path, required=True)
-    g.add_argument("--dlt-data", type=Path, required=True)
-    g.add_argument("--ssq-target", required=True)
-    g.add_argument("--dlt-target", required=True)
+    g.add_argument("--game", choices=("both", "ssq", "dlt"), default="both")
+    g.add_argument("--ssq-data", type=Path)
+    g.add_argument("--dlt-data", type=Path)
+    g.add_argument("--ssq-target")
+    g.add_argument("--dlt-target")
     g.add_argument("--output", type=Path, required=True)
     g.add_argument("--freeze-dir", type=Path, required=True)
     g.add_argument("--previous", type=Path)
@@ -539,13 +540,19 @@ def main(argv=None):
                                      json.loads(args.actual.read_bytes())),
                          ensure_ascii=False))
         return
+    selected = ("ssq", "dlt") if args.game == "both" else (args.game,)
+    for game in selected:
+        if getattr(args, game + "_data") is None or not getattr(args, game + "_target"):
+            raise ValueError("a data path and target issue are required per selected game")
     previous = json.loads(args.previous.read_bytes()) if args.previous else None
     if previous and previous.get("schema") == "SSQDLT_V47_HEDGE22_FROZEN_V1":
-        previous = previous["source"]
-    if previous and previous.get("schema") != "SSQDLT_V47_HEDGE44_RUN_V1":
-        raise ValueError("prior 44-row run schema mismatch")
+        previous = {"schema": "SSQDLT_V47_HEDGE22_RUN_V1",
+                    "games": {previous["source"]["game"]: previous["source"]}}
+    if previous and previous.get("schema") not in (
+            "SSQDLT_V47_HEDGE44_RUN_V1", "SSQDLT_V47_HEDGE22_RUN_V1"):
+        raise ValueError("previous hedge run has incompatible schema")
     games = {}
-    for game in ("ssq", "dlt"):
+    for game in selected:
         data = json.loads(getattr(args, game + "_data").read_bytes())
         rows = data["draws"]
         prior = previous["games"][game]["evolution"] if previous else None
@@ -556,9 +563,12 @@ def main(argv=None):
                                   mc_trials=args.mc_trials,
                                   physics_steps=args.physics_steps,
                                   previous=prior)
-    report = {"schema": "SSQDLT_V47_HEDGE44_RUN_V1", "games": games,
-              "model_count_per_game": 22, "ticket_count": 44,
-              "edge": "NO_EDGE", "formal_prediction": False}
+    count = sum(v["ticket_count"] for v in games.values())
+    report = {"schema": ("SSQDLT_V47_HEDGE44_RUN_V1"
+                         if len(games) == 2 else "SSQDLT_V47_HEDGE22_RUN_V1"),
+              "games": games, "model_count_per_game": 22,
+              "ticket_count": count, "edge": "NO_EDGE",
+              "formal_prediction": False}
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with args.output.open("xb") as f:
         f.write(canonical(report))
@@ -574,8 +584,9 @@ def main(argv=None):
             f.write(canonical(doc))
         freezes[game] = {"path": str(path),
                          "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
-    print("V47_HEDGE44_RESULT=" + json.dumps({
-        "count": 44, "frozen": freezes,
+    print(("V47_HEDGE44_RESULT=" if len(games) == 2 else "V47_HEDGE22_RESULT=")
+          + json.dumps({
+        "count": count, "frozen": freezes,
         "report_sha256": hashlib.sha256(args.output.read_bytes()).hexdigest(),
         "games": {game: {"target": v["target_issue"],
                         "history_asof": v["history_last_issue"],

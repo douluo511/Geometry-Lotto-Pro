@@ -21,3 +21,21 @@ Do NOT treat a pull-request smoke test, workflow dispatch, source-fetch success,
 ## Limitations
 
 Authoritative provincial pages are cross-matched over HTTPS, but are not digitally signed. `signed_issuer_feed=false`, `trusted_predraw_seal=false` and `edge=NO_EDGE` remain in force. Source access may fail (HTTP 403/5xx or anti-bot page), in which case no new candidate or outcome is accepted. Cloud worker restart evidence cannot establish Windows host physical reboot recovery. Lottery draws under fair mechanical conditions are not made reliably predictable by frequencies, evolutionary optimization or toy physics. All outputs are research, not money/prize claims.
+
+## Final P0 evidence gate (independently verified against GitHub)
+
+The scheduled workflow now calls `python -m research.supercompute.v47_schedule_acceptance --ledger <restored-worktree> --repo douluo511/Geometry-Lotto-Pro --output p0-acceptance.json` after pushing and re-fetching the remote evidence branch. The verifier checks each immutable live-ledger event and queries the exact GitHub Actions run ID via the REST API. Only `event=schedule`, the expected workflow file, branch `main`, matching SHA/attempt and **completed success** count. A pull-request run, manual dispatch, unfinished or failed job is not counted, even if somebody set the local event field to `schedule`.
+
+Full P0 requires **two distinct successful genuine schedule runs**, a real archived dual-game 22+22 freeze, a later *genuinely scheduled* run reusing previous champions for both games, and archived post-publication scores for all 22 arms of both games. A failed source fetch must fail closed and cannot advance any gate. The previously merged legacy P0 schedule with one run does not satisfy the new hedge44 live-ledger acceptance.
+
+The current schedule run cannot be marked completed while it is still executing. Therefore the verifier records it as `PENDING` until a later successful run can independently confirm it through GitHub's API. `PASS` requires everything, not just cron syntax or mock test success. The produced acceptance JSON and raw issuer/frozen artifacts are uploaded to the GitHub Actions run.
+
+Host-specific Windows shutdown/reboot recovery, cryptographic issuer signatures and independently trusted predraw timestamps are *separate* UNVERIFIED limits; these cannot be inferred from cloud worker restart. All predictive edge claims remain NO_EDGE.
+
+## Different issue weekdays: mandatory per-game issuance
+
+SSQ draws Tuesday, Thursday, Sunday and DLT draws Monday, Wednesday, Saturday. A live 44-row batch with the same target issues cannot safely block a new DLT target merely because the SSQ target was already frozen. Each scheduled job therefore computes **22 models independently for each game when it has a new future issue**. A cached SSQ freeze remains immutable while a new DLT issue is calculated, and vice versa. Each game's last champion report is separately hash-checked in `latest_hedge22_ssq.json` or `latest_hedge22_dlt.json`. Existing combined 44-row research CLI calls and archived combined reports remain accepted.
+
+The next issue is computed from freshly cross-matched provincial issuer draws. A game does not get another freeze until the publisher has issued the previous draw and the nominal next draw is still in the future. Games with stale or already frozen targets are marked individually PENDING while a different game may still compute and score. Real published outcomes are scored per game, 22 directions each, without guessing numbers. Each next generation verifies that the exact previous 11 negative genomes and positive Challenger ancestry were evaluated, rather than trusting a boolean field.
+
+Integration acceptance specifically simulates DLT advancing to a new issue while SSQ remains frozen on Sunday's issue. The scenario must generate one new 22-DLT report, score the previously frozen DLT issue, and leave SSQ's original freeze untouched. It must not fail due to a so-called partial dual-game batch.
