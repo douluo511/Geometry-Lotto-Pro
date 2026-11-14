@@ -31,3 +31,11 @@ Full P0 requires **two distinct successful genuine schedule runs**, a real archi
 The current schedule run cannot be marked completed while it is still executing. Therefore the verifier records it as `PENDING` until a later successful run can independently confirm it through GitHub's API. `PASS` requires everything, not just cron syntax or mock test success. The produced acceptance JSON and raw issuer/frozen artifacts are uploaded to the GitHub Actions run.
 
 Host-specific Windows shutdown/reboot recovery, cryptographic issuer signatures and independently trusted predraw timestamps are *separate* UNVERIFIED limits; these cannot be inferred from cloud worker restart. All predictive edge claims remain NO_EDGE.
+
+## Different issue weekdays: mandatory per-game issuance
+
+SSQ draws Tuesday, Thursday, Sunday and DLT draws Monday, Wednesday, Saturday. A live 44-row batch with the same target issues cannot safely block a new DLT target merely because the SSQ target was already frozen. Each scheduled job therefore computes **22 models independently for each game when it has a new future issue**. A cached SSQ freeze remains immutable while a new DLT issue is calculated, and vice versa. Each game's last champion report is separately hash-checked in `latest_hedge22_ssq.json` or `latest_hedge22_dlt.json`. Existing combined 44-row research CLI calls and archived combined reports remain accepted.
+
+The next issue is computed from freshly cross-matched provincial issuer draws. A game does not get another freeze until the publisher has issued the previous draw and the nominal next draw is still in the future. Games with stale or already frozen targets are marked individually PENDING while a different game may still compute and score. Real published outcomes are scored per game, 22 directions each, without guessing numbers. Each next generation verifies that the exact previous 11 negative genomes and positive Challenger ancestry were evaluated, rather than trusting a boolean field.
+
+Integration acceptance specifically simulates DLT advancing to a new issue while SSQ remains frozen on Sunday's issue. The scenario must generate one new 22-DLT report, score the previously frozen DLT issue, and leave SSQ's original freeze untouched. It must not fail due to a so-called partial dual-game batch.
