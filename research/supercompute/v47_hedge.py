@@ -71,16 +71,34 @@ def evolve_exclusion(rows, game, name, *, seed, generations=2, previous=None):
     def fitness(g):
         errors = []
         nmax, picked = SPECS[game][:2]
-        fair = picked / nmax
+        baseline = fair_pair(game)["disjoint"]
         for i in range(sample_start, len(rows)):
-            past = rows[:i]
+            past, actual = rows[:i], set(rows[i]["front"])
             recent = _historical_presence(past, game, "front", 60)
             aged = _historical_presence(past, game, "front", 120, half_life=30)
-            current = set(rows[i]["front"])
-            for n in range(1, nmax + 1):
-                p = (1 - g["blend"]) * recent[n] + g["blend"] * aged[n]
-                p = (1 - g["recent_weight"]) * fair + g["recent_weight"] * p
-                errors.append((1 - p - int(n not in current)) ** 2)
+            smoothed = [0.0] + [
+                (1 - g["recent_weight"]) * picked / nmax
+                + g["recent_weight"] * (
+                    (1 - g["blend"]) * recent[n] + g["blend"] * aged[n])
+                for n in range(1, nmax + 1)]
+            sample = past[-60:]
+            absent_counts = Counter(
+                pair for row in sample for pair in itertools.combinations(
+                    sorted(set(range(1, nmax + 1)) - set(row["front"])), 2))
+            best = None
+            for a, b in itertools.combinations(range(1, nmax + 1), 2):
+                historic = ((absent_counts[(a, b)] + 12 * baseline)
+                            / (len(sample) + 12))
+                marginal_proxy = (1 - smoothed[a]) * (1 - smoothed[b])
+                pred = max(1e-5, min(1 - 1e-5,
+                    (1 - g["pair_weight"]) * historic
+                    + g["pair_weight"] * marginal_proxy))
+                candidate = (pred, -a, -b)
+                if best is None or candidate > best[0]:
+                    best = (candidate, (a, b), pred)
+            pair = set(best[1])
+            observed = int(pair.isdisjoint(actual))
+            errors.append((best[2] - observed) ** 2)
         return statistics.mean(errors)
     lineage = []
     population = [{"genes": g, "origin": "inherited" if previous is not None
