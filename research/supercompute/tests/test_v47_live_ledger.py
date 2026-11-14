@@ -63,7 +63,7 @@ class LiveScheduleLedgerTests(unittest.TestCase):
         return P()
 
     def make_hedge_forecast(self, command, **kwargs):
-        if "v47_hedge" not in command:
+        if not any(str(arg).endswith(".v47_hedge") for arg in command):
             return self.make_forecast(command, **kwargs)
         outpath = Path(command[command.index("--output") + 1])
         freezedir = Path(command[command.index("--freeze-dir") + 1])
