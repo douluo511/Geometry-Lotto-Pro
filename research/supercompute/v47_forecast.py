@@ -14,13 +14,13 @@ from pathlib import Path
 
 from research.supercompute.v47_cli import load_snapshot
 from research.supercompute.v47_integrated import (
-    freeze_result, run_all, score_result,
+    freeze_result, run_all, score_result, _identity,
 )
 from research.supercompute.v47_models import SPECS, canonical, m1_math
 from research.supercompute.v47_registry import execute_eleven
 
 
-def _previous(path, game):
+def _previous(path, game, history=None):
     if path is None:
         return None
     payload = json.loads(path.read_bytes())
@@ -30,7 +30,12 @@ def _previous(path, game):
         payload = payload["games"][game]
     if payload.get("schema") != "SSQDLT_V47_UNIFIED_11_V1" or payload.get("game") != game:
         raise ValueError("prior champion game/schema mismatch")
-    return payload["evolution"]["champion"]
+    evolution = payload['evolution']
+    if evolution.get('champion_id') != _identity(evolution['champion']):
+        raise ValueError('prior champion identity mismatch')
+    if history is not None and int(payload['history_last_issue']) > int(history[-1]['issue']):
+        raise ValueError('prior champion trained on future history')
+    return evolution['champion']
 
 
 def main(argv=None):
@@ -50,6 +55,7 @@ def main(argv=None):
     gen.add_argument("--holdout", type=int, default=3)
     gen.add_argument("--mc-trials", type=int, default=300)
     gen.add_argument("--physics-steps", type=int, default=30)
+    gen.add_argument("--ewma-half-life", type=float, default=30.)
     gen.add_argument("--previous", type=Path, default=None)
     gen.add_argument("--output", type=Path, required=True)
     gen.add_argument("--freeze-dir", type=Path, default=None)
@@ -77,14 +83,15 @@ def main(argv=None):
                          generations=args.generations, validation=args.validation,
                          holdout=args.holdout, mc_trials=args.mc_trials,
                          physics_steps=args.physics_steps,
-                         previous_champion=_previous(args.previous, game))
+                         previous_champion=_previous(args.previous, game, rows))
         # Run eleven independently fitted model objects in the same execution,
         # not a checklist of five selectors and six helper functions.
         report["independent_11"] = execute_eleven(
             rows, game, seed=args.seed, generations=args.generations,
             validation=args.validation, holdout=args.holdout,
             mc_trials=args.mc_trials, physics_steps=args.physics_steps,
-            previous_champion=_previous(args.previous, game))
+            previous_champion=_previous(args.previous, game, rows),
+            model_options={'EWMA':{'half_life':args.ewma_half_life}})
         all_checks = report["independent_11"].get("validation_all_11")
         if (not isinstance(all_checks, dict)
                 or all_checks.get("model_count") != 11

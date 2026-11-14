@@ -59,15 +59,18 @@ def validate_ticket(value, game):
 def validate_history(rows, game):
     if not isinstance(rows, list):
         raise ValueError("history must be list")
-    seen, last = set(), None
+    seen, last, last_issue = set(), None, None
     for row in rows:
         validate_ticket(row, game)
         issue = str(row["issue"])
         day = date.fromisoformat(str(row["draw_date"]))
-        if not issue or issue in seen or (last is not None and day < last):
+        if (not issue.isdigit() or issue in seen
+                or (last is not None and day <= last)
+                or (last_issue is not None and int(issue) <= last_issue)):
             raise ValueError("history unordered/duplicate")
         seen.add(issue)
         last = day
+        last_issue = int(issue)
     return True
 
 
@@ -107,8 +110,14 @@ def inclusion_probabilities(rows, game, area, model, opts=None):
     elif model == "EWMA":
         probs = shrink(b, nb, maximum, picked, 0)
     else:
-        x = shrink(a, na, maximum, picked, p["prior"])
-        y = shrink(b, nb, maximum, picked, p["prior"])
+        # Empirical long-history prior, itself smoothed by one fair exposure.
+        long_counts = Counter(n for row in rows for n in row[area])
+        baseline = [0.0] + [(long_counts[i] + picked / maximum) / (len(rows)+1)
+                            for i in range(1, maximum+1)]
+        x = [0.0] + [(a[i]+p['prior']*baseline[i]) / (na+p['prior'])
+                    if na+p['prior'] else picked/maximum for i in range(1,maximum+1)]
+        y = [0.0] + [(b[i]+p['prior']*baseline[i]) / (nb+p['prior'])
+                    if nb+p['prior'] else picked/maximum for i in range(1,maximum+1)]
         probs = [0.0] + [p["mix"] * x[i] + (1 - p["mix"]) * y[i]
                          for i in range(1, maximum + 1)]
     if not (all(0 <= x <= 1 for x in probs)
@@ -229,54 +238,25 @@ def candidates(rows, game, model, opts=None, limit=3, seed=2026):
     return result
 
 
-def physics_toy(game, seed=2026, steps=100, airflow=(0.001, 0), damping=0.995):
-    """Illustrative 2D wall/pair collision + airflow; NOT calibrated machinery."""
-    if game not in SPECS or not 1 <= steps <= 1000 or not 0 < damping <= 1:
+def physics_toy(game, seed=2026, steps=100, airflow=(.08, .18), damping=.995,
+                *, mass=1., radius=.025, dt=.05, restitution=.85, friction=.04):
+    """Assumed-parameter numerical mechanics, never measured draw equipment."""
+    from research.supercompute.v47_physics import simulate_area
+    if game not in SPECS or not 0 < damping <= 1:
         raise ValueError("invalid physics parameters")
-    if len(airflow) != 2 or any(not math.isfinite(x) for x in airflow):
-        raise ValueError("invalid airflow")
-    def simulate_area(maximum, picked, area):
-        r = random.Random(seed_from(seed, game, "physics", area))
-        balls = [[r.uniform(.04, .96), r.uniform(.04, .96),
-                  r.uniform(-.05, .05), r.uniform(-.05, .05)]
-                 for _ in range(maximum)]
-        radius = .014
-        for _ in range(steps):
-            for ball in balls:
-                ball[2] = damping * ball[2] + airflow[0]
-                ball[3] = damping * ball[3] + airflow[1]
-                for axis in (0, 1):
-                    ball[axis] += ball[axis + 2]
-                    if ball[axis] < radius or ball[axis] > 1 - radius:
-                        ball[axis] = max(radius, min(1 - radius, ball[axis]))
-                        ball[axis + 2] *= -1
-            for i in range(maximum):
-                for j in range(i + 1, maximum):
-                    a, b = balls[i], balls[j]
-                    dx, dy = b[0] - a[0], b[1] - a[1]
-                    distance_squared = dx * dx + dy * dy
-                    if 1e-12 < distance_squared < (2 * radius) ** 2:
-                        distance = math.sqrt(distance_squared)
-                        nx, ny = dx / distance, dy / distance
-                        overlap = (2 * radius - distance) / 2
-                        a[0] -= overlap * nx
-                        a[1] -= overlap * ny
-                        b[0] += overlap * nx
-                        b[1] += overlap * ny
-                        closing = (a[2] - b[2]) * nx + (a[3] - b[3]) * ny
-                        if closing > 0:
-                            a[2] -= closing * nx
-                            a[3] -= closing * ny
-                            b[2] += closing * nx
-                            b[3] += closing * ny
-        return sorted(sorted(range(1, maximum + 1),
-                             key=lambda x: (-balls[x - 1][1], x))[:picked])
+    areas = {}
     fm, fp, bm, bp = SPECS[game]
-    return {"toy_ticket": {"front": simulate_area(fm, fp, "front"),
-                           "back": simulate_area(bm, bp, "back")},
-            "steps": steps, "airflow": list(airflow), "wall_collisions": True,
-            "pair_collisions": True, "machine_calibrated": False,
-            "predictive_claim": False}
+    for area, maximum, picked in (("front",fm,fp),("back",bm,bp)):
+        areas[area] = simulate_area(maximum,picked,seed_from(seed,game,"physics",area),
+            steps, airflow=airflow, mass=mass,radius=radius,dt=dt,
+            restitution=restitution,friction=friction,drag=-math.log(damping)/dt)
+    return {"status":"UNCALIBRATED_PHYSICS_SIMULATION",
+            "toy_ticket":{area:value["ticket"] for area,value in areas.items()},
+            "steps":steps, "airflow":list(airflow), "areas":areas,
+            "wall_collisions":True, "pair_collisions":True,
+            "machine_calibrated":False, "predictive_claim":False,
+            "parameter_source":"ASSUMED_ARBITRARY_SIMULATION_UNITS",
+            "limitations":["2D", "no spin", "finite time-step contact approximation"]}
 
 
 def monte_carlo(game, trials=10000, seed=2026):
@@ -327,8 +307,21 @@ def m2_refutation(model_events, fair_d2_probability):
                for k in range(hits, n + 1))
     return {"status": "PASS", "test": "exact_binomial_fair_d2",
             "hits": hits, "trials": n, "fair_probability": p0,
+            "hit_rate": hits / n,
+            "expected_hits": n * p0,
+            "standardized_statistic": (hits-n*p0)/math.sqrt(n*p0*(1-p0)),
+            "hit_rate_wilson95": _wilson(hits, n),
             "exploratory_one_sided_p": min(1.0, tail),
             "multiple_tests_adjusted": False}
+
+
+def _wilson(hits, trials):
+    z = 1.959963984540054
+    rate = hits/trials
+    denominator = 1+z*z/trials
+    centre = (rate+z*z/(2*trials))/denominator
+    half = z*math.sqrt(rate*(1-rate)/trials+z*z/(4*trials*trials))/denominator
+    return [max(0.,centre-half),min(1.,centre+half)]
 
 
 def m3_calibration(records, bins=10):

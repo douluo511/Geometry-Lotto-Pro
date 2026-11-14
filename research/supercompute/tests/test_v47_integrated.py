@@ -162,6 +162,17 @@ class UnifiedPredictionTest(unittest.TestCase):
                 self.assertEqual([item["model_name"] for item in result["per_model_score"]],
                                  [m.label for m in REGISTRY])
             self.assertEqual(sum(g["ticket_count"] for g in saved["games"].values()), 22)
+            from research.supercompute.v47_delivery import export_delivery
+            exported = export_delivery(saved,root/'frozen',root/'delivery')
+            self.assertEqual(exported['record_count'],22)
+            delivered = json.loads((root/'delivery/22_model_predictions.json').read_bytes())
+            self.assertEqual(len(delivered['records']),22)
+            self.assertEqual(len({(r['lottery'],r['model_number']) for r in delivered['records']}),22)
+            for row in delivered['records']:
+                frozen_bytes = (root/'delivery'/row['frozen_file']).read_bytes()
+                self.assertEqual(row['frozen_sha256'],__import__('hashlib').sha256(frozen_bytes).hexdigest())
+            with self.assertRaises(FileExistsError):
+                export_delivery(saved,root/'frozen',root/'delivery')
             with redirect_stdout(StringIO()), self.assertRaises(FileExistsError):
                 main(params)
 

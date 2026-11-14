@@ -121,6 +121,7 @@ def fetch_publisher(game, *, timeout=16):
         actual_domain = urllib.parse.urlsplit(effective).hostname
         content_type = resp.headers.get("Content-Type", "").split(";")[0].lower()
         if (status != 200 or actual_domain != domain
+                or urllib.parse.urlsplit(effective).scheme != 'https'
                 or content_type not in ("text/html", "application/xhtml+xml")):
             raise ValueError("untrusted issuer HTTP response/domain/content-type")
         raw = resp.read(MAX_RESPONSE_BYTES + 1)
@@ -135,6 +136,11 @@ def fetch_publisher(game, *, timeout=16):
 
 def append_verified(base, fetched, game, *, minimum_overlap=3):
     validate_history(base, game)
+    validate_history(fetched, game)
+    if not base or not fetched:
+        raise ValueError('empty issuer history')
+    if int(fetched[-1]['issue']) < int(base[-1]['issue']):
+        raise ValueError('stale publisher table cannot verify newer history')
     known = {str(x["issue"]): x for x in base}
     overlaps = [x for x in fetched if x["issue"] in known]
     if fetched[-1]["draw_date"] > datetime.now(
@@ -191,6 +197,9 @@ def ingest(base_paths, out_dir, *, fetch=fetch_publisher, minimum_overlap=3):
                 "source_review": "ISSUER_PUBLISHED_HTML_NOT_SIGNED_FEED"}
         except Exception as exc:
             diagnostics = {}
+            if isinstance(exc, urllib.error.HTTPError):
+                raw = exc.read(MAX_RESPONSE_BYTES + 1)
+                fetch_receipt = {'http_status':exc.code, 'effective_url':exc.url}
             if "raw" in locals() and isinstance(raw, bytes):
                 title = re.search(br"<title[^>]*>([^<]{0,200})</title>",
                                   raw, re.IGNORECASE)
@@ -206,6 +215,7 @@ def ingest(base_paths, out_dir, *, fetch=fetch_publisher, minimum_overlap=3):
                 diagnostics["http_status"] = fetch_receipt.get("http_status")
                 diagnostics["effective_url"] = fetch_receipt.get("effective_url")
             error = {"schema": "SSQDLT_V47_LIVE_FETCH_FAILURE_V1",
+                     "status":"UNVERIFIED",
                      "game": game, "source_url": SOURCES[game][0],
                      "http_diagnostics": diagnostics,
                      "parser_id": PARSER_ID, "failure_type": type(exc).__name__,
@@ -214,6 +224,9 @@ def ingest(base_paths, out_dir, *, fetch=fetch_publisher, minimum_overlap=3):
                      "partial_results_accepted": False,
                      "official_source_verified": False}
             _store(root / "failure-receipt.json", error)
+            if isinstance(raw, bytes):
+                with (root / (game+'-failed-response.bin')).open('xb') as failed:
+                    failed.write(raw)
             raise
     snapshots = {}
     for game in ("ssq", "dlt"):

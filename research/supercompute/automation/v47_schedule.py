@@ -47,6 +47,7 @@ def verify(working_tree, expected_run_id=None):
     last_hash = ZERO
     last_id = None
     last_unified = None
+    legacy_validation_missing = []
     ids = set()
     for index, path in enumerate(records, 1):
         event = json.loads(path.read_bytes())
@@ -76,7 +77,11 @@ def verify(working_tree, expected_run_id=None):
             if (not unified_copy.is_file() or
                     digest(unified_copy.read_bytes()) != payload["unified_sha256"]):
                 raise ValueError("unified forecast receipt tampered")
-            check_unified_report(json.loads(unified_copy.read_bytes()), allow_legacy_archive=True)
+            archived = json.loads(unified_copy.read_bytes())
+            check_unified_report(archived, allow_legacy_archive=True)
+            if any('validation_all_11' not in g.get('independent_11',{})
+                   for g in archived['games'].values()):
+                legacy_validation_missing.append(payload['run_id'])
             last_unified = payload["unified_sha256"]
         ids.add(payload["run_id"])
         last_id = payload["run_id"]
@@ -90,6 +95,8 @@ def verify(working_tree, expected_run_id=None):
     if expected_run_id is not None and int(expected_run_id) not in ids:
         raise ValueError("expected run absent from persisted ledger")
     return {"status": "PASS", "count": len(records), "last_run_id": last_id,
+            "scope":"archive hash-chain integrity; not retrospective model certification",
+            "legacy_runs_without_all_eleven_calibration":legacy_validation_missing,
             "last_hash": last_hash, "run_ids": sorted(ids),
             "remote_persistence": expected_run_id is not None}
 
@@ -165,7 +172,8 @@ def check_unified_report(payload, allow_legacy_archive=False):
                        or not model.get("prediction", {}).get("ticket")
                        for model in independent["models"].values())):
             raise ValueError("eleven independent model executions not verified: " + game)
-        if report.get("ticket_count") == 11:
+        if report.get("ticket_count") == 11 and not (
+                allow_legacy_archive and 'validation_all_11' not in independent):
             checks = independent.get("validation_all_11", {})
             if (checks.get("model_count") != 11
                     or set(checks.get("models", {})) != set(independent["models"])
