@@ -81,9 +81,12 @@ def cell_division(rows, game, seed=2026, generations=2, validation=6,
     if previous_champion is not None:
         initial.append(parameters(previous_champion))
     population = []
-    for p in initial:
+    for index, p in enumerate(initial):
+        origin = ("inherited_prior_run"
+                  if previous_champion is not None and index == len(initial) - 1
+                  else "seed")
         population.append({"id": _identity(p), "parent_ids": [],
-                           "genes": p, "origin": "seed"})
+                           "genes": p, "origin": origin})
     mutations = {"window": (10, 15, 180), "half_life": (10, 2, 180),
                  "prior": (20, 0, 300), "mix": (.1, 0, 1),
                  "pair_weight": (.04, 0, 1), "geo_weight": (.08, 0, 1)}
@@ -141,6 +144,11 @@ def cell_division(rows, game, seed=2026, generations=2, validation=6,
             "validation_first_issue": rows[-validation]["issue"],
             "trained_through_issue": rows[-1]["issue"],
             "parent_from_prior_run": previous_champion is not None,
+            "inherited_champion_id": (
+                _identity(previous_champion) if previous_champion is not None else None),
+            "inherited_parent_present_in_initial_population": any(
+                cell["origin"] == "inherited_prior_run"
+                for cell in lineage[0]["evaluated"]),
             "generations": generations, "lineage": lineage,
             "uses_future_draws": False}
 
