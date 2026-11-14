@@ -166,6 +166,18 @@ def check_unified_report(payload, allow_legacy_archive=False):
                        for model in independent["models"].values())):
             raise ValueError("eleven independent model executions not verified: " + game)
         if report.get("ticket_count") == 11:
+            checks = independent.get("validation_all_11", {})
+            if (checks.get("model_count") != 11
+                    or set(checks.get("models", {})) != set(independent["models"])
+                    or checks.get("uses_future_draws") is not False
+                    or report.get("full_model_validation") != "PASS"
+                    or set(report.get("validation", {}).get("M2", {})) != set(independent["models"])
+                    or set(report.get("validation", {}).get("M3", {})) != set(independent["models"])
+                    or any(item.get("m3", {}).get("calibration_method") !=
+                           "heldout_shrink_to_fair"
+                           for item in checks["models"].values())):
+                raise ValueError("all-eleven independent M2/M3 missing")
+        if report.get("ticket_count") == 11:
             for t in report["proposed_tickets"]:
                 record = independent["models"][t["model_name"]]
                 original = record["prediction"]["ticket"]

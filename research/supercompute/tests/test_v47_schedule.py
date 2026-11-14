@@ -152,6 +152,18 @@ class TestV47UnattendedSchedule(unittest.TestCase):
             report["proposed_tickets"] = []
             report["ticket_count"] = 11
             report["per_model_ticket_contract"] = "ONE_ROW_PER_MODEL"
+            record = {
+                "m2": {"test": "exact_binomial_fair_d2"},
+                "m3": {"calibration_method": "heldout_shrink_to_fair",
+                       "training_samples": 10, "independent_test_samples": 5}}
+            all_results = {model.label: record for model in REGISTRY}
+            report["independent_11"]["validation_all_11"] = {
+                "model_count": 11, "status": "PASS",
+                "uses_future_draws": False, "models": all_results}
+            report["full_model_validation"] = "PASS"
+            report["validation"] = {
+                "M2": {k: v["m2"] for k, v in all_results.items()},
+                "M3": {k: v["m3"] for k, v in all_results.items()}}
             for index, model in enumerate(REGISTRY, 1):
                 ticket = dict(sample, model_number=index, model_name=model.label)
                 report["proposed_tickets"].append(ticket)

@@ -71,8 +71,17 @@ def inspect_run(report_path, frozen_dir, expected_targets, latest_verified):
             raise ValueError("model-11 candidate mismatch")
         if not all(v["status"] == "PASS" for v in outcome["validation"]["M1"]):
             raise ValueError("M1 failed")
-        if len(outcome["validation"]["M2"]) != 5 or len(outcome["validation"]["M3"]) != 5:
-            raise ValueError("M2/M3 absent")
+        validation = independent.get("validation_all_11", {})
+        if (len(outcome["validation"]["M2"]) != 11
+                or len(outcome["validation"]["M3"]) != 11
+                or validation.get("model_count") != 11
+                or len(validation.get("models", {})) != 11
+                or validation.get("uses_future_draws") is not False
+                or validation.get("calibration_split") != "fit_earlier_folds_test_last"
+                or any(model["m3"]["training_samples"] < 1
+                       or model["m3"]["independent_test_samples"] < 1
+                       for model in validation["models"].values())):
+            raise ValueError("all-eleven M2/M3 with held-out M3 required")
         if (independent["models"]["Physics"]["fit"]
                 ["calibrated_to_draw_machine"] is not False):
             raise ValueError("calibration status missing")
@@ -106,7 +115,7 @@ def inspect_run(report_path, frozen_dir, expected_targets, latest_verified):
                  "genome_id": independent["models"]["Challenger"]
                                       ["fit"]["champion_id"],
                  "generations": len(outcome["evolution"]["lineage"]) - 1,
-                 "M1": "PASS", "M2": "EXECUTED", "M3": "EXECUTED",
+                 "M1": "PASS", "M2": "EXECUTED_FOR_11", "M3": "CALIBRATED_AND_EVALUATED_FOR_11",
                  "physics_calibrated": False,
                  "frozen_filename": basename,
                  "frozen_sha256": hashlib.sha256(frozen).hexdigest(),
