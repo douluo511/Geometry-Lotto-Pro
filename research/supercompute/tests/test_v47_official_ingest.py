@@ -10,7 +10,9 @@ from research.supercompute.v47_official_ingest import (
 )
 
 
-def history(game, count=10, start=1000):
+def history(game, count=10, start=None):
+    if start is None:
+        start = 2026000 if game == "ssq" else 26000
     result = []
     for i in range(count):
         front = ([1, 3, 7, 10, 20, 31] if game == "ssq"
@@ -61,11 +63,11 @@ class LiveOfficialIngestionTests(unittest.TestCase):
     def test_refuse_conflict_and_skip(self):
         for game in ("ssq", "dlt"):
             base = history(game)
-            extended = base + history(game, count=2, start=1010)
+            extended = base + history(game, count=2, start=int(base[-1]["issue"]) + 1)
             extended[-2]["draw_date"] = "2026-10-11"
             extended[-1]["draw_date"] = "2026-10-12"
             out, audit = append_verified(base, extended[5:], game)
-            self.assertEqual(out[-1]["issue"], "1011")
+            self.assertEqual(out[-1]["issue"], str(int(base[-1]["issue"]) + 2))
             self.assertEqual(audit["overlap_count"], 5)
             self.assertEqual(audit["added_count"], 2)
             changed = [dict(r) for r in extended[5:]]
@@ -87,7 +89,7 @@ class LiveOfficialIngestionTests(unittest.TestCase):
                 path = root / (game + "-seed.json")
                 path.write_text(json.dumps({"game": game.upper(), "draws": base}))
                 base_paths[game] = path
-                latest = history(game, count=2, start=1010)
+                latest = history(game, count=2, start=int(base[-1]["issue"]) + 1)
                 latest[0]["draw_date"], latest[1]["draw_date"] = "2026-10-11", "2026-10-12"
                 html = html_table(game, base[5:] + latest)
                 lookup[game] = (html, receipt(game, html))
@@ -97,7 +99,7 @@ class LiveOfficialIngestionTests(unittest.TestCase):
             out = ingest(base_paths, outdir, fetch=fetch)
             self.assertEqual(out["status"], "OVERLAP_VERIFIED")
             self.assertFalse(out["signed_official_data_verified"])
-            self.assertEqual(out["games"]["ssq"]["new_target_issue"], "1012")
+            self.assertEqual(out["games"]["ssq"]["new_target_issue"], "2026012")
             self.assertEqual(out["games"]["dlt"]["added_count"], 2)
             with self.assertRaises(FileExistsError):
                 ingest(base_paths, outdir, fetch=fetch)
