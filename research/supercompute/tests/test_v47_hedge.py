@@ -153,7 +153,7 @@ class TwentyTwoComputationalModelsTests(unittest.TestCase):
             target = run["target_issue"]
             with tempfile.TemporaryDirectory() as temp:
                 f = Path(temp) / "frozen.json"
-                doc = {"schema": "SSQDLT_V47_HEDGE22_FROZEN_V1",
+                doc = {"schema": "SSQDLT_V47_HEDGE22_FROZEN_V2",
                        "source": run, "created_utc": "2026-11-14T02:00:00Z"}
                 b = canonical(doc)
                 with f.open("xb") as h:
@@ -165,6 +165,9 @@ class TwentyTwoComputationalModelsTests(unittest.TestCase):
                 out = score_frozen(f, hashlib.sha256(b).hexdigest(), actual)
                 self.assertEqual(out["count"], 22)
                 self.assertEqual(len(out["models"]), 22)
+                self.assertTrue(out["strict_disjoint_verified"])
+                self.assertIn("joint", out)
+                self.assertEqual(out["joint"]["candidate_count"], 8)
                 self.assertTrue(out["status"].endswith("UNVERIFIED"))
                 with self.assertRaises(ValueError):
                     score_frozen(f, "0" * 64, actual)
