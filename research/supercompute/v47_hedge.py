@@ -1,10 +1,10 @@
-"""Twenty-two executable subset / non-subset research models per lottery.
+"""Twenty-two subset/disjoint research models per lottery.
 
-M01+..M11+ retain the independently implemented original models.
-M01-..M11- fit anti-inclusion/exclusion objectives; their pair E satisfies
-E NOT subset of actual when at least one selected number is absent.
-The stronger event E disjoint actual is reported separately. Neither event
-establishes predictive edge: use distinct fair combinatorial baselines.
+M01+..M11+ include pair A: A subset of actual winning front area.
+M01-..M11- exclude pair E: E disjoint from actual winning front area.
+A negative event succeeds only when EVERY excluded number is absent.
+Twenty-two correlated model signals jointly filter the remaining ticket space.
+No demonstrated jackpot edge is assumed.
 """
 from __future__ import annotations
 
@@ -24,6 +24,7 @@ from research.supercompute.v47_models import (
     pair_residuals, seed_from, validate_history, validate_ticket,
 )
 from research.supercompute.v47_registry import REGISTRY, execute_eleven
+from research.supercompute.v47_joint_filter import construct_joint_search, score_joint_search
 
 
 def fair_pair(game):
@@ -53,8 +54,8 @@ def _historical_presence(rows, game, area, window, half_life=None):
 def evolve_exclusion(rows, game, name, *, seed, generations=2, previous=None):
     """Two-generation actual parent -> crossover -> mutation parameter search.
 
-    Fitness is one-step-ahead marginal absence Brier on strictly previous
-    observations, evaluated chronologically; no future target is used.
+    Fitness is joint zero-excluded-hits Brier on strictly past-only folds.
+    Positive/negative event targets are distinct and cannot share scores.
     """
     if not 1 <= generations <= 5:
         raise ValueError("bad negative-model generations")
