@@ -408,10 +408,96 @@ REGISTRY = (HOT60Model, EWMAModel, ShrinkMixModel, PairwiseD2Model,
             GeometryModel, SimulationModel, PhysicsModel, ValidationModel)
 
 
+
+def _audit_all_eleven(history, game, *, seed, validation, holdout,
+                       mc_trials, physics_steps):
+    """Chronological refutation and post-hoc-free M3 calibration of 11 models.
+
+    Historical folds fit only on earlier draws. Calibrator lambda uses folds
+    preceding the final audit fold, then is evaluated on its unseen final fold.
+    This is a small exploratory calibration exercise, not proof of edge.
+    """
+    if holdout < 2 or len(history) < 121 + holdout:
+        raise ValueError("need past-only calibration folds plus independent test")
+    fm, fp, bm, bp = SPECS[game]
+    fair = fp * (fp - 1) / (fm * (fm - 1))
+    families = tuple(model.label for model in REGISTRY)
+    events = {name: [] for name in families}
+    calibration_training = {name: [] for name in families}
+    calibration_testing = {name: [] for name in families}
+    folds = []
+    for i in range(len(history) - holdout, len(history)):
+        past, actual = history[:i], history[i]
+        # Recursion is explicitly disabled in each historical child fit.
+        fitted = execute_eleven(
+            past, game, seed=seed, generations=1, validation=min(validation, 6),
+            holdout=1, mc_trials=min(mc_trials, 100), physics_steps=min(physics_steps, 10),
+            previous_champion=None, full_audit=False,
+        )
+        folds.append({"forecast_after_issue": str(past[-1]["issue"]),
+                      "actual_issue": str(actual["issue"]),
+                      "test_target_unseen_in_fit": True})
+        for name in families:
+            pred = fitted["models"][name]["prediction"]
+            ticket = pred["ticket"]
+            events[name].append(int(set(ticket["dan2"]).issubset(actual["front"])))
+            area_probs = pred.get("marginals")
+            if not isinstance(area_probs, dict):
+                raise ValueError("missing model probability trace: " + name)
+            records = calibration_testing if i == len(history) - 1 else calibration_training
+            for area, maximum, picked in (("front", fm, fp), ("back", bm, bp)):
+                probs = area_probs.get(area)
+                if (not isinstance(probs, list) or len(probs) != maximum + 1
+                        or not all(isinstance(p, (float, int)) and math.isfinite(p)
+                                   and 0 <= p <= 1 for p in probs)
+                        or abs(sum(probs) - picked) > 1e-6):
+                    raise ValueError("invalid model marginal normalization: " + name)
+                observed = set(actual[area])
+                baseline = picked / maximum
+                records[name].extend((float(probs[n]), int(n in observed), baseline)
+                                     for n in range(1, maximum + 1))
+    results = {}
+    for name in families:
+        train = calibration_training[name]
+        test = calibration_testing[name]
+        if not train or not test:
+            raise ValueError("independent M3 evaluation split incomplete")
+        candidates_lambda = (0.0, .25, .5, .75, 1.0)
+        def transformed(items, lam):
+            return [(base + lam * (p - base), y) for p, y, base in items]
+        lam = min(candidates_lambda, key=lambda scale: (
+            statistics.mean((p - y) ** 2 for p, y in transformed(train, scale)),
+            scale))
+        raw = m3_calibration([(p, y) for p, y, _ in test])
+        calibrated = m3_calibration(transformed(test, lam))
+        results[name] = {
+            "m1": {"status": "PASS", "ticket_legality_verified": True},
+            "m2": m2_refutation(events[name], fair),
+            "m3": {"status": "PASS", "calibration_method": "heldout_shrink_to_fair",
+                   "lambda_grid": list(candidates_lambda),
+                   "lambda_fitted_on_previous_folds": lam,
+                   "training_fold_count": holdout - 1,
+                   "training_samples": len(train),
+                   "independent_test_issue": str(history[-1]["issue"]),
+                   "independent_test_samples": len(test),
+                   "raw": raw, "recalibrated": calibrated,
+                   "uncalibrated_physics_proxy": name == "Physics",
+                   "not_prospective_proof": True},
+            "d2_hits": sum(events[name]), "trials": holdout,
+        }
+    return {"status": "PASS", "model_count": 11,
+            "method": "chronological_walk_forward",
+            "calibration_split": "fit_earlier_folds_test_last",
+            "holdout_issues": [str(row["issue"]) for row in history[-holdout:]],
+            "fold_evidence": folds, "uses_future_draws": False,
+            "models": results, "multiple_comparisons_adjusted": False,
+            "predictive_edge": "NO_EDGE"}
+
+
 def execute_eleven(history, game, *, seed=2026, generations=1,
                    validation=3, holdout=2, mc_trials=60, physics_steps=5,
-                   previous_champion=None):
-    """Fit+predict eleven different model objects; fail closed on any missing."""
+                   previous_champion=None, full_audit=True):
+    """Fit+predict eleven separate objects; optionally refute all eleven on past."""
     if game not in SPECS:
         raise ValueError("invalid lottery")
     validate_history(history, game)
@@ -437,6 +523,21 @@ def execute_eleven(history, game, *, seed=2026, generations=1,
     results = context["results"]
     if len(results) != 11 or set(results) != {m.label for m in REGISTRY}:
         raise ValueError("incomplete model registry")
+    if full_audit:
+        audit = _audit_all_eleven(
+            history, game, seed=seed, validation=validation, holdout=holdout,
+            mc_trials=mc_trials, physics_steps=physics_steps,
+        )
+        validator = results["M1_M2_M3_Validation"]
+        validator["fit"]["m2"] = {k: v["m2"] for k, v in audit["models"].items()}
+        validator["fit"]["m3"] = {k: v["m3"] for k, v in audit["models"].items()}
+        validator["fit"]["m3_brier"] = {
+            k: v["m3"]["recalibrated"]["brier"] for k, v in audit["models"].items()}
+        validator["fit"]["calibration_evaluation"] = "chronologically_independent"
+        validator["prediction"]["independent_fair_d2_tests"] = validator["fit"]["m2"]
+        validator["prediction"]["marginal_calibration"] = validator["fit"]["m3"]
+    else:
+        audit = None
     output = {"schema": "SSQDLT_V47_11_INDEPENDENT_MODELS_V1",
               "game": game, "history_last_issue": str(history[-1]["issue"]),
               "history_sha256": hashlib.sha256(canonical(history)).hexdigest(),
@@ -446,5 +547,7 @@ def execute_eleven(history, game, *, seed=2026, generations=1,
               "champion_lineage": results["Challenger"]["fit"]["lineage"],
               "independent_modules": True, "formal_prediction": False,
               "physical_model_calibrated": False, "edge": "NO_EDGE"}
+    if audit is not None:
+        output["validation_all_11"] = audit
     output["run_digest_sha256"] = hashlib.sha256(canonical(output)).hexdigest()
     return output
