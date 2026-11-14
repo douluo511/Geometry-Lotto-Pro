@@ -255,6 +255,13 @@ class NetClientUnitTests(unittest.TestCase):
 
 class SourceFailoverTests(unittest.TestCase):
     def test_primary_failure_full_shanghai_can_reverify_unverified_baseline(self):
+        # This fixture describes 2026-09-29. Fix its clock, not the production
+        # freshness gate, so calendar time does not change the test's meaning.
+        class FixtureClock(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return datetime(2026, 9, 30, 12, tzinfo=timezone.utc).astimezone(tz)
+
         draws = [
             Draw("2013001", "2013-01-01", (1, 2, 3, 4, 5, 6), (1,)),
             Draw("2026113", "2026-09-29", (3, 4, 20, 24, 29, 30), (11,)),
@@ -268,6 +275,7 @@ class SourceFailoverTests(unittest.TestCase):
             "announce": {"raw": b"announce", "meta": {"status": 200}},
         }
         with (
+            patch.object(sources, 'datetime', FixtureClock),
             patch.object(sources, "fetch_national_history", side_effect=SourceError("primary unavailable")),
             patch.object(sources, "fetch_shanghai_full_history",
                          return_value=(draws, sh_receipt, sh_manifest)),

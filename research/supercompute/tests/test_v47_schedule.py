@@ -169,6 +169,15 @@ class TestV47UnattendedSchedule(unittest.TestCase):
                 report["proposed_tickets"].append(ticket)
                 report["independent_11"]["models"][model.label]["prediction"]["ticket"] = dict(sample)
         s.check_unified_report(payload)
+        legacy = json.loads(json.dumps(payload))
+        for game_report in legacy['games'].values():
+            game_report['independent_11'].pop('validation_all_11')
+            game_report.pop('full_model_validation',None)
+        with self.assertRaisesRegex(ValueError,'M2/M3'):
+            s.check_unified_report(legacy)
+        # Old hash-verified records remain restorable, without being accepted
+        # as new all-eleven calibrated reports.
+        s.check_unified_report(legacy,allow_legacy_archive=True)
         incomplete = json.loads(json.dumps(payload))
         incomplete["games"]["ssq"]["independent_11"]["models"].pop("Geometry")
         with self.assertRaises(ValueError):

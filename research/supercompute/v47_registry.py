@@ -127,31 +127,45 @@ class HOT60Model(Model):
         self.rows, self.game = history, game
         self.probs = {area: inclusion_probabilities(history, game, area, "HOT60")
                       for area in ("front", "back")}
-        return {"window": min(60, len(history)), "method": "frequency_inclusion"}
+        return {"window": min(60, len(history)), "method": "frequency_inclusion",
+                "areas": {area: {"counts": [p*min(60,len(history)) for p in probs],
+                                  "ranking": sorted(range(1,len(probs)),key=lambda n:(-probs[n],n))}
+                          for area,probs in self.probs.items()}}
     def predict(self, history, game, context):
-        t = candidates(history, game, "HOT60", limit=1)[0]
+        t = rank_probabilities(game, self.probs['front'], self.probs['back'], limit=1)[0]
         return {"ticket": t, "marginals": self.probs, "method": self.label}
 
 
 class EWMAModel(Model):
     number, label = 2, "EWMA"
     def fit(self, history, game, context):
-        self.probs = {area: inclusion_probabilities(history, game, area, "EWMA")
+        opts = parameters(context.get('model_options', {}).get(self.label))
+        self.probs = {area: inclusion_probabilities(history, game, area, "EWMA", opts)
                       for area in ("front", "back")}
-        return {"half_life": 30.0, "decay": "exponential"}
+        return {"half_life": opts['half_life'], "decay": "exponential",
+                "age_weights": [2**(-age/opts['half_life']) for age in range(min(720,len(history)))],
+                "weighted_counts": {area:weighted_counts(history,area,maximum,'EWMA',opts)[0]
+                                    for area,maximum in (('front',SPECS[game][0]),('back',SPECS[game][2]))}}
     def predict(self, history, game, context):
-        return {"ticket": candidates(history, game, "EWMA", limit=1)[0],
+        return {"ticket": rank_probabilities(game,self.probs['front'],self.probs['back'],limit=1)[0],
                 "marginals": self.probs, "method": self.label}
 
 
 class ShrinkMixModel(Model):
     number, label = 3, "ShrinkMix"
     def fit(self, history, game, context):
-        self.probs = {area: inclusion_probabilities(history, game, area, "ShrinkMix")
+        opts = parameters(context.get('model_options', {}).get(self.label))
+        self.probs = {area: inclusion_probabilities(history, game, area, "ShrinkMix", opts)
                       for area in ("front", "back")}
-        return {"prior_exposure": 60, "mix": .5, "method": "pseudo_bayesian_shrinkage"}
+        prior = {}
+        for area,maximum,picked in (('front',*SPECS[game][:2]),('back',*SPECS[game][2:])):
+            counts = Counter(n for row in history for n in row[area])
+            prior[area] = [0.] + [(counts[n]+picked/maximum)/(len(history)+1) for n in range(1,maximum+1)]
+        return {"prior_exposure":opts['prior'], "mix":opts['mix'],
+                "half_life":opts['half_life'], "long_term_prior":prior,
+                "long_term_rows":len(history), "method":"empirical_bayes_mixture"}
     def predict(self, history, game, context):
-        return {"ticket": candidates(history, game, "ShrinkMix", limit=1)[0],
+        return {"ticket": rank_probabilities(game,self.probs['front'],self.probs['back'],limit=1)[0],
                 "marginals": self.probs, "method": self.label}
 
 
@@ -165,7 +179,15 @@ class PairwiseD2Model(Model):
             _, picked = SPECS[game][:2] if area == "front" else SPECS[game][2:]
             residual = pair_residuals(history, game, area)
             self.probs[area] = _pair_conditioned_marginals(base, residual, picked)
+        matrix = {}
+        for area,maximum,picked in (('front',*SPECS[game][:2]),('back',*SPECS[game][2:])):
+            sample = history[-120:]
+            counts = Counter(ab for row in sample for ab in itertools.combinations(row[area],2))
+            expected = len(sample)*picked*(picked-1)/(maximum*(maximum-1))
+            matrix[area] = [{'pair':list(ab),'observed':counts[ab],'expected':expected,'residual':r}
+                            for ab,r in pair_residuals(history,game,area).items()]
         return {"pairs": len(self.pairs), "top_pair": list(max(self.pairs, key=self.pairs.get)),
+                "pair_matrix":matrix,
                 "method": "pair_residual_ranking"}
     def predict(self, history, game, context):
         ticket = rank_probabilities(game, self.probs["front"], self.probs["back"],
@@ -214,6 +236,8 @@ class StatisticsModel(Model):
             self.posterior[area] = _pair_conditioned_marginals(
                 base, residual, picked, strength=.2)
             evidence[area] = {"hot_exposure": n_hot, "ewma_exposure": n_ewma,
+                              "frequency": hot, "ewma":ewma,
+                              "shrunken_estimators":[a,b], "joint_posterior":self.posterior[area],
                               "most_frequent": sorted(range(1, maximum + 1),
                                                      key=lambda x: (-hot[x], x))[:5]}
         self.pairs = pair_residuals(history, game)
@@ -247,7 +271,10 @@ class ForecastSearchModel(Model):
                     self.probs[area][number] += weight * marginal[number]
         self.pairs = pair_residuals(history, game)
         return {"search": "bounded_joint_logodds_and_pair_residual",
-                "model_weights": weights, "front_pool": 11, "back_pool": 6}
+                "model_weights": weights, "front_pool": 11, "back_pool": 6,
+                "front_combinations_evaluated":math.comb(11,fp),
+                "back_combinations_evaluated":math.comb(6,bp),
+                "optimization":"exact enumeration inside probability-ranked pool"}
     def predict(self, history, game, context):
         tickets = rank_probabilities(game, self.probs["front"], self.probs["back"],
                                      pair=self.pairs, pair_weight=.15, limit=3)
@@ -279,6 +306,9 @@ class GeometryModel(Model):
                              for n in range(1, fm + 1)], fp)
             self.probs[area] = marginal
         return {"latest": self.features["latest_state"],
+                "feature_vector":[self.features['mean_span'],self.features['mean_gap'],*self.features['latest_state']],
+                "transition_counts":self.features['transitions'],
+                "conditional_transition_probabilities":{str(k):v for k,v in posterior.items()},
                 "mean_span": self.features["mean_span"],
                 "mean_gap": self.features["mean_gap"],
                 "zones": len(self.transition[0]),
@@ -313,7 +343,7 @@ class SimulationModel(Model):
         fm, fp, bm, bp = SPECS[game]
         rng = random.Random(seed_from(game, context["seed"], "model-nine"))
         draws = [random_ticket(game, rng.getrandbits(64))
-                 for _ in range(min(context["mc_trials"], 500))]
+                 for _ in range(context["mc_trials"])]
         freq_f = Counter(n for ticket in draws for n in ticket["front"])
         freq_b = Counter(n for ticket in draws for n in ticket["back"])
         front = sorted(sorted(range(1, fm + 1), key=lambda n: (-freq_f[n], n))[:fp])
@@ -337,6 +367,8 @@ class PhysicsModel(Model):
                                steps=context["physics_steps"])
         return {"mechanics": ["2d_wall_collision", "pair_contact", "airflow"],
                 "steps": self.sim["steps"],
+                "status":self.sim['status'],
+                "parameters":{a:r['parameters'] for a,r in self.sim['areas'].items()},
                 "calibrated_to_draw_machine": False}
     def predict(self, history, game, context):
         ticket = self.sim["toy_ticket"]
@@ -410,7 +442,7 @@ REGISTRY = (HOT60Model, EWMAModel, ShrinkMixModel, PairwiseD2Model,
 
 
 def _audit_all_eleven(history, game, *, seed, validation, holdout,
-                       mc_trials, physics_steps):
+                       mc_trials, physics_steps, generations=1, model_options=None):
     """Chronological refutation and post-hoc-free M3 calibration of 11 models.
 
     Historical folds fit only on earlier draws. Calibrator lambda uses folds
@@ -430,16 +462,23 @@ def _audit_all_eleven(history, game, *, seed, validation, holdout,
         past, actual = history[:i], history[i]
         # Recursion is explicitly disabled in each historical child fit.
         fitted = execute_eleven(
-            past, game, seed=seed, generations=1, validation=min(validation, 6),
-            holdout=1, mc_trials=min(mc_trials, 100), physics_steps=min(physics_steps, 10),
-            previous_champion=None, full_audit=False,
+            past, game, seed=seed, generations=generations, validation=validation,
+            holdout=1, mc_trials=mc_trials, physics_steps=physics_steps,
+            previous_champion=None, full_audit=False, model_options=model_options,
         )
         folds.append({"forecast_after_issue": str(past[-1]["issue"]),
                       "actual_issue": str(actual["issue"]),
+                      "actual_draw": actual,
+                      "training_rows":len(past), "training_sha256":hashlib.sha256(canonical(past)).hexdigest(),
+                      "settings":dict(generations=generations,validation=validation,mc_trials=mc_trials,physics_steps=physics_steps),
+                      "predictions":{}, "scores":{},
                       "test_target_unseen_in_fit": True})
         for name in families:
             pred = fitted["models"][name]["prediction"]
             ticket = pred["ticket"]
+            model_class = next(cls for cls in REGISTRY if cls.label == name)
+            folds[-1]['scores'][name] = model_class().score(ticket,actual,game)
+            folds[-1]['predictions'][name] = {'ticket':ticket,'marginals':pred['marginals']}
             events[name].append(int(set(ticket["dan2"]).issubset(actual["front"])))
             area_probs = pred.get("marginals")
             if not isinstance(area_probs, dict):
@@ -485,18 +524,26 @@ def _audit_all_eleven(history, game, *, seed, validation, holdout,
                    "not_prospective_proof": True},
             "d2_hits": sum(events[name]), "trials": holdout,
         }
+    for record in results.values():
+        m2 = record['m2']
+        m2['bonferroni_family_size'] = 22
+        m2['adjusted_p'] = min(1.,22*m2['exploratory_one_sided_p'])
+        m2['multiple_tests_adjusted'] = True
+        m2['reject_fair_at_family_alpha_0_05'] = m2['adjusted_p'] < .05
     return {"status": "PASS", "model_count": 11,
             "method": "chronological_walk_forward",
             "calibration_split": "fit_earlier_folds_test_last",
             "holdout_issues": [str(row["issue"]) for row in history[-holdout:]],
             "fold_evidence": folds, "uses_future_draws": False,
-            "models": results, "multiple_comparisons_adjusted": False,
+            "models": results, "multiple_comparisons_adjusted": True,
+            "multiple_comparison_method":"Bonferroni across 11 models x 2 games",
+            "inheritance_in_historical_folds":"reset; never inject a future-trained champion",
             "predictive_edge": "NO_EDGE"}
 
 
 def execute_eleven(history, game, *, seed=2026, generations=1,
                    validation=3, holdout=2, mc_trials=60, physics_steps=5,
-                   previous_champion=None, full_audit=True):
+                   previous_champion=None, full_audit=True, model_options=None):
     """Fit+predict eleven separate objects; optionally refute all eleven on past."""
     if game not in SPECS:
         raise ValueError("invalid lottery")
@@ -508,6 +555,7 @@ def execute_eleven(history, game, *, seed=2026, generations=1,
                "validation": validation, "holdout": holdout,
                "mc_trials": mc_trials, "physics_steps": physics_steps,
                "previous_champion": previous_champion, "results": {}}
+    context['model_options'] = model_options or {}
     for ModelClass in REGISTRY:
         model = ModelClass()
         learned = model.fit(history, game, context)
@@ -518,6 +566,9 @@ def execute_eleven(history, game, *, seed=2026, generations=1,
         context["results"][model.label] = {
             "number": model.number, "name": model.label,
             "class": type(model).__name__, "fit": learned,
+            "functions":{"fit":f'{type(model).__module__}.{type(model).__name__}.fit',
+                         "predict":f'{type(model).__module__}.{type(model).__name__}.predict',
+                         "score":f'{type(model).__module__}.Model.score'},
             "prediction": prediction, "status": "EXECUTED",
             "contract": ["fit", "predict", "score"]}
     results = context["results"]
@@ -527,6 +578,7 @@ def execute_eleven(history, game, *, seed=2026, generations=1,
         audit = _audit_all_eleven(
             history, game, seed=seed, validation=validation, holdout=holdout,
             mc_trials=mc_trials, physics_steps=physics_steps,
+            generations=generations, model_options=model_options,
         )
         validator = results["M1_M2_M3_Validation"]
         validator["fit"]["m2"] = {k: v["m2"] for k, v in audit["models"].items()}

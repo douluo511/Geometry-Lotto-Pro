@@ -8,6 +8,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
 
 from research.supercompute.v47_models import validate_ticket, canonical
@@ -27,7 +28,7 @@ def inspect_run(report_path, frozen_dir, expected_targets, latest_verified):
         raise ValueError("incomplete dual-game research report")
     evidence = {"schema": "SSQDLT_V47_11_MODEL_EXECUTION_EVIDENCE_V1",
                 "report_sha256": hashlib.sha256(raw).hexdigest(),
-                "verified_from": "GITHUB_ACTIONS_EXECUTION",
+                "verified_from": "GITHUB_ACTIONS_EXECUTION" if os.getenv('GITHUB_ACTIONS') == 'true' and os.getenv('GITHUB_RUN_ID') else 'LOCAL_PROCESS',
                 "input_source": "CHECKED_IN_SEED_PLUS_CITED_DELTA",
                 "source_current_verification": False,
                 "expected_ticket_count": 22,

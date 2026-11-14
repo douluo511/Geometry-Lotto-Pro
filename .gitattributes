@@ -1,0 +1,7 @@
+# Frozen JSON hashes cover raw bytes, on Windows as well as Linux.
+*.json -text
+*.jsonl -text
+*.html -text
+*.bin -text
+*.py text eol=lf
+*.yml text eol=lf

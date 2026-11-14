@@ -1,7 +1,8 @@
-"""Unified 11-stage SSQ/DLT next-candidate research pipeline.
+"""Legacy research helpers plus evolution and eleven-model freeze contracts.
 
-Runs FIVE named statistical selector families and SIX supporting layers as one
-pipeline. All evolution and evaluation use only draws preceding a prediction.
+run_all retains the historical five-family report for API compatibility.
+v47_forecast replaces its proposals with the eleven concrete registry outputs.
+All evolution and evaluation use only draws preceding a prediction.
 The physics layer is explicitly uncalibrated. No claim of a proven lottery edge.
 """
 from __future__ import annotations
@@ -101,6 +102,9 @@ def cell_division(rows, game, seed=2026, generations=2, validation=6,
         survivors = ranked[:2]
         lineage.append({"generation": generation,
                         "evaluated": [{"id": c["id"], "parents": c["parent_ids"],
+                                       "genes":dict(c['genes']),
+                                       "crossover_genes":c.get('crossover_genes'),
+                                       "mutation":c.get('mutation'),
                                        "objective": c["fitness"], "origin": c["origin"]}
                                       for c in ranked],
                         "survivor_ids": [s["id"] for s in survivors]})
@@ -119,13 +123,15 @@ def cell_division(rows, game, seed=2026, generations=2, validation=6,
                                           + rng.choice((-1, 1)) * step))
                 changed = parameters(changed)
                 uid = _identity(changed)
-                if uid not in existing:
+                if uid not in existing and changed[gene] != child_genes[gene]:
                     break
             else:
                 continue
             existing.add(uid)
             next_population.append({"id": uid, "parent_ids": [a["id"], b["id"]],
-                                    "genes": changed, "origin": "crossover_mutation"})
+                                    "genes": changed, "origin": "crossover_mutation",
+                                    "crossover_genes":dict(child_genes),
+                                    "mutation":{"gene":gene,"before":child_genes[gene],"after":changed[gene]}})
         population = next_population
     for cell in population:
         if cell["id"] not in evaluations:
@@ -135,6 +141,9 @@ def cell_division(rows, game, seed=2026, generations=2, validation=6,
     lineage.append({"generation": generations, "final_id": champion["id"],
                     "final_objective": champion["fitness"],
                     "evaluated": [{"id": c["id"], "parents": c["parent_ids"],
+                                   "genes":dict(c['genes']),
+                                   "crossover_genes":c.get('crossover_genes'),
+                                   "mutation":c.get('mutation'),
                                    "objective": c["fitness"], "origin": c["origin"]}
                                   for c in sorted(population,
                                       key=lambda x: (x["fitness"], x["id"]))],
@@ -146,6 +155,7 @@ def cell_division(rows, game, seed=2026, generations=2, validation=6,
             "parent_from_prior_run": previous_champion is not None,
             "inherited_champion_id": (
                 _identity(previous_champion) if previous_champion is not None else None),
+            "inherited_champion_genes": parameters(previous_champion) if previous_champion is not None else None,
             "inherited_parent_present_in_initial_population": any(
                 cell["origin"] == "inherited_prior_run"
                 for cell in lineage[0]["evaluated"]),
@@ -334,6 +344,19 @@ def freeze_result(path, report):
                 or [t.get("model_number") for t in items] != list(range(1, 12))
                 or len({t.get("model_name") for t in items}) != 11):
             raise ValueError("freeze requires all 11 attributed model tickets")
+        independent = report['independent_11']
+        digest_body = {k:v for k,v in independent.items() if k != 'run_digest_sha256'}
+        if hashlib.sha256(canonical(digest_body)).hexdigest() != independent.get('run_digest_sha256'):
+            raise ValueError('model output execution digest mismatch')
+        for ticket in items:
+            record = independent['models'].get(ticket['model_name'], {})
+            original = record.get('prediction',{}).get('ticket',{})
+            if record.get('number') != ticket['model_number'] or any(
+                    ticket.get(k) != original.get(k) for k in ('front','back','dan2')):
+                raise ValueError('ticket differs from named model output')
+            validate_ticket(ticket,report['game'])
+        if str(report['target_issue']).isdigit() and int(report['target_issue']) <= int(report['history_last_issue']):
+            raise ValueError('target must be after training history')
     doc = {"schema": "SSQDLT_V47_UNIFIED_FROZEN_V1",
            "created_utc": datetime.now(timezone.utc).isoformat(),
            "source": report, "formal_prediction": False,
