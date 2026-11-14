@@ -68,6 +68,42 @@ def rank_probabilities(game, front, back, *, pair=None, zones=None, span=None,
     return out
 
 
+def _normalize_marginals(values, picked):
+    """Monotone bounded mass normalization by a scalar logit intercept."""
+    weights = [max(1e-9, min(1 - 1e-9, float(v))) for v in values[1:]]
+    logits = [math.log(v / (1 - v)) for v in weights]
+    lo, hi = -35.0, 35.0
+    for _ in range(60):
+        bias = (lo + hi) / 2
+        total = sum(1 / (1 + math.exp(-max(-60, min(60, u + bias))))
+                    for u in logits)
+        if total > picked:
+            hi = bias
+        else:
+            lo = bias
+    bias = (lo + hi) / 2
+    out = [0.0] + [1 / (1 + math.exp(-max(-60, min(60, u + bias))))
+                   for u in logits]
+    if abs(sum(out) - picked) > 1e-7:
+        raise ValueError("independent marginal normalization failed")
+    return out
+
+
+def _pair_conditioned_marginals(base, residuals, picked, strength=.14):
+    """Use observed co-occurrence residuals, not merely rename ShrinkMix."""
+    ceiling = len(base) - 1
+    mean = max(1, ceiling - 1)
+    conditioned = [0.0] + [
+        min(1 - 1e-8, max(1e-8, base[i] * math.exp(
+            max(-4, min(4, strength * sum(
+                residuals.get((min(i, j), max(i, j)), 0.0) * base[j]
+                for j in range(1, ceiling + 1) if j != i
+            ) / mean)))))
+        for i in range(1, ceiling + 1)
+    ]
+    return _normalize_marginals(conditioned, picked)
+
+
 class Model:
     number = 0
     label = ""
@@ -123,13 +159,18 @@ class PairwiseD2Model(Model):
     number, label = 4, "Pairwise-D2"
     def fit(self, history, game, context):
         self.pairs = pair_residuals(history, game)
-        self.probs = {area: inclusion_probabilities(history, game, area, "Pairwise-D2")
-                      for area in ("front", "back")}
+        self.probs = {}
+        for area in ("front", "back"):
+            base = inclusion_probabilities(history, game, area, "Pairwise-D2")
+            _, picked = SPECS[game][:2] if area == "front" else SPECS[game][2:]
+            residual = pair_residuals(history, game, area)
+            self.probs[area] = _pair_conditioned_marginals(base, residual, picked)
         return {"pairs": len(self.pairs), "top_pair": list(max(self.pairs, key=self.pairs.get)),
                 "method": "pair_residual_ranking"}
     def predict(self, history, game, context):
-        return {"ticket": candidates(history, game, "Pairwise-D2", limit=1)[0],
-                "marginals": self.probs,
+        ticket = rank_probabilities(game, self.probs["front"], self.probs["back"],
+                                    pair=self.pairs, pair_weight=.16, limit=1)[0]
+        return {"ticket": ticket, "marginals": self.probs,
                 "top_pair_residuals": [[list(k), v] for k, v in
                     sorted(self.pairs.items(), key=lambda p: (-p[1], p[0]))[:6]]}
 
@@ -165,16 +206,21 @@ class StatisticsModel(Model):
         for area, maximum, picked in (("front", fm, fp), ("back", bm, bp)):
             hot, n_hot = weighted_counts(history, area, maximum, "HOT60", parameters())
             ewma, n_ewma = weighted_counts(history, area, maximum, "EWMA", parameters())
-            a = shrink(hot, n_hot, maximum, picked, 60)
-            b = shrink(ewma, n_ewma, maximum, picked, 60)
-            self.posterior[area] = [0.0] + [.5 * (a[i] + b[i]) for i in range(1, maximum + 1)]
+            a = shrink(hot, n_hot, maximum, picked, 35)
+            b = shrink(ewma, n_ewma, maximum, picked, 95)
+            base = [0.0] + [.35 * a[i] + .65 * b[i]
+                            for i in range(1, maximum + 1)]
+            residual = pair_residuals(history, game, area)
+            self.posterior[area] = _pair_conditioned_marginals(
+                base, residual, picked, strength=.2)
             evidence[area] = {"hot_exposure": n_hot, "ewma_exposure": n_ewma,
                               "most_frequent": sorted(range(1, maximum + 1),
                                                      key=lambda x: (-hot[x], x))[:5]}
         self.pairs = pair_residuals(history, game)
         return {"statistics": evidence,
                 "pair_residual_count": len(self.pairs),
-                "prior": 60, "half_life": 30.0}
+                "priors": [35, 95], "mix": [.35, .65], "half_life": 30.0,
+                "pair_conditioned": True}
     def predict(self, history, game, context):
         ticket = rank_probabilities(game, self.posterior["front"],
                                     self.posterior["back"], pair=self.pairs,
@@ -216,8 +262,22 @@ class GeometryModel(Model):
         self.transition = geometry_transition(history, game)
         self.features = geometry_state(history, game)
         self.pairs = pair_residuals(history, game)
-        self.probs = {area: inclusion_probabilities(history, game, area, "ShrinkMix")
-                      for area in ("front", "back")}
+        self.probs = {}
+        fm, fp, bm, bp = SPECS[game]
+        posterior, base = self.transition
+        caps = [sum((n - 1) * 3 // fm == z for n in range(1, fm + 1))
+                for z in range(3)]
+        expected = [sum(v * state[z] for state, v in posterior.items())
+                    for z in range(3)]
+        ratio = [max(.05, min(20, expected[z] / (fp * caps[z] / fm)))
+                 for z in range(3)]
+        for area, maximum, picked in (("front", fm, fp), ("back", bm, bp)):
+            marginal = inclusion_probabilities(history, game, area, "ShrinkMix")
+            if area == "front":
+                marginal = _normalize_marginals(
+                    [0.0] + [marginal[n] * ratio[(n - 1) * 3 // fm]
+                             for n in range(1, fm + 1)], fp)
+            self.probs[area] = marginal
         return {"latest": self.features["latest_state"],
                 "mean_span": self.features["mean_span"],
                 "mean_gap": self.features["mean_gap"],
@@ -229,7 +289,8 @@ class GeometryModel(Model):
                                     span=self.features["mean_span"],
                                     geometry_weight=.4,
                                     limit=1)[0]
-        return {"ticket": ticket, "state": zone_state(ticket, game),
+        return {"ticket": ticket, "marginals": self.probs,
+                "state": zone_state(ticket, game),
                 "features": geometry(ticket),
                 "state_transition_likelihood": self.transition[0][zone_state(ticket, game)]}
 
@@ -257,8 +318,11 @@ class SimulationModel(Model):
         freq_b = Counter(n for ticket in draws for n in ticket["back"])
         front = sorted(sorted(range(1, fm + 1), key=lambda n: (-freq_f[n], n))[:fp])
         back = sorted(sorted(range(1, bm + 1), key=lambda n: (-freq_b[n], n))[:bp])
+        marginals = {
+            "front": [0.0] + [freq_f[n] / len(draws) for n in range(1, fm + 1)],
+            "back": [0.0] + [freq_b[n] / len(draws) for n in range(1, bm + 1)]}
         return {"ticket": pack_ticket(game, front, back),
-                "monte_carlo": self.monte_carlo,
+                "marginals": marginals, "monte_carlo": self.monte_carlo,
                 "retrospective": {"models": {k: {
                     "d2_hits": v["d2_hits"], "brier": v["m3"]["brier"],
                     "m2": v["m2"]} for k,v in self.backtest["models"].items()},
@@ -276,7 +340,18 @@ class PhysicsModel(Model):
                 "calibrated_to_draw_machine": False}
     def predict(self, history, game, context):
         ticket = self.sim["toy_ticket"]
+        fm, fp, bm, bp = SPECS[game]
+        # A deliberately weak pseudo-probability for audit; it is NOT a
+        # physically estimated inclusion probability from a draw machine.
+        marginals = {}
+        for area, maximum, picked in (("front", fm, fp), ("back", bm, bp)):
+            chosen = set(ticket[area])
+            marginals[area] = [0.0] + [
+                .85 * picked / maximum + (.15 if n in chosen else 0.0)
+                for n in range(1, maximum + 1)]
         return {"ticket": pack_ticket(game, ticket["front"], ticket["back"]),
+                "marginals": marginals,
+                "probability_status": "UNCALIBRATED_PHYSICS_PROXY",
                 "physical_simulation": self.sim,
                 "calibrated_to_draw_machine": False}
 
@@ -321,7 +396,7 @@ class ValidationModel(Model):
                                  self.posterior["back"], limit=3)
         m1_math(history, game, out[0])
         return {"ticket": out[0], "alternates": out[1:],
-                "ensemble_from": list(self.weights),
+                "marginals": self.posterior, "ensemble_from": list(self.weights),
                 "influence_weights": self.weights,
                 "legal_math_checks": len(self.m1) + 1,
                 "independent_fair_d2_tests": self.m2,
