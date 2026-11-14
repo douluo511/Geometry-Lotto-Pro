@@ -546,13 +546,36 @@ def score_frozen(path, expected_sha256, actual):
     if str(actual.get("issue")) != payload["target_issue"]:
         raise ValueError("actual issue is not prediction target")
     validate_ticket(actual, game)
-    return {"schema": "SSQDLT_V47_HEDGE22_SCORE_V1",
+    strict = "joint_search" in payload
+    if not strict:
+        # Immutable old frozen forecasts must stay scoreable, but NEVER
+        # rebrand their partial-exclusion target as a strict M- success.
+        results = {}
+        for name, record in payload["models"].items():
+            if record["direction"] == "not_subset":
+                ex = set(record["prediction"]["excluded_pair"])
+                hits = len(ex.intersection(actual["front"]))
+                results[name] = {
+                    "legacy_partial_exclusion_success": hits < len(ex),
+                    "reference_disjoint_success_not_original_objective": hits == 0,
+                    "excluded_hits": hits,
+                    "legacy_incompatible_with_strict_m_minus": True}
+            else:
+                results[name] = score_one(record, actual, game)
+        return {"schema": "SSQDLT_V47_HEDGE22_LEGACY_SCORE_V1",
+                "status": "LEGACY_PARTIAL_EXCLUSION_SCORED_UNVERIFIED",
+                "game": game, "target_issue": payload["target_issue"],
+                "source_sha256": expected_sha256, "edge": "NO_EDGE",
+                "count": 22, "models": results, "strict_disjoint_verified": False}
+    return {"schema": "SSQDLT_V47_HEDGE22_SCORE_V2",
             "status": "SCORED_WITH_SUPPLIED_DRAW_UNVERIFIED",
             "game": game, "target_issue": payload["target_issue"],
             "source_sha256": expected_sha256, "edge": "NO_EDGE",
             "count": 22, "models": {
                 name: score_one(record, actual, game)
-                for name, record in payload["models"].items()}}
+                for name, record in payload["models"].items()},
+            "joint": score_joint_search(payload["joint_search"], actual, game),
+            "strict_disjoint_verified": True}
 
 
 def main(argv=None):
@@ -635,6 +658,12 @@ def main(argv=None):
                         "history_asof": v["history_last_issue"],
                         "count": v["ticket_count"],
                         "m2_count": len(v["historical_validation"]["models"]),
+                        "joint": {
+                            "required": v["joint_search"]["constraints"]["required"],
+                            "excluded": v["joint_search"]["constraints"]["excluded"],
+                            "retained_front": v["joint_search"]["retained_front_combinations"],
+                            "original_front": v["joint_search"]["original_front_combinations"],
+                            "ranked_tickets": v["joint_search"]["tickets"]},
                         "tickets": v["tickets"]}
                   for game, v in games.items()}}, ensure_ascii=False))
 
