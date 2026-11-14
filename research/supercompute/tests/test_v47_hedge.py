@@ -85,6 +85,8 @@ class TwentyTwoComputationalModelsTests(unittest.TestCase):
                                  "EXCLUDED_PAIR_NOT_SUBSET_OF_DRAW")
                 self.assertEqual(negative["prediction"]["source_positive_name"],
                                  positive["base_name"])
+                self.assertNotEqual(negative["prediction"]["ticket"]["front"],
+                                    positive["prediction"]["ticket"]["front"])
                 self.assertEqual(negative["fit"]["method"],
                                  NEGATIVE_REGISTRY[i-1].method)
                 self.assertTrue(negative["fit"]["trained_anti_probability"])
