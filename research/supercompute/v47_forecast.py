@@ -85,6 +85,17 @@ def main(argv=None):
             validation=args.validation, holdout=args.holdout,
             mc_trials=args.mc_trials, physics_steps=args.physics_steps,
             previous_champion=_previous(args.previous, game))
+        all_checks = report["independent_11"].get("validation_all_11")
+        if (not isinstance(all_checks, dict)
+                or all_checks.get("model_count") != 11
+                or len(all_checks.get("models", {})) != 11
+                or all_checks.get("uses_future_draws") is not False):
+            raise ValueError("M2/M3 evaluation missing for some models")
+        report["validation"]["M2"] = {
+            name: evidence["m2"] for name, evidence in all_checks["models"].items()}
+        report["validation"]["M3"] = {
+            name: evidence["m3"] for name, evidence in all_checks["models"].items()}
+        report["full_model_validation"] = all_checks["status"]
         # One named, independently computed ticket for EACH of the eleven
         # executable models. Never replace these with three fused alternatives.
         model_evidence = report["independent_11"]["models"]
@@ -131,6 +142,8 @@ def main(argv=None):
                                        "model_lineage": reports[game]["independent_11"]["models"]["Challenger"]["fit"]["champion_id"],
                                        "eleven_independent_models": reports[game]["independent_11"]["model_count"],
                                        "ticket_count": reports[game]["ticket_count"],
+                                       "m2_model_count": len(reports[game]["validation"]["M2"]),
+                                       "m3_model_count": len(reports[game]["validation"]["M3"]),
                                        "model11_prediction": reports[game]["independent_11"]["final_candidate"]}
                                 for game in games}}, ensure_ascii=False))
 
