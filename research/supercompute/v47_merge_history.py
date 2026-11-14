@@ -50,7 +50,10 @@ def validate_delta(seed, delta, game):
             raise ValueError("missing citable source URL")
         if record["source_tier"] == "ISSUER_PROVINCIAL" and not (
             url.startswith("https://www.swlc.net.cn/")
-            or url.startswith("https://api.js-lottery.com/")):
+            or url.startswith("https://api.js-lottery.com/")
+            or url.startswith("https://www.js-lottery.com/")
+            or url.startswith("https://www.gdlottery.cn/")
+            or url.startswith("https://www.cqtcw.net/")):
             raise ValueError("issuer provenance mismatch")
         current = {k: record[k] for k in ("issue", "draw_date", "front", "back")}
         validate_ticket(current, game)
@@ -94,7 +97,7 @@ def build(seed_paths, delta_path, output_dir):
               "created_from": str(delta_path),
               "delta_sha256": delta_sha,
               "live_official_source_verified": False,
-              "source_status": "HISTORICAL_CITED_WITH_SECONDARY_ROWS",
+              "source_status": "CITED_PUBLISHED_PROVINCIAL_ISSUER_PAGES_NOT_LIVE_ATTESTED",
               "games": audits}
     Path(output_dir).mkdir(parents=True, exist_ok=True)
     # Exclusive creates reject overwritten snapshots and receipts.
