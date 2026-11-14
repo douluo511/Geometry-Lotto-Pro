@@ -342,7 +342,6 @@ REGISTRY_22 = tuple((f"M{i:02d}{sign}", cls)
 def score_one(record, actual, game):
     if record["direction"] == "subset":
         ticket = record["prediction"]["ticket"]
-        result = record["model_class"].score(ticket, actual, game) if False else None
         return {"subset_event": set(ticket["dan2"]).issubset(actual["front"]),
                 "fair_subset": fair_pair(game)["subset"],
                 "front_hits": len(set(ticket["front"]) & set(actual["front"])),
