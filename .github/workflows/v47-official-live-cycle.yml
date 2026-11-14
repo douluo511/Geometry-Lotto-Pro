@@ -101,7 +101,7 @@ jobs:
             --ledger "$RUNNER_TEMP/v47-ledger-dry-run" \
             --source-dir "$RUNNER_TEMP/v47-live" \
             --run-id 999111 --run-attempt 1 \
-            --commit-sha "$GITHUB_SHA" --event schedule \
+            --commit-sha "$GITHUB_SHA" --event schedule --include-hedge44 \
             | tee "$RUNNER_TEMP/v47-live/ledger-dry-run.json"
           python -m research.supercompute.v47_live_ledger verify \
             --ledger "$RUNNER_TEMP/v47-ledger-dry-run"
@@ -159,7 +159,7 @@ jobs:
         with:
           name: v47-live-source-check-${{ github.run_id }}
           path: ${{ runner.temp }}/v47-input
-      - name: Record real-next-issue 22 models, store freezes, score published past issues, verify restored branch
+      - name: Record 22-branch hedge models for BOTH lotteries (44 rows), store freezes, score past real draws, verify recovery
         shell: bash
         run: |
           set -euo pipefail
@@ -178,7 +178,7 @@ jobs:
             --source-dir "$RUNNER_TEMP/v47-input/v47-live" \
             --run-id "$GITHUB_RUN_ID" \
             --run-attempt "$GITHUB_RUN_ATTEMPT" \
-            --commit-sha "$GITHUB_SHA" --event "$GITHUB_EVENT_NAME" \
+            --commit-sha "$GITHUB_SHA" --event "$GITHUB_EVENT_NAME" --include-hedge44 \
             | tee "$RUNNER_TEMP/v47-live-ledger-record.json"
           git -C "$ledger" config user.name "github-actions[bot]"
           git -C "$ledger" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -197,4 +197,7 @@ jobs:
           path: |
             ${{ runner.temp }}/v47-live-ledger-record.json
             ${{ runner.temp }}/v47-live-ledger-verification.json
+            ${{ runner.temp }}/v47-live-ledger/research/v47_live_ledger/hedge44/reports/
+            ${{ runner.temp }}/v47-live-ledger/research/v47_live_ledger/hedge44/frozen/
+            ${{ runner.temp }}/v47-live-ledger/research/v47_live_ledger/hedge44/scores/
           if-no-files-found: warn
