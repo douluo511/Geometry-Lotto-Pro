@@ -206,11 +206,17 @@ class NegativeBase:
         positive_front = set(self.positive["ticket"]["front"])
         ranked = []
         for combo in itertools.combinations(sorted(front_pool), picked):
+            # The negative branch is an actual contrasting position, not
+            # merely a second label attached to the positive combination.
+            if not set(combo).difference(positive_front):
+                continue
             weighted = sum(math.log(max(1e-7, self.candidate[n])) for n in combo)
             pair_bonus = .04 * self.evolution["champion"]["pair_weight"] * sum(
                 self.residual[(i, j)] for i, j in itertools.combinations(combo, 2))
             contrast = .035 * len(set(combo).difference(positive_front))
             ranked.append((weighted + pair_bonus + contrast, combo))
+        if not ranked:
+            raise ValueError("no legal hedge candidate with positive-branch contrast")
         score, front = max(ranked, key=lambda v: (v[0], tuple(-n for n in v[1])))
         back = sorted(sorted(back_pool, key=lambda n: (-self.back[n], n))[:backpick])
         front = sorted(front)
@@ -408,10 +414,17 @@ def historical_audit(rows, game, *, seed, holdout, validation, mc_trials,
             observed = int(event["subset_event"] if is_positive
                            else event["negative_event_not_subset"])
             empirical = (fair["subset"] if is_positive else fair["not_subset"])
-            predicted = (max(1e-5, min(1 - 1e-5,
-                item["prediction"].get("estimated_pair_subset_probability",
-                    empirical))) if is_positive
-                else item["prediction"]["estimated_not_subset_probability"])
+            if is_positive:
+                selected = item["prediction"]["ticket"]["dan2"]
+                sample = past[-120:]
+                pair_hits = sum(set(selected).issubset(x["front"]) for x in sample)
+                smoothed_joint = (pair_hits + 24 * fair["subset"]) / (len(sample) + 24)
+                marg = item["prediction"]["marginals"]["front"]
+                independent_proxy = marg[selected[0]] * marg[selected[1]]
+                predicted = max(1e-5, min(1 - 1e-5,
+                    .7 * smoothed_joint + .3 * independent_proxy))
+            else:
+                predicted = item["prediction"]["estimated_not_subset_probability"]
             series[item["model_id"]].append((predicted, observed, empirical))
     audits = {}
     for name, samples in series.items():
