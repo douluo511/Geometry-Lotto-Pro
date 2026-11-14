@@ -10,7 +10,7 @@ from research.supercompute.v47_set_relations import (
     evaluate_relation, score_model_relation,
 )
 from research.supercompute.v47_hedge import score_one
-from research.supercompute.v47_interval_search import score_constraints
+from research.supercompute.v47_interval_search import score_constraints, score_interval_search
 from research.supercompute.v47_joint_filter import score_joint_search
 from research.supercompute.v47_models import SPECS
 
@@ -152,14 +152,10 @@ class SetRelationsAcceptance(unittest.TestCase):
             search = {"game": game, "areas": areas,
                       "tickets": [actual],
                       "retained_full_ticket_combinations": 100}
-            tested = __import__(
-                "research.supercompute.v47_interval_search",
-                fromlist=["score_interval_search"]
-            ).score_interval_search(search, actual, game)
-            self.assertEqual(tested["exact_full_jackpot_hits"], 1)
-            self.assertFalse(tested["all_area_constraints_survived"])
-            # Matching a proposed ticket does not validate a failed hard
-            # constraint; the contract reports these notions separately.
+            # A frozen ticket that violates its own exclusion constraint
+            # must be rejected, even if it happens to match the draw.
+            with self.assertRaises(ValueError):
+                score_interval_search(search, actual, game)
 
     def test_front_only_legacy_joint_scoring_remains_strict(self):
         for game, actual in DRAW.items():
