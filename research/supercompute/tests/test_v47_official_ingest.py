@@ -28,7 +28,7 @@ def html_table(game, rows):
     if game == "ssq":
         body = "".join(
             '<tr><td>{issue}</td><td>{draw_date}(四)</td>'
-            '<td><span>{red}</span></td><td><i>{blue}</i></td><td>300</td></tr>'.format(
+            '<td><span>{red}</span></td><td><i>{blue}</i></td><td>300</td><td><a href="#"><img src="detail.png"></a></td></tr>'.format(
                 issue=x["issue"], draw_date=x["draw_date"],
                 red="".join(f"<i>{n:02d}</i>" for n in x["front"]),
                 blue=f'{x["back"][0]:02d}') for x in rows)
