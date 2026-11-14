@@ -181,8 +181,24 @@ def ingest(base_paths, out_dir, *, fetch=fetch_publisher, minimum_overlap=3):
                 "history_sha256": hashlib.sha256(canonical(history)).hexdigest(),
                 "source_review": "ISSUER_PUBLISHED_HTML_NOT_SIGNED_FEED"}
         except Exception as exc:
+            diagnostics = {}
+            if "raw" in locals() and isinstance(raw, bytes):
+                title = re.search(br"<title[^>]*>([^<]{0,200})</title>",
+                                  raw, re.IGNORECASE)
+                diagnostics = {
+                    "response_sha256": hashlib.sha256(raw).hexdigest(),
+                    "response_bytes": len(raw),
+                    "contains_expected_issue_2026": b"2026" in raw,
+                    "html_title": (
+                        title.group(1).decode("utf-8", errors="replace")
+                        if title else None),
+                }
+            if "fetch_receipt" in locals():
+                diagnostics["http_status"] = fetch_receipt.get("http_status")
+                diagnostics["effective_url"] = fetch_receipt.get("effective_url")
             error = {"schema": "SSQDLT_V47_LIVE_FETCH_FAILURE_V1",
                      "game": game, "source_url": SOURCES[game][0],
+                     "http_diagnostics": diagnostics,
                      "parser_id": PARSER_ID, "failure_type": type(exc).__name__,
                      "failure_message": str(exc)[:350],
                      "recorded_utc": datetime.now(timezone.utc).isoformat(),
