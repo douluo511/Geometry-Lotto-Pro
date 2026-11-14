@@ -134,10 +134,14 @@ class ElevenIndependentModelTests(unittest.TestCase):
             before = self.rows[game][:-2]
             altered = copy.deepcopy(self.rows[game])
             altered[-1]["front"] = [1, 2, 3, 4, 5, 6] if game == "ssq" else [1, 2, 3, 4, 5]
+            # Test the model fit directly: the shortened prefix deliberately
+            # lacks the extra prior rows needed for full audit splitting.
             self.assertEqual(reg.execute_eleven(before, game, generations=1,
-                validation=3, holdout=2, mc_trials=20, physics_steps=2),
+                validation=3, holdout=2, mc_trials=20, physics_steps=2,
+                full_audit=False),
                 reg.execute_eleven(altered[:-2], game, generations=1,
-                validation=3, holdout=2, mc_trials=20, physics_steps=2))
+                validation=3, holdout=2, mc_trials=20, physics_steps=2,
+                full_audit=False))
 
     def test_inherited_champion_survives_across_runs(self):
         rows = self.rows["ssq"]
