@@ -528,10 +528,10 @@ def run_hedge22(rows, game, target, *, seed=2026, generations=2,
                 "base_champion": base["champion_genome"],
                 "negative_champions": {
                     r["base_name"]: r["fit"]["cell_evolution"]["champion"]
-                    for r in records if r["direction"] == "not_subset"},
+                    for r in records if r["direction"] == "disjoint"},
                 "negative_lineages": {
                     r["model_id"]: r["fit"]["cell_evolution"]
-                    for r in records if r["direction"] == "not_subset"}}}
+                    for r in records if r["direction"] == "disjoint"}}}
 
 
 def score_frozen(path, expected_sha256, actual):
