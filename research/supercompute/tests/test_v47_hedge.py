@@ -71,6 +71,14 @@ class TwentyTwoComputationalModelsTests(unittest.TestCase):
                 self.assertEqual(result["M3"]["calibrated"]["samples"], 1)
             self.assertFalse(data["historical_validation"]["multiple_tests_adjusted"])
             self.assertEqual(data["joint_search"]["model_count_used"], 22)
+            self.assertEqual(data["interval_search"]["schema"],
+                             "SSQDLT_V47_FOUR_AREA_INTERVAL_SEARCH_V1")
+            self.assertEqual(data["interval_search"]["model_records_used"], 22)
+            self.assertEqual(len(data["interval_search"]["tickets"]), 8)
+            self.assertTrue(data["historical_validation"]["interval_calibration"][
+                "validation_independent_of_selection"])
+            self.assertEqual(data["historical_validation"]["interval_calibration"][
+                "statistical_status"], "INSUFFICIENT_FOLDS_NO_RELIABLE_EDGE")
             self.assertEqual(len(data["joint_search"]["tickets"]), 8)
             self.assertEqual(len(data["historical_validation"]["joint"]["folds"]), 3)
             for name, model_audit in data["historical_validation"]["models"].items():
@@ -167,6 +175,9 @@ class TwentyTwoComputationalModelsTests(unittest.TestCase):
                 self.assertEqual(len(out["models"]), 22)
                 self.assertTrue(out["strict_disjoint_verified"])
                 self.assertIn("joint", out)
+                self.assertIn("interval", out)
+                self.assertIn("areas", out["interval"])
+                self.assertIn("all_area_constraints_survived", out["interval"])
                 self.assertEqual(out["joint"]["candidate_count"], 8)
                 self.assertTrue(out["status"].endswith("UNVERIFIED"))
                 with self.assertRaises(ValueError):
