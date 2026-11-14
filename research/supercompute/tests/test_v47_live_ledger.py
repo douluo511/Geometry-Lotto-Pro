@@ -18,7 +18,8 @@ class LiveScheduleLedgerTests(unittest.TestCase):
         issues = issues or {"ssq": ("2026130", "2026-11-12"),
                             "dlt": ("26129", "2026-11-11")}
         receipt = {"schema": "SSQDLT_V47_LIVE_ISSUER_INGEST_V1",
-                   "status": "OVERLAP_VERIFIED", "games": {}}
+                   "status": "OVERLAP_VERIFIED",
+                   "publisher_issues_matched": True, "games": {}}
         for game, (issue, day) in issues.items():
             balls = {"front": [1, 3, 7, 10, 20, 31], "back": [5]} if game == "ssq" \
                 else {"front": [2, 5, 11, 19, 30], "back": [4, 12]}
