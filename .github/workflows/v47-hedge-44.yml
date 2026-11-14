@@ -63,6 +63,34 @@ jobs:
               print('V47_HEDGE_FREEZE_SHA256',g,hashlib.sha256(frozen.read_bytes()).hexdigest())
           print('V47_HEDGE_44_ACCEPTANCE_PASS',hashlib.sha256(raw).hexdigest())
           PY
+      - name: Validate independently advancing SSQ and DLT 22-model issue contracts
+        run: |
+          for game in ssq dlt; do
+            python -m research.supercompute.v47_hedge generate \
+              --game "$game" \
+              --"$game"-data "$RUNNER_TEMP/v47-current/$game-merged-history.json" \
+              --"$game"-target "$(test "$game" = ssq && echo 2026131 || echo 26130)" \
+              --previous "$RUNNER_TEMP/v47-hedge-44.json" \
+              --seed 20261115 --generations 2 --validation 4 --holdout 3 \
+              --mc-trials 35 --physics-steps 3 \
+              --output "$RUNNER_TEMP/v47-single-$game.json" \
+              --freeze-dir "$RUNNER_TEMP/v47-single-frozen-$game"
+          done
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          temp=Path(os.environ['RUNNER_TEMP'])
+          for game in ('ssq','dlt'):
+              item=json.loads((temp/f'v47-single-{game}.json').read_bytes())
+              assert item['schema']=='SSQDLT_V47_HEDGE22_RUN_V1'
+              assert item['ticket_count']==22 and list(item['games'])==[game]
+              record=item['games'][game]
+              assert len(record['models'])==22
+              assert record['models']['M05+']['fit']['inherited']
+              assert all(record['models'][f'M{i:02d}-']['fit']['cell_evolution']['previous_inherited']
+                         for i in range(1,12))
+          print('V47_ASYNC_DRAW_DATES_TWO_INDEPENDENT_22_MODEL_RUNS_PASS')
+          PY
       - name: Execute second generation using actual frozen champions from first 44-row run
         run: |
           python -m research.supercompute.v47_hedge generate \
@@ -101,6 +129,8 @@ jobs:
           name: v47-subset-hedge-44-${{ github.run_id }}
           path: |
             ${{ runner.temp }}/v47-hedge-44.json
+            ${{ runner.temp }}/v47-single-ssq.json
+            ${{ runner.temp }}/v47-single-dlt.json
             ${{ runner.temp }}/v47-hedge-44-inherited.json
             ${{ runner.temp }}/v47-hedge-inherited-frozen/
             ${{ runner.temp }}/v47-hedge-frozen/
