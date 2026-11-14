@@ -1,7 +1,7 @@
 {
   "schema": "SSQDLT_V47_DRAW_DELTA_V1",
   "generated_on": "2026-11-14",
-  "source_status": "CITED_PUBLIC_ISSUER_AND_SECONDARY_RESEARCH_INPUT_NOT_LIVE_VERIFIED",
+  "source_status": "CITED_PROVINCIAL_ISSUER_PUBLISHED_HISTORY_NOT_INDEPENDENT_LIVE_AUTHENTICATED",
   "target_issues": {
     "ssq": "2026131",
     "dlt": "26130"
@@ -381,8 +381,8 @@
           4,
           8
         ],
-        "source_url": "https://datachart.500star.com/dlt/history/history.shtml",
-        "source_tier": "SECONDARY_NOT_ISSUER_CONFIRMED"
+        "source_url": "https://www.gdlottery.cn/f_html/kjgg/P085_26109.html",
+        "source_tier": "ISSUER_PROVINCIAL"
       },
       {
         "issue": "26110",
@@ -398,8 +398,8 @@
           7,
           9
         ],
-        "source_url": "https://datachart.500star.com/dlt/history/history.shtml",
-        "source_tier": "SECONDARY_NOT_ISSUER_CONFIRMED"
+        "source_url": "https://www.js-lottery.com/cms/post-147965.html",
+        "source_tier": "ISSUER_PROVINCIAL"
       },
       {
         "issue": "26111",
@@ -432,8 +432,8 @@
           3,
           9
         ],
-        "source_url": "https://datachart.500star.com/dlt/history/history.shtml",
-        "source_tier": "SECONDARY_NOT_ISSUER_CONFIRMED"
+        "source_url": "https://www.js-lottery.com/cms/post-147994.html",
+        "source_tier": "ISSUER_PROVINCIAL"
       },
       {
         "issue": "26113",
@@ -466,8 +466,8 @@
           9,
           12
         ],
-        "source_url": "https://datachart.500star.com/dlt/history/history.shtml",
-        "source_tier": "SECONDARY_NOT_ISSUER_CONFIRMED"
+        "source_url": "https://www.js-lottery.com/cms/post-148006.html",
+        "source_tier": "ISSUER_PROVINCIAL"
       },
       {
         "issue": "26115",
@@ -483,8 +483,8 @@
           6,
           7
         ],
-        "source_url": "https://datachart.500star.com/dlt/history/history.shtml",
-        "source_tier": "SECONDARY_NOT_ISSUER_CONFIRMED"
+        "source_url": "https://www.js-lottery.com/cms/post-148030.html",
+        "source_tier": "ISSUER_PROVINCIAL"
       },
       {
         "issue": "26116",
@@ -500,8 +500,8 @@
           1,
           10
         ],
-        "source_url": "https://datachart.500star.com/dlt/history/history.shtml",
-        "source_tier": "SECONDARY_NOT_ISSUER_CONFIRMED"
+        "source_url": "https://www.js-lottery.com/cms/post-148040.html",
+        "source_tier": "ISSUER_PROVINCIAL"
       },
       {
         "issue": "26117",
@@ -517,8 +517,8 @@
           2,
           12
         ],
-        "source_url": "https://datachart.500star.com/dlt/history/history.shtml",
-        "source_tier": "SECONDARY_NOT_ISSUER_CONFIRMED"
+        "source_url": "https://www.js-lottery.com/cms/post-148054.html",
+        "source_tier": "ISSUER_PROVINCIAL"
       },
       {
         "issue": "26118",
@@ -534,8 +534,8 @@
           6,
           12
         ],
-        "source_url": "https://datachart.500star.com/dlt/history/history.shtml",
-        "source_tier": "SECONDARY_NOT_ISSUER_CONFIRMED"
+        "source_url": "https://www.cqtcw.net/h5/aritcle/1561136731621253120/h5/content_1561136731621253120.html",
+        "source_tier": "ISSUER_PROVINCIAL"
       },
       {
         "issue": "26119",
@@ -727,8 +727,8 @@
     ]
   },
   "notes": [
-    "SSQ 2026110-2026130 from Shanghai Provincial Welfare Lottery official historical table.",
-    "DLT 26120-26129 plus 26119,26113,26111 independently checked in Jiangsu Provincial Sports Lottery pages; remaining rows from published 500star historical table and MUST be reconciled with primary issuer before formal acceptance.",
-    "Recorded data are a retrospective citable snapshot, not a live issuer feed nor pre-draw timestamp."
+    "SSQ 2026110–2026130 from Shanghai Provincial Welfare Lottery Center published official history.",
+    "DLT 26109–26129 reconciled with official provincial sports lottery issue announcements in Jiangsu, Guangdong, Chongqing and provincial history.",
+    "The source URL and issue numbers are traceable public issuer information, but this GitHub runner does not independently authenticate source response bytes or provide a cryptographically trusted pre-draw seal."
   ]
 }
