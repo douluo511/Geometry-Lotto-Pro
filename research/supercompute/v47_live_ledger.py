@@ -171,6 +171,10 @@ def record(worktree, source_dir, run_id, run_attempt, sha, event, now=None):
                 or len(game_result.get("validation", {}).get("M3", {})) != 11
                 or read(fpath)["source"]["target_issue"] != target):
             raise ValueError("incomplete 11-model real issue freeze")
+        frozen_document = read(fpath)
+        created = datetime.fromisoformat(frozen_document["created_utc"])
+        if created.tzinfo is None or created.astimezone(CST) >= cutoff:
+            raise ValueError("late freeze: target nominal draw already passed")
         body, frozen = output.read_bytes(), fpath.read_bytes()
         files.extend([
             {"kind": "forecast_report", "game": game,
