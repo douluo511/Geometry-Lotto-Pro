@@ -1,0 +1,734 @@
+{
+  "schema": "SSQDLT_V47_DRAW_DELTA_V1",
+  "generated_on": "2026-11-14",
+  "source_status": "CITED_PROVINCIAL_ISSUER_PUBLISHED_HISTORY_NOT_INDEPENDENT_LIVE_AUTHENTICATED",
+  "target_issues": {
+    "ssq": "2026131",
+    "dlt": "26130"
+  },
+  "records": {
+    "ssq": [
+      {
+        "issue": "2026110",
+        "draw_date": "2026-09-22",
+        "front": [
+          2,
+          5,
+          16,
+          19,
+          26,
+          32
+        ],
+        "back": [
+          14
+        ],
+        "source_url": "https://www.swlc.net.cn/lottery/ssq.html?limit=100&view=previous",
+        "source_tier": "ISSUER_PROVINCIAL"
+      },
+      {
+        "issue": "2026111",
+        "draw_date": "2026-09-24",
+        "front": [
+          6,
+          7,
+          14,
+          22,
+          31,
+          32
+        ],
+        "back": [
+          5
+        ],
+        "source_url": "https://www.swlc.net.cn/lottery/ssq.html?limit=100&view=previous",
+        "source_tier": "ISSUER_PROVINCIAL"
+      },
+      {
+        "issue": "2026112",
+        "draw_date": "2026-09-27",
+        "front": [
+          1,
+          4,
+          11,
+          12,
+          17,
+          29
+        ],
+        "back": [
+          11
+        ],
+        "source_url": "https://www.swlc.net.cn/lottery/ssq.html?limit=100&view=previous",
+        "source_tier": "ISSUER_PROVINCIAL"
+      },
+      {
+        "issue": "2026113",
+        "draw_date": "2026-09-29",
+        "front": [
+          3,
+          4,
+          20,
+          24,
+          29,
+          30
+        ],
+        "back": [
+          11
+        ],
+        "source_url": "https://www.swlc.net.cn/lottery/ssq.html?limit=100&view=previous",
+        "source_tier": "ISSUER_PROVINCIAL"
+      },
+      {
+        "issue": "2026114",
+        "draw_date": "2026-10-06",
+        "front": [
+          7,
+          18,
+          23,
+          24,
+          29,
+          31
+        ],
+        "back": [
+          10
+        ],
+        "source_url": "https://www.swlc.net.cn/lottery/ssq.html?limit=100&view=previous",
+        "source_tier": "ISSUER_PROVINCIAL"
+      },
+      {
+        "issue": "2026115",
+        "draw_date": "2026-10-08",
+        "front": [
+          4,
+          13,
+          14,
+          18,
+          22,
+          24
+        ],
+        "back": [
+          3
+        ],
+        "source_url": "https://www.swlc.net.cn/lottery/ssq.html?limit=100&view=previous",
+        "source_tier": "ISSUER_PROVINCIAL"
+      },
+      {
+        "issue": "2026116",
+        "draw_date": "2026-10-11",
+        "front": [
+          10,
+          19,
+          24,
+          27,
+          28,
+          33
+        ],
+        "back": [
+          12
+        ],
+        "source_url": "https://www.swlc.net.cn/lottery/ssq.html?limit=100&view=previous",
+        "source_tier": "ISSUER_PROVINCIAL"
+      },
+      {
+        "issue": "2026117",
+        "draw_date": "2026-10-13",
+        "front": [
+          4,
+          11,
+          14,
+          22,
+          26,
+          27
+        ],
+        "back": [
+          4
+        ],
+        "source_url": "https://www.swlc.net.cn/lottery/ssq.html?limit=100&view=previous",
+        "source_tier": "ISSUER_PROVINCIAL"
+      },
+      {
+        "issue": "2026118",
+        "draw_date": "2026-10-15",
+        "front": [
+          5,
+          21,
+          22,
+          23,
+          28,
+          31
+        ],
+        "back": [
+          14
+        ],
+        "source_url": "https://www.swlc.net.cn/lottery/ssq.html?limit=100&view=previous",
+        "source_tier": "ISSUER_PROVINCIAL"
+      },
+      {
+        "issue": "2026119",
+        "draw_date": "2026-10-18",
+        "front": [
+          12,
+          22,
+          23,
+          25,
+          27,
+          30
+        ],
+        "back": [
+          4
+        ],
+        "source_url": "https://www.swlc.net.cn/lottery/ssq.html?limit=100&view=previous",
+        "source_tier": "ISSUER_PROVINCIAL"
+      },
+      {
+        "issue": "2026120",
+        "draw_date": "2026-10-20",
+        "front": [
+          13,
+          14,
+          16,
+          18,
+          20,
+          31
+        ],
+        "back": [
+          3
+        ],
+        "source_url": "https://www.swlc.net.cn/lottery/ssq.html?limit=100&view=previous",
+        "source_tier": "ISSUER_PROVINCIAL"
+      },
+      {
+        "issue": "2026121",
+        "draw_date": "2026-10-22",
+        "front": [
+          2,
+          7,
+          20,
+          24,
+          26,
+          30
+        ],
+        "back": [
+          2
+        ],
+        "source_url": "https://www.swlc.net.cn/lottery/ssq.html?limit=100&view=previous",
+        "source_tier": "ISSUER_PROVINCIAL"
+      },
+      {
+        "issue": "2026122",
+        "draw_date": "2026-10-25",
+        "front": [
+          1,
+          2,
+          4,
+          17,
+          19,
+          30
+        ],
+        "back": [
+          9
+        ],
+        "source_url": "https://www.swlc.net.cn/lottery/ssq.html?limit=100&view=previous",
+        "source_tier": "ISSUER_PROVINCIAL"
+      },
+      {
+        "issue": "2026123",
+        "draw_date": "2026-10-27",
+        "front": [
+          4,
+          5,
+          20,
+          21,
+          26,
+          30
+        ],
+        "back": [
+          12
+        ],
+        "source_url": "https://www.swlc.net.cn/lottery/ssq.html?limit=100&view=previous",
+        "source_tier": "ISSUER_PROVINCIAL"
+      },
+      {
+        "issue": "2026124",
+        "draw_date": "2026-10-29",
+        "front": [
+          3,
+          11,
+          17,
+          22,
+          23,
+          29
+        ],
+        "back": [
+          9
+        ],
+        "source_url": "https://www.swlc.net.cn/lottery/ssq.html?limit=100&view=previous",
+        "source_tier": "ISSUER_PROVINCIAL"
+      },
+      {
+        "issue": "2026125",
+        "draw_date": "2026-11-01",
+        "front": [
+          4,
+          6,
+          10,
+          15,
+          26,
+          27
+        ],
+        "back": [
+          11
+        ],
+        "source_url": "https://www.swlc.net.cn/lottery/ssq.html?limit=100&view=previous",
+        "source_tier": "ISSUER_PROVINCIAL"
+      },
+      {
+        "issue": "2026126",
+        "draw_date": "2026-11-03",
+        "front": [
+          9,
+          10,
+          13,
+          22,
+          29,
+          32
+        ],
+        "back": [
+          12
+        ],
+        "source_url": "https://www.swlc.net.cn/lottery/ssq.html?limit=100&view=previous",
+        "source_tier": "ISSUER_PROVINCIAL"
+      },
+      {
+        "issue": "2026127",
+        "draw_date": "2026-11-05",
+        "front": [
+          13,
+          14,
+          19,
+          25,
+          29,
+          32
+        ],
+        "back": [
+          12
+        ],
+        "source_url": "https://www.swlc.net.cn/lottery/ssq.html?limit=100&view=previous",
+        "source_tier": "ISSUER_PROVINCIAL"
+      },
+      {
+        "issue": "2026128",
+        "draw_date": "2026-11-08",
+        "front": [
+          5,
+          6,
+          10,
+          25,
+          27,
+          30
+        ],
+        "back": [
+          11
+        ],
+        "source_url": "https://www.swlc.net.cn/lottery/ssq.html?limit=100&view=previous",
+        "source_tier": "ISSUER_PROVINCIAL"
+      },
+      {
+        "issue": "2026129",
+        "draw_date": "2026-11-10",
+        "front": [
+          3,
+          9,
+          16,
+          20,
+          25,
+          30
+        ],
+        "back": [
+          5
+        ],
+        "source_url": "https://www.swlc.net.cn/lottery/ssq.html?limit=100&view=previous",
+        "source_tier": "ISSUER_PROVINCIAL"
+      },
+      {
+        "issue": "2026130",
+        "draw_date": "2026-11-12",
+        "front": [
+          1,
+          2,
+          6,
+          16,
+          20,
+          28
+        ],
+        "back": [
+          2
+        ],
+        "source_url": "https://www.swlc.net.cn/lottery/ssq.html?limit=100&view=previous",
+        "source_tier": "ISSUER_PROVINCIAL"
+      }
+    ],
+    "dlt": [
+      {
+        "issue": "26109",
+        "draw_date": "2026-09-23",
+        "front": [
+          12,
+          14,
+          16,
+          27,
+          34
+        ],
+        "back": [
+          4,
+          8
+        ],
+        "source_url": "https://www.gdlottery.cn/f_html/kjgg/P085_26109.html",
+        "source_tier": "ISSUER_PROVINCIAL"
+      },
+      {
+        "issue": "26110",
+        "draw_date": "2026-09-26",
+        "front": [
+          3,
+          24,
+          25,
+          26,
+          35
+        ],
+        "back": [
+          7,
+          9
+        ],
+        "source_url": "https://www.js-lottery.com/cms/post-147965.html",
+        "source_tier": "ISSUER_PROVINCIAL"
+      },
+      {
+        "issue": "26111",
+        "draw_date": "2026-09-28",
+        "front": [
+          10,
+          11,
+          17,
+          26,
+          29
+        ],
+        "back": [
+          1,
+          3
+        ],
+        "source_url": "https://api.js-lottery.com/cms/post-147976.html",
+        "source_tier": "ISSUER_PROVINCIAL"
+      },
+      {
+        "issue": "26112",
+        "draw_date": "2026-09-30",
+        "front": [
+          1,
+          3,
+          5,
+          10,
+          22
+        ],
+        "back": [
+          3,
+          9
+        ],
+        "source_url": "https://www.js-lottery.com/cms/post-147994.html",
+        "source_tier": "ISSUER_PROVINCIAL"
+      },
+      {
+        "issue": "26113",
+        "draw_date": "2026-10-05",
+        "front": [
+          2,
+          4,
+          6,
+          10,
+          11
+        ],
+        "back": [
+          1,
+          10
+        ],
+        "source_url": "https://api.js-lottery.com/cms/post-147999.html",
+        "source_tier": "ISSUER_PROVINCIAL"
+      },
+      {
+        "issue": "26114",
+        "draw_date": "2026-10-07",
+        "front": [
+          8,
+          12,
+          15,
+          29,
+          30
+        ],
+        "back": [
+          9,
+          12
+        ],
+        "source_url": "https://www.js-lottery.com/cms/post-148006.html",
+        "source_tier": "ISSUER_PROVINCIAL"
+      },
+      {
+        "issue": "26115",
+        "draw_date": "2026-10-10",
+        "front": [
+          12,
+          20,
+          32,
+          33,
+          35
+        ],
+        "back": [
+          6,
+          7
+        ],
+        "source_url": "https://www.js-lottery.com/cms/post-148030.html",
+        "source_tier": "ISSUER_PROVINCIAL"
+      },
+      {
+        "issue": "26116",
+        "draw_date": "2026-10-12",
+        "front": [
+          9,
+          18,
+          22,
+          25,
+          35
+        ],
+        "back": [
+          1,
+          10
+        ],
+        "source_url": "https://www.js-lottery.com/cms/post-148040.html",
+        "source_tier": "ISSUER_PROVINCIAL"
+      },
+      {
+        "issue": "26117",
+        "draw_date": "2026-10-14",
+        "front": [
+          4,
+          13,
+          19,
+          29,
+          31
+        ],
+        "back": [
+          2,
+          12
+        ],
+        "source_url": "https://www.js-lottery.com/cms/post-148054.html",
+        "source_tier": "ISSUER_PROVINCIAL"
+      },
+      {
+        "issue": "26118",
+        "draw_date": "2026-10-17",
+        "front": [
+          2,
+          9,
+          21,
+          26,
+          32
+        ],
+        "back": [
+          6,
+          12
+        ],
+        "source_url": "https://www.cqtcw.net/h5/aritcle/1561136731621253120/h5/content_1561136731621253120.html",
+        "source_tier": "ISSUER_PROVINCIAL"
+      },
+      {
+        "issue": "26119",
+        "draw_date": "2026-10-19",
+        "front": [
+          3,
+          6,
+          20,
+          24,
+          32
+        ],
+        "back": [
+          4,
+          7
+        ],
+        "source_url": "https://api.js-lottery.com/cms/post-148095.html",
+        "source_tier": "ISSUER_PROVINCIAL"
+      },
+      {
+        "issue": "26120",
+        "draw_date": "2026-10-21",
+        "front": [
+          1,
+          6,
+          10,
+          15,
+          32
+        ],
+        "back": [
+          3,
+          4
+        ],
+        "source_url": "https://api.js-lottery.com/wfzq/dlt/data",
+        "source_tier": "ISSUER_PROVINCIAL"
+      },
+      {
+        "issue": "26121",
+        "draw_date": "2026-10-24",
+        "front": [
+          6,
+          8,
+          19,
+          24,
+          25
+        ],
+        "back": [
+          1,
+          8
+        ],
+        "source_url": "https://api.js-lottery.com/wfzq/dlt/data",
+        "source_tier": "ISSUER_PROVINCIAL"
+      },
+      {
+        "issue": "26122",
+        "draw_date": "2026-10-26",
+        "front": [
+          2,
+          14,
+          21,
+          22,
+          24
+        ],
+        "back": [
+          2,
+          12
+        ],
+        "source_url": "https://api.js-lottery.com/wfzq/dlt/data",
+        "source_tier": "ISSUER_PROVINCIAL"
+      },
+      {
+        "issue": "26123",
+        "draw_date": "2026-10-28",
+        "front": [
+          13,
+          18,
+          19,
+          20,
+          28
+        ],
+        "back": [
+          9,
+          11
+        ],
+        "source_url": "https://api.js-lottery.com/wfzq/dlt/data",
+        "source_tier": "ISSUER_PROVINCIAL"
+      },
+      {
+        "issue": "26124",
+        "draw_date": "2026-10-31",
+        "front": [
+          12,
+          14,
+          18,
+          22,
+          27
+        ],
+        "back": [
+          1,
+          9
+        ],
+        "source_url": "https://api.js-lottery.com/wfzq/dlt/data",
+        "source_tier": "ISSUER_PROVINCIAL"
+      },
+      {
+        "issue": "26125",
+        "draw_date": "2026-11-02",
+        "front": [
+          12,
+          13,
+          23,
+          25,
+          29
+        ],
+        "back": [
+          7,
+          10
+        ],
+        "source_url": "https://api.js-lottery.com/wfzq/dlt/data",
+        "source_tier": "ISSUER_PROVINCIAL"
+      },
+      {
+        "issue": "26126",
+        "draw_date": "2026-11-04",
+        "front": [
+          5,
+          11,
+          17,
+          25,
+          34
+        ],
+        "back": [
+          4,
+          6
+        ],
+        "source_url": "https://api.js-lottery.com/wfzq/dlt/data",
+        "source_tier": "ISSUER_PROVINCIAL"
+      },
+      {
+        "issue": "26127",
+        "draw_date": "2026-11-07",
+        "front": [
+          5,
+          6,
+          17,
+          18,
+          27
+        ],
+        "back": [
+          3,
+          12
+        ],
+        "source_url": "https://api.js-lottery.com/wfzq/dlt/data",
+        "source_tier": "ISSUER_PROVINCIAL"
+      },
+      {
+        "issue": "26128",
+        "draw_date": "2026-11-09",
+        "front": [
+          3,
+          13,
+          20,
+          25,
+          34
+        ],
+        "back": [
+          9,
+          12
+        ],
+        "source_url": "https://api.js-lottery.com/wfzq/dlt/data",
+        "source_tier": "ISSUER_PROVINCIAL"
+      },
+      {
+        "issue": "26129",
+        "draw_date": "2026-11-11",
+        "front": [
+          2,
+          12,
+          14,
+          17,
+          33
+        ],
+        "back": [
+          7,
+          8
+        ],
+        "source_url": "https://api.js-lottery.com/wfzq/dlt/data",
+        "source_tier": "ISSUER_PROVINCIAL"
+      }
+    ]
+  },
+  "notes": [
+    "SSQ 2026110–2026130 from Shanghai Provincial Welfare Lottery Center published official history.",
+    "DLT 26109–26129 reconciled with official provincial sports lottery issue announcements in Jiangsu, Guangdong, Chongqing and provincial history.",
+    "The source URL and issue numbers are traceable public issuer information, but this GitHub runner does not independently authenticate source response bytes or provide a cryptographically trusted pre-draw seal."
+  ]
+}

@@ -28,7 +28,7 @@ def inspect_run(report_path, frozen_dir, expected_targets, latest_verified):
     evidence = {"schema": "SSQDLT_V47_11_MODEL_EXECUTION_EVIDENCE_V1",
                 "report_sha256": hashlib.sha256(raw).hexdigest(),
                 "verified_from": "GITHUB_ACTIONS_EXECUTION",
-                "input_source": "CHECKED_IN_HISTORICAL_SNAPSHOT",
+                "input_source": "CHECKED_IN_SEED_PLUS_CITED_DELTA",
                 "source_current_verification": False,
                 "expected_ticket_count": 22,
                 "games": {}}
@@ -124,8 +124,13 @@ def inspect_run(report_path, frozen_dir, expected_targets, latest_verified):
     evidence["ticket_count"] = sum(v["ticket_count"] for v in evidence["games"].values())
     if evidence["ticket_count"] != 22:
         raise ValueError("expected exactly 22 model-labelled output rows")
-    evidence["source_current_verification"] = all(
+    # Equality to a published issue is freshness, NOT authentication.
+    # The delta includes eight DLT rows from a secondary historical provider,
+    # and no issuer API response is independently attested in this job.
+    evidence["history_issue_matches_latest"] = all(
         g["source_is_fresh"] for g in evidence["games"].values())
+    evidence["source_current_verification"] = False
+    evidence["source_provenance"] = "CITED_PROVINCIAL_ISSUER_PUBLISHED_NOT_LIVE_AUTHENTICATED"
     return evidence
 
 

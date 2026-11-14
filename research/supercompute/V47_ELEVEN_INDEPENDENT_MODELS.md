@@ -64,3 +64,19 @@ The pair-residual model fits a pair-conditioned marginal vector, the statistical
 The evolution engine accepts an explicit previously frozen champion and now records the **inherited parent genome ID and `inherited_prior_run` origin** in the initial generation. This verifies code-level transfer across runs; it does not prove that the scheduled GitHub evidence ledger has triggered twice or that future fresh outcomes have been ingested.
 
 The 22-row report output and new scheduled receipts fail closed if fewer than 11 M2 and 11 M3 audit records exist for either game. Historical immutable three-row/five-audit receipts remain readable in legacy mode. A source-date or physics-calibration gate is not silently disabled by successful unit tests.
+
+
+## 2026-11-14 source-date repair and provenance status
+
+The former repository sources were only SSQ 2026109 / DLT 26108. An immutable, additive 21+21 historical-draw delta has been prepared at `research/supercompute/data/v47_20261114_draw_delta.json`. The importer is `v47_merge_history.py`; it rejects out-of-order/duplicate/missing issues, invalid ticket numbers, non-monotonic draw dates, unexpected authority domains, and overwritten outputs. It stores a create-once SHA256 merge receipt that preserves each original seed's byte digest. The historical *seeds* are NOT edited.
+
+Published issue coverage: SSQ 2026110–2026130, DLT 26109–26129. The SSQ rows were transcribed from Shanghai Welfare Lottery Center's official history (https://www.swlc.net.cn/lottery/ssq.html?limit=100&view=previous). DLT 26109–26129 are now cross-referenced against provincial official Sports Lottery histories and individual issue announcements from Jiangsu (https://www.js-lottery.com/), Guangdong (https://www.gdlottery.cn/), and Chongqing (https://www.cqtcw.net/). All 21 DLT delta records carry a provincial-issuer URL, not a secondary-only URL.
+
+**Source authentication is NOT PASS.** Provincial issuer pages and valid draw formats do not by themselves prove a signed live fetch was performed by the GitHub runner. The merge result flags zero remaining secondary-only records but still marks `live_official_source_verified=false`. The CI run can compute recently published issue numbers, but may not label them independently official-attested or predraw-verified. After 2026-11-14, the source must be refreshed again: the delta is a dated snapshot, not continuous automated ingestion. No future draws are invented.
+
+Reproduce without touching the old snapshots:
+
+    python -m research.supercompute.v47_merge_history --output-dir run/current
+    python -m research.supercompute.v47_forecast generate --game both --ssq-data run/current/ssq-merged-history.json --dlt-data run/current/dlt-merged-history.json --ssq-target 2026131 --dlt-target 26130 --output run/current/forecasts.json --freeze-dir run/current/frozen
+
+External official provenance should be independently reconciled and fetched in a network-isolated immutable source-ingestion stage before promoting this to trusted official input.
