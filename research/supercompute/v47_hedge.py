@@ -373,7 +373,7 @@ def score_one(record, actual, game):
                 "fair_subset": fair_pair(game)["subset"],
                 "front_hits": len(set(ticket["front"]) & set(actual["front"])),
                 "back_hits": len(set(ticket["back"]) & set(actual["back"]))}
-    if record["direction"] == "not_subset":
+    if record["direction"] == "disjoint":
         return NegativeBase.score(NegativeBase(), record["prediction"], actual, game)
     raise ValueError("unknown hedge direction")
 
@@ -404,7 +404,7 @@ def _run_22_core(rows, game, *, seed, generations, validation, holdout,
         validate_ticket(prediction["ticket"], game)
         records.append({"model_id": f"M{index:02d}-",
                         "base_name": negative.label,
-                        "direction": "not_subset", "fit": fitted,
+                        "direction": "disjoint", "fit": fitted,
                         "prediction": prediction, "status": "EXECUTED",
                         "class": type(negative).__name__})
     if len(records) != 22 or [x["model_id"] for x in records] != [x[0] for x in REGISTRY_22]:
@@ -433,8 +433,8 @@ def historical_audit(rows, game, *, seed, holdout, validation, mc_trials,
             event = score_one(item, actual, game)
             is_positive = item["direction"] == "subset"
             observed = int(event["subset_event"] if is_positive
-                           else event["negative_event_not_subset"])
-            empirical = (fair["subset"] if is_positive else fair["not_subset"])
+                           else event["negative_event_disjoint"])
+            empirical = (fair["subset"] if is_positive else fair["disjoint"])
             if is_positive:
                 selected = item["prediction"]["ticket"]["dan2"]
                 sample = past[-120:]
@@ -445,7 +445,7 @@ def historical_audit(rows, game, *, seed, holdout, validation, mc_trials,
                 predicted = max(1e-5, min(1 - 1e-5,
                     .7 * smoothed_joint + .3 * independent_proxy))
             else:
-                predicted = item["prediction"]["estimated_not_subset_probability"]
+                predicted = item["prediction"]["estimated_disjoint_probability"]
             series[item["model_id"]].append((predicted, observed, empirical))
     audits = {}
     for name, samples in series.items():
@@ -456,7 +456,7 @@ def historical_audit(rows, game, *, seed, holdout, validation, mc_trials,
         calibrated = [(fairp + best * (p - fairp), y)
                       for p, y, fairp in test]
         positive = name.endswith("+")
-        fair_prob = fair["subset"] if positive else fair["not_subset"]
+        fair_prob = fair["subset"] if positive else fair["disjoint"]
         audits[name] = {"M1": {"status": "PASS", "legal": True},
             "M2": m2_refutation([y for _, y, _ in samples], fair_prob),
             "M3": {"status": "PASS", "calibration": "chronological_shrink_to_fair",
@@ -465,7 +465,7 @@ def historical_audit(rows, game, *, seed, holdout, validation, mc_trials,
                    "raw": m3_calibration([(p, y) for p, y, _ in test]),
                    "calibrated": m3_calibration(calibrated)},
             "fair_event_probability": fair_prob,
-            "direction": "subset" if positive else "not_subset",
+            "direction": "subset" if positive else "disjoint",
             "not_prospective_edge": True}
     return {"status": "PASS", "models": audits, "model_count": 22,
             "folds": fold_issues, "multiple_tests_adjusted": False,
@@ -491,7 +491,7 @@ def run_hedge22(rows, game, target, *, seed=2026, generations=2,
         ticket.update({"model_id": record["model_id"],
                        "base_name": record["base_name"],
                        "direction": record["direction"]})
-        if record["direction"] == "not_subset":
+        if record["direction"] == "disjoint":
             ticket["excluded_pair"] = record["prediction"]["excluded_pair"]
         tickets.append(ticket)
     return {"schema": "SSQDLT_V47_HEDGE22_GAME_V1",
