@@ -104,11 +104,19 @@ class LiveScheduleLedgerTests(unittest.TestCase):
                 models[name] = {
                     "base_name": cls.label,
                     "fit": fit,
-                    "direction": "subset" if sign == "+" else "not_subset",
+                    "direction": "subset" if sign == "+" else "disjoint",
                     "prediction": pred}
-        game_report = {"schema": "SSQDLT_V47_HEDGE22_GAME_V1",
+        game_report = {"schema": "SSQDLT_V47_HEDGE22_GAME_V2",
                        "game": game, "target_issue": target,
                        "ticket_count": 22, "model_count": 22, "models": models,
+                       "joint_search": {
+                           "schema": "SSQDLT_V47_JOINT_HARD_CONSTRAINT_V1",
+                           "game": game,
+                           "constraints": {
+                               "required": [1, 3] if game == "ssq" else [2, 5],
+                               "excluded": [15, 16]},
+                           "tickets": [one] * 8,
+                           "fair_probability_constraints_all_correct": .02},
                        "history_sha256": hashlib.sha256(
                            canonical(data["draws"])).hexdigest(),
                        "historical_validation": {"models":
@@ -117,11 +125,11 @@ class LiveScheduleLedgerTests(unittest.TestCase):
                            "base_champion": {"mix": .4},
                            "negative_champions": champions}}
         freezedir.joinpath(f"{game}-{target}-hedge22.json").write_bytes(
-            canonical({"schema": "SSQDLT_V47_HEDGE22_FROZEN_V1",
+            canonical({"schema": "SSQDLT_V47_HEDGE22_FROZEN_V2",
                        "created_utc": "2026-11-14T02:00:00+00:00",
                        "source": game_report}))
         outpath.write_bytes(canonical({
-            "schema": "SSQDLT_V47_HEDGE22_RUN_V1",
+            "schema": "SSQDLT_V47_HEDGE22_RUN_V2",
             "ticket_count": 22, "games": {game: game_report}}))
         return type("P", (), {"returncode": 0})()
 
@@ -182,6 +190,8 @@ class LiveScheduleLedgerTests(unittest.TestCase):
                                  "OFFICIAL_PUBLISHER_HTML_OVERLAP_SCORED")
                 self.assertEqual(score["count"], 22)
                 self.assertEqual(len(score["models"]), 22)
+                self.assertTrue(score["strict_disjoint_verified"])
+                self.assertIn("joint", score)
                 self.assertFalse(score["trusted_predraw_seal"])
             self.assertEqual(verify(home)["count"], 3)
             item = next((ledger / "hedge44/frozen").glob("ssq-*-hedge22.json"))
