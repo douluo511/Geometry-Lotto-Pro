@@ -162,11 +162,15 @@ class SetRelationsAcceptance(unittest.TestCase):
             front = actual["front"]
             absent = next(n for n in range(1, SPECS[game][0] + 1)
                           if n not in front)
+            other = next(n for n in range(1, SPECS[game][0] + 1)
+                         if n not in front and n != absent)
+            legal_front = sorted((set(front) - {front[1]}) | {other})
             search = {"game": game,
                       "constraints": {
                           "required": [front[0]],
                           "excluded": [front[1], absent]},
-                      "tickets": [actual],
+                      "tickets": [{"front": legal_front,
+                                   "back": list(actual["back"])}],
                       "fair_probability_constraints_all_correct": .2}
             result = score_joint_search(search, actual, game)
             self.assertTrue(result["positive_membership"]["contained"])
@@ -175,6 +179,10 @@ class SetRelationsAcceptance(unittest.TestCase):
             self.assertTrue(result[
                 "negative_partial_not_subset_is_not_m_minus_success"])
             self.assertFalse(result["joint_filter_keeps_actual_front"])
+            self.assertEqual(result["exact_jackpot_ticket_hits"], 0)
+            search["tickets"] = [actual]
+            with self.assertRaises(ValueError):
+                score_joint_search(search, actual, game)
 
 
 if __name__ == "__main__":
