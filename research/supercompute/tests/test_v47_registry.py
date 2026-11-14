@@ -146,6 +146,13 @@ class ElevenIndependentModelTests(unittest.TestCase):
                                  validation=3, holdout=2, mc_trials=20,
                                  physics_steps=2, previous_champion=prior)
         self.assertTrue(run["models"]["Challenger"]["fit"]["inherited"])
+        from research.supercompute.v47_integrated import cell_division
+        e = cell_division(rows, "ssq", seed=11, generations=1, validation=3,
+                          previous_champion=prior)
+        self.assertTrue(e["inherited_parent_present_in_initial_population"])
+        self.assertIsNotNone(e["inherited_champion_id"])
+        self.assertTrue(any(c["origin"] == "inherited_prior_run"
+                            for c in e["lineage"][0]["evaluated"]))
 
 
 if __name__ == "__main__":
