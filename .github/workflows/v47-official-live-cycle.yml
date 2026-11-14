@@ -46,8 +46,8 @@ jobs:
             --ssq-data "$RUNNER_TEMP/v47-published/ssq-merged-history.json" \
             --dlt-data "$RUNNER_TEMP/v47-published/dlt-merged-history.json" \
             --out-dir "$RUNNER_TEMP/v47-live"
-      - name: Derive real future targets from issuer HTML, execute and freeze 22 model tickets
-        if: steps.live.outcome == 'success'
+      - name: Preview real-issue 22-model freezes (PR/manual only; schedule uses persisted ledger)
+        if: steps.live.outcome == 'success' && github.event_name != 'schedule'
         shell: bash
         run: |
           set -euo pipefail
