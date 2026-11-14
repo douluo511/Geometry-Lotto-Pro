@@ -515,7 +515,7 @@ def run_hedge22(rows, game, target, *, seed=2026, generations=2,
         if record["direction"] == "disjoint":
             ticket["excluded_pair"] = record["prediction"]["excluded_pair"]
         tickets.append(ticket)
-    return {"schema": "SSQDLT_V47_HEDGE22_GAME_V1",
+    return {"schema": "SSQDLT_V47_HEDGE22_GAME_V2",
             "game": game, "target_issue": str(target),
             "history_last_issue": str(rows[-1]["issue"]),
             "history_sha256": hashlib.sha256(canonical(rows)).hexdigest(),
@@ -539,14 +539,16 @@ def score_frozen(path, expected_sha256, actual):
     if hashlib.sha256(raw).hexdigest() != expected_sha256:
         raise ValueError("frozen 22-model SHA mismatch")
     doc = json.loads(raw)
-    if doc.get("schema") != "SSQDLT_V47_HEDGE22_FROZEN_V1":
+    if doc.get("schema") not in ("SSQDLT_V47_HEDGE22_FROZEN_V1",
+                                 "SSQDLT_V47_HEDGE22_FROZEN_V2"):
         raise ValueError("wrong frozen schema")
     payload = doc["source"]
     game = payload["game"]
     if str(actual.get("issue")) != payload["target_issue"]:
         raise ValueError("actual issue is not prediction target")
     validate_ticket(actual, game)
-    strict = "joint_search" in payload
+    strict = (doc["schema"] == "SSQDLT_V47_HEDGE22_FROZEN_V2"
+              and "joint_search" in payload)
     if not strict:
         # Immutable old frozen forecasts must stay scoreable, but NEVER
         # rebrand their partial-exclusion target as a strict M- success.
@@ -611,11 +613,11 @@ def main(argv=None):
         if getattr(args, game + "_data") is None or not getattr(args, game + "_target"):
             raise ValueError("a data path and target issue are required per selected game")
     previous = json.loads(args.previous.read_bytes()) if args.previous else None
-    if previous and previous.get("schema") == "SSQDLT_V47_HEDGE22_FROZEN_V1":
-        previous = {"schema": "SSQDLT_V47_HEDGE22_RUN_V1",
+    if previous and previous.get("schema") == "SSQDLT_V47_HEDGE22_FROZEN_V2":
+        previous = {"schema": "SSQDLT_V47_HEDGE22_RUN_V2",
                     "games": {previous["source"]["game"]: previous["source"]}}
     if previous and previous.get("schema") not in (
-            "SSQDLT_V47_HEDGE44_RUN_V1", "SSQDLT_V47_HEDGE22_RUN_V1"):
+            "SSQDLT_V47_HEDGE44_RUN_V2", "SSQDLT_V47_HEDGE22_RUN_V2"):
         raise ValueError("previous hedge run has incompatible schema")
     games = {}
     for game in selected:
@@ -630,8 +632,8 @@ def main(argv=None):
                                   physics_steps=args.physics_steps,
                                   previous=prior)
     count = sum(v["ticket_count"] for v in games.values())
-    report = {"schema": ("SSQDLT_V47_HEDGE44_RUN_V1"
-                         if len(games) == 2 else "SSQDLT_V47_HEDGE22_RUN_V1"),
+    report = {"schema": ("SSQDLT_V47_HEDGE44_RUN_V2"
+                         if len(games) == 2 else "SSQDLT_V47_HEDGE22_RUN_V2"),
               "games": games, "model_count_per_game": 22,
               "ticket_count": count, "edge": "NO_EDGE",
               "formal_prediction": False}
@@ -640,7 +642,7 @@ def main(argv=None):
         f.write(canonical(report))
     freezes = {}
     for game, source in games.items():
-        doc = {"schema": "SSQDLT_V47_HEDGE22_FROZEN_V1",
+        doc = {"schema": "SSQDLT_V47_HEDGE22_FROZEN_V2",
                "created_utc": datetime.now(timezone.utc).isoformat(),
                "source": source, "formal_prediction": False,
                "external_predraw_seal": False}
