@@ -1,0 +1,200 @@
+name: V4.7 official live source and issue-scoring gate
+
+on:
+  schedule:
+    # 18:41 and 23:41 Beijing (UTC+8); GitHub may delay/skip schedules.
+    - cron: '41 10,15 * * *'
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'research/supercompute/v47_official_ingest.py'
+      - 'research/supercompute/v47_official_score.py'
+      - 'research/supercompute/v47_live_ledger.py'
+      - 'research/supercompute/tests/test_v47_official_*.py'
+      - '.github/workflows/v47-official-live-cycle.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: v47-official-live-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  official-source-check:
+    outputs:
+      verified: ${{ steps.live.outcome }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Official HTML parser and post-publication score contract tests
+        run: |
+          python -m unittest discover -s research/supercompute/tests -p 'test_v47_official_ingest.py' -v
+          python -m unittest discover -s research/supercompute/tests -p 'test_v47_official_score.py' -v
+          python -m unittest discover -s research/supercompute/tests -p 'test_v47_live_ledger.py' -v
+      - name: Build checked-in seed and issued-draw delta without modifying either
+        run: python -m research.supercompute.v47_merge_history --output-dir "$RUNNER_TEMP/v47-published"
+      - name: Fetch and cross-check two independently published issuer HTML tables
+        id: live
+        continue-on-error: true
+        run: |
+          python -m research.supercompute.v47_official_ingest \
+            --ssq-data "$RUNNER_TEMP/v47-published/ssq-merged-history.json" \
+            --dlt-data "$RUNNER_TEMP/v47-published/dlt-merged-history.json" \
+            --out-dir "$RUNNER_TEMP/v47-live"
+      - name: Preview real-issue 22-model freezes (PR/manual only; schedule uses persisted ledger)
+        if: steps.live.outcome == 'success' && github.event_name != 'schedule'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, os
+          from datetime import datetime, timezone
+          from research.supercompute.v47_live_ledger import next_nominal_draw
+          root = os.environ['RUNNER_TEMP'] + '/v47-live'
+          data = json.load(open(root + '/official-ingest-receipt.json'))
+          for game in ('ssq', 'dlt'):
+              history = json.load(open(root + '/' + game + '-verified-history.json'))['draws']
+              last = history[-1]
+              if datetime.now(timezone.utc) >= next_nominal_draw(last['draw_date'], game):
+                  raise SystemExit('SOURCE_LATE_FOR_' + game + '_NO_NEW_PREDICTION')
+              target = data['games'][game]['new_target_issue']
+              if target != str(int(last['issue']) + 1):
+                  raise SystemExit('LIVE_ISSUE_INCONSISTENT')
+              with open(root + '/targets.env', 'a') as f:
+                  f.write(game.upper() + '_TARGET=' + target + '\n')
+          PY
+          source "$RUNNER_TEMP/v47-live/targets.env"
+          python -m research.supercompute.v47_forecast generate \
+            --game both \
+            --ssq-data "$RUNNER_TEMP/v47-live/ssq-verified-history.json" \
+            --dlt-data "$RUNNER_TEMP/v47-live/dlt-verified-history.json" \
+            --ssq-target "$SSQ_TARGET" --dlt-target "$DLT_TARGET" \
+            --seed 20261114 --generations 2 --validation 6 \
+            --holdout 3 --mc-trials 300 --physics-steps 30 \
+            --output "$RUNNER_TEMP/v47-live/research-22.json" \
+            --freeze-dir "$RUNNER_TEMP/v47-live/frozen"
+          python -m research.supercompute.v47_official_score \
+            --frozen-dir "$RUNNER_TEMP/v47-live/frozen" \
+            --source-dir "$RUNNER_TEMP/v47-live" \
+            --output-dir "$RUNNER_TEMP/v47-live/published-scores"
+          python - <<'PY'
+          import json, os
+          p=json.load(open(os.environ['RUNNER_TEMP']+'/v47-live/research-22.json'))
+          assert set(p['games']) == {'ssq','dlt'}
+          assert sum(x['ticket_count'] for x in p['games'].values()) == 22
+          assert all(len(x['validation']['M2'])==11 and
+                     len(x['validation']['M3'])==11 for x in p['games'].values())
+          print('V47_LIVE_REAL_TARGET_22_ROWS_PASS')
+          PY
+      - name: Exercise full live ledger in isolated PR dry-run (never count as actual schedule)
+        if: github.event_name == 'pull_request' && steps.live.outcome == 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/v47-ledger-dry-run"
+          python -m research.supercompute.v47_live_ledger record \
+            --ledger "$RUNNER_TEMP/v47-ledger-dry-run" \
+            --source-dir "$RUNNER_TEMP/v47-live" \
+            --run-id 999111 --run-attempt 1 \
+            --commit-sha "$GITHUB_SHA" --event schedule \
+            | tee "$RUNNER_TEMP/v47-live/ledger-dry-run.json"
+          python -m research.supercompute.v47_live_ledger verify \
+            --ledger "$RUNNER_TEMP/v47-ledger-dry-run"
+          echo 'LEDGER_DRY_RUN_ONLY: no actual event=schedule and no remote ledger write' >> "$GITHUB_STEP_SUMMARY"
+      - name: Show explicit authentication/failure result
+        if: always()
+        shell: bash
+        run: |
+          if [ "${{ steps.live.outcome }}" = success ]; then
+            echo 'PUBLISHER_TABLE_OVERLAP=PASS; SIGNED_ISSUER_ATTESTATION=UNVERIFIED' | tee -a "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'PUBLISHER_TABLE_OVERLAP=UNVERIFIED; NO_FORECAST_OR_SCORE_ALLOWED' | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Publish read-only issuer source evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v47-live-source-check-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/v47-published/merge-receipt.json
+            ${{ runner.temp }}/v47-live/official-ingest-receipt.json
+            ${{ runner.temp }}/v47-live/ssq-verified-history.json
+            ${{ runner.temp }}/v47-live/dlt-verified-history.json
+            ${{ runner.temp }}/v47-live/ssq-publisher-raw.html
+            ${{ runner.temp }}/v47-live/dlt-publisher-raw.html
+            ${{ runner.temp }}/v47-live/research-22.json
+            ${{ runner.temp }}/v47-live/ledger-dry-run.json
+            ${{ runner.temp }}/v47-live/frozen/
+            ${{ runner.temp }}/v47-live/published-scores/
+            ${{ runner.temp }}/v47-live/failure-receipt.json
+          if-no-files-found: error
+
+
+  persist-live-schedule:
+    needs: official-source-check
+    if: >-
+      github.repository == 'douluo511/Geometry-Lotto-Pro' &&
+      github.ref == 'refs/heads/main' &&
+      github.event_name == 'schedule' &&
+      needs.official-source-check.outputs.verified == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Download issuer-verified raw HTML and histories from this scheduled run
+        uses: actions/download-artifact@v4
+        with:
+          name: v47-live-source-check-${{ github.run_id }}
+          path: ${{ runner.temp }}/v47-input
+      - name: Record real-next-issue 22 models, store freezes, score published past issues, verify restored branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          branch=ssqdlt-v47-live-ledger-v1
+          ref="refs/remotes/origin/$branch"
+          ledger="$RUNNER_TEMP/v47-live-ledger"
+          restored="$RUNNER_TEMP/v47-live-ledger-restored"
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null; then
+            git fetch --no-tags origin "refs/heads/$branch:$ref"
+            git worktree add --detach "$ledger" "$ref"
+          else
+            git worktree add --detach "$ledger" "$GITHUB_SHA"
+          fi
+          python -m research.supercompute.v47_live_ledger record \
+            --ledger "$ledger" \
+            --source-dir "$RUNNER_TEMP/v47-input/v47-live" \
+            --run-id "$GITHUB_RUN_ID" \
+            --run-attempt "$GITHUB_RUN_ATTEMPT" \
+            --commit-sha "$GITHUB_SHA" --event "$GITHUB_EVENT_NAME" \
+            | tee "$RUNNER_TEMP/v47-live-ledger-record.json"
+          git -C "$ledger" config user.name "github-actions[bot]"
+          git -C "$ledger" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C "$ledger" add research/v47_live_ledger
+          git -C "$ledger" commit -m "v47-live: issuer fetch, immutable frozen forecast and scores for run $GITHUB_RUN_ID"
+          git -C "$ledger" push origin "HEAD:refs/heads/$branch"
+          git fetch --no-tags origin "refs/heads/$branch:$ref"
+          git worktree add --detach "$restored" "$ref"
+          python -m research.supercompute.v47_live_ledger verify --ledger "$restored" \
+            | tee "$RUNNER_TEMP/v47-live-ledger-verification.json"
+      - name: Archive remote persistence evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v47-live-ledger-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/v47-live-ledger-record.json
+            ${{ runner.temp }}/v47-live-ledger-verification.json
+          if-no-files-found: warn
