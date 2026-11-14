@@ -72,8 +72,44 @@ class ElevenIndependentModelTests(unittest.TestCase):
             self.assertEqual(models["M1_M2_M3_Validation"]["prediction"]["legal_math_checks"], 11)
             self.assertEqual(len(models["M1_M2_M3_Validation"]["prediction"]["ensemble_from"]), 10)
             self.assertAlmostEqual(sum(models["M1_M2_M3_Validation"]["prediction"]["influence_weights"].values()), 1)
-            self.assertEqual(len(models["M1_M2_M3_Validation"]["fit"]["m2"]), 5)
-            self.assertEqual(len(models["M1_M2_M3_Validation"]["fit"]["m3_brier"]), 5)
+            self.assertEqual(len(models["M1_M2_M3_Validation"]["fit"]["m2"]), 11)
+            self.assertEqual(len(models["M1_M2_M3_Validation"]["fit"]["m3_brier"]), 11)
+
+    def test_all_eleven_walk_forward_m2_and_true_heldout_calibration(self):
+        for game, output in self.results.items():
+            audit = output["validation_all_11"]
+            self.assertEqual(audit["model_count"], 11)
+            self.assertEqual(len(audit["models"]), 11)
+            self.assertEqual(audit["method"], "chronological_walk_forward")
+            self.assertTrue(all(f["test_target_unseen_in_fit"] for f in audit["fold_evidence"]))
+            self.assertFalse(audit["uses_future_draws"])
+            for name, record in audit["models"].items():
+                self.assertEqual(record["m2"]["test"], "exact_binomial_fair_d2")
+                self.assertEqual(record["m2"]["trials"], 2)
+                self.assertEqual(record["m3"]["calibration_method"], "heldout_shrink_to_fair")
+                self.assertEqual(record["m3"]["training_fold_count"], 1)
+                self.assertGreater(record["m3"]["training_samples"], 0)
+                self.assertGreater(record["m3"]["independent_test_samples"], 0)
+                self.assertAlmostEqual(
+                    record["m3"]["recalibrated"]["samples"],
+                    record["m3"]["raw"]["samples"])
+            validation = output["models"]["M1_M2_M3_Validation"]
+            self.assertEqual(len(validation["prediction"]["independent_fair_d2_tests"]), 11)
+            self.assertEqual(len(validation["prediction"]["marginal_calibration"]), 11)
+
+    def test_pair_statistics_and_geometry_not_identical_probability_aliases(self):
+        for game, output in self.results.items():
+            models = output["models"]
+            probabilities = [models[name]["prediction"]["marginals"]["front"]
+                for name in ("ShrinkMix", "Pairwise-D2", "Statistics", "Geometry")]
+            self.assertEqual(len({tuple(round(x, 10) for x in p)
+                                  for p in probabilities}), 4)
+            for name, record in models.items():
+                fm, fp, bm, bp = SPECS[game]
+                for area, count in (("front", fp), ("back", bp)):
+                    self.assertAlmostEqual(
+                        sum(record["prediction"]["marginals"][area]), count,
+                        places=6, msg=name)
 
     def test_cell_division_has_real_genomes_and_lineage(self):
         for run in self.results.values():
