@@ -225,8 +225,12 @@ def construct_interval_search(records, game, profile, *, limit=8,
         key=lambda x: (-x[0], x[1], x[2]))[:limit]
     tickets = []
     for rank, (value, front, back) in enumerate(combos, 1):
+        required_front = list(areas["front"]["required"])
+        selected_dan = required_front[:2]
+        selected_dan += [n for n in front if n not in selected_dan][
+            :2 - len(selected_dan)]
         ticket = {"front": list(front), "back": list(back),
-                  "dan2": sorted(front[:2]),
+                  "dan2": sorted(selected_dan),
                   "heuristic_score": round(value, 9),
                   "formal_prediction": False, "rank": rank}
         validate_ticket(ticket, game)
