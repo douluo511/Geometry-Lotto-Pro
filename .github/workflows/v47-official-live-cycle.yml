@@ -10,6 +10,8 @@ on:
       - 'research/supercompute/v47_official_ingest.py'
       - 'research/supercompute/v47_official_score.py'
       - 'research/supercompute/v47_live_ledger.py'
+      - 'research/supercompute/v47_schedule_acceptance.py'
+      - 'research/supercompute/tests/test_v47_schedule_acceptance.py'
       - 'research/supercompute/tests/test_v47_official_*.py'
       - '.github/workflows/v47-official-live-cycle.yml'
 
@@ -36,6 +38,7 @@ jobs:
           python -m unittest discover -s research/supercompute/tests -p 'test_v47_official_ingest.py' -v
           python -m unittest discover -s research/supercompute/tests -p 'test_v47_official_score.py' -v
           python -m unittest discover -s research/supercompute/tests -p 'test_v47_live_ledger.py' -v
+          python -m unittest discover -s research/supercompute/tests -p 'test_v47_schedule_acceptance.py' -v
       - name: Build checked-in seed and issued-draw delta without modifying either
         run: python -m research.supercompute.v47_merge_history --output-dir "$RUNNER_TEMP/v47-published"
       - name: Fetch and cross-check two independently published issuer HTML tables
@@ -189,6 +192,17 @@ jobs:
           git worktree add --detach "$restored" "$ref"
           python -m research.supercompute.v47_live_ledger verify --ledger "$restored" \
             | tee "$RUNNER_TEMP/v47-live-ledger-verification.json"
+      - name: Independently audit genuine completed schedule history from GitHub API
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          python -m research.supercompute.v47_schedule_acceptance \
+            --ledger "$RUNNER_TEMP/v47-live-ledger-restored" \
+            --repo "$GITHUB_REPOSITORY" \
+            --output "$RUNNER_TEMP/v47-p0-acceptance.json"
+          echo 'Only completed real schedule events may count. In-progress current run remains PENDING.' >> "$GITHUB_STEP_SUMMARY"
       - name: Archive remote persistence evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -197,6 +211,7 @@ jobs:
           path: |
             ${{ runner.temp }}/v47-live-ledger-record.json
             ${{ runner.temp }}/v47-live-ledger-verification.json
+            ${{ runner.temp }}/v47-p0-acceptance.json
             ${{ runner.temp }}/v47-live-ledger/research/v47_live_ledger/hedge44/reports/
             ${{ runner.temp }}/v47-live-ledger/research/v47_live_ledger/hedge44/frozen/
             ${{ runner.temp }}/v47-live-ledger/research/v47_live_ledger/hedge44/scores/
