@@ -46,6 +46,50 @@ jobs:
             --ssq-data "$RUNNER_TEMP/v47-published/ssq-merged-history.json" \
             --dlt-data "$RUNNER_TEMP/v47-published/dlt-merged-history.json" \
             --out-dir "$RUNNER_TEMP/v47-live"
+      - name: Derive real future targets from issuer HTML, execute and freeze 22 model tickets
+        if: steps.live.outcome == 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, os
+          from datetime import datetime, timezone
+          from research.supercompute.v47_live_ledger import next_nominal_draw
+          root = os.environ['RUNNER_TEMP'] + '/v47-live'
+          data = json.load(open(root + '/official-ingest-receipt.json'))
+          for game in ('ssq', 'dlt'):
+              history = json.load(open(root + '/' + game + '-verified-history.json'))['draws']
+              last = history[-1]
+              if datetime.now(timezone.utc) >= next_nominal_draw(last['draw_date'], game):
+                  raise SystemExit('SOURCE_LATE_FOR_' + game + '_NO_NEW_PREDICTION')
+              target = data['games'][game]['new_target_issue']
+              if target != str(int(last['issue']) + 1):
+                  raise SystemExit('LIVE_ISSUE_INCONSISTENT')
+              with open(os.environ['GITHUB_ENV'], 'a') as f:
+                  f.write(game.upper() + '_TARGET=' + target + '\n')
+          PY
+          python -m research.supercompute.v47_forecast generate \
+            --game both \
+            --ssq-data "$RUNNER_TEMP/v47-live/ssq-verified-history.json" \
+            --dlt-data "$RUNNER_TEMP/v47-live/dlt-verified-history.json" \
+            --ssq-target "$SSQ_TARGET" --dlt-target "$DLT_TARGET" \
+            --seed 20261114 --generations 2 --validation 6 \
+            --holdout 3 --mc-trials 300 --physics-steps 30 \
+            --output "$RUNNER_TEMP/v47-live/research-22.json" \
+            --freeze-dir "$RUNNER_TEMP/v47-live/frozen"
+          python -m research.supercompute.v47_official_score \
+            --frozen-dir "$RUNNER_TEMP/v47-live/frozen" \
+            --source-dir "$RUNNER_TEMP/v47-live" \
+            --output-dir "$RUNNER_TEMP/v47-live/published-scores"
+          python - <<'PY'
+          import json, os
+          p=json.load(open(os.environ['RUNNER_TEMP']+'/v47-live/research-22.json'))
+          assert set(p['games']) == {'ssq','dlt'}
+          assert sum(x['ticket_count'] for x in p['games'].values()) == 22
+          assert all(len(x['validation']['M2'])==11 and
+                     len(x['validation']['M3'])==11 for x in p['games'].values())
+          print('V47_LIVE_REAL_TARGET_22_ROWS_PASS')
+          PY
       - name: Show explicit authentication/failure result
         if: always()
         shell: bash
@@ -67,6 +111,9 @@ jobs:
             ${{ runner.temp }}/v47-live/dlt-verified-history.json
             ${{ runner.temp }}/v47-live/ssq-publisher-raw.html
             ${{ runner.temp }}/v47-live/dlt-publisher-raw.html
+            ${{ runner.temp }}/v47-live/research-22.json
+            ${{ runner.temp }}/v47-live/frozen/
+            ${{ runner.temp }}/v47-live/published-scores/
             ${{ runner.temp }}/v47-live/failure-receipt.json
           if-no-files-found: error
 
