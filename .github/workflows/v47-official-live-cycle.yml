@@ -22,6 +22,8 @@ concurrency:
 
 jobs:
   official-source-check:
+    outputs:
+      verified: ${{ steps.live.outcome }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -33,6 +35,7 @@ jobs:
         run: |
           python -m unittest discover -s research/supercompute/tests -p 'test_v47_official_ingest.py' -v
           python -m unittest discover -s research/supercompute/tests -p 'test_v47_official_score.py' -v
+          python -m unittest discover -s research/supercompute/tests -p 'test_v47_live_ledger.py' -v
       - name: Build checked-in seed and issued-draw delta without modifying either
         run: python -m research.supercompute.v47_merge_history --output-dir "$RUNNER_TEMP/v47-published"
       - name: Fetch and cross-check two independently published issuer HTML tables
@@ -60,5 +63,74 @@ jobs:
           path: |
             ${{ runner.temp }}/v47-published/merge-receipt.json
             ${{ runner.temp }}/v47-live/official-ingest-receipt.json
+            ${{ runner.temp }}/v47-live/ssq-verified-history.json
+            ${{ runner.temp }}/v47-live/dlt-verified-history.json
+            ${{ runner.temp }}/v47-live/ssq-publisher-raw.html
+            ${{ runner.temp }}/v47-live/dlt-publisher-raw.html
             ${{ runner.temp }}/v47-live/failure-receipt.json
           if-no-files-found: error
+
+
+  persist-live-schedule:
+    needs: official-source-check
+    if: >-
+      github.repository == 'douluo511/Geometry-Lotto-Pro' &&
+      github.ref == 'refs/heads/main' &&
+      github.event_name == 'schedule' &&
+      needs.official-source-check.outputs.verified == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Download issuer-verified raw HTML and histories from this scheduled run
+        uses: actions/download-artifact@v4
+        with:
+          name: v47-live-source-check-${{ github.run_id }}
+          path: ${{ runner.temp }}/v47-input
+      - name: Record real-next-issue 22 models, store freezes, score published past issues, verify restored branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          branch=ssqdlt-v47-live-ledger-v1
+          ref="refs/remotes/origin/$branch"
+          ledger="$RUNNER_TEMP/v47-live-ledger"
+          restored="$RUNNER_TEMP/v47-live-ledger-restored"
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null; then
+            git fetch --no-tags origin "refs/heads/$branch:$ref"
+            git worktree add --detach "$ledger" "$ref"
+          else
+            git worktree add --detach "$ledger" "$GITHUB_SHA"
+          fi
+          python -m research.supercompute.v47_live_ledger record \
+            --ledger "$ledger" \
+            --source-dir "$RUNNER_TEMP/v47-input/v47-live" \
+            --run-id "$GITHUB_RUN_ID" \
+            --run-attempt "$GITHUB_RUN_ATTEMPT" \
+            --commit-sha "$GITHUB_SHA" --event "$GITHUB_EVENT_NAME" \
+            | tee "$RUNNER_TEMP/v47-live-ledger-record.json"
+          git -C "$ledger" config user.name "github-actions[bot]"
+          git -C "$ledger" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C "$ledger" add research/v47_live_ledger
+          git -C "$ledger" commit -m "v47-live: issuer fetch, immutable frozen forecast and scores for run $GITHUB_RUN_ID"
+          git -C "$ledger" push origin "HEAD:refs/heads/$branch"
+          git fetch --no-tags origin "refs/heads/$branch:$ref"
+          git worktree add --detach "$restored" "$ref"
+          python -m research.supercompute.v47_live_ledger verify --ledger "$restored" \
+            | tee "$RUNNER_TEMP/v47-live-ledger-verification.json"
+      - name: Archive remote persistence evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v47-live-ledger-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/v47-live-ledger-record.json
+            ${{ runner.temp }}/v47-live-ledger-verification.json
+          if-no-files-found: warn
